@@ -169,6 +169,7 @@
         <h2>5. 電氣功率計算</h2>
         
 
+[Image of three phase power diagram]
 
         <div class="formula">功率(W) = 1.732 * V * I * PF * η</div>
         <div class="input-item">
@@ -210,6 +211,8 @@
         <h2>7. 繞組電感計算</h2>
         
 
+[Image of motor Wye and Delta connection]
+
         <div class="formula">Y: 單相=L/2 | D: 單相=L*1.5</div>
         <div class="input-item">
             <label>接線方式:</label>
@@ -226,7 +229,29 @@
         <div id="l_res" class="res-box">等待計算...</div>
     </div>
 
-
+    <div class="block">
+        <h2>8. 三相 Y 接等效電路</h2>
+        
+        <div class="formula">I = V_ph / sqrt((Rs+Rr/s)² + X²)</div>
+        <div class="input-item">
+            <label>相電壓 (V_ph):</label>
+            <input type="number" id="ec_v" placeholder="Line V / 1.732">
+        </div>
+        <div class="input-item">
+            <label>定子電阻 Rs (Ω):</label>
+            <input type="number" id="ec_rs">
+        </div>
+        <div class="input-item">
+            <label>總感抗 X (Ω):</label>
+            <input type="number" id="ec_x">
+        </div>
+        <div class="input-item">
+            <label>轉差率 (s):</label>
+            <input type="number" id="ec_s" value="0.05">
+        </div>
+        <button class="calc-btn" onclick="calcEC()">推算負載電流</button>
+        <div id="ec_res" class="res-box">等待計算...</div>
+    </div>
 
 </div>
 
@@ -283,7 +308,12 @@
         document.getElementById('l_res').innerText = "單相繞組: " + (mode === 'Y' ? val / 2 : val * 1.5).toFixed(4) + " mH";
     }
 
-
+    // 8. Equivalent Circuit
+    function calcEC() {
+        let v = parseFloat(document.getElementById('ec_v').value), rs = parseFloat(document.getElementById('ec_rs').value);
+        let x = parseFloat(document.getElementById('ec_x').value), s = parseFloat(document.getElementById('ec_s').value) || 0.001;
+        let z = Math.sqrt(Math.pow(rs + (rs/s), 2) + Math.pow(x, 2));
+        document.getElementById('ec_res').innerText = "相電流: " + (v / z).toFixed(2) + " A";
     }
 </script>
 
