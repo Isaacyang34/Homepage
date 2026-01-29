@@ -15,55 +15,91 @@
         }
 
         [data-theme="dark"] {
-            --bg-color: #121212;
-            --card-bg: #1e1e1e;
-            --text-color: #e0e0e0;
-            --primary-color: #ff9800; /* 夜間橘 */
-            --accent-bg: #332200;
-            --formula-bg: #2d2d2d;
-            --border-color: #333333;
-        }
+                // 1. HP to kW
+                function convP(type) {
+                    const hpEl = document.getElementById('hp_in');
+                    const kwEl = document.getElementById('kw_in');
+                    const hp = parseFloat(hpEl.value);
+                    const kw = parseFloat(kwEl.value);
+                    if (type === 'hp') {
+                        if (!isNaN(hp)) kwEl.value = (hp * 0.7457).toFixed(4);
+                        else kwEl.value = '';
+                    } else {
+                        if (!isNaN(kw)) hpEl.value = (kw * 1.341).toFixed(4);
+                        else hpEl.value = '';
+                    }
+                }
 
-        body { 
-            font-family: "Microsoft JhengHei", sans-serif; 
-            background-color: var(--bg-color); 
-            color: var(--text-color);
-            padding: 20px; 
-            transition: all 0.3s ease;
-        }
+                // 2. Kt
+                function calcKt() {
+                    const v = parseFloat(document.getElementById('kt_v').value);
+                    const n = parseFloat(document.getElementById('kt_n').value);
+                    if (isNaN(v) || isNaN(n) || n <= 0) {
+                        document.getElementById('kt_res').innerText = '請輸入有效的電壓與轉速';
+                        return;
+                    }
+                    document.getElementById('kt_res').innerText = 'Kt: ' + (v / (n * 0.1047)).toFixed(4) + ' Nm/A';
+                }
 
-        .header { text-align: center; margin-bottom: 40px; }
-        h1 { color: var(--primary-color); }
+                // 3. BEMF
+                function calcBe() {
+                    const n = parseFloat(document.getElementById('be_n').value);
+                    const ke = parseFloat(document.getElementById('be_ke').value);
+                    if (isNaN(n) || isNaN(ke)) {
+                        document.getElementById('be_res').innerText = '請輸入有效的轉速與 Ke';
+                        return;
+                    }
+                    document.getElementById('be_res').innerText = 'BEMF: ' + ((n / 1000) * ke).toFixed(2) + ' V';
+                }
 
-        /* 切換按鈕 */
-        .theme-switch {
-            position: fixed; top: 20px; right: 20px;
-            padding: 12px 20px; background: var(--primary-color);
-            color: #fff; border: none; border-radius: 30px;
-            cursor: pointer; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-            z-index: 1000;
-        }
+                // 4. Frequency
+                function calcF() {
+                    const p = parseFloat(document.getElementById('f_p').value);
+                    const n = parseFloat(document.getElementById('f_n').value);
+                    const s = parseFloat(document.getElementById('f_s').value) / 100;
+                    if (isNaN(p) || isNaN(n)) {
+                        document.getElementById('f_res').innerText = '請輸入極數與轉速';
+                        return;
+                    }
+                    document.getElementById('f_res').innerText = '頻率: ' + ((p * n) / (120 * (1 - s))).toFixed(2) + ' Hz';
+                }
 
-        /* 響應式容器 */
-        .container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 25px;
-            justify-content: center;
-        }
+                // 5. Electrical Power
+                function calcP1() {
+                    const v = parseFloat(document.getElementById('p1_v').value);
+                    const i = parseFloat(document.getElementById('p1_i').value);
+                    const pf = parseFloat(document.getElementById('p1_pf').value);
+                    const e = parseFloat(document.getElementById('p1_e').value);
+                    if (isNaN(v) || isNaN(i) || isNaN(pf) || isNaN(e)) {
+                        document.getElementById('p1_res').innerText = '請輸入完整的電壓/電流/PF/效率';
+                        return;
+                    }
+                    const w = 1.732 * v * i * pf * e;
+                    document.getElementById('p1_res').innerText = '功率: ' + (w / 1000).toFixed(3) + ' kW';
+                }
 
-        /* 獨立積木框架 */
-        .block {
-            background: var(--card-bg);
-            width: 300px;
-            padding: 25px;
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            display: flex;
-            flex-direction: column;
-            border-top: 6px solid var(--primary-color);
-            transition: transform 0.2s;
-        }
+                // 6. Mechanical Power
+                function calcP2() {
+                    const t = parseFloat(document.getElementById('p2_t').value);
+                    const n = parseFloat(document.getElementById('p2_n').value);
+                    if (isNaN(t) || isNaN(n)) {
+                        document.getElementById('p2_res').innerText = '請輸入扭矩與轉速';
+                        return;
+                    }
+                    const w = (t * n) / 9.55;
+                    document.getElementById('p2_res').innerText = '功率: ' + (w / 1000).toFixed(3) + ' kW';
+                }
+
+                // 7. Inductance
+                function calcL() {
+                    const val = parseFloat(document.getElementById('l_val').value);
+                    const mode = document.getElementById('l_mode').value;
+                    if (isNaN(val)) {
+                        document.getElementById('l_res').innerText = '請輸入電感值';
+                        return;
+                    }
+                    document.getElementById('l_res').innerText = '單相繞組: ' + (mode === 'Y' ? (val / 2).toFixed(4) : (val * 1.5).toFixed(4)) + ' mH';
+                }
         .block:hover { transform: translateY(-5px); }
 
         h2 { font-size: 1.1rem; color: var(--primary-color); margin: 0 0 10px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 5px; }
