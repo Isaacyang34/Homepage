@@ -229,93 +229,480 @@
         <div id="l_res" class="res-box">等待計算...</div>
     </div>
 
-    <div class="block">
-        <h2>8. 三相 Y 接等效電路</h2>
-        
-        <div class="formula">I = V_ph / sqrt((Rs+Rr/s)² + X²)</div>
-        <div class="input-item">
-            <label>相電壓 (V_ph):</label>
-            <input type="number" id="ec_v" placeholder="Line V / 1.732">
+    
+
+        <div class="block">
+
+            <h2>8. 三相 Y 接等效電路</h2>
+
+            
+
+            <div class="formula">I = V_ph / sqrt((Rs+Rr/s)² + X²)</div>
+
+            <div class="input-item">
+
+                <label>相電壓 (V_ph):</label>
+
+                <input type="number" id="ec_v" placeholder="Line V / 1.732">
+
+            </div>
+
+            <div class="input-item">
+
+                <label>定子電阻 Rs (Ω):</label>
+
+                <input type="number" id="ec_rs">
+
+            </div>
+
+            <div class="input-item">
+
+                <label>總感抗 X (Ω):</label>
+
+                <input type="number" id="ec_x">
+
+            </div>
+
+            <div class="input-item">
+
+                <label>轉差率 (s):</label>
+
+                <input type="number" id="ec_s" value="0.05">
+
+            </div>
+
+            <button class="calc-btn" onclick="calcEC()">推算負載電流</button>
+
+            <div id="ec_res" class="res-box">等待計算...</div>
+
         </div>
-        <div class="input-item">
-            <label>定子電阻 Rs (Ω):</label>
-            <input type="number" id="ec_rs">
+
+    
+
+        <div class="block" style="width: 650px; flex-direction: row; flex-wrap: wrap; gap: 20px;">
+
+            <h2 style="width: 100%;">9. 馬達等效電路參數計算 (由測試數據)</h2>
+
+            
+
+            <div class="sub-block">
+
+                <h3>直流電阻測試 (DC Test)</h3>
+
+                <div class="input-item">
+
+                    <label>接線方式:</label>
+
+                    <select id="eq_conn_type">
+
+                        <option value="Y">Y 接 (星形)</option>
+
+                        <option value="D">Delta 接 (三角形)</option>
+
+                    </select>
+
+                </div>
+
+                <div class="input-item">
+
+                    <label>直流電壓 Vdc (V):</label>
+
+                    <input type="number" id="eq_vdc">
+
+                </div>
+
+                <div class="input-item">
+
+                    <label>直流電流 Idc (A):</label>
+
+                    <input type="number" id="eq_idc">
+
+                </div>
+
+            </div>
+
+    
+
+            <div class="sub-block">
+
+                <h3>無載測試 (No-Load Test)</h3>
+
+                <div class="input-item">
+
+                    <label>線電壓 V₀ (V):</label>
+
+                    <input type="number" id="eq_v0">
+
+                </div>
+
+                <div class="input-item">
+
+                    <label>線電流 I₀ (A):</label>
+
+                    <input type="number" id="eq_i0">
+
+                </div>
+
+                <div class="input-item">
+
+                    <label>總功率 P₀ (W):</label>
+
+                    <input type="number" id="eq_p0">
+
+                </div>
+
+            </div>
+
+    
+
+            <div class="sub-block">
+
+                <h3>堵轉測試 (Blocked-Rotor Test)</h3>
+
+                <div class="input-item">
+
+                    <label>線電壓 Vsc (V):</label>
+
+                    <input type="number" id="eq_vsc">
+
+                </div>
+
+                <div class="input-item">
+
+                    <label>線電流 Isc (A):</label>
+
+                    <input type="number" id="eq_isc">
+
+                </div>
+
+                <div class="input-item">
+
+                    <label>總功率 Psc (W):</label>
+
+                    <input type="number" id="eq_psc">
+
+                </div>
+
+            </div>
+
+    
+
+            <div style="width: 100%; text-align: center; margin-top: 10px;">
+
+                 <div class="input-item" style="display: inline-block; margin-right: 20px;">
+
+                    <label>集膚效應係數 (Skin Effect Factor):</label>
+
+                    <input type="number" id="eq_skin" value="1.25" style="width: 150px;">
+
+                </div>
+
+                <button class="calc-btn" onclick="calcEquivCircuit()" style="padding: 12px 30px;">計算等效電路參數</button>
+
+            </div>
+
+    
+
+            <div id="eq_res" class="res-box" style="width: 100%; text-align: left; padding: 20px; font-size: 15px; line-height: 1.8;">等待計算...</div>
+
         </div>
-        <div class="input-item">
-            <label>總感抗 X (Ω):</label>
-            <input type="number" id="ec_x">
-        </div>
-        <div class="input-item">
-            <label>轉差率 (s):</label>
-            <input type="number" id="ec_s" value="0.05">
-        </div>
-        <button class="calc-btn" onclick="calcEC()">推算負載電流</button>
-        <div id="ec_res" class="res-box">等待計算...</div>
+
+    
+
     </div>
 
-</div>
+    
 
-<script>
-    // 主題切換
-    function toggleTheme() {
-        const body = document.documentElement;
-        body.getAttribute('data-theme') === 'dark' ? body.removeAttribute('data-theme') : body.setAttribute('data-theme', 'dark');
-    }
+    <script>
 
-    // 1. HP to kW
-    function convP(type) {
-        let hp = document.getElementById('hp_in'), kw = document.getElementById('kw_in');
-        if(type==='hp') kw.value = (hp.value * 0.7457).toFixed(4);
-        else hp.value = (kw.value * 1.341).toFixed(4);
-    }
+        // 主題切換
 
-    // 2. Kt
-    function calcKt() {
-        let v = document.getElementById('kt_v').value, n = document.getElementById('kt_n').value;
-        if(n > 0) document.getElementById('kt_res').innerText = "Kt: " + (v / (n * 0.1047)).toFixed(4) + " Nm/A";
-    }
+        function toggleTheme() {
 
-    // 3. BEMF
-    function calcBe() {
-        let n = document.getElementById('be_n').value, ke = document.getElementById('be_ke').value;
-        document.getElementById('be_res').innerText = "BEMF: " + ((n / 1000) * ke).toFixed(2) + " V";
-    }
+            const body = document.documentElement;
 
-    // 4. Frequency
-    function calcF() {
-        let p = document.getElementById('f_p').value, n = document.getElementById('f_n').value, s = document.getElementById('f_s').value / 100;
-        if(p && n) document.getElementById('f_res').innerText = "頻率: " + ((p * n) / (120 * (1 - s))).toFixed(2) + " Hz";
-    }
+            body.getAttribute('data-theme') === 'dark' ? body.removeAttribute('data-theme') : body.setAttribute('data-theme', 'dark');
 
-    // 5. Electrical Power
-    function calcP1() {
-        let v = document.getElementById('p1_v').value, i = document.getElementById('p1_i').value;
-        let pf = document.getElementById('p1_pf').value, e = document.getElementById('p1_e').value;
-        let w = 1.732 * v * i * pf * e;
-        document.getElementById('p1_res').innerText = "功率: " + (w/1000).toFixed(3) + " kW";
-    }
+        }
 
-    // 6. Mechanical Power
-    function calcP2() {
-        let t = document.getElementById('p2_t').value, n = document.getElementById('p2_n').value;
-        let w = (t * n) / 9.55;
-        document.getElementById('p2_res').innerText = "功率: " + (w/1000).toFixed(3) + " kW";
-    }
+    
 
-    // 7. Inductance
-    function calcL() {
-        let val = parseFloat(document.getElementById('l_val').value), mode = document.getElementById('l_mode').value;
-        document.getElementById('l_res').innerText = "單相繞組: " + (mode === 'Y' ? val / 2 : val * 1.5).toFixed(4) + " mH";
-    }
+        // 1. HP to kW
 
-    // 8. Equivalent Circuit
-    function calcEC() {
-        let v = parseFloat(document.getElementById('ec_v').value), rs = parseFloat(document.getElementById('ec_rs').value);
-        let x = parseFloat(document.getElementById('ec_x').value), s = parseFloat(document.getElementById('ec_s').value) || 0.001;
-        let z = Math.sqrt(Math.pow(rs + (rs/s), 2) + Math.pow(x, 2));
-        document.getElementById('ec_res').innerText = "相電流: " + (v / z).toFixed(2) + " A";
-    }
-</script>
+        function convP(type) {
 
-</body>
-</html>
+            let hp = document.getElementById('hp_in'), kw = document.getElementById('kw_in');
+
+            if(type==='hp') kw.value = (hp.value * 0.7457).toFixed(4);
+
+            else hp.value = (kw.value * 1.341).toFixed(4);
+
+        }
+
+    
+
+        // 2. Kt
+
+        function calcKt() {
+
+            let v = document.getElementById('kt_v').value, n = document.getElementById('kt_n').value;
+
+            if(n > 0) document.getElementById('kt_res').innerText = "Kt: " + (v / (n * 0.1047)).toFixed(4) + " Nm/A";
+
+        }
+
+    
+
+        // 3. BEMF
+
+        function calcBe() {
+
+            let n = document.getElementById('be_n').value, ke = document.getElementById('be_ke').value;
+
+            document.getElementById('be_res').innerText = "BEMF: " + ((n / 1000) * ke).toFixed(2) + " V";
+
+        }
+
+    
+
+        // 4. Frequency
+
+        function calcF() {
+
+            let p = document.getElementById('f_p').value, n = document.getElementById('f_n').value, s = document.getElementById('f_s').value / 100;
+
+            if(p && n) document.getElementById('f_res').innerText = "頻率: " + ((p * n) / (120 * (1 - s))).toFixed(2) + " Hz";
+
+        }
+
+    
+
+        // 5. Electrical Power
+
+        function calcP1() {
+
+            let v = document.getElementById('p1_v').value, i = document.getElementById('p1_i').value;
+
+            let pf = document.getElementById('p1_pf').value, e = document.getElementById('p1_e').value;
+
+            let w = 1.732 * v * i * pf * e;
+
+            document.getElementById('p1_res').innerText = "功率: " + (w/1000).toFixed(3) + " kW";
+
+        }
+
+    
+
+        // 6. Mechanical Power
+
+        function calcP2() {
+
+            let t = document.getElementById('p2_t').value, n = document.getElementById('p2_n').value;
+
+            let w = (t * n) / 9.55;
+
+            document.getElementById('p2_res').innerText = "功率: " + (w/1000).toFixed(3) + " kW";
+
+        }
+
+    
+
+        // 7. Inductance
+
+        function calcL() {
+
+            let val = parseFloat(document.getElementById('l_val').value), mode = document.getElementById('l_mode').value;
+
+            document.getElementById('l_res').innerText = "單相繞組: " + (mode === 'Y' ? val / 2 : val * 1.5).toFixed(4) + " mH";
+
+        }
+
+    
+
+        // 8. Equivalent Circuit
+
+        function calcEC() {
+
+            let v = parseFloat(document.getElementById('ec_v').value), rs = parseFloat(document.getElementById('ec_rs').value);
+
+            let x = parseFloat(document.getElementById('ec_x').value), s = parseFloat(document.getElementById('ec_s').value) || 0.001;
+
+            let z = Math.sqrt(Math.pow(rs + (rs/s), 2) + Math.pow(x, 2));
+
+            document.getElementById('ec_res').innerText = "相電流: " + (v / z).toFixed(2) + " A";
+
+        }
+
+    
+
+        // 9. Equivalent Circuit from Test Data
+
+        function calcEquivCircuit() {
+
+            const conn_type = document.getElementById('eq_conn_type').value;
+
+            const v_dc = parseFloat(document.getElementById('eq_vdc').value);
+
+            const i_dc = parseFloat(document.getElementById('eq_idc').value);
+
+            const skin_factor = parseFloat(document.getElementById('eq_skin').value);
+
+    
+
+            const v0_line = parseFloat(document.getElementById('eq_v0').value);
+
+            const i0_line = parseFloat(document.getElementById('eq_i0').value);
+
+            const p0_total = parseFloat(document.getElementById('eq_p0').value);
+
+    
+
+            const vsc_line = parseFloat(document.getElementById('eq_vsc').value);
+
+            const isc_line = parseFloat(document.getElementById('eq_isc').value);
+
+            const psc_total = parseFloat(document.getElementById('eq_psc').value);
+
+            
+
+            const sqrt3 = Math.sqrt(3);
+
+    
+
+            // 1. DC Test -> R1
+
+            let r_dc_per_phase = 0;
+
+            if (conn_type === 'Y') {
+
+                r_dc_per_phase = v_dc / (2 * i_dc);
+
+            } else { // Delta
+
+                r_dc_per_phase = (3 / 2) * (v_dc / i_dc);
+
+            }
+
+            const R1 = r_dc_per_phase * skin_factor;
+
+    
+
+            // 2. No-Load Test -> Rc, Xm
+
+            let v0_ph, i0_ph;
+
+            if (conn_type === 'Y') {
+
+                v0_ph = v0_line / sqrt3;
+
+                i0_ph = i0_line;
+
+            } else { // Delta
+
+                v0_ph = v0_line;
+
+                i0_ph = i0_line / sqrt3;
+
+            }
+
+            
+
+            const p_stator_copper_0 = 3 * i0_ph * i0_ph * R1;
+
+            const p_core_fw = p0_total - p_stator_copper_0;
+
+            
+
+            const Rc = (v0_ph * v0_ph) / (p_core_fw / 3);
+
+            
+
+            const i_core = v0_ph / Rc;
+
+            const i_mag_squared = (i0_ph * i0_ph) - (i_core * i_core);
+
+            const i_mag = i_mag_squared > 0 ? Math.sqrt(i_mag_squared) : 0;
+
+            const Xm = v0_ph / i_mag;
+
+    
+
+            // 3. Blocked-Rotor Test -> R2', X1, X2'
+
+            let vsc_ph, isc_ph;
+
+            if (conn_type === 'Y') {
+
+                vsc_ph = vsc_line / sqrt3;
+
+                isc_ph = isc_line;
+
+            } else { // Delta
+
+                vsc_ph = vsc_line;
+
+                isc_ph = isc_line / sqrt3;
+
+            }
+
+    
+
+            const R_sc = psc_total / (3 * isc_ph * isc_ph);
+
+            const Z_sc = vsc_ph / isc_ph;
+
+            const X_sc_squared = (Z_sc * Z_sc) - (R_sc * R_sc);
+
+            const X_sc = X_sc_squared > 0 ? Math.sqrt(X_sc_squared) : 0;
+
+            
+
+            const R2_prime = R_sc - R1;
+
+    
+
+            // Assuming X1 = X2' for squirrel cage motors
+
+            const X1 = X_sc / 2;
+
+            const X2_prime = X_sc / 2;
+
+            
+
+            // Display results
+
+            const resDiv = document.getElementById('eq_res');
+
+            resDiv.innerHTML = `
+
+                <h3>計算結果:</h3>
+
+                <ul>
+
+                    <li>定子電阻 (R1): <strong>${R1.toFixed(4)} Ω</strong></li>
+
+                    <li>轉子電阻 (R2'): <strong>${R2_prime.toFixed(4)} Ω</strong></li>
+
+                    <li>鐵損電阻 (Rc): <strong>${Rc.toFixed(4)} Ω</strong></li>
+
+                    <li>激磁電抗 (Xm): <strong>${Xm.toFixed(4)} Ω</strong></li>
+
+                    <li>定子漏電抗 (X1): <strong>${X1.toFixed(4)} Ω</strong></li>
+
+                    <li>轉子漏電抗 (X2'): <strong>${X2_prime.toFixed(4)} Ω</strong></li>
+
+                </ul>
+
+            `;
+
+        }
+
+    </script>
+
+    
+
+    </body>
+
+    </html>
+
+    
