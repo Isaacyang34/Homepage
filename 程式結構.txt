@@ -1,0 +1,10 @@
+模組代碼,功能範圍
+CONF_CORE,LED 規格資料 (LED_SPECS)、點陣字庫 (FONT_5X7)
+LOGIC_UTIL,邊界計算、控制器代碼生成、存檔讀取邏輯
+UI_NAV,頂部導覽列：亮度拉桿、電力/BOM/代碼同步按鈕
+UI_CANVAS,核心畫布：LED 圓孔繪製邏輯、滑鼠框選視覺、縮放監聽
+UI_SIDEBAR,右側編輯欄：元件清單、屬性調整 (座標、內容、動畫)
+UI_ALIGN,浮動對齊工具 (水平/垂直對齊按鈕)
+UI_FOOTER,底部狀態列：縮放數值顯示、面積統計
+MODAL_ALL,所有彈出視窗 (代碼同步、電力評估、BOM 清單)
+APP_STATE,主程式：全域變數宣告、State 狀態流動控制

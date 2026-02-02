@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LED Studio Pro - Engineering Master</title>
+    <!-- 載入核心框架 -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 載入點陣與工程字體 -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&family=DotGothic16&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            background-color: #020617; 
+            color: #f1f5f9; 
+            font-family: 'JetBrains Mono', monospace; 
+            margin: 0; 
+            overflow: hidden; 
+        }
+        
+        /* LED 動畫效果 */
+        @keyframes led-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+        @keyframes led-breath { 0%, 100% { filter: brightness(1.3); } 50% { filter: brightness(0.1); } }
+        
+        .anim-blink { animation: led-blink 0.4s step-end infinite; }
+        .anim-breath { animation: led-breath 2s infinite ease-in-out; }
+
+        /* 自定義滾動條 */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #334155; }
+
+        /* 確保輸入框箭頭清晰 */
+        input[type="number"] { -moz-appearance: textfield; }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            opacity: 1;
+            height: 1.5rem;
+        }
+
+        .led-dot-matrix {
+            font-family: 'DotGothic16', sans-serif;
+            text-shadow: 0 0 8px currentColor;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useRef, useEffect, useCallback } = React;
+
+        // 標準 5x7 點陣字庫
+        const FONT_5X7 = {
+            32:[0,0,0,0,0],33:[0,0,95,0,0],34:[0,7,0,7,0],35:[20,127,20,127,20],36:[36,42,127,42,18],37:[35,19,8,100,98],38:[54,73,85,34,80],39:[0,5,3,0,0],
+            40:[0,28,34,65,0],41:[0,65,34,28,0],42:[20,8,62,8,20],43:[8,8,62,8,8],44:[0,80,48,0,0],45:[8,8,8,8,8],46:[0,96,96,0,0],47:[32,16,8,4,2],
+            48:[62,81,73,69,62],49:[0,66,127,64,0],50:[66,97,81,73,70],51:[33,65,69,75,49],52:[24,20,18,127,16],53:[39,69,69,69,57],54:[60,74,73,73,48],55:[1,113,9,5,3],
+            56:[54,73,73,73,54],57:[6,73,73,41,30],58:[0,54,54,0,0],59:[0,86,54,0,0],60:[8,20,34,65,0],61:[20,20,20,20,20],62:[0,65,34,20,8],63:[2,1,81,9,6],
+            64:[50,73,121,65,62],65:[126,17,17,17,126],66:[127,73,73,73,54],67:[62,65,65,65,34],68:[127,65,65,34,28],69:[127,73,73,73,65],70:[127,9,9,9,1],
+            71:[62,65,73,73,122],72:[127,8,8,8,127],73:[0,65,127,65,0],74:[32,64,65,63,1],75:[127,8,20,34,65],76:[127,64,64,64,64],77:[127,2,12,2,127],
+            78:[127,4,8,16,127],79:[62,65,65,65,62],80:[127,9,9,9,6],81:[62,65,81,33,94],82:[127,9,25,41,70],83:[70,73,73,73,49],84:[1,1,127,1,1],
+            85:[63,64,64,64,63],86:[31,32,64,32,31],87:[63,64,56,64,63],88:[99,20,8,20,99],89:[7,8,112,8,7],90:[97,81,73,69,67]
+        };
+
+        const Icon = ({ name, className = "w-4 h-4" }) => {
+            const icons = {
+                trash: <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6" />,
+                lightning: <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />,
+                file: <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2zM14 2v6h6M16 13H8M16 17H8M10 9H8" />,
+                plus: <path d="M12 5v14M5 12h14" />,
+                minus: <path d="M5 12h14" />,
+                text: <path d="M4 7V4h16v3M9 20h6M12 4v16" />,
+                line: <path d="M5 12h14" />,
+                eye: <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" />,
+                play: <path d="M5 3l14 9-14 9V3z" />,
+                pause: <g><rect x="6" y="4" width="4" height="16" fill="currentColor"/><rect x="14" y="4" width="4" height="16" fill="currentColor"/></g>,
+                monitor: <g><rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></g>,
+                search: <g><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></g>,
+                alignLeft: <path d="M4 2v20M8 5h12M8 10h8M8 15h10M8 19h12" />,
+                alignCenter: <path d="M12 2v20M5 5h14M8 10h8M6 15h12M4 19h16" />,
+                alignRight: <path d="M20 2v20M4 5h12M8 10h12M6 15h14M4 19h12" />,
+                alignTop: <path d="M2 4h20M5 20V8M10 16V8M15 22V8M19 18V8" />,
+                alignMiddle: <path d="M2 12h20M5 4v5M10 7v2M15 5v4M19 4v5M5 15v5M10 15v2M15 15v4M19 15v5" />,
+                alignBottom: <path d="M2 20h20M5 4v12M10 8v8M15 2v14M19 6v14" />,
+                code: <path d="m18 16 4-4-4-4M6 8l-4 4 4 4M14.5 4l-5 16" />,
+                reverse: <path d="M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18zm0-15v12a6 6 0 0 0 0-12z" />,
+                download: <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />,
+                open: <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />,
+                refresh: <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />,
+                alert: <g><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></g>,
+                grid: <path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18" />,
+                size: <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />,
+                arrowsH: <path d="M21 12H3m0 0l3-3m-3 3l3 3m15-3l-3-3m3 3l-3 3" />, 
+                arrowsV: <path d="M12 3v18m0-18l-3 3m3-3l3 3m-3 15l-3-3m3 3l3 3" />,
+                palette: <g><circle cx="13.5" cy="6.5" r=".5" /><circle cx="17.5" cy="10.5" r=".5" /><circle cx="8.5" cy="7.5" r=".5" /><circle cx="6.5" cy="12.5" r=".5" /><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.5 1.6-1.3 0-.1 0-.2-.1-.4-.4-1.1-.6-2.3-.6-3.5 0-2.5 2-4.5 4.5-4.5h1.6c.8 0 1.4-.7 1.4-1.5.1-4.8-4.1-8.8-8.9-8.8z" /></g>
+            };
+            return (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                    {icons[name] || <circle cx="12" cy="12" r="10" />}
+                </svg>
+            );
+        };
+
+        const LED_SPECS = {
+            'P2':    { pitch: 2.0,  w: 256, h: 128, pxW: 128, pxH: 64,  avgW: 650 },
+            'P2.5':  { pitch: 2.5,  w: 320, h: 160, pxW: 128, pxH: 64,  avgW: 600 },
+            'P3':    { pitch: 3.0,  w: 192, h: 192, pxW: 64,  pxH: 64,  avgW: 550 },
+            'P4-L':  { pitch: 4.0,  w: 256, h: 256, pxW: 64,  pxH: 64,  avgW: 500 }, 
+            'P4':    { pitch: 4.0,  w: 256, h: 128, pxW: 64,  pxH: 32,  avgW: 500 }, 
+            'P5':    { pitch: 5.0,  w: 320, h: 160, pxW: 64,  pxH: 32,  avgW: 450 },
+            'P6':    { pitch: 6.0,  w: 192, h: 192, pxW: 32,  pxH: 32,  avgW: 400 },
+            'P8':    { pitch: 8.0,  w: 256, h: 128, pxW: 32,  pxH: 16,  avgW: 380 },
+            'P10':   { pitch: 10.0, w: 320, h: 160, pxW: 32,  pxH: 16,  avgW: 350 },
+        };
+
+        const App = () => {
+            // --- 1. Refs 與 狀態宣告 ---
+            // 修正：確保變數名稱正確對應
+            const mainCanvasRef = useRef(null);
+            const bufferCanvasRef = useRef(null);
+            const fileInputRef = useRef(null);
+            const previewContainerRef = useRef(null);
+
+            const [modelKey, setModelKey] = useState('P5');
+            const [config, setConfig] = useState({ cols: 1, rows: 1 });
+            const [voltageAC, setVoltageAC] = useState(220);
+            const [voltageDC, setVoltageDC] = useState(5); 
+            const [zoom, setZoom] = useState(6.0); 
+            const [gridBrightness, setGridBrightness] = useState(0.2);
+            const [showDividers, setShowDividers] = useState(true);
+            const [showBOM, setShowBOM] = useState(false);
+            const [showCodeExport, setShowCodeExport] = useState(false); 
+            const [showConfig, setShowConfig] = useState(false); 
+            const [isAnimActive, setIsAnimActive] = useState(false);
+            const [isConfigCollapsed, setIsConfigCollapsed] = useState(false); 
+            const [parseError, setParseError] = useState("");
+            const [exportCode, setExportCode] = useState('');
+            const [customFileName, setCustomFileName] = useState('led_design_v1');
+
+            const [items, setItems] = useState([
+                { id: 1, type: 'text', x: 2, y: 8, color: '#ff0000', content: '88', size: 2, animation: 'none', isCollapsed: false, isReversed: false },
+                { id: 2, type: 'text', x: 36, y: 8, color: '#1eff00', content: '88', size: 2, animation: 'none', isCollapsed: false, isReversed: false },
+                { id: 3, type: 'line', x: 31, y: 4, len: 24, thick: 1, dir: 'V', color: '#ffffff', animation: 'none', isCollapsed: false, isReversed: false }
+            ]);
+
+            const [selectedIds, setSelectedIds] = useState([]);
+            const [dragStart, setDragStart] = useState(null);
+            const [isDragging, setIsDragging] = useState(false);
+            const [selectionRect, setSelectionRect] = useState(null);
+            const [isBoxSelecting, setIsBoxSelecting] = useState(false);
+
+            const spec = LED_SPECS[modelKey];
+
+            // 統計數據
+            const stats = useMemo(() => {
+                const totalPxW = spec.pxW * config.cols;
+                const totalPxH = spec.pxH * config.rows;
+                const moduleCount = config.cols * config.rows;
+                const areaM2 = (spec.w * config.cols * spec.h * config.rows) / 1000000;
+                const avgPower = Math.round(areaM2 * spec.avgW);
+                const peakPower = Math.round(avgPower * 1.6);
+                const currentAC = (peakPower / voltageAC).toFixed(2);
+                const vDC = parseInt(voltageDC) || 5;
+                const currentDC = (peakPower / vDC).toFixed(1); 
+                const receiverCount = Math.ceil((totalPxW * totalPxH) / 65536);
+                const psuCount = Math.ceil(peakPower / 180);
+                return { totalPxW, totalPxH, moduleCount, mmW: spec.w*config.cols, mmH: spec.h*config.rows, areaM2, avgPower, peakPower, currentAC, currentDC, receiverCount, psuCount };
+            }, [modelKey, config, voltageAC, voltageDC, spec]);
+
+            // 核心函式
+            const getItemBounds = useCallback((item) => {
+                let width = 0, height = 0;
+                const currentSize = parseInt(item.size) || 1;
+                if (item.type === 'text') {
+                    width = item.content.length * 6 * currentSize; 
+                    height = 8 * currentSize;
+                } else if (item.type === 'line') {
+                    width = item.dir === 'H' ? item.len : item.thick;
+                    height = item.dir === 'V' ? item.len : item.thick;
+                }
+                return { x1: item.x, y1: item.y, x2: item.x + width, y2: item.y + height };
+            }, []);
+
+            const generateControllerCode = useCallback(() => {
+                const totalW = spec.pxW * config.cols;
+                const totalH = spec.pxH * config.rows;
+                let code = `/* \n * LED Studio Pro - Generated ESP32 Code\n * Spec: ${modelKey} (${totalW}x${totalH} px)\n */\n\nvoid drawUI() {\n`;
+                items.forEach((item, index) => {
+                    const colorHex = item.color.replace('#', '0X').toUpperCase();
+                    code += `  // Item #${index + 1}: ${item.type.toUpperCase()}\n`;
+                    if (item.type === 'text') {
+                        code += `  dma_display->setTextSize(${parseInt(item.size)}); // Force Int\n`;
+                        code += `  dma_display->setCursor(${item.x}, ${item.y});\n`;
+                        if (item.isReversed) code += `  dma_display->setTextColor(0x0000, ${colorHex});\n`;
+                        else code += `  dma_display->setTextColor(${colorHex});\n`;
+                        code += `  dma_display->print("${item.content}");\n`;
+                    } else {
+                        const x2 = item.dir === 'H' ? item.x + item.len : item.x;
+                        const y2 = item.dir === 'V' ? item.y + item.len : item.y;
+                        code += `  dma_display->drawLine(${item.x}, ${item.y}, ${x2}, ${y2}, ${colorHex});\n`;
+                    }
+                    code += `\n`;
+                });
+                code += `}\n`;
+                return code;
+            }, [items, modelKey, stats]);
+
+            // --- 矩陣渲染引擎 ---
+            useEffect(() => {
+                if (!mainCanvasRef.current || !bufferCanvasRef.current) return;
+                
+                const mainCtx = mainCanvasRef.current.getContext('2d');
+                const bufCtx = bufferCanvasRef.current.getContext('2d', { willReadFrequently: true });
+                const w = stats.totalPxW;
+                const h = stats.totalPxH;
+
+                mainCanvasRef.current.width = w * zoom;
+                mainCanvasRef.current.height = h * zoom;
+                bufferCanvasRef.current.width = w;
+                bufferCanvasRef.current.height = h;
+
+                // A. 離屏像素緩衝
+                bufCtx.fillStyle = '#000';
+                bufCtx.fillRect(0, 0, w, h);
+                bufCtx.imageSmoothingEnabled = false;
+                
+                items.forEach(item => {
+                    bufCtx.fillStyle = item.color;
+                    const scale = parseInt(item.size) || 1;
+
+                    if (item.type === 'text') {
+                        const str = item.content.toUpperCase(); 
+                        let cursorX = item.x;
+                        let cursorY = item.y;
+
+                        if (item.isReversed) {
+                            bufCtx.fillStyle = item.color;
+                            bufCtx.fillRect(cursorX, cursorY, str.length * 6 * scale, 8 * scale);
+                            bufCtx.fillStyle = '#000';
+                        }
+
+                        for (let i = 0; i < str.length; i++) {
+                            const charCode = str.charCodeAt(i);
+                            const charData = FONT_5X7[charCode] || FONT_5X7[32]; 
+                            for (let col = 0; col < 5; col++) {
+                                const line = charData[col];
+                                for (let row = 0; row < 7; row++) {
+                                    if (line & (1 << row)) {
+                                        bufCtx.fillRect(cursorX + (col * scale), cursorY + (row * scale), scale, scale);
+                                    }
+                                }
+                            }
+                            cursorX += 6 * scale; 
+                        }
+                    } else if (item.type === 'line') {
+                        const lw = item.dir === 'H' ? item.len : item.thick;
+                        const lh = item.dir === 'V' ? item.len : item.thick;
+                        bufCtx.fillRect(item.x, item.y, lw, lh);
+                    }
+                });
+
+                // B. 映射至主畫布 LED 圓點
+                const pixelData = bufCtx.getImageData(0, 0, w, h).data;
+                mainCtx.clearRect(0, 0, mainCanvasRef.current.width, mainCanvasRef.current.height);
+                
+                // 背景燈珠
+                const bgGray = Math.floor(20 + gridBrightness * 100); 
+                const bgFill = `rgb(${bgGray}, ${bgGray}, ${bgGray})`;
+                
+                // 為了性能，先填滿背景，再畫燈珠
+                mainCtx.fillStyle = '#000';
+                mainCtx.fillRect(0, 0, mainCanvasRef.current.width, mainCanvasRef.current.height);
+
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        const idx = (y * w + x) * 4;
+                        const r = pixelData[idx], g = pixelData[idx+1], b = pixelData[idx+2], a = pixelData[idx+3];
+                        
+                        const cx = x * zoom + zoom / 2;
+                        const cy = y * zoom + zoom / 2;
+                        const rad = zoom * 0.38;
+
+                        mainCtx.beginPath();
+                        mainCtx.arc(cx, cy, rad, 0, Math.PI * 2);
+                        
+                        if (a > 20) {
+                            mainCtx.fillStyle = `rgb(${r},${g},${b})`;
+                            mainCtx.shadowBlur = zoom * 0.5;
+                            mainCtx.shadowColor = `rgba(${r},${g},${b},0.8)`;
+                            mainCtx.fill();
+                            mainCtx.shadowBlur = 0;
+                        } else {
+                            mainCtx.fillStyle = bgFill; 
+                            mainCtx.fill();
+                        }
+                    }
+                }
+                
+                if (showDividers) {
+                    mainCtx.strokeStyle = 'rgba(59, 130, 246, 0.4)';
+                    mainCtx.lineWidth = Math.max(1, zoom * 0.05);
+                    for(let i=1; i<=config.cols; i++) {
+                       mainCtx.beginPath(); mainCtx.moveTo(i * spec.pxW * zoom, 0); mainCtx.lineTo(i * spec.pxW * zoom, mainCanvasRef.current.height); mainCtx.stroke();
+                    }
+                    for(let j=1; j<=config.rows; j++) {
+                       mainCtx.beginPath(); mainCtx.moveTo(0, j * spec.pxH * zoom); mainCtx.lineTo(mainCanvasRef.current.width, j * spec.pxH * zoom); mainCtx.stroke();
+                    }
+                }
+
+                if (selectedIds.length > 0) {
+                    mainCtx.save();
+                    mainCtx.strokeStyle = '#00FFFF';
+                    mainCtx.lineWidth = Math.max(2, zoom * 0.15);
+                    mainCtx.setLineDash([6, 3]);
+                    mainCtx.shadowColor = 'rgba(0, 255, 255, 0.5)';
+                    mainCtx.shadowBlur = 8;
+                    items.forEach(item => {
+                        if (selectedIds.includes(item.id)) {
+                            const b = getItemBounds(item);
+                            const w = (b.x2 - b.x1) * zoom;
+                            const h = (b.y2 - b.y1) * zoom;
+                            mainCtx.strokeRect(item.x * zoom, item.y * zoom, w, h);
+                            mainCtx.fillStyle = 'rgba(0, 255, 255, 0.1)';
+                            mainCtx.fillRect(item.x * zoom, item.y * zoom, w, h);
+                        }
+                    });
+                    mainCtx.restore();
+                }
+
+                if (isBoxSelecting && selectionRect) {
+                    mainCtx.save();
+                    mainCtx.strokeStyle = '#3b82f6';
+                    mainCtx.lineWidth = 1;
+                    mainCtx.setLineDash([4, 4]);
+                    mainCtx.fillStyle = 'rgba(59, 130, 246, 0.2)';
+                    const x = Math.min(selectionRect.x1, selectionRect.x2) * zoom;
+                    const y = Math.min(selectionRect.y1, selectionRect.y2) * zoom;
+                    const w = Math.abs(selectionRect.x2 - selectionRect.x1) * zoom;
+                    const h = Math.abs(selectionRect.y2 - selectionRect.y1) * zoom;
+                    mainCtx.fillRect(x, y, w, h);
+                    mainCtx.strokeRect(x, y, w, h);
+                    mainCtx.restore();
+                }
+
+            }, [items, stats, zoom, gridBrightness, showDividers, config, spec, selectedIds, isBoxSelecting, selectionRect]);
+
+            // 操作函式
+            const updateItem = (id, field, val) => {
+                setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: val } : i));
+            };
+
+            const toggleCollapse = (id) => {
+                setItems(prev => prev.map(i => i.id === id ? { ...i, isCollapsed: !i.isCollapsed } : i));
+            };
+
+            const addItem = (type) => {
+                setItems(prev => [...prev, { id: Date.now() + Math.random(), type, x: 4, y: 4, color: '#ffffff', content: type === 'text' ? 'NEW' : '', size: 2, len: 16, thick: 1, dir: 'H', animation: 'none', isCollapsed: false, isReversed: false }]);
+            };
+            
+            const alignSelected = (type) => {
+                if (selectedIds.length < 2) return;
+                const sel = items.filter(i => selectedIds.includes(i.id));
+                const bounds = sel.map(i => getItemBounds(i));
+                const minX = Math.min(...bounds.map(b => b.x1)), maxX = Math.max(...bounds.map(b => b.x2));
+                const minY = Math.min(...bounds.map(b => b.y1)), maxY = Math.max(...bounds.map(b => b.y2));
+                const midX = (minX + maxX) / 2, midY = (minY + maxY) / 2;
+                setItems(prev => prev.map(item => {
+                    if (!selectedIds.includes(item.id)) return item;
+                    const b = getItemBounds(item), w = b.x2 - b.x1, h = b.y2 - b.y1;
+                    switch (type) {
+                        case 'left': return { ...item, x: minX }; case 'center': return { ...item, x: Math.round(midX - w/2) }; case 'right': return { ...item, x: maxX - w };
+                        case 'top': return { ...item, y: minY }; case 'middle': return { ...item, y: Math.round(midY - h/2) }; case 'bottom': return { ...item, y: maxY - h };
+                        default: return item;
+                    }
+                }));
+            };
+
+            const downloadCodeFile = () => {
+                const blob = new Blob([exportCode], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = customFileName.endsWith('.ino') ? customFileName : `${customFileName}.ino`;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+            };
+
+            const handleFileLoad = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => setExportCode(event.target.result);
+                reader.readAsText(file);
+                e.target.value = null;
+            };
+
+            const parseAndReadCode = (code) => {
+                setParseError("");
+                const newItems = [];
+                const specMatch = code.match(/Spec:\s+([A-Z0-9.-]+L?)\s+\((\d+)x(\d+)\s+px\)/i);
+                if (specMatch) {
+                    const mKey = specMatch[1];
+                    if (LED_SPECS[mKey]) {
+                        setModelKey(mKey);
+                        const totalW = parseInt(specMatch[2]), totalH = parseInt(specMatch[3]);
+                        setConfig({ cols: Math.max(1, Math.round(totalW / LED_SPECS[mKey].pxW)), rows: Math.max(1, Math.round(totalH / LED_SPECS[mKey].pxH)) });
+                    }
+                }
+                const textRegex = /setTextSize\((\d+)\);\s+dma_display->setCursor\((\d+),\s+(\d+)\);\s+(?:dma_display->setTextColor\(0x0000,\s+([0-9A-Za-fxX]+)\);|dma_display->setTextColor\(([0-9A-Za-fxX]+)\);)\s+dma_display->print\("(.*?)"\);/gsi;
+                let match;
+                while ((match = textRegex.exec(code)) !== null) {
+                    const isReversed = !!match[4];
+                    const hexColor = (isReversed ? match[4] : match[5]).replace(/0x/i, '#').padEnd(7, '0').toLowerCase();
+                    newItems.push({ id: Date.now() + Math.random(), type: 'text', size: parseInt(match[1]), x: parseInt(match[2]), y: parseInt(match[3]), color: hexColor, isReversed, content: match[6], animation: 'none', isCollapsed: false });
+                }
+                const lineRegex = /drawLine\((\d+),\s+(\d+),\s+(\d+),\s+(\d+),\s+([0-9A-Za-fxX]+)\);/gi;
+                while ((match = lineRegex.exec(code)) !== null) {
+                    const x1 = parseInt(match[1]), y1 = parseInt(match[2]), x2 = parseInt(match[3]), y2 = parseInt(match[4]), hexColor = match[5].replace(/0x/i, '#').padEnd(7, '0').toLowerCase();
+                    const dir = x1 === x2 ? 'V' : 'H', len = dir === 'H' ? Math.abs(x2 - x1) : Math.abs(y2 - y1);
+                    newItems.push({ id: Date.now() + Math.random(), type: 'line', x: x1, y: y1, len, thick: 1, dir, color: hexColor, animation: 'none', isCollapsed: false, isReversed: false });
+                }
+                if (newItems.length > 0) { setItems(newItems); return true; }
+                setParseError("讀取失敗：格式不正確。"); return false;
+            };
+
+            const handleCanvasMouseDown = (e) => {
+                if (e.button !== 0 || !mainCanvasRef.current) return;
+                const rect = mainCanvasRef.current.getBoundingClientRect();
+                const startX = (e.clientX - rect.left) / zoom, startY = (e.clientY - rect.top) / zoom;
+                if (!e.shiftKey) setSelectedIds([]);
+                setIsBoxSelecting(true);
+                setSelectionRect({ x1: startX, y1: startY, x2: startX, y2: startY });
+            };
+
+            const handleMouseMove = (e) => {
+                if (isDragging && dragStart) {
+                    const dx = (e.clientX - dragStart.x) / zoom, dy = (e.clientY - dragStart.y) / zoom;
+                    setItems(prev => prev.map(item => selectedIds.includes(item.id) ? { ...item, x: Math.round(item.x + dx), y: Math.round(item.y + dy) } : item));
+                    setDragStart({ x: e.clientX, y: e.clientY });
+                }
+                if (isBoxSelecting && selectionRect) {
+                    const rect = mainCanvasRef.current.getBoundingClientRect();
+                    const curX = (e.clientX - rect.left) / zoom, curY = (e.clientY - rect.top) / zoom;
+                    const newRect = { ...selectionRect, x2: curX, y2: curY };
+                    setSelectionRect(newRect);
+                    const xMin = Math.min(newRect.x1, newRect.x2), xMax = Math.max(newRect.x1, newRect.x2), yMin = Math.min(newRect.y1, newRect.y2), yMax = Math.max(newRect.y1, newRect.y2);
+                    const hitIds = items.filter(item => { const b = getItemBounds(item); return !(b.x2 < xMin || b.x1 > xMax || b.y2 < yMin || b.y1 > yMax); }).map(i => i.id);
+                    if (e.shiftKey) setSelectedIds(prev => Array.from(new Set([...prev, ...hitIds])));
+                    else setSelectedIds(hitIds);
+                }
+            };
+
+            const handleMouseUp = () => { setIsDragging(false); setDragStart(null); setIsBoxSelecting(false); setSelectionRect(null); };
+
+            const handleItemMouseDown = (e, id) => {
+                e.stopPropagation();
+                if (e.shiftKey) setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+                else { if (!selectedIds.includes(id)) setSelectedIds([id]); setDragStart({ x: e.clientX, y: e.clientY }); setIsDragging(true); }
+            };
+
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    if (selectedIds.length === 0) return;
+                    const activeEl = document.activeElement;
+                    if (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA') return;
+                    let dx = 0, dy = 0; const step = e.shiftKey ? 10 : 1;
+                    switch (e.key) { case 'ArrowLeft': dx = -step; break; case 'ArrowRight': dx = step; break; case 'ArrowUp': dy = -step; break; case 'ArrowDown': dy = step; break; default: return; }
+                    e.preventDefault();
+                    setItems(prev => prev.map(item => selectedIds.includes(item.id) ? { ...item, x: item.x + dx, y: item.y + dy } : item));
+                };
+                window.addEventListener('keydown', handleKeyDown);
+                return () => window.removeEventListener('keydown', handleKeyDown);
+            }, [selectedIds]);
+
+            useEffect(() => {
+                const container = previewContainerRef.current;
+                const handleWheel = (e) => {
+                    if (container?.contains(e.target)) {
+                        e.preventDefault();
+                        const delta = e.deltaY > 0 ? -0.2 : 0.2;
+                        setZoom(prev => Math.min(Math.max(parseFloat((prev + delta).toFixed(1)), 0.1), 10.0));
+                    }
+                };
+                if (container) container.addEventListener('wheel', handleWheel, { passive: false });
+                return () => container?.removeEventListener('wheel', handleWheel);
+            }, []);
+
+            useEffect(() => {
+                if (showCodeExport) setExportCode(generateControllerCode());
+            }, [showCodeExport, items, modelKey, config]);
+
+            return (
+                <div className="flex h-screen w-full overflow-hidden select-none bg-black text-white font-sans" onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}>
+                    <canvas ref={bufferCanvasRef} className="hidden" />
+
+                    <div className="flex-1 flex flex-col relative border-r border-white/5">
+                        <nav className="p-4 bg-slate-900 border-b border-white/5 flex justify-between items-center z-50 shadow-2xl">
+                            <div className="flex gap-6 items-center">
+                                <header className="hidden md:block pr-6 border-r border-white/10">
+                                    <h1 className="flex items-end tracking-tight">
+                                        <div className="led-dot-matrix text-5xl flex gap-1 mr-6">
+                                            <span style={{ color: '#ef4444' }}>L</span><span style={{ color: '#22c55e' }}>E</span><span style={{ color: '#3b82f6' }}>D</span>
+                                        </div>
+                                        <span className="text-xl font-black text-slate-400 uppercase italic pb-1">STUDIO PRO</span>
+                                    </h1>
+                                </header>
+                                <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-2 bg-slate-800 p-2 rounded-lg border border-white/10" title="格線亮度">
+                                        <Icon name="palette" className="text-slate-400" />
+                                        <input type="range" min="0" max="1" step="0.1" value={gridBrightness} onChange={e=>setGridBrightness(parseFloat(e.target.value))} className="w-16 h-1 accent-slate-500 bg-slate-700 rounded-full appearance-none cursor-pointer" />
+                                    </div>
+                                    <button onClick={()=>setShowDividers(!showDividers)} className={`p-2 rounded-lg border ${showDividers ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-slate-800 border-white/5 text-slate-500'}`} title="顯示/隱藏拼接線"><Icon name="eye" /></button>
+                                    <button onClick={()=>setShowConfig(true)} className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-white/10 text-yellow-400 shadow-lg" title="電力評估"><Icon name="lightning" /></button>
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={()=>setShowCodeExport(true)} className="bg-slate-800 hover:bg-slate-700 border border-white/10 text-blue-400 p-2 rounded-lg shadow-lg active:scale-95 transition-all flex items-center justify-center"><Icon name="code" className="w-5 h-5" /></button>
+                                <button onClick={()=>setShowBOM(true)} className="bg-blue-600 hover:bg-blue-500 px-6 py-2 rounded-lg text-xs font-black flex items-center gap-2 transition-all shadow-lg shadow-blue-500/20 uppercase tracking-widest"><Icon name="file" /><span>BOM</span></button>
+                            </div>
+                        </nav>
+
+                        <div ref={previewContainerRef} onMouseDown={handleCanvasMouseDown} className="flex-1 overflow-auto flex items-center justify-center p-24 bg-[radial-gradient(#111827_1px,transparent_1px)] [background-size:24px_24px] cursor-crosshair relative">
+                            <canvas ref={mainCanvasRef} className="bg-black shadow-[0_0_150px_rgba(0,0,0,0.8)]" />
+                            {isBoxSelecting && selectionRect && (
+                                <div className="absolute border border-blue-500 border-dashed bg-blue-500/10 pointer-events-none z-[100]" style={{ left: Math.min(selectionRect.x1, selectionRect.x2) * zoom + 96, top: Math.min(selectionRect.y1, selectionRect.y2) * zoom + 96, width: Math.abs(selectionRect.x2 - selectionRect.x1) * zoom, height: Math.abs(selectionRect.y2 - selectionRect.y1) * zoom }} />
+                            )}
+                        </div>
+
+                        {selectedIds.length > 1 && (
+                            <div className="absolute top-24 left-1/2 -translate-x-1/2 bg-slate-900/90 border border-blue-500/50 p-2 rounded-2xl shadow-2xl flex gap-2 z-[60] animate-in slide-in-from-top-4">
+                                <button onClick={() => alignSelected('left')} className="p-2 hover:bg-white/10 rounded-lg text-blue-400" title="靠左"><Icon name="alignLeft" /></button>
+                                <button onClick={() => alignSelected('center')} className="p-2 hover:bg-white/10 rounded-lg text-blue-400" title="水平置中"><Icon name="alignCenter" /></button>
+                                <button onClick={() => alignSelected('right')} className="p-2 hover:bg-white/10 rounded-lg text-blue-400" title="靠右"><Icon name="alignRight" /></button>
+                                <div className="w-[1px] bg-white/10 mx-1"></div>
+                                <button onClick={() => alignSelected('top')} className="p-2 hover:bg-white/10 rounded-lg text-emerald-400" title="靠上"><Icon name="alignTop" /></button>
+                                <button onClick={() => alignSelected('middle')} className="p-2 hover:bg-white/10 rounded-lg text-emerald-400" title="垂直置中"><Icon name="alignMiddle" /></button>
+                                <button onClick={() => alignSelected('bottom')} className="p-2 hover:bg-white/10 rounded-lg text-emerald-400" title="靠下"><Icon name="alignBottom" /></button>
+                            </div>
+                        )}
+
+                        <footer className="px-6 py-4 bg-slate-950 border-t border-white/5 flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]">
+                            <div className="flex gap-10 items-center">
+                                <span>Res: <span className="text-slate-300 font-black">{stats.totalPxW}x{stats.totalPxH} px</span></span>
+                                <div className="flex items-center gap-3 border-l border-white/10 pl-6 ml-2">
+                                    <input type="range" min="0.1" max="10" step="0.1" value={zoom} onChange={e=>setZoom(parseFloat(e.target.value))} className="w-48 h-1 accent-blue-500 bg-slate-800 rounded-full appearance-none cursor-pointer" />
+                                    <span className="text-blue-400 w-10 text-right">{zoom.toFixed(1)}x</span>
+                                </div>
+                            </div>
+                            <span>Area Estimate: <span className="text-blue-400 font-black">{stats.areaM2.toFixed(3)} m²</span></span>
+                        </footer>
+                    </div>
+
+                    <div className="w-80 flex flex-col p-4 space-y-4 overflow-y-auto custom-scrollbar bg-slate-950 border-l border-white/5 backdrop-blur">
+                        <section className="space-y-3 pb-4 border-b border-white/10">
+                            <div className="flex justify-between items-center">
+                                <h3 className="text-sm font-black text-blue-400 uppercase flex items-center gap-2"><Icon name="monitor" /> 螢幕配置</h3>
+                                <button onClick={()=>setIsConfigCollapsed(!isConfigCollapsed)} className="p-1.5 hover:bg-blue-500/10 text-slate-600 hover:text-blue-400 rounded-lg transition-all"><Icon name={isConfigCollapsed ? "plus" : "minus"} /></button>
+                            </div>
+                            {!isConfigCollapsed && (
+                                <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                                    <div className="space-y-1">
+                                        <label className="text-xs text-slate-400 uppercase font-black block">模組型號</label>
+                                        <select className="w-full bg-slate-950 p-3 rounded-xl border border-white/10 text-xs text-white outline-none appearance-none font-bold cursor-pointer" value={modelKey} onChange={e=>setModelKey(e.target.value)}>
+                                            {Object.keys(LED_SPECS).map(k=><option key={k} value={k}>{k} ({LED_SPECS[k].w}x{LED_SPECS[k].h} mm)</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="flex items-center gap-6">
+                                        <div className="flex items-center gap-3"><span className="text-xl font-black text-blue-500 italic leading-none">W</span><input type="number" className="w-16 bg-slate-950 p-3 rounded-xl text-xs border border-white/10 text-white font-black text-center" value={config.cols} onChange={e=>setConfig({...config, cols:parseInt(e.target.value)||1})} /></div>
+                                        <div className="flex items-center gap-3"><span className="text-xl font-black text-blue-500 italic leading-none">H</span><input type="number" className="w-16 bg-slate-950 p-3 rounded-xl text-xs border border-white/10 text-white font-black text-center" value={config.rows} onChange={e=>setConfig({...config, rows:parseInt(e.target.value)||1})} /></div>
+                                    </div>
+                                </div>
+                            )}
+                        </section>
+
+                        <header className="flex justify-between items-center"><h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">元件編輯</h3><div className="flex gap-2"><button onClick={()=>addItem('text')} className="p-2 bg-slate-800 rounded-lg text-blue-400 shadow-lg"><Icon name="text" /></button><button onClick={()=>addItem('line')} className="p-2 bg-slate-800 rounded-lg text-emerald-400 shadow-lg"><Icon name="line" /></button></div></header>
+
+                        <div className="space-y-3 pb-20">
+                            {items.map((item, idx) => (
+                                <div key={item.id} onClick={() => setSelectedIds([item.id])} onMouseDown={(e) => handleItemMouseDown(e, item.id)} className={`bg-slate-900 p-3 rounded-xl border transition-all ${selectedIds.includes(item.id) ? 'border-blue-500 shadow-blue-500/20 scale-[1.02]' : 'border-white/5'}`}>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <div className="flex items-center gap-2 flex-1">
+                                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-black uppercase ${item.type === 'text' ? 'bg-blue-500/10 text-blue-400' : 'bg-emerald-500/10 text-emerald-400'}`}>{idx+1}</span>
+                                            {item.type === 'text' ? <input className="bg-transparent border-b border-transparent hover:border-white/10 focus:border-blue-500 outline-none text-xs font-bold text-white px-1 flex-1 transition-all" value={item.content} onChange={e=>updateItem(item.id, 'content', e.target.value)} onClick={(e)=>e.stopPropagation()}/> : <span className="text-xs font-black text-slate-400 uppercase italic text-[10px]">線條元件</span>}
+                                        </div>
+                                        <div className="flex gap-1">
+                                            <button onClick={(e)=>{e.stopPropagation(); toggleCollapse(item.id)}} className="p-1.5 hover:text-white"><Icon name={item.isCollapsed ? "plus" : "minus"} className="w-3 h-3" /></button>
+                                            <button onClick={(e)=>{e.stopPropagation(); setItems(prev => prev.filter(i=>i.id!==item.id))}} className="p-1.5 hover:text-red-500"><Icon name="trash" className="w-3 h-3" /></button>
+                                        </div>
+                                    </div>
+                                    {!item.isCollapsed && (
+                                        <div className="space-y-3 pt-2 border-t border-white/5 animate-in fade-in zoom-in-95">
+                                            <div className="flex items-center gap-2">
+                                                <div title="動畫設置" className="p-1.5 bg-slate-900 rounded-lg text-slate-500"><Icon name="play" className="w-3.5 h-3.5" /></div>
+                                                <select className="flex-1 bg-slate-900 text-xs p-1.5 rounded-lg border border-white/5 text-slate-300 outline-none cursor-pointer" value={item.animation} onChange={e => updateItem(item.id, 'animation', e.target.value)}><option value="none">靜態</option><option value="blink">閃爍</option><option value="breath">呼吸</option><option value="scroll">平移</option></select>
+                                                <button onClick={(e) => { e.stopPropagation(); updateItem(item.id, 'isReversed', !item.isReversed); }} className={`p-1.5 rounded-lg border transition-all ${item.isReversed ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-slate-900 border-white/5 text-slate-500'}`} title="反白模式"><Icon name="reverse" className="w-3.5 h-3.5" /></button>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div className="flex items-center gap-2 bg-slate-900/50 p-1 rounded-lg border border-white/5">
+                                                    {item.type === 'text' ? (
+                                                        <><div title="尺寸" className="text-slate-500 pl-1"><Icon name="size" className="w-3.5 h-3.5" /></div><input type="number" step="1" min="1" className="w-full bg-slate-950 p-1 text-[10px] rounded border border-white/5 text-white font-bold text-center" value={item.size} onChange={e=>updateItem(item.id, 'size', parseInt(e.target.value)||1)} /></>
+                                                    ) : (
+                                                        <><div title="方向" className="text-slate-500 pl-1"><Icon name={item.dir === 'H' ? 'arrowsH' : 'arrowsV'} className="w-3.5 h-3.5" /></div><div className="flex gap-1 p-0.5 bg-slate-950 rounded border border-white/5 flex-1"><button onClick={()=>updateItem(item.id, 'dir', 'H')} className={`flex-1 text-[8px] font-bold py-0.5 rounded transition-all ${item.dir==='H'?'bg-emerald-500 text-white shadow-lg':'text-slate-600'}`}>H</button><button onClick={()=>updateItem(item.id, 'dir', 'V')} className={`flex-1 text-[8px] font-bold py-0.5 rounded transition-all ${item.dir==='V'?'bg-emerald-500 text-white shadow-lg':'text-slate-600'}`}>V</button></div></>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-2 bg-slate-900/50 p-1 rounded-lg border border-white/5"><div title="色彩" className="text-slate-500 pl-1"><Icon name="palette" className="w-3.5 h-3.5" /></div><div className="relative flex-1 h-6 rounded overflow-hidden cursor-pointer border border-white/10"><input type="color" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" value={item.color} onChange={e=>updateItem(item.id, 'color', e.target.value)} /><div className="w-full h-full" style={{ backgroundColor: item.color }} /></div></div>
+                                            </div>
+                                            <div className="flex items-center gap-4 pt-1 border-t border-white/5">
+                                                <div className="flex items-center gap-2 flex-1"><span className="text-[10px] font-black text-blue-500 italic leading-none">X</span><input type="number" className="w-full bg-slate-900 p-1 rounded border border-white/5 text-[10px] text-white text-center font-bold" value={item.x} onChange={e=>updateItem(item.id, 'x', parseInt(e.target.value)||0)} /></div>
+                                                <div className="flex items-center gap-2 flex-1"><span className="text-[10px] font-black text-blue-500 italic leading-none">Y</span><input type="number" className="w-16 bg-slate-900 p-1 rounded border border-white/5 text-[10px] text-white text-center font-bold" value={item.y} onChange={e=>updateItem(item.id, 'y', parseInt(e.target.value)||0)} /></div>
+                                            </div>
+                                            {item.type === 'line' && (
+                                                <div className="space-y-1 pt-1 border-t border-white/5 animate-in slide-in-from-top-1">
+                                                    <div className="flex justify-between items-center text-[10px] font-bold uppercase"><span className="text-slate-500">Length: {item.len}</span><span className="text-slate-500 text-[9px]">Thick: {item.thick}</span></div>
+                                                    <div className="flex gap-2 items-center">
+                                                        <input type="range" min="1" max={stats.totalPxW} value={item.len} onChange={e=>updateItem(item.id, 'len', parseInt(e.target.value))} className="flex-1 h-1 accent-emerald-500 bg-slate-800 rounded-full appearance-none cursor-pointer" />
+                                                        <input type="number" min="1" value={item.thick} onChange={e=>updateItem(item.id, 'thick', parseInt(e.target.value)||1)} className="w-10 bg-slate-900 text-[10px] text-white text-center rounded border border-white/5 font-bold" />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {showCodeExport && (
+                        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[250] p-4 backdrop-blur-md">
+                            <div className="bg-[#0a0a0a] border border-blue-500/30 w-full max-w-6xl h-[95vh] p-8 rounded-[2.5rem] flex flex-col shadow-2xl animate-in fade-in zoom-in-95">
+                                <header className="flex justify-between items-center mb-6"><div><h2 className="text-2xl font-black text-blue-400">控制器代碼同步</h2><p className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">您可以自定義檔名或直接下載</p></div><button onClick={()=>setShowCodeExport(false)} className="text-slate-600 hover:text-white text-3xl">✕</button></header>
+                                <div className="mb-4 flex items-center gap-4 bg-slate-900 p-4 rounded-2xl border border-white/5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">檔案名稱:</label><input className="bg-black border border-white/10 rounded-lg px-4 py-2 text-sm text-emerald-400 font-mono flex-1 outline-none" value={customFileName} onChange={(e)=>setCustomFileName(e.target.value)} /></div>
+                                <textarea className="flex-1 bg-black rounded-2xl p-8 text-emerald-500 font-mono text-sm leading-relaxed outline-none border border-white/10 custom-scrollbar resize-none" value={exportCode} onChange={(e)=>setExportCode(e.target.value)} spellCheck="false" />
+                                <div className="mt-8 flex justify-end gap-4 border-t border-white/5 pt-6">
+                                    <button onClick={()=>setShowCodeExport(false)} className="bg-slate-800 px-8 py-4 rounded-2xl font-black text-xs uppercase text-white hover:bg-slate-700">關閉</button>
+                                    <button onClick={downloadCodeFile} className="bg-blue-600 px-8 py-4 rounded-2xl font-black text-xs uppercase text-white shadow-xl shadow-blue-900/40 hover:scale-[1.02] transition-all flex items-center gap-2"><Icon name="download" className="inline mr-2" /> Save File</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {showConfig && (
+                        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[200] p-6 backdrop-blur-md">
+                            <div className="bg-slate-900 border border-white/10 w-full max-w-md p-8 rounded-[2rem] shadow-2xl animate-in zoom-in-95">
+                                <header className="flex justify-between items-center mb-8 border-b border-white/5 pb-4"><h2 className="text-xl font-black text-blue-400 flex items-center gap-3"><Icon name="lightning" /> 電力評估系統</h2><button onClick={()=>setShowConfig(false)}>✕</button></header>
+                                <div className="space-y-6">
+                                    <div className="bg-slate-950 p-6 rounded-3xl border border-white/5 space-y-4">
+                                        <div className="flex justify-between items-center"><span className="text-[10px] text-slate-500 uppercase font-black tracking-widest">AC 入電電壓</span><div className="flex gap-2 bg-slate-900 p-1 rounded-xl"><button onClick={()=>setVoltageAC(110)} className={`px-4 py-1.5 rounded-lg text-[10px] font-black ${voltageAC===110?'bg-white text-black shadow-xl':'text-slate-600'}`}>110V</button><button onClick={()=>setVoltageAC(220)} className={`px-4 py-1.5 rounded-lg text-[10px] font-black ${voltageAC===220?'bg-white text-black shadow-xl':'text-slate-600'}`}>220V</button></div></div>
+                                        <div className="flex justify-between text-xs font-mono pt-2 border-t border-white/5"><span>AC 電流需求估算</span><span className="text-orange-400 font-bold">{stats.currentAC} A</span></div>
+                                    </div>
+                                    <div className="bg-slate-950 p-6 rounded-3xl border border-white/5 space-y-4">
+                                        <div className="flex justify-between items-center"><span className="text-[10px] text-slate-500 uppercase font-black tracking-widest">DC 輸出電壓</span><select className="bg-slate-900 p-1.5 rounded text-[10px] text-white outline-none border-none cursor-pointer" value={voltageDC} onChange={e=>setVoltageDC(parseInt(e.target.value))}><option value="3">3V</option><option value="4">4.2V</option><option value="5">5V</option><option value="12">12V</option><option value="24">24V</option></select></div>
+                                        <div className="flex justify-between text-xs font-mono pt-2 border-t border-white/5"><span>DC 總電流需求</span><span className="text-emerald-400 font-bold text-lg">{stats.currentDC} A</span></div>
+                                    </div>
+                                </div>
+                                <button onClick={()=>setShowConfig(false)} className="w-full bg-blue-600 mt-10 py-5 rounded-3xl font-black uppercase tracking-widest text-xs shadow-xl shadow-blue-900/30">確認並返回</button>
+                            </div>
+                        </div>
+                    )}
+
+                    {showBOM && (
+                        <div className="fixed inset-0 bg-black/98 flex items-center justify-center z-[250] p-10 backdrop-blur-xl">
+                            <div className="bg-slate-900 border border-white/10 w-full max-w-4xl p-12 rounded-[3.5rem] shadow-2xl overflow-y-auto max-h-[90vh]">
+                                <header className="mb-10 border-b border-white/10 pb-8 flex justify-between items-center"><div><h2 className="text-3xl font-black text-blue-400 uppercase italic tracking-tighter">工程物料清單 (BOM)</h2></div><button onClick={()=>setShowBOM(false)} className="text-2xl">✕</button></header>
+                                <div className="grid grid-cols-2 gap-4 mb-10 text-xs font-bold bg-white/5 p-8 rounded-[2.5rem] border border-white/5 shadow-inner">
+                                    <div className="flex justify-between"><span className="text-slate-500 uppercase">型號規格</span><span className="text-white font-black">{modelKey} 系列</span></div>
+                                    <div className="flex justify-between"><span className="text-slate-500 uppercase">模組數量</span><span className="text-white font-black">{stats.moduleCount} Units</span></div>
+                                    <div className="flex justify-between col-span-2 text-blue-400 pt-5 border-t border-white/10"><span className="uppercase font-black text-[10px]">解析度</span><span className="font-black text-xl leading-none">{stats.totalPxW} (W) x {stats.totalPxH} (H) Px</span></div>
+                                </div>
+                                <table className="w-full text-xs text-left border-collapse rounded-3xl overflow-hidden shadow-2xl border border-white/5">
+                                    <thead className="bg-white/5 text-slate-500 uppercase tracking-widest font-black text-[10px]">
+                                        <tr><th className="p-6">物料名稱</th><th className="p-6">零件規格詳情</th><th className="p-6 text-right">數量</th></tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/10 bg-slate-900/40 font-mono">
+                                        <tr className="hover:bg-white/5 transition-all"><td className="p-6 font-black text-slate-300">LED Module</td><td>{modelKey} 點陣模組 ({spec.pxW}x{spec.pxH}px)</td><td className="p-6 text-right font-black text-blue-400">{stats.moduleCount} 片</td></tr>
+                                        <tr className="hover:bg-white/5 transition-all"><td className="p-6 font-black text-slate-300">PSU Power</td><td>DC {voltageDC}V / 200W 超薄電源供應器</td><td className="p-6 text-right font-black text-blue-400">{stats.psuCount} 台</td></tr>
+                                        <tr className="hover:bg-white/5 transition-all"><td className="p-6 font-black text-slate-300">Receiver Card</td><td>MRV 同步接收卡</td><td className="p-6 text-right font-black text-blue-400">{stats.receiverCount} 片</td></tr>
+                                        <tr className="text-blue-400 bg-blue-500/10 font-black border-t-2 border-blue-500/20 transition-all"><td className="p-6 uppercase">AC Box</td><td>AC 配電控制箱 (含漏電/防雷)</td><td className="p-6 text-right text-lg">1 套</td></tr>
+                                    </tbody>
+                                </table>
+                                <div className="flex gap-6 mt-12"><button onClick={()=>window.print()} className="flex-1 bg-blue-600 py-6 rounded-[2.5rem] font-black text-sm uppercase shadow-xl hover:scale-[1.02] transition-all">列印工程報表</button><button onClick={()=>setShowBOM(false)} className="flex-[0.4] bg-slate-800 py-6 rounded-[2.5rem] font-black text-sm tracking-widest text-white hover:bg-slate-700">返回</button></div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

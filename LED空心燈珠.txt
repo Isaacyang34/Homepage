@@ -1,0 +1,196 @@
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+
+/**
+ * [STANDALONE LED MATRIX RENDERER]
+ * 這是從 LED Studio Pro 抽離出的核心預覽引擎。
+ * 具備佈滿螢幕的擬真燈珠（空心圈）效果。
+ */
+
+// --- 核心字庫與規格資料 ---
+const FONT_5X7 = {
+    32:[0,0,0,0,0],33:[0,0,95,0,0],34:[0,7,0,7,0],35:[20,127,20,127,20],36:[36,42,127,42,18],37:[35,19,8,100,98],38:[54,73,85,34,80],39:[0,5,3,0,0],
+    40:[0,28,34,65,0],41:[0,65,34,28,0],42:[20,8,62,8,20],43:[8,8,62,8,8],44:[0,80,48,0,0],45:[8,8,8,8,8],46:[0,96,96,0,0],47:[32,16,8,4,2],
+    48:[62,81,73,69,62],49:[0,66,127,64,0],50:[66,97,81,73,70],51:[33,65,69,75,49],52:[24,20,18,127,16],53:[39,69,69,69,57],54:[60,74,73,73,48],55:[1,113,9,5,3],
+    56:[54,73,73,73,54],57:[6,73,73,41,30],58:[0,54,54,0,0],59:[0,86,54,0,0],60:[8,20,34,65,0],61:[20,20,20,20,20],62:[0,65,34,20,8],63:[2,1,81,9,6],
+    64:[50,73,121,65,62],65:[126,17,17,126],66:[127,73,73,73,54],67:[62,65,65,65,34],68:[127,65,65,34,28],69:[127,73,73,73,65],70:[127,9,9,9,1],
+    71:[62,65,73,73,122],72:[127,8,8,8,127],73:[0,65,127,65,0],74:[32,64,65,63,1],75:[127,8,20,34,65],76:[127,64,64,64,64],77:[127,2,12,2,127],
+    78:[127,4,8,16,127],79:[62,65,65,65,62],80:[127,9,9,9,6],81:[62,65,81,33,94],82:[127,9,25,41,70],83:[70,73,73,73,49],84:[1,1,127,1,1],
+    85:[63,64,64,64,63],86:[31,32,64,32,31],87:[63,64,56,64,63],88:[99,20,8,20,99],89:[7,8,112,8,7],90:[97,81,73,69,67]
+};
+
+export default function App() {
+  // 1. 基礎配置狀態
+  const [totalPxW, setTotalPxW] = useState(128); // 螢幕解析度 寬
+  const [totalPxH, setTotalPxH] = useState(64);  // 螢幕解析度 高
+  const [zoom, setZoom] = useState(6.0);         // 預覽放大倍率
+  const [gridBrightness, setGridBrightness] = useState(0.4); // 背景空心燈珠亮度 (0~1)
+
+  // 2. 內容狀態 (測試資料)
+  const [content, setContent] = useState("88");
+  const [items, setItems] = useState([
+    { id: 1, type: 'text', x: 4, y: 12, color: '#ff0000', size: 3 },
+    { id: 2, type: 'text', x: 68, y: 12, color: '#22c55e', size: 3 },
+  ]);
+
+  // 3. 畫布參照
+  const mainCanvasRef = useRef(null);
+  const bufferCanvasRef = useRef(null);
+  const containerRef = useRef(null);
+
+  // 4. [CORE] 擬真渲染引擎
+  const renderRealisticLED = useCallback(() => {
+    const mainCanvas = mainCanvasRef.current;
+    const bufferCanvas = bufferCanvasRef.current;
+    if (!mainCanvas || !bufferCanvas) return;
+
+    const mainCtx = mainCanvas.getContext('2d');
+    const bufCtx = bufferCanvas.getContext('2d', { willReadFrequently: true });
+
+    // 設定畫布尺寸
+    mainCanvas.width = totalPxW * zoom;
+    mainCanvas.height = totalPxH * zoom;
+    bufferCanvas.width = totalPxW;
+    bufferCanvas.height = totalPxH;
+
+    // --- A. 緩衝區繪製 (邏輯像素) ---
+    bufCtx.fillStyle = '#000';
+    bufCtx.fillRect(0, 0, totalPxW, totalPxH);
+
+    items.forEach(item => {
+      bufCtx.fillStyle = item.color;
+      const sc = parseInt(item.size) || 1;
+      
+      if (item.type === 'text') {
+        const str = content.toUpperCase();
+        let cx = item.x;
+        for (let n = 0; n < str.length; n++) {
+          const data = FONT_5X7[str.charCodeAt(n)] || FONT_5X7[32];
+          for (let c = 0; c < 5; c++) {
+            for (let r = 0; r < 7; r++) {
+              if (data[c] & (1 << r)) {
+                bufCtx.fillRect(cx + (c * sc), item.y + (r * sc), sc, sc);
+              }
+            }
+          }
+          cx += 6 * sc;
+        }
+      }
+    });
+
+    // --- B. 物理擬真繪製 (主畫布) ---
+    const pixelData = bufCtx.getImageData(0, 0, totalPxW, totalPxH).data;
+    mainCtx.fillStyle = '#000000';
+    mainCtx.fillRect(0, 0, mainCanvas.width, mainCanvas.height);
+
+    const dotAlpha = 0.05 + gridBrightness * 0.5; // 計算背景空心燈珠的透明度
+    const radius = zoom * 0.38;
+
+    // 遍歷所有座標，確保佈滿螢幕
+    for (let y = 0; y < totalPxH; y++) {
+      for (let x = 0; x < totalPxW; x++) {
+        const cx = x * zoom + zoom / 2;
+        const cy = y * zoom + zoom / 2;
+
+        // 1. 繪製背景空心圈 (擬真感核心)
+        mainCtx.beginPath();
+        mainCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+        mainCtx.fillStyle = `rgba(255, 255, 255, ${dotAlpha})`;
+        mainCtx.fill();
+
+        // 2. 檢測緩衝區是否有顏色內容，若有則進行「點亮」與「發光」處理
+        const idx = (y * totalPxW + x) * 4;
+        const alpha = pixelData[idx + 3];
+        
+        if (alpha > 20) {
+          const r = pixelData[idx];
+          const g = pixelData[idx + 1];
+          const b = pixelData[idx + 2];
+          
+          mainCtx.beginPath();
+          mainCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+          mainCtx.fillStyle = `rgb(${r},${g},${b})`;
+          
+          // 擬真發光效果 (Glow)
+          mainCtx.shadowBlur = zoom * 0.5;
+          mainCtx.shadowColor = `rgba(${r},${g},${b},0.8)`;
+          mainCtx.fill();
+          mainCtx.shadowBlur = 0; // 重置防止性能下降
+        }
+      }
+    }
+  }, [totalPxW, totalPxH, zoom, gridBrightness, items, content]);
+
+  // 5. 自動重繪 Effect
+  useEffect(() => {
+    renderRealisticLED();
+  }, [renderRealisticLED]);
+
+  // 6. 滾輪縮放監聽 (手動綁定解決被動事件報錯)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handleWheel = (e) => {
+      e.preventDefault();
+      const dir = e.deltaY > 0 ? -1 : 1;
+      setZoom(prev => Math.min(Math.max(parseFloat((prev + dir * 0.5).toFixed(1)), 1.0), 15.0));
+    };
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, []);
+
+  return (
+    <div className="flex flex-col h-screen bg-slate-950 text-white p-6 overflow-hidden font-sans">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-xl font-black text-blue-400 uppercase italic tracking-tighter">LED Core Renderer</h1>
+          <p className="text-[10px] text-slate-500 uppercase tracking-widest">物理級點陣渲染引擎抽離版</p>
+        </div>
+        
+        <div className="flex gap-4 items-center bg-slate-900 p-3 rounded-2xl border border-white/5">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-slate-400 uppercase">背景亮度</span>
+            <input 
+              type="range" min="0" max="1" step="0.1" 
+              value={gridBrightness} 
+              onChange={e => setGridBrightness(parseFloat(e.target.value))}
+              className="w-24 accent-blue-500"
+            />
+          </div>
+          <div className="flex items-center gap-2 border-l border-white/10 pl-4">
+            <span className="text-[10px] font-bold text-slate-400 uppercase">文字內容</span>
+            <input 
+              type="text" 
+              value={content} 
+              onChange={e => setContent(e.target.value)}
+              className="bg-black border border-white/10 rounded px-2 py-1 text-xs text-blue-400 outline-none w-20"
+            />
+          </div>
+          <span className="text-[10px] font-black text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded">
+            ZOOM: {zoom.toFixed(1)}x
+          </span>
+        </div>
+      </div>
+
+      {/* 核心顯示區域 */}
+      <div 
+        ref={containerRef}
+        className="flex-1 bg-black rounded-3xl border border-white/5 overflow-auto flex items-center justify-center p-20 relative group"
+      >
+        <div className="relative shadow-[0_0_100px_rgba(0,0,0,0.5)]">
+          <canvas ref={mainCanvasRef} className="block pixelated" />
+          <canvas ref={bufferCanvasRef} style={{ display: 'none' }} />
+        </div>
+        
+        {/* 操作提示 */}
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-[9px] text-slate-600 uppercase tracking-[0.3em] opacity-0 group-hover:opacity-100 transition-opacity">
+          使用滑鼠滾輪進行縮放 • 擬真點陣全覆蓋技術
+        </div>
+      </div>
+      
+      <footer className="mt-6 flex justify-between text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+        <span>解析度: {totalPxW} x {totalPxH} PX</span>
+        <span>引擎狀態: 穩定渲染 (PHYSICAL LAYER)</span>
+      </footer>
+    </div>
+  );
+}
