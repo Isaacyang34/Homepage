@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <title>馬達工程計算工具箱 - 全功能版</title>
-    <link rel="stylesheet" href="styles.css">
     <style>
         :root {
             --bg-color: #f4f7f6;
@@ -16,91 +15,55 @@
         }
 
         [data-theme="dark"] {
-                // 1. HP to kW
-                function convP(type) {
-                    const hpEl = document.getElementById('hp_in');
-                    const kwEl = document.getElementById('kw_in');
-                    const hp = parseFloat(hpEl.value);
-                    const kw = parseFloat(kwEl.value);
-                    if (type === 'hp') {
-                        if (!isNaN(hp)) kwEl.value = (hp * 0.7457).toFixed(4);
-                        else kwEl.value = '';
-                    } else {
-                        if (!isNaN(kw)) hpEl.value = (kw * 1.341).toFixed(4);
-                        else hpEl.value = '';
-                    }
-                }
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --text-color: #e0e0e0;
+            --primary-color: #ff9800; /* 夜間橘 */
+            --accent-bg: #332200;
+            --formula-bg: #2d2d2d;
+            --border-color: #333333;
+        }
 
-                // 2. Kt
-                function calcKt() {
-                    const v = parseFloat(document.getElementById('kt_v').value);
-                    const n = parseFloat(document.getElementById('kt_n').value);
-                    if (isNaN(v) || isNaN(n) || n <= 0) {
-                        document.getElementById('kt_res').innerText = '請輸入有效的電壓與轉速';
-                        return;
-                    }
-                    document.getElementById('kt_res').innerText = 'Kt: ' + (v / (n * 0.1047)).toFixed(4) + ' Nm/A';
-                }
+        body { 
+            font-family: "Microsoft JhengHei", sans-serif; 
+            background-color: var(--bg-color); 
+            color: var(--text-color);
+            padding: 20px; 
+            transition: all 0.3s ease;
+        }
 
-                // 3. BEMF
-                function calcBe() {
-                    const n = parseFloat(document.getElementById('be_n').value);
-                    const ke = parseFloat(document.getElementById('be_ke').value);
-                    if (isNaN(n) || isNaN(ke)) {
-                        document.getElementById('be_res').innerText = '請輸入有效的轉速與 Ke';
-                        return;
-                    }
-                    document.getElementById('be_res').innerText = 'BEMF: ' + ((n / 1000) * ke).toFixed(2) + ' V';
-                }
+        .header { text-align: center; margin-bottom: 40px; }
+        h1 { color: var(--primary-color); }
 
-                // 4. Frequency
-                function calcF() {
-                    const p = parseFloat(document.getElementById('f_p').value);
-                    const n = parseFloat(document.getElementById('f_n').value);
-                    const s = parseFloat(document.getElementById('f_s').value) / 100;
-                    if (isNaN(p) || isNaN(n)) {
-                        document.getElementById('f_res').innerText = '請輸入極數與轉速';
-                        return;
-                    }
-                    document.getElementById('f_res').innerText = '頻率: ' + ((p * n) / (120 * (1 - s))).toFixed(2) + ' Hz';
-                }
+        /* 切換按鈕 */
+        .theme-switch {
+            position: fixed; top: 20px; right: 20px;
+            padding: 12px 20px; background: var(--primary-color);
+            color: #fff; border: none; border-radius: 30px;
+            cursor: pointer; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            z-index: 1000;
+        }
 
-                // 5. Electrical Power
-                function calcP1() {
-                    const v = parseFloat(document.getElementById('p1_v').value);
-                    const i = parseFloat(document.getElementById('p1_i').value);
-                    const pf = parseFloat(document.getElementById('p1_pf').value);
-                    const e = parseFloat(document.getElementById('p1_e').value);
-                    if (isNaN(v) || isNaN(i) || isNaN(pf) || isNaN(e)) {
-                        document.getElementById('p1_res').innerText = '請輸入完整的電壓/電流/PF/效率';
-                        return;
-                    }
-                    const w = 1.732 * v * i * pf * e;
-                    document.getElementById('p1_res').innerText = '功率: ' + (w / 1000).toFixed(3) + ' kW';
-                }
+        /* 響應式容器 */
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 25px;
+            justify-content: center;
+        }
 
-                // 6. Mechanical Power
-                function calcP2() {
-                    const t = parseFloat(document.getElementById('p2_t').value);
-                    const n = parseFloat(document.getElementById('p2_n').value);
-                    if (isNaN(t) || isNaN(n)) {
-                        document.getElementById('p2_res').innerText = '請輸入扭矩與轉速';
-                        return;
-                    }
-                    const w = (t * n) / 9.55;
-                    document.getElementById('p2_res').innerText = '功率: ' + (w / 1000).toFixed(3) + ' kW';
-                }
-
-                // 7. Inductance
-                function calcL() {
-                    const val = parseFloat(document.getElementById('l_val').value);
-                    const mode = document.getElementById('l_mode').value;
-                    if (isNaN(val)) {
-                        document.getElementById('l_res').innerText = '請輸入電感值';
-                        return;
-                    }
-                    document.getElementById('l_res').innerText = '單相繞組: ' + (mode === 'Y' ? (val / 2).toFixed(4) : (val * 1.5).toFixed(4)) + ' mH';
-                }
+        /* 獨立積木框架 */
+        .block {
+            background: var(--card-bg);
+            width: 300px;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            border-top: 6px solid var(--primary-color);
+            transition: transform 0.2s;
+        }
         .block:hover { transform: translateY(-5px); }
 
         h2 { font-size: 1.1rem; color: var(--primary-color); margin: 0 0 10px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 5px; }
@@ -128,25 +91,6 @@
     </style>
 </head>
 <body>
-
-<nav class="site-nav" aria-label="主目錄">
-  <a class="nav-item" href="index.html">
-    <div class="nav-title">首頁</div>
-    <div class="nav-desc">返回主選單</div>
-  </a>
-  <a class="nav-item" href="馬達計算.html">
-    <div class="nav-title">馬達工程計算</div>
-    <div class="nav-desc">馬達工程相關計算工具</div>
-  </a>
-  <a class="nav-item" href="LED.html">
-    <div class="nav-title">LED 應用</div>
-    <div class="nav-desc">LED 相關計算與設計</div>
-  </a>
-  <a class="nav-item" href="OLED版面設計.html">
-    <div class="nav-title">OLED 版面設計</div>
-    <div class="nav-desc">OLED 介面與版面範例</div>
-  </a>
-</nav>
 
 <button class="theme-switch" onclick="toggleTheme()">🌓 切換模式</button>
 
@@ -225,6 +169,7 @@
         <h2>5. 電氣功率計算</h2>
         
 
+[Image of three phase power diagram]
 
         <div class="formula">功率(W) = 1.732 * V * I * PF * η</div>
         <div class="input-item">
@@ -266,6 +211,8 @@
         <h2>7. 繞組電感計算</h2>
         
 
+[Image of motor Wye and Delta connection]
+
         <div class="formula">Y: 單相=L/2 | D: 單相=L*1.5</div>
         <div class="input-item">
             <label>接線方式:</label>
@@ -282,7 +229,29 @@
         <div id="l_res" class="res-box">等待計算...</div>
     </div>
 
-
+    <div class="block">
+        <h2>8. 三相 Y 接等效電路</h2>
+        
+        <div class="formula">I = V_ph / sqrt((Rs+Rr/s)² + X²)</div>
+        <div class="input-item">
+            <label>相電壓 (V_ph):</label>
+            <input type="number" id="ec_v" placeholder="Line V / 1.732">
+        </div>
+        <div class="input-item">
+            <label>定子電阻 Rs (Ω):</label>
+            <input type="number" id="ec_rs">
+        </div>
+        <div class="input-item">
+            <label>總感抗 X (Ω):</label>
+            <input type="number" id="ec_x">
+        </div>
+        <div class="input-item">
+            <label>轉差率 (s):</label>
+            <input type="number" id="ec_s" value="0.05">
+        </div>
+        <button class="calc-btn" onclick="calcEC()">推算負載電流</button>
+        <div id="ec_res" class="res-box">等待計算...</div>
+    </div>
 
 </div>
 
@@ -339,7 +308,12 @@
         document.getElementById('l_res').innerText = "單相繞組: " + (mode === 'Y' ? val / 2 : val * 1.5).toFixed(4) + " mH";
     }
 
-
+    // 8. Equivalent Circuit
+    function calcEC() {
+        let v = parseFloat(document.getElementById('ec_v').value), rs = parseFloat(document.getElementById('ec_rs').value);
+        let x = parseFloat(document.getElementById('ec_x').value), s = parseFloat(document.getElementById('ec_s').value) || 0.001;
+        let z = Math.sqrt(Math.pow(rs + (rs/s), 2) + Math.pow(x, 2));
+        document.getElementById('ec_res').innerText = "相電流: " + (v / z).toFixed(2) + " A";
     }
 </script>
 
