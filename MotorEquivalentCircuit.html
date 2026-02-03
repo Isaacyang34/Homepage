@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>馬達等效電路參數計算器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; }
+        
+        /* Circuit Diagram Font Styles */
+        .circuit-text { 
+            font-family: 'Courier New', monospace; 
+            font-weight: 800; 
+            fill: #0284c7; 
+            font-size: 24px;
+            filter: drop-shadow(0 1px 1px white);
+        }
+        .circuit-label { 
+            font-family: sans-serif; 
+            font-weight: bold; 
+            fill: #334155; 
+            font-size: 26px;
+        }
+
+        input:focus { outline: none; border-color: #3b82f6; ring: 2px; }
+        
+        /* Input Styles */
+        .input-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .input-row:last-child { border-bottom: none; }
+        .input-label {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #1e293b;
+            flex-grow: 1;
+            white-space: nowrap;
+            margin-right: 16px;
+        }
+        .input-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 180px;
+            flex-shrink: 0;
+        }
+        .input-field {
+            width: 100%;
+            background-color: #f8fafc;
+            border: 2px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 6px 12px;
+            text-align: right;
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: #0f172a;
+            transition: all 0.2s;
+        }
+        .input-field:focus {
+            background-color: white;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+        }
+        .input-unit {
+            font-size: 1rem;
+            color: #64748b;
+            font-weight: 700;
+            width: 50px;
+            text-align: left;
+        }
+        
+        /* Result List Styles */
+        .result-item {
+            padding: 10px 16px;
+            background-color: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            font-family: 'Courier New', monospace;
+            font-weight: 700;
+            color: #334155;
+            display: flex;
+            align-items: center;
+            font-size: 1.5rem;
+        }
+        .result-item:last-child { border-bottom: none; }
+        .result-val { color: #2563eb; font-weight: 800; margin: 0 6px; }
+        .result-desc { 
+            font-family: 'Noto Sans TC', sans-serif; 
+            font-weight: 500; 
+            font-size: 1.1rem; 
+            color: #64748b; 
+            margin-right: 12px; 
+        }
+
+        /* --- Cyberpunk Chart Styles --- */
+        .cyber-container {
+            --neon-blue: #00f2ff;
+            --neon-pink: #ff3399;
+            --neon-pink-glow: rgba(255, 51, 153, 0.9);
+            --bg-dark: #000000;
+            background-color: var(--bg-dark);
+            font-family: 'Orbitron', sans-serif;
+            overflow: hidden;
+            position: relative;
+            border-radius: 12px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            border: 1px solid #333;
+        }
+
+        .cyber-grid-bg {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 50% 50%, #001a1a 0%, #000 85%),
+                linear-gradient(rgba(0, 242, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 242, 255, 0.05) 1px, transparent 1px);
+            background-size: 100% 100%, 40px 40px, 40px 40px;
+            z-index: 0;
+        }
+
+        .cyber-svg {
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            position: relative;
+            filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.5));
+        }
+
+        /* Scaled up SVG Fonts */
+        .node-text {
+            fill: white;
+            font-size: 40px;
+            font-weight: 900;
+            text-anchor: middle;
+            filter: drop-shadow(0 0 8px #00f2ff);
+        }
+        .node-val {
+            fill: #00f2ff;
+            font-size: 32px;
+            font-family: 'Courier New', monospace;
+            font-weight: 800;
+            text-anchor: middle;
+            filter: drop-shadow(0 0 4px #00f2ff);
+        }
+
+        .loss-text {
+            fill: #fff;
+            font-size: 28px;
+            font-weight: 800;
+            filter: drop-shadow(0 0 10px #ff3399);
+        }
+        .loss-val {
+            fill: #ff3399;
+            font-size: 28px;
+            font-family: 'Courier New', monospace;
+            font-weight: 800;
+            filter: drop-shadow(0 0 8px #ff3399);
+        }
+
+        .main-line {
+            fill: none;
+            stroke: #00f2ff;
+            stroke-width: 5;
+            filter: drop-shadow(0 0 8px #00f2ff);
+        }
+
+        .branch-line {
+            fill: none;
+            stroke: #ff3399;
+            stroke-width: 4;
+            stroke-dasharray: 12, 6;
+            filter: drop-shadow(0 0 15px rgba(255, 51, 153, 0.9));
+        }
+
+        .particle {
+            fill: #fff;
+            filter: blur(2px) drop-shadow(0 0 5px #fff);
+        }
+
+        .sys-info {
+            position: absolute;
+            bottom: 15px;
+            left: 25px;
+            font-family: monospace;
+            color: #00f2ff;
+            font-size: 1rem;
+            opacity: 0.6;
+            letter-spacing: 2px;
+            z-index: 20;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-900">
+
+    <!-- Header -->
+    <header class="bg-blue-800 text-white p-6 shadow-xl sticky top-0 z-50">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-3xl font-black flex items-center gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                馬達等效電路參數分析 (三相)
+            </h1>
+            <span class="text-lg opacity-90 font-bold bg-blue-900 px-3 py-1 rounded">Excel Data Import</span>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-4 md:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+        <!-- Left Column: Inputs -->
+        <div class="lg:col-span-5 space-y-6">
+            
+            <!-- Step 1: Basic Data -->
+            <div class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
+                <div class="bg-slate-50 px-8 py-5 border-b border-slate-200 flex justify-between items-center">
+                    <h2 class="text-2xl font-black text-slate-800">Step 1: 馬達基本資料</h2>
+                    <span class="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-bold">Rated Test</span>
+                </div>
+                <div class="p-6 pt-4">
+                    <div class="input-row">
+                        <label class="input-label text-blue-900">額定線電壓</label>
+                        <div class="input-wrapper">
+                            <input type="number" id="v_rated" value="230.0" class="input-field">
+                            <span class="input-unit">V</span>
+                        </div>
+                    </div>
+                    
+                    <div class="input-row">
+                        <label class="input-label">額定頻率 Fr</label>
+                        <div class="input-wrapper">
+                            <input type="number" id="f_rated" value="100.0" class="input-field">
+                            <span class="input-unit">Hz</span>
+                        </div>
+                    </div>
+
+                    <div class="input-row">
+                        <label class="input-label">額定轉速 Nr</label>
+                        <div class="input-wrapper">
+                            <input type="number" id="n_rated" value="2930.0" class="input-field">
+                            <span class="input-unit">rpm</span>
+                        </div>
+                    </div>
+
+                    <div class="input-row">
+                        <label class="input-label">額定功率 Prated</label>
+                        <div class="input-wrapper">
+                            <input type="number" id="p_rated" value="5.5" class="input-field">
+                            <span class="input-unit">kW</span>
+                        </div>
+                    </div>
+
+                    <div class="input-row">
+                        <label class="input-label">額定電流 Irated</label>
+                        <div class="input-wrapper">
+                            <input type="number" id="i_rated" value="17.5" class="input-field">
+                            <span class="input-unit">A</span>
+                        </div>
+                    </div>
+
+                    <div class="input-row">
+                        <label class="input-label">極數 Poles</label>
+                        <div class="input-wrapper">
+                            <input type="number" id="poles" value="4" class="input-field">
+                            <span class="input-unit">P</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Resistance & L -->
+            <div class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
+                <div class="bg-slate-50 px-8 py-5 border-b border-slate-200">
+                    <h2 class="text-2xl font-black text-slate-800">Step 2: 靜態量測</h2>
+                </div>
+                <div class="p-6 pt-4">
+                    <div class="input-row">
+                        <div class="flex flex-col">
+                            <label class="input-label">線間電阻 Ravg</label>
+                            <span class="text-sm text-slate-500 font-medium">* U-V, V-W, W-U</span>
+                        </div>
+                        <div class="input-wrapper">
+                            <input type="number" id="r_avg" value="0.28" class="input-field bg-yellow-50 border-yellow-400">
+                            <span class="input-unit">Ω</span>
+                        </div>
+                    </div>
+
+                    <div class="input-row">
+                        <div class="flex flex-col">
+                            <label class="input-label">單相電感 Lphase</label>
+                            <span class="text-sm text-slate-500 font-medium">* 估算 X1 用</span>
+                        </div>
+                        <div class="input-wrapper">
+                            <input type="number" id="l_phase" value="1.5" placeholder="選填" class="input-field">
+                            <span class="input-unit">mH</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: No Load -->
+            <div class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
+                <div class="bg-slate-50 px-8 py-5 border-b border-slate-200">
+                    <h2 class="text-2xl font-black text-slate-800">Step 3: 無載測試</h2>
+                </div>
+                <div class="p-6 pt-4">
+                    <div class="input-row">
+                        <label class="input-label">無載電壓 Vn</label>
+                        <div class="input-wrapper">
+                            <input type="number" id="vn_nl" value="231.6" class="input-field bg-yellow-50 border-yellow-400">
+                            <span class="input-unit">V</span>
+                        </div>
+                    </div>
+
+                    <div class="input-row">
+                        <label class="input-label">無載電流 In</label>
+                        <div class="input-wrapper">
+                            <input type="number" id="in_nl" value="8.85" class="input-field bg-yellow-50 border-yellow-400">
+                            <span class="input-unit">A</span>
+                        </div>
+                    </div>
+
+                    <div class="input-row">
+                        <label class="input-label">無載功率 Pn</label>
+                        <div class="input-wrapper">
+                            <input type="number" id="pn_nl" value="505.0" class="input-field bg-yellow-50 border-yellow-400">
+                            <span class="input-unit">W</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="calculate()" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-black py-5 px-6 rounded-2xl shadow-lg hover:shadow-xl transition duration-200 flex justify-center items-center gap-3 text-2xl transform active:scale-95">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm2 10a1 1 0 10-2 0v3a1 1 0 102 0v-3zm2-3a1 1 0 011 1v5a1 1 0 11-2 0v-5a1 1 0 011-1zm4-1a1 1 0 10-2 0v7a1 1 0 102 0V8z" clip-rule="evenodd" />
+                </svg>
+                執行計算
+            </button>
+
+        </div>
+
+        <!-- Right Column: Diagram & Results -->
+        <div class="lg:col-span-7 space-y-8">
+            
+            <!-- Circuit Diagram Card -->
+            <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+                <div class="bg-slate-800 text-white px-6 py-4 border-b border-slate-700 flex justify-between items-center">
+                    <h2 class="font-bold text-xl">單相等效電路 (IEEE T-Model)</h2>
+                    <span class="text-sm bg-slate-600 px-3 py-1 rounded-full">Phase Equivalent</span>
+                </div>
+                <div class="p-6 overflow-x-auto bg-white flex justify-center items-center" id="diagram-container">
+                    <!-- SVG Circuit Diagram - Widened and Text Enlarged -->
+                    <svg width="1000" height="450" viewBox="0 0 1000 450" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                                <path d="M0,0 L0,6 L9,3 z" fill="#334155" />
+                            </marker>
+                        </defs>
+                        <!-- Main Loop Lines -->
+                        <!-- Input to R1 (Extended width) -->
+                        <line x1="50" y1="150" x2="150" y2="150" stroke="#334155" stroke-width="3" />
+                        
+                        <!-- R1 Box -->
+                        <rect x="150" y="130" width="100" height="40" fill="white" stroke="#334155" stroke-width="3" />
+                        <text id="val-r1-svg" x="200" y="210" text-anchor="middle" class="circuit-text">R1[-.---]Ω</text>
+
+                        <!-- R1 to X1 -->
+                        <line x1="250" y1="150" x2="350" y2="150" stroke="#334155" stroke-width="3" />
+                        
+                        <!-- X1 Coil -->
+                        <path d="M350,150 q10,-25 20,0 t20,0 t20,0 t20,0" fill="none" stroke="#334155" stroke-width="3" />
+                        <text id="val-x1-svg" x="390" y="210" text-anchor="middle" class="circuit-text">jX1[-.---]Ω</text>
+
+                        <!-- X1 to Magnetizing -->
+                        <line x1="430" y1="150" x2="530" y2="150" stroke="#334155" stroke-width="3" />
+
+                        <!-- Magnetizing Branch (Vertical) -->
+                        <line x1="530" y1="150" x2="530" y2="350" stroke="#334155" stroke-width="3" />
+                        
+                        <!-- Rc Branch -->
+                        <line x1="530" y1="180" x2="580" y2="180" stroke="#334155" stroke-width="3" />
+                        <rect x="580" y="160" width="30" height="80" fill="white" stroke="#334155" stroke-width="3" />
+                        <line x1="610" y1="180" x2="610" y2="350" stroke="#334155" stroke-width="3" />
+                        <text id="val-rc-svg" x="630" y="220" text-anchor="start" class="circuit-text">Rc[-.---]Ω</text>
+
+                        <!-- Xm Branch -->
+                        <line x1="530" y1="280" x2="570" y2="280" stroke="#334155" stroke-width="3" />
+                        <path d="M570,280 q10,-20 20,0 t20,0 t20,0" fill="none" stroke="#334155" stroke-width="3" transform="rotate(90, 590, 280)" />
+                        <line x1="610" y1="280" x2="610" y2="350" stroke="#334155" stroke-width="3" />
+                         <text id="val-xm-svg" x="630" y="320" text-anchor="start" class="circuit-text">jXm[-.---]Ω</text>
+                        
+                        <!-- Magnetizing Return -->
+                        <line x1="530" y1="350" x2="610" y2="350" stroke="#334155" stroke-width="3" />
+                        <line x1="530" y1="350" x2="530" y2="400" stroke="#334155" stroke-width="3" />
+
+                        <!-- Rotor Side (Wide spacing) -->
+                        <line x1="530" y1="150" x2="700" y2="150" stroke="#334155" stroke-width="3" />
+                        <!-- X2 Coil -->
+                        <path d="M700,150 q10,-25 20,0 t20,0 t20,0 t20,0" fill="none" stroke="#334155" stroke-width="3" />
+                        <text id="val-x2-svg" x="740" y="210" text-anchor="middle" class="circuit-text">jX2[-.---]Ω</text>
+                        
+                        <line x1="780" y1="150" x2="850" y2="150" stroke="#334155" stroke-width="3" />
+                        <!-- R2/s Variable Resistor -->
+                        <rect x="850" y="130" width="100" height="40" fill="white" stroke="#334155" stroke-width="3" />
+                        <line x1="860" y1="190" x2="940" y2="110" stroke="#334155" stroke-width="2" marker-end="url(#arrow)" />
+                        <text x="900" y="110" font-size="24" text-anchor="middle" fill="#334155" font-weight="bold">R2/s</text>
+                        <text id="val-r2s-svg" x="900" y="210" text-anchor="middle" class="circuit-text">[-.---]Ω</text>
+
+                        <!-- Return Path -->
+                        <line x1="970" y1="150" x2="970" y2="400" stroke="#334155" stroke-width="3" />
+                        <line x1="50" y1="400" x2="970" y2="400" stroke="#334155" stroke-width="3" />
+
+                        <!-- Terminals -->
+                        <circle cx="50" cy="150" r="6" fill="white" stroke="#334155" stroke-width="3" />
+                        <circle cx="50" cy="400" r="6" fill="white" stroke="#334155" stroke-width="3" />
+                        <text x="40" y="160" font-size="28" font-weight="bold" text-anchor="end">V1</text>
+                        
+                        <!-- Current Labels -->
+                        <text x="100" y="135" font-size="20" fill="#ef4444" font-weight="bold">I1 →</text>
+                        <text x="650" y="135" font-size="20" fill="#ef4444" font-weight="bold">I2' →</text>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Parameters Table -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200">
+                <div class="px-8 py-5 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+                    <h3 class="font-bold text-2xl text-slate-800">參數列表 (Parameters)</h3>
+                </div>
+                <div class="divide-y divide-slate-100 bg-white">
+                    <div class="result-item">
+                        <span class="mr-3 font-black text-blue-300">1.</span>
+                        <span class="result-val w-12 text-left">R1</span>
+                        <span class="result-desc">(定子電阻)</span>
+                        <span>[</span><span id="list-r1" class="result-val">-</span><span>]</span>
+                        <span class="ml-2">Ω</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="mr-3 font-black text-blue-300">2.</span>
+                        <span class="result-val w-12 text-left">R2</span>
+                        <span class="result-desc">(轉子電阻)</span>
+                        <span>[</span><span id="list-r2" class="result-val">-</span><span>]</span>
+                        <span class="ml-2">Ω</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="mr-3 font-black text-blue-300">3.</span>
+                        <span class="result-val w-12 text-left">X1</span>
+                        <span class="result-desc">(定子漏抗)</span>
+                        <span>[</span><span id="list-x1" class="result-val">-</span><span>]</span>
+                        <span class="ml-2">Ω =</span>
+                        <span>[</span><span id="list-l1" class="result-val text-slate-600">-</span><span>]</span>
+                        <span class="ml-2">mH</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="mr-3 font-black text-blue-300">4.</span>
+                        <span class="result-val w-12 text-left">X2</span>
+                        <span class="result-desc">(轉子漏抗)</span>
+                        <span>[</span><span id="list-x2" class="result-val">-</span><span>]</span>
+                        <span class="ml-2">Ω =</span>
+                        <span>[</span><span id="list-l2" class="result-val text-slate-600">-</span><span>]</span>
+                        <span class="ml-2">mH</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="mr-3 font-black text-blue-300">5.</span>
+                        <span class="result-val w-12 text-left">Xm</span>
+                        <span class="result-desc">(激磁電抗)</span>
+                        <span>[</span><span id="list-xm" class="result-val">-</span><span>]</span>
+                        <span class="ml-2">Ω =</span>
+                        <span>[</span><span id="list-lm" class="result-val text-slate-600">-</span><span>]</span>
+                        <span class="ml-2">mH</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Power Flow & Loss Analysis (Cyberpunk Style) -->
+            <div class="bg-black rounded-2xl shadow-2xl border-2 border-slate-700 overflow-hidden">
+                <div class="bg-slate-900 px-8 py-5 border-b border-slate-700 flex justify-between items-center">
+                    <h3 class="font-bold text-2xl text-white" style="font-family: 'Orbitron', sans-serif;">POWER FLOW SYSTEM v12</h3>
+                    <div class="text-[#00f2ff] text-base font-mono">SCALE_INVARIANT: TRUE</div>
+                </div>
+                
+                <div class="cyber-container w-full h-[600px]">
+                    <div class="cyber-grid-bg"></div>
+                    <div class="sys-info">SYSTEM_ID: INDUCTION_MOTOR_FLOW // v12.0 // HIGH_VISIBILITY_MODE</div>
+
+                    <!-- Cyberpunk SVG - Expanded ViewBox -->
+                    <svg class="cyber-svg" viewBox="0 0 1800 900" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#00151a;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#003344;stop-opacity:1" />
+                            </linearGradient>
+                            <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#003344;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#006677;stop-opacity:1" />
+                            </linearGradient>
+                            <linearGradient id="grad3" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#006677;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#0099aa;stop-opacity:1" />
+                            </linearGradient>
+                            <linearGradient id="grad4" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#0099aa;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#00ddee;stop-opacity:1" />
+                            </linearGradient>
+
+                            <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                                <path d="M 0 0 L 8 3 L 0 6 Z" fill="#00f2ff" />
+                            </marker>
+                        </defs>
+
+                        <!-- Main Lines -->
+                        <!-- 1. Input(250) -> Gap(700) -->
+                        <path id="path1" d="M 370 450 L 550 450" class="main-line" marker-end="url(#arrowhead)" />
+                        <circle r="6" class="particle">
+                            <animateMotion dur="3s" repeatCount="indefinite">
+                                <mpath href="#path1"/>
+                            </animateMotion>
+                        </circle>
+
+                        <!-- 2. Gap(870) -> Mech(1150) -->
+                        <path id="path2" d="M 870 450 L 1000 450" class="main-line" marker-end="url(#arrowhead)" />
+                        <circle r="6" class="particle">
+                            <animateMotion dur="3s" repeatCount="indefinite">
+                                <mpath href="#path2"/>
+                            </animateMotion>
+                        </circle>
+
+                        <!-- 3. Mech(1320) -> Output(1600) -->
+                        <path id="path3" d="M 1320 450 L 1450 450" class="main-line" marker-end="url(#arrowhead)" />
+                        <circle r="6" class="particle">
+                            <animateMotion dur="3s" repeatCount="indefinite">
+                                <mpath href="#path3"/>
+                            </animateMotion>
+                        </circle>
+
+                        <!-- Loss Branches (Slanted/Diagonal Style) -->
+                        <!-- Stator Cu (Top 1) -->
+                        <path d="M 420 450 L 500 200 L 650 200" class="branch-line" />
+                        <text x="575" y="170" class="loss-text" text-anchor="middle">定子銅損 Pcu1</text>
+                        <text x="575" y="240" class="loss-val" id="svg-val-pcu1" text-anchor="middle">- W</text>
+
+                        <!-- Iron (Bottom 1) -->
+                        <path d="M 420 450 L 500 700 L 650 700" class="branch-line" />
+                        <text x="575" y="730" class="loss-text" text-anchor="middle">鐵損 Pcore</text>
+                        <text x="575" y="770" class="loss-val" id="svg-val-pcore" text-anchor="middle">- W</text>
+
+                        <!-- Rotor Cu (Top 2) -->
+                        <path d="M 900 450 L 980 200 L 1130 200" class="branch-line" />
+                        <text x="1055" y="170" class="loss-text" text-anchor="middle">轉子銅損 Pcu2</text>
+                        <text x="1055" y="240" class="loss-val" id="svg-val-pcu2" text-anchor="middle">- W</text>
+
+                        <!-- Friction (Bottom 2) -->
+                        <path d="M 1350 450 L 1430 700 L 1580 700" class="branch-line" />
+                        <text x="1505" y="730" class="loss-text" text-anchor="middle">雜散/機械損 Pfw</text>
+                        <text x="1505" y="770" class="loss-val" id="svg-val-pfw" text-anchor="middle">- W</text>
+
+                        <!-- Main Blocks (320x180) -->
+                        <!-- Input X=50 -->
+                        <rect x="50" y="360" width="320" height="180" rx="8" stroke="#00f2ff" stroke-width="4" fill="url(#grad1)" />
+                        <text x="210" y="420" class="node-text">輸入功率</text>
+                        <text x="210" y="480" class="node-val" id="svg-val-pin">Pin</text>
+
+                        <!-- Air Gap X=550 -->
+                        <rect x="550" y="360" width="320" height="180" rx="8" stroke="#00f2ff" stroke-width="4" fill="url(#grad2)" />
+                        <text x="710" y="420" class="node-text">氣隙功率</text>
+                        <text x="710" y="480" class="node-val" id="svg-val-pg">Pg</text>
+
+                        <!-- Mech X=1000 -->
+                        <rect x="1000" y="360" width="320" height="180" rx="8" stroke="#00f2ff" stroke-width="4" fill="url(#grad3)" />
+                        <text x="1160" y="420" class="node-text">機械功率</text>
+                        <text x="1160" y="480" class="node-val" id="svg-val-pm">Pm</text>
+
+                        <!-- Output X=1450 -->
+                        <rect x="1450" y="360" width="300" height="180" rx="8" stroke="#00f2ff" stroke-width="4" fill="url(#grad4)" />
+                        <text x="1600" y="420" class="node-text">輸出功率</text>
+                        <text x="1600" y="480" class="node-val" id="svg-val-pout">Pout</text>
+
+                    </svg>
+                </div>
+                
+                <div class="bg-black p-5 text-center border-t border-slate-800 flex justify-center items-center gap-4">
+                    <span class="text-[#00f2ff] font-mono text-2xl font-bold">CALCULATED EFFICIENCY:</span>
+                    <span class="text-[#ff3399] font-mono text-4xl font-black" id="val-eff">- %</span>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // Complex Number Utility
+        class Complex {
+            constructor(re, im) { this.re = re; this.im = im; }
+            add(c) { return new Complex(this.re + c.re, this.im + c.im); }
+            sub(c) { return new Complex(this.re - c.re, this.im - c.im); }
+            mul(c) { return new Complex(this.re * c.re - this.im * c.im, this.re * c.im + this.im * c.re); }
+            div(c) {
+                const den = c.re * c.re + c.im * c.im;
+                return new Complex((this.re * c.re + this.im * c.im) / den, (this.im * c.re - this.re * c.im) / den);
+            }
+            mag() { return Math.sqrt(this.re * this.re + this.im * this.im); }
+        }
+
+        function calculate() {
+            // --- 1. Gather Inputs ---
+            const V_rated_line = parseFloat(document.getElementById('v_rated').value);
+            const F_rated = parseFloat(document.getElementById('f_rated').value);
+            const N_rated = parseFloat(document.getElementById('n_rated').value);
+            const P_rated_kw = parseFloat(document.getElementById('p_rated').value);
+            const I_rated = parseFloat(document.getElementById('i_rated').value);
+            const Poles = parseFloat(document.getElementById('poles').value);
+
+            const R_avg = parseFloat(document.getElementById('r_avg').value);
+            const L_phase_mH = parseFloat(document.getElementById('l_phase').value) || 0;
+
+            const V_nl_line = parseFloat(document.getElementById('vn_nl').value);
+            const I_nl = parseFloat(document.getElementById('in_nl').value);
+            const P_nl_total = parseFloat(document.getElementById('pn_nl').value);
+
+            // --- 2. Pre-calculation & Setup ---
+            const V_rated_phase = V_rated_line / Math.sqrt(3);
+            const V_nl_phase = V_nl_line / Math.sqrt(3);
+            const P_nl_phase = P_nl_total / 3;
+            const N_sync = (120 * F_rated) / Poles;
+            const s_rated = (N_sync - N_rated) / N_sync;
+            const omega = 2 * Math.PI * F_rated;
+
+            // --- 3. Parameter Estimation Logic ---
+            let R1 = R_avg / 2;
+
+            let X1 = 0;
+            if (L_phase_mH > 0) {
+                X1 = omega * (L_phase_mH / 1000);
+            } else {
+                X1 = 0.1 * (V_rated_phase / I_rated);
+            }
+
+            const P_scl_nl = (I_nl ** 2) * R1;
+            let P_core_phase = P_nl_phase - P_scl_nl;
+            if (P_core_phase < 0) P_core_phase = 10; 
+
+            const E1_est = V_nl_phase; 
+            
+            let Rc = (E1_est ** 2) / P_core_phase;
+
+            const S_nl = V_nl_phase * I_nl;
+            const Q_nl = Math.sqrt(Math.max(0, S_nl**2 - P_nl_phase**2));
+            const Q_mag = Q_nl - (I_nl**2) * X1;
+            let Xm = (E1_est ** 2) / Q_mag;
+            if (!isFinite(Xm) || Xm < 0) Xm = 100;
+
+            let X2 = X1;
+
+            const P_out_W = P_rated_kw * 1000;
+            const P_gap_est = P_out_W / (1 - s_rated);
+            const I2_est_mag = I_rated * 0.90; 
+            
+            let R2 = (s_rated * P_gap_est) / (3 * I2_est_mag**2);
+
+            // --- 4. Verification / Loss Calculation ---
+            const Z1 = new Complex(R1, X1);
+            const Zm = new Complex((Rc * Xm * Xm)/(Rc**2 + Xm**2), (Rc * Rc * Xm)/(Rc**2 + Xm**2));
+            const Z2 = new Complex(R2/s_rated, X2);
+            
+            const Zm_mul_Z2 = Zm.mul(Z2);
+            const Zm_add_Z2 = Zm.add(Z2);
+            const Z_par = Zm_mul_Z2.div(Zm_add_Z2);
+            
+            const Z_total = Z1.add(Z_par);
+            
+            const V_phasor = new Complex(V_rated_phase, 0); 
+            const I1_c = V_phasor.div(Z_total);
+            const I1_mag = I1_c.mag();
+            
+            const V_drop = I1_c.mul(Z1);
+            const E1_c = V_phasor.sub(V_drop);
+            const E1_mag = E1_c.mag();
+
+            const I2_c = E1_c.div(Z2);
+            const I2_mag = I2_c.mag();
+
+            // --- 5. Calculate Losses (Sheet 3 Logic) ---
+            const P_cu1_calc = 3 * (I1_mag**2) * R1;
+            const P_core_calc = 3 * (E1_mag**2) / Rc;
+            const P_in_calc = 3 * (V_rated_phase * I1_c.re);
+            const P_cu2_calc = 3 * (I2_mag**2) * R2;
+            const P_gap_calc = P_cu2_calc / s_rated;
+            const P_m_calc = P_gap_calc - P_cu2_calc;
+            const P_fw_calc = P_m_calc - P_out_W;
+            const eff_calc = (P_out_W / P_in_calc) * 100;
+
+            // --- 6. Calculate Inductances (mH) ---
+            const L1_mH = (X1 / omega) * 1000;
+            const Lm_mH = (Xm / omega) * 1000;
+            const L2_mH = (X2 / omega) * 1000;
+
+            // --- 7. Update UI ---
+            // Update Diagram Labels
+            document.getElementById('val-r1-svg').textContent = `R1[${R1.toFixed(3)}]Ω`;
+            document.getElementById('val-x1-svg').textContent = `jX1[${X1.toFixed(3)}]Ω`;
+            document.getElementById('val-rc-svg').textContent = `Rc[${Rc.toFixed(0)}]Ω`;
+            document.getElementById('val-xm-svg').textContent = `jXm[${Xm.toFixed(3)}]Ω`;
+            document.getElementById('val-x2-svg').textContent = `jX2[${X2.toFixed(3)}]Ω`;
+            document.getElementById('val-r2s-svg').textContent = `[${(R2/s_rated).toFixed(2)}]Ω`;
+
+            // Update List Items (Bottom)
+            document.getElementById('list-r1').textContent = R1.toFixed(3);
+            document.getElementById('list-r2').textContent = R2.toFixed(3);
+            
+            document.getElementById('list-x1').textContent = X1.toFixed(3);
+            document.getElementById('list-l1').textContent = L1_mH.toFixed(2);
+            
+            document.getElementById('list-x2').textContent = X2.toFixed(3);
+            document.getElementById('list-l2').textContent = L2_mH.toFixed(2);
+            
+            document.getElementById('list-xm').textContent = Xm.toFixed(3);
+            document.getElementById('list-lm').textContent = Lm_mH.toFixed(2);
+
+            // Update Cyberpunk Chart Values
+            document.getElementById('svg-val-pin').textContent = P_in_calc.toFixed(0) + " W";
+            document.getElementById('svg-val-pg').textContent = P_gap_calc.toFixed(0) + " W";
+            document.getElementById('svg-val-pm').textContent = P_m_calc.toFixed(0) + " W";
+            document.getElementById('svg-val-pout').textContent = P_out_W.toFixed(0) + " W";
+            
+            document.getElementById('svg-val-pcu1').textContent = P_cu1_calc.toFixed(0) + " W";
+            document.getElementById('svg-val-pcore').textContent = P_core_calc.toFixed(0) + " W";
+            document.getElementById('svg-val-pcu2').textContent = P_cu2_calc.toFixed(0) + " W";
+            document.getElementById('svg-val-pfw').textContent = P_fw_calc.toFixed(0) + " W";
+            
+            document.getElementById('val-eff').textContent = eff_calc.toFixed(2) + " %";
+        }
+    </script>
+</body>
+</html>
