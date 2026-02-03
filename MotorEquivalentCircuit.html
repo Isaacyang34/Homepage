@@ -14,14 +14,20 @@
             font-family: 'Courier New', monospace; 
             font-weight: 800; 
             fill: #0284c7; 
-            font-size: 24px;
+            font-size: 18px;
             filter: drop-shadow(0 1px 1px white);
         }
         .circuit-label { 
             font-family: sans-serif; 
             font-weight: bold; 
-            fill: #334155; 
-            font-size: 26px;
+            fill: #1e293b; 
+            font-size: 20px;
+        }
+        .current-text {
+            font-weight: bold;
+            font-size: 16px;
+            fill: #1e293b;
+            font-style: italic;
         }
 
         input:focus { outline: none; border-color: #3b82f6; ring: 2px; }
@@ -49,6 +55,7 @@
             gap: 8px;
             width: 180px;
             flex-shrink: 0;
+            position: relative; /* For error icon positioning */
         }
         .input-field {
             width: 100%;
@@ -67,6 +74,29 @@
             border-color: #3b82f6;
             box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
         }
+        
+        /* Error Styles */
+        .input-field.error {
+            background-color: #fee2e2 !important; /* Red 100 */
+            border-color: #ef4444 !important; /* Red 500 */
+            color: #b91c1c !important; /* Red 700 */
+        }
+        
+        .warning-icon {
+            position: absolute;
+            left: -32px; /* Position to the left of the input */
+            top: 50%;
+            transform: translateY(-50%);
+            color: #ef4444; /* Red 500 */
+            display: none; /* Hidden by default */
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .7; }
+        }
+
         .input-unit {
             font-size: 1rem;
             color: #64748b;
@@ -124,76 +154,14 @@
             z-index: 0;
         }
 
-        .cyber-svg {
-            width: 100%;
-            height: 100%;
-            z-index: 10;
-            position: relative;
-            filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.5));
-        }
-
-        /* Scaled up SVG Fonts */
-        .node-text {
-            fill: white;
-            font-size: 40px;
-            font-weight: 900;
-            text-anchor: middle;
-            filter: drop-shadow(0 0 8px #00f2ff);
-        }
-        .node-val {
-            fill: #00f2ff;
-            font-size: 32px;
-            font-family: 'Courier New', monospace;
-            font-weight: 800;
-            text-anchor: middle;
-            filter: drop-shadow(0 0 4px #00f2ff);
-        }
-
-        .loss-text {
-            fill: #fff;
-            font-size: 28px;
-            font-weight: 800;
-            filter: drop-shadow(0 0 10px #ff3399);
-        }
-        .loss-val {
-            fill: #ff3399;
-            font-size: 28px;
-            font-family: 'Courier New', monospace;
-            font-weight: 800;
-            filter: drop-shadow(0 0 8px #ff3399);
-        }
-
-        .main-line {
-            fill: none;
-            stroke: #00f2ff;
-            stroke-width: 5;
-            filter: drop-shadow(0 0 8px #00f2ff);
-        }
-
-        .branch-line {
-            fill: none;
-            stroke: #ff3399;
-            stroke-width: 4;
-            stroke-dasharray: 12, 6;
-            filter: drop-shadow(0 0 15px rgba(255, 51, 153, 0.9));
-        }
-
-        .particle {
-            fill: #fff;
-            filter: blur(2px) drop-shadow(0 0 5px #fff);
-        }
-
-        .sys-info {
-            position: absolute;
-            bottom: 15px;
-            left: 25px;
-            font-family: monospace;
-            color: #00f2ff;
-            font-size: 1rem;
-            opacity: 0.6;
-            letter-spacing: 2px;
-            z-index: 20;
-        }
+        .cyber-svg { width: 100%; height: 100%; z-index: 10; position: relative; filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.5)); }
+        .node-text { fill: white; font-size: 40px; font-weight: 900; text-anchor: middle; filter: drop-shadow(0 0 8px #00f2ff); }
+        .node-val { fill: #00f2ff; font-size: 32px; font-family: 'Courier New', monospace; font-weight: 800; text-anchor: middle; filter: drop-shadow(0 0 4px #00f2ff); }
+        .loss-text { fill: #fff; font-size: 28px; font-weight: 800; filter: drop-shadow(0 0 10px #ff3399); }
+        .loss-val { fill: #ff3399; font-size: 28px; font-family: 'Courier New', monospace; font-weight: 800; filter: drop-shadow(0 0 8px #ff3399); }
+        .main-line { fill: none; stroke: #00f2ff; stroke-width: 5; filter: drop-shadow(0 0 8px #00f2ff); }
+        .branch-line { fill: none; stroke: #ff3399; stroke-width: 4; stroke-dasharray: 12, 6; filter: drop-shadow(0 0 15px rgba(255, 51, 153, 0.9)); }
+        .particle { fill: #fff; filter: blur(2px) drop-shadow(0 0 5px #fff); }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-900">
@@ -207,7 +175,7 @@
                 </svg>
                 馬達等效電路參數分析 (三相)
             </h1>
-            <span class="text-lg opacity-90 font-bold bg-blue-900 px-3 py-1 rounded">Excel Data Import</span>
+            <span class="text-lg opacity-90 font-bold bg-blue-900 px-3 py-1 rounded">IEEE T-Model Analysis</span>
         </div>
     </header>
 
@@ -220,80 +188,108 @@
             <div class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
                 <div class="bg-slate-50 px-8 py-5 border-b border-slate-200 flex justify-between items-center">
                     <h2 class="text-2xl font-black text-slate-800">Step 1: 馬達基本資料</h2>
-                    <span class="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-bold">Rated Test</span>
+                    <div class="flex items-center gap-4">
+                        <!-- Connection Type Toggle Switch -->
+                        <div class="relative flex items-center bg-slate-200 rounded-lg p-1 cursor-pointer select-none" onclick="toggleConnection()" title="切換接線方式">
+                            <div id="switch-y" class="px-3 py-1 rounded-md font-bold transition-all duration-200 bg-white text-blue-700 shadow-sm" style="min-width: 40px; text-align: center;">Y</div>
+                            <div id="switch-d" class="px-3 py-1 rounded-md font-bold transition-all duration-200 text-slate-400" style="min-width: 40px; text-align: center;">Δ</div>
+                        </div>
+                        <input type="hidden" id="conn_type" value="Y">
+
+                        <span class="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-bold">額定測試</span>
+                    </div>
                 </div>
                 <div class="p-6 pt-4">
                     <div class="input-row">
-                        <label class="input-label text-blue-900">額定線電壓</label>
+                        <div class="flex flex-col">
+                            <label class="input-label">額定電壓 Vr</label>
+                            <span class="text-sm text-slate-500 font-medium">(Phase to Phase)</span>
+                        </div>
                         <div class="input-wrapper">
                             <input type="number" id="v_rated" value="230.0" class="input-field">
                             <span class="input-unit">V</span>
                         </div>
                     </div>
+                    <div class="input-row"><label class="input-label">額定頻率 Fr</label><div class="input-wrapper"><input type="number" id="f_rated" value="100.0" class="input-field"><span class="input-unit">Hz</span></div></div>
+                    <div class="input-row"><label class="input-label">額定轉速 Nr</label><div class="input-wrapper"><input type="number" id="n_rated" value="2930.0" class="input-field"><span class="input-unit">rpm</span></div></div>
                     
+                    <!-- Modified Power Inputs -->
                     <div class="input-row">
-                        <label class="input-label">額定頻率 Fr</label>
-                        <div class="input-wrapper">
-                            <input type="number" id="f_rated" value="100.0" class="input-field">
-                            <span class="input-unit">Hz</span>
+                        <div class="flex flex-col">
+                            <label class="input-label">額定輸入功率 Pr-in</label>
+                            <span class="text-sm text-slate-500 font-medium">(PowerMeter 顯示)</span>
                         </div>
-                    </div>
-
-                    <div class="input-row">
-                        <label class="input-label">額定轉速 Nr</label>
                         <div class="input-wrapper">
-                            <input type="number" id="n_rated" value="2930.0" class="input-field">
-                            <span class="input-unit">rpm</span>
-                        </div>
-                    </div>
-
-                    <div class="input-row">
-                        <label class="input-label">額定功率 Prated</label>
-                        <div class="input-wrapper">
-                            <input type="number" id="p_rated" value="5.5" class="input-field">
+                            <input type="number" id="pi_rated" value="6.2" class="input-field">
                             <span class="input-unit">kW</span>
                         </div>
                     </div>
 
                     <div class="input-row">
-                        <label class="input-label">額定電流 Irated</label>
+                        <div class="flex flex-col">
+                            <label class="input-label">額定輸出功率 Pr-out</label>
+                            <span class="text-sm text-slate-500 font-medium">(扭力計量測)</span>
+                        </div>
+                        <div class="input-wrapper">
+                            <input type="number" id="po_rated" value="5.5" class="input-field">
+                            <span class="input-unit">kW</span>
+                        </div>
+                    </div>
+
+                    <!-- New: Power Factor and Efficiency -->
+                    <div class="input-row">
+                        <label class="input-label">額定功率因數 PF</label>
+                        <div class="input-wrapper">
+                            <input type="number" id="pf_rated" value="0.85" step="0.01" min="0" max="1" class="input-field">
+                            <span class="input-unit"></span>
+                        </div>
+                    </div>
+
+                    <div class="input-row">
+                        <label class="input-label">額定效率 Eff</label>
+                        <div class="input-wrapper">
+                            <input type="number" id="eff_input_rated" value="88.7" step="0.1" min="0" max="100" class="input-field">
+                            <span class="input-unit">%</span>
+                        </div>
+                    </div>
+
+                    <div class="input-row">
+                        <label class="input-label">額定電流 Ir</label>
                         <div class="input-wrapper">
                             <input type="number" id="i_rated" value="17.5" class="input-field">
                             <span class="input-unit">A</span>
                         </div>
                     </div>
 
-                    <div class="input-row">
-                        <label class="input-label">極數 Poles</label>
-                        <div class="input-wrapper">
-                            <input type="number" id="poles" value="4" class="input-field">
-                            <span class="input-unit">P</span>
-                        </div>
-                    </div>
+                    <div class="input-row"><label class="input-label">極數 Poles</label><div class="input-wrapper"><input type="number" id="poles" value="4" class="input-field"><span class="input-unit">P</span></div></div>
                 </div>
             </div>
 
             <!-- Step 2: Resistance & L -->
             <div class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
-                <div class="bg-slate-50 px-8 py-5 border-b border-slate-200">
+                <div class="bg-slate-50 px-8 py-5 border-b border-slate-200 flex justify-between items-center">
                     <h2 class="text-2xl font-black text-slate-800">Step 2: 靜態量測</h2>
+                    <span class="text-sm bg-green-100 text-green-800 px-3 py-1 rounded-full font-bold">LCR Meter 量測</span>
                 </div>
                 <div class="p-6 pt-4">
                     <div class="input-row">
                         <div class="flex flex-col">
-                            <label class="input-label">線間電阻 Ravg</label>
-                            <span class="text-sm text-slate-500 font-medium">* U-V, V-W, W-U</span>
+                            <!-- Corrected Label -->
+                            <label class="input-label">定子相電阻 Rs</label>
+                            <!-- Dynamic Note via JS -->
+                            <span id="note_rs" class="text-sm text-slate-500 font-medium">(Y接法/Phase)</span>
                         </div>
                         <div class="input-wrapper">
-                            <input type="number" id="r_avg" value="0.28" class="input-field bg-yellow-50 border-yellow-400">
+                            <!-- Adjusted default value from 0.28 to 0.14 to reflect phase resistance -->
+                            <input type="number" id="r_avg" value="0.14" class="input-field bg-yellow-50 border-yellow-400">
                             <span class="input-unit">Ω</span>
                         </div>
                     </div>
-
                     <div class="input-row">
                         <div class="flex flex-col">
-                            <label class="input-label">單相電感 Lphase</label>
-                            <span class="text-sm text-slate-500 font-medium">* 估算 X1 用</span>
+                            <!-- Corrected Label -->
+                            <label class="input-label">定子電感 Ls</label>
+                            <!-- Removed Note -->
                         </div>
                         <div class="input-wrapper">
                             <input type="number" id="l_phase" value="1.5" placeholder="選填" class="input-field">
@@ -305,29 +301,44 @@
 
             <!-- Step 3: No Load -->
             <div class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
-                <div class="bg-slate-50 px-8 py-5 border-b border-slate-200">
+                <div class="bg-slate-50 px-8 py-5 border-b border-slate-200 flex justify-between items-center">
                     <h2 class="text-2xl font-black text-slate-800">Step 3: 無載測試</h2>
+                    <span class="text-sm bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full font-bold">額定轉速無載運轉</span>
                 </div>
                 <div class="p-6 pt-4">
                     <div class="input-row">
                         <label class="input-label">無載電壓 Vn</label>
                         <div class="input-wrapper">
-                            <input type="number" id="vn_nl" value="231.6" class="input-field bg-yellow-50 border-yellow-400">
+                            <!-- Error Icon -->
+                            <div id="icon_vn_nl" class="warning-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
+                            <input type="number" id="vn_nl" value="132.8" class="input-field bg-yellow-50 border-yellow-400">
                             <span class="input-unit">V</span>
                         </div>
                     </div>
-
                     <div class="input-row">
                         <label class="input-label">無載電流 In</label>
                         <div class="input-wrapper">
+                            <div id="icon_in_nl" class="warning-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
                             <input type="number" id="in_nl" value="8.85" class="input-field bg-yellow-50 border-yellow-400">
                             <span class="input-unit">A</span>
                         </div>
                     </div>
-
                     <div class="input-row">
                         <label class="input-label">無載功率 Pn</label>
                         <div class="input-wrapper">
+                            <div id="icon_pn_nl" class="warning-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
                             <input type="number" id="pn_nl" value="505.0" class="input-field bg-yellow-50 border-yellow-400">
                             <span class="input-unit">W</span>
                         </div>
@@ -335,13 +346,56 @@
                 </div>
             </div>
 
+            <!-- Step 4: Blocked Rotor Test -->
+            <div class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
+                <div class="bg-slate-50 px-8 py-5 border-b border-slate-200 flex justify-between items-center">
+                    <h2 class="text-2xl font-black text-slate-800">Step 4: 堵轉測試</h2>
+                    <span class="text-sm bg-red-100 text-red-800 px-3 py-1 rounded-full font-bold">堵轉 (Locked Rotor) 測試</span>
+                </div>
+                <div class="p-6 pt-4">
+                    <div class="input-row">
+                        <label class="input-label">堵轉電壓 Vbr</label>
+                        <div class="input-wrapper">
+                            <div id="icon_v_br" class="warning-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
+                            <input type="number" id="v_br" value="35.0" class="input-field bg-red-50 border-red-200">
+                            <span class="input-unit">V</span>
+                        </div>
+                    </div>
+                    <div class="input-row">
+                        <label class="input-label">堵轉電流 Ibr</label>
+                        <div class="input-wrapper">
+                            <div id="icon_i_br" class="warning-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
+                            <input type="number" id="i_br" value="17.5" class="input-field bg-red-50 border-red-200">
+                            <span class="input-unit">A</span>
+                        </div>
+                    </div>
+                    <div class="input-row">
+                        <label class="input-label">堵轉功率 Pbr</label>
+                        <div class="input-wrapper">
+                            <div id="icon_p_br" class="warning-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
+                            <input type="number" id="p_br" value="820.0" class="input-field bg-red-50 border-red-200">
+                            <span class="input-unit">W</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <button onclick="calculate()" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-black py-5 px-6 rounded-2xl shadow-lg hover:shadow-xl transition duration-200 flex justify-center items-center gap-3 text-2xl transform active:scale-95">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm2 10a1 1 0 10-2 0v3a1 1 0 102 0v-3zm2-3a1 1 0 011 1v5a1 1 0 11-2 0v-5a1 1 0 011-1zm4-1a1 1 0 10-2 0v7a1 1 0 102 0V8z" clip-rule="evenodd" />
-                </svg>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm2 10a1 1 0 10-2 0v3a1 1 0 102 0v-3zm2-3a1 1 0 011 1v5a1 1 0 11-2 0v-5a1 1 0 011-1zm4-1a1 1 0 10-2 0v7a1 1 0 102 0V8z" clip-rule="evenodd" /></svg>
                 執行計算
             </button>
-
         </div>
 
         <!-- Right Column: Diagram & Results -->
@@ -351,78 +405,68 @@
             <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
                 <div class="bg-slate-800 text-white px-6 py-4 border-b border-slate-700 flex justify-between items-center">
                     <h2 class="font-bold text-xl">單相等效電路 (IEEE T-Model)</h2>
-                    <span class="text-sm bg-slate-600 px-3 py-1 rounded-full">Phase Equivalent</span>
+                    <span class="text-sm bg-slate-600 px-3 py-1 rounded-full">IEEE Standard Reference</span>
                 </div>
                 <div class="p-6 overflow-x-auto bg-white flex justify-center items-center" id="diagram-container">
-                    <!-- SVG Circuit Diagram - Widened and Text Enlarged -->
-                    <svg width="1000" height="450" viewBox="0 0 1000 450" xmlns="http://www.w3.org/2000/svg">
+                    <svg width="1000" height="520" viewBox="0 0 1000 520" xmlns="http://www.w3.org/2000/svg">
                         <defs>
-                            <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-                                <path d="M0,0 L0,6 L9,3 z" fill="#334155" />
-                            </marker>
+                            <marker id="arrow-blk" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L0,8 L8,4 z" fill="#1e293b" /></marker>
+                            <marker id="arrow-res" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#1e293b" /></marker>
                         </defs>
-                        <!-- Main Loop Lines -->
-                        <!-- Input to R1 (Extended width) -->
-                        <line x1="50" y1="150" x2="150" y2="150" stroke="#334155" stroke-width="3" />
-                        
-                        <!-- R1 Box -->
-                        <rect x="150" y="130" width="100" height="40" fill="white" stroke="#334155" stroke-width="3" />
-                        <text id="val-r1-svg" x="200" y="210" text-anchor="middle" class="circuit-text">R1[-.---]Ω</text>
-
-                        <!-- R1 to X1 -->
-                        <line x1="250" y1="150" x2="350" y2="150" stroke="#334155" stroke-width="3" />
-                        
-                        <!-- X1 Coil -->
-                        <path d="M350,150 q10,-25 20,0 t20,0 t20,0 t20,0" fill="none" stroke="#334155" stroke-width="3" />
-                        <text id="val-x1-svg" x="390" y="210" text-anchor="middle" class="circuit-text">jX1[-.---]Ω</text>
-
-                        <!-- X1 to Magnetizing -->
-                        <line x1="430" y1="150" x2="530" y2="150" stroke="#334155" stroke-width="3" />
-
-                        <!-- Magnetizing Branch (Vertical) -->
-                        <line x1="530" y1="150" x2="530" y2="350" stroke="#334155" stroke-width="3" />
-                        
-                        <!-- Rc Branch -->
-                        <line x1="530" y1="180" x2="580" y2="180" stroke="#334155" stroke-width="3" />
-                        <rect x="580" y="160" width="30" height="80" fill="white" stroke="#334155" stroke-width="3" />
-                        <line x1="610" y1="180" x2="610" y2="350" stroke="#334155" stroke-width="3" />
-                        <text id="val-rc-svg" x="630" y="220" text-anchor="start" class="circuit-text">Rc[-.---]Ω</text>
-
-                        <!-- Xm Branch -->
-                        <line x1="530" y1="280" x2="570" y2="280" stroke="#334155" stroke-width="3" />
-                        <path d="M570,280 q10,-20 20,0 t20,0 t20,0" fill="none" stroke="#334155" stroke-width="3" transform="rotate(90, 590, 280)" />
-                        <line x1="610" y1="280" x2="610" y2="350" stroke="#334155" stroke-width="3" />
-                         <text id="val-xm-svg" x="630" y="320" text-anchor="start" class="circuit-text">jXm[-.---]Ω</text>
-                        
-                        <!-- Magnetizing Return -->
-                        <line x1="530" y1="350" x2="610" y2="350" stroke="#334155" stroke-width="3" />
-                        <line x1="530" y1="350" x2="530" y2="400" stroke="#334155" stroke-width="3" />
-
-                        <!-- Rotor Side (Wide spacing) -->
-                        <line x1="530" y1="150" x2="700" y2="150" stroke="#334155" stroke-width="3" />
-                        <!-- X2 Coil -->
-                        <path d="M700,150 q10,-25 20,0 t20,0 t20,0 t20,0" fill="none" stroke="#334155" stroke-width="3" />
-                        <text id="val-x2-svg" x="740" y="210" text-anchor="middle" class="circuit-text">jX2[-.---]Ω</text>
-                        
-                        <line x1="780" y1="150" x2="850" y2="150" stroke="#334155" stroke-width="3" />
-                        <!-- R2/s Variable Resistor -->
-                        <rect x="850" y="130" width="100" height="40" fill="white" stroke="#334155" stroke-width="3" />
-                        <line x1="860" y1="190" x2="940" y2="110" stroke="#334155" stroke-width="2" marker-end="url(#arrow)" />
-                        <text x="900" y="110" font-size="24" text-anchor="middle" fill="#334155" font-weight="bold">R2/s</text>
-                        <text id="val-r2s-svg" x="900" y="210" text-anchor="middle" class="circuit-text">[-.---]Ω</text>
-
-                        <!-- Return Path -->
-                        <line x1="970" y1="150" x2="970" y2="400" stroke="#334155" stroke-width="3" />
-                        <line x1="50" y1="400" x2="970" y2="400" stroke="#334155" stroke-width="3" />
-
-                        <!-- Terminals -->
-                        <circle cx="50" cy="150" r="6" fill="white" stroke="#334155" stroke-width="3" />
-                        <circle cx="50" cy="400" r="6" fill="white" stroke="#334155" stroke-width="3" />
-                        <text x="40" y="160" font-size="28" font-weight="bold" text-anchor="end">V1</text>
-                        
-                        <!-- Current Labels -->
-                        <text x="100" y="135" font-size="20" fill="#ef4444" font-weight="bold">I1 →</text>
-                        <text x="650" y="135" font-size="20" fill="#ef4444" font-weight="bold">I2' →</text>
+                        <text x="240" y="30" text-anchor="middle" class="circuit-label">定子側 (Stator)</text>
+                        <text x="500" y="65" text-anchor="middle" class="circuit-label" style="fill: #64748b; font-size:18px;">氣隙 (Air Gap)</text>
+                        <text x="800" y="30" text-anchor="middle" class="circuit-label">轉子側 (Rotor)</text>
+                        <line x1="380" y1="10" x2="380" y2="490" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="8,4" />
+                        <line x1="620" y1="10" x2="620" y2="490" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="8,4" />
+                        <circle cx="50" cy="180" r="4" fill="white" stroke="#1e293b" stroke-width="2" />
+                        <circle cx="50" cy="465" r="4" fill="white" stroke="#1e293b" stroke-width="2" />
+                        <text x="45" y="330" font-size="28" font-weight="900" text-anchor="end" fill="#1e293b">V1</text>
+                        <text x="50" y="240" font-size="24" text-anchor="middle" fill="#1e293b">-</text>
+                        <text x="50" y="445" font-size="24" text-anchor="middle" fill="#1e293b">+</text>
+                        <line x1="54" y1="180" x2="140" y2="180" stroke="#1e293b" stroke-width="2" />
+                        <polyline points="140,180 150,165 165,195 180,165 195,195 210,165 225,195 235,180" fill="none" stroke="#1e293b" stroke-width="2" />
+                        <text x="187" y="145" font-size="22" font-weight="bold" text-anchor="middle" fill="#1e293b">R1</text>
+                        <text id="val-r1-svg" x="187" y="220" text-anchor="middle" class="circuit-text">[-.---]Ω</text>
+                        <line x1="235" y1="180" x2="280" y2="180" stroke="#1e293b" stroke-width="2" />
+                        <line x1="280" y1="180" x2="305" y2="180" stroke="#1e293b" stroke-width="2" marker-end="url(#arrow-blk)" />
+                        <text x="290" y="170" class="current-text">I1</text>
+                        <path d="M305,180 c15,-30 35,-30 40,0 c5,-30 25,-30 30,0 c5,-30 25,-30 30,0 c5,-30 25,-30 30,0" fill="none" stroke="#1e293b" stroke-width="2" />
+                        <text x="380" y="145" font-size="22" font-weight="bold" text-anchor="middle" fill="#1e293b">jX1</text>
+                        <text id="val-x1-svg" x="380" y="220" text-anchor="middle" class="circuit-text">[-.---]Ω</text>
+                        <line x1="435" y1="180" x2="500" y2="180" stroke="#1e293b" stroke-width="2" />
+                        <circle cx="500" cy="180" r="3" fill="#1e293b" />
+                        <line x1="500" y1="180" x2="500" y2="230" stroke="#1e293b" stroke-width="2" />
+                        <text x="515" y="225" class="current-text">Iφ</text>
+                        <line x1="365" y1="230" x2="635" y2="230" stroke="#1e293b" stroke-width="2" />
+                        <line x1="365" y1="230" x2="365" y2="250" stroke="#1e293b" stroke-width="2" marker-end="url(#arrow-blk)" />
+                        <text x="350" y="255" class="current-text" text-anchor="end">Ic</text>
+                        <polyline points="365,270 350,285 380,300 350,315 380,330 350,345 380,360 365,370" fill="none" stroke="#1e293b" stroke-width="2" />
+                        <text x="330" y="325" font-size="22" font-weight="bold" text-anchor="end" fill="#1e293b">Rc</text>
+                        <text id="val-rc-svg" x="330" y="355" text-anchor="end" class="circuit-text" style="font-size:16px;">[-.---]Ω</text>
+                        <line x1="365" y1="370" x2="365" y2="430" stroke="#1e293b" stroke-width="2" />
+                        <line x1="635" y1="230" x2="635" y2="270" stroke="#1e293b" stroke-width="2" />
+                        <path d="M635,270 c30,10 30,30 0,35 c30,10 30,30 0,35 c30,10 30,30 0,35 c30,10 30,30 0,35" fill="none" stroke="#1e293b" stroke-width="2" />
+                        <text x="660" y="325" font-size="22" font-weight="bold" text-anchor="start" fill="#1e293b">jXm</text>
+                        <text id="val-xm-svg" x="660" y="355" text-anchor="start" class="circuit-text" style="font-size:16px;">[-.---]Ω</text>
+                        <line x1="635" y1="405" x2="635" y2="425" stroke="#1e293b" stroke-width="2" marker-end="url(#arrow-blk)" />
+                        <text x="650" y="445" class="current-text">Im</text>
+                        <line x1="365" y1="430" x2="635" y2="430" stroke="#1e293b" stroke-width="2" />
+                        <line x1="500" y1="430" x2="500" y2="465" stroke="#1e293b" stroke-width="2" />
+                        <circle cx="500" cy="430" r="3" fill="#1e293b" />
+                        <line x1="500" y1="180" x2="580" y2="180" stroke="#1e293b" stroke-width="2" marker-end="url(#arrow-blk)" />
+                        <text x="595" y="170" class="current-text">I2'</text>
+                        <line x1="580" y1="180" x2="710" y2="180" stroke="#1e293b" stroke-width="2" />
+                        <path d="M710,180 c15,-30 35,-30 40,0 c5,-30 25,-30 30,0 c5,-30 25,-30 30,0 c5,-30 25,-30 30,0" fill="none" stroke="#1e293b" stroke-width="2" />
+                        <text x="785" y="145" font-size="22" font-weight="bold" text-anchor="middle" fill="#1e293b">jX2'</text>
+                        <text id="val-x2-svg" x="785" y="220" text-anchor="middle" class="circuit-text">[-.---]Ω</text>
+                        <line x1="840" y1="180" x2="920" y2="180" stroke="#1e293b" stroke-width="2" />
+                        <line x1="920" y1="180" x2="920" y2="265" stroke="#1e293b" stroke-width="2" />
+                        <polyline points="920,265 905,280 935,295 905,310 935,325 905,340 935,355 920,370" fill="none" stroke="#1e293b" stroke-width="2" />
+                        <text x="965" y="325" font-size="24" font-weight="black" text-anchor="start" fill="#1e293b">R2'/s</text>
+                        <text id="val-r2s-svg" x="965" y="355" text-anchor="start" class="circuit-text">[-.---]Ω</text>
+                        <line x1="890" y1="355" x2="955" y2="295" stroke="#1e293b" stroke-width="2" marker-end="url(#arrow-res)" />
+                        <line x1="920" y1="370" x2="920" y2="465" stroke="#1e293b" stroke-width="2" />
+                        <line x1="50" y1="465" x2="920" y2="465" stroke="#1e293b" stroke-width="2" />
                     </svg>
                 </div>
             </div>
@@ -433,167 +477,41 @@
                     <h3 class="font-bold text-2xl text-slate-800">參數列表 (Parameters)</h3>
                 </div>
                 <div class="divide-y divide-slate-100 bg-white">
-                    <div class="result-item">
-                        <span class="mr-3 font-black text-blue-300">1.</span>
-                        <span class="result-val w-12 text-left">R1</span>
-                        <span class="result-desc">(定子電阻)</span>
-                        <span>[</span><span id="list-r1" class="result-val">-</span><span>]</span>
-                        <span class="ml-2">Ω</span>
-                    </div>
-                    <div class="result-item">
-                        <span class="mr-3 font-black text-blue-300">2.</span>
-                        <span class="result-val w-12 text-left">R2</span>
-                        <span class="result-desc">(轉子電阻)</span>
-                        <span>[</span><span id="list-r2" class="result-val">-</span><span>]</span>
-                        <span class="ml-2">Ω</span>
-                    </div>
-                    <div class="result-item">
-                        <span class="mr-3 font-black text-blue-300">3.</span>
-                        <span class="result-val w-12 text-left">X1</span>
-                        <span class="result-desc">(定子漏抗)</span>
-                        <span>[</span><span id="list-x1" class="result-val">-</span><span>]</span>
-                        <span class="ml-2">Ω =</span>
-                        <span>[</span><span id="list-l1" class="result-val text-slate-600">-</span><span>]</span>
-                        <span class="ml-2">mH</span>
-                    </div>
-                    <div class="result-item">
-                        <span class="mr-3 font-black text-blue-300">4.</span>
-                        <span class="result-val w-12 text-left">X2</span>
-                        <span class="result-desc">(轉子漏抗)</span>
-                        <span>[</span><span id="list-x2" class="result-val">-</span><span>]</span>
-                        <span class="ml-2">Ω =</span>
-                        <span>[</span><span id="list-l2" class="result-val text-slate-600">-</span><span>]</span>
-                        <span class="ml-2">mH</span>
-                    </div>
-                    <div class="result-item">
-                        <span class="mr-3 font-black text-blue-300">5.</span>
-                        <span class="result-val w-12 text-left">Xm</span>
-                        <span class="result-desc">(激磁電抗)</span>
-                        <span>[</span><span id="list-xm" class="result-val">-</span><span>]</span>
-                        <span class="ml-2">Ω =</span>
-                        <span>[</span><span id="list-lm" class="result-val text-slate-600">-</span><span>]</span>
-                        <span class="ml-2">mH</span>
-                    </div>
+                    <div class="result-item"><span class="mr-3 font-black text-blue-300">1.</span><span class="result-val w-12 text-left">R1</span><span class="result-desc">(定子電阻)</span><span>[</span><span id="list-r1" class="result-val">-</span><span>]</span><span class="ml-2">Ω</span></div>
+                    <div class="result-item"><span class="mr-3 font-black text-blue-300">2.</span><span class="result-val w-12 text-left">R2'</span><span class="result-desc">(折算後轉子電阻)</span><span>[</span><span id="list-r2" class="result-val">-</span><span>]</span><span class="ml-2">Ω</span></div>
+                    <div class="result-item"><span class="mr-3 font-black text-blue-300">3.</span><span class="result-val w-12 text-left">X1</span><span class="result-desc">(定子漏抗)</span><span>[</span><span id="list-x1" class="result-val">-</span><span>]</span><span class="ml-2">Ω =</span><span>[</span><span id="list-l1" class="result-val text-slate-600">-</span><span>]</span><span class="ml-2">mH</span></div>
+                    <div class="result-item"><span class="mr-3 font-black text-blue-300">4.</span><span class="result-val w-12 text-left">X2'</span><span class="result-desc">(折算後轉子漏抗)</span><span>[</span><span id="list-x2" class="result-val">-</span><span>]</span><span class="ml-2">Ω =</span><span>[</span><span id="list-l2" class="result-val text-slate-600">-</span><span>]</span><span class="ml-2">mH</span></div>
+                    <div class="result-item"><span class="mr-3 font-black text-blue-300">5.</span><span class="result-val w-12 text-left">Xm</span><span class="result-desc">(激磁電抗)</span><span>[</span><span id="list-xm" class="result-val">-</span><span>]</span><span class="ml-2">Ω =</span><span>[</span><span id="list-lm" class="result-val text-slate-600">-</span><span>]</span><span class="ml-2">mH</span></div>
                 </div>
             </div>
 
-            <!-- Power Flow & Loss Analysis (Cyberpunk Style) -->
+            <!-- 馬達效率分析 -->
             <div class="bg-black rounded-2xl shadow-2xl border-2 border-slate-700 overflow-hidden">
                 <div class="bg-slate-900 px-8 py-5 border-b border-slate-700 flex justify-between items-center">
-                    <h3 class="font-bold text-2xl text-white" style="font-family: 'Orbitron', sans-serif;">POWER FLOW SYSTEM v12</h3>
-                    <div class="text-[#00f2ff] text-base font-mono">SCALE_INVARIANT: TRUE</div>
+                    <h3 class="font-bold text-2xl text-white" style="font-family: 'Orbitron', sans-serif;">馬達效率分析</h3>
                 </div>
-                
-                <div class="cyber-container w-full h-[600px]">
-                    <div class="cyber-grid-bg"></div>
-                    <div class="sys-info">SYSTEM_ID: INDUCTION_MOTOR_FLOW // v12.0 // HIGH_VISIBILITY_MODE</div>
-
-                    <!-- Cyberpunk SVG - Expanded ViewBox -->
+                <div class="cyber-container w-full h-[600px]"><div class="cyber-grid-bg"></div>
                     <svg class="cyber-svg" viewBox="0 0 1800 900" xmlns="http://www.w3.org/2000/svg">
-                        <defs>
-                            <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" style="stop-color:#00151a;stop-opacity:1" />
-                                <stop offset="100%" style="stop-color:#003344;stop-opacity:1" />
-                            </linearGradient>
-                            <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" style="stop-color:#003344;stop-opacity:1" />
-                                <stop offset="100%" style="stop-color:#006677;stop-opacity:1" />
-                            </linearGradient>
-                            <linearGradient id="grad3" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" style="stop-color:#006677;stop-opacity:1" />
-                                <stop offset="100%" style="stop-color:#0099aa;stop-opacity:1" />
-                            </linearGradient>
-                            <linearGradient id="grad4" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" style="stop-color:#0099aa;stop-opacity:1" />
-                                <stop offset="100%" style="stop-color:#00ddee;stop-opacity:1" />
-                            </linearGradient>
-
-                            <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-                                <path d="M 0 0 L 8 3 L 0 6 Z" fill="#00f2ff" />
-                            </marker>
-                        </defs>
-
-                        <!-- Main Lines -->
-                        <!-- 1. Input(250) -> Gap(700) -->
-                        <path id="path1" d="M 370 450 L 550 450" class="main-line" marker-end="url(#arrowhead)" />
-                        <circle r="6" class="particle">
-                            <animateMotion dur="3s" repeatCount="indefinite">
-                                <mpath href="#path1"/>
-                            </animateMotion>
-                        </circle>
-
-                        <!-- 2. Gap(870) -> Mech(1150) -->
-                        <path id="path2" d="M 870 450 L 1000 450" class="main-line" marker-end="url(#arrowhead)" />
-                        <circle r="6" class="particle">
-                            <animateMotion dur="3s" repeatCount="indefinite">
-                                <mpath href="#path2"/>
-                            </animateMotion>
-                        </circle>
-
-                        <!-- 3. Mech(1320) -> Output(1600) -->
-                        <path id="path3" d="M 1320 450 L 1450 450" class="main-line" marker-end="url(#arrowhead)" />
-                        <circle r="6" class="particle">
-                            <animateMotion dur="3s" repeatCount="indefinite">
-                                <mpath href="#path3"/>
-                            </animateMotion>
-                        </circle>
-
-                        <!-- Loss Branches (Slanted/Diagonal Style) -->
-                        <!-- Stator Cu (Top 1) -->
-                        <path d="M 420 450 L 500 200 L 650 200" class="branch-line" />
-                        <text x="575" y="170" class="loss-text" text-anchor="middle">定子銅損 Pcu1</text>
-                        <text x="575" y="240" class="loss-val" id="svg-val-pcu1" text-anchor="middle">- W</text>
-
-                        <!-- Iron (Bottom 1) -->
-                        <path d="M 420 450 L 500 700 L 650 700" class="branch-line" />
-                        <text x="575" y="730" class="loss-text" text-anchor="middle">鐵損 Pcore</text>
-                        <text x="575" y="770" class="loss-val" id="svg-val-pcore" text-anchor="middle">- W</text>
-
-                        <!-- Rotor Cu (Top 2) -->
-                        <path d="M 900 450 L 980 200 L 1130 200" class="branch-line" />
-                        <text x="1055" y="170" class="loss-text" text-anchor="middle">轉子銅損 Pcu2</text>
-                        <text x="1055" y="240" class="loss-val" id="svg-val-pcu2" text-anchor="middle">- W</text>
-
-                        <!-- Friction (Bottom 2) -->
-                        <path d="M 1350 450 L 1430 700 L 1580 700" class="branch-line" />
-                        <text x="1505" y="730" class="loss-text" text-anchor="middle">雜散/機械損 Pfw</text>
-                        <text x="1505" y="770" class="loss-val" id="svg-val-pfw" text-anchor="middle">- W</text>
-
-                        <!-- Main Blocks (320x180) -->
-                        <!-- Input X=50 -->
-                        <rect x="50" y="360" width="320" height="180" rx="8" stroke="#00f2ff" stroke-width="4" fill="url(#grad1)" />
-                        <text x="210" y="420" class="node-text">輸入功率</text>
-                        <text x="210" y="480" class="node-val" id="svg-val-pin">Pin</text>
-
-                        <!-- Air Gap X=550 -->
-                        <rect x="550" y="360" width="320" height="180" rx="8" stroke="#00f2ff" stroke-width="4" fill="url(#grad2)" />
-                        <text x="710" y="420" class="node-text">氣隙功率</text>
-                        <text x="710" y="480" class="node-val" id="svg-val-pg">Pg</text>
-
-                        <!-- Mech X=1000 -->
-                        <rect x="1000" y="360" width="320" height="180" rx="8" stroke="#00f2ff" stroke-width="4" fill="url(#grad3)" />
-                        <text x="1160" y="420" class="node-text">機械功率</text>
-                        <text x="1160" y="480" class="node-val" id="svg-val-pm">Pm</text>
-
-                        <!-- Output X=1450 -->
-                        <rect x="1450" y="360" width="300" height="180" rx="8" stroke="#00f2ff" stroke-width="4" fill="url(#grad4)" />
-                        <text x="1600" y="420" class="node-text">輸出功率</text>
-                        <text x="1600" y="480" class="node-val" id="svg-val-pout">Pout</text>
-
+                        <defs><linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#00151a;stop-opacity:1" /><stop offset="100%" style="stop-color:#003344;stop-opacity:1" /></linearGradient><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M 0 0 L 8 3 L 0 6 Z" fill="#00f2ff" /></marker></defs>
+                        <path id="path1" d="M 370 450 L 550 450" class="main-line" marker-end="url(#arrowhead)" /><circle r="6" class="particle"><animateMotion dur="3s" repeatCount="indefinite"><mpath href="#path1"/></animateMotion></circle>
+                        <path id="path2" d="M 870 450 L 1000 450" class="main-line" marker-end="url(#arrowhead)" /><circle r="6" class="particle"><animateMotion dur="3s" repeatCount="indefinite"><mpath href="#path2"/></animateMotion></circle>
+                        <path id="path3" d="M 1320 450 L 1450 450" class="main-line" marker-end="url(#arrowhead)" /><circle r="6" class="particle"><animateMotion dur="3s" repeatCount="indefinite"><mpath href="#path3"/></animateMotion></circle>
+                        <path d="M 420 450 L 500 200 L 650 200" class="branch-line" /><text x="575" y="170" class="loss-text" text-anchor="middle">定子銅損 Pcu1</text><text x="575" y="240" class="loss-val" id="svg-val-pcu1" text-anchor="middle">- W</text>
+                        <path d="M 420 450 L 500 700 L 650 700" class="branch-line" /><text x="575" y="730" class="loss-text" text-anchor="middle">鐵損 Pcore</text><text x="575" y="770" class="loss-val" id="svg-val-pcore" text-anchor="middle">- W</text>
+                        <path d="M 900 450 L 980 200 L 1130 200" class="branch-line" /><text x="1055" y="170" class="loss-text" text-anchor="middle">轉子銅損 Pcu2</text><text x="1055" y="240" class="loss-val" id="svg-val-pcu2" text-anchor="middle">- W</text>
+                        <path d="M 1350 450 L 1430 700 L 1580 700" class="branch-line" /><text x="1505" y="730" class="loss-text" text-anchor="middle">機械+雜散損 Pfw+Str</text><text x="1505" y="770" class="loss-val" id="svg-val-pfw" text-anchor="middle">- W</text>
+                        <rect x="50" y="360" width="320" height="180" rx="8" stroke="#00f2ff" stroke-width="4" fill="url(#grad1)" /><text x="210" y="420" class="node-text">輸入功率</text><text x="210" y="480" class="node-val" id="svg-val-pin">Pin</text>
+                        <rect x="550" y="360" width="320" height="180" rx="8" stroke="#00f2ff" stroke-width="4" fill="url(#grad1)" /><text x="710" y="420" class="node-text">氣隙功率</text><text x="710" y="480" class="node-val" id="svg-val-pg">Pg</text>
+                        <rect x="1000" y="360" width="320" height="180" rx="8" stroke="#00f2ff" stroke-width="4" fill="url(#grad1)" /><text x="1160" y="420" class="node-text">機械功率</text><text x="1160" y="480" class="node-val" id="svg-val-pm">Pm</text>
+                        <rect x="1450" y="360" width="300" height="180" rx="8" stroke="#00f2ff" stroke-width="4" fill="url(#grad1)" /><text x="1600" y="420" class="node-text">輸出功率</text><text x="1600" y="480" class="node-val" id="svg-val-pout">Pout</text>
                     </svg>
                 </div>
-                
-                <div class="bg-black p-5 text-center border-t border-slate-800 flex justify-center items-center gap-4">
-                    <span class="text-[#00f2ff] font-mono text-2xl font-bold">CALCULATED EFFICIENCY:</span>
-                    <span class="text-[#ff3399] font-mono text-4xl font-black" id="val-eff">- %</span>
-                </div>
+                <div class="bg-black p-5 text-center border-t border-slate-800 flex justify-center items-center gap-4"><span class="text-[#00f2ff] font-mono text-2xl font-bold">CALCULATED EFFICIENCY:</span><span class="text-[#ff3399] font-mono text-4xl font-black" id="val-eff">- %</span></div>
             </div>
-
         </div>
     </main>
 
     <script>
-        // Complex Number Utility
         class Complex {
             constructor(re, im) { this.re = re; this.im = im; }
             add(c) { return new Complex(this.re + c.re, this.im + c.im); }
@@ -606,134 +524,227 @@
             mag() { return Math.sqrt(this.re * this.re + this.im * this.im); }
         }
 
+        function toggleConnection() {
+            const current = document.getElementById('conn_type').value;
+            const next = current === 'Y' ? 'D' : 'Y';
+            document.getElementById('conn_type').value = next;
+            
+            // Update Switch UI
+            const btnY = document.getElementById('switch-y');
+            const btnD = document.getElementById('switch-d');
+            
+            if (next === 'Y') {
+                btnY.className = "px-3 py-1 rounded-md font-bold transition-all duration-200 bg-white text-blue-700 shadow-sm";
+                btnD.className = "px-3 py-1 rounded-md font-bold transition-all duration-200 text-slate-400";
+            } else {
+                btnY.className = "px-3 py-1 rounded-md font-bold transition-all duration-200 text-slate-400";
+                btnD.className = "px-3 py-1 rounded-md font-bold transition-all duration-200 bg-white text-blue-700 shadow-sm";
+            }
+            
+            updateConnectionMode();
+        }
+
+        function updateConnectionMode() {
+            const conn = document.getElementById('conn_type').value;
+            const noteRs = document.getElementById('note_rs');
+            
+            if (conn === 'Y') {
+                noteRs.textContent = '(Y接法/Phase)';
+            } else {
+                noteRs.textContent = '(Δ接法/Phase)';
+            }
+            calculate();
+        }
+
+        function setError(id, isError) {
+            const el = document.getElementById(id);
+            const iconId = 'icon_' + id;
+            const icon = document.getElementById(iconId);
+            
+            if (isError) {
+                el.classList.add('error');
+                if (icon) icon.style.display = 'block';
+            } else {
+                el.classList.remove('error');
+                if (icon) icon.style.display = 'none';
+            }
+        }
+
+        function clearErrors() {
+            const ids = ['v_br', 'i_br', 'p_br', 'vn_nl', 'in_nl', 'pn_nl'];
+            ids.forEach(id => setError(id, false));
+        }
+
         function calculate() {
-            // --- 1. Gather Inputs ---
-            const V_rated_line = parseFloat(document.getElementById('v_rated').value);
+            clearErrors(); // Reset error state
+
+            const connType = document.getElementById('conn_type').value;
+            const V_rated_input = parseFloat(document.getElementById('v_rated').value);
             const F_rated = parseFloat(document.getElementById('f_rated').value);
             const N_rated = parseFloat(document.getElementById('n_rated').value);
-            const P_rated_kw = parseFloat(document.getElementById('p_rated').value);
-            const I_rated = parseFloat(document.getElementById('i_rated').value);
+            
+            // Step 1: Power Inputs
+            const P_in_rated_kw = parseFloat(document.getElementById('pi_rated').value);
+            const P_out_rated_kw = parseFloat(document.getElementById('po_rated').value);
+            const PF_rated = parseFloat(document.getElementById('pf_rated').value);
+            const Eff_rated_pct = parseFloat(document.getElementById('eff_input_rated').value);
+            const I_rated_input = parseFloat(document.getElementById('i_rated').value);
+            
             const Poles = parseFloat(document.getElementById('poles').value);
-
-            const R_avg = parseFloat(document.getElementById('r_avg').value);
+            const R_input = parseFloat(document.getElementById('r_avg').value); // Phase Resistance
             const L_phase_mH = parseFloat(document.getElementById('l_phase').value) || 0;
-
-            const V_nl_line = parseFloat(document.getElementById('vn_nl').value);
-            const I_nl = parseFloat(document.getElementById('in_nl').value);
+            const V_nl_input = parseFloat(document.getElementById('vn_nl').value);
+            const I_nl_input = parseFloat(document.getElementById('in_nl').value);
             const P_nl_total = parseFloat(document.getElementById('pn_nl').value);
 
-            // --- 2. Pre-calculation & Setup ---
-            const V_rated_phase = V_rated_line / Math.sqrt(3);
-            const V_nl_phase = V_nl_line / Math.sqrt(3);
+            const V_br_input = parseFloat(document.getElementById('v_br').value) || 0;
+            const I_br_input = parseFloat(document.getElementById('i_br').value) || 0;
+            const P_br_total = parseFloat(document.getElementById('p_br').value) || 0;
+
+            // Updated: Phase Calculations based on Connection Type
+            
+            let V_rated_phase, V_nl_phase, V_br_phase;
+            let I_rated_phase, I_nl_phase, I_br_phase;
+
+            if (connType === 'Y') {
+                // Y: V_ph = V_line / sqrt(3), I_ph = I_line
+                V_rated_phase = V_rated_input / Math.sqrt(3);
+                V_nl_phase = V_nl_input / Math.sqrt(3);
+                V_br_phase = V_br_input / Math.sqrt(3);
+                I_rated_phase = I_rated_input;
+                I_nl_phase = I_nl_input;
+                I_br_phase = I_br_input;
+            } else {
+                // Delta: V_ph = V_line, I_ph = I_line / sqrt(3)
+                V_rated_phase = V_rated_input;
+                V_nl_phase = V_nl_input;
+                V_br_phase = V_br_input;
+                I_rated_phase = I_rated_input / Math.sqrt(3);
+                I_nl_phase = I_nl_input / Math.sqrt(3);
+                I_br_phase = I_br_input / Math.sqrt(3);
+            }
+
             const P_nl_phase = P_nl_total / 3;
             const N_sync = (120 * F_rated) / Poles;
             const s_rated = (N_sync - N_rated) / N_sync;
             const omega = 2 * Math.PI * F_rated;
 
-            // --- 3. Parameter Estimation Logic ---
-            let R1 = R_avg / 2;
+            // Resistance is Phase Resistance directly
+            let R1 = R_input; 
+            let X1, X2, R2;
 
-            let X1 = 0;
-            if (L_phase_mH > 0) {
-                X1 = omega * (L_phase_mH / 1000);
+            if (V_br_input > 0 && I_br_input > 0) {
+                // Locked Rotor Analysis using Phase Values
+                const P_br_phase = P_br_total / 3;
+                const S_br_phase = V_br_phase * I_br_phase;
+                
+                // Check for unreasonable data: PF > 1
+                if (P_br_phase > S_br_phase + 0.1) { // Add small tolerance
+                    setError('p_br', true);
+                    setError('v_br', true);
+                    setError('i_br', true);
+                }
+
+                // Safety: Cap Power at Apparent Power (PF <= 1.0) for calculation
+                const P_calc = Math.min(P_br_phase, S_br_phase);
+                
+                const R_br = P_calc / (I_br_phase ** 2);
+                const Z_br = V_br_phase / I_br_phase;
+                
+                // Calculate X
+                const X_br = Math.sqrt(Math.max(0, Z_br**2 - R_br**2));
+                
+                X1 = X_br / 2;
+                X2 = X_br / 2;
+                
+                // Ensure R2 is positive (R_br is R1 + R2')
+                R2 = Math.max(0.01, R_br - R1);
             } else {
-                X1 = 0.1 * (V_rated_phase / I_rated);
+                X1 = L_phase_mH > 0 ? omega * (L_phase_mH / 1000) : 0.1 * (V_rated_phase / I_rated_phase);
+                X2 = X1;
+                const P_out_target = P_out_rated_kw * 1000;
+                const P_gap_est = P_out_target / (1 - s_rated);
+                R2 = (s_rated * P_gap_est) / (3 * (I_rated_phase * 0.9)**2);
             }
 
-            const P_scl_nl = (I_nl ** 2) * R1;
-            let P_core_phase = P_nl_phase - P_scl_nl;
-            if (P_core_phase < 0) P_core_phase = 10; 
+            // No Load Validation
+            const S_nl_phase = V_nl_phase * I_nl_phase;
+            if (P_nl_phase > S_nl_phase + 0.1) {
+                setError('pn_nl', true);
+                setError('vn_nl', true);
+                setError('in_nl', true);
+            }
 
-            const E1_est = V_nl_phase; 
+            const P_scl_nl = (I_nl_phase ** 2) * R1;
+            const P_const_total = Math.max(0, P_nl_total - 3 * P_scl_nl);
+            const P_core_const = P_const_total * 0.65; // Approx 65% Core Loss part
+
+            const E1_nl_mag = V_nl_phase - (I_nl_phase * X1);
+            let Rc = (E1_nl_mag ** 2) / (P_core_const / 3);
             
-            let Rc = (E1_est ** 2) / P_core_phase;
-
-            const S_nl = V_nl_phase * I_nl;
-            const Q_nl = Math.sqrt(Math.max(0, S_nl**2 - P_nl_phase**2));
-            const Q_mag = Q_nl - (I_nl**2) * X1;
-            let Xm = (E1_est ** 2) / Q_mag;
+            const Q_nl = Math.sqrt(Math.max(0, (V_nl_phase * I_nl_phase)**2 - P_nl_phase**2));
+            const Q_mag = Math.max(1, Q_nl - (I_nl_phase**2) * X1);
+            let Xm = (E1_nl_mag ** 2) / Q_mag;
             if (!isFinite(Xm) || Xm < 0) Xm = 100;
 
-            let X2 = X1;
-
-            const P_out_W = P_rated_kw * 1000;
-            const P_gap_est = P_out_W / (1 - s_rated);
-            const I2_est_mag = I_rated * 0.90; 
-            
-            let R2 = (s_rated * P_gap_est) / (3 * I2_est_mag**2);
-
-            // --- 4. Verification / Loss Calculation ---
             const Z1 = new Complex(R1, X1);
             const Zm = new Complex((Rc * Xm * Xm)/(Rc**2 + Xm**2), (Rc * Rc * Xm)/(Rc**2 + Xm**2));
             const Z2 = new Complex(R2/s_rated, X2);
-            
-            const Zm_mul_Z2 = Zm.mul(Z2);
-            const Zm_add_Z2 = Zm.add(Z2);
-            const Z_par = Zm_mul_Z2.div(Zm_add_Z2);
-            
+            const Z_par = Zm.mul(Z2).div(Zm.add(Z2));
             const Z_total = Z1.add(Z_par);
-            
             const V_phasor = new Complex(V_rated_phase, 0); 
             const I1_c = V_phasor.div(Z_total);
-            const I1_mag = I1_c.mag();
-            
-            const V_drop = I1_c.mul(Z1);
-            const E1_c = V_phasor.sub(V_drop);
-            const E1_mag = E1_c.mag();
-
+            const E1_c = V_phasor.sub(I1_c.mul(Z1));
             const I2_c = E1_c.div(Z2);
-            const I2_mag = I2_c.mag();
 
-            // --- 5. Calculate Losses (Sheet 3 Logic) ---
-            const P_cu1_calc = 3 * (I1_mag**2) * R1;
-            const P_core_calc = 3 * (E1_mag**2) / Rc;
-            const P_in_calc = 3 * (V_rated_phase * I1_c.re);
-            const P_cu2_calc = 3 * (I2_mag**2) * R2;
-            const P_gap_calc = P_cu2_calc / s_rated;
-            const P_m_calc = P_gap_calc - P_cu2_calc;
-            const P_fw_calc = P_m_calc - P_out_W;
-            const eff_calc = (P_out_W / P_in_calc) * 100;
+            // --- Power Flow based on User Input (Loss Segregation) ---
+            const P_in_chart = P_in_rated_kw * 1000;
+            // Use MEASURED Rated Current (Phase) for Copper Loss
+            const P_cu1_chart = 3 * (I_rated_phase ** 2) * R1;
+            const P_core_chart = P_core_const;
+            const P_gap_chart = P_in_chart - P_cu1_chart - P_core_chart;
+            const P_cu2_chart = Math.max(0, P_gap_chart * s_rated);
+            const P_mech_chart = P_gap_chart - P_cu2_chart;
+            const P_out_target_chart = P_out_rated_kw * 1000;
+            
+            // Merged Friction & Stray Loss: The residual to match output power
+            // P_combined_loss = P_mech - P_out_target
+            let P_combined_loss = P_mech_chart - P_out_target_chart;
+            if (P_combined_loss < 0) P_combined_loss = 0; // Simple clamp
+            
+            const P_out_final_display = P_out_target_chart; 
+            const eff_display = P_in_chart > 0 ? (P_out_final_display / P_in_chart) * 100 : 0;
 
-            // --- 6. Calculate Inductances (mH) ---
-            const L1_mH = (X1 / omega) * 1000;
-            const Lm_mH = (Xm / omega) * 1000;
-            const L2_mH = (X2 / omega) * 1000;
+            document.getElementById('val-r1-svg').textContent = `${R1.toFixed(3)}Ω`;
+            document.getElementById('val-x1-svg').textContent = `${X1.toFixed(3)}Ω`;
+            document.getElementById('val-rc-svg').textContent = `${Rc.toFixed(0)}Ω`;
+            document.getElementById('val-xm-svg').textContent = `${Xm.toFixed(3)}Ω`;
+            document.getElementById('val-x2-svg').textContent = `${X2.toFixed(3)}Ω`;
+            document.getElementById('val-r2s-svg').textContent = `${(R2/s_rated).toFixed(2)}Ω`;
 
-            // --- 7. Update UI ---
-            // Update Diagram Labels
-            document.getElementById('val-r1-svg').textContent = `R1[${R1.toFixed(3)}]Ω`;
-            document.getElementById('val-x1-svg').textContent = `jX1[${X1.toFixed(3)}]Ω`;
-            document.getElementById('val-rc-svg').textContent = `Rc[${Rc.toFixed(0)}]Ω`;
-            document.getElementById('val-xm-svg').textContent = `jXm[${Xm.toFixed(3)}]Ω`;
-            document.getElementById('val-x2-svg').textContent = `jX2[${X2.toFixed(3)}]Ω`;
-            document.getElementById('val-r2s-svg').textContent = `[${(R2/s_rated).toFixed(2)}]Ω`;
-
-            // Update List Items (Bottom)
             document.getElementById('list-r1').textContent = R1.toFixed(3);
             document.getElementById('list-r2').textContent = R2.toFixed(3);
-            
             document.getElementById('list-x1').textContent = X1.toFixed(3);
-            document.getElementById('list-l1').textContent = L1_mH.toFixed(2);
-            
+            document.getElementById('list-l1').textContent = ((X1/omega)*1000).toFixed(2);
             document.getElementById('list-x2').textContent = X2.toFixed(3);
-            document.getElementById('list-l2').textContent = L2_mH.toFixed(2);
-            
+            document.getElementById('list-l2').textContent = ((X2/omega)*1000).toFixed(2);
             document.getElementById('list-xm').textContent = Xm.toFixed(3);
-            document.getElementById('list-lm').textContent = Lm_mH.toFixed(2);
+            document.getElementById('list-lm').textContent = ((Xm/omega)*1000).toFixed(2);
 
-            // Update Cyberpunk Chart Values
-            document.getElementById('svg-val-pin').textContent = P_in_calc.toFixed(0) + " W";
-            document.getElementById('svg-val-pg').textContent = P_gap_calc.toFixed(0) + " W";
-            document.getElementById('svg-val-pm').textContent = P_m_calc.toFixed(0) + " W";
-            document.getElementById('svg-val-pout').textContent = P_out_W.toFixed(0) + " W";
+            // Update Chart
+            document.getElementById('svg-val-pin').textContent = P_in_chart.toFixed(0) + " W";
+            document.getElementById('svg-val-pg').textContent = P_gap_chart.toFixed(0) + " W";
+            document.getElementById('svg-val-pm').textContent = P_mech_chart.toFixed(0) + " W";
+            document.getElementById('svg-val-pout').textContent = P_out_final_display.toFixed(0) + " W";
+            document.getElementById('svg-val-pcu1').textContent = P_cu1_chart.toFixed(0) + " W";
+            document.getElementById('svg-val-pcore').textContent = P_core_chart.toFixed(0) + " W";
+            document.getElementById('svg-val-pcu2').textContent = P_cu2_chart.toFixed(0) + " W";
+            // Display combined loss
+            document.getElementById('svg-val-pfw').textContent = P_combined_loss.toFixed(0) + " W";
             
-            document.getElementById('svg-val-pcu1').textContent = P_cu1_calc.toFixed(0) + " W";
-            document.getElementById('svg-val-pcore').textContent = P_core_calc.toFixed(0) + " W";
-            document.getElementById('svg-val-pcu2').textContent = P_cu2_calc.toFixed(0) + " W";
-            document.getElementById('svg-val-pfw').textContent = P_fw_calc.toFixed(0) + " W";
-            
-            document.getElementById('val-eff').textContent = eff_calc.toFixed(2) + " %";
+            document.getElementById('val-eff').textContent = eff_display.toFixed(2) + " %";
         }
+        window.onload = calculate;
     </script>
 </body>
 </html>
