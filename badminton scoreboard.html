@@ -32,14 +32,21 @@
     #score-page { display: none; flex-direction: column; height: 100%; width: 100%; box-sizing: border-box; }
     .scoreboard-layout { display: flex; gap: 10px; flex: 1; min-height: 0; margin-bottom: 10px; }
     .score-column { flex: 1; display: flex; flex-direction: column; }
-    .score-box { background: var(--bg); border: 2px solid #333; border-radius: 12px; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; }
+    .score-box { background: var(--bg); border: 2px solid #333; border-radius: 12px; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; cursor: pointer; }
+    .team-label { font-size: var(--font-label); color: var(--blue); font-weight: 900; margin-bottom: 5px; }
     .score-val { font-size: var(--font-score); line-height: 0.9; z-index: 2; }
     .team-a .score-val { color: var(--red); }
     .team-b .score-val { color: var(--green); }
-    .srv-banner { display: none; position: absolute; top: 0; width: 100%; background: white; color: black; font-size: 7vw; text-align: center; padding: 2px 0; z-index: 3; }
+    
+    /* 發球指示標籤 */
+    .srv-banner { 
+      display: none; position: absolute; top: 0; width: 100%; 
+      background: white; color: black; font-size: 7vw; text-align: center; 
+      padding: 2px 0; z-index: 3; border-radius: 10px 10px 0 0;
+    }
     .serving .srv-banner { display: block; }
 
-    /* --- 控制列 --- */
+    /* --- 控制列 (左右排列) --- */
     .control-bar { display: flex; gap: 8px; height: 16vh; flex-shrink: 0; }
     .control-bar button { border: none; border-radius: 8px; font-weight: bold; cursor: pointer; height: 100%; }
     .btn-plus { flex: 2.5; font-size: 4vh; }
@@ -48,6 +55,7 @@
     .btn-a-minus { color: var(--red); border: 1.5px solid var(--red) !important; }
     .btn-b-plus { background: var(--green); color: black; }
     .btn-b-minus { color: var(--green); border: 1.5px solid var(--green) !important; }
+
     .center-group { display: flex; flex-direction: column; gap: 5px; flex: 1.5; }
     .btn-reset { background: transparent; border: 2px solid var(--blue) !important; color: var(--blue); font-size: 1.4vh !important; flex: 1; }
     .btn-close { background: #222; border: 2px solid #ff3333 !important; color: #ff3333; font-size: 1.4vh !important; flex: 1; }
@@ -59,6 +67,7 @@
     @media (orientation: landscape) {
       :root { --font-score: 35vh; --font-label: 6vh; }
       .control-bar { height: 22vh; }
+      .srv-banner { font-size: 6vh; }
     }
   </style>
 </head>
@@ -80,11 +89,13 @@
   <div id="score-page">
     <div class="scoreboard-layout">
       <div id="panel-A" class="score-column score-box team-a" onclick="setSrv('A')">
-        <div class="srv-banner">🏸</div>
+        <div class="srv-banner">🏸 SERVING</div>
+        <div class="team-label">TEAM A</div>
         <div id="score-A" class="score-val">00</div>
       </div>
       <div id="panel-B" class="score-column score-box team-b" onclick="setSrv('B')">
-        <div class="srv-banner">🏸</div>
+        <div class="srv-banner">🏸 SERVING</div>
+        <div class="team-label">TEAM B</div>
         <div id="score-B" class="score-val">00</div>
       </div>
     </div>
@@ -117,15 +128,15 @@
     const roomsRef = firebase.database().ref('rooms');
 
     let db;
-    let localData = { scoreA: 0, scoreB: 0, srv: 'A' };
+    let localData = { scoreA: 0, scoreB: 0, srv: 'A', lastActive: Date.now() };
     let isReferee = false;
     let currentRoom = "";
 
-    // --- 自動清理機制 ---
+    // 自動清理
     function performCleanup(rooms) {
       if (!rooms) return;
       const now = Date.now();
-      const EXPIRE_TIME = 5 * 60 * 1000; // 5分鐘無活動即判定為過期
+      const EXPIRE_TIME = 5 * 60 * 1000;
       Object.keys(rooms).forEach(key => {
         if (rooms[key].lastActive && (now - rooms[key].lastActive > EXPIRE_TIME)) {
           roomsRef.child(key).remove();
@@ -135,7 +146,7 @@
 
     roomsRef.on('value', (snapshot) => {
       const rooms = snapshot.val();
-      performCleanup(rooms); // 每次列表更新都觸發檢查
+      performCleanup(rooms);
       const listDiv = document.getElementById('room-list');
       listDiv.innerHTML = "";
       if (!rooms) { listDiv.innerHTML = "<div style='color:#555; text-align:center;'>無比賽</div>"; return; }
@@ -154,13 +165,21 @@
       if (!room) return;
       currentRoom = room;
       db = roomsRef.child(room);
-      db.child('pin').once('value', (snapshot) => {
-        const cloudPin = snapshot.val();
-        if (!cloudPin || cloudPin === pin) {
+      db.once('value', (snapshot) => {
+        const cloudData = snapshot.val();
+        // 如果是新場地或密碼正確
+        if (!cloudData || cloudData.pin === pin) {
           isReferee = true;
-          db.update({ pin: pin, lastActive: Date.now() });
+          // 重要：開場立即寫入完整預設值，解決「第一次進入無法操作」的問題
+          const initData = {
+            pin: pin,
+            scoreA: cloudData ? cloudData.scoreA : 0,
+            scoreB: cloudData ? cloudData.scoreB : 0,
+            srv: cloudData ? cloudData.srv : 'A',
+            lastActive: Date.now()
+          };
+          db.update(initData);
           db.onDisconnect().remove(); 
-          // 裁判心跳偵測：每 30 秒更新一次在線時間
           setInterval(() => { if (isReferee) db.update({ lastActive: Date.now() }); }, 30000);
           startScoreboard();
         } else { alert("授權碼錯誤"); }
@@ -184,22 +203,48 @@
     }
 
     function updateUI() {
-      document.getElementById('score-A').innerText = (localData.scoreA || 0).toString().padStart(2, '0');
-      document.getElementById('score-B').innerText = (localData.scoreB || 0).toString().padStart(2, '0');
-      document.getElementById('panel-A').classList.toggle('serving', localData.srv === 'A');
-      document.getElementById('panel-B').classList.toggle('serving', localData.srv === 'B');
+      // 確保即使雲端數據不完整也能顯示 00
+      const sa = localData.scoreA || 0;
+      const sb = localData.scoreB || 0;
+      const srv = localData.srv || 'A';
+
+      document.getElementById('score-A').innerText = sa.toString().padStart(2, '0');
+      document.getElementById('score-B').innerText = sb.toString().padStart(2, '0');
+      
+      // 恢復發球權顯示
+      document.getElementById('panel-A').classList.toggle('serving', srv === 'A');
+      document.getElementById('panel-B').classList.toggle('serving', srv === 'B');
     }
 
     function changeScore(team, val) {
       if (!isReferee) return;
-      if (team === 'A') localData.scoreA = Math.max(0, (localData.scoreA || 0) + val);
-      else localData.scoreB = Math.max(0, (localData.scoreB || 0) + val);
-      db.update({ scoreA: localData.scoreA, scoreB: localData.scoreB, lastActive: Date.now() });
+      // 讀取當前最新分數
+      let sa = localData.scoreA || 0;
+      let sb = localData.scoreB || 0;
+      let srv = localData.srv || 'A';
+
+      if (team === 'A') {
+        sa = Math.max(0, sa + val);
+        if (val > 0) srv = 'A';
+      } else {
+        sb = Math.max(0, sb + val);
+        if (val > 0) srv = 'B';
+      }
+      db.update({ scoreA: sa, scoreB: sb, srv: srv, lastActive: Date.now() });
     }
 
-    function setSrv(team) { if (isReferee) db.update({ srv: team, lastActive: Date.now() }); }
-    function resetScore() { if (isReferee && confirm('重置分數？')) db.update({ scoreA: 0, scoreB: 0, lastActive: Date.now() }); }
-    function closeRoomManual() { if (isReferee && confirm('關閉場地？')) db.remove().then(() => location.reload()); }
+    function setSrv(team) { 
+      if (isReferee) db.update({ srv: team, lastActive: Date.now() }); 
+    }
+
+    function resetScore() { 
+      if (isReferee && confirm('重置分數？')) db.update({ scoreA: 0, scoreB: 0, srv: 'A', lastActive: Date.now() }); 
+    }
+
+    function closeRoomManual() { 
+      if (isReferee && confirm('關閉場地？')) db.remove().then(() => location.reload()); 
+    }
+
     function copyShareLink() {
       const url = window.location.origin + window.location.pathname + "?room=" + encodeURIComponent(currentRoom);
       navigator.clipboard.writeText(url).then(() => alert("連結已複製"));
