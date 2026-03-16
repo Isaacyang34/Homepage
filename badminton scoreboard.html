@@ -13,7 +13,6 @@
     
     :root { 
       --red: #ff3333; --green: #33ff33; --blue: #00d2ff; --bg: #000; --btn-gray: #1a1a1a; 
-      /* 使用 min() 確保字體在直向/橫向都不會爆框 */
       --font-score: min(25vw, 25vh); 
       --font-label: min(6vw, 5vh); 
       --font-banner: min(5vw, 4vh);
@@ -42,19 +41,27 @@
     .scoreboard-layout { display: flex; gap: 10px; flex: 1; min-height: 0; margin-bottom: 10px; }
     .score-column { flex: 1; display: flex; flex-direction: column; }
     
-    /* 分數框設定：加入 overflow: hidden 絕對防爆，並預留橫幅空間 */
     .score-box { 
       background: var(--bg); border: 2px solid #333; border-radius: 12px; flex: 1; 
       display: flex; flex-direction: column; justify-content: center; align-items: center; 
       position: relative; cursor: pointer; 
-      padding-top: calc(var(--font-banner) + 10px); /* 預留上方橫幅空間 */
+      padding-top: calc(var(--font-banner) + 10px); 
       overflow: hidden; 
     }
     
-    .team-label { font-size: var(--font-label); color: var(--blue); font-weight: 900; margin-bottom: 2px; z-index: 2; }
+    .team-header { display: flex; align-items: center; justify-content: center; z-index: 2; margin-bottom: 2px; }
+    .team-label { font-size: var(--font-label); color: var(--blue); font-weight: 900; margin: 0; }
+    .trophy-icon { display: none; font-size: var(--font-label); margin-right: 10px; }
+    
     .score-val { font-size: var(--font-score); line-height: 1; z-index: 2; margin: 0; }
     .team-a .score-val { color: var(--red); }
     .team-b .score-val { color: var(--green); }
+    
+    /* 勝利特效 */
+    .winner { border-color: gold !important; }
+    .winner .trophy-icon { display: block; }
+    .winner .score-val { animation: blink 0.6s infinite; }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
     
     /* 發球橫幅 */
     .srv-banner { 
@@ -68,7 +75,6 @@
     .control-bar { display: flex; gap: 8px; height: 15vh; flex-shrink: 0; }
     .control-bar button { border: none; border-radius: 8px; font-weight: bold; cursor: pointer; height: 100%; padding: 0; }
     
-    /* 按鈕字體也改為自適應 */
     .btn-plus { flex: 2.5; font-size: min(8vw, 4vh); }
     .btn-minus { flex: 1; font-size: min(4vw, 2.5vh); background: var(--btn-gray); }
     .btn-a-plus { background: var(--red); color: white; }
@@ -84,10 +90,7 @@
     #room-info-tag { font-size: 14px; color: var(--blue); font-weight: bold; }
     .share-btn { background: #222; color: #aaa; border: 1px solid #444; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
 
-    /* 橫向模式專屬控制列高度微調 */
-    @media (orientation: landscape) { 
-      .control-bar { height: 22vh; } 
-    }
+    @media (orientation: landscape) { .control-bar { height: 22vh; } }
   </style>
 </head>
 <body>
@@ -109,12 +112,18 @@
     <div class="scoreboard-layout">
       <div id="panel-A" class="score-column score-box team-a" onclick="setSrv('A')">
         <div class="srv-banner">🏸 SERVING</div>
-        <div class="team-label">TEAM A</div>
+        <div class="team-header">
+          <div class="trophy-icon">🏆</div>
+          <div class="team-label">TEAM A</div>
+        </div>
         <div id="score-A" class="score-val">00</div>
       </div>
       <div id="panel-B" class="score-column score-box team-b" onclick="setSrv('B')">
         <div class="srv-banner">🏸 SERVING</div>
-        <div class="team-label">TEAM B</div>
+        <div class="team-header">
+          <div class="trophy-icon">🏆</div>
+          <div class="team-label">TEAM B</div>
+        </div>
         <div id="score-B" class="score-val">00</div>
       </div>
     </div>
@@ -226,17 +235,41 @@
     }
 
     function updateUI() {
-      document.getElementById('score-A').innerText = (localData.scoreA || 0).toString().padStart(2, '0');
-      document.getElementById('score-B').innerText = (localData.scoreB || 0).toString().padStart(2, '0');
-      document.getElementById('panel-A').classList.toggle('serving', localData.srv === 'A');
-      document.getElementById('panel-B').classList.toggle('serving', localData.srv === 'B');
+      const sa = localData.scoreA || 0;
+      const sb = localData.scoreB || 0;
+      const srv = localData.srv || 'A';
+      
+      document.getElementById('score-A').innerText = sa.toString().padStart(2, '0');
+      document.getElementById('score-B').innerText = sb.toString().padStart(2, '0');
+      
+      document.getElementById('panel-A').classList.toggle('serving', srv === 'A');
+      document.getElementById('panel-B').classList.toggle('serving', srv === 'B');
+
+      // 恢復勝利特效切換
+      const winA = (sa >= 21 && (sa - sb) >= 2) || sa === 30;
+      const winB = (sb >= 21 && (sb - sa) >= 2) || sb === 30;
+      document.getElementById('panel-A').classList.toggle('winner', winA);
+      document.getElementById('panel-B').classList.toggle('winner', winB);
     }
 
     function changeScore(team, val) {
       if (!isReferee) return;
-      let sa = localData.scoreA || 0; let sb = localData.scoreB || 0; let srv = localData.srv || 'A';
-      if (team === 'A') { sa = Math.max(0, sa + val); if (val > 0) srv = 'A'; }
-      else { sb = Math.max(0, sb + val); if (val > 0) srv = 'B'; }
+      
+      let sa = localData.scoreA || 0; 
+      let sb = localData.scoreB || 0; 
+      let srv = localData.srv || 'A';
+      
+      // 恢復勝利鎖定邏輯 (有人勝利時，禁止按 +1)
+      const hasWinner = (sa >= 21 && (sa - sb) >= 2) || sa === 30 || (sb >= 21 && (sb - sa) >= 2) || sb === 30;
+      if (hasWinner && val > 0) return; 
+
+      if (team === 'A') { 
+        sa = Math.max(0, sa + val); 
+        if (val > 0) srv = 'A'; 
+      } else { 
+        sb = Math.max(0, sb + val); 
+        if (val > 0) srv = 'B'; 
+      }
       db.update({ scoreA: sa, scoreB: sb, srv: srv, deleteAt: null });
     }
 
