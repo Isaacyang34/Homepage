@@ -1,4 +1,3 @@
-const char* htmlPage = R"rawliteral(
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -10,94 +9,91 @@ const char* htmlPage = R"rawliteral(
 
     :root { 
       --red: #ff3333; --green: #33ff33; --bg: #000; 
-      --btn-gray: #222;
-      /* 定義響應式變數 */
-      --font-score: 18vw; 
+      --btn-gray: #1a1a1a;
+      --font-score: 25vw; /* 預設分數大小 */
     }
     
     body { 
       font-family: 'Orbitron', sans-serif; 
-      background-color: #111; color: white; 
+      background-color: #000; color: white; 
       margin: 0; padding: 0;
       display: flex; flex-direction: column; 
       height: 100vh; width: 100vw;
-      overflow: hidden; box-sizing: border-box;
+      overflow: hidden; 
+      /* 處理 iPhone 橫放時的瀏海遮擋 */
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+      padding-bottom: env(safe-area-inset-bottom);
     }
     
     .container { 
       display: flex; flex-direction: column; 
       height: 100%; width: 100%;
-      padding: 2vh 2vw; box-sizing: border-box;
+      padding: 10px; box-sizing: border-box;
     }
 
-    h2 { font-size: 2.5vh; color: #444; text-align: center; margin: 1vh 0; letter-spacing: 0.5vw; flex-shrink: 0; }
+    /* 標題在橫向時會縮小或消失 */
+    h2 { font-size: 3vh; color: #333; text-align: center; margin: 5px 0; flex-shrink: 0; letter-spacing: 5px;}
 
-    /* 主佈局：左右對分，高度撐滿 */
-    .main-layout { 
-      display: flex; gap: 2vw; flex: 1; min-height: 0; 
-    }
-    
-    .team-column { 
-      flex: 1; display: flex; flex-direction: column; gap: 1.5vh; min-width: 0;
-    }
+    .main-layout { display: flex; gap: 10px; flex: 1; min-height: 0; }
+    .team-column { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 
-    /* 七段顯示器視窗：高度隨螢幕縮放 */
+    /* 分數顯示視窗 */
     .score-box { 
-      background: var(--bg); border: 0.5vh solid #222; border-radius: 2vh; 
-      flex: 2; /* 佔據較多垂直空間 */
+      background: var(--bg); border: 2px solid #222; border-radius: 12px; 
+      flex: 3; /* 直向時分數佔比大 */
       display: flex; flex-direction: column; justify-content: center; align-items: center; 
-      position: relative; cursor: pointer; transition: all 0.2s;
+      position: relative; cursor: pointer; overflow: hidden;
     }
     
-    .score-val { font-size: var(--font-score); line-height: 1; }
-    .team-label { font-size: 2vh; margin-bottom: 1vh; color: #555; font-family: sans-serif; font-weight: bold; }
+    .score-val { font-size: var(--font-score); line-height: 0.9; transition: font-size 0.3s; }
+    .team-label { font-size: 2vh; color: #555; margin-bottom: 5px; font-family: sans-serif; }
 
-    /* 發球方高亮：白色粗框 */
-    .score-box.serving { border: 0.8vh solid #fff; transform: scale(0.98); }
+    /* 發球方與勝利狀態 */
+    .score-box.serving { border: 4px solid #fff; }
     .score-box.serving::before { 
-      content: "SERVING"; position: absolute; top: -1.5vh; background: white; color: black; 
-      font-size: 1.5vh; padding: 0.2vh 1vw; font-weight: bold; border-radius: 0.5vh; font-family: sans-serif; 
+      content: "SERVING"; position: absolute; top: 0; background: white; color: black; 
+      font-size: 1.5vh; padding: 2px 10px; font-weight: bold; font-family: sans-serif; 
     }
-
-    /* 勝利動畫 */
-    @keyframes winner-blink { 0%, 100% { background-color: #000; } 50% { background-color: #333; } }
-    .winner { animation: winner-blink 0.6s infinite; border-color: gold !important; }
-    .win-text { color: gold; font-size: 2vh; margin-top: 1vh; display: none; font-family: sans-serif; }
+    @keyframes winner-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .winner { border-color: gold !important; }
+    .winner .score-val { animation: winner-blink 0.6s infinite; }
+    .win-text { color: gold; font-size: 1.8vh; font-family: sans-serif; margin-top: 5px; display: none; }
     .winner .win-text { display: block; }
 
-    /* 按鈕列：寬度 100% 且與視窗對齊 */
-    .btn-row { display: flex; gap: 1vw; flex: 1; }
-    
+    /* 按鈕 */
+    .btn-row { display: flex; gap: 8px; flex: 1; }
     button { 
-      flex: 1; border: none; border-radius: 1.5vh; 
+      flex: 1; border: none; border-radius: 8px; 
       font-weight: bold; font-size: 4vh; cursor: pointer; 
-      touch-action: manipulation; transition: 0.1s; font-family: sans-serif;
+      touch-action: manipulation; font-family: sans-serif;
     }
-    button:active { filter: brightness(1.5); transform: translateY(0.5vh); }
-    button:disabled { opacity: 0.2; }
-    
-    .team-a .score-val { color: var(--red); }
-    .team-a .btn-plus { background-color: var(--red); color: white; }
-    .team-a .btn-minus { background-color: var(--btn-gray); color: var(--red); border: 2px solid var(--red); font-size: 2.5vh; }
-    
-    .team-b .score-val { color: var(--green); }
-    .team-b .btn-plus { background-color: var(--green); color: black; }
-    .team-b .btn-minus { background-color: var(--btn-gray); color: var(--green); border: 2px solid var(--green); font-size: 2.5vh; }
-    
-    .btn-reset { 
-      height: 6vh; width: 100%; background: transparent; 
-      border: 1px solid #333; color: #444; font-size: 1.8vh; 
-      border-radius: 1vh; margin-top: 2vh; flex-shrink: 0;
-    }
+    .btn-minus { font-size: 2vh !important; background: var(--btn-gray) !important; color: inherit; border: 1px solid currentColor !important; }
 
-    /* 針對平板或橫向螢幕調整字體大小 */
-    @media (min-width: 768px) { :root { --font-score: 12vw; } }
+    .team-a { color: var(--red); }
+    .team-a .btn-plus { background: var(--red); color: white; }
+    .team-b { color: var(--green); }
+    .team-b .btn-plus { background: var(--green); color: black; }
+
+    .btn-reset { height: 40px; background: transparent; border: 1px solid #222; color: #333; font-size: 12px; margin-top: 5px; flex-shrink: 0; }
+
+    /* ------------------------------------------- */
+    /* 📱 橫向模式 (Landscape) 專屬修正 */
+    /* ------------------------------------------- */
+    @media (orientation: landscape) {
+      :root { --font-score: 35vh; } /* 橫向時分數改以高度為基準縮放 */
+      h2 { display: none; } /* 隱藏標題，把空間留給分數 */
+      .container { padding: 5px; }
+      .score-box { flex: 4; } /* 分數框佔比更高 */
+      .btn-row { flex: 1.2; } /* 按鈕適度縮小 */
+      .score-val { font-size: 45vh; }
+      .btn-reset { position: absolute; top: 10px; right: 10px; width: auto; height: 30px; padding: 0 10px; border-radius: 5px; }
+    }
   </style>
 </head>
 <body>
   <div class="container">
-    <h2 id="status-text">BADMINTON SCOREBOARD</h2>
-    
+    <h2>BADMINTON SCORE</h2>
     <div class="main-layout">
       <div class="team-column team-a">
         <div id="panel-A" class="score-box serving" onclick="setSrv('A')">
@@ -110,7 +106,6 @@ const char* htmlPage = R"rawliteral(
           <button class="btn-minus" onclick="changeScore('A', -1)">-1</button>
         </div>
       </div>
-
       <div class="team-column team-b">
         <div id="panel-B" class="score-box" onclick="setSrv('B')">
           <div class="team-label">TEAM B</div>
@@ -123,74 +118,48 @@ const char* htmlPage = R"rawliteral(
         </div>
       </div>
     </div>
-
-    <button class="btn-reset" onclick="resetGame()">RESET MATCH</button>
+    <button class="btn-reset" onclick="resetGame()">RESET</button>
   </div>
 
   <script>
     let scoreA = 0, scoreB = 0, gameOver = false;
-
-    function sendCmd(cmd) {
-      if (navigator.vibrate) navigator.vibrate(30);
-      fetch('/cmd?action=' + cmd);
-    }
-
+    function sendCmd(cmd) { if (navigator.vibrate) navigator.vibrate(30); fetch('/cmd?action=' + cmd); }
     function checkWinner() {
       let winner = null;
       if ((scoreA >= 21 && (scoreA - scoreB) >= 2) || scoreA === 30) winner = 'A';
       else if ((scoreB >= 21 && (scoreB - scoreA) >= 2) || scoreB === 30) winner = 'B';
-
       if (winner) {
         gameOver = true;
         document.getElementById('panel-' + winner).classList.add('winner');
-        document.getElementById('btn-A-plus').disabled = true;
-        document.getElementById('btn-B-plus').disabled = true;
-        document.getElementById('status-text').innerText = 'TEAM ' + winner + ' WINS!';
-        document.getElementById('status-text').style.color = 'gold';
+        document.getElementById('btn-A-plus').disabled = true; document.getElementById('btn-B-plus').disabled = true;
       }
     }
-
     function changeScore(team, val) {
       if (gameOver && val > 0) return;
-      if (team === 'A') {
-        scoreA = Math.max(0, scoreA + val);
-        document.getElementById('score-A').innerText = scoreA.toString().padStart(2, '0');
-      } else {
-        scoreB = Math.max(0, scoreB + val);
-        document.getElementById('score-B').innerText = scoreB.toString().padStart(2, '0');
-      }
+      if (team === 'A') { scoreA = Math.max(0, scoreA + val); document.getElementById('score-A').innerText = scoreA.toString().padStart(2, '0'); }
+      else { scoreB = Math.max(0, scoreB + val); document.getElementById('score-B').innerText = scoreB.toString().padStart(2, '0'); }
       sendCmd(team + (val > 0 ? '_PLUS' : '_MINUS'));
-
       if (val < 0) {
         gameOver = false;
         document.querySelectorAll('.score-box').forEach(el => el.classList.remove('winner'));
-        document.getElementById('btn-A-plus').disabled = false;
-        document.getElementById('btn-B-plus').disabled = false;
-        document.getElementById('status-text').innerText = 'BADMINTON SCOREBOARD';
-        document.getElementById('status-text').style.color = '#444';
+        document.getElementById('btn-A-plus').disabled = false; document.getElementById('btn-B-plus').disabled = false;
       }
       checkWinner();
     }
-
     function setSrv(team) {
       document.getElementById('panel-A').classList.toggle('serving', team === 'A');
       document.getElementById('panel-B').classList.toggle('serving', team === 'B');
       sendCmd(team + '_SRV');
     }
-
     function resetGame() {
-      if(confirm('Reset?')) {
+      if(confirm('Reset Match?')) {
         scoreA = 0; scoreB = 0; gameOver = false;
-        document.getElementById('score-A').innerText = '00';
-        document.getElementById('score-B').innerText = '00';
+        document.getElementById('score-A').innerText = '00'; document.getElementById('score-B').innerText = '00';
         document.querySelectorAll('.score-box').forEach(el => el.classList.remove('winner'));
-        document.getElementById('btn-A-plus').disabled = false;
-        document.getElementById('btn-B-plus').disabled = false;
-        setSrv('A');
-        sendCmd('RESET');
+        document.getElementById('btn-A-plus').disabled = false; document.getElementById('btn-B-plus').disabled = false;
+        setSrv('A'); sendCmd('RESET');
       }
     }
   </script>
 </body>
 </html>
-)rawliteral";
