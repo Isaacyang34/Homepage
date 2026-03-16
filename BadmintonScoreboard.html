@@ -42,7 +42,6 @@
     .team-b .score-val { color: var(--green); }
     .score-val { font-size: var(--font-score); line-height: 0.9; z-index: 2; }
 
-    /* 發球橫幅：只保留羽球符號，取消文字 */
     .srv-banner { 
       display: none; position: absolute; top: 0; width: 100%; 
       background: white; color: black; font-size: 8vw; 
@@ -102,7 +101,6 @@
     const firebaseConfig = {
       apiKey: "AIzaSyB5Ngq3KczBAmJ4tRaXbt40R3d3pQpx7J0",
       authDomain: "badmintonscoreboard-ba0c6.firebaseapp.com",
-      // 已修正為新加坡伺服器網址
       databaseURL: "https://badmintonscoreboard-ba0c6-default-rtdb.asia-southeast1.firebasedatabase.app", 
       projectId: "badmintonscoreboard-ba0c6",
       storageBucket: "badmintonscoreboard-ba0c6.firebasestorage.app",
@@ -124,20 +122,31 @@
       }
     });
 
+    // 勝利判斷邏輯提取
+    function getWinner() {
+      if ((localData.scoreA >= 21 && (localData.scoreA - localData.scoreB) >= 2) || localData.scoreA === 30) return 'A';
+      if ((localData.scoreB >= 21 && (localData.scoreB - localData.scoreA) >= 2) || localData.scoreB === 30) return 'B';
+      return null;
+    }
+
     function updateUI() {
       document.getElementById('score-A').innerText = localData.scoreA.toString().padStart(2, '0');
       document.getElementById('score-B').innerText = localData.scoreB.toString().padStart(2, '0');
+      
       document.getElementById('panel-A').classList.toggle('serving', localData.srv === 'A');
       document.getElementById('panel-B').classList.toggle('serving', localData.srv === 'B');
       
-      const winA = (localData.scoreA >= 21 && (localData.scoreA - localData.scoreB) >= 2) || localData.scoreA === 30;
-      const winB = (localData.scoreB >= 21 && (localData.scoreB - localData.scoreA) >= 2) || localData.scoreB === 30;
-      document.getElementById('panel-A').classList.toggle('winner', winA);
-      document.getElementById('panel-B').classList.toggle('winner', winB);
+      const winner = getWinner();
+      document.getElementById('panel-A').classList.toggle('winner', winner === 'A');
+      document.getElementById('panel-B').classList.toggle('winner', winner === 'B');
     }
 
     function changeScore(team, val) {
       if (navigator.vibrate) navigator.vibrate(35);
+      
+      // 修正重點：若已經有人勝出，且動作是「+1」，則直接結束函式不執行
+      if (getWinner() && val > 0) return;
+
       if (team === 'A') {
         localData.scoreA = Math.max(0, localData.scoreA + val);
         if (val > 0) localData.srv = 'A';
