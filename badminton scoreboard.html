@@ -10,67 +10,55 @@
   
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
-    :root { --red: #ff3333; --green: #33ff33; --blue: #00d2ff; --bg: #000; --btn-gray: #1a1a1a; --font-score: 25vw; --font-label: 6vw; }
-    body { font-family: 'Orbitron', sans-serif; background-color: #000; color: white; margin: 0; padding: 0; overflow: hidden; }
+    :root { 
+      --red: #ff3333; --green: #33ff33; --blue: #00d2ff; --bg: #000; --btn-gray: #1a1a1a; 
+      --font-score: 22vw; --font-label: 6vw; 
+    }
+    
+    body { 
+      font-family: 'Orbitron', sans-serif; background-color: #000; color: white; margin: 0; 
+      padding: calc(5mm + env(safe-area-inset-top)) calc(5mm + env(safe-area-inset-right)) calc(5mm + env(safe-area-inset-bottom)) calc(5mm + env(safe-area-inset-left));
+      box-sizing: border-box; height: 100dvh; width: 100vw; overflow: hidden; display: flex; flex-direction: column;
+    }
 
     /* --- 入口頁面 --- */
     #setup-page { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #111; z-index: 100; display: flex; flex-direction: column; align-items: center; padding: 20px; box-sizing: border-box; overflow-y: auto; }
     .setup-card { background: #222; padding: 25px; border-radius: 20px; border: 2px solid var(--blue); width: 100%; max-width: 400px; text-align: center; margin-bottom: 20px; }
     input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #000; color: #fff; font-size: 16px; box-sizing: border-box; margin-bottom: 15px; }
     .start-btn { width: 100%; padding: 15px; background: var(--blue); color: #000; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; }
-    
-    .room-list-area { width: 100%; max-width: 400px; }
-    .room-item { background: #333; padding: 15px; border-radius: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
-    .room-name { font-weight: bold; color: var(--green); }
+    .room-item { background: #333; padding: 15px; border-radius: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; width: 100%; max-width: 400px; }
 
-    /* --- 計分板主頁面 --- */
-    #score-page { display: none; flex-direction: column; height: 100vh; width: 100vw; padding: 10px; box-sizing: border-box; }
+    /* --- 計分板頁面 --- */
+    #score-page { display: none; flex-direction: column; height: 100%; width: 100%; box-sizing: border-box; }
     .scoreboard-layout { display: flex; gap: 10px; flex: 1; min-height: 0; margin-bottom: 10px; }
     .score-column { flex: 1; display: flex; flex-direction: column; }
     .score-box { background: var(--bg); border: 2px solid #333; border-radius: 12px; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; }
-    .team-header { display: flex; align-items: center; justify-content: center; z-index: 2; }
-    .team-label { font-size: var(--font-label); color: var(--blue); font-weight: 900; }
-    .trophy-icon { display: none; font-size: 15vw; margin-right: 10px; }
     .score-val { font-size: var(--font-score); line-height: 0.9; z-index: 2; }
     .team-a .score-val { color: var(--red); }
     .team-b .score-val { color: var(--green); }
-    .srv-banner { display: none; position: absolute; top: 0; width: 100%; background: white; color: black; font-size: 8vw; text-align: center; padding: 5px 0; z-index: 3; }
+    .srv-banner { display: none; position: absolute; top: 0; width: 100%; background: white; color: black; font-size: 7vw; text-align: center; padding: 2px 0; z-index: 3; }
     .serving .srv-banner { display: block; }
-    .winner { border-color: gold !important; }
-    .winner .trophy-icon { display: block; }
-    .winner .score-val { animation: blink 0.6s infinite; }
-    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
-    
-    /* --- 控制列：恢復左右排列結構 --- */
-    .control-bar { display: flex; gap: 5px; height: 15vh; flex-shrink: 0; }
-    
-    /* 按鈕共用樣式 */
-    .control-bar button { border: none; border-radius: 8px; font-weight: bold; cursor: pointer; height: 100%; }
-    
-    /* 加減分組 (左右排列) */
-    .btn-plus { flex: 2; font-size: 4vh; }
-    .btn-minus { flex: 1; font-size: 2.5vh; background: var(--btn-gray); }
 
-    /* A隊顏色 */
+    /* --- 控制列 --- */
+    .control-bar { display: flex; gap: 8px; height: 16vh; flex-shrink: 0; }
+    .control-bar button { border: none; border-radius: 8px; font-weight: bold; cursor: pointer; height: 100%; }
+    .btn-plus { flex: 2.5; font-size: 4vh; }
+    .btn-minus { flex: 1; font-size: 2.2vh; background: var(--btn-gray); }
     .btn-a-plus { background: var(--red); color: white; }
     .btn-a-minus { color: var(--red); border: 1.5px solid var(--red) !important; }
-    
-    /* B隊顏色 */
     .btn-b-plus { background: var(--green); color: black; }
     .btn-b-minus { color: var(--green); border: 1.5px solid var(--green) !important; }
-
-    /* 中央功能組 (上下排列) */
-    .center-group { display: flex; flex-direction: column; gap: 5px; flex: 1.2; }
-    .btn-reset { background: transparent; border: 2px solid var(--blue) !important; color: var(--blue); font-size: 1.6vh !important; flex: 1; }
-    .btn-close { background: #333; border: 2px solid #ff3333 !important; color: #ff3333; font-size: 1.6vh !important; flex: 1; }
+    .center-group { display: flex; flex-direction: column; gap: 5px; flex: 1.5; }
+    .btn-reset { background: transparent; border: 2px solid var(--blue) !important; color: var(--blue); font-size: 1.4vh !important; flex: 1; }
+    .btn-close { background: #222; border: 2px solid #ff3333 !important; color: #ff3333; font-size: 1.4vh !important; flex: 1; }
     
-    .bottom-tools { display: flex; justify-content: space-between; align-items: center; padding: 8px 5px; }
-    #room-info-tag { font-size: 18px; color: var(--blue); font-weight: bold; }
-    .share-btn { background: #222; color: #aaa; border: 1px solid #444; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+    .bottom-tools { display: flex; justify-content: space-between; align-items: center; padding-top: 5px; height: 30px; }
+    #room-info-tag { font-size: 16px; color: var(--blue); font-weight: bold; }
+    .share-btn { background: #222; color: #aaa; border: 1px solid #444; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
 
     @media (orientation: landscape) {
-      :root { --font-score: 40vh; --font-label: 6vh; }
-      .control-bar { height: 20vh; }
+      :root { --font-score: 35vh; --font-label: 6vh; }
+      .control-bar { height: 22vh; }
     }
   </style>
 </head>
@@ -83,9 +71,9 @@
       <input type="password" id="input-pin" placeholder="設定 4 位數授權碼" maxlength="4">
       <button class="start-btn" onclick="initApp()">開場並進入</button>
     </div>
-    <div class="room-list-area">
-      <h3 style="font-size: 14px; color: #888;">正在進行中的場地 (點擊觀看)</h3>
-      <div id="room-list">正在偵測場地...</div>
+    <div class="room-list-area" style="width:100%; display:flex; flex-direction:column; align-items:center;">
+      <h3 style="font-size: 14px; color: #888;">正在進行中的場地</h3>
+      <div id="room-list" style="width:100%; max-width:400px;">偵測中...</div>
     </div>
   </div>
 
@@ -93,12 +81,10 @@
     <div class="scoreboard-layout">
       <div id="panel-A" class="score-column score-box team-a" onclick="setSrv('A')">
         <div class="srv-banner">🏸</div>
-        <div class="team-header"><div class="trophy-icon">🏆</div><div class="team-label">TEAM A</div></div>
         <div id="score-A" class="score-val">00</div>
       </div>
       <div id="panel-B" class="score-column score-box team-b" onclick="setSrv('B')">
         <div class="srv-banner">🏸</div>
-        <div class="team-header"><div class="trophy-icon">🏆</div><div class="team-label">TEAM B</div></div>
         <div id="score-B" class="score-val">00</div>
       </div>
     </div>
@@ -106,19 +92,17 @@
     <div id="control-panel" class="control-bar">
       <button class="btn-plus btn-a-plus" onclick="changeScore('A', 1)">+1</button>
       <button class="btn-minus btn-a-minus" onclick="changeScore('A', -1)">-1</button>
-
       <div class="center-group">
         <button class="btn-reset" onclick="resetScore()">RESET</button>
         <button class="btn-close" onclick="closeRoomManual()">CLOSE</button>
       </div>
-
       <button class="btn-plus btn-b-plus" onclick="changeScore('B', 1)">+1</button>
       <button class="btn-minus btn-b-minus" onclick="changeScore('B', -1)">-1</button>
     </div>
 
     <div class="bottom-tools">
       <div id="room-info-tag"></div>
-      <button class="share-btn" onclick="copyShareLink()">🔗 複製觀眾連結</button>
+      <button class="share-btn" onclick="copyShareLink()">🔗 複製連結</button>
     </div>
   </div>
 
@@ -128,9 +112,6 @@
       authDomain: "badmintonscoreboard-ba0c6.firebaseapp.com",
       databaseURL: "https://badmintonscoreboard-ba0c6-default-rtdb.asia-southeast1.firebasedatabase.app", 
       projectId: "badmintonscoreboard-ba0c6",
-      storageBucket: "badmintonscoreboard-ba0c6.firebasestorage.app",
-      messagingSenderId: "201822822348",
-      appId: "1:201822822348:web:caf391c4f03e6f980a0769",
     };
     firebase.initializeApp(firebaseConfig);
     const roomsRef = firebase.database().ref('rooms');
@@ -140,16 +121,28 @@
     let isReferee = false;
     let currentRoom = "";
 
-    // 監聽場地列表
+    // --- 自動清理機制 ---
+    function performCleanup(rooms) {
+      if (!rooms) return;
+      const now = Date.now();
+      const EXPIRE_TIME = 5 * 60 * 1000; // 5分鐘無活動即判定為過期
+      Object.keys(rooms).forEach(key => {
+        if (rooms[key].lastActive && (now - rooms[key].lastActive > EXPIRE_TIME)) {
+          roomsRef.child(key).remove();
+        }
+      });
+    }
+
     roomsRef.on('value', (snapshot) => {
       const rooms = snapshot.val();
+      performCleanup(rooms); // 每次列表更新都觸發檢查
       const listDiv = document.getElementById('room-list');
       listDiv.innerHTML = "";
-      if (!rooms) { listDiv.innerHTML = "<div style='color:#555'>無比賽</div>"; return; }
+      if (!rooms) { listDiv.innerHTML = "<div style='color:#555; text-align:center;'>無比賽</div>"; return; }
       Object.keys(rooms).forEach(key => {
         const item = document.createElement('div');
         item.className = "room-item";
-        item.innerHTML = `<div><span class="room-name">${key}</span></div><div style="color:#aaa">${rooms[key].scoreA || 0}:${rooms[key].scoreB || 0} ></div>`;
+        item.innerHTML = `<div><span class="room-name">${key}</span></div><div style="color:#aaa">${rooms[key].scoreA||0}:${rooms[key].scoreB||0} ></div>`;
         item.onclick = () => { currentRoom = key; isReferee = false; startScoreboard(); };
         listDiv.appendChild(item);
       });
@@ -165,12 +158,12 @@
         const cloudPin = snapshot.val();
         if (!cloudPin || cloudPin === pin) {
           isReferee = true;
-          db.update({ pin: pin });
+          db.update({ pin: pin, lastActive: Date.now() });
           db.onDisconnect().remove(); 
+          // 裁判心跳偵測：每 30 秒更新一次在線時間
+          setInterval(() => { if (isReferee) db.update({ lastActive: Date.now() }); }, 30000);
           startScoreboard();
-        } else {
-          alert("授權碼錯誤");
-        }
+        } else { alert("授權碼錯誤"); }
       });
     }
 
@@ -178,22 +171,13 @@
       db = roomsRef.child(currentRoom);
       document.getElementById('setup-page').style.display = 'none';
       document.getElementById('score-page').style.display = 'flex';
-      document.getElementById('room-info-tag').innerText = "場地: " + currentRoom;
-      
+      document.getElementById('room-info-tag').innerText = currentRoom;
       if (!isReferee) {
         document.getElementById('control-panel').style.display = 'none';
-        document.querySelectorAll('.score-box').forEach(el => {
-          el.onclick = null;
-          el.style.cursor = "default";
-        });
+        document.querySelectorAll('.score-box').forEach(el => el.onclick = null);
       }
-
       db.on('value', (snapshot) => {
-        if (!snapshot.exists()) {
-          alert("場地已關閉");
-          location.href = window.location.origin + window.location.pathname;
-          return;
-        }
+        if (!snapshot.exists()) { alert("場地已關閉"); location.reload(); return; }
         localData = snapshot.val();
         updateUI();
       });
@@ -204,51 +188,21 @@
       document.getElementById('score-B').innerText = (localData.scoreB || 0).toString().padStart(2, '0');
       document.getElementById('panel-A').classList.toggle('serving', localData.srv === 'A');
       document.getElementById('panel-B').classList.toggle('serving', localData.srv === 'B');
-      
-      const winA = (localData.scoreA >= 21 && (localData.scoreA - localData.scoreB) >= 2) || localData.scoreA === 30;
-      const winB = (localData.scoreB >= 21 && (localData.scoreB - localData.scoreA) >= 2) || localData.scoreB === 30;
-      document.getElementById('panel-A').classList.toggle('winner', winA);
-      document.getElementById('panel-B').classList.toggle('winner', winB);
     }
 
     function changeScore(team, val) {
       if (!isReferee) return;
-      const hasWinner = (localData.scoreA >= 21 && (localData.scoreA - localData.scoreB) >= 2) || localData.scoreA === 30 || (localData.scoreB >= 21 && (localData.scoreB - localData.scoreA) >= 2) || localData.scoreB === 30;
-      if (hasWinner && val > 0) return;
-
-      if (team === 'A') {
-        localData.scoreA = Math.max(0, (localData.scoreA || 0) + val);
-        if (val > 0) localData.srv = 'A';
-      } else {
-        localData.scoreB = Math.max(0, (localData.scoreB || 0) + val);
-        if (val > 0) localData.srv = 'B';
-      }
-      db.update({ scoreA: localData.scoreA, scoreB: localData.scoreB, srv: localData.srv });
-      if (navigator.vibrate) navigator.vibrate(30);
+      if (team === 'A') localData.scoreA = Math.max(0, (localData.scoreA || 0) + val);
+      else localData.scoreB = Math.max(0, (localData.scoreB || 0) + val);
+      db.update({ scoreA: localData.scoreA, scoreB: localData.scoreB, lastActive: Date.now() });
     }
 
-    function setSrv(team) { 
-      if (isReferee) {
-        db.update({ srv: team }); 
-        if (navigator.vibrate) navigator.vibrate(20);
-      }
-    }
-
-    function resetScore() { 
-      if (isReferee && confirm('確定重置分數？')) {
-        db.update({ scoreA: 0, scoreB: 0, srv: 'A' }); 
-      }
-    }
-    
-    function closeRoomManual() {
-      if (isReferee && confirm('確定要立刻關閉場地並清空數據嗎？')) {
-        db.remove().then(() => location.reload());
-      }
-    }
-
+    function setSrv(team) { if (isReferee) db.update({ srv: team, lastActive: Date.now() }); }
+    function resetScore() { if (isReferee && confirm('重置分數？')) db.update({ scoreA: 0, scoreB: 0, lastActive: Date.now() }); }
+    function closeRoomManual() { if (isReferee && confirm('關閉場地？')) db.remove().then(() => location.reload()); }
     function copyShareLink() {
-      const url = window.location.origin + window.location.pathname + "?room=" + currentRoom;
-      navigator.clipboard.writeText(url).then(() => alert("觀眾連結已複製！"));
+      const url = window.location.origin + window.location.pathname + "?room=" + encodeURIComponent(currentRoom);
+      navigator.clipboard.writeText(url).then(() => alert("連結已複製"));
     }
 
     window.onload = () => {
