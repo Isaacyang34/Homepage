@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>專業羽球計分板</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
+
+    :root { --red: #ff3333; --green: #33ff33; --bg: #111; --btn-gray: #2a2a2a; }
+    
+    body { font-family: 'Orbitron', 'Courier New', monospace; background-color: var(--bg); color: white; margin: 0; padding: 20px 10px; display: flex; flex-direction: column; align-items: center; user-select: none; }
+    
+    .container { width: 100%; max-width: 420px; }
+    h2 { font-size: 0.8rem; color: #444; text-align: center; margin-bottom: 20px; letter-spacing: 5px; }
+
+    .main-layout { display: flex; gap: 15px; }
+    .team-column { flex: 1; display: flex; flex-direction: column; gap: 15px; }
+
+    /* 七段顯示器視窗 */
+    .score-box { background: #000; border: 2px solid #222; border-radius: 12px; 
+                 padding: 30px 0; display: flex; flex-direction: column; align-items: center; 
+                 transition: all 0.2s; position: relative; cursor: pointer; min-height: 120px; }
+    
+    .score-val { font-size: 80px; line-height: 1; z-index: 2; }
+    .team-label { font-size: 12px; margin-bottom: 10px; color: #555; font-family: sans-serif; font-weight: bold; }
+
+    /* 發球方高亮 */
+    .score-box.serving { border: 4px solid #fff; transform: scale(1.03); z-index: 10; }
+    .score-box.serving::before { content: "SERVING"; position: absolute; top: -12px; background: white; color: black; font-size: 10px; padding: 1px 6px; font-weight: bold; border-radius: 3px; font-family: sans-serif; }
+
+    /* 勝利閃爍動畫 */
+    @keyframes winner-blink {
+      0% { background-color: #000; }
+      50% { background-color: #444; border-color: gold; }
+      100% { background-color: #000; }
+    }
+    .winner { animation: winner-blink 0.8s infinite; border: 4px solid gold !important; }
+    .win-icon { position: absolute; bottom: 5px; font-size: 20px; color: gold; display: none; }
+    .winner .win-icon { display: block; }
+
+    /* 按鈕列 */
+    .btn-row { display: flex; gap: 8px; width: 100%; }
+    button { flex: 1; height: 75px; border: none; border-radius: 10px; font-weight: bold; font-size: 22px; cursor: pointer; touch-action: manipulation; transition: 0.1s; font-family: sans-serif; }
+    button:active { transform: translateY(3px); filter: brightness(1.3); }
+    button:disabled { opacity: 0.3; cursor: not-allowed; }
+    
+    .team-a .score-val { color: var(--red); }
+    .team-a .btn-plus { background-color: var(--red); color: white; }
+    .team-a .btn-minus { background-color: var(--btn-gray); color: var(--red); border: 1px solid var(--red); }
+    
+    .team-b .score-val { color: var(--green); }
+    .team-b .btn-plus { background-color: var(--green); color: black; }
+    .team-b .btn-minus { background-color: var(--btn-gray); color: var(--green); border: 1px solid var(--green); }
+    
+    .reset-area { margin-top: 40px; text-align: center; }
+    .btn-reset { width: 100%; height: 45px; background: transparent; border: 1px solid #333; color: #444; font-size: 13px; border-radius: 6px; letter-spacing: 1px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2 id="status-text">BADMINTON MATCH</h2>
+    
+    <div class="main-layout">
+      <div class="team-column team-a">
+        <div id="panel-A" class="score-box serving" onclick="setSrv('A')">
+          <div class="team-label">TEAM A</div>
+          <div id="score-A" class="score-val">00</div>
+          <div class="win-icon">🏆 WINNER</div>
+        </div>
+        <div class="btn-row">
+          <button id="btn-A-plus" class="btn-plus" onclick="changeScore('A', 1)">+1</button>
+          <button class="btn-minus" onclick="changeScore('A', -1)">-1</button>
+        </div>
+      </div>
+
+      <div class="team-column team-b">
+        <div id="panel-B" class="score-box" onclick="setSrv('B')">
+          <div class="team-label">TEAM B</div>
+          <div id="score-B" class="score-val">00</div>
+          <div class="win-icon">🏆 WINNER</div>
+        </div>
+        <div class="btn-row">
+          <button id="btn-B-plus" class="btn-plus" onclick="changeScore('B', 1)">+1</button>
+          <button class="btn-minus" onclick="changeScore('B', -1)">-1</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="reset-area">
+      <button class="btn-reset" onclick="resetGame()">RESET MATCH</button>
+    </div>
+  </div>
+
+  <script>
+    let scoreA = 0, scoreB = 0;
+    let gameOver = false;
+
+    function sendCmd(cmd) {
+      if (navigator.vibrate) navigator.vibrate(35);
+      fetch('/cmd?action=' + cmd);
+    }
+
+    function checkWinner() {
+      let winner = null;
+      // 規則：21分獲勝，deuce需領先2分，上限30分
+      if ((scoreA >= 21 && (scoreA - scoreB) >= 2) || scoreA === 30) {
+        winner = 'A';
+      } else if ((scoreB >= 21 && (scoreB - scoreA) >= 2) || scoreB === 30) {
+        winner = 'B';
+      }
+
+      if (winner) {
+        gameOver = true;
+        document.getElementById('panel-' + winner).classList.add('winner');
+        document.getElementById('btn-A-plus').disabled = true;
+        document.getElementById('btn-B-plus').disabled = true;
+        document.getElementById('status-text').innerText = 'GAME OVER - TEAM ' + winner + ' WINS!';
+        document.getElementById('status-text').style.color = 'gold';
+      }
+    }
+
+    function changeScore(team, val) {
+      if (gameOver && val > 0) return; // 結束後不能加分，但可以減分修正
+
+      if (team === 'A') {
+        scoreA = Math.max(0, scoreA + val);
+        document.getElementById('score-A').innerText = scoreA.toString().padStart(2, '0');
+        sendCmd('A_' + (val > 0 ? 'PLUS' : 'MINUS'));
+      } else {
+        scoreB = Math.max(0, scoreB + val);
+        document.getElementById('score-B').innerText = scoreB.toString().padStart(2, '0');
+        sendCmd('B_' + (val > 0 ? 'PLUS' : 'MINUS'));
+      }
+
+      // 如果減分後離開勝負判定，取消勝利狀態
+      if (val < 0) {
+        gameOver = false;
+        document.querySelectorAll('.score-box').forEach(el => el.classList.remove('winner'));
+        document.getElementById('btn-A-plus').disabled = false;
+        document.getElementById('btn-B-plus').disabled = false;
+        document.getElementById('status-text').innerText = 'BADMINTON MATCH';
+        document.getElementById('status-text').style.color = '#444';
+      }
+
+      checkWinner();
+    }
+
+    function setSrv(team) {
+      document.getElementById('panel-A').classList.toggle('serving', team === 'A');
+      document.getElementById('panel-B').classList.toggle('serving', team === 'B');
+      sendCmd(team + '_SRV');
+    }
+
+    function resetGame() {
+      if(confirm('確定要重置比賽嗎？')) {
+        scoreA = 0; scoreB = 0; gameOver = false;
+        document.getElementById('score-A').innerText = '00';
+        document.getElementById('score-B').innerText = '00';
+        document.querySelectorAll('.score-box').forEach(el => el.classList.remove('winner'));
+        document.getElementById('btn-A-plus').disabled = false;
+        document.getElementById('btn-B-plus').disabled = false;
+        document.getElementById('status-text').innerText = 'BADMINTON MATCH';
+        document.getElementById('status-text').style.color = '#444';
+        setSrv('A');
+        sendCmd('RESET');
+      }
+    }
+  </script>
+</body>
+</html>
