@@ -10,8 +10,20 @@
   
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
-    :root { --red: #ff3333; --green: #33ff33; --blue: #00d2ff; --bg: #000; --btn-gray: #1a1a1a; --font-score: 22vw; --font-label: 6vw; }
-    body { font-family: 'Orbitron', sans-serif; background-color: #000; color: white; margin: 0; padding: calc(3mm + env(safe-area-inset-top)) calc(5mm + env(safe-area-inset-right)) calc(3mm + env(safe-area-inset-bottom)) calc(5mm + env(safe-area-inset-left)); box-sizing: border-box; height: 100dvh; width: 100vw; overflow: hidden; display: flex; flex-direction: column; }
+    
+    :root { 
+      --red: #ff3333; --green: #33ff33; --blue: #00d2ff; --bg: #000; --btn-gray: #1a1a1a; 
+      /* 使用 min() 確保字體在直向/橫向都不會爆框 */
+      --font-score: min(25vw, 25vh); 
+      --font-label: min(6vw, 5vh); 
+      --font-banner: min(5vw, 4vh);
+    }
+    
+    body { 
+      font-family: 'Orbitron', sans-serif; background-color: #000; color: white; margin: 0; 
+      padding: calc(3mm + env(safe-area-inset-top)) calc(5mm + env(safe-area-inset-right)) calc(3mm + env(safe-area-inset-bottom)) calc(5mm + env(safe-area-inset-left)); 
+      box-sizing: border-box; height: 100dvh; width: 100vw; overflow: hidden; display: flex; flex-direction: column; 
+    }
 
     /* --- 入口頁面 --- */
     #setup-page { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #111; z-index: 100; display: flex; flex-direction: column; align-items: center; padding: 20px; box-sizing: border-box; overflow-y: auto; }
@@ -30,41 +42,51 @@
     .scoreboard-layout { display: flex; gap: 10px; flex: 1; min-height: 0; margin-bottom: 10px; }
     .score-column { flex: 1; display: flex; flex-direction: column; }
     
-    /* 分數框設定：加入 padding-top 避免被橫幅遮擋 */
-    .score-box { background: var(--bg); border: 2px solid #333; border-radius: 12px; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; cursor: pointer; padding-top: 8vw; }
-    .team-label { font-size: var(--font-label); color: var(--blue); font-weight: 900; margin-bottom: 2px; }
-    .score-val { font-size: var(--font-score); line-height: 0.85; z-index: 2; margin-top: -5px; }
+    /* 分數框設定：加入 overflow: hidden 絕對防爆，並預留橫幅空間 */
+    .score-box { 
+      background: var(--bg); border: 2px solid #333; border-radius: 12px; flex: 1; 
+      display: flex; flex-direction: column; justify-content: center; align-items: center; 
+      position: relative; cursor: pointer; 
+      padding-top: calc(var(--font-banner) + 10px); /* 預留上方橫幅空間 */
+      overflow: hidden; 
+    }
+    
+    .team-label { font-size: var(--font-label); color: var(--blue); font-weight: 900; margin-bottom: 2px; z-index: 2; }
+    .score-val { font-size: var(--font-score); line-height: 1; z-index: 2; margin: 0; }
     .team-a .score-val { color: var(--red); }
     .team-b .score-val { color: var(--green); }
     
-    /* 發球橫幅：調整尺寸與定位 */
-    .srv-banner { display: none; position: absolute; top: 0; left: 0; width: 100%; background: white; color: black; font-size: 5vw; text-align: center; padding: 4px 0; z-index: 3; border-radius: 10px 10px 0 0; }
+    /* 發球橫幅 */
+    .srv-banner { 
+      display: none; position: absolute; top: 0; left: 0; width: 100%; 
+      background: white; color: black; font-size: var(--font-banner); 
+      text-align: center; padding: 4px 0; z-index: 3; font-weight: 900; 
+    }
     .serving .srv-banner { display: block; }
 
     /* --- 控制列 --- */
-    .control-bar { display: flex; gap: 8px; height: 14vh; flex-shrink: 0; }
+    .control-bar { display: flex; gap: 8px; height: 15vh; flex-shrink: 0; }
     .control-bar button { border: none; border-radius: 8px; font-weight: bold; cursor: pointer; height: 100%; padding: 0; }
-    .btn-plus { flex: 2.5; font-size: 4vh; }
-    .btn-minus { flex: 1; font-size: 2.5vh; background: var(--btn-gray); }
+    
+    /* 按鈕字體也改為自適應 */
+    .btn-plus { flex: 2.5; font-size: min(8vw, 4vh); }
+    .btn-minus { flex: 1; font-size: min(4vw, 2.5vh); background: var(--btn-gray); }
     .btn-a-plus { background: var(--red); color: white; }
     .btn-a-minus { color: var(--red); border: 1.5px solid var(--red) !important; }
     .btn-b-plus { background: var(--green); color: black; }
     .btn-b-minus { color: var(--green); border: 1.5px solid var(--green) !important; }
+    
     .center-group { display: flex; flex-direction: column; gap: 5px; flex: 1.5; }
-    .btn-reset { background: transparent; border: 2px solid var(--blue) !important; color: var(--blue); font-size: 1.6vh !important; flex: 1; }
-    .btn-close { background: #222; border: 2px solid #ff3333 !important; color: #ff3333; font-size: 1.6vh !important; flex: 1; }
+    .btn-reset { background: transparent; border: 2px solid var(--blue) !important; color: var(--blue); font-size: min(3vw, 1.8vh) !important; flex: 1; }
+    .btn-close { background: #222; border: 2px solid #ff3333 !important; color: #ff3333; font-size: min(3vw, 1.8vh) !important; flex: 1; }
     
     .bottom-tools { display: flex; justify-content: space-between; align-items: center; padding-top: 5px; height: 25px; flex-shrink: 0; }
     #room-info-tag { font-size: 14px; color: var(--blue); font-weight: bold; }
     .share-btn { background: #222; color: #aaa; border: 1px solid #444; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
 
-    /* --- 橫向模式專屬優化 (解決擠壓與遮擋問題) --- */
+    /* 橫向模式專屬控制列高度微調 */
     @media (orientation: landscape) { 
-      :root { --font-score: 35vh; --font-label: 7vh; } 
       .control-bar { height: 22vh; } 
-      /* 橫向時，強迫改用 vh 作為單位，防止字體暴衝 */
-      .srv-banner { font-size: 6vh; padding: 2px 0; }
-      .score-box { padding-top: 8vh; } /* 預留頂部空間給橫幅 */
     }
   </style>
 </head>
