@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>羽球雲端同步計分板</title>
+  
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database-compat.js"></script>
+  
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
+    :root { 
+      --red: #ff3333; --green: #33ff33; --blue: #00d2ff; --bg: #000; 
+      --btn-gray: #1a1a1a; --font-score: 25vw; --font-label: 5vw; 
+    }
+    body { font-family: 'Orbitron', sans-serif; background-color: #000; color: white; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; width: 100vw; overflow: hidden; }
+    .container { display: flex; flex-direction: column; height: 100%; width: 100%; padding: 10px; box-sizing: border-box; }
+    
+    .scoreboard-layout { display: flex; gap: 10px; flex: 1; min-height: 0; margin-bottom: 10px; }
+    .score-column { flex: 1; display: flex; flex-direction: column; }
+    .score-box { background: var(--bg); border: 2px solid #333; border-radius: 12px; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; cursor: pointer; overflow: hidden; }
+    
+    .team-label { font-size: var(--font-label); color: var(--blue); margin-bottom: 5px; font-weight: 900; z-index: 2; }
+    .team-a .score-val { color: var(--red); }
+    .team-b .score-val { color: var(--green); }
+    .score-val { font-size: var(--font-score); line-height: 0.9; z-index: 2; }
+
+    /* SRV 橫幅：白底黑字，放大文字 */
+    .srv-banner { display: none; position: absolute; top: 0; width: 100%; background: white; color: black; font-size: var(--font-label); font-weight: 900; text-align: center; padding: 5px 0; z-index: 3; font-family: sans-serif; }
+    .serving .srv-banner { display: block; }
+    .score-box.serving { border: 4px solid #fff; }
+
+    .winner { border-color: gold !important; }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+    .winner .score-val { animation: blink 0.6s infinite; }
+
+    /* 五鍵平分控制列 */
+    .control-bar { display: flex; gap: 5px; height: 15vh; flex-shrink: 0; }
+    .control-bar button { flex: 1; border: none; border-radius: 8px; font-weight: bold; font-size: 2.5vh; cursor: pointer; touch-action: manipulation; }
+    
+    .btn-a-plus { background: var(--red); color: white; }
+    .btn-a-minus { background: var(--btn-gray); color: var(--red); border: 1.5px solid var(--red); }
+    .btn-reset { background: transparent; border: 2.5px solid var(--blue) !important; color: var(--blue); font-size: 1.8vh !important; }
+    .btn-b-plus { background: var(--green); color: black; }
+    .btn-b-minus { background: var(--btn-gray); color: var(--green); border: 1.5px solid var(--green); }
+
+    @media (orientation: landscape) {
+      :root { --font-score: 40vh; --font-label: 6vh; }
+      .control-bar { height: 18vh; }
+      .control-bar button { font-size: 4vh; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="scoreboard-layout">
+      <div id="panel-A" class="score-column score-box team-a" onclick="setSrv('A')">
+        <div class="srv-banner">SRV 🏸</div>
+        <div class="team-label">TEAM A</div>
+        <div id="score-A" class="score-val">00</div>
+      </div>
+      <div id="panel-B" class="score-column score-box team-b" onclick="setSrv('B')">
+        <div class="srv-banner">SRV 🏸</div>
+        <div class="team-label">TEAM B</div>
+        <div id="score-B" class="score-val">00</div>
+      </div>
+    </div>
+
+    <div class="control-bar">
+      <button class="btn-a-plus" onclick="changeScore('A', 1)">+1</button>
+      <button class="btn-a-minus" onclick="changeScore('A', -1)">-1</button>
+      <button class="btn-reset" onclick="resetGame()">RESET</button>
+      <button class="btn-b-plus" onclick="changeScore('B', 1)">+1</button>
+      <button class="btn-b-minus" onclick="changeScore('B', -1)">-1</button>
+    </div>
+  </div>
+
+  <script>
+    // --- 使用你提供的 Firebase 配置 ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyB5Ngq3KczBAmJ4tRaXbt40R3d3pQpx7J0",
+      authDomain: "badmintonscoreboard-ba0c6.firebaseapp.com",
+      databaseURL: "https://badmintonscoreboard-ba0c6-default-rtdb.firebaseio.com", 
+      projectId: "badmintonscoreboard-ba0c6",
+      storageBucket: "badmintonscoreboard-ba0c6.firebasestorage.app",
+      messagingSenderId: "201822822348",
+      appId: "1:201822822348:web:caf391c4f03e6f980a0769"
+    };
+
+    // 初始化 Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database().ref('match_status');
+
+    let localData = { scoreA: 0, scoreB: 0, srv: 'A' };
+
+    // 監聽雲端變動
+    db.on('value', (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        localData = data;
+        updateUI();
+      }
+    });
+
+    function updateUI() {
+      document.getElementById('score-A').innerText = localData.scoreA.toString().padStart(2, '0');
+      document.getElementById('score-B').innerText = localData.scoreB.toString().padStart(2, '0');
+      document.getElementById('panel-A').classList.toggle('serving', localData.srv === 'A');
+      document.getElementById('panel-B').classList.toggle('serving', localData.srv === 'B');
+      
+      const winA = (localData.scoreA >= 21 && (localData.scoreA - localData.scoreB) >= 2) || localData.scoreA === 30;
+      const winB = (localData.scoreB >= 21 && (localData.scoreB - localData.scoreA) >= 2) || localData.scoreB === 30;
+      document.getElementById('panel-A').classList.toggle('winner', winA);
+      document.getElementById('panel-B').classList.toggle('winner', winB);
+    }
+
+    function changeScore(team, val) {
+      if (navigator.vibrate) navigator.vibrate(35);
+      if (team === 'A') {
+        localData.scoreA = Math.max(0, localData.scoreA + val);
+        if (val > 0) localData.srv = 'A';
+      } else {
+        localData.scoreB = Math.max(0, localData.scoreB + val);
+        if (val > 0) localData.srv = 'B';
+      }
+      db.set(localData);
+    }
+
+    function setSrv(team) {
+      localData.srv = team;
+      db.set(localData);
+    }
+
+    function resetGame() {
+      if(confirm('確定要重置比賽分數嗎？')) {
+        db.set({ scoreA: 0, scoreB: 0, srv: 'A' });
+      }
+    }
+  </script>
+</body>
+</html>
