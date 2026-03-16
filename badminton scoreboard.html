@@ -38,7 +38,6 @@
     .team-a .score-val { color: var(--red); }
     .team-b .score-val { color: var(--green); }
     
-    /* 發球指示標籤 */
     .srv-banner { 
       display: none; position: absolute; top: 0; width: 100%; 
       background: white; color: black; font-size: 7vw; text-align: center; 
@@ -46,7 +45,7 @@
     }
     .serving .srv-banner { display: block; }
 
-    /* --- 控制列 (左右排列) --- */
+    /* --- 控制列 --- */
     .control-bar { display: flex; gap: 8px; height: 16vh; flex-shrink: 0; }
     .control-bar button { border: none; border-radius: 8px; font-weight: bold; cursor: pointer; height: 100%; }
     .btn-plus { flex: 2.5; font-size: 4vh; }
@@ -75,9 +74,9 @@
 
   <div id="setup-page">
     <div class="setup-card">
-      <h2>🏸 建立比賽 (裁判)</h2>
+      <h2>建立比賽 (裁判)</h2>
       <input type="text" id="input-room" placeholder="場地名稱 (如: Court1)">
-      <input type="password" id="input-pin" placeholder="設定 4 位數授權碼" maxlength="4">
+      <input type="password" id="input-pin" placeholder="4 位數授權碼" maxlength="4">
       <button class="start-btn" onclick="initApp()">開場並進入</button>
     </div>
     <div class="room-list-area" style="width:100%; display:flex; flex-direction:column; align-items:center;">
@@ -132,7 +131,6 @@
     let isReferee = false;
     let currentRoom = "";
 
-    // 自動清理
     function performCleanup(rooms) {
       if (!rooms) return;
       const now = Date.now();
@@ -159,30 +157,36 @@
       });
     });
 
+    // 核心修復：使用 .then 確保初始化完成後才進行下一步
     function initApp() {
       const room = document.getElementById('input-room').value.trim();
       const pin = document.getElementById('input-pin').value;
       if (!room) return;
       currentRoom = room;
       db = roomsRef.child(room);
-      db.once('value', (snapshot) => {
+      
+      db.once('value').then((snapshot) => {
         const cloudData = snapshot.val();
-        // 如果是新場地或密碼正確
         if (!cloudData || cloudData.pin === pin) {
           isReferee = true;
-          // 重要：開場立即寫入完整預設值，解決「第一次進入無法操作」的問題
-          const initData = {
+          // 強制完整初始化，確保不論 PC/iPhone 都能直接操作
+          const updateObj = {
             pin: pin,
-            scoreA: cloudData ? cloudData.scoreA : 0,
-            scoreB: cloudData ? cloudData.scoreB : 0,
-            srv: cloudData ? cloudData.srv : 'A',
+            scoreA: (cloudData && cloudData.scoreA !== undefined) ? cloudData.scoreA : 0,
+            scoreB: (cloudData && cloudData.scoreB !== undefined) ? cloudData.scoreB : 0,
+            srv: (cloudData && cloudData.srv) ? cloudData.srv : 'A',
             lastActive: Date.now()
           };
-          db.update(initData);
-          db.onDisconnect().remove(); 
-          setInterval(() => { if (isReferee) db.update({ lastActive: Date.now() }); }, 30000);
-          startScoreboard();
-        } else { alert("授權碼錯誤"); }
+          return db.update(updateObj);
+        } else {
+          throw new Error("授權碼錯誤");
+        }
+      }).then(() => {
+        db.onDisconnect().remove(); 
+        setInterval(() => { if (isReferee) db.update({ lastActive: Date.now() }); }, 30000);
+        startScoreboard();
+      }).catch((err) => {
+        if (err.message === "授權碼錯誤") alert(err.message);
       });
     }
 
@@ -191,44 +195,46 @@
       document.getElementById('setup-page').style.display = 'none';
       document.getElementById('score-page').style.display = 'flex';
       document.getElementById('room-info-tag').innerText = currentRoom;
+      
       if (!isReferee) {
         document.getElementById('control-panel').style.display = 'none';
         document.querySelectorAll('.score-box').forEach(el => el.onclick = null);
       }
+      
       db.on('value', (snapshot) => {
-        if (!snapshot.exists()) { alert("場地已關閉"); location.reload(); return; }
+        if (!snapshot.exists()) {
+          if (isReferee) { location.reload(); }
+          else { alert("場地已關閉"); location.reload(); }
+          return;
+        }
         localData = snapshot.val();
         updateUI();
       });
     }
 
     function updateUI() {
-      // 確保即使雲端數據不完整也能顯示 00
       const sa = localData.scoreA || 0;
       const sb = localData.scoreB || 0;
       const srv = localData.srv || 'A';
-
       document.getElementById('score-A').innerText = sa.toString().padStart(2, '0');
       document.getElementById('score-B').innerText = sb.toString().padStart(2, '0');
-      
-      // 恢復發球權顯示
       document.getElementById('panel-A').classList.toggle('serving', srv === 'A');
       document.getElementById('panel-B').classList.toggle('serving', srv === 'B');
     }
 
+    // 核心修復：+1 即換發球權邏輯回歸
     function changeScore(team, val) {
       if (!isReferee) return;
-      // 讀取當前最新分數
       let sa = localData.scoreA || 0;
       let sb = localData.scoreB || 0;
       let srv = localData.srv || 'A';
 
       if (team === 'A') {
         sa = Math.max(0, sa + val);
-        if (val > 0) srv = 'A';
+        if (val > 0) srv = 'A'; // 得分換發球
       } else {
         sb = Math.max(0, sb + val);
-        if (val > 0) srv = 'B';
+        if (val > 0) srv = 'B'; // 得分換發球
       }
       db.update({ scoreA: sa, scoreB: sb, srv: srv, lastActive: Date.now() });
     }
@@ -238,7 +244,9 @@
     }
 
     function resetScore() { 
-      if (isReferee && confirm('重置分數？')) db.update({ scoreA: 0, scoreB: 0, srv: 'A', lastActive: Date.now() }); 
+      if (isReferee && confirm('重置分數？')) {
+        db.update({ scoreA: 0, scoreB: 0, srv: 'A', lastActive: Date.now() }); 
+      }
     }
 
     function closeRoomManual() { 
