@@ -20,7 +20,6 @@
     input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #000; color: #fff; font-size: 16px; box-sizing: border-box; margin-bottom: 15px; }
     .start-btn { width: 100%; padding: 15px; background: var(--blue); color: #000; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; }
     
-    /* 正在比賽中的場地列表 */
     .room-list-area { width: 100%; max-width: 400px; }
     .room-list-area h3 { color: #888; font-size: 14px; text-align: left; margin-left: 10px; }
     .room-item { background: #333; padding: 15px; border-radius: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border: 1px solid transparent; transition: 0.3s; }
@@ -52,7 +51,6 @@
     .btn-reset { background: transparent; border: 2px solid var(--blue); color: var(--blue); }
     .btn-b-plus { background: var(--green); color: black; }
     
-    /* 底部工具列 */
     .bottom-tools { display: flex; justify-content: space-between; align-items: center; padding: 5px; font-size: 10px; color: #444; }
     .share-btn { background: #222; color: #aaa; border: 1px solid #444; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
 
@@ -69,7 +67,7 @@
       <h2>🏸 建立比賽 (裁判)</h2>
       <input type="text" id="input-room" placeholder="場地名稱 (如: Court1)">
       <input type="password" id="input-pin" placeholder="設定 4 位數授權碼" maxlength="4">
-      <button class="start-btn" onclick="initApp(true)">開場並進入</button>
+      <button class="start-btn" onclick="initApp()">開場並進入</button>
     </div>
 
     <div class="room-list-area">
@@ -116,11 +114,21 @@
     const roomsRef = firebase.database().ref('rooms');
 
     let db;
-    let localData = { scoreA: 0, scoreB: 0, srv: 'A' };
+    let localData = { scoreA: 0, scoreB: 0, srv: 'A', lastUpdate: 0 };
     let isReferee = false;
     let currentRoom = "";
 
-    // 自動偵測現有場地
+    // 核心功能：清理 3 分鐘 (180,000 毫秒) 未更新的場地
+    function cleanupOldRooms(rooms) {
+      const now = Date.now();
+      const timeout = 3 * 60 * 1000; 
+      Object.keys(rooms).forEach(key => {
+        if (rooms[key].lastUpdate && (now - rooms[key].lastUpdate > timeout)) {
+          roomsRef.child(key).remove(); 
+        }
+      });
+    }
+
     roomsRef.on('value', (snapshot) => {
       const rooms = snapshot.val();
       const listDiv = document.getElementById('room-list');
@@ -129,6 +137,7 @@
         listDiv.innerHTML = "<div style='color:#555'>目前沒有進行中的比賽</div>";
         return;
       }
+      cleanupOldRooms(rooms); // 每次列表更新時執行清理
       Object.keys(rooms).forEach(key => {
         const r = rooms[key];
         const item = document.createElement('div');
@@ -139,18 +148,25 @@
       });
     });
 
-    function initApp(asRef) {
+    // 每 30 秒自動觸發一次清理檢查
+    setInterval(() => {
+      roomsRef.once('value', (snapshot) => {
+        const rooms = snapshot.val();
+        if (rooms) cleanupOldRooms(rooms);
+      });
+    }, 30000);
+
+    function initApp() {
       const room = document.getElementById('input-room').value.trim();
       const pin = document.getElementById('input-pin').value;
       if (!room) { alert("請輸入場地名稱"); return; }
-      
       currentRoom = room;
       db = roomsRef.child(room);
       db.child('pin').once('value', (snapshot) => {
         const cloudPin = snapshot.val();
         if (!cloudPin || cloudPin === pin) {
           isReferee = true;
-          db.update({ pin: pin });
+          db.update({ pin: pin, lastUpdate: Date.now() });
           startScoreboard();
         } else {
           alert("授權碼錯誤！將以觀眾模式進入。");
@@ -165,26 +181,26 @@
       document.getElementById('setup-page').style.display = 'none';
       document.getElementById('score-page').style.display = 'flex';
       document.getElementById('room-info-tag').innerText = "場地: " + currentRoom + (isReferee ? " [裁判]" : " [觀看]");
-      
       if (!isReferee) {
         document.getElementById('control-panel').style.display = 'none';
         document.querySelectorAll('.score-box').forEach(el => el.onclick = null);
       }
-
       db.on('value', (snapshot) => {
         const data = snapshot.val();
         if (data) {
-          localData.scoreA = data.scoreA || 0;
-          localData.scoreB = data.scoreB || 0;
-          localData.srv = data.srv || 'A';
+          localData = data;
           updateUI();
+        } else {
+          // 如果場地被系統刪除，強制返回首頁
+          alert("該場地已閒置過久或已關閉。");
+          location.reload();
         }
       });
     }
 
     function updateUI() {
-      document.getElementById('score-A').innerText = localData.scoreA.toString().padStart(2, '0');
-      document.getElementById('score-B').innerText = localData.scoreB.toString().padStart(2, '0');
+      document.getElementById('score-A').innerText = (localData.scoreA || 0).toString().padStart(2, '0');
+      document.getElementById('score-B').innerText = (localData.scoreB || 0).toString().padStart(2, '0');
       document.getElementById('panel-A').classList.toggle('serving', localData.srv === 'A');
       document.getElementById('panel-B').classList.toggle('serving', localData.srv === 'B');
       const winA = (localData.scoreA >= 21 && (localData.scoreA - localData.scoreB) >= 2) || localData.scoreA === 30;
@@ -199,18 +215,18 @@
       if (win && val > 0) return;
       if (team === 'A') { localData.scoreA = Math.max(0, localData.scoreA + val); if (val > 0) localData.srv = 'A'; }
       else { localData.scoreB = Math.max(0, localData.scoreB + val); if (val > 0) localData.srv = 'B'; }
-      db.update({ scoreA: localData.scoreA, scoreB: localData.scoreB, srv: localData.srv });
+      // 每次計分同步更新 lastUpdate
+      db.update({ scoreA: localData.scoreA, scoreB: localData.scoreB, srv: localData.srv, lastUpdate: Date.now() });
     }
 
-    function setSrv(team) { if (isReferee) db.update({ srv: team }); }
-    function resetGame() { if (isReferee && confirm('確定重置？')) db.update({ scoreA: 0, scoreB: 0, srv: 'A' }); }
+    function setSrv(team) { if (isReferee) db.update({ srv: team, lastUpdate: Date.now() }); }
+    function resetGame() { if (isReferee && confirm('確定重置？')) db.update({ scoreA: 0, scoreB: 0, srv: 'A', lastUpdate: Date.now() }); }
 
     function copyShareLink() {
       const url = window.location.origin + window.location.pathname + "?room=" + currentRoom;
-      navigator.clipboard.writeText(url).then(() => alert("觀眾連結已複製！傳給朋友即可直接觀看。"));
+      navigator.clipboard.writeText(url).then(() => alert("觀眾連結已複製！"));
     }
 
-    // 支援直接透過網址 room 參數進入觀眾模式
     window.onload = () => {
       const urlParams = new URLSearchParams(window.location.search);
       const r = urlParams.get('room');
