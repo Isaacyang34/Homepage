@@ -11,7 +11,7 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
     :root { --red: #ff3333; --green: #33ff33; --blue: #00d2ff; --bg: #000; --btn-gray: #1a1a1a; --font-score: 22vw; --font-label: 6vw; }
-    body { font-family: 'Orbitron', sans-serif; background-color: #000; color: white; margin: 0; padding: calc(5mm + env(safe-area-inset-top)) calc(5mm + env(safe-area-inset-right)) calc(5mm + env(safe-area-inset-bottom)) calc(5mm + env(safe-area-inset-left)); box-sizing: border-box; height: 100dvh; width: 100vw; overflow: hidden; display: flex; flex-direction: column; }
+    body { font-family: 'Orbitron', sans-serif; background-color: #000; color: white; margin: 0; padding: calc(3mm + env(safe-area-inset-top)) calc(5mm + env(safe-area-inset-right)) calc(3mm + env(safe-area-inset-bottom)) calc(5mm + env(safe-area-inset-left)); box-sizing: border-box; height: 100dvh; width: 100vw; overflow: hidden; display: flex; flex-direction: column; }
 
     /* --- 入口頁面 --- */
     #setup-page { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #111; z-index: 100; display: flex; flex-direction: column; align-items: center; padding: 20px; box-sizing: border-box; overflow-y: auto; }
@@ -29,32 +29,43 @@
     #score-page { display: none; flex-direction: column; height: 100%; width: 100%; box-sizing: border-box; }
     .scoreboard-layout { display: flex; gap: 10px; flex: 1; min-height: 0; margin-bottom: 10px; }
     .score-column { flex: 1; display: flex; flex-direction: column; }
-    .score-box { background: var(--bg); border: 2px solid #333; border-radius: 12px; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; cursor: pointer; }
-    .team-label { font-size: var(--font-label); color: var(--blue); font-weight: 900; }
-    .score-val { font-size: var(--font-score); line-height: 0.9; z-index: 2; }
+    
+    /* 分數框設定：加入 padding-top 避免被橫幅遮擋 */
+    .score-box { background: var(--bg); border: 2px solid #333; border-radius: 12px; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; cursor: pointer; padding-top: 8vw; }
+    .team-label { font-size: var(--font-label); color: var(--blue); font-weight: 900; margin-bottom: 2px; }
+    .score-val { font-size: var(--font-score); line-height: 0.85; z-index: 2; margin-top: -5px; }
     .team-a .score-val { color: var(--red); }
     .team-b .score-val { color: var(--green); }
-    .srv-banner { display: none; position: absolute; top: 0; width: 100%; background: white; color: black; font-size: 7vw; text-align: center; padding: 2px 0; z-index: 3; border-radius: 10px 10px 0 0; }
+    
+    /* 發球橫幅：調整尺寸與定位 */
+    .srv-banner { display: none; position: absolute; top: 0; left: 0; width: 100%; background: white; color: black; font-size: 5vw; text-align: center; padding: 4px 0; z-index: 3; border-radius: 10px 10px 0 0; }
     .serving .srv-banner { display: block; }
 
     /* --- 控制列 --- */
-    .control-bar { display: flex; gap: 8px; height: 16vh; flex-shrink: 0; }
-    .control-bar button { border: none; border-radius: 8px; font-weight: bold; cursor: pointer; height: 100%; }
+    .control-bar { display: flex; gap: 8px; height: 14vh; flex-shrink: 0; }
+    .control-bar button { border: none; border-radius: 8px; font-weight: bold; cursor: pointer; height: 100%; padding: 0; }
     .btn-plus { flex: 2.5; font-size: 4vh; }
-    .btn-minus { flex: 1; font-size: 2.2vh; background: var(--btn-gray); }
+    .btn-minus { flex: 1; font-size: 2.5vh; background: var(--btn-gray); }
     .btn-a-plus { background: var(--red); color: white; }
     .btn-a-minus { color: var(--red); border: 1.5px solid var(--red) !important; }
     .btn-b-plus { background: var(--green); color: black; }
     .btn-b-minus { color: var(--green); border: 1.5px solid var(--green) !important; }
     .center-group { display: flex; flex-direction: column; gap: 5px; flex: 1.5; }
-    .btn-reset { background: transparent; border: 2px solid var(--blue) !important; color: var(--blue); font-size: 1.4vh !important; flex: 1; }
-    .btn-close { background: #222; border: 2px solid #ff3333 !important; color: #ff3333; font-size: 1.4vh !important; flex: 1; }
+    .btn-reset { background: transparent; border: 2px solid var(--blue) !important; color: var(--blue); font-size: 1.6vh !important; flex: 1; }
+    .btn-close { background: #222; border: 2px solid #ff3333 !important; color: #ff3333; font-size: 1.6vh !important; flex: 1; }
     
-    .bottom-tools { display: flex; justify-content: space-between; align-items: center; padding-top: 5px; height: 30px; }
-    #room-info-tag { font-size: 16px; color: var(--blue); font-weight: bold; }
-    .share-btn { background: #222; color: #aaa; border: 1px solid #444; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    .bottom-tools { display: flex; justify-content: space-between; align-items: center; padding-top: 5px; height: 25px; flex-shrink: 0; }
+    #room-info-tag { font-size: 14px; color: var(--blue); font-weight: bold; }
+    .share-btn { background: #222; color: #aaa; border: 1px solid #444; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
 
-    @media (orientation: landscape) { :root { --font-score: 35vh; --font-label: 6vh; } .control-bar { height: 22vh; } }
+    /* --- 橫向模式專屬優化 (解決擠壓與遮擋問題) --- */
+    @media (orientation: landscape) { 
+      :root { --font-score: 35vh; --font-label: 7vh; } 
+      .control-bar { height: 22vh; } 
+      /* 橫向時，強迫改用 vh 作為單位，防止字體暴衝 */
+      .srv-banner { font-size: 6vh; padding: 2px 0; }
+      .score-box { padding-top: 8vh; } /* 預留頂部空間給橫幅 */
+    }
   </style>
 </head>
 <body>
@@ -114,7 +125,6 @@
     let isReferee = false;
     let currentRoom = "";
 
-    // 監聽列表並顯示刪除按鈕與倒數
     roomsRef.on('value', (snapshot) => {
       const rooms = snapshot.val();
       const listDiv = document.getElementById('room-list');
@@ -126,12 +136,11 @@
         const item = document.createElement('div');
         item.className = "room-item";
         
-        // 檢查是否正在刪除中
         let deleteInfo = "";
         if (data.deleteAt) {
           const timeLeft = Math.ceil((data.deleteAt - Date.now()) / 1000);
           if (timeLeft <= 0) {
-            roomsRef.child(key).remove(); // 時間到，移除
+            roomsRef.child(key).remove(); 
             return;
           }
           deleteInfo = `<span class="deleting-status">⚠️ 刪除中: ${timeLeft}s</span>`;
@@ -149,7 +158,6 @@
       });
     });
 
-    // 定時刷新倒數畫面 (1秒一次)
     setInterval(() => { if (document.getElementById('setup-page').style.display !== 'none') roomsRef.once('value'); }, 1000);
 
     function requestDelete(roomName) {
@@ -174,7 +182,7 @@
         const cloudData = snapshot.val();
         if (!cloudData || cloudData.pin === pin) {
           isReferee = true;
-          return db.update({ pin: pin, scoreA: cloudData?.scoreA||0, scoreB: cloudData?.scoreB||0, srv: cloudData?.srv||'A', deleteAt: null }); // 登入即取消刪除
+          return db.update({ pin: pin, scoreA: cloudData?.scoreA||0, scoreB: cloudData?.scoreB||0, srv: cloudData?.srv||'A', deleteAt: null });
         } else { alert("授權碼錯誤"); throw 'error'; }
       }).then(startScoreboard);
     }
@@ -207,7 +215,7 @@
       let sa = localData.scoreA || 0; let sb = localData.scoreB || 0; let srv = localData.srv || 'A';
       if (team === 'A') { sa = Math.max(0, sa + val); if (val > 0) srv = 'A'; }
       else { sb = Math.max(0, sb + val); if (val > 0) srv = 'B'; }
-      db.update({ scoreA: sa, scoreB: sb, srv: srv, deleteAt: null }); // 改動分數即取消刪除
+      db.update({ scoreA: sa, scoreB: sb, srv: srv, deleteAt: null });
     }
 
     function setSrv(team) { if (isReferee) db.update({ srv: team, deleteAt: null }); }
