@@ -27,7 +27,7 @@
     #score-page { display: none; flex-direction: column; height: 100vh; width: 100vw; padding: 10px; box-sizing: border-box; }
     .scoreboard-layout { display: flex; gap: 10px; flex: 1; min-height: 0; margin-bottom: 10px; }
     .score-column { flex: 1; display: flex; flex-direction: column; }
-    .score-box { background: var(--bg); border: 2px solid #333; border-radius: 12px; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; }
+    .score-box { background: var(--bg); border: 2px solid #333; border-radius: 12px; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; cursor: pointer; }
     .team-header { display: flex; align-items: center; justify-content: center; z-index: 2; }
     .team-label { font-size: var(--font-label); color: var(--blue); font-weight: 900; }
     .trophy-icon { display: none; font-size: 15vw; margin-right: 10px; }
@@ -41,24 +41,32 @@
     .winner .score-val { animation: blink 0.6s infinite; }
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
     
-    /* 修正後的控制列與雙層按鈕 */
-    .control-bar { display: flex; gap: 5px; height: 15vh; flex-shrink: 0; }
-    .control-bar button { flex: 1; border: none; border-radius: 8px; font-weight: bold; font-size: 2.5vh; cursor: pointer; }
-    .btn-a-plus { background: var(--red); color: white; }
-    .btn-b-plus { background: var(--green); color: black; }
+    /* 控制列按鈕佈局修正 */
+    .control-bar { display: flex; gap: 5px; height: 18vh; flex-shrink: 0; }
+    .team-ctrl-group { display: flex; flex-direction: column; gap: 5px; flex: 2; }
+    .center-ctrl-group { display: flex; flex-direction: column; gap: 5px; flex: 1; }
     
-    .center-btns { display: flex; flex-direction: column; gap: 5px; flex: 1; }
+    .control-bar button { border: none; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; }
+    
+    /* A 隊按鈕 */
+    .btn-a-plus { background: var(--red); color: white; flex: 3; font-size: 4vh; }
+    .btn-a-minus { background: var(--btn-gray); color: var(--red); border: 1.5px solid var(--red) !important; flex: 1; font-size: 2vh; }
+    
+    /* B 隊按鈕 */
+    .btn-b-plus { background: var(--green); color: black; flex: 3; font-size: 4vh; }
+    .btn-b-minus { background: var(--btn-gray); color: var(--green); border: 1.5px solid var(--green) !important; flex: 1; font-size: 2vh; }
+    
+    /* 中央控制按鈕 */
     .btn-reset { background: transparent; border: 2px solid var(--blue); color: var(--blue); font-size: 1.5vh !important; flex: 1; }
     .btn-close { background: #444; color: #ff3333; border: 2px solid #ff3333; font-size: 1.5vh !important; flex: 1; }
     
-    /* 底部工具列：放大場地名稱 */
     .bottom-tools { display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; }
     #room-info-tag { font-size: 16px; color: var(--blue); font-weight: bold; }
     .share-btn { background: #222; color: #aaa; border: 1px solid #444; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; }
 
     @media (orientation: landscape) {
       :root { --font-score: 40vh; --font-label: 6vh; }
-      .control-bar { height: 20vh; }
+      .control-bar { height: 25vh; }
     }
   </style>
 </head>
@@ -92,12 +100,20 @@
     </div>
     
     <div id="control-panel" class="control-bar">
-      <button class="btn-a-plus" onclick="changeScore('A', 1)">+1</button>
-      <div class="center-btns">
+      <div class="team-ctrl-group">
+        <button class="btn-a-plus" onclick="changeScore('A', 1)">+1</button>
+        <button class="btn-a-minus" onclick="changeScore('A', -1)">-1</button>
+      </div>
+
+      <div class="center-ctrl-group">
         <button class="btn-reset" onclick="resetGame()">RESET</button>
         <button class="btn-close" onclick="closeRoomManual()">CLOSE</button>
       </div>
-      <button class="btn-b-plus" onclick="changeScore('B', 1)">+1</button>
+
+      <div class="team-ctrl-group">
+        <button class="btn-b-plus" onclick="changeScore('B', 1)">+1</button>
+        <button class="btn-b-minus" onclick="changeScore('B', -1)">-1</button>
+      </div>
     </div>
 
     <div class="bottom-tools">
@@ -124,7 +140,6 @@
     let isReferee = false;
     let currentRoom = "";
 
-    // 監聽場地列表
     roomsRef.on('value', (snapshot) => {
       const rooms = snapshot.val();
       const listDiv = document.getElementById('room-list');
@@ -133,7 +148,7 @@
       Object.keys(rooms).forEach(key => {
         const item = document.createElement('div');
         item.className = "room-item";
-        item.innerHTML = `<div><span class="room-name">${key}</span></div><div style="color:#aaa">${rooms[key].scoreA}:${rooms[key].scoreB} ></div>`;
+        item.innerHTML = `<div><span class="room-name">${key}</span></div><div style="color:#aaa">${rooms[key].scoreA || 0}:${rooms[key].scoreB || 0} ></div>`;
         item.onclick = () => { currentRoom = key; isReferee = false; startScoreboard(); };
         listDiv.appendChild(item);
       });
@@ -150,7 +165,6 @@
         if (!cloudPin || cloudPin === pin) {
           isReferee = true;
           db.update({ pin: pin });
-          // 偵測裁判離線：斷線後 60 秒自動刪除場地
           db.onDisconnect().remove(); 
           startScoreboard();
         } else {
@@ -194,15 +208,23 @@
 
     function changeScore(team, val) {
       if (!isReferee) return;
-      if (team === 'A') { localData.scoreA = Math.max(0, localData.scoreA + val); if (val > 0) localData.srv = 'A'; }
-      else { localData.scoreB = Math.max(0, localData.scoreB + val); if (val > 0) localData.srv = 'B'; }
+      // 獲勝後禁止再加分，但允許減分修正
+      const win = (localData.scoreA >= 21 && (localData.scoreA - localData.scoreB) >= 2) || localData.scoreA === 30 || (localData.scoreB >= 21 && (localData.scoreB - localData.scoreA) >= 2) || localData.scoreB === 30;
+      if (win && val > 0) return;
+
+      if (team === 'A') { 
+        localData.scoreA = Math.max(0, localData.scoreA + val); 
+        if (val > 0) localData.srv = 'A'; 
+      } else { 
+        localData.scoreB = Math.max(0, localData.scoreB + val); 
+        if (val > 0) localData.srv = 'B'; 
+      }
       db.update({ scoreA: localData.scoreA, scoreB: localData.scoreB, srv: localData.srv });
     }
 
     function setSrv(team) { if (isReferee) db.update({ srv: team }); }
     function resetGame() { if (isReferee && confirm('重置分數？')) db.update({ scoreA: 0, scoreB: 0, srv: 'A' }); }
     
-    // 手動關閉場地
     function closeRoomManual() {
       if (isReferee && confirm('確定要立刻關閉場地並清空數據嗎？')) {
         db.remove().then(() => location.reload());
