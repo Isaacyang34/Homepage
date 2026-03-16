@@ -10,41 +10,76 @@
   
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
+    
     :root { 
       --red: #ff3333; --green: #33ff33; --blue: #00d2ff; --bg: #000; 
       --btn-gray: #1a1a1a; --font-score: 25vw; --font-label: 5vw; 
     }
-    body { font-family: 'Orbitron', sans-serif; background-color: #000; color: white; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; width: 100vw; overflow: hidden; }
-    .container { display: flex; flex-direction: column; height: 100%; width: 100%; padding: 10px; box-sizing: border-box; }
     
+    body { 
+      font-family: 'Orbitron', sans-serif; background-color: #000; color: white; 
+      margin: 0; padding: 0; display: flex; flex-direction: column; 
+      height: 100vh; width: 100vw; overflow: hidden; 
+    }
+    
+    .container { 
+      display: flex; flex-direction: column; height: 100%; width: 100%; 
+      padding: 10px; box-sizing: border-box; 
+    }
+    
+    /* 計分區佈局 */
     .scoreboard-layout { display: flex; gap: 10px; flex: 1; min-height: 0; margin-bottom: 10px; }
     .score-column { flex: 1; display: flex; flex-direction: column; }
-    .score-box { background: var(--bg); border: 2px solid #333; border-radius: 12px; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; cursor: pointer; overflow: hidden; }
     
-    .team-label { font-size: var(--font-label); color: var(--blue); margin-bottom: 5px; font-weight: 900; z-index: 2; }
+    .score-box { 
+      background: var(--bg); border: 2px solid #333; border-radius: 12px; 
+      flex: 1; display: flex; flex-direction: column; justify-content: center; 
+      align-items: center; position: relative; cursor: pointer; overflow: hidden; 
+    }
+    
+    /* 隊伍標籤：藍色、大字體 */
+    .team-label { 
+      font-size: var(--font-label); color: var(--blue); 
+      margin-bottom: 5px; font-weight: 900; z-index: 2; 
+    }
+    
+    /* 分數顏色：A紅 B綠 */
     .team-a .score-val { color: var(--red); }
     .team-b .score-val { color: var(--green); }
     .score-val { font-size: var(--font-score); line-height: 0.9; z-index: 2; }
 
-    /* SRV 橫幅：白底黑字，放大文字 */
-    .srv-banner { display: none; position: absolute; top: 0; width: 100%; background: white; color: black; font-size: var(--font-label); font-weight: 900; text-align: center; padding: 5px 0; z-index: 3; font-family: sans-serif; }
+    /* 發球橫幅：白底黑字 + 羽球符號 */
+    .srv-banner { 
+      display: none; position: absolute; top: 0; width: 100%; 
+      background: white; color: black; font-size: var(--font-label); 
+      font-weight: 900; text-align: center; padding: 5px 0; z-index: 3; 
+    }
     .serving .srv-banner { display: block; }
     .score-box.serving { border: 4px solid #fff; }
 
+    /* 勝利閃爍 */
     .winner { border-color: gold !important; }
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
     .winner .score-val { animation: blink 0.6s infinite; }
 
-    /* 五鍵平分控制列 */
+    /* 底端五鍵平分控制列 */
     .control-bar { display: flex; gap: 5px; height: 15vh; flex-shrink: 0; }
-    .control-bar button { flex: 1; border: none; border-radius: 8px; font-weight: bold; font-size: 2.5vh; cursor: pointer; touch-action: manipulation; }
+    .control-bar button { 
+      flex: 1; border: none; border-radius: 8px; font-weight: bold; 
+      font-size: 2.5vh; cursor: pointer; touch-action: manipulation; 
+    }
     
     .btn-a-plus { background: var(--red); color: white; }
     .btn-a-minus { background: var(--btn-gray); color: var(--red); border: 1.5px solid var(--red); }
-    .btn-reset { background: transparent; border: 2.5px solid var(--blue) !important; color: var(--blue); font-size: 1.8vh !important; }
+    .btn-reset { 
+        background: transparent; border: 2.5px solid var(--blue) !important; 
+        color: var(--blue); font-size: 1.8vh !important; 
+        line-height: 1.5; /* 高度約為文字 1.5 倍 */
+    }
     .btn-b-plus { background: var(--green); color: black; }
     .btn-b-minus { background: var(--btn-gray); color: var(--green); border: 1.5px solid var(--green); }
 
+    /* 橫向模式優化 */
     @media (orientation: landscape) {
       :root { --font-score: 40vh; --font-label: 6vh; }
       .control-bar { height: 18vh; }
@@ -77,7 +112,7 @@
   </div>
 
   <script>
-    // --- 使用你提供的 Firebase 配置 ---
+    // --- 您的 Firebase 配置 (已補上 databaseURL) ---
     const firebaseConfig = {
       apiKey: "AIzaSyB5Ngq3KczBAmJ4tRaXbt40R3d3pQpx7J0",
       authDomain: "badmintonscoreboard-ba0c6.firebaseapp.com",
@@ -85,7 +120,8 @@
       projectId: "badmintonscoreboard-ba0c6",
       storageBucket: "badmintonscoreboard-ba0c6.firebasestorage.app",
       messagingSenderId: "201822822348",
-      appId: "1:201822822348:web:caf391c4f03e6f980a0769"
+      appId: "1:201822822348:web:caf391c4f03e6f980a0769",
+      measurementId: "G-J6SDT4DHMH"
     };
 
     // 初始化 Firebase
@@ -94,7 +130,7 @@
 
     let localData = { scoreA: 0, scoreB: 0, srv: 'A' };
 
-    // 監聽雲端變動
+    // 監聽雲端資料變動（同步核心）
     db.on('value', (snapshot) => {
       const data = snapshot.val();
       if (data) {
@@ -106,9 +142,12 @@
     function updateUI() {
       document.getElementById('score-A').innerText = localData.scoreA.toString().padStart(2, '0');
       document.getElementById('score-B').innerText = localData.scoreB.toString().padStart(2, '0');
+      
+      // 更新發球狀態
       document.getElementById('panel-A').classList.toggle('serving', localData.srv === 'A');
       document.getElementById('panel-B').classList.toggle('serving', localData.srv === 'B');
       
+      // 勝利判定邏輯
       const winA = (localData.scoreA >= 21 && (localData.scoreA - localData.scoreB) >= 2) || localData.scoreA === 30;
       const winB = (localData.scoreB >= 21 && (localData.scoreB - localData.scoreA) >= 2) || localData.scoreB === 30;
       document.getElementById('panel-A').classList.toggle('winner', winA);
@@ -117,13 +156,16 @@
 
     function changeScore(team, val) {
       if (navigator.vibrate) navigator.vibrate(35);
+      
       if (team === 'A') {
         localData.scoreA = Math.max(0, localData.scoreA + val);
-        if (val > 0) localData.srv = 'A';
+        if (val > 0) localData.srv = 'A'; // 得分自動換發球
       } else {
         localData.scoreB = Math.max(0, localData.scoreB + val);
-        if (val > 0) localData.srv = 'B';
+        if (val > 0) localData.srv = 'B'; // 得分自動換發球
       }
+      
+      // 推送到 Firebase 雲端
       db.set(localData);
     }
 
@@ -133,7 +175,7 @@
     }
 
     function resetGame() {
-      if(confirm('確定要重置比賽分數嗎？')) {
+      if(confirm('確定要重置所有分數嗎？')) {
         db.set({ scoreA: 0, scoreB: 0, srv: 'A' });
       }
     }
