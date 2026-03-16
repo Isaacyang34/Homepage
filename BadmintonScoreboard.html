@@ -13,7 +13,8 @@
     
     :root { 
       --red: #ff3333; --green: #33ff33; --blue: #00d2ff; --bg: #000; 
-      --btn-gray: #1a1a1a; --font-score: 25vw; --font-label: 6vw; 
+      --btn-gray: #1a1a1a; --font-score: 25vw; 
+      --font-label: 6vw; /* 隊伍文字基礎大小 */
     }
     
     body { 
@@ -36,8 +37,13 @@
       align-items: center; position: relative; cursor: pointer; overflow: hidden; 
     }
     
-    .team-label { font-size: 5vw; color: var(--blue); margin-bottom: 5px; font-weight: 900; z-index: 2; }
+    /* 隊伍標籤區域佈局 */
+    .team-header { display: flex; align-items: center; justify-content: center; margin-bottom: 5px; z-index: 2; }
+    .team-label { font-size: var(--font-label); color: var(--blue); font-weight: 900; }
     
+    /* 勝利獎盃：隊伍文字的三倍大 (6vw * 3 = 18vw) */
+    .trophy-icon { display: none; font-size: 18vw; margin-right: 15px; }
+
     .team-a .score-val { color: var(--red); }
     .team-b .score-val { color: var(--green); }
     .score-val { font-size: var(--font-score); line-height: 0.9; z-index: 2; }
@@ -50,7 +56,9 @@
     .serving .srv-banner { display: block; }
     .score-box.serving { border: 4px solid #fff; }
 
+    /* 勝利樣式 */
     .winner { border-color: gold !important; }
+    .winner .trophy-icon { display: block; } /* 勝利時顯示獎盃 */
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
     .winner .score-val { animation: blink 0.6s infinite; }
 
@@ -67,9 +75,10 @@
     .btn-b-minus { background: var(--btn-gray); color: var(--green); border: 1.5px solid var(--green); }
 
     @media (orientation: landscape) {
-      :root { --font-score: 40vh; }
+      :root { --font-score: 40vh; --font-label: 6vh; }
       .control-bar { height: 18vh; }
       .srv-banner { font-size: 8vh; }
+      .trophy-icon { font-size: 18vh; margin-right: 20px; }
     }
   </style>
 </head>
@@ -78,12 +87,16 @@
     <div class="scoreboard-layout">
       <div id="panel-A" class="score-column score-box team-a" onclick="setSrv('A')">
         <div class="srv-banner">🏸</div>
-        <div class="team-label">TEAM A</div>
+        <div class="team-header">
+          <div class="trophy-icon">🏆</div> <div class="team-label">TEAM A</div>
+        </div>
         <div id="score-A" class="score-val">00</div>
       </div>
       <div id="panel-B" class="score-column score-box team-b" onclick="setSrv('B')">
         <div class="srv-banner">🏸</div>
-        <div class="team-label">TEAM B</div>
+        <div class="team-header">
+          <div class="trophy-icon">🏆</div> <div class="team-label">TEAM B</div>
+        </div>
         <div id="score-B" class="score-val">00</div>
       </div>
     </div>
@@ -122,7 +135,6 @@
       }
     });
 
-    // 勝利判斷邏輯提取
     function getWinner() {
       if ((localData.scoreA >= 21 && (localData.scoreA - localData.scoreB) >= 2) || localData.scoreA === 30) return 'A';
       if ((localData.scoreB >= 21 && (localData.scoreB - localData.scoreA) >= 2) || localData.scoreB === 30) return 'B';
@@ -143,8 +155,6 @@
 
     function changeScore(team, val) {
       if (navigator.vibrate) navigator.vibrate(35);
-      
-      // 修正重點：若已經有人勝出，且動作是「+1」，則直接結束函式不執行
       if (getWinner() && val > 0) return;
 
       if (team === 'A') {
