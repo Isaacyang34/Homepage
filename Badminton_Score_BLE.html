@@ -24,6 +24,8 @@
   
   <button class="btn-setup" onclick="enterSetupMode()">⚙️ 切換至 WiFi 設定模式</button>
 
+  <button id="btn-voice" style="width: 95%; background: #444; color: white; font-size: 1.5rem; border-radius: 15px; margin-bottom: 20px; border: 2px solid #666;" onclick="toggleVoiceRecognition()">🎤 點我啟動語音控制</button>
+
   <div class="card">
     <div style="font-size:1.2rem; color:#888; margin-bottom:15px;">計分控制區</div>
     <div>
@@ -76,6 +78,75 @@
       if(confirm("即將關閉藍牙計分模式，並重啟為 WiFi 設定基地台。確定嗎？")) {
         sendCmd('SETUP');
         alert("指令已發送！請稍候 3 秒，然後用手機連接名為「Badminton_Setup」的 WiFi，密碼 12345678。連上後開啟瀏覽器輸入 192.168.4.1");
+      }
+    }
+
+    // ==========================================
+    // 🎤 語音辨識模組 (藍牙版)
+    // ==========================================
+    let recognition;
+    let isRecognizing = false;
+
+    function initSpeech() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.continuous = true; // 持續監聽
+        recognition.interimResults = false;
+        recognition.lang = 'zh-TW';
+
+        recognition.onstart = function() {
+          isRecognizing = true;
+          const btn = document.getElementById('btn-voice');
+          btn.style.background = '#ff3333';
+          btn.style.borderColor = '#ff0000';
+          btn.innerText = '🔴 正在聽取語音指令...';
+        };
+
+        recognition.onresult = function(event) {
+          const transcript = event.results[event.results.length - 1][0].transcript.trim();
+          console.log('聽到指令: ' + transcript);
+          
+          if (!rxCharacteristic) {
+             console.log('請先連線藍牙');
+             return;
+          }
+
+          if (transcript.includes('A隊加分') || transcript.includes('紅隊加分') || transcript.includes('左邊加分')) {
+            sendCmd('A');
+          } else if (transcript.includes('B隊加分') || transcript.includes('綠隊加分') || transcript.includes('右邊加分')) {
+            sendCmd('B');
+          } else if (transcript.includes('A隊減分') || transcript.includes('左邊減分') || transcript.includes('紅隊減分')) {
+            sendCmd('A-');
+          } else if (transcript.includes('B隊減分') || transcript.includes('右邊減分') || transcript.includes('綠隊減分')) {
+            sendCmd('B-');
+          } else if (transcript.includes('分數歸零') || transcript.includes('重新開始')) {
+            sendCmd('R');
+          }
+        };
+
+        recognition.onerror = function(event) {
+          console.error('語音辨識錯誤:', event.error);
+        };
+
+        recognition.onend = function() {
+          isRecognizing = false;
+          const btn = document.getElementById('btn-voice');
+          btn.style.background = '#444';
+          btn.style.borderColor = '#666';
+          btn.innerText = '🎤 點我啟動語音控制';
+        };
+      } else {
+        alert('您的瀏覽器不支援語音辨識！請使用手機版 Chrome 或 Safari。');
+      }
+    }
+
+    function toggleVoiceRecognition() {
+      if (!recognition) initSpeech();
+      if (isRecognizing) {
+        recognition.stop();
+      } else {
+        try { recognition.start(); } catch(e) { console.error(e); }
       }
     }
   </script>
