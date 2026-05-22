@@ -36,7 +36,7 @@
             <div class="lg:col-span-5 space-y-6">
                 <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
                     <h2 class="text-lg font-bold border-b pb-2 mb-4 flex items-center gap-2"><span>⚙️</span> <span data-i18n="step1_title">1. 馬達接線與設定</span></h2>
-                    <div class="grid grid-cols-3 gap-4">
+                    <div class="grid grid-cols-2 gap-4">
                         <div class="input-group">
                             <label data-i18n="label_connection">接線方式</label>
                             <select id="conn_type"><option value="Y">Y</option><option value="D">Δ</option></select>
@@ -44,10 +44,6 @@
                         <div class="input-group">
                             <label data-i18n="label_ratio">漏抗比例 (X1/Xbr)</label>
                             <input type="number" id="x1_ratio" value="0.5" step="0.1">
-                        </div>
-                        <div class="input-group">
-                            <label>測試頻率 f (Hz)</label>
-                            <input type="number" id="freq_base" value="60" step="1">
                         </div>
                     </div>
                 </div>
@@ -92,7 +88,7 @@
                     <h2 class="text-lg font-bold text-slate-800 border-b pb-2 mb-4 flex items-center gap-2"><span>✅</span> <span data-i18n="step4_title">4. 額定負載測試 (動力計實測)</span></h2>
                     <div class="grid grid-cols-3 gap-4 mb-4">
                         <div class="input-group"><label data-i18n="label_vll">給定 V_LL</label><input type="number" id="v_rated" step="0.01"></div>
-                        <div class="input-group"><label data-i18n="label_rpmsync">同步 RPM</label><input type="number" id="rpm_sync" step="1"></div>
+                        <div class="input-group"><label data-i18n="label_rpmsync">同步 RPM (4極推估用)</label><input type="number" id="rpm_sync" step="1" value="1800"></div>
                         <div class="input-group"><label data-i18n="label_rpmreal">實測 RPM</label><input type="number" id="rpm_rated" step="1"></div>
                     </div>
                     <div class="grid grid-cols-3 gap-4 mb-4">
@@ -178,28 +174,41 @@
                             <div class="flex justify-between items-start mb-1"><span class="text-slate-300 text-[10px] font-bold uppercase" data-i18n="res_r2_label">R2</span><span id="formula_r2" class="text-[10px] text-yellow-500/70 font-mono italic">---</span></div>
                             <div id="res_r2" class="text-xl font-mono text-yellow-400 font-bold">--- Ω</div>
                         </div>
-                        
                         <div class="bg-slate-700 p-3 rounded-lg border-l-4 border-cyan-500">
-                            <div class="flex justify-between items-start mb-1">
-                                <span class="text-slate-300 text-[10px] font-bold uppercase">X1</span>
-                                <span id="formula_x1" class="text-[10px] text-cyan-500/70 font-mono italic">---</span>
-                            </div>
+                            <div class="flex justify-between items-start mb-1"><span class="text-slate-300 text-[10px] font-bold uppercase">X1</span><span id="formula_x1" class="text-[10px] text-cyan-500/70 font-mono italic">---</span></div>
                             <div id="res_x1" class="text-xl font-mono text-cyan-400 font-bold">--- Ω</div>
-                            <div id="res_l1" class="text-xs font-mono text-slate-300 mt-1 pt-1 border-t border-slate-600/50">L1 ≈ --- mH</div>
                         </div>
-                        
                         <div class="bg-slate-700 p-3 rounded-lg border-l-4 border-cyan-500">
-                            <div class="flex justify-between items-start mb-1">
-                                <span class="text-slate-300 text-[10px] font-bold uppercase">X2</span>
-                                <span id="formula_x2" class="text-[10px] text-cyan-500/70 font-mono italic">---</span>
-                            </div>
+                            <div class="flex justify-between items-start mb-1"><span class="text-slate-300 text-[10px] font-bold uppercase">X2</span><span id="formula_x2" class="text-[10px] text-cyan-500/70 font-mono italic">---</span></div>
                             <div id="res_x2" class="text-xl font-mono text-cyan-400 font-bold">--- Ω</div>
-                            <div id="res_l2" class="text-xs font-mono text-slate-300 mt-1 pt-1 border-t border-slate-600/50">L2 ≈ --- mH</div>
                         </div>
-                        
                         <div class="bg-slate-700 p-3 rounded-lg border-l-4 border-purple-500 md:col-span-2 text-center">
                             <div class="flex justify-between items-start mb-1 px-4"><span class="text-slate-300 text-[10px] font-bold uppercase">Xm</span><span id="formula_xm" class="text-[10px] text-purple-400/70 font-mono italic">---</span></div>
                             <div id="res_xm" class="text-2xl font-mono text-purple-400 font-bold">--- Ω</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-700 mb-6 space-y-3">
+                        <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+                            <h3 class="text-sm font-bold text-cyan-400 flex items-center gap-1">⚡ <span>馬達電感與鐵損參數 (依4極推估頻率: <span id="res_est_freq" class="text-white font-mono">--</span> Hz)</span></h3>
+                        </div>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                            <div class="bg-slate-800 p-2 rounded border border-slate-700">
+                                <div class="text-[10px] text-slate-400 font-bold uppercase">L1 (定子漏感)</div>
+                                <div id="res_l1" class="text-base font-mono font-bold text-cyan-300">--- mH</div>
+                            </div>
+                            <div class="bg-slate-800 p-2 rounded border border-slate-700">
+                                <div class="text-[10px] text-slate-400 font-bold uppercase">L2 (轉子漏感)</div>
+                                <div id="res_l2" class="text-base font-mono font-bold text-cyan-300">--- mH</div>
+                            </div>
+                            <div class="bg-slate-800 p-2 rounded border border-slate-700">
+                                <div class="text-[10px] text-slate-400 font-bold uppercase">Lm (激磁電感)</div>
+                                <div id="res_lm" class="text-base font-mono font-bold text-cyan-300">--- mH</div>
+                            </div>
+                            <div class="bg-slate-800 p-2 rounded border border-slate-700">
+                                <div class="text-[10px] text-slate-400 font-bold uppercase">Rm (鐵損電阻)</div>
+                                <div id="res_rm" class="text-base font-mono font-bold text-amber-400">--- Ω</div>
+                            </div>
                         </div>
                     </div>
 
@@ -245,14 +254,20 @@
                             <div id="calc_r2">R2 = R_BR - R1 = ---</div>
                             <div id="calc_x1">X1 = X_BR * k = ---</div>
                             <div id="calc_x2">X2 = X_BR * (1-k) = ---</div>
-                            <div id="calc_l1_process">L1 = X1 / (2πf) = ---</div>
-                            <div id="calc_l2_process">L2 = X2 / (2πf) = ---</div>
                             <div class="border-b border-slate-700/50 my-2"></div>
                             <div class="text-slate-400 font-bold mb-1">【無載參數 No-Load】</div>
                             <div id="calc_znl">Z_NL = V_NL(ph) / I_NL(ph) = ---</div>
                             <div id="calc_rnl">R_NL = P_NL(ph) / I_NL(ph)² = ---</div>
                             <div id="calc_xnl">X_NL = √(Z_NL² - R_NL²) = ---</div>
                             <div id="calc_xm">Xm = X_NL - X1 = ---</div>
+                            
+                            <div class="border-b border-slate-700/50 my-2"></div>
+                            <div class="text-cyan-400 font-bold mb-1">【四極推估電感值與鐵損電阻 L & Rm】</div>
+                            <div id="calc_freq_omega">推估頻率 f = 同步RPM / 30 = --- Hz, ω = 2πf = --- rad/s</div>
+                            <div id="calc_l1">L1 = X1 / ω = ---</div>
+                            <div id="calc_l2">L2 = X2 / ω = ---</div>
+                            <div id="calc_lm">Lm = Xm / ω = ---</div>
+                            <div id="calc_rm">Rm = 3 * (I_NL(ph) * Xm)² / Pc = ---</div>
                         </div>
                     </details>
                 </div>
@@ -357,7 +372,7 @@
             },
             ja: {
                 main_title: "誘導電動機 T型等価回路計算機",
-                main_subtitle: "試験 SOP：スマート補正と計算プロセスの透明化",
+                main_subtitle: "試驗 SOP：スマート補正と計算プロセスの透明化",
                 step1_title: "1. 設定", label_connection: "結線", label_ratio: "漏れ比",
                 step2_title: "2. 直流抵抗 (冷態)", step3_title: "3. 無負荷試験",
                 step4_title: "4. 負荷試験 (ダイナモ)", step5_title: "5. 拘束試験 (溫態)",
@@ -453,10 +468,8 @@
 
         function resetUI() {
             const empty = "---";
-            const ids = ['res_r1', 'res_r2', 'res_x1', 'res_x2', 'res_xm', 'res_i_pred', 'res_i_meas', 'res_p_pred', 'res_p_meas', 'res_slip', 'res_pf', 'res_pf_meas', 'res_r2_used', 'res_efficiency', 'res_efficiency_meas'];
-            ids.forEach(id => safeSetText(id, empty + (id.includes('res_r') || id.includes('res_x') ? " Ω" : (id.includes('slip') || id.includes('efficiency') ? " %" : ""))));
-            safeSetText('res_l1', "L1 ≈ --- mH");
-            safeSetText('res_l2', "L2 ≈ --- mH");
+            const ids = ['res_r1', 'res_r2', 'res_x1', 'res_x2', 'res_xm', 'res_i_pred', 'res_i_meas', 'res_p_pred', 'res_p_meas', 'res_slip', 'res_pf', 'res_pf_meas', 'res_r2_used', 'res_efficiency', 'res_efficiency_meas', 'res_est_freq', 'res_l1', 'res_l2', 'res_lm', 'res_rm'];
+            ids.forEach(id => safeSetText(id, empty + (id.includes('res_r') || id.includes('res_x') ? " Ω" : (id.includes('slip') || id.includes('efficiency') ? " %" : (id.includes('res_l') ? " mH" : "")))));
             ['svg_r1', 'svg_r2', 'svg_x1', 'svg_x2', 'svg_xm'].forEach(id => safeSetText(id, empty + " mΩ"));
             ['err_i', 'err_p', 'err_pf', 'err_eta'].forEach(id => safeSetText(id, empty + " %"));
             ['formula_r1', 'formula_r2', 'formula_x1', 'formula_x2', 'formula_xm'].forEach(id => safeSetText(id, empty));
@@ -470,12 +483,15 @@
             safeSetText('calc_r2', 'R2 = R_BR - R1 = ---');
             safeSetText('calc_x1', 'X1 = X_BR * k = ---');
             safeSetText('calc_x2', 'X2 = X_BR * (1-k) = ---');
-            safeSetText('calc_l1_process', 'L1 = X1 / (2πf) = ---');
-            safeSetText('calc_l2_process', 'L2 = X2 / (2πf) = ---');
             safeSetText('calc_znl', 'Z_NL = V_NL(ph) / I_NL(ph) = ---');
             safeSetText('calc_rnl', 'R_NL = P_NL(ph) / I_NL(ph)² = ---');
             safeSetText('calc_xnl', 'X_NL = √(Z_NL² - R_NL²) = ---');
             safeSetText('calc_xm', 'Xm = X_NL - X1 = ---');
+            safeSetText('calc_freq_omega', '推估頻率 f = 同步RPM / 30 = --- Hz, ω = 2πf = --- rad/s');
+            safeSetText('calc_l1', 'L1 = X1 / ω = ---');
+            safeSetText('calc_l2', 'L2 = X2 / ω = ---');
+            safeSetText('calc_lm', 'Lm = Xm / ω = ---');
+            safeSetText('calc_rm', 'Rm = 3 * (I_NL(ph) * Xm)² / Pc = ---');
         }
 
         function calculateParameters() {
@@ -483,7 +499,6 @@
                 const t = translations[currentLang];
                 const conn = document.getElementById('conn_type').value;
                 const x1r = parseFloat(document.getElementById('x1_ratio').value) || 0.5;
-                const freq = parseFloat(document.getElementById('freq_base').value) || 60;
                 const r_uv = parseFloat(document.getElementById('r_uv').value), r_vw = parseFloat(document.getElementById('r_vw').value), r_wu = parseFloat(document.getElementById('r_wu').value);
                 const v_nl = parseFloat(document.getElementById('v_nl').value), i_nl = parseFloat(document.getElementById('i_nl').value), p_nl = parseFloat(document.getElementById('p_nl').value);
                 const i_meas = parseFloat(document.getElementById('i_rated_meas').value), p_meas = parseFloat(document.getElementById('p_rated_meas').value), t_meas = parseFloat(document.getElementById('torque_meas').value);
@@ -515,11 +530,6 @@
 
                 const Rb = Pbp / (Ibp * Ibp), Zb = Vbp / Ibp; if(Zb < Rb) throw new Error("物理矛盾：測得阻抗小於電阻。");
                 const Xb = Math.sqrt(Zb*Zb - Rb*Rb), R2e = Rb - R1, X1 = Xb*x1r, X2 = Xb*(1-x1r);
-                
-                // 計算 L1 與 L2 電感值 (H 轉 mH 需乘 1000)
-                const L1 = (X1 / (2 * Math.PI * freq)) * 1000;
-                const L2 = (X2 / (2 * Math.PI * freq)) * 1000;
-
                 const Zn = Vnp/Inp, Rn = Pnp/(Inp*Inp), Xn = Math.sqrt(Zn*Zn - Rn*Rn), Xm = Xn - X1;
                 const Pc = p_nl - (3 * Inp * Inp * R1); 
                 
@@ -532,9 +542,6 @@
                 safeSetText('calc_r2', `R2 = R_BR - R1 = ${f(Rb)} - ${f(R1)} = ${f(R2e, " Ω")}`);
                 safeSetText('calc_x1', `X1 = X_BR * k = ${f(Xb)} * ${x1r} = ${f(X1, " Ω")}`);
                 safeSetText('calc_x2', `X2 = X_BR * (1-k) = ${f(Xb)} * ${(1-x1r).toFixed(2)} = ${f(X2, " Ω")}`);
-                safeSetText('calc_l1_process', `L1 = X1 / (2πf) = ${f(X1)} / (2 × 3.1416 × ${freq}) = ${L1.toFixed(4)} mH`);
-                safeSetText('calc_l2_process', `L2 = X2 / (2πf) = ${f(X2)} / (2 × 3.1416 × ${freq}) = ${L2.toFixed(4)} mH`);
-                
                 // 寫入詳細計算過程 (No-Load)
                 safeSetText('calc_znl', `Z_NL = V_NL(ph) / I_NL(ph) = ${f(Vnp)} / ${f(Inp)} = ${f(Zn, " Ω")}`);
                 safeSetText('calc_rnl', `R_NL = P_NL(ph) / I_NL(ph)² = ${f(Pnp)} / ${f(Inp)}² = ${f(Rn, " Ω")}`);
@@ -556,11 +563,35 @@
                 let Em=0, PFm=0;
                 if(!isNaN(i_meas) && !isNaN(p_meas)) { PFm = p_meas / (1.732 * v_r * i_meas); if(!isNaN(t_meas)) Em = (((t_meas * rr) / 9.549) / p_meas) * 100; }
 
+                // ====== 新增：依據 4 極馬達與同步轉速推估電感值 L1, L2, Lm 與 鐵損電阻 Rm ======
+                const est_freq = !isNaN(rs) ? rs / 30 : 60; // 4極公式：f = Ns / 30
+                const omega = 2 * Math.PI * est_freq;
+                const L1_mH = (X1 / omega) * 1000;
+                const L2_mH = (X2 / omega) * 1000;
+                const Lm_mH = (Xm / omega) * 1000;
+                
+                // 鐵損電阻 Rm (並聯模型)：跨在激磁支路兩端的氣隙電壓 Eg_no_load = Inp * Xm
+                const Eg_nl = Inp * Xm;
+                const Rm_val = Pc > 0 ? (3 * Eg_nl * Eg_nl) / Pc : 999999; 
+
+                // 渲染新增的 L & Rm 介面數值
+                safeSetText('res_est_freq', est_freq.toFixed(1));
+                safeSetText('res_l1', L1_mH.toFixed(2) + " mH");
+                safeSetText('res_l2', L2_mH.toFixed(2) + " mH");
+                safeSetText('res_lm', Lm_mH.toFixed(2) + " mH");
+                safeSetText('res_rm', Rm_val > 50000 ? "⚠️ 無鐵損資料" : Rm_val.toFixed(2) + " Ω");
+
+                // 寫入 L & Rm 詳細計算過程
+                safeSetText('calc_freq_omega', `推估頻率 f = 同步RPM / 30 = ${rs} / 30 = ${est_freq.toFixed(2)} Hz, ω = 2πf = ${omega.toFixed(2)} rad/s`);
+                safeSetText('calc_l1', `L1 = X1 / ω = ${f(X1)} / ${omega.toFixed(2)} = ${(X1/omega).toFixed(6)} H = ${L1_mH.toFixed(2)} mH`);
+                safeSetText('calc_l2', `L2 = X2 / ω = ${f(X2)} / ${omega.toFixed(2)} = ${(X2/omega).toFixed(6)} H = ${L2_mH.toFixed(2)} mH`);
+                safeSetText('calc_lm', `Lm = Xm / ω = ${f(Xm)} / ${omega.toFixed(2)} = ${(Xm/omega).toFixed(6)} H = ${Lm_mH.toFixed(2)} mH`);
+                safeSetText('calc_rm', `Rm = 3 * (I_NL(ph) * Xm)² / Pc = 3 * (${f(Inp)} * ${f(Xm)})² / ${Pc.toFixed(2)} = ${Rm_val.toFixed(2)} Ω (並聯模型)`);
+                // ========================================================================
+
                 safeSetText('error_msg', "計算成功！"); document.getElementById('error_msg').className = "bg-emerald-50 text-emerald-800 p-4 rounded-lg border border-emerald-200 shadow-sm font-bold text-sm";
                 
                 safeSetText('res_r1', f(R1, " Ω")); safeSetText('res_r2', f(R2e, " Ω")); safeSetText('res_x1', f(X1, " Ω")); safeSetText('res_x2', f(X2, " Ω")); safeSetText('res_xm', f(Xm, " Ω"));
-                safeSetText('res_l1', `L1 ≈ ${L1.toFixed(4)} mH`); safeSetText('res_l2', `L2 ≈ ${L2.toFixed(4)} mH`);
-                
                 safeSetText('svg_r1', (R1*1000).toFixed(1) + " mΩ"); safeSetText('svg_x1', (X1*1000).toFixed(1) + " mΩ"); safeSetText('svg_x2', (X2*1000).toFixed(1) + " mΩ"); safeSetText('svg_xm', (Xm*1000).toFixed(1) + " mΩ"); safeSetText('svg_r2', (R2u*1000).toFixed(1) + " mΩ");
                 
                 safeSetText('res_i_pred', f2(Ip)); safeSetText('res_i_meas', isNaN(i_meas)?"---":f2(i_meas));
@@ -575,7 +606,7 @@
                     const el = document.getElementById(id); if(el) el.className = "text-xs font-bold " + (Math.abs(e) <= 5 ? "text-emerald-400" : (Math.abs(e) <= 12 ? "text-yellow-400" : "text-red-400"));
                 };
                 updateErr('err_i', Ip, i_meas); updateErr('err_p', Pip, p_meas); updateErr('err_pf', PFp, PFm); updateErr('err_eta', Ep, Em);
-                calcState = {...calcState, PFp, PFm, Ip, i_meas, Pip, p_meas, Ep, Em, R2u, err_I:Ip, L1, L2};
+                calcState = {...calcState, PFp, PFm, Ip, i_meas, Pip, p_meas, Ep, Em, R2u, err_I:Ip, L1_mH, L2_mH, Lm_mH, Rm_val, est_freq};
             } catch (e) {
                 calcState = null; const el = document.getElementById('error_msg'); el.innerHTML = "<strong>錯誤：</strong> " + e.message; el.className = "bg-red-50 text-red-800 p-4 rounded-lg border border-red-200 shadow-sm font-bold text-xs";
             }
@@ -587,7 +618,7 @@
             const s = calcState;
             langs.forEach(l => {
                 const t = translations[l.k];
-                const rows = [[t.main_title], [new Date().toLocaleString()], [], [t.excel_col_param, t.excel_col_value, "Unit"], [t.excel_section_input, "", ""], [t.label_connection, s.conn, ""], [t.step2_title, s.rll.toFixed(4), "Ω"], [t.step3_title, `V=${s.v_nl}, I=${s.i_nl}, P=${s.p_nl}`, ""], [t.label_torque, s.Torque || "---", "Nm"], [], [t.excel_section_output, "", ""], [t.res_r1_label, s.R1.toFixed(4), "Ω"], [t.res_r2_label, s.R2e.toFixed(4), "Ω"], ["X1", s.X1.toFixed(4), "Ω"], ["L1", s.L1.toFixed(4), "mH"], ["X2", s.X2.toFixed(4), "Ω"], ["L2", s.L2.toFixed(4), "mH"], [t.res_xm_label, s.Xm.toFixed(4), "Ω"], [], [t.excel_section_verify, "", ""], [t.label_eta + " (Pred/Meas)", `${s.Ep.toFixed(2)}% / ${s.Em.toFixed(2)}%`, ""], [t.label_pf + " (Pred/Meas)", `${s.PFp.toFixed(4)} / ${s.PFm.toFixed(4)}`, ""], [t.verify_i_label + " (Pred/Meas)", `${s.Ip.toFixed(2)} / ${s.i_meas} A`, ""], [t.res_r2used_label, s.R2u.toFixed(4), "Ω"]];
+                const rows = [[t.main_title], [new Date().toLocaleString()], [], [t.excel_col_param, t.excel_col_value, "Unit"], [t.excel_section_input, "", ""], [t.label_connection, s.conn, ""], [t.step2_title, s.rll.toFixed(4), "Ω"], [t.step3_title, `V=${s.v_nl}, I=${s.i_nl}, P=${s.p_nl}`, ""], [t.label_torque, s.Torque || "---", "Nm"], [], [t.excel_section_output, "", ""], [t.res_r1_label, s.R1.toFixed(4), "Ω"], [t.res_r2_label, s.R2e.toFixed(4), "Ω"], ["X1", s.X1.toFixed(4), "Ω"], ["X2", s.X2.toFixed(4), "Ω"], [t.res_xm_label, s.Xm.toFixed(4), "Ω"], ["L1 (漏感)", s.L1_mH.toFixed(2), "mH"], ["L2 (漏感)", s.L2_mH.toFixed(2), "mH"], ["Lm (激磁)", s.Lm_mH.toFixed(2), "mH"], ["Rm (鐵損)", s.Rm_val.toFixed(2), "Ω"], [], [t.excel_section_verify, "", ""], [t.label_eta + " (Pred/Meas)", `${s.Ep.toFixed(2)}% / ${s.Em.toFixed(2)}%`, ""], [t.label_pf + " (Pred/Meas)", `${s.PFp.toFixed(4)} / ${s.PFm.toFixed(4)}`, ""], [t.verify_i_label + " (Pred/Meas)", `${s.Ip.toFixed(2)} / ${s.i_meas} A`, ""], [t.res_r2used_label, s.R2u.toFixed(4), "Ω"]];
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), `Report (${l.n})`);
             });
             XLSX.writeFile(wb, `Motor_Parameter_Extraction_${new Date().getTime()}.xlsx`);
