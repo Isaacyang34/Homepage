@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portable Air Quality Monitor - 3D Exploded View SPA</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              navy: '#051923',
+              dark: '#0B2545',
+              blue: '#134074',
+              steel: '#8DA9C4',
+              ice: '#EEF4F8',
+              accent: '#00A8E8',
+              glow: '#00F0FF'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'Outfit', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Core JS Libraries via CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #051923;
+      color: #EEF4F8;
+    }
+    h1, h2, h3 {
+      font-family: 'Outfit', sans-serif;
+    }
+    /* Glassmorphism utility classes */
+    .glass-panel {
+      background: rgba(11, 37, 69, 0.4);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(141, 169, 196, 0.15);
+    }
+    .glass-card {
+      background: rgba(19, 64, 116, 0.25);
+      border: 1px solid rgba(141, 169, 196, 0.1);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .glass-card:hover {
+      background: rgba(19, 64, 116, 0.4);
+      border-color: rgba(0, 240, 255, 0.3);
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.1);
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #051923;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #134074;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #8DA9C4;
+    }
+    /* Wiring diagram animations */
+    .wire-line {
+      stroke-dasharray: 8 4;
+      animation: dash 30s linear infinite;
+      transition: stroke 0.3s, stroke-width 0.3s, filter 0.3s;
+    }
+    @keyframes dash {
+      to {
+        stroke-dashoffset: -1000;
+      }
+    }
+    /* 3D Label connector lines */
+    .pointer-line {
+      position: absolute;
+      pointer-events: none;
+      transform-origin: top left;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(0, 240, 255, 0.8), rgba(0, 240, 255, 0));
+    }
+  </style>
+</head>
+<body class="min-h-screen overflow-x-hidden">
+
+  <!-- Root React Mounting Point -->
+  <div id="root"></div>
+
+  <!-- React & Three.js Application Source (Babel Transpiled) -->
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useMemo } = React;
+
+    // Component Explanations and Metadata
+    const COMPONENTS_DATA = {
+      top_case: {
+        title: "磨砂上蓋 (Top Cover)",
+        sub: "Frosted ABS Case",
+        desc: "採用半透磨砂 ABS 材質，能保護內部精密電路，同時可透出 TFT 彩色螢幕與感測器的發光燈效，並預留按鍵與螢幕開孔。",
+        color: "from-blue-400 to-indigo-500"
+      },
+      tft_display: {
+        title: "0.96吋 彩色螢幕 (TFT Display)",
+        sub: "0.96 inch, I2C, ST7735/ST7789",
+        desc: "即時以彩色高對比顯示 AQI 數值、PM2.5 / PM10 濃度、溫度與濕度等關鍵資訊。支援 I2C/SPI 通訊協議，能快速更新狀態。",
+        color: "from-cyan-400 to-blue-500"
+      },
+      pms7003: {
+        title: "雷射粉塵感測器 (PMS7003 Sensor)",
+        sub: "Laser Particulate Matter Sensor",
+        desc: "基於雷射散射原理，利用內建微型風扇主動進氣，精確量測空氣中直徑 0.3 到 10 微米之懸浮微粒（PM1.0, PM2.5, PM10）濃度。",
+        color: "from-teal-400 to-cyan-500"
+      },
+      esp32_module: {
+        title: "ESP32 核心模組 (WROOM-32)",
+        sub: "Wi-Fi & Bluetooth Dual-Core MCU",
+        desc: "系統大腦。內建雙核心 240MHz 處理器、Wi-Fi 與藍牙模組。負責從各感測器讀取數據、執行 AQI 運算、驅動螢幕，並同步雲端數據與 NTP 時間。",
+        color: "from-purple-500 to-pink-500"
+      },
+      sd_card: {
+        title: "Micro SD 卡槽模組 (SD Card Module)",
+        sub: "Micro SD Card Slot for Logging",
+        desc: "外接儲存模組。將定時採樣的感測器數值，包含時間戳記，以標準 CSV 檔案格式寫入 SD 卡中，便於用戶匯出進行長期歷史數據分析。",
+        color: "from-yellow-400 to-orange-500"
+      },
+      bme280: {
+        title: "溫濕度氣壓感測器 (BME280 Sensor)",
+        sub: "Temperature, Humidity & Pressure",
+        desc: "德州儀器/Bosch 製造的高精度環境感測器。負責採集溫濕度與大氣壓力，為環境健康評估提供基礎的熱力學參考指標。",
+        color: "from-emerald-400 to-teal-500"
+      },
+      battery_18650: {
+        title: "18650 鋰離子電池 (18650 Battery)",
+        sub: "3.7V, 3000mAh Portable Power",
+        desc: "可充電大容量鋰電池，提供 3.7V 標準電壓，為整套設備提供長時間離線運作所需的電能，免除線材束縛。",
+        color: "from-red-400 to-pink-500"
+      },
+      tp4056_board: {
+        title: "USB-C 充電保護板 (TP4056 Board)",
+        sub: "TP4056 Battery Charging & Protection",
+        desc: "整合鋰電池充電控制與防過充、過放、過載保護的電路板，透過 USB-C 連接口安全地對 18650 電池進行充電與供電管理。",
+        color: "from-indigo-500 to-blue-600"
+      },
+      bottom_case: {
+        title: "磨砂底盒 (Bottom Case)",
+        sub: "Frosted ABS Base",
+        desc: "底部磨砂 ABS 外殼，整合電池扣座槽與電路板支撐柱，並設計有通風散熱孔，確保感測器進氣口空氣對流順暢。",
+        color: "from-gray-500 to-slate-600"
+      }
+    };
+
+    // Features List
+    const FEATURES = [
+      { text: "ESP32 Wi-Fi / 藍牙雙模晶片", highlight: true },
+      { text: "PMS7003 高精度雷射粉塵感測器", highlight: true },
+      { text: "BME280 環境溫濕度與大氣壓力感測", highlight: true },
+      { text: "0.96\" TFT 高對比彩色顯示螢幕" },
+      { text: "Micro SD 卡槽，支援本地 CSV 數據日誌" },
+      { text: "內建 RTC 實時時鐘（支援網路 NTP 校時）" },
+      { text: "大容量 18650 鋰電池，支援可攜式運行" },
+      { text: "USB-C 行動快速充電與電路安全防護" },
+      { text: "開源架構，支援自訂韌體與平台對接" }
+    ];
+
+    // Applications List
+    const APPLICATIONS = [
+      { name: "室內空氣品質監測", icon: "M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10" },
+      { name: "戶外環境氣候站", icon: "M12 2v20 M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" },
+      { name: "農業溫室監控系統", icon: "M12 22a7 7 0 0 0 7-7c0-4.3-7-11-7-11S5 10.7 5 15a7 7 0 0 0 7 7z" },
+      { name: "工業級暖通空調 (HVAC) 控制", icon: "M20 7h-9 M14 17H5 M19 12H5" },
+      { name: "物聯網智慧健康住宅專案", icon: "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" }
+    ];
+
+    // Specifications List
+    const SPECIFICATIONS = [
+      { label: "主控制器型號", value: "ESP32-WROOM-32 (Dual Core 240MHz)" },
+      { label: "粉塵測量範圍", value: "0.3 ~ 10 μm | 0 ~ 999 μg/m³" },
+      { label: "溫度監控範圍", value: "-40°C ~ +85°C (精度 ±0.5°C)" },
+      { label: "環境濕度範圍", value: "0% ~ 100% RH (精度 ±3%)" },
+      { label: "大氣壓力範圍", value: "300 ~ 1100 hPa" },
+      { label: "供電與充電系統", value: "3.7V 18650 鋰電池 / USB-C 5V 充電" },
+      { label: "外殼物理尺寸", value: "110 x 65 x 40 mm" },
+      { label: "設備大約重量", value: "140g (含電池與外殼)" }
+    ];
+
+    // Wiring Lines definition for hover interactive effects
+    const WIRING_NETS = {
+      vcc: { name: "VCC 3.3V / 5V (電源正極)", color: "#EF4444" },
+      gnd: { name: "GND (系統接地)", color: "#6B7280" },
+      i2c: { name: "I2C 總線 (SDA/SCL)", color: "#10B981" },
+      spi: { name: "SPI 總線 (MISO/MOSI/SCK/CS)", color: "#3B82F6" },
+      uart: { name: "UART 串列埠 (TX/RX)", color: "#F59E0B" }
+    };
+
+    // 3D Exploded View Canvas Component (Three.js)
+    function ExplodedView3D({ explosionLevel, autoRotate, activeComponent, setActiveComponent }) {
+      const containerRef = useRef(null);
+      const sceneRef = useRef(null);
+      const cameraRef = useRef(null);
+      const rendererRef = useRef(null);
+      const controlsRef = useRef(null);
+      const meshesRef = useRef({});
+      const animationFrameIdRef = useRef(null);
+      const [errorMsg, setErrorMsg] = useState(null);
+
+      // Initialize Three.js Scene
+      useEffect(() => {
+        try {
+          const width = containerRef.current ? (containerRef.current.clientWidth || 600) : 600;
+          const height = containerRef.current ? (containerRef.current.clientHeight || 450) : 450;
+
+          // Scene
+          const scene = new THREE.Scene();
+          scene.background = new THREE.Color('#0b1622');
+          sceneRef.current = scene;
+
+          // Camera
+          const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
+          camera.position.set(12, 8, 12);
+          cameraRef.current = camera;
+
+          // Renderer
+          const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+          renderer.setSize(width, height);
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+          renderer.shadowMap.enabled = true;
+          renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+          if (containerRef.current) {
+            containerRef.current.appendChild(renderer.domElement);
+          }
+          rendererRef.current = renderer;
+
+          // Controls
+          const OrbitControlsClass = THREE.OrbitControls || window.OrbitControls;
+          if (!OrbitControlsClass) {
+            throw new Error("無法在 global 或 THREE 命名空間中找到 OrbitControls。請確認 CDN 指令腳本已成功加載。");
+          }
+          const controls = new OrbitControlsClass(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 2 + 0.1; // Limit below ground plane
+        controls.minDistance = 5;
+        controls.maxDistance = 25;
+        controlsRef.current = controls;
+
+        // Lights
+        const ambientLight = new THREE.AmbientLight('#ffffff', 0.6);
+        scene.add(ambientLight);
+
+        const dirLight1 = new THREE.DirectionalLight('#ffffff', 0.8);
+        dirLight1.position.set(5, 10, 7);
+        dirLight1.castShadow = true;
+        dirLight1.shadow.mapSize.width = 1024;
+        dirLight1.shadow.mapSize.height = 1024;
+        dirLight1.shadow.camera.near = 0.5;
+        dirLight1.shadow.camera.far = 25;
+        dirLight1.shadow.camera.left = -6;
+        dirLight1.shadow.camera.right = 6;
+        dirLight1.shadow.camera.top = 6;
+        dirLight1.shadow.camera.bottom = -6;
+        dirLight1.shadow.bias = -0.0005;
+        scene.add(dirLight1);
+
+        const dirLight2 = new THREE.DirectionalLight('#8da9c4', 0.4);
+        dirLight2.position.set(-5, 3, -5);
+        scene.add(dirLight2);
+
+        // Point Light inside the casing for futuristic glow
+        const glowLight = new THREE.PointLight('#00f0ff', 1.2, 8);
+        glowLight.position.set(0, 0, 0);
+        scene.add(glowLight);
+
+        // Grid Helper
+        const gridHelper = new THREE.GridHelper(20, 20, '#134074', '#0d2b4d');
+        gridHelper.position.y = -5;
+        scene.add(gridHelper);
+
+        // Helper to add cast/receive shadow
+        const setupShadows = (mesh) => {
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          if (mesh.children) {
+            mesh.children.forEach(c => setupShadows(c));
+          }
+        };
+
+        // Group to contain all monitor parts
+        const mainGroup = new THREE.Group();
+        scene.add(mainGroup);
+
+        // --- Procedural 3D Modeling ---
+
+        // 1. Materials
+        const materials = {
+          frostedCase: new THREE.MeshPhysicalMaterial({
+            color: '#a5cbd8',
+            transparent: true,
+            opacity: 0.45,
+            roughness: 0.15,
+            metalness: 0.1,
+            transmission: 0.9,
+            ior: 1.5,
+            side: THREE.DoubleSide
+          }),
+          pcbGreen: new THREE.MeshStandardMaterial({
+            color: '#073B3A',
+            roughness: 0.6
+          }),
+          pcbBlue: new THREE.MeshStandardMaterial({
+            color: '#1D3557',
+            roughness: 0.5
+          }),
+          pcbPurple: new THREE.MeshStandardMaterial({
+            color: '#4A154B',
+            roughness: 0.5
+          }),
+          silverMetal: new THREE.MeshStandardMaterial({
+            color: '#B0C4DE',
+            metalness: 0.9,
+            roughness: 0.2
+          }),
+          goldMetal: new THREE.MeshStandardMaterial({
+            color: '#DAA520',
+            metalness: 0.8,
+            roughness: 0.3
+          }),
+          blackPlastic: new THREE.MeshStandardMaterial({
+            color: '#1C1C1C',
+            roughness: 0.8
+          }),
+          batteryBlue: new THREE.MeshStandardMaterial({
+            color: '#0080FF',
+            metalness: 0.3,
+            roughness: 0.3
+          }),
+          ledRed: new THREE.MeshBasicMaterial({ color: '#FF3B30' }),
+          ledGreen: new THREE.MeshBasicMaterial({ color: '#34C759' })
+        };
+
+        // TFT Display Canvas Texture
+        const screenCanvas = document.createElement('canvas');
+        screenCanvas.width = 256;
+        screenCanvas.height = 128;
+        const ctx = screenCanvas.getContext('2d');
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, 256, 128);
+        ctx.strokeStyle = '#00F0FF';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(4, 4, 248, 120);
+        // Draw texts
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 22px Courier New';
+        ctx.fillStyle = '#00f0ff';
+        ctx.fillText("AQI: 54", 25, 45);
+        ctx.fillStyle = '#34c759';
+        ctx.fillText("PM2.5: 22 ug/m³", 25, 75);
+        ctx.fillStyle = '#ff9500';
+        ctx.fillText("Temp: 24.5 °C", 25, 105);
+
+        const screenTexture = new THREE.CanvasTexture(screenCanvas);
+        materials.tftScreen = new THREE.MeshBasicMaterial({ map: screenTexture });
+
+        // ESP32 Chip Textures (WROOM-32 shield writing)
+        const espCanvas = document.createElement('canvas');
+        espCanvas.width = 128;
+        espCanvas.height = 128;
+        const eCtx = espCanvas.getContext('2d');
+        eCtx.fillStyle = '#b0c4de';
+        eCtx.fillRect(0, 0, 128, 128);
+        eCtx.fillStyle = '#333333';
+        eCtx.font = 'bold 12px Arial';
+        eCtx.textAlign = 'center';
+        eCtx.fillText("ESP32", 64, 40);
+        eCtx.font = '9px Arial';
+        eCtx.fillText("WROOM-32", 64, 55);
+        eCtx.font = '7px Arial';
+        eCtx.fillText("FCC ID: 2AC7Z-ESP32", 64, 75);
+        eCtx.fillText("CE RoHS", 64, 90);
+
+        const espTexture = new THREE.CanvasTexture(espCanvas);
+        materials.espShield = new THREE.MeshStandardMaterial({
+          map: espTexture,
+          metalness: 0.8,
+          roughness: 0.3
+        });
+
+        // Part Meshes Setup
+        const meshes = {};
+
+
+        // A. Bottom Case (Frosted ABS)
+        const bottomCase = new THREE.Group();
+        const baseBox = new THREE.Mesh(new THREE.BoxGeometry(8, 0.4, 5), materials.frostedCase);
+        const wallLeft = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.8, 5), materials.frostedCase);
+        wallLeft.position.set(-3.85, 0.4, 0);
+        const wallRight = wallLeft.clone();
+        wallRight.position.x = 3.85;
+        const wallFront = new THREE.Mesh(new THREE.BoxGeometry(7.4, 0.8, 0.3), materials.frostedCase);
+        wallFront.position.set(0, 0.4, 2.35);
+        const wallBack = wallFront.clone();
+        wallBack.position.z = -2.35;
+        bottomCase.add(baseBox, wallLeft, wallRight, wallFront, wallBack);
+        mainGroup.add(bottomCase);
+        meshes.bottom_case = { group: bottomCase, baseY: -3.5, explosionScale: -1.2 };
+
+        // B. USB-C Charging Board (TP4056)
+        const tp4056 = new THREE.Group();
+        const tpPcb = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.08, 1.2), materials.pcbBlue);
+        const tpUsb = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.15, 0.3), materials.silverMetal);
+        tpUsb.position.set(-0.6, 0.08, 0);
+        const tpChips = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.1, 0.4), materials.blackPlastic);
+        tpChips.position.set(0.2, 0.05, 0.2);
+        tp4056.add(tpPcb, tpUsb, tpChips);
+        tp4056.position.set(-2, 0, 1.2); // Relative position
+        mainGroup.add(tp4056);
+        meshes.tp4056_board = { group: tp4056, baseY: -2.3, explosionScale: -0.6 };
+
+        // C. Battery 18650 & Holder
+        const batteryGrp = new THREE.Group();
+        const holder = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.6, 1.8), materials.blackPlastic);
+        const cell = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 3.8, 16), materials.batteryBlue);
+        cell.rotation.z = Math.PI / 2;
+        cell.position.y = 0.3;
+        const cellCap = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.1, 12), materials.silverMetal);
+        cellCap.rotation.z = Math.PI / 2;
+        cellCap.position.set(1.95, 0.3, 0);
+        batteryGrp.add(holder, cell, cellCap);
+        batteryGrp.position.set(0, 0, 1.2);
+        mainGroup.add(batteryGrp);
+        meshes.battery_18650 = { group: batteryGrp, baseY: -2.1, explosionScale: -0.4 };
+
+        // D. ESP32 Main PCB Board
+        const espPcb = new THREE.Group();
+        // Board
+        const board = new THREE.Mesh(new THREE.BoxGeometry(6.8, 0.08, 4.4), materials.blackPlastic);
+        // ESP32 Chip
+        const espChip = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.08, 2.2), materials.blackPlastic);
+        espChip.position.set(0, 0.06, -0.6);
+        const espShield = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.12, 1.6), materials.espShield);
+        espShield.position.set(0, 0.1, -0.7);
+        // Gold Pin headers on board sides
+        const pinRowLeft = new THREE.Group();
+        for (let i = 0; i < 15; i++) {
+          const pin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 0.08), materials.goldMetal);
+          pin.position.set(-1, 0, -1.8 + i * 0.26);
+          pinRowLeft.add(pin);
+        }
+        const pinRowRight = pinRowLeft.clone();
+        pinRowRight.position.x = 2.0;
+        espPcb.add(board, espChip, espShield, pinRowLeft, pinRowRight);
+        mainGroup.add(espPcb);
+        meshes.esp32_module = { group: espPcb, baseY: -0.5, explosionScale: 0 };
+
+        // E. PMS7003 Dust Sensor
+        const pms = new THREE.Group();
+        const pmsBody = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.8, 2.4), materials.silverMetal);
+        // Blue sticker on top
+        const pmsSticker = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.02, 2.2), materials.pcbBlue);
+        pmsSticker.position.y = 0.41;
+        // Intake vent hole
+        const pmsIntake = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.2, 12), materials.blackPlastic);
+        pmsIntake.position.set(-0.8, 0.35, -0.5);
+        pms.add(pmsBody, pmsSticker, pmsIntake);
+        pms.position.set(-2, 0, -0.8);
+        mainGroup.add(pms);
+        meshes.pms7003 = { group: pms, baseY: 0.15, explosionScale: 0.3 };
+
+        // F. SD Card Module
+        const sd = new THREE.Group();
+        const sdPcb = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.06, 1.4), materials.pcbBlue);
+        const sdSlot = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.1, 1.0), materials.silverMetal);
+        sdSlot.position.set(0.1, 0.08, 0);
+        sd.add(sdPcb, sdSlot);
+        sd.position.set(2.4, 0, 1.0);
+        mainGroup.add(sd);
+        meshes.sd_card = { group: sd, baseY: 0.05, explosionScale: 0.4 };
+
+        // G. BME280 Sensor
+        const bme = new THREE.Group();
+        const bmePcb = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.06, 0.8), materials.pcbPurple);
+        const bmeMetal = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.08, 0.3), materials.silverMetal);
+        bmeMetal.position.y = 0.07;
+        bme.add(bmePcb, bmeMetal);
+        bme.position.set(2.4, 0, -0.8);
+        mainGroup.add(bme);
+        meshes.bme280 = { group: bme, baseY: 0.05, explosionScale: 0.4 };
+
+        // H. TFT Display
+        const tft = new THREE.Group();
+        const tftPcb = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.08, 2.4), materials.pcbBlue);
+        const tftBezel = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.08, 1.8), materials.blackPlastic);
+        tftBezel.position.y = 0.08;
+        const tftScreen = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.02, 1.6), materials.tftScreen);
+        tftScreen.position.y = 0.13;
+        tft.add(tftPcb, tftBezel, tftScreen);
+        tft.position.set(0, 0, 0.5);
+        mainGroup.add(tft);
+        meshes.tft_display = { group: tft, baseY: 1.8, explosionScale: 0.9 };
+
+        // I. Top Cover (Frosted ABS)
+        const topCase = new THREE.Group();
+        const topBase = new THREE.Mesh(new THREE.BoxGeometry(8, 0.3, 5), materials.frostedCase);
+        topBase.position.y = 0.6;
+        const topWallL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.6, 5), materials.frostedCase);
+        topWallL.position.set(-3.85, 0.3, 0);
+        const topWallR = topWallL.clone();
+        topWallR.position.x = 3.85;
+        const topWallF = new THREE.Mesh(new THREE.BoxGeometry(7.4, 0.6, 0.3), materials.frostedCase);
+        topWallF.position.set(0, 0.3, 2.35);
+        const topWallB = topWallF.clone();
+        topWallB.position.z = -2.35;
+        topCase.add(topBase, topWallL, topWallR, topWallF, topWallB);
+        mainGroup.add(topCase);
+        meshes.top_case = { group: topCase, baseY: 3.5, explosionScale: 1.5 };
+
+        // Save references for animation
+        meshesRef.current = meshes;
+
+        // Apply shadows helper to all added objects
+        setupShadows(mainGroup);
+
+        // Adjust scale
+        mainGroup.scale.set(0.9, 0.9, 0.9);
+
+        // Raycasting for interactivity
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        const onCanvasClick = (event) => {
+          const rect = renderer.domElement.getBoundingClientRect();
+          mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+          mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+          raycaster.setFromCamera(mouse, camera);
+
+          // Find intersection from meshes
+          let clickedKey = null;
+          const intersectTargets = [];
+
+          Object.keys(meshes).forEach((key) => {
+            const group = meshes[key].group;
+            group.traverse((child) => {
+              if (child.isMesh) {
+                child.userData.key = key; // Assign key
+                intersectTargets.push(child);
+              }
+            });
+          });
+
+          const intersects = raycaster.intersectObjects(intersectTargets);
+
+          if (intersects.length > 0) {
+            clickedKey = intersects[0].object.userData.key;
+            setActiveComponent(clickedKey);
+          } else {
+            setActiveComponent(null);
+          }
+        };
+
+        renderer.domElement.addEventListener('click', onCanvasClick);
+
+        // Resize Listener
+        const handleResize = () => {
+          if (!containerRef.current || !cameraRef.current || !rendererRef.current) return;
+          const w = containerRef.current.clientWidth;
+          const h = containerRef.current.clientHeight;
+          cameraRef.current.aspect = w / h;
+          cameraRef.current.updateProjectionMatrix();
+          rendererRef.current.setSize(w, h);
+        };
+        window.addEventListener('resize', handleResize);
+
+        } catch (e) {
+          console.error("Three.js error:", e);
+          setErrorMsg(e.message + "\n" + e.stack);
+        }
+        // Cleanup function
+        return () => {
+          window.removeEventListener('resize', handleResize);
+          if (rendererRef.current && rendererRef.current.domElement) {
+            rendererRef.current.domElement.removeEventListener('click', onCanvasClick);
+            containerRef.current?.removeChild(rendererRef.current.domElement);
+          }
+          if (animationFrameIdRef.current) {
+            cancelAnimationFrame(animationFrameIdRef.current);
+          }
+        };
+      }, []);
+
+      // Animate explosion and active highlights
+      useEffect(() => {
+        const meshes = meshesRef.current;
+        const explosion = explosionLevel / 100;
+
+        Object.keys(meshes).forEach((key) => {
+          const item = meshes[key];
+          const targetY = item.baseY + item.explosionScale * explosion * 4;
+          
+          // Smooth translation
+          item.group.position.y = THREE.MathUtils.lerp(item.group.position.y, targetY, 0.15);
+
+          // Component Highlighting material color pulsing (safety check for emissive property)
+          item.group.traverse((child) => {
+            if (child.isMesh && child.material) {
+              if (child.material.emissive) {
+                if (activeComponent === key) {
+                  child.material.emissive.set('#00f0ff');
+                  if (child.material.emissiveIntensity !== undefined) {
+                    child.material.emissiveIntensity = 0.25 + Math.sin(Date.now() * 0.008) * 0.15;
+                  }
+                } else {
+                  child.material.emissive.set('#000000');
+                  if (child.material.emissiveIntensity !== undefined) {
+                    child.material.emissiveIntensity = 0;
+                  }
+                }
+              }
+            }
+          });
+        });
+      }, [explosionLevel, activeComponent]);
+
+      // Render Loop
+      useEffect(() => {
+        const render = () => {
+          if (controlsRef.current) {
+            controlsRef.current.update();
+          }
+
+          if (autoRotate && sceneRef.current && cameraRef.current) {
+            sceneRef.current.rotation.y += 0.003;
+          }
+
+          if (rendererRef.current && sceneRef.current && cameraRef.current) {
+            rendererRef.current.render(sceneRef.current, cameraRef.current);
+          }
+
+          animationFrameIdRef.current = requestAnimationFrame(render);
+        };
+        render();
+      }, [autoRotate]);
+
+      // Reset camera view helper
+      const resetView = () => {
+        if (cameraRef.current && controlsRef.current) {
+          cameraRef.current.position.set(12, 8, 12);
+          controlsRef.current.target.set(0, 0, 0);
+          if (sceneRef.current) {
+            sceneRef.current.rotation.y = 0;
+          }
+        }
+      };
+
+      if (errorMsg) {
+        return (
+          <div className="p-4 bg-red-950/90 border border-red-500 rounded-lg text-red-200 font-mono text-xs overflow-auto h-full max-h-[400px]">
+            <h3 className="font-bold text-sm mb-2">3D 渲染載入失敗 (Three.js Error)</h3>
+            <pre className="whitespace-pre-wrap">{errorMsg}</pre>
+          </div>
+        );
+      }
+
+      return (
+        <div className="relative w-full h-full flex flex-col justify-between">
+          {/* Canvas Container */}
+          <div ref={containerRef} className="w-full h-full flex-grow rounded-lg overflow-hidden border border-brand-blue/30 shadow-inner"></div>
+
+          {/* Interactive UI Overlay inside 3D viewer */}
+          <div className="absolute top-4 left-4 z-10 pointer-events-none">
+            <div className="glass-panel px-3 py-1.5 rounded-full text-xs text-brand-steel flex items-center gap-2 border border-brand-accent/20">
+              <span className="w-2 h-2 rounded-full bg-brand-glow animate-pulse"></span>
+              互動式 3D 渲染視窗 (拖動旋轉/滾輪縮放)
+            </div>
+          </div>
+
+          <div className="absolute top-4 right-4 z-10 flex gap-2">
+            <button 
+              onClick={resetView}
+              className="bg-brand-dark/80 hover:bg-brand-blue text-brand-ice p-2 rounded-lg border border-brand-steel/20 text-xs transition-colors"
+              title="重設視角"
+            >
+              🔄 重置視角
+            </button>
+          </div>
+
+          {/* 3D Model Label Overlay (dynamically updates based on active selection) */}
+          {activeComponent && COMPONENTS_DATA[activeComponent] && (
+            <div className="absolute bottom-16 left-4 right-4 z-10 glass-panel p-4 rounded-xl border border-brand-glow/30 shadow-lg animate-fade-in">
+              <div className="flex justify-between items-start mb-1">
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-brand-glow">已選取零件</span>
+                  <h4 className="text-base font-bold text-brand-ice">{COMPONENTS_DATA[activeComponent].title}</h4>
+                </div>
+                <button 
+                  onClick={() => setActiveComponent(null)}
+                  className="text-brand-steel hover:text-brand-ice text-lg"
+                >
+                  &times;
+                </button>
+              </div>
+              <p className="text-xs text-brand-steel leading-relaxed">{COMPONENTS_DATA[activeComponent].desc}</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Main Dashboard SPA Component
+    function App() {
+      const [explosionLevel, setExplosionLevel] = useState(40);
+      const [autoRotate, setAutoRotate] = useState(false);
+      const [activeComponent, setActiveComponent] = useState(null);
+      const [hoveredNet, setHoveredNet] = useState(null);
+
+      // Handle dual link interaction from panel to 3D
+      const selectComponent = (key) => {
+        setActiveComponent(activeComponent === key ? null : key);
+      };
+
+      return (
+        <div className="min-h-screen flex flex-col p-4 md:p-6 lg:p-8 space-y-6">
+          
+          {/* ===================== HEADER ===================== */}
+          <header className="flex flex-col md:flex-row justify-between items-center glass-panel px-6 py-4 rounded-2xl border-b border-brand-accent/20">
+            <div className="flex items-center gap-4 mb-4 md:mb-0">
+              <div className="p-3 bg-brand-accent/10 rounded-xl border border-brand-accent/30 shadow-lg">
+                <svg className="w-8 h-8 text-brand-glow" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-2xl md:text-3xl font-extrabold tracking-wide text-brand-ice uppercase">
+                  PORTABLE AIR QUALITY MONITOR
+                </h1>
+                <p className="text-xs md:text-sm tracking-wider text-brand-steel uppercase font-medium">
+                  ESP32 Wi-Fi - SD CARD - PMS7003 & BME280 SENSORS
+                </p>
+              </div>
+            </div>
+
+            {/* Brand Logo */}
+            <div className="flex items-center gap-2 border-l border-brand-steel/20 pl-6">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-tr from-brand-accent to-indigo-600 flex items-center justify-center font-bold text-brand-navy text-lg shadow-lg">
+                DH
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-brand-ice leading-none">DevHub Lab</h3>
+                <span className="text-[10px] text-brand-steel uppercase tracking-widest">Research & Dev</span>
+              </div>
+            </div>
+          </header>
+
+          {/* ===================== MAIN GRID (3 COLUMNS) ===================== */}
+          <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-grow">
+            
+            {/* LEFT COLUMN: FEATURES & APPLICATIONS (Span 3) */}
+            <div className="lg:col-span-3 flex flex-col gap-6">
+              
+              {/* FEATURES PANEL */}
+              <section className="glass-panel p-5 rounded-2xl flex-grow flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-2 border-b border-brand-steel/10 pb-3 mb-4">
+                    <span className="w-1 h-5 bg-brand-glow rounded-full"></span>
+                    <h2 className="text-lg font-bold text-brand-ice uppercase tracking-wider">FEATURES (功能特性)</h2>
+                  </div>
+                  <ul className="space-y-3">
+                    {FEATURES.map((item, idx) => (
+                      <li key={idx} className="flex items-start gap-2.5 text-xs md:text-sm text-brand-steel">
+                        <span className="mt-0.5 flex-shrink-0 w-4 h-4 rounded-full bg-emerald-500/10 border border-emerald-500/40 flex items-center justify-center">
+                          <svg className="w-2.5 h-2.5 text-emerald-400" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        </span>
+                        <span className={item.highlight ? "text-brand-ice font-semibold" : ""}>{item.text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </section>
+
+              {/* APPLICATIONS PANEL */}
+              <section className="glass-panel p-5 rounded-2xl">
+                <div className="flex items-center gap-2 border-b border-brand-steel/10 pb-3 mb-4">
+                  <span className="w-1 h-5 bg-brand-glow rounded-full"></span>
+                  <h2 className="text-lg font-bold text-brand-ice uppercase tracking-wider">APPLICATIONS (應用情境)</h2>
+                </div>
+                <div className="space-y-3">
+                  {APPLICATIONS.map((app, idx) => (
+                    <div key={idx} className="glass-card p-3 rounded-xl flex items-center gap-3">
+                      <div className="p-2 bg-brand-blue/30 rounded-lg text-brand-glow">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d={app.icon} />
+                        </svg>
+                      </div>
+                      <span className="text-xs md:text-sm font-medium text-brand-ice">{app.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+
+            {/* CENTER COLUMN: 3D EXPLO-VIEW VIEWER (Span 6) */}
+            <div className="lg:col-span-6 flex flex-col gap-6 min-h-[500px]">
+              <section className="glass-panel p-4 rounded-2xl flex-grow flex flex-col justify-between relative">
+                
+                {/* 3D Canvas */}
+                <div className="flex-grow rounded-xl overflow-hidden relative min-h-[400px]">
+                  <ExplodedView3D 
+                    explosionLevel={explosionLevel} 
+                    autoRotate={autoRotate} 
+                    activeComponent={activeComponent}
+                    setActiveComponent={setActiveComponent}
+                  />
+                </div>
+
+                {/* BOTTOM CONTROLS PANEL */}
+                <div className="mt-4 p-4 bg-brand-navy/60 rounded-xl border border-brand-steel/10 flex flex-col md:flex-row gap-4 items-center justify-between">
+                  {/* Slider Control */}
+                  <div className="flex items-center gap-3 w-full md:w-2/3">
+                    <span className="text-xs font-semibold text-brand-steel uppercase whitespace-nowrap">3D 爆炸圖展開度</span>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="100" 
+                      value={explosionLevel} 
+                      onChange={(e) => setExplosionLevel(parseInt(e.target.value))}
+                      className="w-full h-1.5 bg-brand-blue rounded-lg appearance-none cursor-pointer accent-brand-glow"
+                    />
+                    <span className="text-xs font-bold text-brand-glow w-8 text-right">{explosionLevel}%</span>
+                  </div>
+
+                  {/* Auto Rotate Control */}
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-semibold text-brand-steel uppercase cursor-pointer flex items-center gap-2">
+                      <input 
+                        type="checkbox" 
+                        checked={autoRotate} 
+                        onChange={(e) => setAutoRotate(e.target.checked)}
+                        className="rounded border-brand-steel/30 text-brand-accent focus:ring-brand-accent bg-brand-navy"
+                      />
+                      自動旋轉預覽
+                    </label>
+                  </div>
+                </div>
+
+              </section>
+            </div>
+
+            {/* RIGHT COLUMN: EXPLANATIONS & FLOW (Span 3) */}
+            <div className="lg:col-span-3 flex flex-col gap-6">
+              
+              {/* FUNCTION EXPLANATION PANEL */}
+              <section className="glass-panel p-5 rounded-2xl flex-grow flex flex-col justify-between max-h-[450px] overflow-y-auto">
+                <div>
+                  <div className="flex items-center gap-2 border-b border-brand-steel/10 pb-3 mb-4">
+                    <span className="w-1 h-5 bg-brand-glow rounded-full"></span>
+                    <h2 className="text-lg font-bold text-brand-ice uppercase tracking-wider">FUNCTION EXPLANATION</h2>
+                  </div>
+                  <div className="space-y-2">
+                    {Object.keys(COMPONENTS_DATA).map((key) => {
+                      const item = COMPONENTS_DATA[key];
+                      const isActive = activeComponent === key;
+                      return (
+                        <div 
+                          key={key} 
+                          onClick={() => selectComponent(key)}
+                          className={`p-2.5 rounded-xl text-left cursor-pointer transition-all duration-200 ${
+                            isActive 
+                              ? 'bg-brand-blue/50 border border-brand-glow shadow-md shadow-brand-glow/10 translate-x-1' 
+                              : 'glass-card border border-brand-steel/5'
+                          }`}
+                        >
+                          <div className="flex justify-between items-center mb-0.5">
+                            <h4 className={`text-xs font-bold ${isActive ? 'text-brand-glow' : 'text-brand-ice'}`}>
+                              {item.title}
+                            </h4>
+                          </div>
+                          <p className="text-[10px] text-brand-steel line-clamp-1">{item.sub}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </section>
+
+              {/* WORKING PRINCIPLE PANEL */}
+              <section className="glass-panel p-5 rounded-2xl">
+                <div className="flex items-center gap-2 border-b border-brand-steel/10 pb-3 mb-4">
+                  <span className="w-1 h-5 bg-brand-glow rounded-full"></span>
+                  <h2 className="text-lg font-bold text-brand-ice uppercase tracking-wider">WORKING PRINCIPLE</h2>
+                </div>
+                
+                {/* Visual Flow diagram using styled cards and connector dots */}
+                <div className="relative pl-6 space-y-4 border-l border-brand-blue/50">
+                  
+                  {/* Step 1 */}
+                  <div className="relative">
+                    <span className="absolute -left-[30px] top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-brand-glow/20 border border-brand-glow">
+                      <span className="h-1.5 w-1.5 rounded-full bg-brand-glow"></span>
+                    </span>
+                    <h4 className="text-xs font-bold text-brand-ice">ESP32 網路連線與對時</h4>
+                    <p className="text-[10px] text-brand-steel">啟動時自動連接 Wi-Fi 並使用 NTP 向時間伺服器校時。</p>
+                  </div>
+
+                  {/* Step 2 */}
+                  <div className="relative">
+                    <span className="absolute -left-[30px] top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-brand-blue border border-brand-steel/40">
+                      <span className="h-1.5 w-1.5 rounded-full bg-brand-steel"></span>
+                    </span>
+                    <h4 className="text-xs font-bold text-brand-ice">感測器定期數據採集</h4>
+                    <p className="text-[10px] text-brand-steel">間隔讀取 BME280 氣象數據與 PMS7003 雷射粉塵濃度。</p>
+                  </div>
+
+                  {/* Step 3 */}
+                  <div className="relative">
+                    <span className="absolute -left-[30px] top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-brand-blue border border-brand-steel/40">
+                      <span className="h-1.5 w-1.5 rounded-full bg-brand-steel"></span>
+                    </span>
+                    <h4 className="text-xs font-bold text-brand-ice">MCU 計算 AQI 指標</h4>
+                    <p className="text-[10px] text-brand-steel">依據顆粒物濃度依環保署標準計算出即時空氣品質指標。</p>
+                  </div>
+
+                  {/* Step 4 */}
+                  <div className="relative">
+                    <span className="absolute -left-[30px] top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-brand-blue border border-brand-steel/40">
+                      <span className="h-1.5 w-1.5 rounded-full bg-brand-steel"></span>
+                    </span>
+                    <h4 className="text-xs font-bold text-brand-ice">本地日誌與螢幕顯示</h4>
+                    <p className="text-[10px] text-brand-steel">將數據與時間寫入 Micro SD（CSV），並同步渲染至 TFT 彩色螢幕。</p>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+          </main>
+
+          {/* ===================== BOTTOM PANEL (GRID 3 COLUMNS) ===================== */}
+          <footer className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            
+            {/* PINOUT DIAGRAM (Column 1) */}
+            <section className="glass-panel p-5 rounded-2xl flex flex-col justify-between min-h-[380px]">
+              <div>
+                <div className="flex items-center gap-2 border-b border-brand-steel/10 pb-3 mb-4">
+                  <span className="w-1 h-5 bg-brand-glow rounded-full"></span>
+                  <h2 className="text-base font-bold text-brand-ice uppercase tracking-wider">COMPLETE PINOUT DIAGRAM</h2>
+                </div>
+                
+                {/* Interactive Grid matching physical layout */}
+                <div className="grid grid-cols-12 gap-3 items-center">
+                  
+                  {/* Left pins table */}
+                  <div className="col-span-5 text-[10px] space-y-1.5 text-right font-mono">
+                    <div className="flex justify-between items-center gap-1"><span className="text-red-400">VIN (5V)</span> <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span></div>
+                    <div className="flex justify-between items-center gap-1"><span className="text-gray-400">GND</span> <span className="w-1.5 h-1.5 rounded-full bg-gray-500"></span></div>
+                    <div className="flex justify-between items-center gap-1"><span className="text-emerald-400">GPIO21 (SDA)</span> <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span></div>
+                    <div className="flex justify-between items-center gap-1"><span className="text-emerald-400">GPIO22 (SCL)</span> <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span></div>
+                    <div className="flex justify-between items-center gap-1"><span className="text-orange-400">GPIO16 (RX2)</span> <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span></div>
+                    <div className="flex justify-between items-center gap-1"><span className="text-orange-400">GPIO17 (TX2)</span> <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span></div>
+                  </div>
+
+                  {/* Chip Flat Graphic SVG */}
+                  <div className="col-span-2 flex justify-center">
+                    <svg className="w-16 h-28" viewBox="0 0 60 110" fill="none">
+                      <rect x="5" y="10" width="50" height="90" rx="4" fill="#1C1C1C" stroke="#8DA9C4" strokeWidth="2"/>
+                      {/* ESP32 WROOM metal shield */}
+                      <rect x="15" y="20" width="30" height="35" rx="2" fill="#B0C4DE" stroke="#5F7D95" strokeWidth="1"/>
+                      <path d="M20 28h20v2H20zm0 6h20v1H20zm0 4h20v1H20zm0 4h20v1H20zm0 4h20v1H20z" stroke="#5F7D95" strokeWidth="1"/>
+                      {/* Gold pads */}
+                      <g fill="#DAA520">
+                        <circle cx="5" cy="20" r="1.5"/><circle cx="5" cy="30" r="1.5"/><circle cx="5" cy="40" r="1.5"/>
+                        <circle cx="5" cy="50" r="1.5"/><circle cx="5" cy="60" r="1.5"/><circle cx="5" cy="70" r="1.5"/>
+                        <circle cx="5" cy="80" r="1.5"/><circle cx="5" cy="90" r="1.5"/>
+                        
+                        <circle cx="55" cy="20" r="1.5"/><circle cx="55" cy="30" r="1.5"/><circle cx="55" cy="40" r="1.5"/>
+                        <circle cx="55" cy="50" r="1.5"/><circle cx="55" cy="60" r="1.5"/><circle cx="55" cy="70" r="1.5"/>
+                        <circle cx="55" cy="80" r="1.5"/><circle cx="55" cy="90" r="1.5"/>
+                      </g>
+                    </svg>
+                  </div>
+
+                  {/* Right pins table */}
+                  <div className="col-span-5 text-[10px] space-y-1.5 text-left font-mono">
+                    <div className="flex justify-start items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-500"></span> <span className="text-red-400">3V3</span></div>
+                    <div className="flex justify-start items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-gray-500"></span> <span className="text-gray-400">GND</span></div>
+                    <div className="flex justify-start items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> <span className="text-blue-400">GPIO5 (SD CS)</span></div>
+                    <div className="flex justify-start items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> <span className="text-blue-400">GPIO18 (SCK)</span></div>
+                    <div className="flex justify-start items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> <span className="text-blue-400">GPIO19 (MISO)</span></div>
+                    <div className="flex justify-start items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> <span className="text-blue-400">GPIO23 (MOSI)</span></div>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Pin mapping summary */}
+              <div className="mt-3 p-3 bg-brand-navy/60 rounded-xl border border-brand-steel/10">
+                <table className="w-full text-[10px] font-mono text-brand-steel">
+                  <thead>
+                    <tr className="border-b border-brand-steel/10 text-brand-ice">
+                      <th className="pb-1 text-left">模組名稱</th>
+                      <th className="pb-1 text-center">ESP32 引腳</th>
+                      <th className="pb-1 text-right">主要信號</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td className="py-1">PMS7003 Sensor</td><td className="text-center">GPIO16 / 17</td><td className="text-right">UART TX / RX</td></tr>
+                    <tr><td className="py-1">TFT Display</td><td className="text-center">GPIO21 / 22</td><td className="text-right">I2C SDA / SCL</td></tr>
+                    <tr><td className="py-1">SD Module</td><td className="text-center">GPIO5/18/19/23</td><td className="text-right">SPI CS/SCK/MISO/MOSI</td></tr>
+                    <tr><td className="py-1">BME280 Sensor</td><td className="text-center">GPIO21 / 22</td><td className="text-right">I2C (共享總線)</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            {/* WIRING DIAGRAM (Column 2) - Hover interactive SVG */}
+            <section className="glass-panel p-5 rounded-2xl flex flex-col justify-between min-h-[380px]">
+              <div>
+                <div className="flex justify-between items-center border-b border-brand-steel/10 pb-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="w-1 h-5 bg-brand-glow rounded-full"></span>
+                    <h2 className="text-base font-bold text-brand-ice uppercase tracking-wider">WIRING DIAGRAM (接線原理圖)</h2>
+                  </div>
+                  {/* Signal Net selector */}
+                  <div className="flex gap-1.5">
+                    {Object.keys(WIRING_NETS).map(net => (
+                      <button
+                        key={net}
+                        onMouseEnter={() => setHoveredNet(net)}
+                        onMouseLeave={() => setHoveredNet(null)}
+                        className={`px-1.5 py-0.5 rounded text-[8px] uppercase font-bold border transition-colors ${
+                          hoveredNet === net 
+                            ? 'bg-brand-glow text-brand-navy border-brand-glow' 
+                            : 'bg-brand-blue/30 text-brand-steel border-brand-steel/20'
+                        }`}
+                      >
+                        {net}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* SVG Circuit Drawing */}
+                <div className="w-full flex justify-center bg-brand-navy/30 rounded-xl border border-brand-steel/5 p-2">
+                  <svg className="w-full h-44" viewBox="0 0 500 220" fill="none">
+                    
+                    {/* SVG Filters for glowing active lines */}
+                    <defs>
+                      <filter id="glow-eff" x="-20%" y="-20%" width="140%" height="140%">
+                        <feGaussianBlur stdDeviation="2" result="blur" />
+                        <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                      </filter>
+                    </defs>
+
+                    {/* Module Blocks */}
+                    {/* PMS7003 */}
+                    <rect x="15" y="30" width="70" height="50" rx="3" fill="#1C1C1C" stroke="#8DA9C4" strokeWidth="1.5"/>
+                    <text x="50" y="55" fill="#EEF4F8" fontSize="9" fontWeight="bold" textAnchor="middle">PMS7003</text>
+                    <text x="50" y="68" fill="#8DA9C4" fontSize="7" textAnchor="middle">Laser Sensor</text>
+
+                    {/* TFT Display */}
+                    <rect x="115" y="30" width="70" height="50" rx="3" fill="#1C1C1C" stroke="#8DA9C4" strokeWidth="1.5"/>
+                    <rect x="123" y="36" width="54" height="32" rx="1" fill="#0A0A0A" stroke="#00F0FF" strokeWidth="1"/>
+                    <text x="150" y="55" fill="#00F0FF" fontSize="7" fontWeight="bold" textAnchor="middle">TFT Monitor</text>
+
+                    {/* ESP32 DEV MODULE */}
+                    <rect x="215" y="25" width="80" height="100" rx="4" fill="#000000" stroke="#8DA9C4" strokeWidth="1.5"/>
+                    <rect x="230" y="35" width="50" height="40" rx="2" fill="#B0C4DE" stroke="#5F7D95" strokeWidth="1"/>
+                    <text x="255" y="58" fill="#1C1C1C" fontSize="10" fontWeight="bold" textAnchor="middle">ESP32</text>
+                    <text x="255" y="90" fill="#8DA9C4" fontSize="8" textAnchor="middle">WROOM-32</text>
+
+                    {/* SD CARD */}
+                    <rect x="325" y="30" width="70" height="50" rx="3" fill="#1C1C1C" stroke="#8DA9C4" strokeWidth="1.5"/>
+                    <text x="360" y="55" fill="#EEF4F8" fontSize="9" fontWeight="bold" textAnchor="middle">SD CARD</text>
+                    <text x="360" y="68" fill="#8DA9C4" fontSize="7" textAnchor="middle">SPI Slot</text>
+
+                    {/* 18650 Battery */}
+                    <rect x="325" y="145" width="80" height="35" rx="8" fill="#005B96" stroke="#8DA9C4" strokeWidth="1.5"/>
+                    <rect x="405" y="157" width="4" height="10" rx="1" fill="#B0C4DE"/>
+                    <text x="365" y="166" fill="#FFFFFF" fontSize="9" fontWeight="bold" textAnchor="middle">18650 3.7V</text>
+
+                    {/* TP4056 USB-C Charger */}
+                    <rect x="215" y="150" width="70" height="40" rx="3" fill="#1C1C1C" stroke="#8DA9C4" strokeWidth="1.5"/>
+                    <rect x="210" y="162" width="5" height="16" fill="#B0C4DE"/>
+                    <text x="250" y="172" fill="#EEF4F8" fontSize="9" fontWeight="bold" textAnchor="middle">TP4056</text>
+                    <text x="250" y="182" fill="#8DA9C4" fontSize="7" textAnchor="middle">USB-C Charge</text>
+
+                    {/* Connection Wires / Paths */}
+                    
+                    {/* GND Net Wire (Grey) */}
+                    <path d="M50 80v65h165m70 0h40m-50 15v10H150v-65M360 80v50m-245-50v15M150 150v20m65-10h-25" 
+                      className="wire-line"
+                      stroke={hoveredNet === 'gnd' ? '#00F0FF' : '#4B5563'} 
+                      strokeWidth={hoveredNet === 'gnd' ? '2.5' : '1'}
+                      filter={hoveredNet === 'gnd' ? 'url(#glow-eff)' : ''}
+                    />
+
+                    {/* VCC 3.3V / 5V (Red) */}
+                    <path d="M35 80V20h180m0 15V10h120v20M135 80V15h210v15M275 190H420v-30" 
+                      className="wire-line"
+                      stroke={hoveredNet === 'vcc' ? '#FF0055' : '#EF4444'} 
+                      strokeWidth={hoveredNet === 'vcc' ? '2.5' : '1'}
+                      filter={hoveredNet === 'vcc' ? 'url(#glow-eff)' : ''}
+                    />
+
+                    {/* UART Net (TX/RX) Orange */}
+                    <path d="M70 80V95H225M80 80V105H225" 
+                      className="wire-line"
+                      stroke={hoveredNet === 'uart' ? '#FFD000' : '#F59E0B'} 
+                      strokeWidth={hoveredNet === 'uart' ? '2.5' : '1'}
+                      filter={hoveredNet === 'uart' ? 'url(#glow-eff)' : ''}
+                    />
+
+                    {/* I2C SDA/SCL Net Green */}
+                    <path d="M150 80V120H235M165 80V110H235" 
+                      className="wire-line"
+                      stroke={hoveredNet === 'i2c' ? '#10B981' : '#34D399'} 
+                      strokeWidth={hoveredNet === 'i2c' ? '2.5' : '1'}
+                      filter={hoveredNet === 'i2c' ? 'url(#glow-eff)' : ''}
+                    />
+
+                    {/* SPI Net (MOSI/MISO/SCK/CS) Blue */}
+                    <path d="M335 80V95H285M345 80V105H285M360 80V115H285M375 80V125H285" 
+                      className="wire-line"
+                      stroke={hoveredNet === 'spi' ? '#00A8E8' : '#3B82F6'} 
+                      strokeWidth={hoveredNet === 'spi' ? '2.5' : '1'}
+                      filter={hoveredNet === 'spi' ? 'url(#glow-eff)' : ''}
+                    />
+
+                  </svg>
+                </div>
+              </div>
+
+              <div className="mt-2 text-[10px] text-brand-steel flex justify-between">
+                <span>⚡ 鼠標指針滑過訊號按鈕或線路可高亮通路。</span>
+                <span>設計：TP4056 整合式充放電防護電路。</span>
+              </div>
+            </section>
+
+            {/* SPECIFICATIONS PANEL (Column 3) */}
+            <section className="glass-panel p-5 rounded-2xl flex flex-col justify-between min-h-[380px]">
+              <div>
+                <div className="flex items-center gap-2 border-b border-brand-steel/10 pb-3 mb-4">
+                  <span className="w-1 h-5 bg-brand-glow rounded-full"></span>
+                  <h2 className="text-base font-bold text-brand-ice uppercase tracking-wider">HARDWARE SPECIFICATIONS</h2>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 gap-2.5">
+                  {SPECIFICATIONS.map((spec, idx) => (
+                    <div key={idx} className="p-2.5 rounded-xl bg-brand-blue/15 border border-brand-steel/5 flex justify-between items-center">
+                      <span className="text-xs font-bold text-brand-ice">{spec.label}</span>
+                      <span className="text-xs text-brand-steel font-mono">{spec.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-4 p-3 bg-brand-accent/5 rounded-xl border border-brand-accent/20 text-[10px] text-brand-steel leading-relaxed">
+                📢 <strong>系統擴充性：</strong> 模組引腳皆有上拉與去耦防護設計，支援未來擴充物聯網雲端連線協議（MQTT, HTTP REST）。
+              </div>
+            </section>
+
+          </footer>
+
+        </div>
+      );
+    }
+
+    // Mount React App
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
