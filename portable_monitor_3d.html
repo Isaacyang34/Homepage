@@ -223,6 +223,17 @@
       const animationFrameIdRef = useRef(null);
       const [errorMsg, setErrorMsg] = useState(null);
 
+      // Refs for animation state to avoid stale closures in render loop
+      const explosionLevelRef = useRef(explosionLevel);
+      const activeComponentRef = useRef(activeComponent);
+      const autoRotateRef = useRef(autoRotate);
+
+      useEffect(() => {
+        explosionLevelRef.current = explosionLevel;
+        activeComponentRef.current = activeComponent;
+        autoRotateRef.current = autoRotate;
+      }, [explosionLevel, activeComponent, autoRotate]);
+
       // Initialize Three.js Scene
       useEffect(() => {
         try {
@@ -421,7 +432,7 @@
         wallBack.position.z = -2.35;
         bottomCase.add(baseBox, wallLeft, wallRight, wallFront, wallBack);
         mainGroup.add(bottomCase);
-        meshes.bottom_case = { group: bottomCase, baseY: -3.5, explosionScale: -1.2 };
+        meshes.bottom_case = { group: bottomCase, baseY: 0, explosionScale: -3.0 };
 
         // B. USB-C Charging Board (TP4056)
         const tp4056 = new THREE.Group();
@@ -433,7 +444,7 @@
         tp4056.add(tpPcb, tpUsb, tpChips);
         tp4056.position.set(-2, 0, 1.2); // Relative position
         mainGroup.add(tp4056);
-        meshes.tp4056_board = { group: tp4056, baseY: -2.3, explosionScale: -0.6 };
+        meshes.tp4056_board = { group: tp4056, baseY: 0.4, explosionScale: -2.0 };
 
         // C. Battery 18650 & Holder
         const batteryGrp = new THREE.Group();
@@ -447,7 +458,7 @@
         batteryGrp.add(holder, cell, cellCap);
         batteryGrp.position.set(0, 0, 1.2);
         mainGroup.add(batteryGrp);
-        meshes.battery_18650 = { group: batteryGrp, baseY: -2.1, explosionScale: -0.4 };
+        meshes.battery_18650 = { group: batteryGrp, baseY: 0.4, explosionScale: -1.5 };
 
         // D. ESP32 Main PCB Board
         const espPcb = new THREE.Group();
@@ -469,7 +480,7 @@
         pinRowRight.position.x = 2.0;
         espPcb.add(board, espChip, espShield, pinRowLeft, pinRowRight);
         mainGroup.add(espPcb);
-        meshes.esp32_module = { group: espPcb, baseY: -0.5, explosionScale: 0 };
+        meshes.esp32_module = { group: espPcb, baseY: 1.2, explosionScale: 0.5 };
 
         // E. PMS7003 Dust Sensor
         const pms = new THREE.Group();
@@ -483,7 +494,7 @@
         pms.add(pmsBody, pmsSticker, pmsIntake);
         pms.position.set(-2, 0, -0.8);
         mainGroup.add(pms);
-        meshes.pms7003 = { group: pms, baseY: 0.15, explosionScale: 0.3 };
+        meshes.pms7003 = { group: pms, baseY: 0.4, explosionScale: -0.5 };
 
         // F. SD Card Module
         const sd = new THREE.Group();
@@ -493,7 +504,7 @@
         sd.add(sdPcb, sdSlot);
         sd.position.set(2.4, 0, 1.0);
         mainGroup.add(sd);
-        meshes.sd_card = { group: sd, baseY: 0.05, explosionScale: 0.4 };
+        meshes.sd_card = { group: sd, baseY: 0.4, explosionScale: -0.2 };
 
         // G. BME280 Sensor
         const bme = new THREE.Group();
@@ -503,7 +514,7 @@
         bme.add(bmePcb, bmeMetal);
         bme.position.set(2.4, 0, -0.8);
         mainGroup.add(bme);
-        meshes.bme280 = { group: bme, baseY: 0.05, explosionScale: 0.4 };
+        meshes.bme280 = { group: bme, baseY: 0.4, explosionScale: -0.2 };
 
         // H. TFT Display
         const tft = new THREE.Group();
@@ -515,7 +526,7 @@
         tft.add(tftPcb, tftBezel, tftScreen);
         tft.position.set(0, 0, 0.5);
         mainGroup.add(tft);
-        meshes.tft_display = { group: tft, baseY: 1.8, explosionScale: 0.9 };
+        meshes.tft_display = { group: tft, baseY: 1.4, explosionScale: 1.5 };
 
         // I. Top Cover (Frosted ABS)
         const topCase = new THREE.Group();
@@ -531,7 +542,7 @@
         topWallB.position.z = -2.35;
         topCase.add(topBase, topWallL, topWallR, topWallF, topWallB);
         mainGroup.add(topCase);
-        meshes.top_case = { group: topCase, baseY: 3.5, explosionScale: 1.5 };
+        meshes.top_case = { group: topCase, baseY: 0.8, explosionScale: 3.5 };
 
         // Save references for animation
         meshesRef.current = meshes;
@@ -607,23 +618,25 @@
         };
       }, []);
 
-      // Animate explosion and active highlights
+      // Render Loop & Animation Updates
       useEffect(() => {
-        const meshes = meshesRef.current;
-        const explosion = explosionLevel / 100;
+        const render = () => {
+          // 1. Update Animations (Lerp positions & Highlight pulsing)
+          const meshes = meshesRef.current;
+          const explosion = explosionLevelRef.current / 100;
+          const activeKey = activeComponentRef.current;
 
-        Object.keys(meshes).forEach((key) => {
-          const item = meshes[key];
-          const targetY = item.baseY + item.explosionScale * explosion * 4;
-          
-          // Smooth translation
-          item.group.position.y = THREE.MathUtils.lerp(item.group.position.y, targetY, 0.15);
+          Object.keys(meshes).forEach((key) => {
+            const item = meshes[key];
+            const targetY = item.baseY + item.explosionScale * explosion * 4;
+            
+            // Smooth translation towards targetY
+            item.group.position.y = THREE.MathUtils.lerp(item.group.position.y, targetY, 0.15);
 
-          // Component Highlighting material color pulsing (safety check for emissive property)
-          item.group.traverse((child) => {
-            if (child.isMesh && child.material) {
-              if (child.material.emissive) {
-                if (activeComponent === key) {
+            // Component Highlighting material color pulsing
+            item.group.traverse((child) => {
+              if (child.isMesh && child.material && child.material.emissive) {
+                if (activeKey === key) {
                   child.material.emissive.set('#00f0ff');
                   if (child.material.emissiveIntensity !== undefined) {
                     child.material.emissiveIntensity = 0.25 + Math.sin(Date.now() * 0.008) * 0.15;
@@ -635,30 +648,34 @@
                   }
                 }
               }
-            }
+            });
           });
-        });
-      }, [explosionLevel, activeComponent]);
 
-      // Render Loop
-      useEffect(() => {
-        const render = () => {
+          // 2. Update Controls & Auto Rotation
           if (controlsRef.current) {
             controlsRef.current.update();
           }
 
-          if (autoRotate && sceneRef.current && cameraRef.current) {
+          if (autoRotateRef.current && sceneRef.current && cameraRef.current) {
             sceneRef.current.rotation.y += 0.003;
           }
 
+          // 3. Render Scene
           if (rendererRef.current && sceneRef.current && cameraRef.current) {
             rendererRef.current.render(sceneRef.current, cameraRef.current);
           }
 
           animationFrameIdRef.current = requestAnimationFrame(render);
         };
+        
         render();
-      }, [autoRotate]);
+
+        return () => {
+          if (animationFrameIdRef.current) {
+            cancelAnimationFrame(animationFrameIdRef.current);
+          }
+        };
+      }, []);
 
       // Reset camera view helper
       const resetView = () => {
