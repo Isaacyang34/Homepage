@@ -681,8 +681,8 @@ const App = (() => {
     });
 
     // 搜尋按鈕
-    document.getElementById('search-btn')?.addEventListener('click', handleSearch);
-    document.getElementById('hero-search-btn')?.addEventListener('click', handleSearch);
+    document.getElementById('search-btn')?.addEventListener('click', () => App.handleSearch());
+    document.getElementById('hero-search-btn')?.addEventListener('click', () => App.handleSearch());
 
     // 篩選
     document.querySelectorAll('.filter-chip').forEach(chip => {

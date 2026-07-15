@@ -1075,6 +1075,12 @@ function selectDestCity(code, name, emoji) {
   Tracker.showToast(`已選擇目的地：${name}`, 'success');
 }
 
+// 快速選擇目的地並滾動到搜尋欄
+function quickSelectDest(code, name, emoji) {
+  selectDestCity(code, name, emoji);
+  document.getElementById('search-section')?.scrollIntoView({ behavior: 'smooth' });
+}
+
 destSearchInput.addEventListener('input', () => {
   const q = destSearchInput.value.trim();
   destSearchQuery = q;
@@ -1260,10 +1266,258 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-function quickSelectDest(code, name, emoji) {
-  selectDestCity(code, name, emoji);
-  document.getElementById('search-btn')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-}
+// ─── 自動化測試腳本 ─────────────────────────────────────
+(function() {
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('test') !== 'true') return;
+
+  // 清空本地快取，確保測試隔離
+  localStorage.clear();
+
+  // 建立浮動的測試面板
+  const testPanel = document.createElement('div');
+  testPanel.id = 'e2e-test-panel';
+  testPanel.style.position = 'fixed';
+  testPanel.style.top = '80px';
+  testPanel.style.right = '20px';
+  testPanel.style.width = '340px';
+  testPanel.style.background = 'rgba(10, 14, 26, 0.95)';
+  testPanel.style.border = '2px solid var(--accent-purple)';
+  testPanel.style.borderRadius = '12px';
+  testPanel.style.padding = '16px';
+  testPanel.style.boxShadow = '0 10px 40px rgba(0,0,0,0.6)';
+  testPanel.style.color = '#fff';
+  testPanel.style.zIndex = '99999';
+  testPanel.style.fontFamily = 'system-ui, sans-serif';
+  testPanel.style.fontSize = '13px';
+
+  testPanel.innerHTML = `
+    <div style="font-weight:bold;font-size:15px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:8px">
+      <span>🚀 FlightPulse 自動測試中...</span>
+      <button onclick="document.getElementById('e2e-test-panel').remove()" style="background:transparent;border:none;color:#aaa;cursor:pointer;font-size:14px">✕</button>
+    </div>
+    <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px">
+      <li id="test-step-1" style="color:#aaa">⏳ 1. 確保首頁載入成功</li>
+      <li id="test-step-2" style="color:#aaa">⏳ 2. 選擇出發地為 RMQ (台中)</li>
+      <li id="test-step-3" style="color:#aaa">⏳ 3. 選擇目的地為 ICN (首爾)</li>
+      <li id="test-step-4" style="color:#aaa">⏳ 4. 點擊「搜尋最優方案」</li>
+      <li id="test-step-5" style="color:#aaa">⏳ 5. 驗證搜尋結果顯示 RMQ → ICN</li>
+      <li id="test-step-6" style="color:#aaa">⏳ 6. 測試「立即訂購」按鈕與 Toast</li>
+      <li id="test-step-7" style="color:#aaa">⏳ 7. 測試「追蹤」按鈕與 Toast</li>
+      <li id="test-step-8" style="color:#aaa">⏳ 8. 測試「比較」按鈕與底部欄</li>
+      <li id="test-step-9" style="color:#aaa">⏳ 9. 測試「比較 Modal」</li>
+      <li id="test-step-10" style="color:#aaa">⏳ 10. 測試導覽分頁（追蹤、歷史）</li>
+    </ul>
+    <div id="test-summary" style="margin-top:12px;font-weight:bold;color:var(--accent-cyan);text-align:center">測試準備中...</div>
+  `;
+  document.body.appendChild(testPanel);
+
+  const setStepStatus = (stepNum, status, errorMsg = '') => {
+    const el = document.getElementById(`test-step-${stepNum}`);
+    if (!el) return;
+    if (status === 'success') {
+      el.innerHTML = `✅ ${el.innerHTML.substring(2)}`;
+      el.style.color = '#10b981';
+      el.style.fontWeight = 'bold';
+    } else if (status === 'fail') {
+      el.innerHTML = `❌ ${el.innerHTML.substring(2)} ${errorMsg ? '(' + errorMsg + ')' : ''}`;
+      el.style.color = '#ef4444';
+      el.style.fontWeight = 'bold';
+    } else if (status === 'running') {
+      el.innerHTML = `🔄 ${el.innerHTML.substring(2)}`;
+      el.style.color = '#f59e0b';
+      el.style.fontWeight = 'bold';
+    }
+  };
+
+  const delay = ms => new Promise(res => setTimeout(res, ms));
+
+  async function runTests() {
+    let currentStep = 1;
+    try {
+      // Step 1: 首頁載入成功
+      currentStep = 1;
+      setStepStatus(1, 'running');
+      await delay(500);
+      if (document.getElementById('search-btn')) {
+        setStepStatus(1, 'success');
+      } else {
+        throw new Error('找不到搜尋按鈕');
+      }
+
+      // Step 2: 選擇出發地為 RMQ
+      currentStep = 2;
+      setStepStatus(2, 'running');
+      await delay(300);
+      selectAirport('RMQ', '台中清泉崗機場', '🛫');
+      if (selectedFromCode === 'RMQ') {
+        setStepStatus(2, 'success');
+      } else {
+        throw new Error('設定 RMQ 失敗');
+      }
+
+      // Step 3: 選擇目的地為 ICN
+      currentStep = 3;
+      setStepStatus(3, 'running');
+      await delay(300);
+      selectDestCity('ICN', '首爾 仁川', '🎎');
+      if (selectedDestCode === 'ICN') {
+        setStepStatus(3, 'success');
+      } else {
+        throw new Error('設定 ICN 失敗');
+      }
+
+      // Step 4: 點擊搜尋最優方案
+      currentStep = 4;
+      setStepStatus(4, 'running');
+      await delay(300);
+      document.getElementById('search-btn').click();
+      setStepStatus(4, 'success');
+
+      // Step 5: 驗證搜尋結果
+      currentStep = 5;
+      setStepStatus(5, 'running');
+      await delay(2000); // 等待模擬 API 完成
+      const cards = document.querySelectorAll('.result-card');
+      if (cards.length > 0) {
+        const firstCardText = cards[0].textContent;
+        if (firstCardText.includes('RMQ') && firstCardText.includes('ICN')) {
+          setStepStatus(5, 'success');
+        } else {
+          throw new Error('搜尋結果的起訖點代碼不符合 RMQ 和 ICN');
+        }
+      } else {
+        throw new Error('沒有搜尋結果卡片');
+      }
+
+      // Step 6: 立即訂購與 Toast
+      currentStep = 6;
+      setStepStatus(6, 'running');
+      await delay(300);
+      const bookBtn = document.querySelectorAll('.btn-book')[0];
+      if (bookBtn) {
+        bookBtn.click();
+        await delay(500);
+        const toasts = document.querySelectorAll('.toast.info');
+        const hasBookingToast = Array.from(toasts).some(t => t.textContent.includes('正在前往'));
+        if (hasBookingToast) {
+          setStepStatus(6, 'success');
+        } else {
+          throw new Error('沒有顯示訂購 Toast 提示');
+        }
+      } else {
+        throw new Error('找不到訂購按鈕');
+      }
+
+      // Step 7: 追蹤與 Toast
+      currentStep = 7;
+      setStepStatus(7, 'running');
+      await delay(1200); // 等待上一個 toast 消失一點點
+      const trackBtn = document.querySelectorAll('.btn-track')[0];
+      if (trackBtn) {
+        trackBtn.click();
+        await delay(500);
+        const toasts = document.querySelectorAll('.toast.success');
+        const hasTrackedToast = Array.from(toasts).some(t => t.textContent.includes('已加入追蹤'));
+        if (hasTrackedToast) {
+          setStepStatus(7, 'success');
+        } else {
+          const allToasts = document.querySelectorAll('.toast');
+          const toastTexts = Array.from(allToasts).map(t => `${t.className}: "${t.textContent}"`).join(' | ');
+          throw new Error(`找不到追蹤成功 Toast。當前 Toasts: [${toastTexts || '無'}]`);
+        }
+      } else {
+        throw new Error('找不到追蹤按鈕');
+      }
+
+      // Step 8: 比較按鈕與底部欄
+      currentStep = 8;
+      setStepStatus(8, 'running');
+      await delay(300);
+      const compareBtn1 = document.querySelectorAll('.btn-compare')[0];
+      if (compareBtn1) {
+        compareBtn1.click();
+        await delay(500);
+        const count = document.getElementById('compare-count')?.textContent;
+        const bar = document.getElementById('compare-bar');
+        if (bar && bar.classList.contains('visible') && count === '1') {
+          setStepStatus(8, 'success');
+        } else {
+          throw new Error('比較欄沒有彈出或數量不對');
+        }
+      } else {
+        throw new Error('找不到第一個比較按鈕');
+      }
+
+      // Step 9: 比較 Modal
+      currentStep = 9;
+      setStepStatus(9, 'running');
+      await delay(300);
+      const compareBtn2 = document.querySelectorAll('.btn-compare')[1];
+      if (compareBtn2) {
+        compareBtn2.click(); // 加入第二個
+        await delay(500);
+        const nowBtn = document.getElementById('compare-now-btn');
+        if (nowBtn) {
+          nowBtn.click();
+          await delay(800);
+          const modal = document.getElementById('compare-modal');
+          if (modal && modal.classList.contains('open')) {
+            setStepStatus(9, 'success');
+            // 關閉 modal
+            document.getElementById('modal-close-btn').click();
+          } else {
+            throw new Error('比較 Modal 沒有開啟');
+          }
+        } else {
+          throw new Error('找不到立即比較按鈕');
+        }
+      } else {
+        throw new Error('找不到第二個比較按鈕');
+      }
+
+      // Step 10: 導覽分頁（追蹤、歷史）
+      currentStep = 10;
+      setStepStatus(10, 'running');
+      await delay(500);
+      // 點擊已追蹤
+      App.navigate('tracker');
+      await delay(500);
+      const trackedList = document.getElementById('tracker-list');
+      const hasTracked = trackedList && trackedList.querySelectorAll('.alert-card').length > 0;
+
+      // 點擊歷史
+      App.navigate('history');
+      await delay(500);
+      const historyList = document.getElementById('history-container');
+      const hasHistory = historyList && historyList.querySelectorAll('.history-card').length > 0;
+
+      if (hasTracked && hasHistory) {
+        setStepStatus(10, 'success');
+      } else {
+        throw new Error(`頁面切換或資料儲存失敗: 追蹤=${hasTracked}, 歷史=${hasHistory}`);
+      }
+
+      // 測試結束
+      await delay(500);
+      document.getElementById('test-summary').innerText = '🎉 測試全部通過！';
+      document.getElementById('test-summary').style.color = '#10b981';
+      // 切回搜尋頁面
+      App.navigate('search');
+
+    } catch (err) {
+      console.error(err);
+      document.getElementById('test-summary').innerText = '❌ 測試失敗！';
+      document.getElementById('test-summary').style.color = '#ef4444';
+      // 標示出錯的步驟
+      setStepStatus(currentStep, 'fail', err.message);
+    }
+  }
+
+  window.addEventListener('load', () => {
+    setTimeout(runTests, 1500);
+  });
+})();
 </script>
 </body>
 </html>
