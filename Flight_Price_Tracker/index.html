@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FlightPulse — 旅遊機票智慧比價追蹤</title>
+  <meta name="description" content="智慧追蹤旅遊機票與住宿最低價，整合各大平台即時比價，趨勢圖分析，最低價自動推播提醒。">
+  <meta name="theme-color" content="#050810">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="css/style.css">
+
+  <style>
+    /* ===== 出發地 下拉選單 ===== */
+    .airport-select-wrapper {
+      position: relative;
+    }
+    .airport-select-btn {
+      width: 100%;
+      padding: 14px 16px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-size: 15px;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      transition: all var(--transition-fast);
+    }
+    .airport-select-btn:hover,
+    .airport-select-btn.open {
+      border-color: var(--accent-purple);
+      background: rgba(99,102,241,0.06);
+    }
+    .airport-select-btn .btn-arrow {
+      transition: transform var(--transition-fast);
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+    .airport-select-btn.open .btn-arrow { transform: rotate(180deg); }
+
+    .airport-dropdown {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0; right: 0;
+      background: rgba(8, 12, 24, 0.98);
+      backdrop-filter: blur(24px);
+      border: 1px solid rgba(99,102,241,0.3);
+      border-radius: var(--radius-md);
+      z-index: 400;
+      overflow: hidden;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+      display: none;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+    .airport-dropdown.open { display: block; }
+
+    .airport-group-label {
+      padding: 10px 16px 6px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      background: rgba(255,255,255,0.02);
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .airport-option {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 16px;
+      cursor: pointer;
+      transition: background var(--transition-fast);
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+    .airport-option:hover { background: rgba(99,102,241,0.12); }
+    .airport-option.selected { background: rgba(99,102,241,0.18); }
+    .airport-option .ap-code {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent-purple-light);
+      width: 36px;
+      flex-shrink: 0;
+    }
+    .airport-option .ap-info { flex: 1; }
+    .airport-option .ap-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+    .airport-option .ap-city { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+    .airport-option .ap-emoji { font-size: 18px; flex-shrink: 0; }
+
+    /* ===== 目的地 分類選單 ===== */
+    .dest-picker-btn {
+      width: 100%;
+      padding: 14px 16px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-size: 15px;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      transition: all var(--transition-fast);
+    }
+    .dest-picker-btn:hover { border-color: var(--accent-purple); background: rgba(99,102,241,0.06); }
+    .dest-picker-btn .placeholder { color: var(--text-muted); }
+
+    /* 目的地 Modal */
+    .dest-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(5,8,16,0.88);
+      backdrop-filter: blur(10px);
+      z-index: 600;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 60px 20px 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--transition-smooth);
+    }
+    .dest-modal-overlay.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+    .dest-modal {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius-xl);
+      width: 100%;
+      max-width: 760px;
+      max-height: 80vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.7);
+      transform: translateY(-10px);
+      transition: transform var(--transition-smooth);
+    }
+    .dest-modal-overlay.open .dest-modal { transform: translateY(0); }
+
+    .dest-modal-header {
+      padding: 24px 24px 0;
+      flex-shrink: 0;
+    }
+    .dest-modal-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .dest-modal-close {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: var(--bg-input);
+      border: 1px solid var(--border-glass);
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 16px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all var(--transition-fast);
+    }
+    .dest-modal-close:hover { color: var(--text-primary); background: var(--bg-card-hover); }
+
+    /* 搜尋列 */
+    .dest-search-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius-md);
+      margin-bottom: 16px;
+      transition: border-color var(--transition-fast);
+    }
+    .dest-search-bar:focus-within { border-color: var(--accent-purple); }
+    .dest-search-bar input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: 'Inter', sans-serif;
+    }
+    .dest-search-bar input::placeholder { color: var(--text-muted); }
+
+    /* 區域分類頁籤 */
+    .dest-region-tabs {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      margin-bottom: 0;
+      scrollbar-width: none;
+    }
+    .dest-region-tabs::-webkit-scrollbar { display: none; }
+    .dest-region-tab {
+      flex-shrink: 0;
+      padding: 7px 16px;
+      border-radius: 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-glass);
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      white-space: nowrap;
+    }
+    .dest-region-tab:hover { border-color: var(--border-accent); color: var(--text-primary); }
+    .dest-region-tab.active {
+      background: rgba(99,102,241,0.18);
+      border-color: var(--accent-purple);
+      color: var(--accent-purple-light);
+    }
+
+    /* 目的地城市卡片網格 */
+    .dest-modal-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 24px 24px;
+    }
+    .dest-city-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 10px;
+    }
+    .dest-city-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius-md);
+      padding: 14px 12px;
+      text-align: center;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+    .dest-city-card:hover {
+      border-color: var(--border-accent);
+      background: rgba(99,102,241,0.08);
+      transform: translateY(-2px);
+    }
+    .dest-city-card.selected {
+      border-color: var(--accent-cyan);
+      background: rgba(34,211,238,0.1);
+    }
+    .dest-city-card .city-flag  { font-size: 28px; margin-bottom: 6px; }
+    .dest-city-card .city-name  { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+    .dest-city-card .city-code  { font-size: 10px; color: var(--accent-purple-light); margin-top: 2px; }
+    .dest-city-card .city-from  { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+
+    /* ===== 日期模式切換 ===== */
+    .date-mode-toggle {
+      display: flex;
+      gap: 0;
+      background: var(--bg-input);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius-md);
+      padding: 3px;
+      margin-bottom: 16px;
+    }
+    .date-mode-btn {
+      flex: 1;
+      padding: 9px 12px;
+      border-radius: calc(var(--radius-md) - 3px);
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      font-family: 'Inter', sans-serif;
+      white-space: nowrap;
+    }
+    .date-mode-btn.active {
+      background: rgba(99,102,241,0.2);
+      color: var(--accent-purple-light);
+      box-shadow: 0 2px 8px rgba(99,102,241,0.2);
+    }
+
+    /* 精確日期區塊 */
+    .date-exact { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .date-exact.hidden, .date-flexible.hidden { display: none; }
+
+    /* 彈性日期區塊 */
+    .date-flexible { display: flex; flex-direction: column; gap: 14px; }
+
+    /* 月份區間列 */
+    .flex-month-row {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 10px;
+    }
+    .flex-month-sep {
+      font-size: 18px;
+      color: var(--accent-purple-light);
+      text-align: center;
+      font-weight: 700;
+    }
+    .month-select {
+      width: 100%;
+      padding: 13px 14px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      cursor: pointer;
+      transition: border-color var(--transition-fast);
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2394a3b8' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 36px;
+    }
+    .month-select:focus { border-color: var(--accent-purple); background-color: rgba(99,102,241,0.06); }
+    .month-select option { background: #0a0e1a; color: #f1f5f9; }
+
+    /* 固定天數列 */
+    .flex-nights-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .flex-nights-label {
+      font-size: 13px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .flex-nights-stepper {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      background: var(--bg-input);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      transition: border-color var(--transition-fast);
+    }
+    .flex-nights-stepper:focus-within { border-color: var(--accent-purple); }
+    .flex-night-btn {
+      width: 44px; height: 46px;
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 20px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all var(--transition-fast);
+    }
+    .flex-night-btn:hover { color: var(--accent-purple-light); background: rgba(99,102,241,0.1); }
+    .flex-night-val {
+      min-width: 48px;
+      text-align: center;
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text-primary);
+      pointer-events: none;
+      user-select: none;
+    }
+    .flex-night-unit {
+      padding: 0 12px 0 4px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* 彈性日期摘要標籤 */
+    .flexible-summary {
+      padding: 12px 16px;
+      background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(34,211,238,0.06));
+      border: 1px solid rgba(99,102,241,0.25);
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      color: var(--text-primary);
+      display: none;
+      line-height: 1.6;
+    }
+    .flexible-summary.visible { display: block; }
+    .flex-highlight { color: var(--accent-cyan); font-weight: 700; }
+
+    /* ===== 其他元件 ===== */
+    .autocomplete-wrapper { position: relative; }
+    .quick-dest-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 10px;
+      margin-bottom: 40px;
+    }
+    .quick-dest-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius-md);
+      padding: 14px 12px;
+      text-align: center;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+    .quick-dest-card:hover { border-color: var(--border-accent); transform: translateY(-2px); }
+    .quick-dest-card .dest-emoji  { font-size: 28px; margin-bottom: 6px; }
+    .quick-dest-card .dest-name   { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+    .quick-dest-card .dest-price  { font-size: 12px; color: var(--accent-purple-light); margin-top: 3px; }
+    .quick-dest-card .dest-country{ font-size: 11px; color: var(--text-muted); }
+    #search-summary { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+
+    .page-header { padding: 40px 40px 0; max-width: 1300px; margin: 0 auto; }
+    .page-header-inner { margin-bottom: 32px; }
+    .page-header h2 { font-family: 'Outfit',sans-serif; font-size: 28px; font-weight: 800; margin-bottom: 8px; }
+    .page-header p { color: var(--text-muted); font-size: 14px; }
+    .notif-feature-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+    .notif-feature-item { display:flex; align-items:flex-start; gap:10px; padding:14px; background:rgba(255,255,255,0.03); border-radius:var(--radius-md); border:1px solid var(--border-glass); }
+    .notif-feature-icon { font-size:20px; flex-shrink:0; }
+    .notif-feature-title { font-size:13px; font-weight:600; color:var(--text-primary); }
+    .notif-feature-desc  { font-size:12px; color:var(--text-muted); margin-top:2px; }
+    .about-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:24px; }
+    .about-card { background:var(--bg-card); border:1px solid var(--border-glass); border-radius:var(--radius-md); padding:24px; text-align:center; }
+    .about-card-icon { font-size:36px; margin-bottom:12px; }
+    .about-card h4 { font-size:15px; font-weight:700; margin-bottom:8px; }
+    .about-card p  { font-size:13px; color:var(--text-muted); line-height:1.6; }
+    #compare-modal { position:relative; }
+    .modal-box { position:relative; }
+
+    @media (max-width: 768px) {
+      .about-grid { grid-template-columns:1fr; }
+      .notif-feature-list { grid-template-columns:1fr; }
+      .quick-dest-grid { grid-template-columns:repeat(3,1fr); }
+      .date-exact, .date-flexible { grid-template-columns:1fr; }
+      .dest-city-grid { grid-template-columns:repeat(3,1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="stars-bg"></div>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+<div class="toast-container" id="toast-container"></div>
+
+<!-- 比較底欄 -->
+<div class="compare-bar" id="compare-bar">
+  <div style="font-size:13px;font-weight:600;color:var(--text-secondary);white-space:nowrap">
+    ⚖️ 比較清單（<span id="compare-count">0</span>/3）
+  </div>
+  <div class="compare-items" id="compare-bar-items"></div>
+  <button class="btn-compare-now" id="compare-now-btn">立即比較 →</button>
+</div>
+
+<!-- 比較 Modal -->
+<div class="modal-overlay" id="compare-modal">
+  <div class="modal-box">
+    <button class="modal-close" id="modal-close-btn">✕</button>
+    <div class="section-title" style="margin-bottom:24px;font-size:24px">⚖️ 方案詳細比較</div>
+    <div class="modal-body"></div>
+  </div>
+</div>
+
+<!-- 目的地分類選單 Modal -->
+<div class="dest-modal-overlay" id="dest-modal-overlay">
+  <div class="dest-modal" id="dest-modal">
+    <div class="dest-modal-header">
+      <div class="dest-modal-title">
+        🌍 選擇目的地
+        <button class="dest-modal-close" id="dest-modal-close">✕</button>
+      </div>
+      <div class="dest-search-bar">
+        <span style="color:var(--text-muted)">🔍</span>
+        <input type="text" id="dest-search-input" placeholder="搜尋城市、國家或機場代碼…" autocomplete="off">
+      </div>
+      <div class="dest-region-tabs" id="dest-region-tabs"></div>
+    </div>
+    <div class="dest-modal-body">
+      <div class="dest-city-grid" id="dest-city-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 主應用 -->
+<div id="app">
+
+  <nav class="navbar">
+    <a class="logo" href="#">
+      <div class="logo-icon">✈️</div>
+      <div class="logo-text">FlightPulse</div>
+    </a>
+    <div class="nav-actions">
+      <button class="nav-btn" data-page="home"    id="nav-home">🏠 搜尋</button>
+      <button class="nav-btn" data-page="results" id="nav-results">📊 結果</button>
+      <button class="nav-btn" data-page="tracker" id="nav-tracker">🔔 追蹤</button>
+      <button class="nav-btn" data-page="history" id="nav-history">🕐 記錄</button>
+      <button class="nav-btn" data-page="about"   id="nav-about">ℹ️ 關於</button>
+    </div>
+  </nav>
+
+  <!-- ==================== 首頁 ==================== -->
+  <section class="page-section active" id="page-home">
+    <div class="hero">
+      <div class="hero-badge"><span>⚡</span> 即時比價 · 智慧追蹤 · 最低價提醒</div>
+      <h1>找到最完美的<br>旅遊方案</h1>
+      <p>一鍵比較各大旅遊平台機票與住宿，趨勢圖追蹤 7 天歷史，最低價格自動推播通知。</p>
+
+      <div class="search-card">
+
+        <!-- 出發地 & 目的地 -->
+        <div class="search-row">
+          <!-- 出發地：台灣機場下拉 -->
+          <div class="form-group">
+            <label class="form-label">✈️ 出發地（台灣機場）</label>
+            <div class="airport-select-wrapper">
+              <button class="airport-select-btn" id="from-airport-btn" type="button">
+                <span id="from-airport-label">🛫 桃園國際機場 (TPE)</span>
+                <span class="btn-arrow">▼</span>
+              </button>
+              <div class="airport-dropdown" id="from-airport-dropdown"></div>
+            </div>
+          </div>
+
+          <!-- 目的地：分類選單 -->
+          <div class="form-group">
+            <label class="form-label">🌍 目的地</label>
+            <button class="dest-picker-btn" id="dest-picker-btn" type="button">
+              <span id="dest-picker-label" class="placeholder">點擊選擇目的地城市</span>
+              <span style="color:var(--text-muted);font-size:12px">▼</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 日期模式切換 -->
+        <div class="date-mode-toggle">
+          <button class="date-mode-btn active" id="mode-exact"    type="button">📅 精確日期</button>
+          <button class="date-mode-btn"        id="mode-flexible" type="button">📆 彈性月份</button>
+        </div>
+
+        <!-- 精確日期 -->
+        <div class="date-exact" id="date-exact-block">
+          <div class="form-group">
+            <label class="form-label" for="depart-date">📅 出發日期</label>
+            <input class="form-input" id="depart-date" type="date">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="return-date">📅 回程日期</label>
+            <input class="form-input" id="return-date" type="date">
+          </div>
+        </div>
+
+        <!-- 彈性日期 -->
+        <div class="date-flexible hidden" id="date-flexible-block">
+          <!-- 出發月份區間 -->
+          <div class="form-group">
+            <label class="form-label">📆 出發月份區間</label>
+            <div class="flex-month-row">
+              <select class="month-select" id="flex-month-start"></select>
+              <div class="flex-month-sep">→</div>
+              <select class="month-select" id="flex-month-end"></select>
+            </div>
+          </div>
+          <!-- 旅行天數（固定） -->
+          <div class="form-group">
+            <label class="form-label">🌙 旅行天數</label>
+            <div class="flex-nights-row">
+              <span class="flex-nights-label">我想旅行</span>
+              <div class="flex-nights-stepper">
+                <button class="flex-night-btn" id="flex-night-dec" type="button">−</button>
+                <div class="flex-night-val" id="flex-night-val">5</div>
+                <span class="flex-night-unit">天</span>
+                <button class="flex-night-btn" id="flex-night-inc" type="button">+</button>
+              </div>
+              <span class="flex-nights-label">（含回程日）</span>
+            </div>
+          </div>
+          <!-- 摘要預覽 -->
+          <div class="flexible-summary" id="flexible-summary"></div>
+        </div>
+
+        <!-- 人數 -->
+        <div class="search-row-3" style="margin-top:16px">
+          <div class="form-group">
+            <label class="form-label">🧑 成人</label>
+            <div class="quantity-input">
+              <button class="qty-btn" id="adults-dec">−</button>
+              <div class="qty-display" id="adults-display">2</div>
+              <button class="qty-btn" id="adults-inc">+</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">👶 兒童</label>
+            <div class="quantity-input">
+              <button class="qty-btn" id="children-dec">−</button>
+              <div class="qty-display" id="children-display">0</div>
+              <button class="qty-btn" id="children-inc">+</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">🌙 旅行天數</label>
+            <div class="quantity-input">
+              <button class="qty-btn" id="nights-dec">−</button>
+              <div class="qty-display" id="nights-display">5</div>
+              <button class="qty-btn" id="nights-inc">+</button>
+            </div>
+          </div>
+        </div>
+
+        <button class="search-btn" id="search-btn" style="margin-top:16px">
+          <span class="btn-icon">🔍</span>
+          <span class="btn-text">搜尋最優方案</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 熱門目的地 -->
+    <div class="content-area" style="padding-top:0">
+      <div class="section-header">
+        <div class="section-title">🔥 熱門目的地</div>
+        <div class="section-subtitle">點擊快速選擇</div>
+      </div>
+      <div class="quick-dest-grid" id="quick-dest-grid"></div>
+      <div class="about-grid">
+        <div class="about-card">
+          <div class="about-card-icon">📊</div>
+          <h4>7 天趨勢圖</h4>
+          <p>清晰呈現過去一週各平台價格波動，讓您掌握最佳購票時機。</p>
+        </div>
+        <div class="about-card">
+          <div class="about-card-icon">🔔</div>
+          <h4>最低價提醒</h4>
+          <p>追蹤心儀方案，當偵測到 7 天最低價或達到目標價格，立即推播通知。</p>
+        </div>
+        <div class="about-card">
+          <div class="about-card-icon">⚖️</div>
+          <h4>多方案比較</h4>
+          <p>最多同時比較 3 個方案，支援雷達圖綜合評比，輕鬆做出最佳決策。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 搜尋結果頁 ==================== -->
+  <section class="page-section" id="page-results">
+    <div class="page-header">
+      <div class="page-header-inner">
+        <h2>搜尋結果</h2>
+        <div id="search-summary"></div>
+      </div>
+    </div>
+    <div class="content-area" style="padding-top:0">
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-label">📍 今日最低總價</div>
+          <div class="stat-value" id="stat-today">—</div>
+          <div class="stat-sub" id="stat-today-sub"></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">📉 7天最低價</div>
+          <div class="stat-value" id="stat-min">—</div>
+          <div class="stat-sub">歷史最低記錄</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">📈 7天最高價</div>
+          <div class="stat-value" id="stat-max">—</div>
+          <div class="stat-sub" id="stat-trend-sub"></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">🎯 最多可省</div>
+          <div class="stat-value" id="stat-avg">—</div>
+          <div class="stat-sub" id="stat-save-sub"></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="section-title">📈 7 天價格趨勢</div>
+          <div class="chart-toggle">
+            <button class="chart-toggle-btn active" id="trend-total">總價</button>
+            <button class="chart-toggle-btn" id="trend-flight">機票</button>
+            <button class="chart-toggle-btn" id="trend-hotel">住宿</button>
+          </div>
+        </div>
+        <div class="chart-container"><canvas id="trend-chart"></canvas></div>
+      </div>
+      <div class="section-header"><div class="section-title">🎫 所有方案</div></div>
+      <div class="filter-bar">
+        <button class="filter-chip active" id="filter-total"  data-filter="total">💰 總價最低</button>
+        <button class="filter-chip"        id="filter-flight" data-filter="flight">✈️ 機票最低</button>
+        <button class="filter-chip"        id="filter-hotel"  data-filter="hotel">🏨 住宿最低</button>
+        <button class="filter-chip"        id="filter-rating" data-filter="rating">⭐ 評分最高</button>
+        <button class="filter-chip"        id="filter-stops"  data-filter="stops">🛑 停靠最少</button>
+      </div>
+      <div class="results-grid" id="results-container">
+        <div class="empty-state">
+          <div class="empty-state-icon">🔍</div>
+          <h3>請先進行搜尋</h3>
+          <p>在「搜尋」頁面輸入目的地、日期與人數，開始比價</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 追蹤頁 ==================== -->
+  <section class="page-section" id="page-tracker">
+    <div class="page-header">
+      <div class="page-header-inner">
+        <h2>🔔 價格追蹤</h2>
+        <p>每次開啟頁面自動比對最新價格，達到最低價或目標價格即時通知</p>
+      </div>
+    </div>
+    <div class="content-area" style="padding-top:0">
+      <div class="notification-panel">
+        <div class="notification-toggle">
+          <div>
+            <div class="section-title" style="font-size:18px">🔔 瀏覽器推播通知</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:4px">開啟後，偵測到最低價時自動推播通知</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="notif-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="notif-feature-list">
+          <div class="notif-feature-item">
+            <div class="notif-feature-icon">📉</div>
+            <div><div class="notif-feature-title">7 天最低價提醒</div><div class="notif-feature-desc">當偵測到近 7 天最低價自動推播</div></div>
+          </div>
+          <div class="notif-feature-item">
+            <div class="notif-feature-icon">🎯</div>
+            <div><div class="notif-feature-title">目標價格提醒</div><div class="notif-feature-desc">設定目標金額，低於目標立即通知</div></div>
+          </div>
+          <div class="notif-feature-item">
+            <div class="notif-feature-icon">🔄</div>
+            <div><div class="notif-feature-title">每日自動更新</div><div class="notif-feature-desc">每日開啟頁面自動刷新追蹤方案</div></div>
+          </div>
+          <div class="notif-feature-item">
+            <div class="notif-feature-icon">📊</div>
+            <div><div class="notif-feature-title">30 天歷史記錄</div><div class="notif-feature-desc">長期追蹤價格波動趨勢</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="section-header"><div class="section-title">📌 已追蹤方案</div></div>
+      <div id="tracker-list"></div>
+    </div>
+  </section>
+
+  <!-- ==================== 搜尋記錄頁 ==================== -->
+  <section class="page-section" id="page-history">
+    <div class="page-header">
+      <div class="page-header-inner">
+        <h2>🕐 搜尋記錄</h2>
+        <p>最近 10 筆搜尋記錄，點擊可快速重新搜尋</p>
+      </div>
+    </div>
+    <div class="content-area" style="padding-top:0">
+      <div class="section-header">
+        <div class="section-title">最近搜尋</div>
+        <button class="nav-btn" onclick="Storage.clearSearchHistory();App.navigate('history')" style="font-size:12px">清除全部</button>
+      </div>
+      <div id="history-container"></div>
+    </div>
+  </section>
+
+  <!-- ==================== 關於頁 ==================== -->
+  <section class="page-section" id="page-about">
+    <div class="page-header">
+      <div class="page-header-inner">
+        <h2>ℹ️ 關於 FlightPulse</h2>
+        <p>旅遊機票智慧比價追蹤平台</p>
+      </div>
+    </div>
+    <div class="content-area" style="padding-top:0">
+      <div class="chart-card">
+        <div style="font-size:48px;margin-bottom:16px;text-align:center">✈️</div>
+        <h3 style="font-family:'Outfit',sans-serif;font-size:24px;font-weight:800;text-align:center;margin-bottom:12px">FlightPulse</h3>
+        <p style="text-align:center;color:var(--text-muted);max-width:500px;margin:0 auto 24px;line-height:1.8">
+          FlightPulse 是一個純前端旅遊比價工具，整合多平台機票與住宿資訊，
+          提供 7 天趨勢圖與智慧低價提醒功能，幫助旅行者找到最佳出行時機。
+        </p>
+        <div class="about-grid">
+          <div class="about-card"><div class="about-card-icon">🌏</div><h4>30+ 目的地</h4><p>涵蓋亞洲、歐洲、美洲、大洋洲主要城市與機場</p></div>
+          <div class="about-card"><div class="about-card-icon">🏢</div><h4>9 大平台</h4><p>整合 Skyscanner、Google Flights、易遊網、雄獅旅遊等</p></div>
+          <div class="about-card"><div class="about-card-icon">💾</div><h4>本地儲存</h4><p>搜尋記錄、追蹤方案與價格歷史皆儲存於本地，保護隱私</p></div>
+        </div>
+        <div style="margin-top:24px;padding:16px;background:rgba(99,102,241,0.06);border-radius:var(--radius-md);border:1px solid rgba(99,102,241,0.2)">
+          <div style="font-size:13px;color:var(--text-muted);line-height:1.8">
+            ⚠️ <strong>說明：</strong>本程式目前使用高真實感模擬數據。真實 API 整合需要 Skyscanner / RapidAPI 等服務的 API Key，可於 <code>js/data.js</code> 中的 API 適配層進行替換。
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- #app -->
+
+<script src="js/storage.js"></script>
+<script src="js/data.js"></script>
+<script src="js/chart-module.js"></script>
+<script src="js/tracker.js"></script>
+<script src="js/app.js"></script>
+
+<script>
+/* =========================================================
+   UI 擴充：台灣機場選單 + 目的地分類 + 彈性日期
+   ========================================================= */
+
+// ─── 台灣所有機場資料 ───────────────────────────────────
+const TW_AIRPORTS = {
+  '國際機場': [
+    { code: 'TPE', name: '桃園國際機場', city: '桃園市', emoji: '🛫' },
+    { code: 'TSA', name: '台北松山機場', city: '台北市', emoji: '🛫' },
+    { code: 'RMQ', name: '台中清泉崗機場', city: '台中市', emoji: '🛫' },
+    { code: 'TNN', name: '台南機場', city: '台南市', emoji: '🛫' },
+    { code: 'KHH', name: '高雄國際機場', city: '高雄市', emoji: '🛫' },
+  ],
+  '國內機場': [
+    { code: 'HUN', name: '花蓮機場', city: '花蓮縣', emoji: '🛩️' },
+    { code: 'TTT', name: '台東豐年機場', city: '台東縣', emoji: '🛩️' },
+    { code: 'KNH', name: '金門尚義機場', city: '金門縣', emoji: '🛩️' },
+    { code: 'MZG', name: '澎湖馬公機場', city: '澎湖縣', emoji: '🛩️' },
+    { code: 'LZN', name: '馬祖南竿機場', city: '連江縣', emoji: '🛩️' },
+    { code: 'MFK', name: '馬祖北竿機場', city: '連江縣', emoji: '🛩️' },
+    { code: 'GNI', name: '綠島機場', city: '台東縣', emoji: '🛩️' },
+    { code: 'KYD', name: '蘭嶼機場', city: '台東縣', emoji: '🛩️' },
+    { code: 'CMJ', name: '七美機場', city: '澎湖縣', emoji: '🛩️' },
+    { code: 'WOT', name: '望安機場', city: '澎湖縣', emoji: '🛩️' },
+  ],
+};
+
+// ─── 目的地分類資料（旅遊網站風格）─────────────────────
+const DEST_CATEGORIES = {
+  '🔥 熱門':  [
+    { code:'NRT', name:'東京 成田', country:'日本', emoji:'⛩️', from:8500 },
+    { code:'HND', name:'東京 羽田', country:'日本', emoji:'🗼', from:9000 },
+    { code:'KIX', name:'大阪', country:'日本', emoji:'🏯', from:7800 },
+    { code:'ICN', name:'首爾 仁川', country:'韓國', emoji:'🎎', from:6000 },
+    { code:'BKK', name:'曼谷', country:'泰國', emoji:'🌺', from:9800 },
+    { code:'SIN', name:'新加坡', country:'新加坡', emoji:'🦁', from:11000 },
+    { code:'HKG', name:'香港', country:'香港', emoji:'🐉', from:5500 },
+    { code:'OKA', name:'沖繩 那霸', country:'日本', emoji:'🏖️', from:6500 },
+  ],
+  '🇯🇵 日本': [
+    { code:'NRT', name:'東京 成田', country:'日本', emoji:'⛩️', from:8500 },
+    { code:'HND', name:'東京 羽田', country:'日本', emoji:'🗼', from:9000 },
+    { code:'KIX', name:'大阪 關西', country:'日本', emoji:'🏯', from:7800 },
+    { code:'CTS', name:'札幌 千歲', country:'日本', emoji:'❄️', from:9500 },
+    { code:'FUK', name:'福岡', country:'日本', emoji:'🍜', from:7200 },
+    { code:'OKA', name:'沖繩 那霸', country:'日本', emoji:'🏖️', from:6500 },
+    { code:'NGO', name:'名古屋', country:'日本', emoji:'🏯', from:8000 },
+    { code:'KMJ', name:'熊本', country:'日本', emoji:'🐻', from:8800 },
+    { code:'SDJ', name:'仙台', country:'日本', emoji:'🌸', from:9200 },
+    { code:'KOJ', name:'鹿兒島', country:'日本', emoji:'🌋', from:9000 },
+  ],
+  '🇰🇷 韓國': [
+    { code:'ICN', name:'首爾 仁川', country:'韓國', emoji:'🎎', from:6000 },
+    { code:'GMP', name:'首爾 金浦', country:'韓國', emoji:'🏙️', from:6200 },
+    { code:'PUS', name:'釜山 金海', country:'韓國', emoji:'🌊', from:7000 },
+    { code:'CJU', name:'濟州島', country:'韓國', emoji:'🌿', from:7500 },
+    { code:'TAE', name:'大邱', country:'韓國', emoji:'🎵', from:7200 },
+  ],
+  '🌴 東南亞': [
+    { code:'BKK', name:'曼谷 素萬那普', country:'泰國', emoji:'🌺', from:9800 },
+    { code:'DMK', name:'曼谷 廊曼', country:'泰國', emoji:'🛕', from:9200 },
+    { code:'HKT', name:'普吉島', country:'泰國', emoji:'🏝️', from:11000 },
+    { code:'CNX', name:'清邁', country:'泰國', emoji:'🐘', from:10500 },
+    { code:'SIN', name:'新加坡 樟宜', country:'新加坡', emoji:'🦁', from:11000 },
+    { code:'KUL', name:'吉隆坡', country:'馬來西亞', emoji:'🏙️', from:10500 },
+    { code:'MNL', name:'馬尼拉', country:'菲律賓', emoji:'🌴', from:7000 },
+    { code:'CEB', name:'宿霧', country:'菲律賓', emoji:'🐠', from:8500 },
+    { code:'DPS', name:'峇里島 登巴薩', country:'印尼', emoji:'🌴', from:13000 },
+    { code:'SGN', name:'胡志明市', country:'越南', emoji:'🛵', from:10000 },
+    { code:'HAN', name:'河內', country:'越南', emoji:'🏮', from:9500 },
+    { code:'DAD', name:'峴港', country:'越南', emoji:'🌉', from:10000 },
+    { code:'PNH', name:'金邊', country:'柬埔寨', emoji:'🛕', from:11000 },
+    { code:'REP', name:'暹粒（吳哥）', country:'柬埔寨', emoji:'🏛️', from:12000 },
+    { code:'RGN', name:'仰光', country:'緬甸', emoji:'🏯', from:13500 },
+  ],
+  '🇨🇳 中港澳': [
+    { code:'HKG', name:'香港 赤鱲角', country:'香港', emoji:'🐉', from:5500 },
+    { code:'MFM', name:'澳門', country:'澳門', emoji:'🎰', from:5800 },
+    { code:'PVG', name:'上海 浦東', country:'中國', emoji:'🌆', from:6800 },
+    { code:'SHA', name:'上海 虹橋', country:'中國', emoji:'🏙️', from:6500 },
+    { code:'PEK', name:'北京 首都', country:'中國', emoji:'🏛️', from:7200 },
+    { code:'PKX', name:'北京 大興', country:'中國', emoji:'🚀', from:7400 },
+    { code:'CAN', name:'廣州', country:'中國', emoji:'🌸', from:6200 },
+    { code:'SZX', name:'深圳', country:'中國', emoji:'🏗️', from:6000 },
+    { code:'XIY', name:'西安', country:'中國', emoji:'🏺', from:7800 },
+    { code:'CTU', name:'成都', country:'中國', emoji:'🐼', from:7500 },
+  ],
+  '🌏 其他亞洲': [
+    { code:'DEL', name:'新德里', country:'印度', emoji:'🕌', from:15000 },
+    { code:'BOM', name:'孟買', country:'印度', emoji:'🎬', from:16000 },
+    { code:'CMB', name:'可倫坡', country:'斯里蘭卡', emoji:'🌴', from:14000 },
+    { code:'KTM', name:'加德滿都', country:'尼泊爾', emoji:'🏔️', from:16000 },
+    { code:'ULN', name:'烏蘭巴托', country:'蒙古', emoji:'🐎', from:12000 },
+    { code:'NQZ', name:'阿斯塔納', country:'哈薩克', emoji:'🏙️', from:18000 },
+    { code:'TAS', name:'塔什干', country:'烏茲別克', emoji:'🕌', from:17000 },
+  ],
+  '🌏 大洋洲': [
+    { code:'SYD', name:'雪梨 金斯福德', country:'澳洲', emoji:'🦘', from:22000 },
+    { code:'MEL', name:'墨爾本 杜拉馬林', country:'澳洲', emoji:'🏏', from:23000 },
+    { code:'BNE', name:'布里斯本', country:'澳洲', emoji:'🌞', from:21000 },
+    { code:'PER', name:'伯斯', country:'澳洲', emoji:'🦙', from:24000 },
+    { code:'AKL', name:'奧克蘭', country:'紐西蘭', emoji:'🥝', from:25000 },
+    { code:'CHC', name:'基督城', country:'紐西蘭', emoji:'🐑', from:26000 },
+    { code:'NAN', name:'楠迪', country:'斐濟', emoji:'🏝️', from:28000 },
+    { code:'HNL', name:'夏威夷 檀香山', country:'美國', emoji:'🌺', from:20000 },
+  ],
+  '🌍 歐洲': [
+    { code:'LHR', name:'倫敦 希斯羅', country:'英國', emoji:'🎩', from:38000 },
+    { code:'LGW', name:'倫敦 蓋威克', country:'英國', emoji:'🏰', from:36000 },
+    { code:'CDG', name:'巴黎 戴高樂', country:'法國', emoji:'🗼', from:36000 },
+    { code:'FRA', name:'法蘭克福', country:'德國', emoji:'🍺', from:35000 },
+    { code:'MUC', name:'慕尼黑', country:'德國', emoji:'🥨', from:36000 },
+    { code:'FCO', name:'羅馬 菲烏米奇諾', country:'義大利', emoji:'🏛️', from:37000 },
+    { code:'MXP', name:'米蘭 馬爾彭薩', country:'義大利', emoji:'🎭', from:36000 },
+    { code:'BCN', name:'巴塞隆納', country:'西班牙', emoji:'⚽', from:37000 },
+    { code:'MAD', name:'馬德里', country:'西班牙', emoji:'💃', from:38000 },
+    { code:'AMS', name:'阿姆斯特丹', country:'荷蘭', emoji:'🌷', from:36000 },
+    { code:'ZRH', name:'蘇黎世', country:'瑞士', emoji:'⛷️', from:40000 },
+    { code:'VIE', name:'維也納', country:'奧地利', emoji:'🎵', from:37000 },
+    { code:'PRG', name:'布拉格', country:'捷克', emoji:'🏰', from:35000 },
+    { code:'ATH', name:'雅典', country:'希臘', emoji:'🏺', from:38000 },
+    { code:'IST', name:'伊斯坦堡', country:'土耳其', emoji:'🕌', from:28000 },
+    { code:'DXB', name:'杜拜', country:'阿聯酋', emoji:'🌟', from:22000 },
+  ],
+  '🌎 美洲': [
+    { code:'LAX', name:'洛杉磯', country:'美國', emoji:'🎬', from:32000 },
+    { code:'JFK', name:'紐約 甘迺迪', country:'美國', emoji:'🗽', from:40000 },
+    { code:'EWR', name:'紐約 紐瓦克', country:'美國', emoji:'🌆', from:39000 },
+    { code:'SFO', name:'舊金山', country:'美國', emoji:'🌉', from:33000 },
+    { code:'SEA', name:'西雅圖', country:'美國', emoji:'☁️', from:33000 },
+    { code:'LAS', name:'拉斯維加斯', country:'美國', emoji:'🎰', from:35000 },
+    { code:'YVR', name:'溫哥華', country:'加拿大', emoji:'🍁', from:35000 },
+    { code:'YYZ', name:'多倫多 皮爾遜', country:'加拿大', emoji:'🏒', from:42000 },
+    { code:'YUL', name:'蒙特婁', country:'加拿大', emoji:'❄️', from:43000 },
+    { code:'GRU', name:'聖保羅', country:'巴西', emoji:'🌴', from:55000 },
+    { code:'EZE', name:'布宜諾斯艾利斯', country:'阿根廷', emoji:'💃', from:58000 },
+    { code:'MEX', name:'墨西哥城', country:'墨西哥', emoji:'🌮', from:45000 },
+    { code:'CUN', name:'坎昆', country:'墨西哥', emoji:'🏖️', from:48000 },
+  ],
+};
+
+// ─── 出發地選單 ─────────────────────────────────────────
+let selectedFromCode = 'TPE';
+const fromBtn    = document.getElementById('from-airport-btn');
+const fromDrop   = document.getElementById('from-airport-dropdown');
+const fromLabel  = document.getElementById('from-airport-label');
+
+function buildAirportDropdown() {
+  let html = '';
+  for (const [group, airports] of Object.entries(TW_AIRPORTS)) {
+    html += `<div class="airport-group-label">${group}</div>`;
+    airports.forEach(ap => {
+      html += `
+        <div class="airport-option${ap.code === selectedFromCode ? ' selected' : ''}"
+             data-code="${ap.code}" data-name="${ap.name}" onclick="selectAirport('${ap.code}','${ap.name}','${ap.emoji}')">
+          <span class="ap-emoji">${ap.emoji}</span>
+          <div class="ap-info">
+            <div class="ap-name">${ap.name}</div>
+            <div class="ap-city">${ap.city}</div>
+          </div>
+          <span class="ap-code">${ap.code}</span>
+        </div>`;
+    });
+  }
+  fromDrop.innerHTML = html;
+}
+
+function selectAirport(code, name, emoji) {
+  selectedFromCode = code;
+  fromLabel.textContent = `${emoji} ${name} (${code})`;
+  fromBtn.dataset.code = code;
+  fromDrop.classList.remove('open');
+  fromBtn.classList.remove('open');
+}
+
+fromBtn.addEventListener('click', () => {
+  const isOpen = fromDrop.classList.toggle('open');
+  fromBtn.classList.toggle('open', isOpen);
+  if (isOpen) buildAirportDropdown();
+});
+
+document.addEventListener('click', (e) => {
+  if (!fromBtn.contains(e.target) && !fromDrop.contains(e.target)) {
+    fromDrop.classList.remove('open');
+    fromBtn.classList.remove('open');
+  }
+});
+
+// ─── 目的地分類 Modal ────────────────────────────────────
+let selectedDestCode = '';
+let selectedDestName = '';
+let activeRegion = '🔥 熱門';
+let destSearchQuery = '';
+
+const destOverlay  = document.getElementById('dest-modal-overlay');
+const destPickerBtn = document.getElementById('dest-picker-btn');
+const destPickerLbl = document.getElementById('dest-picker-label');
+const destModalClose = document.getElementById('dest-modal-close');
+const destSearchInput = document.getElementById('dest-search-input');
+const regionTabsEl = document.getElementById('dest-region-tabs');
+const cityGridEl   = document.getElementById('dest-city-grid');
+
+function openDestModal() {
+  destOverlay.classList.add('open');
+  buildRegionTabs();
+  renderCityGrid();
+  setTimeout(() => destSearchInput.focus(), 100);
+}
+function closeDestModal() {
+  destOverlay.classList.remove('open');
+}
+
+destPickerBtn.addEventListener('click', openDestModal);
+destModalClose.addEventListener('click', closeDestModal);
+destOverlay.addEventListener('click', (e) => { if (e.target === destOverlay) closeDestModal(); });
+
+function buildRegionTabs() {
+  regionTabsEl.innerHTML = Object.keys(DEST_CATEGORIES).map(r => `
+    <button class="dest-region-tab${r === activeRegion ? ' active' : ''}"
+      onclick="switchRegion('${r}')">${r}</button>
+  `).join('');
+}
+
+function switchRegion(region) {
+  activeRegion = region;
+  destSearchQuery = '';
+  destSearchInput.value = '';
+  buildRegionTabs();
+  renderCityGrid();
+}
+
+function renderCityGrid(query = '') {
+  let cities = query
+    ? Object.values(DEST_CATEGORIES).flat().filter(c =>
+        c.name.includes(query) || c.country.includes(query) || c.code.includes(query.toUpperCase())
+      )
+    : DEST_CATEGORIES[activeRegion] || [];
+
+  // 去重
+  const seen = new Set();
+  cities = cities.filter(c => { if (seen.has(c.code)) return false; seen.add(c.code); return true; });
+
+  cityGridEl.innerHTML = cities.map(c => `
+    <div class="dest-city-card${c.code === selectedDestCode ? ' selected' : ''}"
+         onclick="selectDestCity('${c.code}','${c.name}','${c.emoji}')">
+      <div class="city-flag">${c.emoji}</div>
+      <div class="city-name">${c.name}</div>
+      <div class="city-code">${c.code} · ${c.country}</div>
+      <div class="city-from">約 NT$${c.from.toLocaleString()} 起</div>
+    </div>
+  `).join('') || '<div style="color:var(--text-muted);font-size:14px;padding:20px;grid-column:1/-1;text-align:center">找不到符合的城市</div>';
+}
+
+function selectDestCity(code, name, emoji) {
+  selectedDestCode = code;
+  selectedDestName = name;
+  destPickerLbl.textContent = `${emoji} ${name} (${code})`;
+  destPickerLbl.className = '';
+  destPickerBtn.dataset.code = code;
+  closeDestModal();
+  Tracker.showToast(`已選擇目的地：${name}`, 'success');
+}
+
+destSearchInput.addEventListener('input', () => {
+  const q = destSearchInput.value.trim();
+  destSearchQuery = q;
+  if (q) {
+    regionTabsEl.querySelectorAll('.dest-region-tab').forEach(t => t.classList.remove('active'));
+    renderCityGrid(q);
+  } else {
+    buildRegionTabs();
+    renderCityGrid();
+  }
+});
+
+// ─── 日期模式切換 ────────────────────────────────────────
+let dateMode = 'exact';
+let flexNights = 5;
+
+const modeExactBtn = document.getElementById('mode-exact');
+const modeFlexBtn  = document.getElementById('mode-flexible');
+const exactBlock   = document.getElementById('date-exact-block');
+const flexBlock    = document.getElementById('date-flexible-block');
+
+modeExactBtn.addEventListener('click', () => {
+  dateMode = 'exact';
+  modeExactBtn.classList.add('active');
+  modeFlexBtn.classList.remove('active');
+  exactBlock.classList.remove('hidden');
+  flexBlock.classList.add('hidden');
+});
+
+modeFlexBtn.addEventListener('click', () => {
+  dateMode = 'flexible';
+  modeFlexBtn.classList.add('active');
+  modeExactBtn.classList.remove('active');
+  flexBlock.classList.remove('hidden');
+  exactBlock.classList.add('hidden');
+  buildMonthSelects();
+});
+
+// 建立月份 select 選項（未來 18 個月）
+function buildMonthSelects() {
+  const startSel = document.getElementById('flex-month-start');
+  const endSel   = document.getElementById('flex-month-end');
+  if (!startSel || !endSel) return;
+
+  const today = new Date();
+  const options = [];
+  for (let i = 0; i < 18; i++) {
+    const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
+    const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const label = `${d.getFullYear()}年 ${d.getMonth()+1}月`;
+    options.push({ val, label, year: d.getFullYear(), month: d.getMonth() });
+  }
+
+  const makeOptions = (selectedIdx) =>
+    options.map((o, i) =>
+      `<option value="${o.val}"${i === selectedIdx ? ' selected' : ''}>${o.label}</option>`
+    ).join('');
+
+  startSel.innerHTML = makeOptions(0);
+  endSel.innerHTML   = makeOptions(2);
+
+  startSel.addEventListener('change', () => {
+    const sIdx = options.findIndex(o => o.val === startSel.value);
+    const eIdx = options.findIndex(o => o.val === endSel.value);
+    if (eIdx < sIdx) endSel.value = options[sIdx].val;
+    updateFlexSummary();
+  });
+  endSel.addEventListener('change', () => {
+    const sIdx = options.findIndex(o => o.val === startSel.value);
+    const eIdx = options.findIndex(o => o.val === endSel.value);
+    if (eIdx < sIdx) startSel.value = options[eIdx].val;
+    updateFlexSummary();
+  });
+
+  updateFlexSummary();
+}
+
+// 旅行天數步進器
+document.getElementById('flex-night-dec')?.addEventListener('click', () => {
+  if (flexNights > 1) { flexNights--; document.getElementById('flex-night-val').textContent = flexNights; updateFlexSummary(); }
+});
+document.getElementById('flex-night-inc')?.addEventListener('click', () => {
+  if (flexNights < 30) { flexNights++; document.getElementById('flex-night-val').textContent = flexNights; updateFlexSummary(); }
+});
+
+function updateFlexSummary() {
+  const el    = document.getElementById('flexible-summary');
+  const start = document.getElementById('flex-month-start')?.value;
+  const end   = document.getElementById('flex-month-end')?.value;
+  if (!el || !start || !end) return;
+
+  const [sy, sm] = start.split('-');
+  const [ey, em] = end.split('-');
+  const sLabel = `${sy}年${parseInt(sm)}月`;
+  const eLabel = `${ey}年${parseInt(em)}月`;
+  const isSameMonth = start === end;
+
+  el.innerHTML = `
+    🗓️ 出發區間：<span class="flex-highlight">${sLabel}${isSameMonth ? '' : ' ～ ' + eLabel}</span>（任意日期）<br>
+    🌙 旅行天數：<span class="flex-highlight">${flexNights} 天</span>（含回程日）<br>
+    <span style="font-size:12px;color:var(--text-muted)">系統將在此區間內搜尋任意出發日的最低價方案</span>
+  `;
+  el.classList.add('visible');
+}
+
+// ─── 覆寫 App.init 中的出發地/目的地讀取 ────────────────
+// 在原有 app.js 的 handleSearch 之前攔截
+const _origHandleSearch = App.handleSearch.bind(App);
+App.handleSearch = async function() {
+  // 注入出發地 & 目的地 code
+  const fromBtn = document.getElementById('from-airport-btn');
+  const fromInput = document.getElementById('from-city') || { value:'', dataset:{} };
+  fromInput.dataset = fromInput.dataset || {};
+
+  // 使用全域 selectedFromCode / selectedDestCode
+  if (!selectedDestCode) {
+    Tracker.showToast('請選擇目的地', 'warning');
+    return;
+  }
+
+  // 彈性日期：從 select 讀取月份，轉換為精確日期給 app.js 使用
+  if (dateMode === 'flexible') {
+    const startVal = document.getElementById('flex-month-start')?.value;
+    if (!startVal) {
+      Tracker.showToast('請選擇出發月份', 'warning');
+      return;
+    }
+    const [sy, sm] = startVal.split('-').map(Number);
+    const depDate = new Date(sy, sm - 1, 15); // 以月份中間日作為出發日
+    const retDate = new Date(depDate);
+    retDate.setDate(retDate.getDate() + flexNights - 1);
+    const fmt = d => d.toISOString().split('T')[0];
+    document.getElementById('depart-date').value = fmt(depDate);
+    document.getElementById('return-date').value  = fmt(retDate);
+    exactBlock.classList.remove('hidden');
+  }
+
+  // 暫時把 from/to 的值設進 hidden input（app.js 讀這兩個）
+  let fakeFrom = document.getElementById('from-city');
+  let fakeTo   = document.getElementById('to-city');
+  if (!fakeFrom) {
+    fakeFrom = document.createElement('input'); fakeFrom.id = 'from-city'; fakeFrom.style.display='none'; document.body.appendChild(fakeFrom);
+  }
+  if (!fakeTo) {
+    fakeTo = document.createElement('input'); fakeTo.id = 'to-city'; fakeTo.style.display='none'; document.body.appendChild(fakeTo);
+  }
+  const fromAp = Object.values(TW_AIRPORTS).flat().find(a => a.code === selectedFromCode);
+  fakeFrom.value = `${fromAp?.name || '台北'} (${selectedFromCode})`;
+  fakeFrom.dataset.code = selectedFromCode;
+  fakeTo.value   = `${selectedDestName} (${selectedDestCode})`;
+  fakeTo.dataset.code  = selectedDestCode;
+
+  return _origHandleSearch();
+};
+
+// ─── 熱門目的地快速選擇 ─────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const hotDests = DEST_CATEGORIES['🔥 熱門'];
+  const grid = document.getElementById('quick-dest-grid');
+  if (grid) {
+    grid.innerHTML = hotDests.map(d => `
+      <div class="quick-dest-card" onclick="quickSelectDest('${d.code}','${d.name}','${d.emoji}')">
+        <div class="dest-emoji">${d.emoji}</div>
+        <div class="dest-name">${d.name}</div>
+        <div class="dest-country">${d.country}</div>
+        <div class="dest-price">約 NT$${d.from.toLocaleString()} 起</div>
+      </div>
+    `).join('');
+  }
+
+  // 預設日期
+  const today = new Date();
+  const dep = new Date(today); dep.setDate(today.getDate() + 14);
+  const ret = new Date(dep);   ret.setDate(dep.getDate() + 5);
+  const fmt = d => d.toISOString().split('T')[0];
+  const di = document.getElementById('depart-date');
+  const ri = document.getElementById('return-date');
+  if (di) di.value = fmt(dep);
+  if (ri) ri.value = fmt(ret);
+  if (di) di.addEventListener('change', () => {
+    const d2 = new Date(di.value); d2.setDate(d2.getDate() + 5);
+    if (ri) ri.value = fmt(d2);
+  });
+});
+
+function quickSelectDest(code, name, emoji) {
+  selectDestCity(code, name, emoji);
+  document.getElementById('search-btn')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+</script>
+</body>
+</html>
