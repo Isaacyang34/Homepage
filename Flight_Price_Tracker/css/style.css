@@ -1332,3 +1332,15 @@ body {
   from { opacity: 1; transform: translateX(0) scale(1); }
   to   { opacity: 0; transform: translateX(100%) scale(0.9); }
 }
+/* === 層級修正 === */
+.result-card {
+  position: relative;
+  z-index: 10;
+}
+.card-actions {
+  position: relative;
+  z-index: 11;
+}
+canvas {
+  pointer-events: none;
+}
