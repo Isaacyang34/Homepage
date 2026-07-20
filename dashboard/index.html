@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Beyblade Telemetry & WPT Dashboard | 戰鬥陀螺即時遙測系統</title>
+    <!-- Google Fonts & Chart.js -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header Section -->
+        <header class="navbar">
+            <div class="brand">
+                <div class="logo-icon">⚡</div>
+                <div>
+                    <h1>BEY-TELEMETRY <span class="badge">WPT LIVE</span></h1>
+                    <p class="subtitle">無電池感應供電 • 負載調變遙測 • 超微型感測視覺化系統</p>
+                </div>
+            </div>
+            <div class="system-status">
+                <div class="status-item">
+                    <span class="dot active"></span>
+                    <span>WPT 場地供電: <strong id="wptStatus">12V / 100kHz ON</strong></span>
+                </div>
+                <div class="status-item">
+                    <span class="dot active"></span>
+                    <span>調變頻率: <strong>10 kbps (Backscatter)</strong></span>
+                </div>
+                <div class="action-buttons">
+                    <button id="simBtn" class="btn primary-btn">▶ 啟動模擬對戰 (Live Battle)</button>
+                    <button id="resetBtn" class="btn secondary-btn">↺ 重置系統</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Layout -->
+        <main class="dashboard-grid">
+            
+            <!-- Left Panel: Arena 2D Visualization & Track -->
+            <section class="card arena-card">
+                <div class="card-header">
+                    <h2>🏟️ 對戰台即時動態與 WPT 3分區發射圈感應</h2>
+                    <span class="tag">BX-10 Extreme Stadium</span>
+                </div>
+                <div class="arena-wrapper">
+                    <canvas id="arenaCanvas" width="480" height="480"></canvas>
+                    <div class="arena-legend">
+                        <div class="legend-item"><span class="color-box zone1"></span> Zone 1: 中央區 (Ø12cm)</div>
+                        <div class="legend-item"><span class="color-box zone2"></span> Zone 2: 旋風區 (Ø22cm)</div>
+                        <div class="legend-item"><span class="color-box zone3"></span> Zone 3: X-Dash 軌 (Ø32cm)</div>
+                    </div>
+                </div>
+                <div class="top-indicators">
+                    <div class="top-stat player1">
+                        <span class="top-name">🔵 P1: DranSword 3-60F (攻擊型)</span>
+                        <div class="stat-mini">
+                            <span>轉速: <strong id="p1RpmVal">0</strong> RPM</span>
+                            <span>G力: <strong id="p1GVal">1.0</strong> g</span>
+                        </div>
+                    </div>
+                    <div class="top-stat player2">
+                        <span class="top-name">🔴 P2: WizardRod 5-70DB (持久型)</span>
+                        <div class="stat-mini">
+                            <span>轉速: <strong id="p2RpmVal">0</strong> RPM</span>
+                            <span>G力: <strong id="p2GVal">1.0</strong> g</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Middle Panel: Gauges & Instantaneous Telemetry -->
+            <section class="middle-panel">
+                <!-- RPM Gauge Card -->
+                <div class="card rpm-card">
+                    <div class="card-header">
+                        <h2>🌀 瞬時轉速與衰減 (Spin Decay RPM)</h2>
+                        <span class="tag live-tag">LIVE FEED</span>
+                    </div>
+                    <div class="gauge-container">
+                        <div class="gauge-box">
+                            <span class="gauge-label">P1 轉速 (DranSword)</span>
+                            <div class="rpm-number" id="p1RpmText">0</div>
+                            <div class="unit">RPM</div>
+                            <div class="progress-bar-bg">
+                                <div class="progress-bar-fill p1-bar" id="p1RpmBar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="gauge-box">
+                            <span class="gauge-label">P2 轉速 (WizardRod)</span>
+                            <div class="rpm-number" id="p2RpmText">0</div>
+                            <div class="unit">RPM</div>
+                            <div class="progress-bar-bg">
+                                <div class="progress-bar-fill p2-bar" id="p2RpmBar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Impact Force / G-force Chart -->
+                <div class="card chart-card">
+                    <div class="card-header">
+                        <h2>💥 碰撞脈衝與 G 力歷史波形 (ADXL375 ±200g)</h2>
+                        <span class="tag">1.6kHz 採樣</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="gForceChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Panel: Telemetry Metrics & Real-time Event Log -->
+            <section class="right-panel">
+                
+                <!-- Telemetry Sensor Cards -->
+                <div class="card metrics-card">
+                    <div class="card-header">
+                        <h2>📊 五大極限遙測指標</h2>
+                    </div>
+                    <div class="metrics-grid">
+                        <div class="metric-item">
+                            <div class="metric-icon">🚀</div>
+                            <div class="metric-info">
+                                <span class="m-label">最高拉速 (Max Shoot)</span>
+                                <span class="m-val" id="maxShootVal">0 RPM</span>
+                            </div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-icon">⚡</div>
+                            <div class="metric-info">
+                                <span class="m-label">極限碰撞峰值 (Max G)</span>
+                                <span class="m-val highlight" id="maxGVal">0.0 g</span>
+                            </div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-icon">📐</div>
+                            <div class="metric-info">
+                                <span class="m-label">姿態傾角 (Precession Angle)</span>
+                                <span class="m-val" id="tiltAngleVal">0.0°</span>
+                            </div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-icon">🔋</div>
+                            <div class="metric-info">
+                                <span class="m-label">WPT 感應電壓 (Rx Vcc)</span>
+                                <span class="m-val" id="wptVccVal">3.32 V</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Real-time Event Feed -->
+                <div class="card log-card">
+                    <div class="card-header">
+                        <h2>📡 遙測事件實時紀錄 (Event Stream)</h2>
+                        <button class="clear-btn" id="clearLogBtn">清空</button>
+                    </div>
+                    <div class="event-log" id="eventLog">
+                        <div class="log-item system">
+                            <span class="time">[00:00.0]</span>
+                            <span class="msg">對戰台 WPT 無線感應供電運作中... 待命中。</span>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+        </main>
+
+        <!-- System Architecture Modal / Specs Drawer -->
+        <footer class="footer-info">
+            <div class="tech-specs-summary">
+                <span>硬體技術指標：</span>
+                <span class="spec-tag">無電池化 (Sub-1g PCB)</span>
+                <span class="spec-tag">對戰台 3區 WPT 感應 (100kHz)</span>
+                <span class="spec-tag">負載調變數據回傳 (Backscatter)</span>
+                <span class="spec-tag">±200g 高 G 碰撞衝擊監測 (ADXL375)</span>
+            </div>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
