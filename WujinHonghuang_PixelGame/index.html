@@ -71,7 +71,14 @@
             <div class="stat-item"><span class="stat-label">防禦:</span> <span class="stat-val" id="stat-def">10</span></div>
             <div class="stat-item"><span class="stat-label">會心:</span> <span class="stat-val" id="stat-crit">10%</span></div>
             <div class="stat-item"><span class="stat-label">修練速:</span> <span class="stat-val" id="ui-exp-speed" style="color:#2ecc71;">100%</span></div>
+            <div class="stat-item"><span class="stat-label">回復速:</span> <span class="stat-val" id="stat-regen" style="color:#e67e22;">4 /3s</span></div>
+            <div class="stat-item"><span class="stat-label">丹藥:</span> <span class="stat-val" id="stat-pills" style="color:#e74c3c;">0</span></div>
             <div class="stat-item" style="grid-column: span 2;"><span class="stat-label">靈石:</span> <span class="stat-val" id="ui-coins" style="color:var(--pixel-gold);">500</span></div>
+          </div>
+
+          <!-- 狀態提示 -->
+          <div id="regen-status" style="font-size:0.7rem; color:#e67e22; text-align:center; display:none;">
+            🧘 氣血自然恢復中...
           </div>
 
           <!-- 已裝備部位 -->
@@ -161,9 +168,12 @@
             </div>
 
             <!-- 控制按鈕 -->
-            <div style="display:flex; gap:10px; justify-content:center;">
+            <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
               <button class="pixel-btn" id="btn-manual-attack">⚔️ 手動討伐</button>
               <button class="pixel-btn" id="btn-toggle-auto">⚔️ 開啟自動掛機</button>
+              <button class="pixel-btn" id="btn-meditate" style="border-color:#e67e22;">🧘 打坐調息</button>
+              <button class="pixel-btn" id="btn-use-pill" style="border-color:#e74c3c;">💊 服丹 (<span id="ui-pill-count">0</span>)</button>
+              <button class="pixel-btn" id="btn-buy-pill" style="font-size:0.75rem;">🛒 買丹 (200靈石)</button>
             </div>
           </div>
 
@@ -189,40 +199,68 @@
 
         <!-- 分頁: 五行彈性鍛造坊 -->
         <div class="tab-content" id="tab-forge">
-          <div class="crafting-layout">
-            <div class="materials-list">
-              <div style="color:var(--pixel-gold); font-size:0.95rem; margin-bottom:4px;">五行神材庫存</div>
-              <div class="mat-item"><span>✨ 金精石 (崑崙):</span> <span id="mat-gold" style="color:var(--pixel-gold); font-weight:bold;">10</span></div>
-              <div class="mat-item"><span>🌿 神木芯 (太初):</span> <span id="mat-wood" style="color:var(--pixel-wood); font-weight:bold;">10</span></div>
-              <div class="mat-item"><span>💧 玄冰髓 (九幽):</span> <span id="mat-water" style="color:var(--pixel-water); font-weight:bold;">10</span></div>
-              <div class="mat-item"><span>🔥 朱雀羽 (熔岩):</span> <span id="mat-fire" style="color:var(--pixel-fire); font-weight:bold;">10</span></div>
-              <div class="mat-item"><span>🪨 息壤土 (不周):</span> <span id="mat-earth" style="color:var(--pixel-earth); font-weight:bold;">10</span></div>
-              
-              <div class="forge-select-group">
-                <span style="font-size:0.75rem; color:var(--pixel-gold);">選擇鍛造屬性法則：</span>
-                <div class="forge-mode-selector">
-                  <div class="forge-mode-btn active" data-mode="single" onclick="setForgeMode('single', this)">單一純屬性</div>
-                  <div class="forge-mode-btn" data-mode="sheng" onclick="setForgeMode('sheng', this)">相生(金+水)</div>
-                  <div class="forge-mode-btn" data-mode="ke" onclick="setForgeMode('ke', this)">相剋(金+木)</div>
-                </div>
-
-                <div class="rate-indicator rate-success" id="forge-rate-box">
-                  100% 成功率 | 穩定鍛造
-                </div>
-              </div>
-
-              <div style="font-size:0.7rem; color:var(--text-muted); margin-top:4px;">
-                💡 說明：相生提升成功率與品質；相剋成功率衰減但有高機率【暴擊神品】！
-              </div>
-            </div>
-
-            <div class="crafting-action-box">
-              <div style="color:var(--pixel-gold); font-size:1.1rem; font-weight:bold;">神兵天成 · 洪荒爐</div>
-              <div class="forge-anvil">⚒️</div>
-              <button class="pixel-btn btn-gold" id="btn-forge" style="padding:12px 24px; font-size:1rem;">🔨 開爐鍛造裝備</button>
-            </div>
-
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+            <span style="color:var(--pixel-gold); font-size:1.05rem; font-weight:bold;">🔨 五行鍛造坊</span>
+            <span style="font-size:0.75rem; color:var(--text-muted);">每次鍛造消耗 3 個對應材料</span>
           </div>
+
+          <!-- 五行神材庫存 -->
+          <div style="background:#11111f; border:2px solid #2d2d48; padding:10px;">
+            <div style="color:var(--pixel-gold); font-size:0.9rem; margin-bottom:6px;">五行神材庫存</div>
+            <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px; text-align:center;">
+              <div><span style="font-size:1.2rem;">✨</span><br><span style="font-size:0.7rem; color:var(--text-muted);">金精石</span><br><span id="mat-gold" style="color:var(--pixel-gold); font-weight:bold; font-size:1rem;">10</span></div>
+              <div><span style="font-size:1.2rem;">🌿</span><br><span style="font-size:0.7rem; color:var(--text-muted);">神木芯</span><br><span id="mat-wood" style="color:var(--pixel-wood); font-weight:bold; font-size:1rem;">10</span></div>
+              <div><span style="font-size:1.2rem;">💧</span><br><span style="font-size:0.7rem; color:var(--text-muted);">玄冰髓</span><br><span id="mat-water" style="color:var(--pixel-water); font-weight:bold; font-size:1rem;">10</span></div>
+              <div><span style="font-size:1.2rem;">🔥</span><br><span style="font-size:0.7rem; color:var(--text-muted);">朱雀羽</span><br><span id="mat-fire" style="color:var(--pixel-fire); font-weight:bold; font-size:1rem;">10</span></div>
+              <div><span style="font-size:1.2rem;">🪨</span><br><span style="font-size:0.7rem; color:var(--text-muted);">息壤土</span><br><span id="mat-earth" style="color:var(--pixel-earth); font-weight:bold; font-size:1rem;">10</span></div>
+            </div>
+          </div>
+
+          <!-- 選擇鍛造屬性 -->
+          <div style="background:#11111f; border:2px solid #2d2d48; padding:10px;">
+            <div style="color:var(--pixel-gold); font-size:0.9rem; margin-bottom:6px;">選擇鍛造屬性（決定消耗哪種材料）</div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;" id="forge-element-selector">
+              <button class="pixel-btn active" data-forge-elem="gold" onclick="setForgeElement('gold')" style="flex:1; min-width:80px;">✨ 金系</button>
+              <button class="pixel-btn" data-forge-elem="wood" onclick="setForgeElement('wood')" style="flex:1; min-width:80px;">🌿 木系</button>
+              <button class="pixel-btn" data-forge-elem="water" onclick="setForgeElement('water')" style="flex:1; min-width:80px;">💧 水系</button>
+              <button class="pixel-btn" data-forge-elem="fire" onclick="setForgeElement('fire')" style="flex:1; min-width:80px;">🔥 火系</button>
+              <button class="pixel-btn" data-forge-elem="earth" onclick="setForgeElement('earth')" style="flex:1; min-width:80px;">🪨 土系</button>
+            </div>
+          </div>
+
+          <!-- 鍛造法則模式 -->
+          <div style="background:#11111f; border:2px solid #2d2d48; padding:10px;">
+            <div style="color:var(--pixel-gold); font-size:0.9rem; margin-bottom:6px;">選擇鍛造法則</div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;" id="forge-mode-selector">
+              <div class="forge-mode-btn active" data-mode="single" onclick="setForgeMode('single', this)">單一純屬性</div>
+              <div class="forge-mode-btn" data-mode="sheng" onclick="setForgeMode('sheng', this)">相生雙屬性</div>
+              <div class="forge-mode-btn" data-mode="ke" onclick="setForgeMode('ke', this)">相剋雙屬性</div>
+            </div>
+          </div>
+
+          <!-- 消耗說明與成功率 -->
+          <div style="background:#0d0d17; border:2px solid #2d2d48; padding:12px; display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="color:var(--pixel-gold); font-size:0.9rem; font-weight:bold;">📋 本次鍛造消耗</span>
+              <span id="forge-rate-box" style="font-size:0.8rem; padding:3px 8px; background:#1a3a1a; border:1px solid #2ecc71; color:#2ecc71;">100% 成功率</span>
+            </div>
+            <div id="forge-cost-detail" style="font-size:0.85rem; color:#ddd; line-height:1.6;">
+              ✨ 金精石 ×3
+            </div>
+            <div id="forge-cost-warning" style="font-size:0.8rem; color:#e74c3c; display:none;">
+              ⚠️ 材料不足！無法鍛造！
+            </div>
+            <div style="font-size:0.7rem; color:var(--text-muted); line-height:1.4;">
+              💡 說明：單一屬性 100% 成功 | 相生雙屬性 120% 成功率＋品質加成 | 相剋雙屬性 65% 成功率但可暴擊【神品】！
+            </div>
+          </div>
+
+          <!-- 鍛造按鈕 -->
+          <div style="display:flex; flex-direction:column; align-items:center; gap:8px; padding:10px;">
+            <div style="font-size:2.5rem;">⚒️</div>
+            <button class="pixel-btn btn-gold" id="btn-forge" style="padding:14px 30px; font-size:1.05rem;">🔨 開爐鍛造裝備</button>
+          </div>
+
         </div>
 
         <!-- 分頁: 乾坤背包 -->

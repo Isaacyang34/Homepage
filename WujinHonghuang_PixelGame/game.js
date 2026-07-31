@@ -217,7 +217,8 @@ let player = {
   
   inventory: [],
   equipped: { weapon: null, armor: null, accessory: null },
-  usedCodes: []
+  usedCodes: [],
+  pills: 0
 };
 
 let drawnRoot = null;
@@ -227,6 +228,19 @@ let autoBattleInterval = null;
 let isAutoBattling = false;
 let currentMonster = null;
 let currentForgeMode = 'single';
+let currentForgeElement = 'gold';
+let isMeditating = false;
+let meditateInterval = null;
+let regenInterval = null;
+
+// 五行屬性對應材料key、材料名稱、裝備前綴
+const ELEMENT_MAT_MAP = {
+  gold:  { matKey: 'goldMat',  matName: '金精石', icon: '✨', prefix: '金煞', sheng: 'water', ke: 'wood' },
+  wood:  { matKey: 'woodMat',  matName: '神木芯', icon: '🌿', prefix: '蒼木', sheng: 'fire',  ke: 'earth' },
+  water: { matKey: 'waterMat', matName: '玄冰髓', icon: '💧', prefix: '玄冰', sheng: 'gold',  ke: 'fire' },
+  fire:  { matKey: 'fireMat',  matName: '朱雀羽', icon: '🔥', prefix: '赤炎', sheng: 'earth', ke: 'gold' },
+  earth: { matKey: 'earthMat', matName: '息壤土', icon: '🪨', prefix: '厚土', sheng: 'wood',  ke: 'water' }
+};
 
 document.addEventListener('DOMContentLoaded', () => {
   loadGame();
@@ -234,6 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupDragAndDrop();
   updateUI();
   selectDungeon(5);
+  startRegenTimer();
 });
 
 function setupEventListeners() {
@@ -298,6 +313,11 @@ function setupEventListeners() {
 
   document.getElementById('btn-forge').addEventListener('click', forgeEquipment);
   document.getElementById('btn-salvage-all').addEventListener('click', salvageCommonItems);
+
+  // 打坐調息 / 丹藥
+  document.getElementById('btn-meditate').addEventListener('click', toggleMeditate);
+  document.getElementById('btn-use-pill').addEventListener('click', usePill);
+  document.getElementById('btn-buy-pill').addEventListener('click', buyPill);
 }
 
 function drawSpiritualRoot() {
@@ -438,17 +458,66 @@ function setForgeMode(mode, btnEl) {
     btn.classList.remove('active');
   });
   if (btnEl) btnEl.classList.add('active');
+  updateForgeCostDisplay();
+}
 
+function setForgeElement(elem) {
+  currentForgeElement = elem;
+  document.querySelectorAll('#forge-element-selector .pixel-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-forge-elem') === elem);
+  });
+  updateForgeCostDisplay();
+}
+
+function updateForgeCostDisplay() {
+  const cost = 3;
+  const primary = ELEMENT_MAT_MAP[currentForgeElement];
   const rateBox = document.getElementById('forge-rate-box');
-  if (mode === 'single') {
-    rateBox.className = 'rate-indicator rate-success';
-    rateBox.textContent = '100% 成功率 | 單純屬性穩定鍛造';
-  } else if (mode === 'sheng') {
-    rateBox.className = 'rate-indicator rate-boost';
-    rateBox.textContent = '120% 成功率 | 相生增強，極品加成！';
-  } else if (mode === 'ke') {
-    rateBox.className = 'rate-indicator rate-risk';
-    rateBox.textContent = '65% 成功率 | 風險衰減，可【暴擊神品】！';
+  const costDetail = document.getElementById('forge-cost-detail');
+  const costWarning = document.getElementById('forge-cost-warning');
+  const forgeBtn = document.getElementById('btn-forge');
+
+  let costText = '';
+  let canForge = true;
+
+  if (currentForgeMode === 'single') {
+    costText = `${primary.icon} ${primary.matName} ×${cost}`;
+    if (player.materials[primary.matKey] < cost) canForge = false;
+    rateBox.textContent = '100% 成功率';
+    rateBox.style.background = '#1a3a1a';
+    rateBox.style.borderColor = '#2ecc71';
+    rateBox.style.color = '#2ecc71';
+  } else if (currentForgeMode === 'sheng') {
+    const secondary = ELEMENT_MAT_MAP[primary.sheng];
+    costText = `${primary.icon} ${primary.matName} ×${cost} + ${secondary.icon} ${secondary.matName} ×${cost}`;
+    if (player.materials[primary.matKey] < cost || player.materials[secondary.matKey] < cost) canForge = false;
+    rateBox.textContent = '120% 成功率 + 品質加成';
+    rateBox.style.background = '#1a2a3a';
+    rateBox.style.borderColor = '#3498db';
+    rateBox.style.color = '#3498db';
+  } else if (currentForgeMode === 'ke') {
+    const secondary = ELEMENT_MAT_MAP[primary.ke];
+    costText = `${primary.icon} ${primary.matName} ×${cost} + ${secondary.icon} ${secondary.matName} ×${cost}`;
+    if (player.materials[primary.matKey] < cost || player.materials[secondary.matKey] < cost) canForge = false;
+    rateBox.textContent = '65% 成功率 · 可暴擊神品';
+    rateBox.style.background = '#3a1a1a';
+    rateBox.style.borderColor = '#e74c3c';
+    rateBox.style.color = '#e74c3c';
+  }
+
+  costDetail.textContent = costText;
+
+  if (!canForge) {
+    costWarning.style.display = 'block';
+    costWarning.textContent = `⚠️ 材料不足！無法鍛造！（需要 ${costText}）`;
+    forgeBtn.disabled = true;
+    forgeBtn.style.opacity = '0.4';
+    forgeBtn.textContent = '🚫 材料不足';
+  } else {
+    costWarning.style.display = 'none';
+    forgeBtn.disabled = false;
+    forgeBtn.style.opacity = '1';
+    forgeBtn.textContent = '🔨 開爐鍛造裝備';
   }
 }
 
@@ -528,9 +597,10 @@ function executeBattleRound() {
     addLog(`【受擊】${currentMonster.name} 對你造成 ${monsterDmg} 點傷害！`, 'log-monster');
 
     if (player.hp <= 0) {
-      addLog(`【重傷】你體力不支打坐冥想，恢復全滿狀態！`, 'log-monster');
-      player.hp = player.maxHp;
+      player.hp = Math.floor(player.maxHp * 0.1);
+      addLog(`【重傷】你體力不支被迫撤退！氣血僅恢復 10%，建議打坐調息或服用丹藥恢復！`, 'log-monster');
       if (isAutoBattling) toggleAutoBattle();
+      if (isMeditating) stopMeditate();
     }
     updateUI();
   }, 200);
@@ -649,32 +719,33 @@ function toggleAutoBattle() {
 function forgeEquipment() {
   const m = player.materials;
   const cost = 3;
+  const primary = ELEMENT_MAT_MAP[currentForgeElement];
 
+  // 檢查材料是否足夠
   if (currentForgeMode === 'single') {
-    if (m.goldMat < cost) {
-      addLog(`【鍛造失敗】金精石不足！需要至少 ${cost} 個金精石。`, 'log-monster');
+    if (m[primary.matKey] < cost) {
+      addLog(`【鍛造失敗】${primary.matName}不足！需要至少 ${cost} 個。`, 'log-monster');
       return;
     }
-    m.goldMat -= cost;
+    m[primary.matKey] -= cost;
   } else if (currentForgeMode === 'sheng') {
-    if (m.goldMat < cost || m.waterMat < cost) {
-      addLog(`【鍛造失敗】相生鍛造需要 金精石與玄冰髓 各 ${cost} 個！`, 'log-monster');
+    const secondary = ELEMENT_MAT_MAP[primary.sheng];
+    if (m[primary.matKey] < cost || m[secondary.matKey] < cost) {
+      addLog(`【鍛造失敗】相生鍛造需要 ${primary.matName} 與 ${secondary.matName} 各 ${cost} 個！`, 'log-monster');
       return;
     }
-    m.goldMat -= cost;
-    m.waterMat -= cost;
+    m[primary.matKey] -= cost;
+    m[secondary.matKey] -= cost;
   } else if (currentForgeMode === 'ke') {
-    if (m.goldMat < cost || m.woodMat < cost) {
-      addLog(`【鍛造失敗】相剋鍛造需要 金精石與神木芯 各 ${cost} 個！`, 'log-monster');
+    const secondary = ELEMENT_MAT_MAP[primary.ke];
+    if (m[primary.matKey] < cost || m[secondary.matKey] < cost) {
+      addLog(`【鍛造失敗】相剋鍛造需要 ${primary.matName} 與 ${secondary.matName} 各 ${cost} 個！`, 'log-monster');
       return;
     }
-    m.goldMat -= cost;
-    m.woodMat -= cost;
+    m[primary.matKey] -= cost;
+    m[secondary.matKey] -= cost;
   }
 
-  const anvil = document.querySelector('.forge-anvil');
-  anvil.classList.add('hammer-anim');
-  setTimeout(() => anvil.classList.remove('hammer-anim'), 400);
   audioSynth.sfxCraft();
 
   let successRate = 1.0;
@@ -684,6 +755,7 @@ function forgeEquipment() {
   if (Math.random() > successRate) {
     addLog(`【炸爐】屬性強烈衝突導致爆爐！材料損毀！`, 'log-monster');
     updateUI();
+    updateForgeCostDisplay();
     return;
   }
 
@@ -712,9 +784,8 @@ function forgeEquipment() {
   const qualityObj = QUALITIES[qIdx];
   const types = ['weapon', 'armor', 'accessory'];
   const type = types[Math.floor(Math.random() * types.length)];
-  const elem = player.element === 'azure' ? 'gold' : player.element;
 
-  let namePrefix = { gold: '金煞', wood: '蒼木', water: '玄冰', fire: '赤炎', earth: '厚土' }[elem];
+  let namePrefix = primary.prefix;
   let typeName = { weapon: '聖劍', armor: '寶鎧', accessory: '佩玉' }[type];
   let icon = { weapon: '🗡️', armor: '🛡️', accessory: '📿' }[type];
 
@@ -726,7 +797,7 @@ function forgeEquipment() {
     id: Date.now() + Math.random(),
     name: `${namePrefix}·${qualityObj.name}${typeName}`,
     type: type,
-    element: elem,
+    element: currentForgeElement,
     quality: qIdx + 1,
     qualityName: qualityObj.name,
     qualityColor: qualityObj.color,
@@ -740,10 +811,11 @@ function forgeEquipment() {
   if (qIdx >= 5) {
     addLog(`【逆天神品】天降祥瑞！鍛造出最高神品裝備：${newEquip.name}！`, 'log-crit');
   } else {
-    addLog(`【鍛造成功】恭喜打造出【${qualityObj.name}】級別裝備：${newEquip.name}！`, 'log-drop');
+    addLog(`【鍛造成功】恭喜打造出【${qualityObj.name}】級別 ${ELEMENT_NAMES[currentForgeElement]} 裝備：${newEquip.name}！`, 'log-drop');
   }
 
   updateUI();
+  updateForgeCostDisplay();
 }
 
 function setupDragAndDrop() {
@@ -1158,6 +1230,7 @@ function loadGame() {
   if (saved) {
     try {
       player = Object.assign(player, JSON.parse(saved));
+      if (player.pills === undefined) player.pills = 0;
       recalculatePlayerStats();
     } catch (e) {
       console.error("Save file load error", e);
@@ -1165,4 +1238,156 @@ function loadGame() {
   } else {
     document.getElementById('class-select-modal').classList.add('show');
   }
+}
+
+// ============================================
+// 氣血自然回復計時器 (每 3 秒回復一次)
+// ============================================
+function getRegenAmount() {
+  // 基礎回復 = 2% maxHp，打坐時 5 倍速
+  let base = Math.max(4, Math.floor(player.maxHp * 0.02));
+  if (isMeditating) base *= 5;
+  return base;
+}
+
+function startRegenTimer() {
+  if (regenInterval) clearInterval(regenInterval);
+  regenInterval = setInterval(() => {
+    if (player.hp < player.maxHp) {
+      const regen = getRegenAmount();
+      player.hp = Math.min(player.maxHp, player.hp + regen);
+
+      const regenStatus = document.getElementById('regen-status');
+      if (regenStatus) {
+        if (isMeditating) {
+          regenStatus.style.display = 'block';
+          regenStatus.style.color = '#3498db';
+          regenStatus.textContent = `🧘 打坐調息中... +${regen} 氣血/3s（5倍恢復速度）`;
+        } else {
+          regenStatus.style.display = 'block';
+          regenStatus.style.color = '#e67e22';
+          regenStatus.textContent = `💚 氣血自然恢復中... +${regen}/3s`;
+        }
+      }
+      updateUI();
+    } else {
+      const regenStatus = document.getElementById('regen-status');
+      if (regenStatus && !isMeditating) {
+        regenStatus.style.display = 'none';
+      }
+    }
+
+    // 打坐時超慢速增加修為 + 隨機悟道
+    if (isMeditating) {
+      const totalExpSpeed = calculateTotalExpSpeed();
+      const meditateExp = Math.max(1, Math.floor(3 * totalExpSpeed));
+      player.exp += meditateExp;
+
+      // 5% 機率隨機悟道秘法
+      if (Math.random() < 0.05) {
+        const insightTypes = [
+          { text: '太初真意', atk: 3, def: 0 },
+          { text: '混沌呼吸', atk: 0, def: 3 },
+          { text: '天道感悟', atk: 2, def: 2 },
+          { text: '五行輪轉', atk: 0, def: 0, exp: 50 },
+          { text: '禪定頓悟', atk: 5, def: 0 },
+          { text: '龜息大法', atk: 0, def: 5 }
+        ];
+        const insight = insightTypes[Math.floor(Math.random() * insightTypes.length)];
+        if (insight.atk) player.atk += insight.atk;
+        if (insight.def) player.def += insight.def;
+        if (insight.exp) player.exp += insight.exp;
+        audioSynth.sfxLevelUp();
+        addLog(`【✨ 悟道秘法】打坐中頓悟【${insight.text}】！${insight.atk ? '攻擊+' + insight.atk + ' ' : ''}${insight.def ? '防禦+' + insight.def + ' ' : ''}${insight.exp ? '修為+' + insight.exp : ''}`, 'log-crit');
+      }
+
+      if (player.exp >= player.maxExp) {
+        levelUp();
+      }
+      updateUI();
+    }
+  }, 3000);
+}
+
+// ============================================
+// 打坐調息系統
+// ============================================
+function toggleMeditate() {
+  if (isMeditating) {
+    stopMeditate();
+  } else {
+    // 打坐時停止自動掛機
+    if (isAutoBattling) toggleAutoBattle();
+    isMeditating = true;
+    const btn = document.getElementById('btn-meditate');
+    btn.textContent = '🧘 停止打坐';
+    btn.classList.add('btn-gold');
+    // 禁用攻擊按鈕
+    document.getElementById('btn-manual-attack').disabled = true;
+    document.getElementById('btn-manual-attack').style.opacity = '0.4';
+    document.getElementById('btn-toggle-auto').disabled = true;
+    document.getElementById('btn-toggle-auto').style.opacity = '0.4';
+
+    const regenStatus = document.getElementById('regen-status');
+    if (regenStatus) {
+      regenStatus.style.display = 'block';
+      regenStatus.style.color = '#3498db';
+      regenStatus.textContent = '🧘 打坐調息中... 5倍恢復速度 + 超慢增加修為 + 隨機悟道秘法';
+    }
+    addLog(`【打坐調息】盤膝而坐，運轉周天靈氣，氣血回復速度提升 5 倍！超慢速增加修為，有機率頓悟秘法！`, 'log-element');
+  }
+}
+
+function stopMeditate() {
+  isMeditating = false;
+  const btn = document.getElementById('btn-meditate');
+  btn.textContent = '🧘 打坐調息';
+  btn.classList.remove('btn-gold');
+  document.getElementById('btn-manual-attack').disabled = false;
+  document.getElementById('btn-manual-attack').style.opacity = '1';
+  document.getElementById('btn-toggle-auto').disabled = false;
+  document.getElementById('btn-toggle-auto').style.opacity = '1';
+  const regenStatus = document.getElementById('regen-status');
+  if (regenStatus) {
+    if (player.hp >= player.maxHp) regenStatus.style.display = 'none';
+    else {
+      regenStatus.style.color = '#e67e22';
+      regenStatus.textContent = '💚 氣血自然恢復中...';
+    }
+  }
+  addLog(`【調息結束】起身離坐，靈力充盈身體。`, 'log-system');
+}
+
+// ============================================
+// 丹藥系統
+// ============================================
+function buyPill() {
+  const pillCost = 200;
+  if (player.coins < pillCost) {
+    addLog(`【靈石不足】購買回氣丹需要 ${pillCost} 靈石，你的靈石不夠！`, 'log-monster');
+    return;
+  }
+  player.coins -= pillCost;
+  player.pills += 1;
+  audioSynth.sfxReward();
+  addLog(`【購買成功】花費 ${pillCost} 靈石購入【回氣丹】×1！目前持有 ${player.pills} 顆。`, 'log-drop');
+  updateUI();
+}
+
+function usePill() {
+  if (player.pills <= 0) {
+    addLog(`【丹藥用盡】你沒有回氣丹了！可點擊「🛒 買丹」購買。`, 'log-monster');
+    return;
+  }
+  if (player.hp >= player.maxHp) {
+    addLog(`【氣血已滿】你的氣血已經是滿的，無需服用丹藥。`, 'log-system');
+    return;
+  }
+
+  player.pills -= 1;
+  const healAmount = Math.floor(player.maxHp * 0.5);
+  player.hp = Math.min(player.maxHp, player.hp + healAmount);
+  audioSynth.sfxReward();
+  addLog(`【服丹療傷】吞服【回氣丹】，瞬間恢復 ${healAmount} 點氣血！剩餘丹藥 ${player.pills} 顆。`, 'log-crit');
+  updateUI();
 }
