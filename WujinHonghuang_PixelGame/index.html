@@ -99,8 +99,10 @@
         <!-- 分頁導覽 -->
         <nav class="nav-tabs">
           <button class="tab-btn active" data-tab="battle">⚔️ 洪荒歷練</button>
-          <button class="tab-btn" data-tab="sutra">📜 功法心法</button>
+          <button class="tab-btn" data-tab="sutra">📜 藏經閣</button>
           <button class="tab-btn" data-tab="forge">🔨 五行鍛造</button>
+          <button class="tab-btn" data-tab="alchemy">🧪 九轉煉丹</button>
+          <button class="tab-btn" data-tab="shop">🏪 坊市商鋪</button>
           <button class="tab-btn" data-tab="bag">🎒 乾坤背包</button>
         </nav>
 
@@ -185,15 +187,25 @@
 
         </div>
 
-        <!-- 分頁: 功法心法修練 -->
+        <!-- 分頁: 藏經閣 (功法心法修練 - 6大分類) -->
         <div class="tab-content" id="tab-sutra">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span style="color:var(--pixel-gold); font-size:1.05rem; font-weight:bold;">藏經閣 · 功法心法參悟</span>
-            <span style="font-size:0.85rem; color:#aaa;">已獲得心法加成：攻 +<span id="sutra-bonus-atk" style="color:#f1c40f;">0</span> | 防 +<span id="sutra-bonus-def" style="color:#3498db;">0</span> | 修速 +<span id="sutra-bonus-exp" style="color:#2ecc71;">0%</span></span>
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+            <span style="color:var(--pixel-gold); font-size:1.05rem; font-weight:bold;">📜 藏經閣 · 參悟絕學</span>
+            <span style="font-size:0.8rem; color:#aaa;">加成: 攻 +<span id="sutra-bonus-atk" style="color:#f1c40f;">0</span> | 防 +<span id="sutra-bonus-def" style="color:#3498db;">0</span> | 修速 +<span id="sutra-bonus-exp" style="color:#2ecc71;">0%</span></span>
+          </div>
+
+          <!-- 6 大分類子分頁 -->
+          <div class="sub-nav-tabs" id="sutra-sub-tabs">
+            <button class="sub-tab-btn active" onclick="switchSutraTab('gold')">✨ 金系武學</button>
+            <button class="sub-tab-btn" onclick="switchSutraTab('wood')">🌿 木系武學</button>
+            <button class="sub-tab-btn" onclick="switchSutraTab('water')">💧 水系武學</button>
+            <button class="sub-tab-btn" onclick="switchSutraTab('fire')">🔥 火系武學</button>
+            <button class="sub-tab-btn" onclick="switchSutraTab('earth')">🪨 土系武學</button>
+            <button class="sub-tab-btn" onclick="switchSutraTab('internal')">🧘 內功心法</button>
           </div>
 
           <div class="sutra-grid" id="sutra-grid">
-            <!-- 動態渲染玩家心法 -->
+            <!-- 動態渲染當前分類的功法心法 -->
           </div>
         </div>
 
@@ -283,6 +295,47 @@
           </div>
         </div>
 
+        <!-- 分頁: 九轉煉丹房 -->
+        <div class="tab-content" id="tab-alchemy">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="color:var(--pixel-gold); font-size:1.05rem; font-weight:bold;">🧪 九轉煉丹房</span>
+            <span style="font-size:0.75rem; color:var(--text-muted);">歷練打怪可獲得靈藥，亦可在坊市購入</span>
+          </div>
+
+          <!-- 靈藥神草庫存 -->
+          <div style="background:#11111f; border:2px solid #2d2d48; padding:10px;">
+            <div style="color:var(--pixel-gold); font-size:0.9rem; margin-bottom:6px;">🌱 靈藥草藥庫存</div>
+            <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px; text-align:center; font-size:0.8rem;">
+              <div style="background:#1a1a2e; padding:6px; border:1px solid #333;"><span style="color:#2ecc71;">🌿 靈芝草</span>: <span id="mat-herb-lingzhi" style="color:#fff; font-weight:bold;">0</span></div>
+              <div style="background:#1a1a2e; padding:6px; border:1px solid #333;"><span style="color:#3498db;">💧 百草露</span>: <span id="mat-herb-baicao" style="color:#fff; font-weight:bold;">0</span></div>
+              <div style="background:#1a1a2e; padding:6px; border:1px solid #333;"><span style="color:#e74c3c;">🍎 硃砂果</span>: <span id="mat-herb-zhusha" style="color:#fff; font-weight:bold;">0</span></div>
+              <div style="background:#1a1a2e; padding:6px; border:1px solid #333;"><span style="color:#9b59b6;">🌸 龍葵花</span>: <span id="mat-herb-longkui" style="color:#fff; font-weight:bold;">0</span></div>
+              <div style="background:#1a1a2e; padding:6px; border:1px solid #333;"><span style="color:#f1c40f;">🥕 千年人參</span>: <span id="mat-herb-renshen" style="color:#fff; font-weight:bold;">0</span></div>
+            </div>
+          </div>
+
+          <!-- 煉丹配方配表區 -->
+          <div class="alchemy-grid" id="alchemy-recipes-grid">
+            <!-- 動態渲染煉丹配方 -->
+          </div>
+        </div>
+
+        <!-- 分頁: 坊市商鋪 -->
+        <div class="tab-content" id="tab-shop">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="color:var(--pixel-gold); font-size:1.05rem; font-weight:bold;">🏪 洪荒坊市商鋪</span>
+            <span style="font-size:0.85rem; color:var(--pixel-gold);">靈石: <span id="shop-player-coins" style="font-weight:bold;">500</span></span>
+          </div>
+
+          <div style="font-size:0.8rem; color:var(--text-muted);">
+            商鋪常態供應療傷丹藥、修練神材、靈藥草藥及基礎法寶裝備。
+          </div>
+
+          <div class="shop-grid" id="general-shop-grid">
+            <!-- 動態渲染商鋪商品 -->
+          </div>
+        </div>
+
       </main>
 
     </div>
@@ -303,8 +356,11 @@
 
   <!-- 神秘商人閣 Modal -->
   <div class="modal-backdrop" id="merchant-modal">
-    <div class="modal-box" style="max-width:550px;">
-      <div class="modal-title">🧙‍♂️ 藏經閣 · 雲遊神秘商人</div>
+    <div class="modal-box" style="max-width:550px; max-height:80vh;">
+      <div class="modal-title">
+        <span>🧙‍♂️ 雲遊神秘商人</span>
+        <button class="pixel-btn btn-danger" id="btn-close-merchant-x" style="padding:2px 8px; font-size:0.75rem;">✕ 關閉</button>
+      </div>
       <p style="font-size:0.85rem; color:var(--pixel-gold);">「道友請留步！老夫遊歷洪荒各地，收集了當世罕見的五行武學與內功心法，看道友有緣，便賤賣與你！」</p>
       
       <div class="sutra-grid" id="merchant-shop-grid">
@@ -312,7 +368,7 @@
       </div>
 
       <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:10px;">
-        <button class="pixel-btn" id="close-merchant-modal">告辭離開</button>
+        <button class="pixel-btn btn-danger" id="close-merchant-modal">🚪 告辭離開商人</button>
       </div>
     </div>
   </div>

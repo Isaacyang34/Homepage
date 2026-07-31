@@ -85,20 +85,148 @@ const ELEMENT_NAMES = {
   gold: '金系', wood: '木系', water: '水系', fire: '火系', earth: '土系', chaos: '五行混沌', azure: '蒼天全系'
 };
 
-// 功法心法資料庫 (Sutras Database)
+// 功法心法 6 大分類資料庫 (Sutras Database)
 const ALL_SUTRAS = [
-  // 武學心法 (五行屬性攻擊加成)
-  { id: 'sutra_1', type: 'martial', name: '《金罡裂空劍》', price: 800, atk: 25, def: 0, hp: 0, expSpeed: 0, crit: 0.03, desc: '金系上古劍訣，參悟後永久提升 25 點攻擊力與 3% 會心率。' },
-  { id: 'sutra_2', type: 'martial', name: '《蒼木逢春功》', price: 1200, atk: 30, def: 0, hp: 150, expSpeed: 0, crit: 0, desc: '木系逢春絕學，參悟後提升 30 點攻擊力與 150 點最大氣血。' },
-  { id: 'sutra_3', type: 'martial', name: '《玄冰破浪訣》', price: 1800, atk: 35, def: 10, hp: 0, expSpeed: 0, crit: 0, desc: '水系破浪秘訣，參悟後提升 35 點攻擊力與 10 點防禦力。' },
-  { id: 'sutra_4', type: 'martial', name: '《烈陽焚天槍》', price: 2500, atk: 45, def: 0, hp: 0, expSpeed: 0, crit: 0.05, desc: '火系焚天槍法，參悟後提升 45 點攻擊力與 5% 會心率。' },
-  { id: 'sutra_5', type: 'martial', name: '《厚土鎮嶽印》', price: 3500, atk: 40, def: 25, hp: 0, expSpeed: 0, crit: 0, desc: '土系鎮嶽大印，參悟後提升 40 點攻擊力與 25 點防禦力。' },
+  // ✨ 金系武學
+  { id: 'sutra_g1', category: 'gold', quality: '下品', name: '《鐵鋒斬》', price: 150, atk: 12, def: 0, hp: 0, expSpeed: 0, crit: 0.02, desc: '金系基礎劍招，剛猛果決，提升 12 點攻擊力與 2% 會心率。' },
+  { id: 'sutra_g2', category: 'gold', quality: '中品', name: '《金罡裂空劍》', price: 600, atk: 28, def: 0, hp: 0, expSpeed: 0, crit: 0.04, desc: '金罡裂空，無堅不摧，提升 28 點攻擊力與 4% 會心率。' },
+  { id: 'sutra_g3', category: 'gold', quality: '上品', name: '《紫電裂穹劍》', price: 1800, atk: 55, def: 5, hp: 0, expSpeed: 0, crit: 0.07, desc: '金紫電芒裂穹蒼，提升 55 點攻擊力與 7% 會心率。' },
+  { id: 'sutra_g4', category: 'gold', quality: '極品', name: '《太虛戮神劍典》', price: 4500, atk: 100, def: 10, hp: 0, expSpeed: 0, crit: 0.12, desc: '太虛金煞戮神絕學，提升 100 點攻擊力與 12% 會心率！' },
 
-  // 內功心法 (修為獲得速度 & 防禦氣血加成)
-  { id: 'sutra_6', type: 'internal', name: '《太乙洗髓經》', price: 1000, atk: 0, def: 15, hp: 100, expSpeed: 0.10, crit: 0, desc: '太乙洗髓易筋，參悟後永久提升 10% 修練速度與 15 點防禦。' },
-  { id: 'sutra_7', type: 'internal', name: '《紫霄神雷功》', price: 2200, atk: 0, def: 30, hp: 200, expSpeed: 0.15, crit: 0, desc: '紫霄雷霆淬體，參悟後提升 15% 修練速度與 30 點防禦。' },
-  { id: 'sutra_8', type: 'internal', name: '《混沌吐納術》', price: 4500, atk: 0, def: 50, hp: 300, expSpeed: 0.20, crit: 0, desc: '混沌呼吸法，參悟後提升 20% 修練速度與 50 點防禦。' },
-  { id: 'sutra_9', type: 'internal', name: '《洪荒無極心經》', price: 8888, atk: 20, def: 80, hp: 500, expSpeed: 0.30, crit: 0.05, desc: '洪荒第一無極心經，參悟後提升 30% 修練速度與全屬性爆發！' }
+  // 🌿 木系武學
+  { id: 'sutra_w1', category: 'wood', quality: '下品', name: '《春生訣》', price: 150, atk: 10, def: 2, hp: 80, expSpeed: 0, crit: 0, desc: '木系生生不息之術，提升 10 點攻擊力與 80 點氣血。' },
+  { id: 'sutra_w2', category: 'wood', quality: '中品', name: '《蒼木逢春功》', price: 600, atk: 22, def: 8, hp: 200, expSpeed: 0, crit: 0, desc: '蒼木逢春枯木抽芽，提升 22 點攻擊與 200 點氣血。' },
+  { id: 'sutra_w3', category: 'wood', quality: '上品', name: '《參天古木經》', price: 1800, atk: 45, def: 18, hp: 450, expSpeed: 0, crit: 0, desc: '參天古木浩蕩生機，提升 45 點攻擊與 450 點氣血。' },
+  { id: 'sutra_w4', category: 'wood', quality: '極品', name: '《不朽扶桑神木經》', price: 4500, atk: 85, def: 35, hp: 900, expSpeed: 0.05, crit: 0, desc: '上古扶桑不朽真意，提升 85 攻擊、900 氣血與 5% 修速！' },
+
+  // 💧 水系武學
+  { id: 'sutra_wa1', category: 'water', quality: '下品', name: '《寒流訣》', price: 150, atk: 10, def: 4, hp: 0, expSpeed: 0, crit: 0.01, desc: '水系冰霜綿密，提升 10 點攻擊力與 4 點防禦力。' },
+  { id: 'sutra_wa2', category: 'water', quality: '中品', name: '《玄冰破浪訣》', price: 600, atk: 25, def: 12, hp: 0, expSpeed: 0, crit: 0.03, desc: '玄冰破浪柔中帶剛，提升 25 點攻擊力與 12 點防禦力。' },
+  { id: 'sutra_wa3', category: 'water', quality: '上品', name: '《北冥玄冰訣》', price: 1800, atk: 50, def: 25, hp: 200, expSpeed: 0, crit: 0.05, desc: '北冥玄冰凍結萬物，提升 50 點攻擊與 25 點防禦。' },
+  { id: 'sutra_wa4', category: 'water', quality: '極品', name: '《太陰玄冥絕水典》', price: 4500, atk: 90, def: 45, hp: 400, expSpeed: 0, crit: 0.08, desc: '太陰玄冥絕水威能，提升 90 點攻擊與 45 點防禦！' },
+
+  // 🔥 火系武學
+  { id: 'sutra_f1', category: 'fire', quality: '下品', name: '《炎陽拳》', price: 150, atk: 15, def: 0, hp: 0, expSpeed: 0, crit: 0.02, desc: '火系熾熱拳招，提升 15 點攻擊力與 2% 會心率。' },
+  { id: 'sutra_f2', category: 'fire', quality: '中品', name: '《烈陽焚天槍》', price: 600, atk: 32, def: 0, hp: 0, expSpeed: 0, crit: 0.05, desc: '烈陽焚天霸道槍法，提升 32 點攻擊力與 5% 會心率。' },
+  { id: 'sutra_f3', category: 'fire', quality: '上品', name: '《九幽煉獄焚天訣》', price: 1800, atk: 60, def: 0, hp: 0, expSpeed: 0, crit: 0.08, desc: '九幽真火煉獄焚天，提升 60 點攻擊力與 8% 會心率。' },
+  { id: 'sutra_f4', category: 'fire', quality: '極品', name: '《三昧真火焚世訣》', price: 4500, atk: 110, def: 0, hp: 0, expSpeed: 0, crit: 0.15, desc: '三昧真火焚盡萬法，提升 110 點攻擊力與 15% 會心率！' },
+
+  // 🪨 土系武學
+  { id: 'sutra_e1', category: 'earth', quality: '下品', name: '《磐石拳》', price: 150, atk: 8, def: 8, hp: 50, expSpeed: 0, crit: 0, desc: '土系堅如磐石，提升 8 點攻擊與 8 點防禦。' },
+  { id: 'sutra_e2', category: 'earth', quality: '中品', name: '《厚土鎮嶽印》', price: 600, atk: 20, def: 20, hp: 150, expSpeed: 0, crit: 0, desc: '厚土鎮嶽穩如泰山，提升 20 點攻擊與 20 點防禦。' },
+  { id: 'sutra_e3', category: 'earth', quality: '上品', name: '《不動玄嶽印》', price: 1800, atk: 40, def: 42, hp: 350, expSpeed: 0, crit: 0, desc: '不動玄嶽化身金剛，提升 40 點攻擊與 42 點防禦。' },
+  { id: 'sutra_e4', category: 'earth', quality: '極品', name: '《后土鎮世神印》', price: 4500, atk: 75, def: 80, hp: 700, expSpeed: 0, crit: 0, desc: '后土鎮世威鎮八荒，提升 75 點攻擊與 80 點防禦！' },
+
+  // 🧘 內功心法
+  { id: 'sutra_i1', category: 'internal', quality: '下品', name: '《洗髓基礎功》', price: 200, atk: 0, def: 6, hp: 100, expSpeed: 0.05, crit: 0, desc: '入門洗髓易筋，提升 5% 修練速度與 6 點防禦。' },
+  { id: 'sutra_i2', category: 'internal', quality: '中品', name: '《太乙洗髓經》', price: 800, atk: 0, def: 18, hp: 200, expSpeed: 0.10, crit: 0, desc: '太乙周天淬體，提升 10% 修練速度與 18 點防禦。' },
+  { id: 'sutra_i3', category: 'internal', quality: '上品', name: '《九轉太乙玄經》', price: 2000, atk: 15, def: 35, hp: 400, expSpeed: 0.18, crit: 0.02, desc: '九轉太乙靈氣灌頂，提升 18% 修速、35 防禦與 15 攻擊。' },
+  { id: 'sutra_i4', category: 'internal', quality: '中品', name: '《紫霄神雷功》', price: 1000, atk: 10, def: 22, hp: 150, expSpeed: 0.12, crit: 0.03, desc: '紫霄雷霆淬鍊肉身，提升 12% 修速與 22 點防禦。' },
+  { id: 'sutra_i5', category: 'internal', quality: '上品', name: '《混沌吐納術》', price: 3200, atk: 25, def: 50, hp: 500, expSpeed: 0.22, crit: 0.04, desc: '吐納天地混沌之氣，提升 22% 修速與 50 點防禦。' },
+  { id: 'sutra_i6', category: 'internal', quality: '極品', name: '《洪荒無極心經》', price: 8888, atk: 50, def: 90, hp: 1000, expSpeed: 0.35, crit: 0.08, desc: '洪荒第一無極心法，提升 35% 修練速度與全屬性爆發！' }
+];
+
+// 九轉煉丹房配方 (Alchemy Recipes)
+const PILL_RECIPES = [
+  {
+    id: 'recipe_small_hp',
+    name: '《小還丹》',
+    quality: '下品',
+    icon: '💊',
+    coinsCost: 50,
+    materials: { lingzhi: 2, baicao: 1 },
+    desc: '吞服後立即恢復 50% 最大氣血！',
+    action: (p) => {
+      const heal = Math.floor(p.maxHp * 0.5);
+      p.hp = Math.min(p.maxHp, p.hp + heal);
+      return `吞服【小還丹】，氣血瞬間恢復 ${heal} 點！`;
+    }
+  },
+  {
+    id: 'recipe_big_hp',
+    name: '《大還丹》',
+    quality: '中品',
+    icon: '🔴',
+    coinsCost: 150,
+    materials: { lingzhi: 4, zhusha: 2 },
+    desc: '仙家急救聖藥，吞服後氣血直接全滿！',
+    action: (p) => {
+      p.hp = p.maxHp;
+      return `吞服【大還丹】，氣血完全恢復至滿血！`;
+    }
+  },
+  {
+    id: 'recipe_juqi_exp',
+    name: '《聚氣丹》',
+    quality: '下品',
+    icon: '🔵',
+    coinsCost: 100,
+    materials: { baicao: 3, zhusha: 1 },
+    desc: '凝聚天地靈氣，使用後獲得 +300 點修為！',
+    action: (p) => {
+      p.exp += 300;
+      if (p.exp >= p.maxExp) levelUp();
+      return `煉服【聚氣丹】，增加 300 點修為！`;
+    }
+  },
+  {
+    id: 'recipe_ningshen_exp',
+    name: '《凝神丹》',
+    quality: '中品',
+    icon: '🟣',
+    coinsCost: 300,
+    materials: { zhusha: 3, longkui: 2 },
+    desc: '凝神靜心，使用後獲得 +1000 點修為！',
+    action: (p) => {
+      p.exp += 1000;
+      if (p.exp >= p.maxExp) levelUp();
+      return `煉服【凝神丹】，修為大漲 1000 點！`;
+    }
+  },
+  {
+    id: 'recipe_zhuji_break',
+    name: '《築基保底突破丹》',
+    quality: '上品',
+    icon: '🌟',
+    coinsCost: 600,
+    materials: { longkui: 3, renshen: 1 },
+    desc: '渡劫突破專用神丹！增加 +2500 修為並永久 +10 攻擊力！',
+    action: (p) => {
+      p.exp += 2500;
+      p.atk += 10;
+      if (p.exp >= p.maxExp) levelUp();
+      return `服下【築基保底突破丹】，修為+2500，永久攻擊力+10！`;
+    }
+  },
+  {
+    id: 'recipe_cuiling_wash',
+    name: '《先天淬靈洗髓丹》',
+    quality: '極品',
+    icon: '✨',
+    coinsCost: 1000,
+    materials: { renshen: 2, longkui: 2, zhusha: 2 },
+    desc: '洗髓易筋！永久提升 5% 修練速度與 15 點防禦力！',
+    action: (p) => {
+      p.expSpeed = (p.expSpeed || 1.0) + 0.05;
+      p.def += 15;
+      return `服下【先天淬靈洗髓丹】，靈根獲洗髓升級！修速+5%，防禦+15！`;
+    }
+  }
+];
+
+// 坊市商鋪物品列表 (Shop Items)
+const SHOP_ITEMS = [
+  { id: 'shop_pill_small', name: '回氣丹 ×1', icon: '💊', price: 200, category: 'pill', desc: '回復 50% 氣血', action: () => buyPill() },
+  { id: 'shop_herb_lingzhi', name: '草藥·靈芝草 ×1', icon: '🌿', price: 80, category: 'herb', key: 'lingzhi' },
+  { id: 'shop_herb_baicao', name: '草藥·百草露 ×1', icon: '💧', price: 80, category: 'herb', key: 'baicao' },
+  { id: 'shop_herb_zhusha', name: '草藥·硃砂果 ×1', icon: '🍎', price: 150, category: 'herb', key: 'zhusha' },
+  { id: 'shop_herb_longkui', name: '草藥·龍葵花 ×1', icon: '🌸', price: 250, category: 'herb', key: 'longkui' },
+  { id: 'shop_herb_renshen', name: '靈藥·千年人參 ×1', icon: '🥕', price: 500, category: 'herb', key: 'renshen' },
+  { id: 'shop_mat_gold', name: '神材·金精石 ×3', icon: '✨', price: 250, category: 'material', key: 'goldMat', count: 3 },
+  { id: 'shop_mat_wood', name: '神材·神木芯 ×3', icon: '🌿', price: 250, category: 'material', key: 'woodMat', count: 3 },
+  { id: 'shop_mat_water', name: '神材·玄冰髓 ×3', icon: '💧', price: 250, category: 'material', key: 'waterMat', count: 3 },
+  { id: 'shop_mat_fire', name: '神材·朱雀羽 ×3', icon: '🔥', price: 250, category: 'material', key: 'fireMat', count: 3 },
+  { id: 'shop_mat_earth', name: '神材·息壤土 ×3', icon: '🪨', price: 250, category: 'material', key: 'earthMat', count: 3 }
 ];
 
 const DUNGEONS = [
@@ -218,7 +346,14 @@ let player = {
   inventory: [],
   equipped: { weapon: null, armor: null, accessory: null },
   usedCodes: [],
-  pills: 0
+  pills: 0,
+  herbs: {
+    lingzhi: 3,
+    baicao: 3,
+    zhusha: 1,
+    longkui: 1,
+    renshen: 0
+  }
 };
 
 let drawnRoot = null;
@@ -229,9 +364,11 @@ let isAutoBattling = false;
 let currentMonster = null;
 let currentForgeMode = 'single';
 let currentForgeElement = 'gold';
+let currentSutraCategory = 'gold';
 let isMeditating = false;
 let meditateInterval = null;
 let regenInterval = null;
+let currentMerchantItems = [];
 
 // 五行屬性對應材料key、材料名稱、裝備前綴
 const ELEMENT_MAT_MAP = {
@@ -263,6 +400,8 @@ function setupEventListeners() {
       audioSynth.playTone(300, 'square', 0.05);
 
       if (tabId === 'sutra') renderSutraTab();
+      if (tabId === 'alchemy') renderAlchemyTab();
+      if (tabId === 'shop') renderShopTab();
     });
   });
 
@@ -282,17 +421,26 @@ function setupEventListeners() {
   giftModal.addEventListener('click', (e) => { if (e.target === giftModal) giftModal.classList.remove('show'); });
   document.getElementById('btn-claim-code').addEventListener('click', claimGiftCode);
 
-  // 神秘商人 Modal
+  // 神秘商人 Modal (告辭時銷毀商人)
   const merchantModal = document.getElementById('merchant-modal');
   document.getElementById('btn-open-merchant').addEventListener('click', () => {
+    generateMerchantItems();
     renderMerchantShop();
     merchantModal.classList.add('show');
   });
-  document.getElementById('close-merchant-modal').addEventListener('click', () => {
+  
+  const closeMerchantFunc = () => {
     merchantModal.classList.remove('show');
-  });
+    // 告辭離開商人，商人離場
+    document.getElementById('merchant-banner').classList.remove('show');
+    currentMerchantItems = [];
+    addLog(`【告辭】與神秘商人作揖告別，商人飄然離去...`, 'log-system');
+  };
+
+  document.getElementById('close-merchant-modal').addEventListener('click', closeMerchantFunc);
+  document.getElementById('btn-close-merchant-x').addEventListener('click', closeMerchantFunc);
   merchantModal.addEventListener('click', (e) => {
-    if (e.target === merchantModal) merchantModal.classList.remove('show');
+    if (e.target === merchantModal) closeMerchantFunc();
   });
 
   document.getElementById('btn-save').addEventListener('click', () => {
@@ -657,6 +805,20 @@ function onMonsterDefeated() {
     droppedMatName = { goldMat:'金精石', woodMat:'神木芯', waterMat:'玄冰髓', fireMat:'朱雀羽', earthMat:'息壤土' }[dung.matDrop];
   }
 
+  // 20% 機率獲得靈藥草藥
+  if (Math.random() < 0.20) {
+    const herbKeys = ['lingzhi', 'baicao', 'zhusha', 'longkui', 'renshen'];
+    const weights = [40, 30, 15, 10, 5];
+    let r = Math.random() * 100, cum = 0, selectedHerb = 'lingzhi';
+    for (let i = 0; i < weights.length; i++) {
+      cum += weights[i];
+      if (r < cum) { selectedHerb = herbKeys[i]; break; }
+    }
+    player.herbs[selectedHerb] = (player.herbs[selectedHerb] || 0) + 1;
+    const herbNameMap = { lingzhi:'靈芝草', baicao:'百草露', zhusha:'硃砂果', longkui:'龍葵花', renshen:'千年人參' };
+    addLog(`【採集】擊敗怪物採集到靈藥：【${herbNameMap[selectedHerb]}】+1！`, 'log-drop');
+  }
+
   addLog(`【大捷】擊敗 ${currentMonster.name}！修為+${expGain} (修速 ${Math.floor(totalExpSpeed*100)}%)，靈石+${baseCoin}，【${droppedMatName}】+1！`, 'log-drop');
 
   // 15% 機率觸發隨機機緣或神秘商人
@@ -668,8 +830,9 @@ function onMonsterDefeated() {
       addLog(`【✨ 天降機緣】偶遇洪荒大能遺跡，獲得古仙贈禮：靈石 +${rewardCoins}！`, 'log-crit');
     } else {
       // 50% 神秘商人降臨
+      generateMerchantItems();
       document.getElementById('merchant-banner').classList.add('show');
-      addLog(`【🧙‍♂️ 機緣降臨】雲遊神秘商人攜帶武學與內功心法降臨秘境！`, 'log-crit');
+      addLog(`【🧙‍♂️ 機緣降臨】雲遊神秘商人攜帶武學與內功心法降臨秘境！點擊「拜訪神秘商人」即可選購！`, 'log-crit');
     }
   }
 
@@ -859,6 +1022,18 @@ function salvageSingleItem(itemId) {
   updateUI();
 }
 
+// 產生神秘商人隨機販售品項 (每次3~5件)
+function generateMerchantItems() {
+  if (currentMerchantItems.length > 0) return; // 已有商人品項未告辭
+  const unpurchased = ALL_SUTRAS.filter(s => !player.purchasedSutras.includes(s.id));
+  const pool = unpurchased.length > 0 ? unpurchased : ALL_SUTRAS;
+  const count = Math.min(pool.length, Math.floor(Math.random() * 3) + 3);
+  
+  // 隨機洗牌
+  const shuffled = [...pool].sort(() => Math.random() - 0.5);
+  currentMerchantItems = shuffled.slice(0, count);
+}
+
 // 購買並參悟心法 (Buy & Practice Sutra)
 function buySutra(sutraId) {
   const sutra = ALL_SUTRAS.find(s => s.id === sutraId);
@@ -892,21 +1067,32 @@ function renderMerchantShop() {
   if (!container) return;
   container.innerHTML = '';
 
-  ALL_SUTRAS.forEach(sutra => {
+  if (!currentMerchantItems || currentMerchantItems.length === 0) {
+    generateMerchantItems();
+  }
+
+  currentMerchantItems.forEach(sutra => {
     const isBought = player.purchasedSutras.includes(sutra.id);
     const card = document.createElement('div');
     card.className = `sutra-card ${isBought ? 'sutra-purchased' : ''}`;
+    
+    // 是否同靈根
+    const isSameElem = (player.element === sutra.category || player.element === 'azure');
+    
     card.innerHTML = `
       <div class="sutra-card-header">
         <span class="sutra-name">${sutra.name}</span>
-        <span class="sutra-badge ${sutra.type === 'martial' ? 'sutra-type-martial' : 'sutra-type-internal'}">${sutra.type === 'martial' ? '五行武學' : '內功心法'}</span>
+        <span class="sutra-badge ${sutra.category === 'internal' ? 'sutra-type-internal' : 'sutra-type-martial'}">
+          ${sutra.quality} · ${sutra.category === 'internal' ? '內功' : ELEMENT_NAMES[sutra.category] || '武學'}
+        </span>
       </div>
-      <div class="sutra-effect">${getSutraEffectText(sutra)}</div>
+      <div class="sutra-effect">${getSutraEffectText(sutra, isSameElem)}</div>
       <div class="sutra-desc">${sutra.desc}</div>
+      ${isSameElem ? '<div style="font-size:0.7rem; color:#00ffff;">✨ 本命屬性契合 (1.15倍威力)</div>' : ''}
       <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
         <span style="color:var(--pixel-gold); font-size:0.85rem; font-weight:bold;">💰 ${sutra.price} 靈石</span>
         <button class="pixel-btn ${isBought ? '' : 'btn-gold'}" ${isBought ? 'disabled' : ''} onclick="buySutra('${sutra.id}')">
-          ${isBought ? '已參悟' : '購買參悟'}
+          ${isBought ? '✓ 已售罄' : '🛒 拜購參悟'}
         </button>
       </div>
     `;
@@ -914,7 +1100,19 @@ function renderMerchantShop() {
   });
 }
 
-// 渲染功法 Tab 頁籤
+// 藏經閣 6 大子分頁切換
+function switchSutraTab(cat) {
+  currentSutraCategory = cat;
+  document.querySelectorAll('#sutra-sub-tabs .sub-tab-btn').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  if (event && event.target) {
+    event.target.classList.add('active');
+  }
+  renderSutraTab();
+}
+
+// 渲染藏經閣 Tab
 function renderSutraTab() {
   const container = document.getElementById('sutra-grid');
   if (!container) return;
@@ -922,26 +1120,42 @@ function renderSutraTab() {
 
   let totalAtk = 0, totalDef = 0, totalExp = 0;
 
+  // 計算所有已參悟心法總加成
   ALL_SUTRAS.forEach(sutra => {
-    const isBought = player.purchasedSutras.includes(sutra.id);
-    if (isBought) {
-      totalAtk += sutra.atk || 0;
-      totalDef += sutra.def || 0;
-      totalExp += sutra.expSpeed || 0;
+    if (player.purchasedSutras.includes(sutra.id)) {
+      const isSameElem = (player.element === sutra.category || player.element === 'azure');
+      const mult = isSameElem ? 1.15 : 1.0;
+      totalAtk += Math.floor((sutra.atk || 0) * mult);
+      totalDef += Math.floor((sutra.def || 0) * mult);
+      totalExp += (sutra.expSpeed || 0) * mult;
     }
+  });
+
+  // 僅渲染當前 selected 分類
+  const catSutras = ALL_SUTRAS.filter(s => s.category === currentSutraCategory);
+
+  catSutras.forEach(sutra => {
+    const isBought = player.purchasedSutras.includes(sutra.id);
+    const isSameElem = (player.element === sutra.category || player.element === 'azure');
 
     const card = document.createElement('div');
     card.className = `sutra-card ${isBought ? 'sutra-purchased' : ''}`;
-    card.style.opacity = isBought ? '1' : '0.4';
+    card.style.opacity = isBought ? '1' : '0.55';
     card.innerHTML = `
       <div class="sutra-card-header">
         <span class="sutra-name">${sutra.name}</span>
-        <span class="sutra-badge ${sutra.type === 'martial' ? 'sutra-type-martial' : 'sutra-type-internal'}">${sutra.type === 'martial' ? '五行武學' : '內功心法'}</span>
+        <span class="sutra-badge ${sutra.category === 'internal' ? 'sutra-type-internal' : 'sutra-type-martial'}">
+          ${sutra.quality} · ${sutra.category === 'internal' ? '內功' : ELEMENT_NAMES[sutra.category] || '武學'}
+        </span>
       </div>
-      <div class="sutra-effect">${getSutraEffectText(sutra)}</div>
+      <div class="sutra-effect">${getSutraEffectText(sutra, isSameElem)}</div>
       <div class="sutra-desc">${sutra.desc}</div>
-      <div style="margin-top:6px; font-size:0.75rem; color:${isBought ? '#2ecc71' : '#888'}; font-weight:bold;">
-        ${isBought ? '✓ 已參悟境界' : '🔒 未獲得心法'}
+      ${isSameElem ? '<div style="font-size:0.7rem; color:#00ffff;">✨ 本命屬性契合 (+15% 效果加成)</div>' : ''}
+      <div style="margin-top:8px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:0.75rem; color:${isBought ? '#2ecc71' : 'var(--pixel-gold)'}; font-weight:bold;">
+          ${isBought ? '✓ 已參悟通透' : '💰 ' + sutra.price + ' 靈石'}
+        </span>
+        ${!isBought ? `<button class="pixel-btn btn-gold" style="padding:4px 8px; font-size:0.75rem;" onclick="buySutra('${sutra.id}')">參悟絕學</button>` : ''}
       </div>
     `;
     container.appendChild(card);
@@ -952,12 +1166,13 @@ function renderSutraTab() {
   document.getElementById('sutra-bonus-exp').textContent = `${Math.floor(totalExp * 100)}%`;
 }
 
-function getSutraEffectText(sutra) {
+function getSutraEffectText(sutra, isSameElem = false) {
+  const mult = isSameElem ? 1.15 : 1.0;
   let parts = [];
-  if (sutra.atk) parts.push(`攻 +${sutra.atk}`);
-  if (sutra.def) parts.push(`防 +${sutra.def}`);
-  if (sutra.hp) parts.push(`血 +${sutra.hp}`);
-  if (sutra.expSpeed) parts.push(`修速 +${Math.floor(sutra.expSpeed * 100)}%`);
+  if (sutra.atk) parts.push(`攻 +${Math.floor(sutra.atk * mult)}`);
+  if (sutra.def) parts.push(`防 +${Math.floor(sutra.def * mult)}`);
+  if (sutra.hp) parts.push(`血 +${Math.floor(sutra.hp * mult)}`);
+  if (sutra.expSpeed) parts.push(`修速 +${Math.floor(sutra.expSpeed * mult * 100)}%`);
   if (sutra.crit) parts.push(`會心 +${Math.floor(sutra.crit * 100)}%`);
   return parts.join(' | ');
 }
@@ -967,9 +1182,150 @@ function calculateTotalExpSpeed() {
   let sutraExpSpeed = 0;
   player.purchasedSutras.forEach(id => {
     const s = ALL_SUTRAS.find(item => item.id === id);
-    if (s && s.expSpeed) sutraExpSpeed += s.expSpeed;
+    if (s && s.expSpeed) {
+      const isSameElem = (player.element === s.category || player.element === 'azure');
+      sutraExpSpeed += s.expSpeed * (isSameElem ? 1.15 : 1.0);
+    }
   });
   return (player.expSpeed || 1.0) + sutraExpSpeed;
+}
+
+// ============================================
+// 九轉煉丹房系統
+// ============================================
+function renderAlchemyTab() {
+  const container = document.getElementById('alchemy-recipes-grid');
+  if (!container) return;
+  container.innerHTML = '';
+
+  // 更新靈藥草藥 UI 數量
+  if (!player.herbs) player.herbs = { lingzhi: 0, baicao: 0, zhusha: 0, longkui: 0, renshen: 0 };
+  document.getElementById('mat-herb-lingzhi').textContent = player.herbs.lingzhi || 0;
+  document.getElementById('mat-herb-baicao').textContent = player.herbs.baicao || 0;
+  document.getElementById('mat-herb-zhusha').textContent = player.herbs.zhusha || 0;
+  document.getElementById('mat-herb-longkui').textContent = player.herbs.longkui || 0;
+  document.getElementById('mat-herb-renshen').textContent = player.herbs.renshen || 0;
+
+  const herbNames = { lingzhi:'靈芝草', baicao:'百草露', zhusha:'硃砂果', longkui:'龍葵花', renshen:'千年人參' };
+
+  PILL_RECIPES.forEach(recipe => {
+    let matTextParts = [];
+    let canCraft = player.coins >= recipe.coinsCost;
+
+    Object.entries(recipe.materials).forEach(([hKey, count]) => {
+      const have = player.herbs[hKey] || 0;
+      const hName = herbNames[hKey] || hKey;
+      if (have < count) canCraft = false;
+      matTextParts.push(`${hName} ×${count} (${have}/${count})`);
+    });
+
+    const card = document.createElement('div');
+    card.className = 'recipe-card';
+    card.innerHTML = `
+      <div class="recipe-header">
+        <span style="font-weight:bold; color:#fff;">${recipe.icon} ${recipe.name}</span>
+        <span class="sutra-badge sutra-type-martial">${recipe.quality}</span>
+      </div>
+      <div style="font-size:0.75rem; color:var(--pixel-gold);">${recipe.desc}</div>
+      <div style="font-size:0.7rem; color:var(--text-muted);">
+        消耗: ${matTextParts.join(' + ')} + 💰 ${recipe.coinsCost} 靈石
+      </div>
+      <button class="pixel-btn ${canCraft ? 'btn-gold' : ''}" ${canCraft ? '' : 'disabled'} 
+              style="margin-top:4px; font-size:0.8rem;" onclick="craftPill('${recipe.id}')">
+        🔥 開爐煉製丹藥
+      </button>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function craftPill(recipeId) {
+  const recipe = PILL_RECIPES.find(r => r.id === recipeId);
+  if (!recipe) return;
+
+  if (player.coins < recipe.coinsCost) {
+    addLog(`【煉丹失敗】靈石不足！需要 ${recipe.coinsCost} 靈石。`, 'log-monster');
+    return;
+  }
+
+  const herbNames = { lingzhi:'靈芝草', baicao:'百草露', zhusha:'硃砂果', longkui:'龍葵花', renshen:'千年人參' };
+  for (const [hKey, count] of Object.entries(recipe.materials)) {
+    if ((player.herbs[hKey] || 0) < count) {
+      addLog(`【煉丹失敗】${herbNames[hKey]} 不足！`, 'log-monster');
+      return;
+    }
+  }
+
+  // 扣除資源
+  player.coins -= recipe.coinsCost;
+  for (const [hKey, count] of Object.entries(recipe.materials)) {
+    player.herbs[hKey] -= count;
+  }
+
+  audioSynth.sfxCraft();
+  const logMsg = recipe.action(player);
+  addLog(`【煉丹成功】神鼎出丹！${logMsg}`, 'log-crit');
+
+  recalculatePlayerStats();
+  updateUI();
+  renderAlchemyTab();
+}
+
+// ============================================
+// 坊市商鋪系統
+// ============================================
+function renderShopTab() {
+  const container = document.getElementById('general-shop-grid');
+  if (!container) return;
+  container.innerHTML = '';
+
+  document.getElementById('shop-player-coins').textContent = player.coins;
+
+  SHOP_ITEMS.forEach(item => {
+    const canBuy = player.coins >= item.price;
+    const card = document.createElement('div');
+    card.className = 'shop-card';
+    card.innerHTML = `
+      <div class="shop-header">
+        <span style="font-weight:bold; color:#fff;">${item.icon} ${item.name}</span>
+        <span style="color:var(--pixel-gold); font-weight:bold; font-size:0.85rem;">💰 ${item.price}</span>
+      </div>
+      <div style="font-size:0.75rem; color:var(--text-muted);">${item.desc || '坊市嚴選貨品'}</div>
+      <button class="pixel-btn ${canBuy ? 'btn-gold' : ''}" ${canBuy ? '' : 'disabled'}
+              style="margin-top:6px; font-size:0.8rem;" onclick="buyShopItem('${item.id}')">
+        🛒 購入商品
+      </button>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function buyShopItem(itemId) {
+  const item = SHOP_ITEMS.find(i => i.id === itemId);
+  if (!item) return;
+
+  if (player.coins < item.price) {
+    addLog(`【靈石不足】坊市老闆搖搖頭：「靈石不夠，無法購入 ${item.name}！」`, 'log-monster');
+    return;
+  }
+
+  player.coins -= item.price;
+  audioSynth.sfxReward();
+
+  if (item.category === 'pill' && item.action) {
+    item.action();
+  } else if (item.category === 'herb') {
+    player.herbs[item.key] = (player.herbs[item.key] || 0) + 1;
+    const herbNameMap = { lingzhi:'靈芝草', baicao:'百草露', zhusha:'硃砂果', longkui:'龍葵花', renshen:'千年人參' };
+    addLog(`【坊市購入】成功購買【${herbNameMap[item.key]}】×1！`, 'log-drop');
+  } else if (item.category === 'material') {
+    player.materials[item.key] += (item.count || 1);
+    const matNameMap = { goldMat:'金精石', woodMat:'神木芯', waterMat:'玄冰髓', fireMat:'朱雀羽', earthMat:'息壤土' };
+    addLog(`【坊市購入】成功購買【${matNameMap[item.key]}】×${item.count || 1}！`, 'log-drop');
+  }
+
+  updateUI();
+  renderShopTab();
 }
 
 function equipItem(itemId) {
@@ -1146,6 +1502,10 @@ function updateUI() {
   document.getElementById('stat-atk').textContent = player.atk;
   document.getElementById('stat-def').textContent = player.def;
   document.getElementById('stat-crit').textContent = `${Math.floor(player.critRate * 100)}%`;
+  
+  if (document.getElementById('stat-pills')) document.getElementById('stat-pills').textContent = player.pills || 0;
+  if (document.getElementById('ui-pill-count')) document.getElementById('ui-pill-count').textContent = player.pills || 0;
+  if (document.getElementById('stat-regen')) document.getElementById('stat-regen').textContent = `${getRegenAmount()} /3s`;
 
   document.getElementById('mat-gold').textContent = player.materials.goldMat;
   document.getElementById('mat-wood').textContent = player.materials.woodMat;
@@ -1155,6 +1515,14 @@ function updateUI() {
 
   renderEquippedSlots();
   renderInventory();
+
+  // 若當前在煉丹或商鋪分頁，自動繪製
+  const activeTab = document.querySelector('.tab-btn.active');
+  if (activeTab) {
+    const tabId = activeTab.getAttribute('data-tab');
+    if (tabId === 'alchemy') renderAlchemyTab();
+    if (tabId === 'shop') renderShopTab();
+  }
 }
 
 function updateMonsterUI() {

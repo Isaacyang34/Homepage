@@ -702,7 +702,9 @@ header {
   box-shadow: 0 0 0 4px #000, 0 0 20px rgba(241, 196, 15, 0.4);
   padding: 20px;
   width: 90%;
-  max-width: 520px;
+  max-width: 550px;
+  max-height: 85vh;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 15px;
@@ -713,6 +715,9 @@ header {
   color: var(--pixel-gold);
   border-bottom: 2px dashed var(--panel-border);
   padding-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .pixel-input {
@@ -729,3 +734,68 @@ header {
   outline: none;
   border-color: var(--pixel-gold);
 }
+
+/* ============================================
+   藏經閣 6 大子分頁樣式
+   ============================================ */
+.sub-nav-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  border-bottom: 2px solid #3d3d63;
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+}
+
+.sub-tab-btn {
+  background: #141428;
+  color: var(--text-muted);
+  border: 1px solid #3d3d63;
+  padding: 5px 9px;
+  font-family: var(--font-pixel);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.sub-tab-btn:hover {
+  border-color: var(--pixel-gold);
+  color: #fff;
+}
+
+.sub-tab-btn.active {
+  background: #282850;
+  color: var(--pixel-gold);
+  border-color: var(--pixel-gold);
+  font-weight: bold;
+}
+
+/* ============================================
+   煉丹房 & 商鋪 Grid 樣式
+   ============================================ */
+.alchemy-grid, .shop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+}
+
+.recipe-card, .shop-card {
+  background: #121224;
+  border: 2px solid #363654;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.recipe-card:hover, .shop-card:hover {
+  border-color: var(--pixel-gold);
+}
+
+.recipe-header, .shop-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px dashed #2d2d48;
+  padding-bottom: 4px;
+}
+
