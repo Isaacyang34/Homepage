@@ -1,8 +1,7 @@
 /**
- * 《無盡洪荒：五行聖境》- 遊戲核心邏輯 (Game Engine v1.2)
+ * 《無盡洪荒：五行聖境》- 遊戲核心邏輯 (Game Engine v1.4 - Sutra & Merchant)
  */
 
-// 8-Bit 音效合成器 (Web Audio API)
 class PixelAudioSynthesizer {
   constructor() {
     this.ctx = null;
@@ -40,7 +39,7 @@ class PixelAudioSynthesizer {
       osc.start();
       osc.stop(this.ctx.currentTime + duration);
     } catch (e) {
-      // 靜默處理 Web Audio 錯誤，不阻斷遊戲邏輯
+      // 靜默處理
     }
   }
 
@@ -69,7 +68,6 @@ class PixelAudioSynthesizer {
 
 const audioSynth = new PixelAudioSynthesizer();
 
-// 境界定義 (Realm Hierarchy)
 const REALMS = [
   "練氣初期", "練氣中期", "練氣後期",
   "築基初期", "築基中期", "築基後期",
@@ -79,20 +77,30 @@ const REALMS = [
   "返虛期", "合體期", "大乘期", "洪荒聖人"
 ];
 
-// 五行克制關係：金克木、木克土、土克水、水克火、火克金
 const ELEMENT_COUNTER = {
-  gold: 'wood',
-  wood: 'earth',
-  earth: 'water',
-  water: 'fire',
-  fire: 'gold'
+  gold: 'wood', wood: 'earth', earth: 'water', water: 'fire', fire: 'gold'
 };
 
 const ELEMENT_NAMES = {
-  gold: '金系', wood: '木系', water: '水系', fire: '火系', earth: '土系', chaos: '五行混沌'
+  gold: '金系', wood: '木系', water: '水系', fire: '火系', earth: '土系', chaos: '五行混沌', azure: '蒼天全系'
 };
 
-// 副本怪物庫設定 (Dungeons with Monster Pools)
+// 功法心法資料庫 (Sutras Database)
+const ALL_SUTRAS = [
+  // 武學心法 (五行屬性攻擊加成)
+  { id: 'sutra_1', type: 'martial', name: '《金罡裂空劍》', price: 800, atk: 25, def: 0, hp: 0, expSpeed: 0, crit: 0.03, desc: '金系上古劍訣，參悟後永久提升 25 點攻擊力與 3% 會心率。' },
+  { id: 'sutra_2', type: 'martial', name: '《蒼木逢春功》', price: 1200, atk: 30, def: 0, hp: 150, expSpeed: 0, crit: 0, desc: '木系逢春絕學，參悟後提升 30 點攻擊力與 150 點最大氣血。' },
+  { id: 'sutra_3', type: 'martial', name: '《玄冰破浪訣》', price: 1800, atk: 35, def: 10, hp: 0, expSpeed: 0, crit: 0, desc: '水系破浪秘訣，參悟後提升 35 點攻擊力與 10 點防禦力。' },
+  { id: 'sutra_4', type: 'martial', name: '《烈陽焚天槍》', price: 2500, atk: 45, def: 0, hp: 0, expSpeed: 0, crit: 0.05, desc: '火系焚天槍法，參悟後提升 45 點攻擊力與 5% 會心率。' },
+  { id: 'sutra_5', type: 'martial', name: '《厚土鎮嶽印》', price: 3500, atk: 40, def: 25, hp: 0, expSpeed: 0, crit: 0, desc: '土系鎮嶽大印，參悟後提升 40 點攻擊力與 25 點防禦力。' },
+
+  // 內功心法 (修為獲得速度 & 防禦氣血加成)
+  { id: 'sutra_6', type: 'internal', name: '《太乙洗髓經》', price: 1000, atk: 0, def: 15, hp: 100, expSpeed: 0.10, crit: 0, desc: '太乙洗髓易筋，參悟後永久提升 10% 修練速度與 15 點防禦。' },
+  { id: 'sutra_7', type: 'internal', name: '《紫霄神雷功》', price: 2200, atk: 0, def: 30, hp: 200, expSpeed: 0.15, crit: 0, desc: '紫霄雷霆淬體，參悟後提升 15% 修練速度與 30 點防禦。' },
+  { id: 'sutra_8', type: 'internal', name: '《混沌吐納術》', price: 4500, atk: 0, def: 50, hp: 300, expSpeed: 0.20, crit: 0, desc: '混沌呼吸法，參悟後提升 20% 修練速度與 50 點防禦。' },
+  { id: 'sutra_9', type: 'internal', name: '《洪荒無極心經》', price: 8888, atk: 20, def: 80, hp: 500, expSpeed: 0.30, crit: 0.05, desc: '洪荒第一無極心經，參悟後提升 30% 修練速度與全屬性爆發！' }
+];
+
 const DUNGEONS = [
   { 
     id: 0, name: "太初森林", reqLevel: 1, element: 'wood',
@@ -153,20 +161,18 @@ const DUNGEONS = [
       { name: "赤焰朱雀", icon: "🦅", elem: 'fire' },
       { name: "息壤魔尊", icon: "🗿", elem: 'earth' }
     ],
-    baseExp: 40, baseCoin: 30, matDrop: 'all' // 掉落全種類
+    baseExp: 40, baseCoin: 30, matDrop: 'all'
   }
 ];
 
-// 混沌秘境浮動等級階階
 const CHAOS_TIERS = [
-  { name: "1~15級 (凡階)", minLvl: 1, maxLvl: 15, scale: 1.0 },
-  { name: "15~30級 (靈階)", minLvl: 15, maxLvl: 30, scale: 1.8 },
-  { name: "30~50級 (地階)", minLvl: 30, maxLvl: 50, scale: 3.0 },
-  { name: "50~70級 (天階)", minLvl: 50, maxLvl: 70, scale: 5.5 },
-  { name: "70~100級 (聖階)", minLvl: 70, maxLvl: 100, scale: 9.0 }
+  { name: "1~15級 (凡階)", scale: 1.0 },
+  { name: "15~30級 (靈階)", scale: 1.8 },
+  { name: "30~50級 (地階)", scale: 3.0 },
+  { name: "50~70級 (天階)", scale: 5.5 },
+  { name: "70~100級 (聖階)", scale: 9.0 }
 ];
 
-// 品階設定
 const QUALITIES = [
   { level: 1, name: "凡品", color: "#888888", multiplier: 1.0 },
   { level: 2, name: "良品", color: "#2ecc71", multiplier: 1.4 },
@@ -176,10 +182,15 @@ const QUALITIES = [
   { level: 6, name: "神品", color: "#e74c3c", multiplier: 5.0 }
 ];
 
-// 預設玩家狀態
 let player = {
   name: "洪荒修真者",
   element: "gold",
+  
+  rootType: "single",
+  rootName: "天單靈根",
+  expSpeed: 1.0,
+  statMult: 1.0,
+  
   level: 1,
   exp: 0,
   maxExp: 100,
@@ -192,6 +203,9 @@ let player = {
   speed: 10,
   critRate: 0.10,
   specialRate: 0.15,
+  
+  // 已參悟心法清單
+  purchasedSutras: [],
   
   materials: {
     goldMat: 10,
@@ -206,13 +220,13 @@ let player = {
   usedCodes: []
 };
 
-// 全域狀態
-let currentDungeonIdx = 5; // 預設進五行混沌秘境
-let currentChaosTier = 0; // 預設 1~15級
+let drawnRoot = null;
+let currentDungeonIdx = 5;
+let currentChaosTier = 0;
 let autoBattleInterval = null;
 let isAutoBattling = false;
 let currentMonster = null;
-let currentForgeMode = 'single'; // single, sheng, ke
+let currentForgeMode = 'single';
 
 document.addEventListener('DOMContentLoaded', () => {
   loadGame();
@@ -223,7 +237,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function setupEventListeners() {
-  // 分頁切換
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -233,71 +246,172 @@ function setupEventListeners() {
       const tabId = btn.getAttribute('data-tab');
       document.getElementById(`tab-${tabId}`).classList.add('active');
       audioSynth.playTone(300, 'square', 0.05);
+
+      if (tabId === 'sutra') renderSutraTab();
     });
   });
 
-  // CRT切換
   document.getElementById('toggle-crt').addEventListener('click', () => {
     const crt = document.querySelector('.crt-overlay');
     crt.style.display = crt.style.display === 'none' ? 'block' : 'none';
   });
 
-  // 音效切換
   document.getElementById('toggle-sound').addEventListener('click', (e) => {
     audioSynth.enabled = !audioSynth.enabled;
     e.target.textContent = audioSynth.enabled ? '🔊 音效:開' : '🔇 音效:關';
   });
 
-  // 禮包碼按鈕
   const giftModal = document.getElementById('gift-modal');
   document.getElementById('btn-giftcode').addEventListener('click', () => giftModal.classList.add('show'));
   document.getElementById('close-gift-modal').addEventListener('click', () => giftModal.classList.remove('show'));
   giftModal.addEventListener('click', (e) => { if (e.target === giftModal) giftModal.classList.remove('show'); });
   document.getElementById('btn-claim-code').addEventListener('click', claimGiftCode);
 
-  // 存檔與重置
+  // 神秘商人 Modal
+  const merchantModal = document.getElementById('merchant-modal');
+  document.getElementById('btn-open-merchant').addEventListener('click', () => {
+    renderMerchantShop();
+    merchantModal.classList.add('show');
+  });
+  document.getElementById('close-merchant-modal').addEventListener('click', () => {
+    merchantModal.classList.remove('show');
+  });
+  merchantModal.addEventListener('click', (e) => {
+    if (e.target === merchantModal) merchantModal.classList.remove('show');
+  });
+
   document.getElementById('btn-save').addEventListener('click', () => {
     saveGame();
     audioSynth.sfxReward();
     addLog('【系統】存檔成功！進度已儲存。', 'log-system');
   });
   document.getElementById('btn-reset').addEventListener('click', () => {
-    if (confirm('確定要重置遊戲進度嗎？所有修為與裝備將清空！')) {
-      localStorage.removeItem('wujin_honghuang_save');
-      location.reload();
-    }
+    localStorage.removeItem('wujin_honghuang_save');
+    location.reload();
   });
 
-  // 創角選擇
-  document.querySelectorAll('.class-card').forEach(card => {
-    card.addEventListener('click', () => {
-      document.querySelectorAll('.class-card').forEach(c => c.classList.remove('selected'));
-      card.classList.add('selected');
-    });
-  });
+  document.getElementById('btn-draw-root').addEventListener('click', drawSpiritualRoot);
   document.getElementById('btn-confirm-class').addEventListener('click', confirmCharacterClass);
 
-  // 戰鬥控制
   document.getElementById('btn-manual-attack').addEventListener('click', executeBattleRound);
   document.getElementById('btn-toggle-auto').addEventListener('click', toggleAutoBattle);
 
-  // 鍛造與一鍵熔練
   document.getElementById('btn-forge').addEventListener('click', forgeEquipment);
   document.getElementById('btn-salvage-all').addEventListener('click', salvageCommonItems);
 }
 
-// 選擇副本區域
+function drawSpiritualRoot() {
+  const cardBox = document.getElementById('gacha-card');
+  const btnDraw = document.getElementById('btn-draw-root');
+  const btnConfirm = document.getElementById('btn-confirm-class');
+
+  btnDraw.disabled = true;
+  cardBox.classList.add('spinning');
+  audioSynth.sfxCraft();
+
+  setTimeout(() => {
+    cardBox.classList.remove('spinning');
+    btnDraw.disabled = false;
+
+    const rand = Math.random() * 100;
+    const elements = ['gold', 'wood', 'water', 'fire', 'earth'];
+    const primaryElem = elements[Math.floor(Math.random() * elements.length)];
+
+    let result = {};
+    if (rand < 5) {
+      result = {
+        type: 'azure',
+        name: '絕品·蒼靈根',
+        element: 'azure',
+        expSpeed: 1.2,
+        statMult: 1.15,
+        icon: '🌌',
+        desc: '天道全通！修練速度 120% | 全屬性 +15%！'
+      };
+      cardBox.className = 'gacha-card-box azure-card';
+      audioSynth.sfxLevelUp();
+    } else if (rand < 45) {
+      result = {
+        type: 'single',
+        name: `天單靈根 (${ELEMENT_NAMES[primaryElem]})`,
+        element: primaryElem,
+        expSpeed: 1.0,
+        statMult: 1.0,
+        icon: { gold:'⚔️', wood:'🌿', water:'💧', fire:'🔥', earth:'🪨' }[primaryElem],
+        desc: '專精單一屬性。修練速度 100%'
+      };
+      cardBox.className = 'gacha-card-box';
+      audioSynth.sfxReward();
+    } else if (rand < 80) {
+      result = {
+        type: 'dual',
+        name: `雙靈根 (${ELEMENT_NAMES[primaryElem]})`,
+        element: primaryElem,
+        expSpeed: 0.8,
+        statMult: 1.0,
+        icon: '☯️',
+        desc: '兼具雙系。修練速度 80%'
+      };
+      cardBox.className = 'gacha-card-box';
+      audioSynth.sfxHit();
+    } else {
+      result = {
+        type: 'triple',
+        name: `三靈根 (${ELEMENT_NAMES[primaryElem]})`,
+        element: primaryElem,
+        expSpeed: 0.6,
+        statMult: 1.0,
+        icon: '🔱',
+        desc: '三系同修。修練速度 60%'
+      };
+      cardBox.className = 'gacha-card-box';
+      audioSynth.sfxHit();
+    }
+
+    drawnRoot = result;
+
+    document.getElementById('gacha-icon').textContent = result.icon;
+    document.getElementById('gacha-title').textContent = result.name;
+    document.getElementById('gacha-speed').textContent = `修速: ${Math.floor(result.expSpeed * 100)}%`;
+    document.getElementById('gacha-desc').textContent = result.desc;
+
+    btnConfirm.disabled = false;
+    btnDraw.textContent = '🔄 重新感應 (Re-roll)';
+  }, 600);
+}
+
+function confirmCharacterClass() {
+  if (!drawnRoot) return;
+
+  player.rootType = drawnRoot.type;
+  player.rootName = drawnRoot.name;
+  player.element = drawnRoot.element;
+  player.expSpeed = drawnRoot.expSpeed;
+  player.statMult = drawnRoot.statMult;
+
+  const inputName = document.getElementById('player-name-input').value.trim();
+  if (inputName) player.name = inputName;
+
+  document.getElementById('class-select-modal').classList.remove('show');
+  addLog(`【踏入修途】尊者 ${player.name} 覺醒了【${player.rootName}】踏入洪荒大地上！`, 'log-crit');
+
+  recalculatePlayerStats();
+  updateUI();
+  saveGame();
+}
+
 function selectDungeon(idx) {
   if (DUNGEONS[idx].reqLevel > player.level) {
     addLog(`【警告】境界未達要求，無法進入 ${DUNGEONS[idx].name}！`, 'log-monster');
     return;
   }
   currentDungeonIdx = idx;
-  document.querySelectorAll('.dungeon-card').forEach((card, i) => {
-    card.classList.toggle('active', i === idx);
+  
+  document.querySelectorAll('.dungeon-card').forEach(card => {
+    const cardId = parseInt(card.getAttribute('data-id'));
+    card.classList.toggle('active', cardId === idx);
   });
   
-  // 切換混沌秘境等級選單顯示
   const chaosSelector = document.getElementById('chaos-level-selector');
   if (idx === 5) chaosSelector.style.display = 'flex';
   else chaosSelector.style.display = 'none';
@@ -307,24 +421,23 @@ function selectDungeon(idx) {
   updateUI();
 }
 
-// 切換混沌秘境等級階段
 function setChaosTier(tierIdx) {
   currentChaosTier = tierIdx;
-  document.querySelectorAll('.chaos-lvl-btn').forEach((btn, i) => {
-    btn.classList.toggle('active', i === tierIdx);
+  document.querySelectorAll('.chaos-lvl-btn').forEach(btn => {
+    const tier = parseInt(btn.getAttribute('data-tier'));
+    btn.classList.toggle('active', tier === tierIdx);
   });
   spawnMonster();
   addLog(`【秘境切換】將五行混沌秘境調整至【${CHAOS_TIERS[tierIdx].name}】！`, 'log-system');
   updateUI();
 }
 
-// 切換鍛造模式
-function setForgeMode(mode) {
+function setForgeMode(mode, btnEl) {
   currentForgeMode = mode;
   document.querySelectorAll('.forge-mode-btn').forEach(btn => {
     btn.classList.remove('active');
   });
-  event.target.classList.add('active');
+  if (btnEl) btnEl.classList.add('active');
 
   const rateBox = document.getElementById('forge-rate-box');
   if (mode === 'single') {
@@ -339,10 +452,8 @@ function setForgeMode(mode) {
   }
 }
 
-// 生成怪物
 function spawnMonster() {
   const dung = DUNGEONS[currentDungeonIdx];
-  // 隨機從怪物庫中挑選一個怪物
   const monsterData = dung.monsters[Math.floor(Math.random() * dung.monsters.length)];
   
   let scale = 1 + (player.level - 1) * 0.12;
@@ -364,7 +475,6 @@ function spawnMonster() {
   updateMonsterUI();
 }
 
-// 回合戰鬥邏輯
 function executeBattleRound() {
   if (!currentMonster || currentMonster.hp <= 0) {
     spawnMonster();
@@ -372,12 +482,10 @@ function executeBattleRound() {
 
   audioSynth.sfxAttack();
 
-  // 計算克制
   let playerDamageMult = 1.0;
-  if (ELEMENT_COUNTER[player.element] === currentMonster.element) {
-    playerDamageMult = 1.3;
-  } else if (ELEMENT_COUNTER[currentMonster.element] === player.element) {
-    playerDamageMult = 0.8;
+  if (player.element === 'azure' || ELEMENT_COUNTER[player.element] === currentMonster.element) {
+    playerDamageMult = 1.2;
+    addLog(`【克制壓制】五行相克，發揮 120% 攻擊力！`, 'log-crit');
   }
 
   let isCrit = Math.random() < player.critRate;
@@ -400,9 +508,19 @@ function executeBattleRound() {
     return;
   }
 
-  // 怪物反擊
   setTimeout(() => {
-    let monsterDmgMult = (ELEMENT_COUNTER[currentMonster.element] === player.element) ? 1.3 : 1.0;
+    let monsterDmgMult = 1.0;
+    
+    if (player.element === 'azure' || player.element === currentMonster.element) {
+      monsterDmgMult *= 0.7;
+      addLog(`【同系共鳴】遭遇同系敵方，觸發五行共鳴護盾，防禦加成 30%！`, 'log-element');
+    }
+
+    if (player.element !== 'azure' && ELEMENT_COUNTER[currentMonster.element] === player.element) {
+      monsterDmgMult *= 1.2;
+      addLog(`【靈根反噬】遭敵方屬性劇烈剋制，受到 120% 靈根反噬傷害！`, 'log-monster');
+    }
+
     let monsterDmg = Math.max(3, Math.floor((currentMonster.atk - Math.floor(player.def * 0.5)) * monsterDmgMult));
     
     player.hp = Math.max(0, player.hp - monsterDmg);
@@ -433,31 +551,33 @@ function triggerClassEffect() {
       case 'water': addLog(`【水系特效】發動「冰凍」，敵方攻速與閃避大幅下降！`, 'log-element'); break;
       case 'fire': addLog(`【火系特效】發動「致盲」，敵方命中率降低 40%！`, 'log-element'); break;
       case 'earth': addLog(`【土系特效】發動「虛弱」，敵方攻擊力與防禦力大幅下降！`, 'log-element'); break;
+      case 'azure': addLog(`【蒼天特效】觸發「天地同威」，對敵方造成 1.5 倍神聖天威傷害！`, 'log-crit'); break;
     }
   }
 }
 
-// 擊敗怪物處理
+// 擊敗怪物 & 隨機機緣 / 神秘商人觸發 (15% 機率)
 function onMonsterDefeated() {
   const dung = DUNGEONS[currentDungeonIdx];
   audioSynth.sfxReward();
 
-  let expGain = dung.baseExp;
-  let coinGain = dung.baseCoin;
+  let baseExp = dung.baseExp;
+  let baseCoin = dung.baseCoin;
 
   if (currentDungeonIdx === 5) {
     const scale = CHAOS_TIERS[currentChaosTier].scale;
-    expGain = Math.floor(dung.baseExp * scale);
-    coinGain = Math.floor(dung.baseCoin * scale);
+    baseExp = Math.floor(dung.baseExp * scale);
+    baseCoin = Math.floor(dung.baseCoin * scale);
   }
 
+  // 算入天賦修速 + 心法修速
+  const totalExpSpeed = calculateTotalExpSpeed();
+  const expGain = Math.floor(baseExp * totalExpSpeed);
   player.exp += expGain;
-  player.coins += coinGain;
+  player.coins += baseCoin;
   
-  // 材料掉落
   let droppedMatName = "";
   if (dung.matDrop === 'all') {
-    // 混沌秘境隨機掉落全五行材料
     const allMats = ['goldMat', 'woodMat', 'waterMat', 'fireMat', 'earthMat'];
     const selectedMat = allMats[Math.floor(Math.random() * allMats.length)];
     player.materials[selectedMat] += 1;
@@ -467,7 +587,21 @@ function onMonsterDefeated() {
     droppedMatName = { goldMat:'金精石', woodMat:'神木芯', waterMat:'玄冰髓', fireMat:'朱雀羽', earthMat:'息壤土' }[dung.matDrop];
   }
 
-  addLog(`【大捷】你擊敗了 ${currentMonster.name}！獲得 修為+${expGain}，靈石+${coinGain}，【${droppedMatName}】+1！`, 'log-drop');
+  addLog(`【大捷】擊敗 ${currentMonster.name}！修為+${expGain} (修速 ${Math.floor(totalExpSpeed*100)}%)，靈石+${baseCoin}，【${droppedMatName}】+1！`, 'log-drop');
+
+  // 15% 機率觸發隨機機緣或神秘商人
+  if (Math.random() < 0.15) {
+    if (Math.random() < 0.5) {
+      // 50% 隨機天降機緣
+      const rewardCoins = 300 + Math.floor(Math.random() * 500);
+      player.coins += rewardCoins;
+      addLog(`【✨ 天降機緣】偶遇洪荒大能遺跡，獲得古仙贈禮：靈石 +${rewardCoins}！`, 'log-crit');
+    } else {
+      // 50% 神秘商人降臨
+      document.getElementById('merchant-banner').classList.add('show');
+      addLog(`【🧙‍♂️ 機緣降臨】雲遊神秘商人攜帶武學與內功心法降臨秘境！`, 'log-crit');
+    }
+  }
 
   if (player.exp >= player.maxExp) {
     levelUp();
@@ -482,10 +616,8 @@ function levelUp() {
   player.exp -= player.maxExp;
   player.maxExp = Math.floor(player.maxExp * 1.35);
 
-  player.maxHp += 40;
+  recalculatePlayerStats();
   player.hp = player.maxHp;
-  player.atk += 8;
-  player.def += 4;
 
   audioSynth.sfxLevelUp();
   addLog(`【突破】修為精進！境界突破至【${getRealmName(player.level)}】！全屬性大幅提升！`, 'log-crit');
@@ -514,20 +646,17 @@ function toggleAutoBattle() {
   }
 }
 
-// 彈性五行鍛造裝備 (單一 / 相生 / 相剋)
 function forgeEquipment() {
   const m = player.materials;
   const cost = 3;
 
   if (currentForgeMode === 'single') {
-    // 只需要單一材料 (預設金精石)
     if (m.goldMat < cost) {
       addLog(`【鍛造失敗】金精石不足！需要至少 ${cost} 個金精石。`, 'log-monster');
       return;
     }
     m.goldMat -= cost;
   } else if (currentForgeMode === 'sheng') {
-    // 金 + 水 相生
     if (m.goldMat < cost || m.waterMat < cost) {
       addLog(`【鍛造失敗】相生鍛造需要 金精石與玄冰髓 各 ${cost} 個！`, 'log-monster');
       return;
@@ -535,7 +664,6 @@ function forgeEquipment() {
     m.goldMat -= cost;
     m.waterMat -= cost;
   } else if (currentForgeMode === 'ke') {
-    // 金 + 木 相剋
     if (m.goldMat < cost || m.woodMat < cost) {
       addLog(`【鍛造失敗】相剋鍛造需要 金精石與神木芯 各 ${cost} 個！`, 'log-monster');
       return;
@@ -544,14 +672,12 @@ function forgeEquipment() {
     m.woodMat -= cost;
   }
 
-  // 鐵鎚動畫
   const anvil = document.querySelector('.forge-anvil');
   anvil.classList.add('hammer-anim');
   setTimeout(() => anvil.classList.remove('hammer-anim'), 400);
   audioSynth.sfxCraft();
 
-  // 計算成功率與炸爐風險
-  let successRate = 1.0; // 100%
+  let successRate = 1.0;
   if (currentForgeMode === 'sheng') successRate = 1.2;
   if (currentForgeMode === 'ke') successRate = 0.65;
 
@@ -561,25 +687,21 @@ function forgeEquipment() {
     return;
   }
 
-  // 計算品質
-  let qIdx = 0; // 凡品
+  let qIdx = 0;
   const rand = Math.random() * 100;
 
   if (currentForgeMode === 'ke') {
-    // 相剋機率暴擊【神品】
-    if (rand < 25) qIdx = 5;       // 神品暴擊率高達 25%!
-    else if (rand < 45) qIdx = 4;  // 仙品
-    else if (rand < 70) qIdx = 3;  // 極品
+    if (rand < 25) qIdx = 5;
+    else if (rand < 45) qIdx = 4;
+    else if (rand < 70) qIdx = 3;
     else qIdx = 2;
   } else if (currentForgeMode === 'sheng') {
-    // 相生加成
-    if (rand < 3) qIdx = 5;       // 神品 3%
-    else if (rand < 15) qIdx = 4;  // 仙品 12%
-    else if (rand < 40) qIdx = 3;  // 極品 25%
-    else if (rand < 75) qIdx = 2;  // 上品 35%
+    if (rand < 3) qIdx = 5;
+    else if (rand < 15) qIdx = 4;
+    else if (rand < 40) qIdx = 3;
+    else if (rand < 75) qIdx = 2;
     else qIdx = 1;
   } else {
-    // 單屬性
     if (rand < 1) qIdx = 5;
     else if (rand < 5) qIdx = 4;
     else if (rand < 15) qIdx = 3;
@@ -590,7 +712,7 @@ function forgeEquipment() {
   const qualityObj = QUALITIES[qIdx];
   const types = ['weapon', 'armor', 'accessory'];
   const type = types[Math.floor(Math.random() * types.length)];
-  const elem = player.element;
+  const elem = player.element === 'azure' ? 'gold' : player.element;
 
   let namePrefix = { gold: '金煞', wood: '蒼木', water: '玄冰', fire: '赤炎', earth: '厚土' }[elem];
   let typeName = { weapon: '聖劍', armor: '寶鎧', accessory: '佩玉' }[type];
@@ -624,7 +746,6 @@ function forgeEquipment() {
   updateUI();
 }
 
-// 設定 HTML5 Drag and Drop 熔練
 function setupDragAndDrop() {
   const dropZone = document.getElementById('salvage-drop-zone');
   if (!dropZone) return;
@@ -643,13 +764,11 @@ function setupDragAndDrop() {
     dropZone.classList.remove('drag-over');
     const itemIdStr = e.dataTransfer.getData('text/plain');
     if (itemIdStr) {
-      const itemId = parseFloat(itemIdStr);
-      salvageSingleItem(itemId);
+      salvageSingleItem(parseFloat(itemIdStr));
     }
   });
 }
 
-// 單件裝備熔練（拖曳至熔練爐）
 function salvageSingleItem(itemId) {
   const idx = player.inventory.findIndex(i => i.id === itemId);
   if (idx === -1) return;
@@ -657,7 +776,6 @@ function salvageSingleItem(itemId) {
   const item = player.inventory[idx];
   player.inventory.splice(idx, 1);
 
-  // 計算所得靈石與材料
   const coinsGain = item.quality * 100;
   const matKeys = ['goldMat', 'woodMat', 'waterMat', 'fireMat', 'earthMat'];
   const matGainKey = matKeys[Math.floor(Math.random() * matKeys.length)];
@@ -667,6 +785,119 @@ function salvageSingleItem(itemId) {
   audioSynth.sfxReward();
   addLog(`【三昧熔練】成功將裝備【${item.name}】投入真火熔練！獲得 靈石+${coinsGain}，五行神材+${item.quality}！`, 'log-crit');
   updateUI();
+}
+
+// 購買並參悟心法 (Buy & Practice Sutra)
+function buySutra(sutraId) {
+  const sutra = ALL_SUTRAS.find(s => s.id === sutraId);
+  if (!sutra) return;
+
+  if (player.purchasedSutras.includes(sutraId)) {
+    addLog(`【參悟提示】您已經參悟過《${sutra.name}》了！`, 'log-system');
+    return;
+  }
+
+  if (player.coins < sutra.price) {
+    addLog(`【靈石不足】無法購買《${sutra.name}》！需要靈石 ${sutra.price} 個。`, 'log-monster');
+    return;
+  }
+
+  player.coins -= sutra.price;
+  player.purchasedSutras.push(sutraId);
+
+  audioSynth.sfxLevelUp();
+  addLog(`【心法參悟】成功花費 靈石 ${sutra.price} 參悟《${sutra.name}》！實力大增！`, 'log-crit');
+
+  recalculatePlayerStats();
+  updateUI();
+  renderMerchantShop();
+  renderSutraTab();
+}
+
+// 渲染神秘商人店舖
+function renderMerchantShop() {
+  const container = document.getElementById('merchant-shop-grid');
+  if (!container) return;
+  container.innerHTML = '';
+
+  ALL_SUTRAS.forEach(sutra => {
+    const isBought = player.purchasedSutras.includes(sutra.id);
+    const card = document.createElement('div');
+    card.className = `sutra-card ${isBought ? 'sutra-purchased' : ''}`;
+    card.innerHTML = `
+      <div class="sutra-card-header">
+        <span class="sutra-name">${sutra.name}</span>
+        <span class="sutra-badge ${sutra.type === 'martial' ? 'sutra-type-martial' : 'sutra-type-internal'}">${sutra.type === 'martial' ? '五行武學' : '內功心法'}</span>
+      </div>
+      <div class="sutra-effect">${getSutraEffectText(sutra)}</div>
+      <div class="sutra-desc">${sutra.desc}</div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+        <span style="color:var(--pixel-gold); font-size:0.85rem; font-weight:bold;">💰 ${sutra.price} 靈石</span>
+        <button class="pixel-btn ${isBought ? '' : 'btn-gold'}" ${isBought ? 'disabled' : ''} onclick="buySutra('${sutra.id}')">
+          ${isBought ? '已參悟' : '購買參悟'}
+        </button>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+// 渲染功法 Tab 頁籤
+function renderSutraTab() {
+  const container = document.getElementById('sutra-grid');
+  if (!container) return;
+  container.innerHTML = '';
+
+  let totalAtk = 0, totalDef = 0, totalExp = 0;
+
+  ALL_SUTRAS.forEach(sutra => {
+    const isBought = player.purchasedSutras.includes(sutra.id);
+    if (isBought) {
+      totalAtk += sutra.atk || 0;
+      totalDef += sutra.def || 0;
+      totalExp += sutra.expSpeed || 0;
+    }
+
+    const card = document.createElement('div');
+    card.className = `sutra-card ${isBought ? 'sutra-purchased' : ''}`;
+    card.style.opacity = isBought ? '1' : '0.4';
+    card.innerHTML = `
+      <div class="sutra-card-header">
+        <span class="sutra-name">${sutra.name}</span>
+        <span class="sutra-badge ${sutra.type === 'martial' ? 'sutra-type-martial' : 'sutra-type-internal'}">${sutra.type === 'martial' ? '五行武學' : '內功心法'}</span>
+      </div>
+      <div class="sutra-effect">${getSutraEffectText(sutra)}</div>
+      <div class="sutra-desc">${sutra.desc}</div>
+      <div style="margin-top:6px; font-size:0.75rem; color:${isBought ? '#2ecc71' : '#888'}; font-weight:bold;">
+        ${isBought ? '✓ 已參悟境界' : '🔒 未獲得心法'}
+      </div>
+    `;
+    container.appendChild(card);
+  });
+
+  document.getElementById('sutra-bonus-atk').textContent = totalAtk;
+  document.getElementById('sutra-bonus-def').textContent = totalDef;
+  document.getElementById('sutra-bonus-exp').textContent = `${Math.floor(totalExp * 100)}%`;
+}
+
+function getSutraEffectText(sutra) {
+  let parts = [];
+  if (sutra.atk) parts.push(`攻 +${sutra.atk}`);
+  if (sutra.def) parts.push(`防 +${sutra.def}`);
+  if (sutra.hp) parts.push(`血 +${sutra.hp}`);
+  if (sutra.expSpeed) parts.push(`修速 +${Math.floor(sutra.expSpeed * 100)}%`);
+  if (sutra.crit) parts.push(`會心 +${Math.floor(sutra.crit * 100)}%`);
+  return parts.join(' | ');
+}
+
+// 計算玩家總修練速度 (靈根修速 + 心法修速增益)
+function calculateTotalExpSpeed() {
+  let sutraExpSpeed = 0;
+  player.purchasedSutras.forEach(id => {
+    const s = ALL_SUTRAS.find(item => item.id === id);
+    if (s && s.expSpeed) sutraExpSpeed += s.expSpeed;
+  });
+  return (player.expSpeed || 1.0) + sutraExpSpeed;
 }
 
 function equipItem(itemId) {
@@ -702,10 +933,13 @@ function unequipItem(slotType) {
   addLog(`【裝備】已卸下 ${item.name}。`, 'log-system');
 }
 
+// 重新計算屬性 (算入裝備、蒼靈根115% 與心法加成)
 function recalculatePlayerStats() {
   let extraAtk = 0;
   let extraDef = 0;
+  let extraHp = 0;
 
+  // 裝備加成
   Object.values(player.equipped).forEach(eq => {
     if (eq) {
       extraAtk += eq.atk || 0;
@@ -713,16 +947,33 @@ function recalculatePlayerStats() {
     }
   });
 
-  player.atk = (35 + (player.level - 1) * 8) + extraAtk;
-  player.def = (10 + (player.level - 1) * 4) + extraDef;
+  // 心法加成
+  player.purchasedSutras.forEach(id => {
+    const s = ALL_SUTRAS.find(item => item.id === id);
+    if (s) {
+      extraAtk += s.atk || 0;
+      extraDef += s.def || 0;
+      extraHp += s.hp || 0;
+    }
+  });
+
+  const mult = player.statMult || 1.0;
+  player.maxHp = Math.floor((200 + (player.level - 1) * 40 + extraHp) * mult);
+  player.atk = Math.floor(((35 + (player.level - 1) * 8) + extraAtk) * mult);
+  player.def = Math.floor(((10 + (player.level - 1) * 4) + extraDef) * mult);
 }
 
 function salvageCommonItems() {
   let count = 0;
+  let matReturnCount = 0;
+  const matKeys = ['goldMat', 'woodMat', 'waterMat', 'fireMat', 'earthMat'];
+
   player.inventory = player.inventory.filter(item => {
     if (item.quality <= 2) {
       count++;
       player.coins += item.quality * 50;
+      player.materials[matKeys[Math.floor(Math.random() * matKeys.length)]] += 1;
+      matReturnCount += 1;
       return false;
     }
     return true;
@@ -730,7 +981,7 @@ function salvageCommonItems() {
 
   if (count > 0) {
     audioSynth.sfxReward();
-    addLog(`【熔練完成】共拆解 ${count} 件普通裝備，獲得靈石換算獎勵！`, 'log-drop');
+    addLog(`【一鍵熔練】共拆解 ${count} 件普通裝備，獲得靈石與 ${matReturnCount} 個五行神材返還！`, 'log-drop');
     updateUI();
   } else {
     addLog('【熔練提示】背包中沒有凡品或良品裝備可供拆解。', 'log-system');
@@ -789,21 +1040,6 @@ function claimGiftCode() {
   }
 }
 
-function confirmCharacterClass() {
-  const selectedCard = document.querySelector('.class-card.selected');
-  if (!selectedCard) return;
-
-  const elem = selectedCard.getAttribute('data-class');
-  player.element = elem;
-  const inputName = document.getElementById('player-name-input').value.trim();
-  if (inputName) player.name = inputName;
-
-  document.getElementById('class-select-modal').classList.remove('show');
-  addLog(`【踏入修途】尊者 ${player.name} 選擇了【${ELEMENT_NAMES[elem]}】進入洪荒大地上！`, 'log-crit');
-  updateUI();
-  saveGame();
-}
-
 function updateUI() {
   document.getElementById('ui-player-name').textContent = player.name;
   document.getElementById('ui-realm').textContent = getRealmName(player.level);
@@ -811,8 +1047,23 @@ function updateUI() {
   document.getElementById('ui-coins').textContent = player.coins;
 
   const elemTag = document.getElementById('ui-element-tag');
-  elemTag.textContent = ELEMENT_NAMES[player.element];
+  elemTag.textContent = ELEMENT_NAMES[player.element] || '五行系';
   elemTag.className = `element-tag element-${player.element}`;
+
+  const rootTag = document.getElementById('ui-root-type-tag');
+  if (rootTag) {
+    rootTag.textContent = player.rootName || '天單靈根';
+    if (player.rootType === 'azure') {
+      rootTag.className = 'element-tag element-azure';
+    } else {
+      rootTag.className = 'element-tag';
+      rootTag.style.background = '#8e44ad';
+    }
+  }
+
+  // 顯示總修練速度 (靈根 + 心法)
+  const totalExpSpeed = calculateTotalExpSpeed();
+  document.getElementById('ui-exp-speed').textContent = `${Math.floor(totalExpSpeed * 100)}%`;
 
   document.getElementById('hp-fill').style.width = `${Math.min(100, (player.hp / player.maxHp) * 100)}%`;
   document.getElementById('hp-text').textContent = `${player.hp} / ${player.maxHp}`;
@@ -876,7 +1127,6 @@ function renderInventory() {
     `;
     slot.title = `點擊裝備 / 拖曳至下方熔練爐\n攻: +${item.atk}  防: +${item.def}`;
 
-    // 拖曳事件
     slot.addEventListener('dragstart', (e) => {
       e.dataTransfer.setData('text/plain', item.id);
     });
