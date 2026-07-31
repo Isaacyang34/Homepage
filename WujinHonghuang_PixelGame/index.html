@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>無盡洪荒：五行聖境 — 像素風文字MUD修仙放置遊戲</title>
+  <meta name="description" content="仿《無盡洪荒》MUD修仙遊戲架構，打造的8-Bit像素風格互動修仙放置遊戲。支援五行克制、神獸挑戰、彈性鍛造與自動掛機。">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- CRT 掃描線覆蓋層 -->
+  <div class="crt-overlay"></div>
+
+  <!-- 主遊戲應用程式區 -->
+  <div id="app">
+    
+    <!-- 頂部 Header -->
+    <header>
+      <div class="game-title">
+        <h1>無盡洪荒</h1>
+        <span class="badge">Pixel MUD v1.2</span>
+      </div>
+      <div class="header-controls">
+        <button class="pixel-btn btn-gold" id="btn-giftcode">🎁 禮包碼</button>
+        <button class="pixel-btn" id="toggle-sound">🔊 音效:開</button>
+        <button class="pixel-btn" id="toggle-crt">📺 CRT濾鏡</button>
+        <button class="pixel-btn" id="btn-save">💾 存檔</button>
+        <button class="pixel-btn btn-danger" id="btn-reset">🔄 重置</button>
+      </div>
+    </header>
+
+    <!-- 遊戲主體佈局 -->
+    <div class="main-layout">
+      
+      <!-- 左側：角色個人屬性與裝備欄 -->
+      <aside class="pixel-box">
+        <div class="panel-title">
+          <span>修真者資訊</span>
+          <span style="font-size:0.8rem; color:var(--text-muted);">Lv.<span id="ui-level">1</span></span>
+        </div>
+
+        <div class="player-info-card">
+          <div class="avatar-container">
+            <div class="pixel-avatar">🧙‍♂️</div>
+            <div class="player-details">
+              <span class="player-name" id="ui-player-name">洪荒修真者</span>
+              <span class="player-realm" id="ui-realm">練氣初期</span>
+              <span class="element-tag element-gold" id="ui-element-tag">金系</span>
+            </div>
+          </div>
+
+          <!-- 氣血與修為條 -->
+          <div class="bar-group">
+            <div class="bar-container bar-hp">
+              <div class="bar-fill" id="hp-fill" style="width: 100%;"></div>
+              <span class="bar-text">氣血 <span id="hp-text">200 / 200</span></span>
+            </div>
+            <div class="bar-container bar-exp">
+              <div class="bar-fill" id="exp-fill" style="width: 0%;"></div>
+              <span class="bar-text">修為 <span id="exp-text">0 / 100</span></span>
+            </div>
+          </div>
+
+          <!-- 屬性細節 -->
+          <div class="stats-grid">
+            <div class="stat-item"><span class="stat-label">攻擊:</span> <span class="stat-val" id="stat-atk">35</span></div>
+            <div class="stat-item"><span class="stat-label">防禦:</span> <span class="stat-val" id="stat-def">10</span></div>
+            <div class="stat-item"><span class="stat-label">會心:</span> <span class="stat-val" id="stat-crit">10%</span></div>
+            <div class="stat-item"><span class="stat-label">靈石:</span> <span class="stat-val" id="ui-coins" style="color:var(--pixel-gold);">500</span></div>
+          </div>
+
+          <!-- 已裝備部位 -->
+          <div class="panel-title" style="margin-top:5px; font-size:0.95rem;">
+            <span>法寶裝備</span>
+          </div>
+          <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:6px;">
+            <div class="item-slot" id="eq-weapon" title="點擊卸下武器"><span style="color:#666; font-size:0.75rem;">空武器</span></div>
+            <div class="item-slot" id="eq-armor" title="點擊卸下防具"><span style="color:#666; font-size:0.75rem;">空防具</span></div>
+            <div class="item-slot" id="eq-accessory" title="點擊卸下飾品"><span style="color:#666; font-size:0.75rem;">空飾品</span></div>
+          </div>
+
+        </div>
+      </aside>
+
+      <!-- 右側：主要分頁內容 (歷練/鍛造/背包) -->
+      <main class="pixel-box">
+        <!-- 分頁導覽 -->
+        <nav class="nav-tabs">
+          <button class="tab-btn active" data-tab="battle">⚔️ 洪荒歷練</button>
+          <button class="tab-btn" data-tab="forge">🔨 五行鍛造</button>
+          <button class="tab-btn" data-tab="bag">🎒 乾坤背包</button>
+        </nav>
+
+        <!-- 分頁1: 洪荒歷練與戰鬥 -->
+        <div class="tab-content active" id="tab-battle">
+          
+          <!-- 秘境副本選擇 (含混沌秘境) -->
+          <div class="dungeon-select">
+            <div class="dungeon-card dungeon-chaos active" onclick="selectDungeon(5)">
+              <div class="dungeon-name" style="color:var(--pixel-gold);">🌀 5行混沌秘境</div>
+              <div class="dungeon-lvl" style="color:#e0a0ff;">[掉落全材料/多怪物]</div>
+            </div>
+            <div class="dungeon-card" onclick="selectDungeon(0)">
+              <div class="dungeon-name">🌲 太初森林</div>
+              <div class="dungeon-lvl">Req. Lv.1 [木]</div>
+            </div>
+            <div class="dungeon-card" onclick="selectDungeon(1)">
+              <div class="dungeon-name">❄️ 九幽寒潭</div>
+              <div class="dungeon-lvl">Req. Lv.10 [水]</div>
+            </div>
+            <div class="dungeon-card" onclick="selectDungeon(2)">
+              <div class="dungeon-name">🌋 熔岩地獄</div>
+              <div class="dungeon-lvl">Req. Lv.25 [火]</div>
+            </div>
+            <div class="dungeon-card" onclick="selectDungeon(3)">
+              <div class="dungeon-name">⚔️ 崑崙金山</div>
+              <div class="dungeon-lvl">Req. Lv.40 [金]</div>
+            </div>
+            <div class="dungeon-card" onclick="selectDungeon(4)">
+              <div class="dungeon-name">⛰️ 不周天柱</div>
+              <div class="dungeon-lvl">Req. Lv.60 [土]</div>
+            </div>
+          </div>
+
+          <!-- 混沌秘境等級選單 (僅在選擇混沌秘境時可選) -->
+          <div class="chaos-level-bar" id="chaos-level-selector">
+            <span style="font-size:0.75rem; color:var(--pixel-gold); align-self:center;">試煉階級：</span>
+            <button class="chaos-lvl-btn active" onclick="setChaosTier(0)">1~15級 (凡階)</button>
+            <button class="chaos-lvl-btn" onclick="setChaosTier(1)">15~30級 (靈階)</button>
+            <button class="chaos-lvl-btn" onclick="setChaosTier(2)">30~50級 (地階)</button>
+            <button class="chaos-lvl-btn" onclick="setChaosTier(3)">50~70級 (天階)</button>
+            <button class="chaos-lvl-btn" onclick="setChaosTier(4)">70~100級 (聖階)</button>
+          </div>
+
+          <!-- 戰鬥敵人展示 -->
+          <div class="battle-arena">
+            <div class="enemy-display">
+              <div class="monster-avatar" id="monster-icon">🐺</div>
+              <div class="monster-info">
+                <div class="monster-name" id="monster-name">百年妖狼 (木系)</div>
+                <div class="bar-container bar-hp" style="height:16px;">
+                  <div class="bar-fill" id="monster-hp-fill" style="width: 100%;"></div>
+                  <span class="bar-text" id="monster-hp-text">120 / 120</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 控制按鈕 -->
+            <div style="display:flex; gap:10px; justify-content:center;">
+              <button class="pixel-btn" id="btn-manual-attack">⚔️ 手動討伐</button>
+              <button class="pixel-btn" id="btn-toggle-auto">⚔️ 開啟自動掛機</button>
+            </div>
+          </div>
+
+          <!-- MUD 文字戰鬥日誌 -->
+          <div style="font-size:0.85rem; color:var(--pixel-gold);">📜 洪荒戰鬥日誌 (Combat Console)</div>
+          <div class="combat-log" id="combat-log">
+            <div class="log-entry log-system">> 【系統】歡迎來到《無盡洪荒：五行聖境》！請選擇秘境或進入「五行混沌秘境」收集全系神材。</div>
+          </div>
+
+        </div>
+
+        <!-- 分頁2: 五行彈性鍛造坊 -->
+        <div class="tab-content" id="tab-forge">
+          <div class="crafting-layout">
+            
+            <!-- 左側：五行材料庫存與屬性鍛造模式 -->
+            <div class="materials-list">
+              <div style="color:var(--pixel-gold); font-size:0.95rem; margin-bottom:4px;">五行神材庫存</div>
+              <div class="mat-item"><span>✨ 金精石 (崑崙):</span> <span id="mat-gold" style="color:var(--pixel-gold); font-weight:bold;">10</span></div>
+              <div class="mat-item"><span>🌿 神木芯 (太初):</span> <span id="mat-wood" style="color:var(--pixel-wood); font-weight:bold;">10</span></div>
+              <div class="mat-item"><span>💧 玄冰髓 (九幽):</span> <span id="mat-water" style="color:var(--pixel-water); font-weight:bold;">10</span></div>
+              <div class="mat-item"><span>🔥 朱雀羽 (熔岩):</span> <span id="mat-fire" style="color:var(--pixel-fire); font-weight:bold;">10</span></div>
+              <div class="mat-item"><span>🪨 息壤土 (不周):</span> <span id="mat-earth" style="color:var(--pixel-earth); font-weight:bold;">10</span></div>
+              
+              <!-- 鍛造模式選擇 -->
+              <div class="forge-select-group">
+                <span style="font-size:0.75rem; color:var(--pixel-gold);">選擇鍛造屬性法則：</span>
+                <div class="forge-mode-selector">
+                  <div class="forge-mode-btn active" onclick="setForgeMode('single')">單一純屬性</div>
+                  <div class="forge-mode-btn" onclick="setForgeMode('sheng')">相生(金+水)</div>
+                  <div class="forge-mode-btn" onclick="setForgeMode('ke')">相剋(金+木)</div>
+                </div>
+
+                <div class="rate-indicator rate-success" id="forge-rate-box">
+                  100% 成功率 | 穩定鍛造
+                </div>
+              </div>
+
+              <div style="font-size:0.7rem; color:var(--text-muted); margin-top:4px;">
+                💡 說明：相生提升成功率與品質；相剋成功率衰減但有高機率【暴擊神品】！
+              </div>
+            </div>
+
+            <!-- 右側：鍛造動作區 -->
+            <div class="crafting-action-box">
+              <div style="color:var(--pixel-gold); font-size:1.1rem; font-weight:bold;">神兵天成 · 洪荒爐</div>
+              <div class="forge-anvil">⚒️</div>
+              <button class="pixel-btn btn-gold" id="btn-forge" style="padding:12px 24px; font-size:1rem;">🔨 開爐鍛造裝備</button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- 分頁3: 乾坤背包 (含拖曳熔練爐) -->
+        <div class="tab-content" id="tab-bag">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="color:var(--pixel-gold);">背包法寶物品欄 (可拖曳下方熔練)</span>
+            <button class="pixel-btn" id="btn-salvage-all" style="font-size:0.75rem;">♻️ 一鍵熔練低階裝備</button>
+          </div>
+          
+          <div class="inventory-grid" id="inventory-grid">
+            <!-- 動態渲染物品 -->
+          </div>
+
+          <!-- 背包拖曳熔練爐 Drop Zone -->
+          <div class="salvage-drop-zone" id="salvage-drop-zone">
+            <div style="font-size:2.2rem;">🌋</div>
+            <div style="color:var(--pixel-fire); font-size:0.95rem; font-weight:bold;">像素三昧真火熔練爐</div>
+            <div style="font-size:0.75rem; color:var(--text-muted);">
+              將背包中任意裝備【拖曳至此區域】即可熔練，獲得靈石與五行神材！
+            </div>
+          </div>
+        </div>
+
+      </main>
+
+    </div>
+  </div>
+
+  <!-- 禮包碼 Modal -->
+  <div class="modal-backdrop" id="gift-modal">
+    <div class="modal-box">
+      <div class="modal-title">🎁 兌換洪荒禮包碼</div>
+      <p style="font-size:0.85rem; color:var(--text-muted);">請輸入禮包碼以領取豐富資源（例如：歡迎萌新、極品紅裝、我要發財、大吉大利）</p>
+      <input type="text" class="pixel-input" id="gift-code-input" placeholder="輸入禮包碼..." value="歡迎萌新">
+      <div style="display:flex; gap:10px; justify-content:flex-end;">
+        <button class="pixel-btn" id="close-gift-modal">取消</button>
+        <button class="pixel-btn btn-gold" id="btn-claim-code">確認兌換</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 創角靈根選擇 Modal (首次進入) -->
+  <div class="modal-backdrop" id="class-select-modal">
+    <div class="modal-box" style="max-width:550px;">
+      <div class="modal-title">✨ 選擇五行靈根 · 踏入修途</div>
+      
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <label style="font-size:0.85rem; color:var(--pixel-gold);">道號名稱：</label>
+        <input type="text" class="pixel-input" id="player-name-input" value="太初尊者" maxlength="10">
+      </div>
+
+      <div style="font-size:0.85rem; color:var(--pixel-gold); margin-top:6px;">選擇五行靈根職業：</div>
+      <div class="class-select-grid">
+        <div class="class-card selected" data-class="gold">
+          <div style="font-size:1.8rem;">⚔️</div>
+          <h4 style="color:var(--pixel-gold);">金系</h4>
+          <p style="font-size:0.65rem; color:#aaa;">高爆發/會心/擊暈</p>
+        </div>
+        <div class="class-card" data-class="wood">
+          <div style="font-size:1.8rem;">🌿</div>
+          <h4 style="color:var(--pixel-wood);">木系</h4>
+          <p style="font-size:0.65rem; color:#aaa;">高血量/回復/重毒</p>
+        </div>
+        <div class="class-card" data-class="water">
+          <div style="font-size:1.8rem;">💧</div>
+          <h4 style="color:var(--pixel-water);">水系</h4>
+          <p style="font-size:0.65rem; color:#aaa;">高觸發/法力/冰凍</p>
+        </div>
+        <div class="class-card" data-class="fire">
+          <div style="font-size:1.8rem;">🔥</div>
+          <h4 style="color:var(--pixel-fire);">火系</h4>
+          <p style="font-size:0.65rem; color:#aaa;">高攻速/閃避/致盲</p>
+        </div>
+        <div class="class-card" data-class="earth">
+          <div style="font-size:1.8rem;">🪨</div>
+          <h4 style="color:var(--pixel-earth);">土系</h4>
+          <p style="font-size:0.65rem; color:#aaa;">高防禦/減傷/虛弱</p>
+        </div>
+      </div>
+
+      <button class="pixel-btn btn-gold" id="btn-confirm-class" style="width:100%; padding:12px; margin-top:10px;">🌟 踏入洪荒世界</button>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
