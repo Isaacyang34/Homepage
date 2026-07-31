@@ -799,3 +799,57 @@ header {
   padding-bottom: 4px;
 }
 
+/* ============================================
+   GM 天道設定面板 & 熔練品級 Checkbox 樣式
+   ============================================ */
+.gm-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  background: #11111f;
+  border: 2px solid var(--panel-border);
+  padding: 12px;
+}
+
+.gm-setting-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #18182c;
+  padding: 8px;
+  border: 1px solid #333352;
+}
+
+.gm-setting-label {
+  font-size: 0.8rem;
+  color: var(--pixel-gold);
+}
+
+.salvage-checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  background: #121224;
+  padding: 8px;
+  border: 1px dashed #444466;
+  margin-bottom: 6px;
+}
+
+.salvage-chk-label {
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border: 1px solid #333;
+  background: #1a1a2e;
+}
+
+.salvage-chk-label input {
+  cursor: pointer;
+}
+
+

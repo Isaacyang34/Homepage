@@ -72,8 +72,7 @@
             <div class="stat-item"><span class="stat-label">會心:</span> <span class="stat-val" id="stat-crit">10%</span></div>
             <div class="stat-item"><span class="stat-label">修練速:</span> <span class="stat-val" id="ui-exp-speed" style="color:#2ecc71;">100%</span></div>
             <div class="stat-item"><span class="stat-label">回復速:</span> <span class="stat-val" id="stat-regen" style="color:#e67e22;">4 /3s</span></div>
-            <div class="stat-item"><span class="stat-label">丹藥:</span> <span class="stat-val" id="stat-pills" style="color:#e74c3c;">0</span></div>
-            <div class="stat-item" style="grid-column: span 2;"><span class="stat-label">靈石:</span> <span class="stat-val" id="ui-coins" style="color:var(--pixel-gold);">500</span></div>
+            <div class="stat-item"><span class="stat-label">靈石:</span> <span class="stat-val" id="ui-coins" style="color:var(--pixel-gold);">500</span></div>
           </div>
 
           <!-- 狀態提示 -->
@@ -83,13 +82,18 @@
 
           <!-- 已裝備部位 -->
           <div class="panel-title" style="margin-top:5px; font-size:0.95rem;">
-            <span>法寶裝備</span>
+            <span>法寶與丹藥槽</span>
           </div>
-          <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:6px;">
+          <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:6px;">
             <div class="item-slot" id="eq-weapon" title="點擊卸下武器"><span style="color:#666; font-size:0.75rem;">空武器</span></div>
             <div class="item-slot" id="eq-armor" title="點擊卸下防具"><span style="color:#666; font-size:0.75rem;">空防具</span></div>
             <div class="item-slot" id="eq-accessory" title="點擊卸下飾品"><span style="color:#666; font-size:0.75rem;">空飾品</span></div>
+            <div class="item-slot" id="eq-pill" style="border-color:#e74c3c;" title="點擊卸下丹藥"><span style="color:#666; font-size:0.75rem;">空丹藥</span></div>
           </div>
+
+          <button class="pixel-btn btn-gold" id="btn-use-equipped-pill" style="margin-top:6px; width:100%; padding:6px; font-size:0.8rem; border-color:#e74c3c;">
+            💊 服用槽中丹藥
+          </button>
 
         </div>
       </aside>
@@ -104,6 +108,7 @@
           <button class="tab-btn" data-tab="alchemy">🧪 九轉煉丹</button>
           <button class="tab-btn" data-tab="shop">🏪 坊市商鋪</button>
           <button class="tab-btn" data-tab="bag">🎒 乾坤背包</button>
+          <button class="tab-btn" data-tab="settings" style="color:var(--pixel-gold);">⚙️ 天道設定</button>
         </nav>
 
         <!-- 分頁1: 洪荒歷練與戰鬥 -->
@@ -174,8 +179,6 @@
               <button class="pixel-btn" id="btn-manual-attack">⚔️ 手動討伐</button>
               <button class="pixel-btn" id="btn-toggle-auto">⚔️ 開啟自動掛機</button>
               <button class="pixel-btn" id="btn-meditate" style="border-color:#e67e22;">🧘 打坐調息</button>
-              <button class="pixel-btn" id="btn-use-pill" style="border-color:#e74c3c;">💊 服丹 (<span id="ui-pill-count">0</span>)</button>
-              <button class="pixel-btn" id="btn-buy-pill" style="font-size:0.75rem;">🛒 買丹 (200靈石)</button>
             </div>
           </div>
 
@@ -277,9 +280,20 @@
 
         <!-- 分頁: 乾坤背包 -->
         <div class="tab-content" id="tab-bag">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span style="color:var(--pixel-gold);">背包法寶物品欄 (可拖曳下方熔練)</span>
-            <button class="pixel-btn" id="btn-salvage-all" style="font-size:0.75rem;">♻️ 一鍵熔練低階裝備</button>
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+            <span style="color:var(--pixel-gold);">🎒 乾坤背包 (可點擊裝備或拖曳熔練)</span>
+            <button class="pixel-btn btn-gold" id="btn-salvage-all" style="font-size:0.75rem;">♻️ 一鍵熔練勾選品級裝備</button>
+          </div>
+
+          <!-- 一鍵熔練品級勾選器 -->
+          <div class="salvage-checkbox-group">
+            <span style="font-size:0.75rem; color:var(--pixel-gold); font-weight:bold;">熔練品級篩選：</span>
+            <label class="salvage-chk-label" style="color:#888;"><input type="checkbox" class="chk-salvage-quality" value="1" checked> ⚪ 凡品</label>
+            <label class="salvage-chk-label" style="color:#2ecc71;"><input type="checkbox" class="chk-salvage-quality" value="2" checked> 🟢 良品</label>
+            <label class="salvage-chk-label" style="color:#3498db;"><input type="checkbox" class="chk-salvage-quality" value="3"> 🔵 上品</label>
+            <label class="salvage-chk-label" style="color:#9b59b6;"><input type="checkbox" class="chk-salvage-quality" value="4"> 🟣 極品</label>
+            <label class="salvage-chk-label" style="color:#f1c40f;"><input type="checkbox" class="chk-salvage-quality" value="5"> 🟡 仙品</label>
+            <label class="salvage-chk-label" style="color:#e74c3c;"><input type="checkbox" class="chk-salvage-quality" value="6"> 🔴 神品</label>
           </div>
           
           <div class="inventory-grid" id="inventory-grid">
@@ -290,7 +304,7 @@
             <div style="font-size:2.2rem;">🌋</div>
             <div style="color:var(--pixel-fire); font-size:0.95rem; font-weight:bold;">像素三昧真火熔練爐</div>
             <div style="font-size:0.75rem; color:var(--text-muted);">
-              將背包中任意裝備【拖曳至此區域】即可熔練，獲得靈石與五行神材！
+              勾選上方品級後點擊「一鍵熔練」，或將任意裝備【拖曳至此】單獨熔練！
             </div>
           </div>
         </div>
@@ -333,6 +347,72 @@
 
           <div class="shop-grid" id="general-shop-grid">
             <!-- 動態渲染商鋪商品 -->
+          </div>
+        </div>
+
+        <!-- 分頁: ⚙️ 天道 GM 設定 (需要密碼驗證) -->
+        <div class="tab-content" id="tab-settings">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="color:var(--pixel-gold); font-size:1.05rem; font-weight:bold;">⚙️ 天道 GM 參數控制台</span>
+            <span style="font-size:0.75rem; color:var(--text-muted);">密碼保護 · 微調遊戲核心參數</span>
+          </div>
+
+          <!-- 密碼輸入解鎖介面 -->
+          <div id="gm-lock-screen" style="background:#11111f; border:2px dashed var(--pixel-gold); padding:20px; text-align:center; display:flex; flex-direction:column; align-items:center; gap:12px;">
+            <div style="font-size:2.5rem;">🔒</div>
+            <div style="color:var(--pixel-gold); font-size:1rem; font-weight:bold;">此頁面受到天道禁制保護</div>
+            <div style="font-size:0.8rem; color:var(--text-muted);">請輸入天道密碼以開啟參數微調面板 (預設密碼：1234)</div>
+            <div style="display:flex; gap:8px; max-width:320px; width:100%;">
+              <input type="password" class="pixel-input" id="gm-password-input" placeholder="輸入密碼..." maxlength="10">
+              <button class="pixel-btn btn-gold" id="btn-unlock-gm">解鎖</button>
+            </div>
+            <div id="gm-pass-error" style="color:#e74c3c; font-size:0.8rem; display:none;">⚠️ 密碼錯誤！請重新輸入。</div>
+          </div>
+
+          <!-- 天道參數調整面板 (預設隱藏) -->
+          <div id="gm-panel" style="display:none; flex-direction:column; gap:12px;">
+            <div class="gm-settings-grid">
+              <div class="gm-setting-item">
+                <span class="gm-setting-label">🎲 秘境機緣觸發率 (%)</span>
+                <input type="number" class="pixel-input" id="cfg-event-rate" min="1" max="100" value="6">
+                <span style="font-size:0.65rem; color:#888;">機緣觸發總機率（預設 6%）</span>
+              </div>
+
+              <div class="gm-setting-item">
+                <span class="gm-setting-label">🧙‍♂️ 神秘商人降臨率 (%)</span>
+                <input type="number" class="pixel-input" id="cfg-merchant-rate" min="1" max="100" value="20">
+                <span style="font-size:0.65rem; color:#888;">機緣觸發後商人出現機率（預設 20%）</span>
+              </div>
+
+              <div class="gm-setting-item">
+                <span class="gm-setting-label">⚡ 修為獲得倍率 (x)</span>
+                <input type="number" class="pixel-input" id="cfg-exp-mult" min="0.1" max="10" step="0.1" value="1.0">
+                <span style="font-size:0.65rem; color:#888;">戰鬥/打坐獲取修為倍率</span>
+              </div>
+
+              <div class="gm-setting-item">
+                <span class="gm-setting-label">💰 靈石掉落倍率 (x)</span>
+                <input type="number" class="pixel-input" id="cfg-coin-mult" min="0.1" max="10" step="0.1" value="1.0">
+                <span style="font-size:0.65rem; color:#888;">戰鬥獲取靈石倍率</span>
+              </div>
+
+              <div class="gm-setting-item">
+                <span class="gm-setting-label">🧘 打坐氣血恢復倍率 (x)</span>
+                <input type="number" class="pixel-input" id="cfg-meditate-mult" min="1" max="20" value="5">
+                <span style="font-size:0.65rem; color:#888;">打坐時氣血回復速度倍率</span>
+              </div>
+
+              <div class="gm-setting-item">
+                <span class="gm-setting-label">🌌 蒼靈根抽卡機率 (%)</span>
+                <input type="number" class="pixel-input" id="cfg-azure-rate" min="1" max="50" value="5">
+                <span style="font-size:0.65rem; color:#888;">感應靈根抽中絕品蒼靈根機率</span>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+              <button class="pixel-btn" id="btn-reset-gm-config">🔄 重置為預設值</button>
+              <button class="pixel-btn btn-gold" id="btn-save-gm-config">💾 保存天道參數</button>
+            </div>
           </div>
         </div>
 

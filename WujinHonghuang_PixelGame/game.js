@@ -344,7 +344,7 @@ let player = {
   },
   
   inventory: [],
-  equipped: { weapon: null, armor: null, accessory: null },
+  equipped: { weapon: null, armor: null, accessory: null, pill: null },
   usedCodes: [],
   pills: 0,
   herbs: {
@@ -364,11 +364,24 @@ let isAutoBattling = false;
 let currentMonster = null;
 let currentForgeMode = 'single';
 let currentForgeElement = 'gold';
-let currentSutraCategory = 'gold';
 let isMeditating = false;
 let meditateInterval = null;
 let regenInterval = null;
 let currentMerchantItems = [];
+
+// ============================================
+// 天道 GM 控制台核心動態參數
+// ============================================
+let GAME_CONFIG = {
+  eventRate: 0.06,      // 秘境機緣觸發率 (預設 6%)
+  merchantRate: 0.20,   // 神秘商人出現率 (預設 20%)
+  expMult: 1.0,         // 修為獲得倍率 (x)
+  coinMult: 1.0,        // 靈石獲得倍率 (x)
+  meditateMult: 5,      // 打坐恢復倍率 (x)
+  azureRate: 0.05       // 蒼靈根機率 (5%)
+};
+
+let isGMUnlocked = false;
 
 // 五行屬性對應材料key、材料名稱、裝備前綴
 const ELEMENT_MAT_MAP = {
@@ -381,6 +394,7 @@ const ELEMENT_MAT_MAP = {
 
 document.addEventListener('DOMContentLoaded', () => {
   loadGame();
+  loadGMConfigToInputs();
   setupEventListeners();
   setupDragAndDrop();
   updateUI();
@@ -462,10 +476,14 @@ function setupEventListeners() {
   document.getElementById('btn-forge').addEventListener('click', forgeEquipment);
   document.getElementById('btn-salvage-all').addEventListener('click', salvageCommonItems);
 
-  // 打坐調息 / 丹藥
+  // 打坐調息 / 服用槽中丹藥
   document.getElementById('btn-meditate').addEventListener('click', toggleMeditate);
-  document.getElementById('btn-use-pill').addEventListener('click', usePill);
-  document.getElementById('btn-buy-pill').addEventListener('click', buyPill);
+  document.getElementById('btn-use-equipped-pill').addEventListener('click', useEquippedPill);
+
+  // 天道 GM 設定解鎖與保存
+  document.getElementById('btn-unlock-gm').addEventListener('click', unlockGMSettings);
+  document.getElementById('btn-save-gm-config').addEventListener('click', saveGMSettings);
+  document.getElementById('btn-reset-gm-config').addEventListener('click', resetGMConfig);
 }
 
 function drawSpiritualRoot() {
@@ -486,7 +504,8 @@ function drawSpiritualRoot() {
     const primaryElem = elements[Math.floor(Math.random() * elements.length)];
 
     let result = {};
-    if (rand < 5) {
+    const azureThreshold = (GAME_CONFIG.azureRate || 0.05) * 100;
+    if (rand < azureThreshold) {
       result = {
         type: 'azure',
         name: '絕品·蒼靈根',
@@ -498,7 +517,7 @@ function drawSpiritualRoot() {
       };
       cardBox.className = 'gacha-card-box azure-card';
       audioSynth.sfxLevelUp();
-    } else if (rand < 45) {
+    } else if (rand < azureThreshold + 40) {
       result = {
         type: 'single',
         name: `天單靈根 (${ELEMENT_NAMES[primaryElem]})`,
@@ -788,11 +807,12 @@ function onMonsterDefeated() {
     baseCoin = Math.floor(dung.baseCoin * scale);
   }
 
-  // 算入天賦修速 + 心法修速
+  // 算入天賦修速 + 心法修速 + 天道修為倍率
   const totalExpSpeed = calculateTotalExpSpeed();
-  const expGain = Math.floor(baseExp * totalExpSpeed);
+  const expGain = Math.floor(baseExp * totalExpSpeed * (GAME_CONFIG.expMult || 1.0));
+  const coinGain = Math.floor(baseCoin * (GAME_CONFIG.coinMult || 1.0));
   player.exp += expGain;
-  player.coins += baseCoin;
+  player.coins += coinGain;
   
   let droppedMatName = "";
   if (dung.matDrop === 'all') {
@@ -819,20 +839,22 @@ function onMonsterDefeated() {
     addLog(`【採集】擊敗怪物採集到靈藥：【${herbNameMap[selectedHerb]}】+1！`, 'log-drop');
   }
 
-  addLog(`【大捷】擊敗 ${currentMonster.name}！修為+${expGain} (修速 ${Math.floor(totalExpSpeed*100)}%)，靈石+${baseCoin}，【${droppedMatName}】+1！`, 'log-drop');
+  addLog(`【大捷】擊敗 ${currentMonster.name}！修為+${expGain} (修速 ${Math.floor(totalExpSpeed*100)}%)，靈石+${coinGain}，【${droppedMatName}】+1！`, 'log-drop');
 
-  // 15% 機率觸發隨機機緣或神秘商人
-  if (Math.random() < 0.15) {
-    if (Math.random() < 0.5) {
-      // 50% 隨機天降機緣
-      const rewardCoins = 300 + Math.floor(Math.random() * 500);
+  // 動態天道機率觸發隨機機緣或神秘商人
+  const eventRate = GAME_CONFIG.eventRate || 0.06;
+  if (Math.random() < eventRate) {
+    const merchantRate = GAME_CONFIG.merchantRate || 0.20;
+    if (Math.random() >= merchantRate) {
+      // 隨機天降機緣
+      const rewardCoins = Math.floor((300 + Math.floor(Math.random() * 500)) * (GAME_CONFIG.coinMult || 1.0));
       player.coins += rewardCoins;
       addLog(`【✨ 天降機緣】偶遇洪荒大能遺跡，獲得古仙贈禮：靈石 +${rewardCoins}！`, 'log-crit');
     } else {
-      // 50% 神秘商人降臨
+      // 神秘商人降臨
       generateMerchantItems();
       document.getElementById('merchant-banner').classList.add('show');
-      addLog(`【🧙‍♂️ 機緣降臨】雲遊神秘商人攜帶武學與內功心法降臨秘境！點擊「拜訪神秘商人」即可選購！`, 'log-crit');
+      addLog(`【🧙‍♂️ 機緣降臨】雲遊神秘商人攜帶武學與內功心法降臨秘境！僅限購入一件珍品！`, 'log-crit');
     }
   }
 
@@ -1055,6 +1077,15 @@ function buySutra(sutraId) {
   audioSynth.sfxLevelUp();
   addLog(`【心法參悟】成功花費 靈石 ${sutra.price} 參悟《${sutra.name}》！實力大增！`, 'log-crit');
 
+  // 如果是在神秘商人店鋪購買，商人購買 1 件後立刻離場
+  if (currentMerchantItems && currentMerchantItems.some(s => s.id === sutraId)) {
+    currentMerchantItems = [];
+    document.getElementById('merchant-banner').classList.remove('show');
+    const merchantModal = document.getElementById('merchant-modal');
+    if (merchantModal) merchantModal.classList.remove('show');
+    addLog(`【商人離場】神秘商人收下靈石，將《${sutra.name}》交給您後作揖化為一道遁光離去！`, 'log-crit');
+  }
+
   recalculatePlayerStats();
   updateUI();
   renderMerchantShop();
@@ -1262,9 +1293,22 @@ function craftPill(recipeId) {
     player.herbs[hKey] -= count;
   }
 
+  // 產出丹藥物品放入背包
+  const pillItem = {
+    id: Date.now() + Math.random(),
+    type: 'pill',
+    recipeId: recipe.id,
+    name: recipe.name,
+    icon: recipe.icon,
+    quality: recipe.quality === '極品' ? 5 : recipe.quality === '上品' ? 4 : recipe.quality === '中品' ? 3 : 2,
+    qualityColor: recipe.quality === '極品' ? '#e74c3c' : recipe.quality === '上品' ? '#f1c40f' : recipe.quality === '中品' ? '#9b59b6' : '#3498db',
+    desc: recipe.desc,
+    atk: 0, def: 0
+  };
+
+  player.inventory.push(pillItem);
   audioSynth.sfxCraft();
-  const logMsg = recipe.action(player);
-  addLog(`【煉丹成功】神鼎出丹！${logMsg}`, 'log-crit');
+  addLog(`【煉丹成功】神鼎出丹！成功煉製出【${recipe.name}】並收入乾坤背包！點擊可裝備至丹藥槽使用！`, 'log-crit');
 
   recalculatePlayerStats();
   updateUI();
@@ -1312,8 +1356,20 @@ function buyShopItem(itemId) {
   player.coins -= item.price;
   audioSynth.sfxReward();
 
-  if (item.category === 'pill' && item.action) {
-    item.action();
+  if (item.category === 'pill') {
+    const pillItem = {
+      id: Date.now() + Math.random(),
+      type: 'pill',
+      recipeId: 'recipe_small_hp',
+      name: '《回氣小還丹》',
+      icon: '💊',
+      quality: 2,
+      qualityColor: '#2ecc71',
+      desc: '吞服後回復 50% 最大氣血',
+      atk: 0, def: 0
+    };
+    player.inventory.push(pillItem);
+    addLog(`【坊市購入】成功購買【《回氣小還丹》】放入背包！`, 'log-drop');
   } else if (item.category === 'herb') {
     player.herbs[item.key] = (player.herbs[item.key] || 0) + 1;
     const herbNameMap = { lingzhi:'靈芝草', baicao:'百草露', zhusha:'硃砂果', longkui:'龍葵花', renshen:'千年人參' };
@@ -1345,7 +1401,12 @@ function equipItem(itemId) {
   audioSynth.sfxReward();
   recalculatePlayerStats();
   updateUI();
-  addLog(`【裝備】已穿戴 ${item.name}！`, 'log-system');
+
+  if (slotType === 'pill') {
+    addLog(`【丹藥放入槽位】已將【${item.name}】放入丹藥欄位！點擊下方【💊 服用槽中丹藥】即可服用！`, 'log-crit');
+  } else {
+    addLog(`【裝備】已穿戴 ${item.name}！`, 'log-system');
+  }
 }
 
 function unequipItem(slotType) {
@@ -1359,6 +1420,33 @@ function unequipItem(slotType) {
   recalculatePlayerStats();
   updateUI();
   addLog(`【裝備】已卸下 ${item.name}。`, 'log-system');
+}
+
+// 服用裝備在丹藥槽中的丹藥
+function useEquippedPill() {
+  if (!player.equipped || !player.equipped.pill) {
+    addLog('【服丹提示】丹藥槽為空！請先在背包中點擊丹藥裝備至丹藥槽。', 'log-system');
+    return;
+  }
+
+  const pill = player.equipped.pill;
+  const recipe = PILL_RECIPES.find(r => r.id === pill.recipeId);
+  
+  let msg = '';
+  if (recipe && recipe.action) {
+    msg = recipe.action(player);
+  } else {
+    const heal = Math.floor(player.maxHp * 0.5);
+    player.hp = Math.min(player.maxHp, player.hp + heal);
+    msg = `吞服【${pill.name}】，氣血回復 ${heal} 點！`;
+  }
+
+  player.equipped.pill = null; // 消耗丹藥
+  audioSynth.sfxReward();
+  addLog(`【服丹療傷】${msg}`, 'log-crit');
+
+  recalculatePlayerStats();
+  updateUI();
 }
 
 // 重新計算屬性 (算入裝備、蒼靈根115% 與心法加成)
@@ -1392,16 +1480,24 @@ function recalculatePlayerStats() {
 }
 
 function salvageCommonItems() {
+  const chks = document.querySelectorAll('.chk-salvage-quality:checked');
+  const selectedQualities = Array.from(chks).map(el => parseInt(el.value));
+
+  if (selectedQualities.length === 0) {
+    addLog('【熔練提示】請至少在上方勾選一種要熔練的裝備品級！', 'log-system');
+    return;
+  }
+
   let count = 0;
   let matReturnCount = 0;
   const matKeys = ['goldMat', 'woodMat', 'waterMat', 'fireMat', 'earthMat'];
 
   player.inventory = player.inventory.filter(item => {
-    if (item.quality <= 2) {
+    if (item.type !== 'pill' && selectedQualities.includes(item.quality)) {
       count++;
       player.coins += item.quality * 50;
-      player.materials[matKeys[Math.floor(Math.random() * matKeys.length)]] += 1;
-      matReturnCount += 1;
+      player.materials[matKeys[Math.floor(Math.random() * matKeys.length)]] += item.quality;
+      matReturnCount += item.quality;
       return false;
     }
     return true;
@@ -1409,10 +1505,10 @@ function salvageCommonItems() {
 
   if (count > 0) {
     audioSynth.sfxReward();
-    addLog(`【一鍵熔練】共拆解 ${count} 件普通裝備，獲得靈石與 ${matReturnCount} 個五行神材返還！`, 'log-drop');
+    addLog(`【三昧一鍵熔練】成功熔練 ${count} 件已勾選品級裝備，獲得靈石與 ${matReturnCount} 個五行神材！`, 'log-drop');
     updateUI();
   } else {
-    addLog('【熔練提示】背包中沒有凡品或良品裝備可供拆解。', 'log-system');
+    addLog('【熔練提示】背包中沒有符合目前已勾選品級的裝備可供熔練。', 'log-system');
   }
 }
 
@@ -1535,18 +1631,20 @@ function updateMonsterUI() {
 
 function renderEquippedSlots() {
   const eq = player.equipped;
-  ['weapon', 'armor', 'accessory'].forEach(type => {
+  if (!eq) return;
+  ['weapon', 'armor', 'accessory', 'pill'].forEach(type => {
     const el = document.getElementById(`eq-${type}`);
+    if (!el) return;
     if (eq[type]) {
-      el.style.borderColor = eq[type].qualityColor;
+      el.style.borderColor = eq[type].qualityColor || '#f1c40f';
       el.innerHTML = `
-        <span style="font-size:1.4rem;">${eq[type].icon}</span>
-        <span style="font-size:0.65rem; color:${eq[type].qualityColor}; font-weight:bold;">${eq[type].name}</span>
+        <span style="font-size:1.3rem;">${eq[type].icon}</span>
+        <span style="font-size:0.6rem; color:${eq[type].qualityColor || '#fff'}; font-weight:bold; line-height:1.1; text-align:center;">${eq[type].name}</span>
       `;
       el.onclick = () => unequipItem(type);
     } else {
-      el.style.borderColor = '#3d3d63';
-      let title = type === 'weapon' ? '空武器' : type === 'armor' ? '空防具' : '空飾品';
+      el.style.borderColor = type === 'pill' ? '#e74c3c' : '#3d3d63';
+      let title = type === 'weapon' ? '空武器' : type === 'armor' ? '空防具' : type === 'accessory' ? '空飾品' : '空丹藥';
       el.innerHTML = `<span style="color:#666; font-size:0.75rem;">${title}</span>`;
       el.onclick = null;
     }
@@ -1612,9 +1710,9 @@ function loadGame() {
 // 氣血自然回復計時器 (每 3 秒回復一次)
 // ============================================
 function getRegenAmount() {
-  // 基礎回復 = 2% maxHp，打坐時 5 倍速
+  // 基礎回復 = 2% maxHp，打坐時根據 GAME_CONFIG.meditateMult 倍率增強
   let base = Math.max(4, Math.floor(player.maxHp * 0.02));
-  if (isMeditating) base *= 5;
+  if (isMeditating) base *= (GAME_CONFIG.meditateMult || 5);
   return base;
 }
 
@@ -1759,3 +1857,69 @@ function usePill() {
   addLog(`【服丹療傷】吞服【回氣丹】，瞬間恢復 ${healAmount} 點氣血！剩餘丹藥 ${player.pills} 顆。`, 'log-crit');
   updateUI();
 }
+
+// ============================================
+// 天道 GM 控制台密碼解鎖與參數保存
+// ============================================
+function unlockGMSettings() {
+  const passInput = document.getElementById('gm-password-input').value.trim();
+  const errEl = document.getElementById('gm-pass-error');
+  if (passInput === '1234') {
+    isGMUnlocked = true;
+    document.getElementById('gm-lock-screen').style.display = 'none';
+    document.getElementById('gm-panel').style.display = 'flex';
+    errEl.style.display = 'none';
+    audioSynth.sfxLevelUp();
+    addLog('【天道驗證】天道印記密碼解鎖成功！天道 GM 動態控制台面板已開啓！', 'log-crit');
+    loadGMConfigToInputs();
+  } else {
+    errEl.style.display = 'block';
+    audioSynth.sfxHit();
+  }
+}
+
+function loadGMConfigToInputs() {
+  const savedCfg = localStorage.getItem('wujin_honghuang_gm_config');
+  if (savedCfg) {
+    try {
+      GAME_CONFIG = Object.assign(GAME_CONFIG, JSON.parse(savedCfg));
+    } catch (e) {}
+  }
+  if (document.getElementById('cfg-event-rate')) {
+    document.getElementById('cfg-event-rate').value = Math.floor(GAME_CONFIG.eventRate * 100);
+    document.getElementById('cfg-merchant-rate').value = Math.floor(GAME_CONFIG.merchantRate * 100);
+    document.getElementById('cfg-exp-mult').value = GAME_CONFIG.expMult;
+    document.getElementById('cfg-coin-mult').value = GAME_CONFIG.coinMult;
+    document.getElementById('cfg-meditate-mult').value = GAME_CONFIG.meditateMult;
+    document.getElementById('cfg-azure-rate').value = Math.floor(GAME_CONFIG.azureRate * 100);
+  }
+}
+
+function saveGMSettings() {
+  GAME_CONFIG.eventRate = parseFloat(document.getElementById('cfg-event-rate').value || 6) / 100;
+  GAME_CONFIG.merchantRate = parseFloat(document.getElementById('cfg-merchant-rate').value || 20) / 100;
+  GAME_CONFIG.expMult = parseFloat(document.getElementById('cfg-exp-mult').value || 1.0);
+  GAME_CONFIG.coinMult = parseFloat(document.getElementById('cfg-coin-mult').value || 1.0);
+  GAME_CONFIG.meditateMult = parseFloat(document.getElementById('cfg-meditate-mult').value || 5);
+  GAME_CONFIG.azureRate = parseFloat(document.getElementById('cfg-azure-rate').value || 5) / 100;
+
+  localStorage.setItem('wujin_honghuang_gm_config', JSON.stringify(GAME_CONFIG));
+  audioSynth.sfxReward();
+  addLog(`【天道重載】天道參數保存成功！機緣率: ${(GAME_CONFIG.eventRate*100).toFixed(1)}%, 修為: ${GAME_CONFIG.expMult}x, 靈石: ${GAME_CONFIG.coinMult}x！`, 'log-crit');
+}
+
+function resetGMConfig() {
+  GAME_CONFIG = {
+    eventRate: 0.06,
+    merchantRate: 0.20,
+    expMult: 1.0,
+    coinMult: 1.0,
+    meditateMult: 5,
+    azureRate: 0.05
+  };
+  localStorage.removeItem('wujin_honghuang_gm_config');
+  loadGMConfigToInputs();
+  audioSynth.sfxHit();
+  addLog('【天道重置】天道參數已還原為預設設定。', 'log-system');
+}
+
