@@ -79,6 +79,9 @@
           <div id="regen-status" style="font-size:0.7rem; color:#e67e22; text-align:center; display:none;">
             🧘 氣血自然恢復中...
           </div>
+          <div id="injury-badge" style="font-size:0.72rem; color:#ff4d4d; background:#2b1111; border:1px solid #ff4d4d; padding:4px; text-align:center; margin-top:4px; display:none; font-weight:bold;">
+            🤕 負傷休養中！(打坐恢復降為50%，滿血前禁止歷練)
+          </div>
 
           <!-- 已裝備部位 -->
           <div class="panel-title" style="margin-top:5px; font-size:0.95rem;">
@@ -127,27 +130,27 @@
           <div class="dungeon-select">
             <div class="dungeon-card dungeon-chaos active" data-id="5" onclick="selectDungeon(5)">
               <div class="dungeon-name" style="color:var(--pixel-gold);">🌀 5行混沌秘境</div>
-              <div class="dungeon-lvl" style="color:#e0a0ff;">[掉落全材料/多怪物]</div>
+              <div class="dungeon-lvl" style="color:#e0a0ff;">[全材料掉落]</div>
             </div>
             <div class="dungeon-card" data-id="0" onclick="selectDungeon(0)">
               <div class="dungeon-name">🌲 太初森林</div>
-              <div class="dungeon-lvl">Req. Lv.1 [木]</div>
+              <div class="dungeon-lvl">[木系秘境]</div>
             </div>
             <div class="dungeon-card" data-id="1" onclick="selectDungeon(1)">
               <div class="dungeon-name">❄️ 九幽寒潭</div>
-              <div class="dungeon-lvl">Req. Lv.10 [水]</div>
+              <div class="dungeon-lvl">[水系秘境]</div>
             </div>
             <div class="dungeon-card" data-id="2" onclick="selectDungeon(2)">
               <div class="dungeon-name">🌋 熔岩地獄</div>
-              <div class="dungeon-lvl">Req. Lv.25 [火]</div>
+              <div class="dungeon-lvl">[火系秘境]</div>
             </div>
             <div class="dungeon-card" data-id="3" onclick="selectDungeon(3)">
               <div class="dungeon-name">⚔️ 崑崙金山</div>
-              <div class="dungeon-lvl">Req. Lv.40 [金]</div>
+              <div class="dungeon-lvl">[金系秘境]</div>
             </div>
             <div class="dungeon-card" data-id="4" onclick="selectDungeon(4)">
               <div class="dungeon-name">⛰️ 不周天柱</div>
-              <div class="dungeon-lvl">Req. Lv.60 [土]</div>
+              <div class="dungeon-lvl">[土系秘境]</div>
             </div>
           </div>
 
@@ -166,7 +169,13 @@
             <div class="enemy-display">
               <div class="monster-avatar" id="monster-icon">🐺</div>
               <div class="monster-info">
-                <div class="monster-name" id="monster-name">百年妖狼 (木系)</div>
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <span class="monster-name" id="monster-name">百年妖狼 (木系)</span>
+                  <span id="monster-boss-tag" style="display:none; font-size:0.65rem; background:linear-gradient(45deg, #f39c12, #e74c3c); color:#fff; padding:2px 6px; border-radius:3px; font-weight:bold; box-shadow:0 0 6px rgba(241,196,15,0.6);">👑 洪荒首領 BOSS</span>
+                </div>
+                <div id="monster-stats-detail" style="font-size:0.72rem; color:#2ecc71; margin-top:2px; margin-bottom:4px; font-weight:bold;">
+                  載入中...
+                </div>
                 <div class="bar-container bar-hp" style="height:16px;">
                   <div class="bar-fill" id="monster-hp-fill" style="width: 100%;"></div>
                   <span class="bar-text" id="monster-hp-text">120 / 120</span>
@@ -197,14 +206,16 @@
             <span style="font-size:0.8rem; color:#aaa;">加成: 攻 +<span id="sutra-bonus-atk" style="color:#f1c40f;">0</span> | 防 +<span id="sutra-bonus-def" style="color:#3498db;">0</span> | 修速 +<span id="sutra-bonus-exp" style="color:#2ecc71;">0%</span></span>
           </div>
 
-          <!-- 6 大分類子分頁 -->
+          <!-- 8 大分類子分頁 -->
           <div class="sub-nav-tabs" id="sutra-sub-tabs">
-            <button class="sub-tab-btn active" onclick="switchSutraTab('gold')">✨ 金系武學</button>
-            <button class="sub-tab-btn" onclick="switchSutraTab('wood')">🌿 木系武學</button>
-            <button class="sub-tab-btn" onclick="switchSutraTab('water')">💧 水系武學</button>
-            <button class="sub-tab-btn" onclick="switchSutraTab('fire')">🔥 火系武學</button>
-            <button class="sub-tab-btn" onclick="switchSutraTab('earth')">🪨 土系武學</button>
+            <button class="sub-tab-btn active" onclick="switchSutraTab('gold')">✨ 金系</button>
+            <button class="sub-tab-btn" onclick="switchSutraTab('wood')">🌿 木系</button>
+            <button class="sub-tab-btn" onclick="switchSutraTab('water')">💧 水系</button>
+            <button class="sub-tab-btn" onclick="switchSutraTab('fire')">🔥 火系</button>
+            <button class="sub-tab-btn" onclick="switchSutraTab('earth')">🪨 土系</button>
             <button class="sub-tab-btn" onclick="switchSutraTab('internal')">🧘 內功心法</button>
+            <button class="sub-tab-btn" onclick="switchSutraTab('alchemy')" style="color:#2ecc71;">🧪 丹道修練</button>
+            <button class="sub-tab-btn" onclick="switchSutraTab('forge')" style="color:#e67e22;">🔨 器道鍛造</button>
           </div>
 
           <div class="sutra-grid" id="sutra-grid">
@@ -216,7 +227,25 @@
         <div class="tab-content" id="tab-forge">
           <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
             <span style="color:var(--pixel-gold); font-size:1.05rem; font-weight:bold;">🔨 五行鍛造坊</span>
-            <span style="font-size:0.75rem; color:var(--text-muted);">每次鍛造消耗 3 個對應材料</span>
+            <span style="font-size:0.75rem; color:var(--text-muted);">最多擁有 5 座鍛造爐 · 需開爐倒數煉製</span>
+          </div>
+
+          <!-- 實體鍛造爐陣列 (最多 5 座) -->
+          <div style="background:#11111f; border:2px solid #2d2d48; padding:10px; margin-bottom:10px;">
+            <div style="color:var(--pixel-gold); font-size:0.9rem; margin-bottom:6px;">🌋 實體鍛造爐陣列 (可至坊市購買更高階鍛造爐)</div>
+            <div class="furnace-grid" id="forge-furnaces-grid">
+              <!-- 動態渲染 5 個鍛造爐位 -->
+            </div>
+          </div>
+
+          <!-- 已參悟器道心法加成狀態看板 -->
+          <div style="background:#141428; border:1px dashed #e67e22; padding:8px; margin-bottom:10px; font-size:0.78rem;" id="forge-sutra-status-panel">
+            <div style="color:#e67e22; font-weight:bold; margin-bottom:4px;">📜 已參悟器道心法加成狀態：</div>
+            <div id="forge-sutra-list-text" style="color:#bbb;">暫未參悟器道心法 (可至藏經閣【🔨 器道鍛造】參悟)</div>
+            <div style="margin-top:4px; display:flex; gap:12px; color:var(--pixel-gold);">
+              <span>🔨 開爐總速度加成: <span id="forge-sutra-total-speed" style="font-weight:bold;">+0%</span></span>
+              <span>✨ 神品爆率額外加成: <span id="forge-sutra-total-crit" style="font-weight:bold;">+0%</span></span>
+            </div>
           </div>
 
           <!-- 五行神材庫存 -->
@@ -273,7 +302,7 @@
           <!-- 鍛造按鈕 -->
           <div style="display:flex; flex-direction:column; align-items:center; gap:8px; padding:10px;">
             <div style="font-size:2.5rem;">⚒️</div>
-            <button class="pixel-btn btn-gold" id="btn-forge" style="padding:14px 30px; font-size:1.05rem;">🔨 開爐鍛造裝備</button>
+            <button class="pixel-btn btn-gold" id="btn-forge" onclick="startForgeInFurnace()" style="padding:14px 30px; font-size:1.05rem;">🔨 開爐鍛造裝備</button>
           </div>
 
         </div>
@@ -313,7 +342,25 @@
         <div class="tab-content" id="tab-alchemy">
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <span style="color:var(--pixel-gold); font-size:1.05rem; font-weight:bold;">🧪 九轉煉丹房</span>
-            <span style="font-size:0.75rem; color:var(--text-muted);">歷練打怪可獲得靈藥，亦可在坊市購入</span>
+            <span style="font-size:0.75rem; color:var(--text-muted);">最多擁有 5 座丹爐 · 需選擇丹爐開火煉製</span>
+          </div>
+
+          <!-- 實體丹爐陣列 (最多 5 座) -->
+          <div style="background:#11111f; border:2px solid #2d2d48; padding:10px; margin-bottom:10px;">
+            <div style="color:var(--pixel-gold); font-size:0.9rem; margin-bottom:6px;">🔥 實體丹爐陣列 (可至坊市購買高階丹爐)</div>
+            <div class="furnace-grid" id="alchemy-furnaces-grid">
+              <!-- 動態渲染 5 個丹爐位 -->
+            </div>
+          </div>
+
+          <!-- 已參悟丹道心法加成狀態看板 -->
+          <div style="background:#141428; border:1px dashed #2ecc71; padding:8px; margin-bottom:10px; font-size:0.78rem;" id="alch-sutra-status-panel">
+            <div style="color:#2ecc71; font-weight:bold; margin-bottom:4px;">📜 已參悟丹道心法加成狀態：</div>
+            <div id="alch-sutra-list-text" style="color:#bbb;">暫未參悟丹道心法 (可至藏經閣【🧪 丹道修練】參悟)</div>
+            <div style="margin-top:4px; display:flex; gap:12px; color:var(--pixel-gold);">
+              <span>🧪 煉丹總速度加成: <span id="alch-sutra-total-speed" style="font-weight:bold;">+0%</span></span>
+              <span>✨ 極品丹藥成丹率: <span id="alch-sutra-total-crit" style="font-weight:bold;">+0%</span></span>
+            </div>
           </div>
 
           <!-- 靈藥神草庫存 -->
@@ -369,47 +416,132 @@
             <div id="gm-pass-error" style="color:#e74c3c; font-size:0.8rem; display:none;">⚠️ 密碼錯誤！請重新輸入。</div>
           </div>
 
-          <!-- 天道參數調整面板 (預設隱藏) -->
+          <!-- 天道參數調整面板 (解鎖後顯示) -->
           <div id="gm-panel" style="display:none; flex-direction:column; gap:12px;">
+            <div style="font-size:0.85rem; color:var(--pixel-gold); font-weight:bold;">1. 📜 基礎獲得與掉落倍率</div>
             <div class="gm-settings-grid">
               <div class="gm-setting-item">
                 <span class="gm-setting-label">🎲 秘境機緣觸發率 (%)</span>
                 <input type="number" class="pixel-input" id="cfg-event-rate" min="1" max="100" value="6">
-                <span style="font-size:0.65rem; color:#888;">機緣觸發總機率（預設 6%）</span>
+                <span style="font-size:0.65rem; color:#888;">戰鬥觸發天降機緣總機率</span>
               </div>
 
               <div class="gm-setting-item">
                 <span class="gm-setting-label">🧙‍♂️ 神秘商人降臨率 (%)</span>
                 <input type="number" class="pixel-input" id="cfg-merchant-rate" min="1" max="100" value="20">
-                <span style="font-size:0.65rem; color:#888;">機緣觸發後商人出現機率（預設 20%）</span>
+                <span style="font-size:0.65rem; color:#888;">機緣中出現神秘商人機率</span>
+              </div>
+
+              <div class="gm-setting-item">
+                <span class="gm-setting-label" style="color:#f39c12;">👑 洪荒首領 BOSS 遭遇率 (%)</span>
+                <input type="number" class="pixel-input" id="cfg-boss-spawn-rate" min="1" max="100" value="20">
+                <span style="font-size:0.65rem; color:#888;">歷練遇上大魔王 BOSS 機率 (預設 20%)</span>
+              </div>
+
+              <div class="gm-setting-item">
+                <span class="gm-setting-label" style="color:#f1c40f;">🎁 首領 BOSS 法寶爆裝率 (%)</span>
+                <input type="number" class="pixel-input" id="cfg-boss-drop-rate" min="1" max="100" value="50">
+                <span style="font-size:0.65rem; color:#888;">擊敗 BOSS 直接爆出裝備機率 (預設 50%)</span>
               </div>
 
               <div class="gm-setting-item">
                 <span class="gm-setting-label">⚡ 修為獲得倍率 (x)</span>
-                <input type="number" class="pixel-input" id="cfg-exp-mult" min="0.1" max="10" step="0.1" value="1.0">
-                <span style="font-size:0.65rem; color:#888;">戰鬥/打坐獲取修為倍率</span>
+                <input type="number" class="pixel-input" id="cfg-exp-mult" min="0.1" max="50" step="0.1" value="1.0">
+                <span style="font-size:0.65rem; color:#888;">戰鬥與打坐獲得修為倍率</span>
               </div>
 
               <div class="gm-setting-item">
                 <span class="gm-setting-label">💰 靈石掉落倍率 (x)</span>
-                <input type="number" class="pixel-input" id="cfg-coin-mult" min="0.1" max="10" step="0.1" value="1.0">
-                <span style="font-size:0.65rem; color:#888;">戰鬥獲取靈石倍率</span>
+                <input type="number" class="pixel-input" id="cfg-coin-mult" min="0.1" max="50" step="0.1" value="1.0">
+                <span style="font-size:0.65rem; color:#888;">戰鬥獲得靈石倍率</span>
               </div>
 
               <div class="gm-setting-item">
-                <span class="gm-setting-label">🧘 打坐氣血恢復倍率 (x)</span>
-                <input type="number" class="pixel-input" id="cfg-meditate-mult" min="1" max="20" value="5">
-                <span style="font-size:0.65rem; color:#888;">打坐時氣血回復速度倍率</span>
+                <span class="gm-setting-label">🌿 靈藥草藥掉落率 (%)</span>
+                <input type="number" class="pixel-input" id="cfg-herb-rate" min="1" max="100" value="20">
+                <span style="font-size:0.65rem; color:#888;">戰鬥勝利獲得靈藥草藥機率</span>
               </div>
 
               <div class="gm-setting-item">
-                <span class="gm-setting-label">🌌 蒼靈根抽卡機率 (%)</span>
+                <span class="gm-setting-label">🧘 打坐氣血回復倍率 (x)</span>
+                <input type="number" class="pixel-input" id="cfg-meditate-mult" min="1" max="50" value="5">
+                <span style="font-size:0.65rem; color:#888;">打坐時氣血恢復速度倍率</span>
+              </div>
+
+              <div class="gm-setting-item">
+                <span class="gm-setting-label">🌌 絕品蒼靈根機率 (%)</span>
                 <input type="number" class="pixel-input" id="cfg-azure-rate" min="1" max="50" value="5">
-                <span style="font-size:0.65rem; color:#888;">感應靈根抽中絕品蒼靈根機率</span>
+                <span style="font-size:0.65rem; color:#888;">感應靈根抽中蒼靈根機率</span>
               </div>
             </div>
 
-            <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <div style="font-size:0.85rem; color:#ff5555; font-weight:bold; margin-top:6px;">2. 👿 怪物強度與越級境界壓制</div>
+            <div class="gm-settings-grid">
+              <div class="gm-setting-item">
+                <span class="gm-setting-label" style="color:#ff7777;">🩸 怪物血量強度倍率 (x)</span>
+                <input type="number" class="pixel-input" id="cfg-monster-hp-mult" min="0.5" max="20" step="0.1" value="2.0">
+                <span style="font-size:0.65rem; color:#888;">提升怪物總生命值（預設 2.0x）</span>
+              </div>
+
+              <div class="gm-setting-item">
+                <span class="gm-setting-label" style="color:#ff7777;">🗡️ 怪物攻擊強度倍率 (x)</span>
+                <input type="number" class="pixel-input" id="cfg-monster-atk-mult" min="0.5" max="20" step="0.1" value="1.8">
+                <span style="font-size:0.65rem; color:#888;">提升怪物傷害輸出（預設 1.8x）</span>
+              </div>
+
+              <div class="gm-setting-item">
+                <span class="gm-setting-label" style="color:#ff7777;">🛡️ 越級挑戰懲罰倍率 (x)</span>
+                <input type="number" class="pixel-input" id="cfg-suppression-mult" min="0.5" max="10" step="0.1" value="1.5">
+                <span style="font-size:0.65rem; color:#888;">跨階越級打怪遭受壓制加倍</span>
+              </div>
+            </div>
+
+            <div style="font-size:0.85rem; color:#3498db; font-weight:bold; margin-top:6px;">3. ⚔️ 戰鬥會心與鍛造熔練倍率</div>
+            <div class="gm-settings-grid">
+              <div class="gm-setting-item">
+                <span class="gm-setting-label">🎯 基礎會心一擊機率 (%)</span>
+                <input type="number" class="pixel-input" id="cfg-base-crit" min="0" max="100" value="10">
+                <span style="font-size:0.65rem; color:#888;">玩家基礎爆擊率</span>
+              </div>
+
+              <div class="gm-setting-item">
+                <span class="gm-setting-label">💥 會心一擊傷害倍率 (x)</span>
+                <input type="number" class="pixel-input" id="cfg-crit-dmg-mult" min="1.5" max="10" step="0.1" value="2.0">
+                <span style="font-size:0.65rem; color:#888;">會心一擊爆發傷害倍數</span>
+              </div>
+
+              <div class="gm-setting-item">
+                <span class="gm-setting-label">♻️ 熔練靈石返還倍率 (x)</span>
+                <input type="number" class="pixel-input" id="cfg-salvage-coin-mult" min="0.5" max="10" step="0.1" value="1.0">
+                <span style="font-size:0.65rem; color:#888;">三昧熔練裝備獲得靈石倍率</span>
+              </div>
+            </div>
+
+            <div style="font-size:0.85rem; color:#f1c40f; font-weight:bold; margin-top:6px;">4. 🌋 實體爐具基礎開爐倒數秒數</div>
+            <div class="gm-settings-grid">
+              <div class="gm-setting-item">
+                <span class="gm-setting-label" style="color:#2ecc71;">🧪 煉丹基礎開爐時間 (秒)</span>
+                <input type="number" class="pixel-input" id="cfg-alch-base-time" min="10" max="600" value="60">
+                <span style="font-size:0.65rem; color:#888;">凡階丹爐基礎倒數秒數 (預設 60 秒)</span>
+              </div>
+
+              <div class="gm-setting-item">
+                <span class="gm-setting-label" style="color:#e67e22;">🔨 鍛造基礎開爐時間 (秒)</span>
+                <input type="number" class="pixel-input" id="cfg-forge-base-time" min="10" max="600" value="60">
+                <span style="font-size:0.65rem; color:#888;">凡階鍛造爐基礎倒數秒數 (預設 60 秒)</span>
+              </div>
+            </div>
+
+            <div style="font-size:0.85rem; color:#a29bfe; font-weight:bold; margin-top:6px;">5. 🔍 遊戲文字與 UI 排版自適應縮放</div>
+            <div class="gm-settings-grid">
+              <div class="gm-setting-item">
+                <span class="gm-setting-label" style="color:#a29bfe;">🔍 遊戲整體文字縮放比例 (%)</span>
+                <input type="number" class="pixel-input" id="cfg-ui-scale" min="70" max="150" value="100" step="5" oninput="previewUIScale(this.value)">
+                <span style="font-size:0.65rem; color:#888;">可自由設定 70% ~ 150%（排版自適應不破版）</span>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:6px;">
               <button class="pixel-btn" id="btn-reset-gm-config">🔄 重置為預設值</button>
               <button class="pixel-btn btn-gold" id="btn-save-gm-config">💾 保存天道參數</button>
             </div>
@@ -441,7 +573,10 @@
         <span>🧙‍♂️ 雲遊神秘商人</span>
         <button class="pixel-btn btn-danger" id="btn-close-merchant-x" style="padding:2px 8px; font-size:0.75rem;">✕ 關閉</button>
       </div>
-      <p style="font-size:0.85rem; color:var(--pixel-gold);">「道友請留步！老夫遊歷洪荒各地，收集了當世罕見的五行武學與內功心法，看道友有緣，便賤賣與你！」</p>
+      <div style="display:flex; justify-content:space-between; align-items:center; background:#11111f; border:1px solid #f1c40f; padding:8px 12px; margin-bottom:10px; flex-wrap:wrap; gap:6px;">
+        <span style="font-size:0.8rem; color:var(--pixel-gold);">「老夫看道友有緣，便賤賣武學心法與你！」</span>
+        <span style="font-size:0.85rem; color:#fff; font-weight:bold;">💰 當前靈石: <span id="merchant-player-coins" style="color:var(--pixel-gold);">0</span></span>
+      </div>
       
       <div class="sutra-grid" id="merchant-shop-grid">
         <!-- 動態渲染商人販售的武學與內功心法 -->
@@ -483,6 +618,6 @@
     </div>
   </div>
 
-  <script src="game.js"></script>
+  <script src="game.js?v=3.0"></script>
 </body>
 </html>

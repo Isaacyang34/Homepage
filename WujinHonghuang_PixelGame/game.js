@@ -123,7 +123,19 @@ const ALL_SUTRAS = [
   { id: 'sutra_i3', category: 'internal', quality: '上品', name: '《九轉太乙玄經》', price: 2000, atk: 15, def: 35, hp: 400, expSpeed: 0.18, crit: 0.02, desc: '九轉太乙靈氣灌頂，提升 18% 修速、35 防禦與 15 攻擊。' },
   { id: 'sutra_i4', category: 'internal', quality: '中品', name: '《紫霄神雷功》', price: 1000, atk: 10, def: 22, hp: 150, expSpeed: 0.12, crit: 0.03, desc: '紫霄雷霆淬鍊肉身，提升 12% 修速與 22 點防禦。' },
   { id: 'sutra_i5', category: 'internal', quality: '上品', name: '《混沌吐納術》', price: 3200, atk: 25, def: 50, hp: 500, expSpeed: 0.22, crit: 0.04, desc: '吐納天地混沌之氣，提升 22% 修速與 50 點防禦。' },
-  { id: 'sutra_i6', category: 'internal', quality: '極品', name: '《洪荒無極心經》', price: 8888, atk: 50, def: 90, hp: 1000, expSpeed: 0.35, crit: 0.08, desc: '洪荒第一無極心法，提升 35% 修練速度與全屬性爆發！' }
+  { id: 'sutra_i6', category: 'internal', quality: '極品', name: '《洪荒無極心經》', price: 8888, atk: 50, def: 90, hp: 1000, expSpeed: 0.35, crit: 0.08, desc: '洪荒第一無極心法，提升 35% 修練速度與全屬性爆發！' },
+
+  // 🧪 丹道修練秘法
+  { id: 'sutra_alch1', category: 'alchemy', quality: '凡品', name: '《草木養丹術》', price: 300, alchSpeed: 0.20, desc: '丹道入門秘法！所有丹爐煉化速度提升 +20%！' },
+  { id: 'sutra_alch2', category: 'alchemy', quality: '中品', name: '《神農百草訣》', price: 1200, alchSpeed: 0.40, desc: '掌控百草靈性！丹爐煉化速度提升 +40%！' },
+  { id: 'sutra_alch3', category: 'alchemy', quality: '上品', name: '《三昧真火煉丹心經》', price: 3800, alchSpeed: 0.70, desc: '引三昧真火煉丹！丹爐煉化速度大幅提升 +70%！' },
+  { id: 'sutra_alch4', category: 'alchemy', quality: '極品', name: '《太上九轉造化丹經》', price: 12000, alchSpeed: 1.20, desc: '太上聖人煉丹大道！丹爐煉化速度提升 +120%！' },
+
+  // 🔨 器道鍛造秘法
+  { id: 'sutra_forge1', category: 'forge', quality: '凡品', name: '《百煉金石訣》', price: 300, forgeSpeed: 0.20, desc: '器道入門心法！所有鍛造爐開爐速度提升 +20%！' },
+  { id: 'sutra_forge2', category: 'forge', quality: '中品', name: '《天工開物器經》', price: 1200, forgeSpeed: 0.40, desc: '參透天工造化！鍛造爐開爐速度提升 +40%！' },
+  { id: 'sutra_forge3', category: 'forge', quality: '上品', name: '《神冶歐冶子心法》', price: 3800, forgeSpeed: 0.70, desc: '神冶至高心訣！鍛造爐開爐速度大幅提升 +70%！' },
+  { id: 'sutra_forge4', category: 'forge', quality: '極品', name: '《太初乾坤鍛器聖典》', price: 12000, forgeSpeed: 1.20, desc: '乾坤開天鍛器大道！鍛造爐開爐速度提升 +120%！' }
 ];
 
 // 九轉煉丹房配方 (Alchemy Recipes)
@@ -226,7 +238,18 @@ const SHOP_ITEMS = [
   { id: 'shop_mat_wood', name: '神材·神木芯 ×3', icon: '🌿', price: 250, category: 'material', key: 'woodMat', count: 3 },
   { id: 'shop_mat_water', name: '神材·玄冰髓 ×3', icon: '💧', price: 250, category: 'material', key: 'waterMat', count: 3 },
   { id: 'shop_mat_fire', name: '神材·朱雀羽 ×3', icon: '🔥', price: 250, category: 'material', key: 'fireMat', count: 3 },
-  { id: 'shop_mat_earth', name: '神材·息壤土 ×3', icon: '🪨', price: 250, category: 'material', key: 'earthMat', count: 3 }
+  { id: 'shop_mat_earth', name: '神材·息壤土 ×3', icon: '🪨', price: 250, category: 'material', key: 'earthMat', count: 3 },
+  
+  // 實體爐具專區 (解鎖與升級爐位)
+  { id: 'furnace_alch_ling', name: '《靈階紫砂丹爐》', icon: '🍵', price: 1000, category: 'furnace', furnaceType: 'alchemy', level: 2, speedMult: 1.5, desc: '解鎖/升級丹爐！煉化速度提升 1.5 倍 (開爐倒數 -33%)' },
+  { id: 'furnace_alch_di', name: '《地階寒鐵丹爐》', icon: '🏺', price: 3500, category: 'furnace', furnaceType: 'alchemy', level: 3, speedMult: 2.2, desc: '地階神爐！煉化速度提升 2.2 倍 (開爐倒數 -55%)' },
+  { id: 'furnace_alch_tian', name: '《天階赤炎丹爐》', icon: '🔥', price: 10000, category: 'furnace', furnaceType: 'alchemy', level: 4, speedMult: 3.5, desc: '天階聖爐！煉化速度提升 3.5 倍 (開爐倒數 -70%)' },
+  { id: 'furnace_alch_god', name: '《神階九龍造化爐》', icon: '🐉', price: 30000, category: 'furnace', furnaceType: 'alchemy', level: 5, speedMult: 6.0, desc: '造化神爐！煉化速度提升 6.0 倍 (開爐僅需 5 秒)' },
+
+  { id: 'furnace_forge_ling', name: '《靈階青銅鍛造爐》', icon: '🔨', price: 1000, category: 'furnace', furnaceType: 'forge', level: 2, speedMult: 1.5, desc: '解鎖/升級鍛造爐！開爐速度提升 1.5 倍' },
+  { id: 'furnace_forge_di', name: '《地階玄鐵鍛造爐》', icon: '🌋', price: 3500, category: 'furnace', furnaceType: 'forge', level: 3, speedMult: 2.2, desc: '地階鍛造爐！開爐速度提升 2.2 倍' },
+  { id: 'furnace_forge_tian', name: '《天階三昧真火爐》', icon: '♨️', price: 10000, category: 'furnace', furnaceType: 'forge', level: 4, speedMult: 3.5, desc: '天階真火爐！開爐速度提升 3.5 倍' },
+  { id: 'furnace_forge_god', name: '《神階乾坤造化爐》', icon: '🌌', price: 30000, category: 'furnace', furnaceType: 'forge', level: 5, speedMult: 6.0, desc: '乾坤神爐！開爐速度提升 6.0 倍' }
 ];
 
 const DUNGEONS = [
@@ -238,7 +261,11 @@ const DUNGEONS = [
       { name: "碧玉毒蛛", icon: "🕷️" },
       { name: "青林巨蟒", icon: "🐍" }
     ],
-    baseExp: 25, baseCoin: 15, matDrop: 'woodMat' 
+    bosses: [
+      { name: "太古扶桑神樹皇", icon: "🌳" },
+      { name: "萬年九尾天狐王", icon: "🦊" }
+    ],
+    baseExp: 30, baseCoin: 20, matDrop: 'woodMat' 
   },
   { 
     id: 1, name: "九幽寒潭", reqLevel: 10, element: 'water',
@@ -248,7 +275,11 @@ const DUNGEONS = [
       { name: "九幽水鬼", icon: "👻" },
       { name: "深海冰水獸", icon: "🦑" }
     ],
-    baseExp: 60, baseCoin: 45, matDrop: 'waterMat' 
+    bosses: [
+      { name: "九頭相柳水魔皇", icon: "🐍" },
+      { name: "太陰玄冰冰龍皇", icon: "🐉" }
+    ],
+    baseExp: 35, baseCoin: 25, matDrop: 'waterMat' 
   },
   { 
     id: 2, name: "熔岩地獄", reqLevel: 25, element: 'fire',
@@ -258,7 +289,11 @@ const DUNGEONS = [
       { name: "赤炎火魔", icon: "👹" },
       { name: "朱雀幼獸", icon: "🦅" }
     ],
-    baseExp: 150, baseCoin: 110, matDrop: 'fireMat' 
+    bosses: [
+      { name: "三足金烏祝融神", icon: "☀️" },
+      { name: "滅世地獄焚天魔尊", icon: "🔥" }
+    ],
+    baseExp: 40, baseCoin: 30, matDrop: 'fireMat' 
   },
   { 
     id: 3, name: "崑崙金山", reqLevel: 40, element: 'gold',
@@ -268,7 +303,11 @@ const DUNGEONS = [
       { name: "金晶巨雕", icon: "🦅" },
       { name: "太乙劍靈", icon: "⚔️" }
     ],
-    baseExp: 350, baseCoin: 280, matDrop: 'goldMat' 
+    bosses: [
+      { name: "太初白虎戮天尊", icon: "🐅" },
+      { name: "紫霄劍聖金神皇", icon: "⚔️" }
+    ],
+    baseExp: 45, baseCoin: 35, matDrop: 'goldMat' 
   },
   { 
     id: 4, name: "不周天柱", reqLevel: 60, element: 'earth',
@@ -278,7 +317,11 @@ const DUNGEONS = [
       { name: "山嶽神龜", icon: "🐢" },
       { name: "不周山靈", icon: "🧙‍♂️" }
     ],
-    baseExp: 800, baseCoin: 700, matDrop: 'earthMat' 
+    bosses: [
+      { name: "后土鎮世黃龍皇", icon: "🐉" },
+      { name: "不周天山金剛魔尊", icon: "🦍" }
+    ],
+    baseExp: 50, baseCoin: 40, matDrop: 'earthMat' 
   },
   { 
     id: 5, name: "5行混沌秘境", reqLevel: 1, element: 'chaos',
@@ -289,16 +332,20 @@ const DUNGEONS = [
       { name: "赤焰朱雀", icon: "🦅", elem: 'fire' },
       { name: "息壤魔尊", icon: "🗿", elem: 'earth' }
     ],
-    baseExp: 40, baseCoin: 30, matDrop: 'all'
+    bosses: [
+      { name: "五行混沌大帝尊", icon: "👑", elem: 'chaos' },
+      { name: "太初天道執法聖皇", icon: "🌌", elem: 'azure' }
+    ],
+    baseExp: 55, baseCoin: 45, matDrop: 'all'
   }
 ];
 
 const CHAOS_TIERS = [
-  { name: "1~15級 (凡階)", scale: 1.0 },
-  { name: "15~30級 (靈階)", scale: 1.8 },
-  { name: "30~50級 (地階)", scale: 3.0 },
-  { name: "50~70級 (天階)", scale: 5.5 },
-  { name: "70~100級 (聖階)", scale: 9.0 }
+  { name: "1~15級 (凡階)", minLvl: 1, maxLvl: 15, scale: 1.0, prefix: "凡階" },
+  { name: "15~30級 (靈階)", minLvl: 15, maxLvl: 30, scale: 2.2, prefix: "靈階" },
+  { name: "30~50級 (地階)", minLvl: 30, maxLvl: 50, scale: 4.5, prefix: "地階" },
+  { name: "50~70級 (天階)", minLvl: 50, maxLvl: 70, scale: 8.5, prefix: "天階" },
+  { name: "70~100級 (聖階)", minLvl: 70, maxLvl: 100, scale: 16.0, prefix: "聖階" }
 ];
 
 const QUALITIES = [
@@ -353,7 +400,17 @@ let player = {
     zhusha: 1,
     longkui: 1,
     renshen: 0
-  }
+  },
+  
+  // 實體丹爐與鍛造爐陣列 (最多各 5 個爐位)
+  alchFurnaces: [
+    { id: 1, name: '凡品草木爐', level: 1, speedMult: 1.0, status: 'idle', recipeId: null, startTime: 0, duration: 0 },
+    null, null, null, null
+  ],
+  forgeFurnaces: [
+    { id: 1, name: '凡品石木爐', level: 1, speedMult: 1.0, status: 'idle', forgeData: null, startTime: 0, duration: 0 },
+    null, null, null, null
+  ]
 };
 
 let drawnRoot = null;
@@ -373,13 +430,36 @@ let currentMerchantItems = [];
 // 天道 GM 控制台核心動態參數
 // ============================================
 let GAME_CONFIG = {
-  eventRate: 0.06,      // 秘境機緣觸發率 (預設 6%)
-  merchantRate: 0.20,   // 神秘商人出現率 (預設 20%)
-  expMult: 1.0,         // 修為獲得倍率 (x)
-  coinMult: 1.0,        // 靈石獲得倍率 (x)
-  meditateMult: 5,      // 打坐恢復倍率 (x)
-  azureRate: 0.05       // 蒼靈根機率 (5%)
+  eventRate: 0.06,          // 秘境機緣觸發率 (預設 6%)
+  merchantRate: 0.20,       // 神秘商人降臨率 (預設 20%)
+  expMult: 1.0,             // 修為獲得倍率 (預設 1.0x)
+  coinMult: 1.0,            // 靈石獲得倍率 (預設 1.0x)
+  herbDropRate: 0.20,       // 靈藥草藥掉落率 (預設 20%)
+  meditateMult: 5,          // 打坐恢復倍率 (預設 5x)
+  azureRate: 0.05,          // 蒼靈根機率 (預設 5%)
+  monsterHpMult: 2.0,       // 怪物血量強度倍率 (預設 2.0x)
+  monsterAtkMult: 1.8,      // 怪物攻擊強度倍率 (預設 1.8x)
+  suppressionMult: 1.5,     // 越級挑戰懲罰倍率 (預設 1.5x)
+  baseCritRate: 0.10,       // 基礎會心一擊機率 (預設 10%)
+  critDamageMult: 2.0,      // 會心一擊傷害倍率 (預設 2.0x)
+  salvageCoinMult: 1.0,     // 熔練靈石返還倍率 (預設 1.0x)
+  alchBaseTime: 60,         // 煉丹基礎開爐時間 (秒)
+  forgeBaseTime: 60,        // 鍛造基礎開爐時間 (秒)
+  uiScale: 1.0,             // 遊戲整體 UI 與文字縮放比例 (預設 1.0 / 100%)
+  bossSpawnRate: 0.20,      // 洪荒首領 BOSS 遭遇率 (預設 20%)
+  bossDropEquipRate: 0.50   // 擊敗首領 BOSS 法寶爆裝率 (預設 50%)
 };
+
+function applyUIScale() {
+  const scale = GAME_CONFIG.uiScale || 1.0;
+  document.documentElement.style.setProperty('--ui-scale', scale);
+}
+
+function previewUIScale(val) {
+  const pct = parseFloat(val || 100);
+  const scale = Math.max(0.7, Math.min(1.5, pct / 100));
+  document.documentElement.style.setProperty('--ui-scale', scale);
+}
 
 let isGMUnlocked = false;
 
@@ -394,12 +474,14 @@ const ELEMENT_MAT_MAP = {
 
 document.addEventListener('DOMContentLoaded', () => {
   loadGame();
+  applyUIScale();
   loadGMConfigToInputs();
   setupEventListeners();
   setupDragAndDrop();
   updateUI();
   selectDungeon(5);
   startRegenTimer();
+  startFurnaceTimer();
 });
 
 function setupEventListeners() {
@@ -473,7 +555,7 @@ function setupEventListeners() {
   document.getElementById('btn-manual-attack').addEventListener('click', executeBattleRound);
   document.getElementById('btn-toggle-auto').addEventListener('click', toggleAutoBattle);
 
-  document.getElementById('btn-forge').addEventListener('click', forgeEquipment);
+  document.getElementById('btn-forge').addEventListener('click', startForgeInFurnace);
   document.getElementById('btn-salvage-all').addEventListener('click', salvageCommonItems);
 
   // 打坐調息 / 服用槽中丹藥
@@ -588,10 +670,6 @@ function confirmCharacterClass() {
 }
 
 function selectDungeon(idx) {
-  if (DUNGEONS[idx].reqLevel > player.level) {
-    addLog(`【警告】境界未達要求，無法進入 ${DUNGEONS[idx].name}！`, 'log-monster');
-    return;
-  }
   currentDungeonIdx = idx;
   
   document.querySelectorAll('.dungeon-card').forEach(card => {
@@ -599,12 +677,12 @@ function selectDungeon(idx) {
     card.classList.toggle('active', cardId === idx);
   });
   
+  // 所有秘境均開放試煉階級選單
   const chaosSelector = document.getElementById('chaos-level-selector');
-  if (idx === 5) chaosSelector.style.display = 'flex';
-  else chaosSelector.style.display = 'none';
+  if (chaosSelector) chaosSelector.style.display = 'flex';
 
   spawnMonster();
-  addLog(`【地圖】進入 ${DUNGEONS[idx].name}，遭遇怪物 ${currentMonster.name}！`, 'log-system');
+  addLog(`【地圖切換】進入 ${DUNGEONS[idx].name} (當前階級: ${CHAOS_TIERS[currentChaosTier].name})，遭遇怪物 ${currentMonster.name} (Lv.${currentMonster.level})！`, 'log-system');
   updateUI();
 }
 
@@ -615,7 +693,8 @@ function setChaosTier(tierIdx) {
     btn.classList.toggle('active', tier === tierIdx);
   });
   spawnMonster();
-  addLog(`【秘境切換】將五行混沌秘境調整至【${CHAOS_TIERS[tierIdx].name}】！`, 'log-system');
+  const dungName = DUNGEONS[currentDungeonIdx].name;
+  addLog(`【試煉階級調整】將 ${dungName} 試煉強度調整至【${CHAOS_TIERS[tierIdx].name}】！`, 'log-system');
   updateUI();
 }
 
@@ -643,6 +722,8 @@ function updateForgeCostDisplay() {
   const costDetail = document.getElementById('forge-cost-detail');
   const costWarning = document.getElementById('forge-cost-warning');
   const forgeBtn = document.getElementById('btn-forge');
+
+  if (!primary || !rateBox || !costDetail || !costWarning || !forgeBtn) return;
 
   let costText = '';
   let canForge = true;
@@ -690,51 +771,121 @@ function updateForgeCostDisplay() {
 
 function spawnMonster() {
   const dung = DUNGEONS[currentDungeonIdx];
-  const monsterData = dung.monsters[Math.floor(Math.random() * dung.monsters.length)];
+  const bossRate = GAME_CONFIG.bossSpawnRate !== undefined ? GAME_CONFIG.bossSpawnRate : 0.20;
+  const isBoss = Math.random() < bossRate;
   
-  let scale = 1 + (player.level - 1) * 0.12;
-  let elem = monsterData.elem || dung.element;
-
-  if (currentDungeonIdx === 5) {
-    scale = CHAOS_TIERS[currentChaosTier].scale;
+  let monsterData = null;
+  if (isBoss && dung.bosses && dung.bosses.length > 0) {
+    monsterData = dung.bosses[Math.floor(Math.random() * dung.bosses.length)];
+  } else {
+    monsterData = dung.monsters[Math.floor(Math.random() * dung.monsters.length)];
   }
 
+  const tierObj = CHAOS_TIERS[currentChaosTier];
+  const tierScale = tierObj.scale || 1.0;
+  const elem = monsterData.elem || dung.element;
+
+  // 1. 嚴格在當前試煉階級的 minLvl ~ maxLvl 之間精準生成隨機等級（如 15~30 級）
+  const minL = tierObj.minLvl || 1;
+  const maxL = tierObj.maxLvl || 15;
+  const monsterLvl = Math.floor(Math.random() * (maxL - minL + 1)) + minL;
+
+  // 2. 算入 GM 控制台之怪物血量/攻擊倍率
+  const hpMult = GAME_CONFIG.monsterHpMult || 2.0;
+  const atkMult = GAME_CONFIG.monsterAtkMult || 1.8;
+
+  // 3. 結合等級浮動與試煉階級總倍率 tierScale (如 15~30級乘數為 2.2x, 70~100級為 16.0x)
+  const lvlProgress = (monsterLvl - minL) / Math.max(1, (maxL - minL));
+  const totalScale = tierScale * (1.0 + lvlProgress * 0.4);
+
+  const baseHp = Math.floor(75 * totalScale * hpMult * (isBoss ? 2.5 : 1.0));
+  const baseAtk = Math.floor(15 * totalScale * atkMult * (isBoss ? 1.5 : 1.0));
+  const baseDef = Math.floor(5 * totalScale * (isBoss ? 1.4 : 1.0));
+
+  // 4. 動態標註當前試煉階級封號（如 【靈階】赤焰火狐、【聖階】太陰玄冰冰龍皇）
+  const pName = isBoss ? `${tierObj.prefix}·首領` : `${tierObj.prefix}`;
+
   currentMonster = {
-    name: monsterData.name,
+    name: `【${pName}】${monsterData.name}`,
     element: elem,
     icon: monsterData.icon,
-    maxHp: Math.floor(120 * scale),
-    hp: Math.floor(120 * scale),
-    atk: Math.floor(20 * scale),
-    def: Math.floor(8 * scale)
+    level: monsterLvl,
+    maxHp: baseHp,
+    hp: baseHp,
+    atk: baseAtk,
+    def: baseDef,
+    isBoss: isBoss
   };
   updateMonsterUI();
 }
 
+function updateMonsterUI() {
+  if (!currentMonster) return;
+  
+  const iconEl = document.getElementById('monster-icon');
+  const nameEl = document.getElementById('monster-name');
+  if (iconEl) iconEl.textContent = currentMonster.icon;
+  if (nameEl) nameEl.textContent = `${currentMonster.name} (${ELEMENT_NAMES[currentMonster.element] || '五行系'})`;
+
+  const bossTag = document.getElementById('monster-boss-tag');
+  if (bossTag) bossTag.style.display = currentMonster.isBoss ? 'inline-block' : 'none';
+
+  const statsDetail = document.getElementById('monster-stats-detail');
+  if (statsDetail) {
+    const color = currentMonster.isBoss ? '#f39c12' : '#2ecc71';
+    statsDetail.style.color = color;
+    statsDetail.innerHTML = `Lv.${currentMonster.level} | ⚔️ 攻擊: ${currentMonster.atk} | 🛡️ 防禦: ${currentMonster.def}`;
+  }
+
+  const hpPct = Math.min(100, Math.max(0, (currentMonster.hp / currentMonster.maxHp) * 100));
+  const hpFill = document.getElementById('monster-hp-fill');
+  const hpText = document.getElementById('monster-hp-text');
+  if (hpFill) hpFill.style.width = `${hpPct}%`;
+  if (hpText) hpText.textContent = `${currentMonster.hp} / ${currentMonster.maxHp}`;
+}
+
 function executeBattleRound() {
+  if (player.isInjured) {
+    addLog(`【負傷休養中】傷勢嚴重！請打坐調息或服用丹藥將氣血補至 100% 滿血方可再次歷練！`, 'log-monster');
+    return;
+  }
   if (!currentMonster || currentMonster.hp <= 0) {
     spawnMonster();
   }
 
   audioSynth.sfxAttack();
 
-  let playerDamageMult = 1.0;
+  // 檢查境界壓制 (當怪物等級大於玩家等級 10 級以上)
+  const levelDiff = currentMonster.level - player.level;
+  let suppressionPenalty = 1.0;
+  let isUnderSuppression = false;
+
+  if (levelDiff >= 10) {
+    isUnderSuppression = true;
+    suppressionPenalty = Math.max(0.2, 1.0 - (levelDiff - 9) * 0.06);
+    addLog(`【⚠️ 境界壓制】敵我道行差距達 ${levelDiff} 級！發動攻擊受天道威壓削弱！`, 'log-monster');
+  }
+
+  let playerDamageMult = 1.0 * suppressionPenalty;
   if (player.element === 'azure' || ELEMENT_COUNTER[player.element] === currentMonster.element) {
-    playerDamageMult = 1.2;
+    playerDamageMult *= 1.2;
     addLog(`【克制壓制】五行相克，發揮 120% 攻擊力！`, 'log-crit');
   }
 
-  let isCrit = Math.random() < player.critRate;
+  // 算入天道 GM 會心率與爆傷倍率
+  const effectiveCritRate = (player.critRate || 0.1) + (GAME_CONFIG.baseCritRate || 0.1) - 0.1;
+  let isCrit = Math.random() < effectiveCritRate;
   let baseDmg = Math.max(5, player.atk - Math.floor(currentMonster.def * 0.5));
-  let finalDmg = Math.floor(baseDmg * playerDamageMult * (isCrit ? 2.0 : 1.0));
+  const critMult = GAME_CONFIG.critDamageMult || 2.0;
+  let finalDmg = Math.floor(baseDmg * playerDamageMult * (isCrit ? critMult : 1.0));
   
   currentMonster.hp = Math.max(0, currentMonster.hp - finalDmg);
 
   if (isCrit) {
     audioSynth.sfxCrit();
-    addLog(`【爆發】你發動了會心一擊！對 ${currentMonster.name} 造成 ${finalDmg} 點傷害！`, 'log-crit');
+    addLog(`【爆發】你發動了會心一擊！對 ${currentMonster.name} (Lv.${currentMonster.level}) 造成 ${finalDmg} 點傷害！`, 'log-crit');
   } else {
-    addLog(`【攻擊】你對 ${currentMonster.name} 造成 ${finalDmg} 點傷害。`, 'log-player');
+    addLog(`【攻擊】你對 ${currentMonster.name} (Lv.${currentMonster.level}) 造成 ${finalDmg} 點傷害。`, 'log-player');
   }
 
   triggerClassEffect();
@@ -757,15 +908,24 @@ function executeBattleRound() {
       addLog(`【靈根反噬】遭敵方屬性劇烈剋制，受到 120% 靈根反噬傷害！`, 'log-monster');
     }
 
-    let monsterDmg = Math.max(3, Math.floor((currentMonster.atk - Math.floor(player.def * 0.5)) * monsterDmgMult));
+    // 境界壓制加重怪物對玩家的傷害
+    if (isUnderSuppression) {
+      const extraSuppression = (1.0 + (levelDiff - 9) * 0.12) * (GAME_CONFIG.suppressionMult || 1.5);
+      monsterDmgMult *= extraSuppression;
+      addLog(`【境界鎮壓】對手境界遠高於你，攻擊附加 ${Math.floor((extraSuppression-1)*100)}% 威壓重創傷害！`, 'log-monster');
+    }
+
+    let monsterDmg = Math.max(5, Math.floor((currentMonster.atk - Math.floor(player.def * 0.5)) * monsterDmgMult));
     
     player.hp = Math.max(0, player.hp - monsterDmg);
     audioSynth.sfxHit();
-    addLog(`【受擊】${currentMonster.name} 對你造成 ${monsterDmg} 點傷害！`, 'log-monster');
+    addLog(`【受擊】${currentMonster.name} (Lv.${currentMonster.level}) 對你造成 ${monsterDmg} 點傷害！`, 'log-monster');
 
     if (player.hp <= 0) {
-      player.hp = Math.floor(player.maxHp * 0.1);
-      addLog(`【重傷】你體力不支被迫撤退！氣血僅恢復 10%，建議打坐調息或服用丹藥恢復！`, 'log-monster');
+      player.hp = 1;
+      player.isInjured = true;
+      audioSynth.sfxHit();
+      addLog(`【🤕 戰敗負傷】你被 ${currentMonster.name} 重創擊倒！體力透支逃回洞府！負傷期間恢復速度降為 50%，氣血全滿前無法再次歷練！`, 'log-crit');
       if (isAutoBattling) toggleAutoBattle();
       if (isMeditating) stopMeditate();
     }
@@ -774,6 +934,217 @@ function executeBattleRound() {
 
   updateMonsterUI();
   updateUI();
+}
+
+function onMonsterDefeated() {
+  const dung = DUNGEONS[currentDungeonIdx];
+  const tierObj = CHAOS_TIERS[currentChaosTier];
+
+  let expGain = Math.floor(dung.baseExp * tierObj.scale * (GAME_CONFIG.expMult || 1.0));
+  let coinGain = Math.floor(dung.baseCoin * tierObj.scale * (GAME_CONFIG.coinMult || 1.0));
+
+  if (currentMonster.isBoss) {
+    expGain = Math.floor(expGain * 2.5);
+    coinGain = Math.floor(coinGain * 3.5);
+  }
+
+  player.exp += expGain;
+  player.coins += coinGain;
+
+  let matText = '';
+  if (dung.matDrop === 'all') {
+    const keys = ['goldMat', 'woodMat', 'waterMat', 'fireMat', 'earthMat'];
+    const dropKey = keys[Math.floor(Math.random() * keys.length)];
+    const count = currentMonster.isBoss ? Math.floor(Math.random() * 3) + 3 : 1;
+    player.materials[dropKey] += count;
+    matText = `，獲得 ${ELEMENT_MAT_MAP[dropKey.replace('Mat','')].matName} ×${count}`;
+  } else {
+    const count = currentMonster.isBoss ? Math.floor(Math.random() * 3) + 3 : 1;
+    player.materials[dung.matDrop] += count;
+    matText = `，獲得 ${ELEMENT_MAT_MAP[dung.element].matName} ×${count}`;
+  }
+
+  audioSynth.sfxReward();
+  addLog(`【勝利】成功擊敗 ${currentMonster.name}！獲得修為 +${expGain}，靈石 +${coinGain}${matText}！`, 'log-crit');
+
+  // BOSS 特別大獎落：連動天道 GM 爆裝率
+  if (currentMonster.isBoss) {
+    const dropRate = GAME_CONFIG.bossDropEquipRate !== undefined ? GAME_CONFIG.bossDropEquipRate : 0.50;
+    if (Math.random() < dropRate) {
+      const types = ['weapon', 'armor', 'accessory'];
+      const type = types[Math.floor(Math.random() * types.length)];
+      const qualities = [QUALITIES[3], QUALITIES[4], QUALITIES[5]]; // 上品、極品、神品
+      const qObj = qualities[Math.floor(Math.random() * qualities.length)];
+
+      const typeName = { weapon: '聖劍', armor: '寶鎧', accessory: '佩玉' }[type];
+      const icon = { weapon: '🗡️', armor: '🛡️', accessory: '📿' }[type];
+      const elemPrefix = ELEMENT_MAT_MAP[currentMonster.element] ? ELEMENT_MAT_MAP[currentMonster.element].prefix : '洪荒';
+      const baseVal = Math.floor((20 + currentMonster.level * 4) * qObj.multiplier);
+
+      const bossDropEquip = {
+        id: Date.now() + Math.random(),
+        name: `${elemPrefix}·${qObj.name}${typeName}`,
+        type,
+        element: currentMonster.element,
+        quality: qObj.level,
+        qualityName: qObj.name,
+        qualityColor: qObj.color,
+        atk: type === 'weapon' ? baseVal : Math.floor(baseVal * 0.3),
+        def: type === 'armor' ? baseVal : Math.floor(baseVal * 0.3),
+        icon
+      };
+
+      if (!player.inventory) player.inventory = [];
+      player.inventory.push(bossDropEquip);
+      addLog(`【👑 首領爆裝】${currentMonster.name} 轟然倒地解體！從胸腔中暴出【${bossDropEquip.name}】(品級:${bossDropEquip.qualityName} | 攻+${bossDropEquip.atk} 防+${bossDropEquip.def}) 直送乾坤背包！`, 'log-crit');
+    }
+  }
+
+  if (player.exp >= player.maxExp) {
+    levelUp();
+  }
+
+  saveGame();
+  updateUI();
+
+  setTimeout(() => {
+    spawnMonster();
+  }, 1000);
+}
+
+function startForgeInFurnace() {
+  ensurePlayerFurnaces();
+  const idleIdx = player.forgeFurnaces.findIndex(f => f && f.status === 'idle');
+  if (idleIdx === -1) {
+    addLog(`【鍛造爐忙碌】所有解鎖的鍛造爐都在運轉中！請等待出爐或至坊市購入新鍛造爐！`, 'log-monster');
+    return;
+  }
+
+  const m = player.materials;
+  const cost = 3;
+  const primary = ELEMENT_MAT_MAP[currentForgeElement];
+
+  if (currentForgeMode === 'single') {
+    if (m[primary.matKey] < cost) {
+      addLog(`【鍛造失敗】${primary.matName}不足！需要至少 ${cost} 個。`, 'log-monster');
+      return;
+    }
+    m[primary.matKey] -= cost;
+  } else if (currentForgeMode === 'sheng') {
+    const secondary = ELEMENT_MAT_MAP[primary.sheng];
+    if (m[primary.matKey] < cost || m[secondary.matKey] < cost) {
+      addLog(`【鍛造失敗】相生鍛造需要 ${primary.matName} 與 ${secondary.matName} 各 ${cost} 個！`, 'log-monster');
+      return;
+    }
+    m[primary.matKey] -= cost;
+    m[secondary.matKey] -= cost;
+  } else if (currentForgeMode === 'ke') {
+    const secondary = ELEMENT_MAT_MAP[primary.ke];
+    if (m[primary.matKey] < cost || m[secondary.matKey] < cost) {
+      addLog(`【鍛造失敗】相剋鍛造需要 ${primary.matName} 與 ${secondary.matName} 各 ${cost} 個！`, 'log-monster');
+      return;
+    }
+    m[primary.matKey] -= cost;
+    m[secondary.matKey] -= cost;
+  }
+
+  const furnace = player.forgeFurnaces[idleIdx];
+  const baseSec = GAME_CONFIG.forgeBaseTime || 60;
+  const forgeBonus = calculateForgeSpeedBonus();
+  const totalSpeed = furnace.speedMult + forgeBonus;
+  const durationSec = Math.max(3, Math.floor(baseSec / totalSpeed));
+
+  furnace.status = 'cooking';
+  furnace.forgeData = { mode: currentForgeMode, elem: currentForgeElement };
+  furnace.startTime = Date.now();
+  furnace.duration = durationSec * 1000;
+
+  audioSynth.sfxCraft();
+  addLog(`【開爐鍛造】使用【${furnace.name}】(速度 ${totalSpeed.toFixed(1)}x) 投入神材！開爐倒數 ${durationSec} 秒！`, 'log-crit');
+
+  updateUI();
+  updateForgeCostDisplay();
+}
+
+function collectForgeResult(idx) {
+  const furnace = player.forgeFurnaces[idx];
+  if (!furnace || furnace.status !== 'completed' || !furnace.forgeData) return;
+
+  const { mode, elem } = furnace.forgeData;
+  const primary = ELEMENT_MAT_MAP[elem];
+
+  let successRate = 1.0;
+  if (mode === 'sheng') successRate = 1.2;
+  if (mode === 'ke') successRate = 0.65;
+
+  if (Math.random() > successRate) {
+    audioSynth.sfxHit();
+    addLog(`【💥 鍛造炸爐】屬性強烈衝擊！【${furnace.name}】鍛造失敗爆爐，神材損毀！`, 'log-monster');
+    furnace.status = 'idle';
+    furnace.forgeData = null;
+    updateUI();
+    updateForgeCostDisplay();
+    saveGame();
+    return;
+  }
+
+  let qIdx = 0;
+  const rand = Math.random() * 100;
+
+  if (mode === 'ke') {
+    if (rand < 25) qIdx = 5;
+    else if (rand < 45) qIdx = 4;
+    else if (rand < 70) qIdx = 3;
+    else qIdx = 2;
+  } else if (mode === 'sheng') {
+    if (rand < 3) qIdx = 5;
+    else if (rand < 15) qIdx = 4;
+    else if (rand < 40) qIdx = 3;
+    else if (rand < 75) qIdx = 2;
+    else qIdx = 1;
+  } else {
+    if (rand < 1) qIdx = 5;
+    else if (rand < 5) qIdx = 4;
+    else if (rand < 15) qIdx = 3;
+    else if (rand < 35) qIdx = 2;
+    else if (rand < 65) qIdx = 1;
+  }
+
+  const qualityObj = QUALITIES[qIdx];
+  const types = ['weapon', 'armor', 'accessory'];
+  const type = types[Math.floor(Math.random() * types.length)];
+
+  let namePrefix = primary.prefix;
+  let typeName = { weapon: '聖劍', armor: '寶鎧', accessory: '佩玉' }[type];
+  let icon = { weapon: '🗡️', armor: '🛡️', accessory: '📿' }[type];
+
+  let baseVal = Math.floor((15 + player.level * 3) * qualityObj.multiplier);
+  let atk = type === 'weapon' ? baseVal : Math.floor(baseVal * 0.3);
+  let def = type === 'armor' ? baseVal : Math.floor(baseVal * 0.3);
+
+  const equip = {
+    id: Date.now() + Math.random(),
+    name: `${namePrefix}·${qualityObj.name}${typeName}`,
+    type,
+    element: elem,
+    quality: qualityObj.level,
+    qualityName: qualityObj.name,
+    qualityColor: qualityObj.color,
+    atk, def, icon
+  };
+
+  if (!player.inventory || !Array.isArray(player.inventory)) player.inventory = [];
+  player.inventory.push(equip);
+
+  furnace.status = 'idle';
+  furnace.forgeData = null;
+
+  audioSynth.sfxReward();
+  addLog(`【✨ 寶物出爐】神兵大成！成功從 ${furnace.name} 取出【${equip.name}】(品級:${equip.qualityName} | 攻+${atk} 防+${def}) 正式收入乾坤背包！`, 'log-crit');
+
+  updateUI();
+  updateForgeCostDisplay();
+  saveGame();
 }
 
 function triggerClassEffect() {
@@ -1098,6 +1469,9 @@ function renderMerchantShop() {
   if (!container) return;
   container.innerHTML = '';
 
+  const coinsEl = document.getElementById('merchant-player-coins');
+  if (coinsEl) coinsEl.textContent = player.coins;
+
   if (!currentMerchantItems || currentMerchantItems.length === 0) {
     generateMerchantItems();
   }
@@ -1262,7 +1636,7 @@ function renderAlchemyTab() {
         消耗: ${matTextParts.join(' + ')} + 💰 ${recipe.coinsCost} 靈石
       </div>
       <button class="pixel-btn ${canCraft ? 'btn-gold' : ''}" ${canCraft ? '' : 'disabled'} 
-              style="margin-top:4px; font-size:0.8rem;" onclick="craftPill('${recipe.id}')">
+              style="margin-top:4px; font-size:0.8rem;" onclick="startAlchemyInFurnace('${recipe.id}')">
         🔥 開爐煉製丹藥
       </button>
     `;
@@ -1271,8 +1645,34 @@ function renderAlchemyTab() {
 }
 
 function craftPill(recipeId) {
+  startAlchemyInFurnace(recipeId);
+}
+
+function ensurePlayerFurnaces() {
+  if (!player.alchFurnaces || !Array.isArray(player.alchFurnaces) || player.alchFurnaces.length < 5) {
+    player.alchFurnaces = [
+      { id: 1, name: '凡品草木爐', level: 1, speedMult: 1.0, status: 'idle', recipeId: null, startTime: 0, duration: 0 },
+      null, null, null, null
+    ];
+  }
+  if (!player.forgeFurnaces || !Array.isArray(player.forgeFurnaces) || player.forgeFurnaces.length < 5) {
+    player.forgeFurnaces = [
+      { id: 1, name: '凡品石木爐', level: 1, speedMult: 1.0, status: 'idle', forgeData: null, startTime: 0, duration: 0 },
+      null, null, null, null
+    ];
+  }
+}
+
+function startAlchemyInFurnace(recipeId) {
+  ensurePlayerFurnaces();
   const recipe = PILL_RECIPES.find(r => r.id === recipeId);
   if (!recipe) return;
+
+  const idleIdx = player.alchFurnaces.findIndex(f => f && f.status === 'idle');
+  if (idleIdx === -1) {
+    addLog(`【丹爐忙碌】所有解鎖的丹爐都在煉化中！請等待煉製完成或至坊市購入新丹爐！`, 'log-monster');
+    return;
+  }
 
   if (player.coins < recipe.coinsCost) {
     addLog(`【煉丹失敗】靈石不足！需要 ${recipe.coinsCost} 靈石。`, 'log-monster');
@@ -1293,7 +1693,30 @@ function craftPill(recipeId) {
     player.herbs[hKey] -= count;
   }
 
-  // 產出丹藥物品放入背包
+  const furnace = player.alchFurnaces[idleIdx];
+  const baseSec = GAME_CONFIG.alchBaseTime || 60;
+  const alchBonus = calculateAlchemySpeedBonus();
+  const totalSpeed = furnace.speedMult + alchBonus;
+  const durationSec = Math.max(3, Math.floor(baseSec / totalSpeed));
+
+  furnace.status = 'cooking';
+  furnace.recipeId = recipe.id;
+  furnace.startTime = Date.now();
+  furnace.duration = durationSec * 1000;
+
+  audioSynth.sfxCraft();
+  addLog(`【丹爐開火】使用【${furnace.name}】(速度 ${totalSpeed.toFixed(1)}x) 開火煉製 ${recipe.name}！倒數 ${durationSec} 秒後可收取！`, 'log-crit');
+
+  updateUI();
+}
+
+function collectAlchemyResult(idx) {
+  const furnace = player.alchFurnaces[idx];
+  if (!furnace || furnace.status !== 'completed') return;
+
+  const recipe = PILL_RECIPES.find(r => r.id === furnace.recipeId);
+  if (!recipe) return;
+
   const pillItem = {
     id: Date.now() + Math.random(),
     type: 'pill',
@@ -1306,13 +1729,17 @@ function craftPill(recipeId) {
     atk: 0, def: 0
   };
 
+  if (!player.inventory || !Array.isArray(player.inventory)) player.inventory = [];
   player.inventory.push(pillItem);
-  audioSynth.sfxCraft();
-  addLog(`【煉丹成功】神鼎出丹！成功煉製出【${recipe.name}】並收入乾坤背包！點擊可裝備至丹藥槽使用！`, 'log-crit');
 
-  recalculatePlayerStats();
+  furnace.status = 'idle';
+  furnace.recipeId = null;
+
+  audioSynth.sfxReward();
+  addLog(`【✨ 收穫丹藥】神鼎出丹！成功從 ${furnace.name} 取出【${recipe.name}】正式收入乾坤背包！`, 'log-crit');
+
   updateUI();
-  renderAlchemyTab();
+  saveGame();
 }
 
 // ============================================
@@ -1378,6 +1805,46 @@ function buyShopItem(itemId) {
     player.materials[item.key] += (item.count || 1);
     const matNameMap = { goldMat:'金精石', woodMat:'神木芯', waterMat:'玄冰髓', fireMat:'朱雀羽', earthMat:'息壤土' };
     addLog(`【坊市購入】成功購買【${matNameMap[item.key]}】×${item.count || 1}！`, 'log-drop');
+  } else if (item.category === 'furnace') {
+    const listKey = item.furnaceType === 'alchemy' ? 'alchFurnaces' : 'forgeFurnaces';
+    let furnaces = player[listKey];
+
+    // 尋找第一個 null 的空槽位
+    let emptyIdx = furnaces.findIndex(f => f === null);
+    if (emptyIdx !== -1) {
+      furnaces[emptyIdx] = {
+        id: Date.now(),
+        name: item.name,
+        level: item.level,
+        speedMult: item.speedMult,
+        status: 'idle',
+        recipeId: null, forgeData: null, startTime: 0, duration: 0
+      };
+      addLog(`【神器入庫】成功購入【${item.name}】，解鎖 #${emptyIdx+1} 號${item.furnaceType === 'alchemy' ? '丹爐' : '鍛造爐'}位！`, 'log-crit');
+    } else {
+      // 若 5 個槽位已滿，尋找 lowest level 的舊爐具升級替換
+      let minLvlIdx = 0;
+      let minLvl = 99;
+      furnaces.forEach((f, idx) => {
+        if (f && f.level < minLvl) { minLvl = f.level; minLvlIdx = idx; }
+      });
+      if (item.level > minLvl) {
+        const oldName = furnaces[minLvlIdx].name;
+        furnaces[minLvlIdx] = {
+          id: Date.now(),
+          name: item.name,
+          level: item.level,
+          speedMult: item.speedMult,
+          status: 'idle',
+          recipeId: null, forgeData: null, startTime: 0, duration: 0
+        };
+        addLog(`【爐具升級】成功購入【${item.name}】，將原 #${minLvlIdx+1} 號【${oldName}】升級為高階神器！`, 'log-crit');
+      } else {
+        addLog(`【提示】你的所有爐位已滿，且當前已有同級或更高階的爐具！`, 'log-system');
+        player.coins += item.price; // 退還靈石
+        return;
+      }
+    }
   }
 
   updateUI();
@@ -1445,6 +1912,12 @@ function useEquippedPill() {
   audioSynth.sfxReward();
   addLog(`【服丹療傷】${msg}`, 'log-crit');
 
+  // 若服用丹藥使氣血全滿，立即消除負傷狀態
+  if (player.hp >= player.maxHp && player.isInjured) {
+    player.isInjured = false;
+    addLog(`【💊 丹效神速】丹藥靈力完全修復全身經脈！負傷痊癒，可以重新歷練！`, 'log-crit');
+  }
+
   recalculatePlayerStats();
   updateUI();
 }
@@ -1492,10 +1965,15 @@ function salvageCommonItems() {
   let matReturnCount = 0;
   const matKeys = ['goldMat', 'woodMat', 'waterMat', 'fireMat', 'earthMat'];
 
+  let totalCoinsGained = 0;
+  const salvageMult = GAME_CONFIG.salvageCoinMult || 1.0;
+
   player.inventory = player.inventory.filter(item => {
     if (item.type !== 'pill' && selectedQualities.includes(item.quality)) {
       count++;
-      player.coins += item.quality * 50;
+      const gained = Math.floor(item.quality * 50 * salvageMult);
+      player.coins += gained;
+      totalCoinsGained += gained;
       player.materials[matKeys[Math.floor(Math.random() * matKeys.length)]] += item.quality;
       matReturnCount += item.quality;
       return false;
@@ -1612,6 +2090,35 @@ function updateUI() {
   renderEquippedSlots();
   renderInventory();
 
+  // 負傷休養狀態 UI 鎖定與標籤
+  const injuryBadge = document.getElementById('injury-badge');
+  const btnAttack = document.getElementById('btn-manual-attack');
+  const btnAuto = document.getElementById('btn-toggle-auto');
+
+  if (player.isInjured) {
+    if (injuryBadge) injuryBadge.style.display = 'block';
+    if (btnAttack) {
+      btnAttack.disabled = true;
+      btnAttack.style.opacity = '0.4';
+      btnAttack.textContent = '🤕 負傷休養中...';
+    }
+    if (btnAuto) {
+      btnAuto.disabled = true;
+      btnAuto.style.opacity = '0.4';
+    }
+  } else {
+    if (injuryBadge) injuryBadge.style.display = 'none';
+    if (btnAttack) {
+      btnAttack.disabled = false;
+      btnAttack.style.opacity = '1';
+      btnAttack.textContent = '⚔️ 挑戰單次';
+    }
+    if (btnAuto) {
+      btnAuto.disabled = false;
+      btnAuto.style.opacity = '1';
+    }
+  }
+
   // 若當前在煉丹或商鋪分頁，自動繪製
   const activeTab = document.querySelector('.tab-btn.active');
   if (activeTab) {
@@ -1619,14 +2126,11 @@ function updateUI() {
     if (tabId === 'alchemy') renderAlchemyTab();
     if (tabId === 'shop') renderShopTab();
   }
-}
 
-function updateMonsterUI() {
-  if (!currentMonster) return;
-  document.getElementById('monster-name').textContent = `${currentMonster.name} (${ELEMENT_NAMES[currentMonster.element]})`;
-  document.getElementById('monster-icon').textContent = currentMonster.icon;
-  document.getElementById('monster-hp-fill').style.width = `${Math.min(100, (currentMonster.hp / currentMonster.maxHp) * 100)}%`;
-  document.getElementById('monster-hp-text').textContent = `${currentMonster.hp} / ${currentMonster.maxHp}`;
+  updateForgeCostDisplay();
+  renderFurnacesUI();
+  updateSutraBonusPanels();
+  updateMonsterUI();
 }
 
 function renderEquippedSlots() {
@@ -1697,6 +2201,7 @@ function loadGame() {
     try {
       player = Object.assign(player, JSON.parse(saved));
       if (player.pills === undefined) player.pills = 0;
+      ensurePlayerFurnaces();
       recalculatePlayerStats();
     } catch (e) {
       console.error("Save file load error", e);
@@ -1713,6 +2218,8 @@ function getRegenAmount() {
   // 基礎回復 = 2% maxHp，打坐時根據 GAME_CONFIG.meditateMult 倍率增強
   let base = Math.max(4, Math.floor(player.maxHp * 0.02));
   if (isMeditating) base *= (GAME_CONFIG.meditateMult || 5);
+  // 一旦被擊倒負傷，恢復速度打折剩下 50%
+  if (player.isInjured) base = Math.max(1, Math.floor(base * 0.5));
   return base;
 }
 
@@ -1727,8 +2234,8 @@ function startRegenTimer() {
       if (regenStatus) {
         if (isMeditating) {
           regenStatus.style.display = 'block';
-          regenStatus.style.color = '#3498db';
-          regenStatus.textContent = `🧘 打坐調息中... +${regen} 氣血/3s（5倍恢復速度）`;
+          regenStatus.style.color = player.isInjured ? '#e74c3c' : '#3498db';
+          regenStatus.textContent = player.isInjured ? `🤕 負傷打坐休養中... +${regen} 氣血/3s (負傷速度減半)` : `🧘 打坐調息中... +${regen} 氣血/3s（5倍恢復速度）`;
         } else {
           regenStatus.style.display = 'block';
           regenStatus.style.color = '#e67e22';
@@ -1741,6 +2248,14 @@ function startRegenTimer() {
       if (regenStatus && !isMeditating) {
         regenStatus.style.display = 'none';
       }
+    }
+
+    // 氣血全滿時自動痊癒負傷狀態
+    if (player.hp >= player.maxHp && player.isInjured) {
+      player.isInjured = false;
+      audioSynth.sfxLevelUp();
+      addLog(`【💖 傷勢痊癒】氣血已完全補滿，負傷狀態消除！可以重新出外歷練！`, 'log-crit');
+      updateUI();
     }
 
     // 打坐時超慢速增加修為 + 隨機悟道
@@ -1883,6 +2398,7 @@ function loadGMConfigToInputs() {
   if (savedCfg) {
     try {
       GAME_CONFIG = Object.assign(GAME_CONFIG, JSON.parse(savedCfg));
+      applyUIScale();
     } catch (e) {}
   }
   if (document.getElementById('cfg-event-rate')) {
@@ -1890,8 +2406,29 @@ function loadGMConfigToInputs() {
     document.getElementById('cfg-merchant-rate').value = Math.floor(GAME_CONFIG.merchantRate * 100);
     document.getElementById('cfg-exp-mult').value = GAME_CONFIG.expMult;
     document.getElementById('cfg-coin-mult').value = GAME_CONFIG.coinMult;
+    document.getElementById('cfg-herb-rate').value = Math.floor((GAME_CONFIG.herbDropRate || 0.2) * 100);
     document.getElementById('cfg-meditate-mult').value = GAME_CONFIG.meditateMult;
     document.getElementById('cfg-azure-rate').value = Math.floor(GAME_CONFIG.azureRate * 100);
+
+    document.getElementById('cfg-monster-hp-mult').value = GAME_CONFIG.monsterHpMult || 2.0;
+    document.getElementById('cfg-monster-atk-mult').value = GAME_CONFIG.monsterAtkMult || 1.8;
+    document.getElementById('cfg-suppression-mult').value = GAME_CONFIG.suppressionMult || 1.5;
+
+    document.getElementById('cfg-base-crit').value = Math.floor((GAME_CONFIG.baseCritRate || 0.1) * 100);
+    document.getElementById('cfg-crit-dmg-mult').value = GAME_CONFIG.critDamageMult || 2.0;
+    document.getElementById('cfg-salvage-coin-mult').value = GAME_CONFIG.salvageCoinMult || 1.0;
+
+    document.getElementById('cfg-alch-base-time').value = GAME_CONFIG.alchBaseTime || 60;
+    document.getElementById('cfg-forge-base-time').value = GAME_CONFIG.forgeBaseTime || 60;
+    if (document.getElementById('cfg-boss-spawn-rate')) {
+      document.getElementById('cfg-boss-spawn-rate').value = Math.floor((GAME_CONFIG.bossSpawnRate !== undefined ? GAME_CONFIG.bossSpawnRate : 0.20) * 100);
+    }
+    if (document.getElementById('cfg-boss-drop-rate')) {
+      document.getElementById('cfg-boss-drop-rate').value = Math.floor((GAME_CONFIG.bossDropEquipRate !== undefined ? GAME_CONFIG.bossDropEquipRate : 0.50) * 100);
+    }
+    if (document.getElementById('cfg-ui-scale')) {
+      document.getElementById('cfg-ui-scale').value = Math.floor((GAME_CONFIG.uiScale || 1.0) * 100);
+    }
   }
 }
 
@@ -1900,12 +2437,40 @@ function saveGMSettings() {
   GAME_CONFIG.merchantRate = parseFloat(document.getElementById('cfg-merchant-rate').value || 20) / 100;
   GAME_CONFIG.expMult = parseFloat(document.getElementById('cfg-exp-mult').value || 1.0);
   GAME_CONFIG.coinMult = parseFloat(document.getElementById('cfg-coin-mult').value || 1.0);
+  GAME_CONFIG.herbDropRate = parseFloat(document.getElementById('cfg-herb-rate').value || 20) / 100;
   GAME_CONFIG.meditateMult = parseFloat(document.getElementById('cfg-meditate-mult').value || 5);
   GAME_CONFIG.azureRate = parseFloat(document.getElementById('cfg-azure-rate').value || 5) / 100;
 
+  GAME_CONFIG.monsterHpMult = parseFloat(document.getElementById('cfg-monster-hp-mult').value || 2.0);
+  GAME_CONFIG.monsterAtkMult = parseFloat(document.getElementById('cfg-monster-atk-mult').value || 1.8);
+  GAME_CONFIG.suppressionMult = parseFloat(document.getElementById('cfg-suppression-mult').value || 1.5);
+
+  GAME_CONFIG.baseCritRate = parseFloat(document.getElementById('cfg-base-crit').value || 10) / 100;
+  GAME_CONFIG.critDamageMult = parseFloat(document.getElementById('cfg-crit-dmg-mult').value || 2.0);
+  GAME_CONFIG.salvageCoinMult = parseFloat(document.getElementById('cfg-salvage-coin-mult').value || 1.0);
+
+  GAME_CONFIG.alchBaseTime = parseInt(document.getElementById('cfg-alch-base-time').value || 60);
+  GAME_CONFIG.forgeBaseTime = parseInt(document.getElementById('cfg-forge-base-time').value || 60);
+
+  if (document.getElementById('cfg-boss-spawn-rate')) {
+    GAME_CONFIG.bossSpawnRate = parseFloat(document.getElementById('cfg-boss-spawn-rate').value || 20) / 100;
+  }
+  if (document.getElementById('cfg-boss-drop-rate')) {
+    GAME_CONFIG.bossDropEquipRate = parseFloat(document.getElementById('cfg-boss-drop-rate').value || 50) / 100;
+  }
+
+  if (document.getElementById('cfg-ui-scale')) {
+    const scalePct = parseFloat(document.getElementById('cfg-ui-scale').value || 100);
+    GAME_CONFIG.uiScale = Math.max(0.7, Math.min(1.5, scalePct / 100));
+    applyUIScale();
+  }
+
   localStorage.setItem('wujin_honghuang_gm_config', JSON.stringify(GAME_CONFIG));
   audioSynth.sfxReward();
-  addLog(`【天道重載】天道參數保存成功！機緣率: ${(GAME_CONFIG.eventRate*100).toFixed(1)}%, 修為: ${GAME_CONFIG.expMult}x, 靈石: ${GAME_CONFIG.coinMult}x！`, 'log-crit');
+  addLog(`【天道重載】天道參數保存成功！BOSS遭遇率: ${Math.floor((GAME_CONFIG.bossSpawnRate||0.2)*100)}%, BOSS爆裝率: ${Math.floor((GAME_CONFIG.bossDropEquipRate||0.5)*100)}%！`, 'log-crit');
+  
+  spawnMonster();
+  updateUI();
 }
 
 function resetGMConfig() {
@@ -1914,12 +2479,289 @@ function resetGMConfig() {
     merchantRate: 0.20,
     expMult: 1.0,
     coinMult: 1.0,
+    herbDropRate: 0.20,
     meditateMult: 5,
-    azureRate: 0.05
+    azureRate: 0.05,
+    monsterHpMult: 2.0,
+    monsterAtkMult: 1.8,
+    suppressionMult: 1.5,
+    baseCritRate: 0.10,
+    critDamageMult: 2.0,
+    salvageCoinMult: 1.0,
+    alchBaseTime: 60,
+    forgeBaseTime: 60,
+    uiScale: 1.0,
+    bossSpawnRate: 0.20,
+    bossDropEquipRate: 0.50
   };
   localStorage.removeItem('wujin_honghuang_gm_config');
+  applyUIScale();
   loadGMConfigToInputs();
   audioSynth.sfxHit();
   addLog('【天道重置】天道參數已還原為預設設定。', 'log-system');
+
+  spawnMonster();
+  updateUI();
 }
+
+// ============================================
+// 計算丹道與器道心法加成
+// ============================================
+function calculateAlchemySpeedBonus() {
+  let bonus = 0;
+  if (player && player.purchasedSutras) {
+    player.purchasedSutras.forEach(id => {
+      const s = ALL_SUTRAS.find(item => item.id === id);
+      if (s && s.alchSpeed) bonus += s.alchSpeed;
+    });
+  }
+  return bonus;
+}
+
+function calculateForgeSpeedBonus() {
+  let bonus = 0;
+  if (player && player.purchasedSutras) {
+    player.purchasedSutras.forEach(id => {
+      const s = ALL_SUTRAS.find(item => item.id === id);
+      if (s && s.forgeSpeed) bonus += s.forgeSpeed;
+    });
+  }
+  return bonus;
+}
+
+function calculateAlchemyCritBonus() {
+  let bonus = 0;
+  if (player && player.purchasedSutras) {
+    player.purchasedSutras.forEach(id => {
+      const s = ALL_SUTRAS.find(item => item.id === id);
+      if (s && s.alchCrit) bonus += s.alchCrit;
+    });
+  }
+  return bonus;
+}
+
+function calculateForgeCritBonus() {
+  let bonus = 0;
+  if (player && player.purchasedSutras) {
+    player.purchasedSutras.forEach(id => {
+      const s = ALL_SUTRAS.find(item => item.id === id);
+      if (s && s.forgeCrit) bonus += s.forgeCrit;
+    });
+  }
+  return bonus;
+}
+
+function getSutraEffectText(sutra, isSameElem = false) {
+  const mult = isSameElem ? 1.15 : 1.0;
+  let parts = [];
+  if (sutra.atk) parts.push(`攻 +${Math.floor(sutra.atk * mult)}`);
+  if (sutra.def) parts.push(`防 +${Math.floor(sutra.def * mult)}`);
+  if (sutra.hp) parts.push(`血 +${Math.floor(sutra.hp * mult)}`);
+  if (sutra.expSpeed) parts.push(`修速 +${Math.floor(sutra.expSpeed * mult * 100)}%`);
+  if (sutra.crit) parts.push(`會心 +${Math.floor(sutra.crit * 100)}%`);
+
+  if (sutra.alchSpeed) parts.push(`煉丹加速 +${Math.floor(sutra.alchSpeed * 100)}%`);
+  if (sutra.alchCrit) parts.push(`極品丹率 +${Math.floor(sutra.alchCrit * 100)}%`);
+  if (sutra.forgeSpeed) parts.push(`開爐加速 +${Math.floor(sutra.forgeSpeed * 100)}%`);
+  if (sutra.forgeCrit) parts.push(`神品爆率 +${Math.floor(sutra.forgeCrit * 100)}%`);
+
+  return parts.join(' | ');
+}
+
+function updateSutraBonusPanels() {
+  if (!player || !player.purchasedSutras) return;
+
+  // 丹道心法狀態面板更新
+  const alchSutras = player.purchasedSutras
+    .map(id => ALL_SUTRAS.find(s => s.id === id))
+    .filter(s => s && s.category === 'alchemy');
+
+  const alchListEl = document.getElementById('alch-sutra-list-text');
+  const alchSpeedEl = document.getElementById('alch-sutra-total-speed');
+  const alchCritEl = document.getElementById('alch-sutra-total-crit');
+
+  if (alchListEl && alchSpeedEl && alchCritEl) {
+    if (alchSutras.length === 0) {
+      alchListEl.textContent = '暫未參悟丹道心法 (可至藏經閣【🧪 丹道修練】參悟)';
+    } else {
+      alchListEl.textContent = alchSutras.map(s => `《${s.name}》[${s.quality}]`).join('、');
+    }
+    const totalSpeedPct = Math.floor(calculateAlchemySpeedBonus() * 100);
+    const totalCritPct = Math.floor(calculateAlchemyCritBonus() * 100);
+    alchSpeedEl.textContent = `+${totalSpeedPct}%`;
+    alchCritEl.textContent = `+${totalCritPct}%`;
+  }
+
+  // 器道心法狀態面板更新
+  const forgeSutras = player.purchasedSutras
+    .map(id => ALL_SUTRAS.find(s => s.id === id))
+    .filter(s => s && s.category === 'forge');
+
+  const forgeListEl = document.getElementById('forge-sutra-list-text');
+  const forgeSpeedEl = document.getElementById('forge-sutra-total-speed');
+  const forgeCritEl = document.getElementById('forge-sutra-total-crit');
+
+  if (forgeListEl && forgeSpeedEl && forgeCritEl) {
+    if (forgeSutras.length === 0) {
+      forgeListEl.textContent = '暫未參悟器道心法 (可至藏經閣【🔨 器道鍛造】參悟)';
+    } else {
+      forgeListEl.textContent = forgeSutras.map(s => `《${s.name}》[${s.quality}]`).join('、');
+    }
+    const totalSpeedPct = Math.floor(calculateForgeSpeedBonus() * 100);
+    const totalCritPct = Math.floor(calculateForgeCritBonus() * 100);
+    forgeSpeedEl.textContent = `+${totalSpeedPct}%`;
+    forgeCritEl.textContent = `+${totalCritPct}%`;
+  }
+}
+
+// ============================================
+// 實體爐具 (丹爐 & 鍛造爐) 渲染與倒數驅動器
+// ============================================
+function renderFurnacesUI() {
+  // 渲染丹爐 Grid
+  const alchGrid = document.getElementById('alchemy-furnaces-grid');
+  if (alchGrid && player && player.alchFurnaces) {
+    alchGrid.innerHTML = '';
+    const alchBonus = calculateAlchemySpeedBonus();
+
+    for (let i = 0; i < 5; i++) {
+      const furnace = player.alchFurnaces[i];
+      const card = document.createElement('div');
+
+      if (!furnace) {
+        card.className = 'furnace-card locked';
+        card.innerHTML = `
+          <div style="font-size:1.5rem;">🔒</div>
+          <div style="font-size:0.75rem; color:var(--text-muted);">丹爐位 #${i+1} 未解鎖</div>
+          <div style="font-size:0.65rem; color:var(--pixel-gold);">可至坊市購入解鎖</div>
+        `;
+      } else {
+        card.className = `furnace-card ${furnace.status === 'cooking' ? 'active' : ''}`;
+        let statusHtml = '';
+        const totalSpeed = (furnace.speedMult + alchBonus).toFixed(1);
+
+        if (furnace.status === 'idle') {
+          statusHtml = `<div style="font-size:0.75rem; color:#2ecc71;">狀態: 🟢 空閒中</div>`;
+        } else if (furnace.status === 'cooking') {
+          const remainSec = Math.max(0, Math.ceil((furnace.startTime + furnace.duration - Date.now()) / 1000));
+          const pct = Math.min(100, Math.floor(((Date.now() - furnace.startTime) / furnace.duration) * 100));
+          statusHtml = `
+            <div style="font-size:0.75rem; color:var(--pixel-fire);">🔥 煉化中 (${remainSec}s)</div>
+            <div class="furnace-progress-bg">
+              <div class="furnace-progress-fill" style="width:${pct}%"></div>
+            </div>
+          `;
+        } else if (furnace.status === 'completed') {
+          statusHtml = `
+            <div style="font-size:0.75rem; color:var(--pixel-gold); font-weight:bold;">✨ 煉化完成！</div>
+            <button class="pixel-btn btn-gold" style="font-size:0.75rem; padding:3px 6px; margin-top:4px;" onclick="collectAlchemyResult(${i})">✨ 收取丹藥</button>
+          `;
+        }
+
+        card.innerHTML = `
+          <div class="furnace-title">
+            <span>${furnace.name}</span>
+            <span class="furnace-speed-badge">${totalSpeed}x煉化</span>
+          </div>
+          ${statusHtml}
+        `;
+      }
+      alchGrid.appendChild(card);
+    }
+  }
+
+  // 渲染鍛造爐 Grid
+  const forgeGrid = document.getElementById('forge-furnaces-grid');
+  if (forgeGrid && player && player.forgeFurnaces) {
+    forgeGrid.innerHTML = '';
+    const forgeBonus = calculateForgeSpeedBonus();
+
+    for (let i = 0; i < 5; i++) {
+      const furnace = player.forgeFurnaces[i];
+      const card = document.createElement('div');
+
+      if (!furnace) {
+        card.className = 'furnace-card locked';
+        card.innerHTML = `
+          <div style="font-size:1.5rem;">🔒</div>
+          <div style="font-size:0.75rem; color:var(--text-muted);">鍛造爐位 #${i+1} 未解鎖</div>
+          <div style="font-size:0.65rem; color:var(--pixel-gold);">可至坊市購入解鎖</div>
+        `;
+      } else {
+        card.className = `furnace-card ${furnace.status === 'cooking' ? 'active' : ''}`;
+        let statusHtml = '';
+        const totalSpeed = (furnace.speedMult + forgeBonus).toFixed(1);
+
+        if (furnace.status === 'idle') {
+          statusHtml = `<div style="font-size:0.75rem; color:#2ecc71;">狀態: 🟢 空閒中</div>`;
+        } else if (furnace.status === 'cooking') {
+          const remainSec = Math.max(0, Math.ceil((furnace.startTime + furnace.duration - Date.now()) / 1000));
+          const pct = Math.min(100, Math.floor(((Date.now() - furnace.startTime) / furnace.duration) * 100));
+          statusHtml = `
+            <div style="font-size:0.75rem; color:var(--pixel-fire);">🌋 開爐鍛造中 (${remainSec}s)</div>
+            <div class="furnace-progress-bg">
+              <div class="furnace-progress-fill" style="width:${pct}%"></div>
+            </div>
+          `;
+        } else if (furnace.status === 'completed') {
+          statusHtml = `
+            <div style="font-size:0.75rem; color:var(--pixel-gold); font-weight:bold;">✨ 鍛造完成！</div>
+            <button class="pixel-btn btn-gold" style="font-size:0.75rem; padding:3px 6px; margin-top:4px;" onclick="collectForgeResult(${i})">✨ 出爐寶物</button>
+          `;
+        }
+
+        card.innerHTML = `
+          <div class="furnace-title">
+            <span>${furnace.name}</span>
+            <span class="furnace-speed-badge">${totalSpeed}x開爐</span>
+          </div>
+          ${statusHtml}
+        `;
+      }
+      forgeGrid.appendChild(card);
+    }
+  }
+}
+
+let furnaceTimerStarted = false;
+function startFurnaceTimer() {
+  if (furnaceTimerStarted) return;
+  furnaceTimerStarted = true;
+
+  setInterval(() => {
+    let needUpdate = false;
+    const now = Date.now();
+
+    if (player && player.alchFurnaces) {
+      player.alchFurnaces.forEach(f => {
+        if (f && f.status === 'cooking') {
+          needUpdate = true;
+          if (now >= f.startTime + f.duration) {
+            f.status = 'completed';
+            audioSynth.sfxLevelUp();
+            addLog(`【丹爐響動】${f.name} 丹藥已開爐煉化完成！快去收取吧！`, 'log-crit');
+          }
+        }
+      });
+    }
+
+    if (player && player.forgeFurnaces) {
+      player.forgeFurnaces.forEach(f => {
+        if (f && f.status === 'cooking') {
+          needUpdate = true;
+          if (now >= f.startTime + f.duration) {
+            f.status = 'completed';
+            audioSynth.sfxLevelUp();
+            addLog(`【神兵出世】${f.name} 裝備開爐完成！快去取寶吧！`, 'log-crit');
+          }
+        }
+      });
+    }
+
+    if (needUpdate) {
+      renderFurnacesUI();
+    }
+  }, 1000);
+}
+
 
