@@ -447,7 +447,8 @@ let GAME_CONFIG = {
   forgeBaseTime: 60,        // 鍛造基礎開爐時間 (秒)
   uiScale: 1.0,             // 遊戲整體 UI 與文字縮放比例 (預設 1.0 / 100%)
   bossSpawnRate: 0.20,      // 洪荒首領 BOSS 遭遇率 (預設 20%)
-  bossDropEquipRate: 0.50   // 擊敗首領 BOSS 法寶爆裝率 (預設 50%)
+  bossDropEquipRate: 0.50,  // 擊敗首領 BOSS 法寶爆裝率 (預設 50%)
+  normalDropEquipRate: 0.10 // 擊敗普通怪物法寶爆裝率 (預設 10%)
 };
 
 function applyUIScale() {
@@ -537,6 +538,22 @@ function setupEventListeners() {
   document.getElementById('btn-close-merchant-x').addEventListener('click', closeMerchantFunc);
   merchantModal.addEventListener('click', (e) => {
     if (e.target === merchantModal) closeMerchantFunc();
+  });
+
+  // 首領爆裝 Modal 彈窗事件
+  const bossDropModal = document.getElementById('boss-drop-modal');
+  let currentDropEquipItem = null;
+
+  document.getElementById('btn-boss-drop-equip-now').addEventListener('click', () => {
+    if (currentDropEquipItem) {
+      equipItem(currentDropEquipItem.id);
+      addLog(`【⚡ 佩戴成功】成功穿戴爆出的【${currentDropEquipItem.name}】！屬性已大增！`, 'log-crit');
+    }
+    bossDropModal.classList.remove('show');
+  });
+
+  document.getElementById('btn-boss-drop-close-modal').addEventListener('click', () => {
+    bossDropModal.classList.remove('show');
   });
 
   document.getElementById('btn-save').addEventListener('click', () => {
@@ -936,80 +953,23 @@ function executeBattleRound() {
   updateUI();
 }
 
-function onMonsterDefeated() {
-  const dung = DUNGEONS[currentDungeonIdx];
-  const tierObj = CHAOS_TIERS[currentChaosTier];
+function showBossDropModal(equip) {
+  const modal = document.getElementById('boss-drop-modal');
+  if (!modal) return;
 
-  let expGain = Math.floor(dung.baseExp * tierObj.scale * (GAME_CONFIG.expMult || 1.0));
-  let coinGain = Math.floor(dung.baseCoin * tierObj.scale * (GAME_CONFIG.coinMult || 1.0));
+  currentDropEquipItem = equip;
 
-  if (currentMonster.isBoss) {
-    expGain = Math.floor(expGain * 2.5);
-    coinGain = Math.floor(coinGain * 3.5);
-  }
+  document.getElementById('boss-drop-modal-title').textContent = `👑 首領降伏！金光大爆！`;
+  document.getElementById('boss-drop-modal-icon').textContent = equip.icon || '🗡️';
+  
+  const nameEl = document.getElementById('boss-drop-modal-name');
+  nameEl.textContent = equip.name;
+  nameEl.style.color = equip.qualityColor || '#f1c40f';
 
-  player.exp += expGain;
-  player.coins += coinGain;
-
-  let matText = '';
-  if (dung.matDrop === 'all') {
-    const keys = ['goldMat', 'woodMat', 'waterMat', 'fireMat', 'earthMat'];
-    const dropKey = keys[Math.floor(Math.random() * keys.length)];
-    const count = currentMonster.isBoss ? Math.floor(Math.random() * 3) + 3 : 1;
-    player.materials[dropKey] += count;
-    matText = `，獲得 ${ELEMENT_MAT_MAP[dropKey.replace('Mat','')].matName} ×${count}`;
-  } else {
-    const count = currentMonster.isBoss ? Math.floor(Math.random() * 3) + 3 : 1;
-    player.materials[dung.matDrop] += count;
-    matText = `，獲得 ${ELEMENT_MAT_MAP[dung.element].matName} ×${count}`;
-  }
+  document.getElementById('boss-drop-modal-stats').textContent = `⚔️ 攻擊: +${equip.atk}  |  🛡️ 防禦: +${equip.def}  |  (${equip.qualityName})`;
 
   audioSynth.sfxReward();
-  addLog(`【勝利】成功擊敗 ${currentMonster.name}！獲得修為 +${expGain}，靈石 +${coinGain}${matText}！`, 'log-crit');
-
-  // BOSS 特別大獎落：連動天道 GM 爆裝率
-  if (currentMonster.isBoss) {
-    const dropRate = GAME_CONFIG.bossDropEquipRate !== undefined ? GAME_CONFIG.bossDropEquipRate : 0.50;
-    if (Math.random() < dropRate) {
-      const types = ['weapon', 'armor', 'accessory'];
-      const type = types[Math.floor(Math.random() * types.length)];
-      const qualities = [QUALITIES[3], QUALITIES[4], QUALITIES[5]]; // 上品、極品、神品
-      const qObj = qualities[Math.floor(Math.random() * qualities.length)];
-
-      const typeName = { weapon: '聖劍', armor: '寶鎧', accessory: '佩玉' }[type];
-      const icon = { weapon: '🗡️', armor: '🛡️', accessory: '📿' }[type];
-      const elemPrefix = ELEMENT_MAT_MAP[currentMonster.element] ? ELEMENT_MAT_MAP[currentMonster.element].prefix : '洪荒';
-      const baseVal = Math.floor((20 + currentMonster.level * 4) * qObj.multiplier);
-
-      const bossDropEquip = {
-        id: Date.now() + Math.random(),
-        name: `${elemPrefix}·${qObj.name}${typeName}`,
-        type,
-        element: currentMonster.element,
-        quality: qObj.level,
-        qualityName: qObj.name,
-        qualityColor: qObj.color,
-        atk: type === 'weapon' ? baseVal : Math.floor(baseVal * 0.3),
-        def: type === 'armor' ? baseVal : Math.floor(baseVal * 0.3),
-        icon
-      };
-
-      if (!player.inventory) player.inventory = [];
-      player.inventory.push(bossDropEquip);
-      addLog(`【👑 首領爆裝】${currentMonster.name} 轟然倒地解體！從胸腔中暴出【${bossDropEquip.name}】(品級:${bossDropEquip.qualityName} | 攻+${bossDropEquip.atk} 防+${bossDropEquip.def}) 直送乾坤背包！`, 'log-crit');
-    }
-  }
-
-  if (player.exp >= player.maxExp) {
-    levelUp();
-  }
-
-  saveGame();
-  updateUI();
-
-  setTimeout(() => {
-    spawnMonster();
-  }, 1000);
+  modal.classList.add('show');
 }
 
 function startForgeInFurnace() {
@@ -1167,15 +1127,20 @@ function triggerClassEffect() {
 // 擊敗怪物 & 隨機機緣 / 神秘商人觸發 (15% 機率)
 function onMonsterDefeated() {
   const dung = DUNGEONS[currentDungeonIdx];
+  const tierObj = CHAOS_TIERS[currentChaosTier];
   audioSynth.sfxReward();
 
   let baseExp = dung.baseExp;
   let baseCoin = dung.baseCoin;
 
-  if (currentDungeonIdx === 5) {
-    const scale = CHAOS_TIERS[currentChaosTier].scale;
-    baseExp = Math.floor(dung.baseExp * scale);
-    baseCoin = Math.floor(dung.baseCoin * scale);
+  const scale = tierObj ? (tierObj.scale || 1.0) : 1.0;
+  baseExp = Math.floor(dung.baseExp * scale);
+  baseCoin = Math.floor(dung.baseCoin * scale);
+
+  const isBossMonster = currentMonster && currentMonster.isBoss;
+  if (isBossMonster) {
+    baseExp = Math.floor(baseExp * 2.5);
+    baseCoin = Math.floor(baseCoin * 3.5);
   }
 
   // 算入天賦修速 + 心法修速 + 天道修為倍率
@@ -1186,18 +1151,20 @@ function onMonsterDefeated() {
   player.coins += coinGain;
   
   let droppedMatName = "";
+  let matCount = isBossMonster ? Math.floor(Math.random() * 3) + 3 : 1;
   if (dung.matDrop === 'all') {
     const allMats = ['goldMat', 'woodMat', 'waterMat', 'fireMat', 'earthMat'];
     const selectedMat = allMats[Math.floor(Math.random() * allMats.length)];
-    player.materials[selectedMat] += 1;
+    player.materials[selectedMat] += matCount;
     droppedMatName = { goldMat:'金精石', woodMat:'神木芯', waterMat:'玄冰髓', fireMat:'朱雀羽', earthMat:'息壤土' }[selectedMat];
   } else {
-    player.materials[dung.matDrop] += 1;
+    player.materials[dung.matDrop] += matCount;
     droppedMatName = { goldMat:'金精石', woodMat:'神木芯', waterMat:'玄冰髓', fireMat:'朱雀羽', earthMat:'息壤土' }[dung.matDrop];
   }
 
   // 20% 機率獲得靈藥草藥
-  if (Math.random() < 0.20) {
+  const herbRate = GAME_CONFIG.herbDropRate || 0.20;
+  if (Math.random() < herbRate) {
     const herbKeys = ['lingzhi', 'baicao', 'zhusha', 'longkui', 'renshen'];
     const weights = [40, 30, 15, 10, 5];
     let r = Math.random() * 100, cum = 0, selectedHerb = 'lingzhi';
@@ -1210,19 +1177,66 @@ function onMonsterDefeated() {
     addLog(`【採集】擊敗怪物採集到靈藥：【${herbNameMap[selectedHerb]}】+1！`, 'log-drop');
   }
 
-  addLog(`【大捷】擊敗 ${currentMonster.name}！修為+${expGain} (修速 ${Math.floor(totalExpSpeed*100)}%)，靈石+${coinGain}，【${droppedMatName}】+1！`, 'log-drop');
+  addLog(`【大捷】擊敗 ${currentMonster.name}！修為+${expGain} (修速 ${Math.floor(totalExpSpeed*100)}%)，靈石+${coinGain}，【${droppedMatName}】+${matCount}！`, 'log-drop');
+
+  // 法寶裝備爆裝邏輯 (連動天道 GM 設定，100% 爆裝保證與 Modal 彈窗)
+  const dropRate = isBossMonster 
+    ? (GAME_CONFIG.bossDropEquipRate !== undefined ? GAME_CONFIG.bossDropEquipRate : 0.50)
+    : (GAME_CONFIG.normalDropEquipRate !== undefined ? GAME_CONFIG.normalDropEquipRate : 0.10);
+
+  const shouldDrop = dropRate >= 0.99 ? true : (Math.random() <= dropRate);
+
+  if (shouldDrop) {
+    const types = ['weapon', 'armor', 'accessory'];
+    const type = types[Math.floor(Math.random() * types.length)];
+    
+    let qualities = [];
+    if (isBossMonster) {
+      qualities = [QUALITIES[3], QUALITIES[4], QUALITIES[5]]; // 上品、極品、神品
+    } else {
+      qualities = [QUALITIES[0], QUALITIES[1], QUALITIES[2], QUALITIES[3]]; // 凡品、下品、中品、上品
+    }
+    const qObj = qualities[Math.floor(Math.random() * qualities.length)];
+
+    const typeName = { weapon: '聖劍', armor: '寶鎧', accessory: '佩玉' }[type];
+    const icon = { weapon: '🗡️', armor: '🛡️', accessory: '📿' }[type];
+    const elemPrefix = (currentMonster && ELEMENT_MAT_MAP[currentMonster.element]) ? ELEMENT_MAT_MAP[currentMonster.element].prefix : '洪荒';
+    const monsterLevel = currentMonster ? currentMonster.level : 1;
+    const baseVal = Math.floor((15 + monsterLevel * 3) * qObj.multiplier);
+
+    const droppedEquip = {
+      id: Date.now() + Math.random(),
+      name: `${elemPrefix}·${qObj.name}${typeName}`,
+      type,
+      element: currentMonster ? currentMonster.element : 'gold',
+      quality: qObj.level,
+      qualityName: qObj.name,
+      qualityColor: qObj.color,
+      atk: type === 'weapon' ? baseVal : Math.floor(baseVal * 0.3),
+      def: type === 'armor' ? baseVal : Math.floor(baseVal * 0.3),
+      icon
+    };
+
+    if (!player.inventory) player.inventory = [];
+    player.inventory.push(droppedEquip);
+
+    if (isBossMonster) {
+      addLog(`【👑 首領大爆裝備】${currentMonster.name} 轟然倒地解體！暴出【${droppedEquip.name}】(品級:${droppedEquip.qualityName} | 攻+${droppedEquip.atk} 防+${droppedEquip.def})！已寫入【🎒乾坤背包】(當前共 ${player.inventory.length} 件)！`, 'log-crit');
+      showBossDropModal(droppedEquip);
+    } else {
+      addLog(`【🎁 戰利品爆裝】擊敗 ${currentMonster.name}！獲得【${droppedEquip.name}】(品級:${droppedEquip.qualityName})！已寫入【🎒乾坤背包】(當前共 ${player.inventory.length} 件)！`, 'log-drop');
+    }
+  }
 
   // 動態天道機率觸發隨機機緣或神秘商人
   const eventRate = GAME_CONFIG.eventRate || 0.06;
   if (Math.random() < eventRate) {
     const merchantRate = GAME_CONFIG.merchantRate || 0.20;
     if (Math.random() >= merchantRate) {
-      // 隨機天降機緣
       const rewardCoins = Math.floor((300 + Math.floor(Math.random() * 500)) * (GAME_CONFIG.coinMult || 1.0));
       player.coins += rewardCoins;
       addLog(`【✨ 天降機緣】偶遇洪荒大能遺跡，獲得古仙贈禮：靈石 +${rewardCoins}！`, 'log-crit');
     } else {
-      // 神秘商人降臨
       generateMerchantItems();
       document.getElementById('merchant-banner').classList.add('show');
       addLog(`【🧙‍♂️ 機緣降臨】雲遊神秘商人攜帶武學與內功心法降臨秘境！僅限購入一件珍品！`, 'log-crit');
@@ -1233,8 +1247,12 @@ function onMonsterDefeated() {
     levelUp();
   }
 
-  spawnMonster();
+  saveGame();
   updateUI();
+
+  setTimeout(() => {
+    spawnMonster();
+  }, 1000);
 }
 
 function levelUp() {
@@ -2090,6 +2108,13 @@ function updateUI() {
   renderEquippedSlots();
   renderInventory();
 
+  // 更新頂部背包分頁按鈕數量標記
+  const bagTabBtn = document.querySelector('.tab-btn[data-tab="bag"]');
+  if (bagTabBtn) {
+    const invCount = (player.inventory && Array.isArray(player.inventory)) ? player.inventory.length : 0;
+    bagTabBtn.textContent = `🎒 乾坤背包 (${invCount})`;
+  }
+
   // 負傷休養狀態 UI 鎖定與標籤
   const injuryBadge = document.getElementById('injury-badge');
   const btnAttack = document.getElementById('btn-manual-attack');
@@ -2426,6 +2451,9 @@ function loadGMConfigToInputs() {
     if (document.getElementById('cfg-boss-drop-rate')) {
       document.getElementById('cfg-boss-drop-rate').value = Math.floor((GAME_CONFIG.bossDropEquipRate !== undefined ? GAME_CONFIG.bossDropEquipRate : 0.50) * 100);
     }
+    if (document.getElementById('cfg-normal-drop-rate')) {
+      document.getElementById('cfg-normal-drop-rate').value = Math.floor((GAME_CONFIG.normalDropEquipRate !== undefined ? GAME_CONFIG.normalDropEquipRate : 0.10) * 100);
+    }
     if (document.getElementById('cfg-ui-scale')) {
       document.getElementById('cfg-ui-scale').value = Math.floor((GAME_CONFIG.uiScale || 1.0) * 100);
     }
@@ -2457,6 +2485,9 @@ function saveGMSettings() {
   }
   if (document.getElementById('cfg-boss-drop-rate')) {
     GAME_CONFIG.bossDropEquipRate = parseFloat(document.getElementById('cfg-boss-drop-rate').value || 50) / 100;
+  }
+  if (document.getElementById('cfg-normal-drop-rate')) {
+    GAME_CONFIG.normalDropEquipRate = parseFloat(document.getElementById('cfg-normal-drop-rate').value || 10) / 100;
   }
 
   if (document.getElementById('cfg-ui-scale')) {
@@ -2492,7 +2523,8 @@ function resetGMConfig() {
     forgeBaseTime: 60,
     uiScale: 1.0,
     bossSpawnRate: 0.20,
-    bossDropEquipRate: 0.50
+    bossDropEquipRate: 0.50,
+    normalDropEquipRate: 0.10
   };
   localStorage.removeItem('wujin_honghuang_gm_config');
   applyUIScale();

@@ -441,7 +441,13 @@
               <div class="gm-setting-item">
                 <span class="gm-setting-label" style="color:#f1c40f;">🎁 首領 BOSS 法寶爆裝率 (%)</span>
                 <input type="number" class="pixel-input" id="cfg-boss-drop-rate" min="1" max="100" value="50">
-                <span style="font-size:0.65rem; color:#888;">擊敗 BOSS 直接爆出裝備機率 (預設 50%)</span>
+                <span style="font-size:0.65rem; color:#888;">擊敗 BOSS 直接爆出高階法寶機率 (預設 50%)</span>
+              </div>
+
+              <div class="gm-setting-item">
+                <span class="gm-setting-label" style="color:#2ecc71;">⚔️ 普通怪物法寶爆裝率 (%)</span>
+                <input type="number" class="pixel-input" id="cfg-normal-drop-rate" min="0" max="100" value="10">
+                <span style="font-size:0.65rem; color:#888;">擊敗普通怪直接爆出法寶機率 (預設 10%)</span>
               </div>
 
               <div class="gm-setting-item">
@@ -618,6 +624,27 @@
     </div>
   </div>
 
-  <script src="game.js?v=3.0"></script>
+  <!-- 👑 洪荒首領爆裝獎勵 Modal 彈窗 -->
+  <div class="modal-backdrop" id="boss-drop-modal">
+    <div class="modal-box" style="max-width:420px; text-align:center; border:2px solid var(--pixel-gold); background:#151528;">
+      <div style="font-size:2.5rem;">👑</div>
+      <div style="font-size:1.2rem; color:var(--pixel-gold); font-weight:bold; margin-top:4px;" id="boss-drop-modal-title">首領降伏！金光大爆！</div>
+      <div style="font-size:0.8rem; color:#aaa; margin-top:2px;" id="boss-drop-modal-sub">成功擊敗洪荒首領，從胸腔中解體暴出珍稀法寶！</div>
+      
+      <div style="background:#0b0b14; border:1px solid #3d3d63; border-radius:6px; padding:12px; margin:14px 0; display:flex; flex-direction:column; align-items:center; gap:8px;">
+        <div id="boss-drop-modal-icon" style="font-size:3rem;">🗡️</div>
+        <div id="boss-drop-modal-name" style="font-size:1.05rem; font-weight:bold; color:#e74c3c;">神品·五行聖劍</div>
+        <div id="boss-drop-modal-stats" style="font-size:0.85rem; color:#2ecc71; font-weight:bold;">⚔️ 攻擊: +180  |  🛡️ 防禦: +40</div>
+        <div style="font-size:0.75rem; color:#888;">已為您寫入【🎒 乾坤背包】</div>
+      </div>
+
+      <div style="display:flex; gap:10px; justify-content:center;">
+        <button class="pixel-btn btn-gold" id="btn-boss-drop-equip-now" style="padding:10px 20px; font-weight:bold;">🗡️ 立即穿戴上身</button>
+        <button class="pixel-btn" id="btn-boss-drop-close-modal" style="padding:10px 16px;">🎒 放入背包</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="game.js?v=5.0_FORCE_RELOAD"></script>
 </body>
 </html>
