@@ -835,10 +835,13 @@ function setupEventListeners() {
 
   // 打坐調息 / 服用槽中丹藥
   document.getElementById('btn-meditate').addEventListener('click', toggleMeditate);
-  document.getElementById('btn-use-equipped-pill').addEventListener('click', useEquippedPill);
+  if (document.getElementById('btn-use-equipped-pill')) {
+    document.getElementById('btn-use-equipped-pill').addEventListener('click', useEquippedPill);
+  }
 
   // 天道 GM 設定解鎖與保存
-  document.getElementById('btn-unlock-gm').addEventListener('click', unlockGMSettings);
+  // 注意：解鎖按鈕已在 index.html 用 onclick="unlockGMPanel()" 綁定，這裡不再重複綁定 unlockGMSettings，
+  // 避免按一次「解鎖」同時觸發兩個函式、造成重複日誌與音效。
   document.getElementById('btn-save-gm-config').addEventListener('click', saveGMSettings);
   document.getElementById('btn-reset-gm-config').addEventListener('click', resetGMConfig);
 }
