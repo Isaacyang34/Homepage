@@ -22,11 +22,11 @@
         <span class="badge">Pixel MUD v1.4</span>
       </div>
       <div class="header-controls">
-        <button class="pixel-btn btn-gold" id="btn-giftcode">🎁 禮包碼</button>
-        <button class="pixel-btn" id="toggle-sound">🔊 音效:開</button>
-        <button class="pixel-btn" id="toggle-crt">📺 CRT濾鏡</button>
-        <button class="pixel-btn" id="btn-save">💾 存檔</button>
-        <button class="pixel-btn btn-danger" id="btn-reset">🔄 重置</button>
+        <button class="pixel-btn btn-gold" id="btn-giftcode" onclick="openGiftModal()">🎁 禮包碼</button>
+        <button class="pixel-btn" id="toggle-sound" onclick="toggleSoundEffect(event)">🔊 音效:開</button>
+        <button class="pixel-btn" id="toggle-crt" onclick="toggleCRTEffect()">📺 CRT濾鏡</button>
+        <button class="pixel-btn" id="btn-save" onclick="triggerManualSave()">💾 存檔</button>
+        <button class="pixel-btn btn-danger" id="btn-reset" onclick="triggerManualReset()">🔄 重置</button>
       </div>
     </header>
 
@@ -133,9 +133,12 @@
             </div>
           </div>
 
-          <button class="pixel-btn btn-gold" id="btn-use-equipped-pill" onclick="useEquippedPill()" style="margin-top:6px; width:100%; padding:6px; font-size:0.8rem; border-color:#e74c3c;">
-            💊 服用槽中丹藥
-          </button>
+          <!-- 可自訂自動服丹門檻 (百分比 %) -->
+          <div style="margin-top:6px; background:#0e0e1a; border:1px solid #333; padding:5px 8px; border-radius:4px; display:flex; align-items:center; justify-content:space-between; font-size:0.75rem;">
+            <span style="color:#aaa;">氣血低於</span>
+            <input type="number" id="input-auto-pill-hp-pct" value="50" min="1" max="99" onchange="updateAutoPillHpPercent(this.value)" style="width:45px; text-align:center; padding:2px; background:#18182e; color:#2ecc71; border:1px solid #555; font-weight:bold; font-size:0.8rem; border-radius:3px;">
+            <span style="color:#aaa;">% 時自動服丹</span>
+          </div>
 
           <button class="pixel-btn btn-wood" id="btn-auto-equip-best" onclick="autoEquipBestItems()" style="margin-top:6px; width:100%; padding:8px; font-size:0.8rem; font-weight:bold;">
             ⚡ 一鍵自動裝備最強法寶
@@ -148,13 +151,13 @@
       <main class="pixel-box">
         <!-- 分頁導覽 -->
         <nav class="nav-tabs">
-          <button class="tab-btn active" data-tab="battle">⚔️ 洪荒歷練</button>
-          <button class="tab-btn" data-tab="sutra">📜 藏經閣</button>
-          <button class="tab-btn" data-tab="forge">🔨 五行鍛造</button>
-          <button class="tab-btn" data-tab="alchemy">🧪 九轉煉丹</button>
-          <button class="tab-btn" data-tab="shop">🏪 坊市商鋪</button>
-          <button class="tab-btn" data-tab="bag">🎒 乾坤背包</button>
-          <button class="tab-btn" data-tab="settings" style="color:var(--pixel-gold);">⚙️ 天道設定</button>
+          <button class="tab-btn active" data-tab="battle" onclick="switchTab('battle')">⚔️ 洪荒歷練</button>
+          <button class="tab-btn" data-tab="sutra" onclick="switchTab('sutra')">📜 藏經閣</button>
+          <button class="tab-btn" data-tab="forge" onclick="switchTab('forge')">🔨 五行鍛造</button>
+          <button class="tab-btn" data-tab="alchemy" onclick="switchTab('alchemy')">🧪 九轉煉丹</button>
+          <button class="tab-btn" data-tab="shop" onclick="switchTab('shop')">🏪 坊市商鋪</button>
+          <button class="tab-btn" data-tab="bag" onclick="switchTab('bag')">🎒 乾坤背包</button>
+          <button class="tab-btn" data-tab="settings" onclick="switchTab('settings')" style="color:var(--pixel-gold);">⚙️ 天道設定</button>
         </nav>
 
         <!-- 分頁1: 洪荒歷練與戰鬥 -->
@@ -166,7 +169,7 @@
               <span style="font-size:1.4rem;">🧙‍♂️</span>
               <span>天降機緣！雲遊神秘商人降臨秘境！</span>
             </div>
-            <button class="pixel-btn btn-gold" id="btn-open-merchant">🛒 拜訪神秘商人</button>
+            <button class="pixel-btn btn-gold" id="btn-open-merchant" onclick="openMerchantModal()">🛒 拜訪神秘商人</button>
           </div>
 
           <!-- 秘境副本選擇 -->
@@ -249,8 +252,9 @@
             <span style="font-size:0.8rem; color:#aaa;">加成: 攻 +<span id="sutra-bonus-atk" style="color:#f1c40f;">0</span> | 防 +<span id="sutra-bonus-def" style="color:#3498db;">0</span> | 修速 +<span id="sutra-bonus-exp" style="color:#2ecc71;">0%</span></span>
           </div>
 
-          <!-- 8 大分類子分頁 -->
+          <!-- 子分頁：包含 8 大分類 + 已參悟總覽 -->
           <div class="sub-nav-tabs" id="sutra-sub-tabs">
+            <button class="sub-tab-btn" onclick="switchSutraTab('learned')" style="color:#f1c40f; font-weight:bold;">📖 已參悟 (總覽)</button>
             <button class="sub-tab-btn active" onclick="switchSutraTab('gold')">✨ 金系</button>
             <button class="sub-tab-btn" onclick="switchSutraTab('wood')">🌿 木系</button>
             <button class="sub-tab-btn" onclick="switchSutraTab('water')">💧 水系</button>
@@ -325,17 +329,6 @@
             </div>
           </div>
 
-          <!-- 滿級神爐專屬 · 低階法器熔煉 (+50% 高階品質爆率) -->
-          <div id="forge-smelt-container" style="background:#131326; border:2px dashed #f1c40f; padding:10px; display:flex; flex-direction:column; gap:6px;">
-            <div style="font-size:0.8rem; color:var(--pixel-gold); font-weight:bold; display:flex; align-items:center; gap:6px;">
-              <span>🔥 滿級神鼎專屬 · 低階法器熔煉 (加成特惠)</span>
-              <span style="font-size:0.65rem; background:#e74c3c; color:#fff; padding:1px 5px; border-radius:3px; font-weight:bold;">高階爆率 +50%</span>
-            </div>
-            <select class="pixel-input" id="forge-smelt-select" style="font-size:0.78rem; padding:6px; background:#0b0b14; border-color:#555;">
-              <option value="">-- [可選] 選擇投入背包舊法器 (熔煉後出極品/神品機率原基礎額外 +50%) --</option>
-            </select>
-            <div style="font-size:0.65rem; color:#aaa;">💡 提示：此為 Level 5 神品造化天爐專屬神通！開爐時將融入該舊法寶的靈力精粹，極品與神品爆率大增 +50%！</div>
-          </div>
 
           <!-- 消耗說明與成功率 -->
           <div style="background:#0d0d17; border:2px solid #2d2d48; padding:12px; display:flex; flex-direction:column; gap:8px;">
@@ -358,6 +351,60 @@
           <div style="display:flex; flex-direction:column; align-items:center; gap:8px; padding:10px;">
             <div style="font-size:2.5rem;">⚒️</div>
             <button class="pixel-btn btn-gold" id="btn-forge" onclick="startForgeInFurnace()" style="padding:14px 30px; font-size:1.05rem;">🔨 開爐鍛造裝備</button>
+          </div>
+
+          <!-- ⚒️ 法寶五行精煉台 (加成 +0 ~ +10) -->
+          <div style="background:#111122; border:2px solid var(--pixel-gold); padding:14px; margin-top:15px; border-radius:6px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed var(--pixel-gold); padding-bottom:6px; margin-bottom:10px;">
+              <span style="color:var(--pixel-gold); font-size:1.05rem; font-weight:bold;">⚡ 法寶五行精煉台 (+0 ~ +10 全屬性提升)</span>
+              <span style="font-size:0.75rem; color:#aaa;">每 +1 增加 1% 裝備全屬性威力</span>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+              <!-- 左側: 選擇身上穿戴之法寶槽位 -->
+              <div style="background:#0a0a14; border:1px solid #333; padding:10px; border-radius:4px;">
+                <div style="font-size:0.85rem; color:var(--pixel-gold); margin-bottom:6px;">🗡️ 點擊選擇身上穿戴的法寶進行精煉：</div>
+                
+                <!-- 3 大槽位快速切換按鈕區 (對齊左側裝備面板) -->
+                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:6px; margin-bottom:8px;" id="refine-slot-buttons">
+                  <button class="pixel-btn active" id="btn-refine-slot-weapon" onclick="selectRefineSlot('weapon')" style="padding:6px 2px; font-size:0.75rem; text-align:center;">
+                    🗡️ 本命武器<br><span id="refine-slot-txt-weapon" style="color:var(--pixel-gold); font-size:0.7rem;">(空)</span>
+                  </button>
+                  <button class="pixel-btn" id="btn-refine-slot-armor" onclick="selectRefineSlot('armor')" style="padding:6px 2px; font-size:0.75rem; text-align:center;">
+                    🛡️ 五行寶鎧<br><span id="refine-slot-txt-armor" style="color:var(--pixel-gold); font-size:0.7rem;">(空)</span>
+                  </button>
+                  <button class="pixel-btn" id="btn-refine-slot-accessory" onclick="selectRefineSlot('accessory')" style="padding:6px 2px; font-size:0.75rem; text-align:center;">
+                    💍 護身法寶<br><span id="refine-slot-txt-accessory" style="color:var(--pixel-gold); font-size:0.7rem;">(空)</span>
+                  </button>
+                </div>
+
+                <div id="refine-item-preview" style="padding:8px; background:#111; border:1px solid #444; font-size:0.8rem; color:#ddd; min-height:60px;">
+                  請點選欲精煉的裝備槽位...
+                </div>
+              </div>
+
+              <!-- 右側: 精煉需求與保底丹藥 -->
+              <div style="background:#0a0a14; border:1px solid #333; padding:10px; border-radius:4px; display:flex; flex-direction:column; justify-content:space-between;">
+                <div>
+                  <div style="font-size:0.85rem; color:var(--pixel-gold); margin-bottom:4px;">🧪 精煉需求與成功率：</div>
+                  <div id="refine-cost-text" style="font-size:0.8rem; color:#2ecc71; margin-bottom:6px;">所需神材: 尚無</div>
+                  <div id="refine-rate-text" style="font-size:0.8rem; color:#f1c40f; font-weight:bold; margin-bottom:8px;">當前成功率: --</div>
+                  
+                  <!-- 保底丹藥提醒與自動使用框 -->
+                  <div style="background:#161628; border:1px solid #e67e22; padding:6px 8px; font-size:0.78rem; border-radius:4px; margin-bottom:6px;">
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; color:#e67e22;">
+                      <input type="checkbox" id="refine-use-protect-pill" checked>
+                      <span>💊 自動使用<b>《保具定海丹》</b> (失敗100%防止碎裂)</span>
+                    </label>
+                    <div id="refine-pill-count-status" style="font-size:0.7rem; color:#aaa; margin-top:2px;">持有數量: 0 顆 (可於九轉煉丹房煉製)</div>
+                  </div>
+                </div>
+
+                <button class="pixel-btn btn-gold" id="btn-start-refine" onclick="startRefineEquipment()" style="width:100%; padding:8px; font-size:0.9rem; margin-top:6px;">
+                  🔥 開始精煉法寶
+                </button>
+              </div>
+            </div>
           </div>
 
         </div>
@@ -471,13 +518,23 @@
 
         <!-- 分頁: 坊市商鋪 -->
         <div class="tab-content" id="tab-shop">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
             <span style="color:var(--pixel-gold); font-size:1.05rem; font-weight:bold;">🏪 洪荒坊市商鋪</span>
+            
+            <!-- 🛒 單次購入倍數選擇器 (後期大量補貨必備) -->
+            <div style="display:flex; align-items:center; gap:6px; background:#111124; border:1px solid var(--pixel-gold); padding:3px 8px; border-radius:4px;" id="shop-mult-selector">
+              <span style="font-size:0.75rem; color:var(--pixel-gold); font-weight:bold;">🛒 單次購入數量：</span>
+              <button class="pixel-btn active" id="btn-shop-mult-1" onclick="setShopBuyMultiplier(1)" style="padding:2px 8px; font-size:0.75rem;">×1</button>
+              <button class="pixel-btn" id="btn-shop-mult-10" onclick="setShopBuyMultiplier(10)" style="padding:2px 8px; font-size:0.75rem;">×10</button>
+              <button class="pixel-btn" id="btn-shop-mult-50" onclick="setShopBuyMultiplier(50)" style="padding:2px 8px; font-size:0.75rem;">×50</button>
+              <button class="pixel-btn" id="btn-shop-mult-100" onclick="setShopBuyMultiplier(100)" style="padding:2px 8px; font-size:0.75rem;">×100</button>
+            </div>
+
             <span style="font-size:0.85rem; color:var(--pixel-gold);">靈石: <span id="shop-player-coins" style="font-weight:bold;">500</span></span>
           </div>
 
-          <div style="font-size:0.8rem; color:var(--text-muted);">
-            商鋪常態供應療傷丹藥、修練神材、靈藥草藥及基礎法寶裝備。
+          <div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">
+            商鋪常態供應療傷丹藥、修練神材、靈藥草藥及基礎法寶裝備。可於上方切換單次批量購入倍數 (×1 ~ ×100)。
           </div>
 
           <div class="shop-grid" id="general-shop-grid">
@@ -530,6 +587,46 @@
             </div>
 
             <div style="font-size:0.85rem; color:var(--pixel-gold); font-weight:bold; margin-top:4px;">1. 📜 基礎獲得與掉落倍率</div>
+            <!-- 法寶精煉成功率 GM 調控區 -->
+            <div style="background:#141f36; border:1px solid var(--pixel-gold); padding:10px; border-radius:4px; margin-bottom:8px;">
+              <div style="color:var(--pixel-gold); font-size:0.82rem; font-weight:bold; margin-bottom:6px;">⚒️ 法寶五行精煉 +1 ~ +10 成功率微調 (%)</div>
+              <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap:6px; font-size:0.75rem;">
+                <div>+1 成功%: <input type="number" class="pixel-input" id="cfg-refine-1" value="80" style="padding:2px; text-align:center;"></div>
+                <div>+2 成功%: <input type="number" class="pixel-input" id="cfg-refine-2" value="70" style="padding:2px; text-align:center;"></div>
+                <div>+3 成功%: <input type="number" class="pixel-input" id="cfg-refine-3" value="60" style="padding:2px; text-align:center;"></div>
+                <div>+4 成功%: <input type="number" class="pixel-input" id="cfg-refine-4" value="50" style="padding:2px; text-align:center;"></div>
+                <div>+5 成功%: <input type="number" class="pixel-input" id="cfg-refine-5" value="40" style="padding:2px; text-align:center;"></div>
+                <div>+6 成功%: <input type="number" class="pixel-input" id="cfg-refine-6" value="30" style="padding:2px; text-align:center;"></div>
+                <div>+7 成功%: <input type="number" class="pixel-input" id="cfg-refine-7" value="20" style="padding:2px; text-align:center;"></div>
+                <div>+8 成功%: <input type="number" class="pixel-input" id="cfg-refine-8" value="10" style="padding:2px; text-align:center;"></div>
+                <div>+9 成功%: <input type="number" class="pixel-input" id="cfg-refine-9" value="5" style="padding:2px; text-align:center;"></div>
+                <div>+10 成功%: <input type="number" class="pixel-input" id="cfg-refine-10" value="3" style="padding:2px; text-align:center;"></div>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:0.75rem;">
+                <span style="color:#e74c3c;">💥 精練失敗時法寶毀壞碎裂率 (%):</span>
+                <input type="number" class="pixel-input" id="cfg-refine-break-rate" value="50" min="0" max="100" style="width:80px; padding:2px; text-align:center;">
+              </div>
+            </div>
+
+            <!-- 🌋 神火熔煉爆率 GM 微調區 -->
+            <div style="background:#1a1428; border:1px solid #9b59b6; padding:10px; border-radius:4px; margin-bottom:8px;">
+              <div style="color:#e0a0ff; font-size:0.82rem; font-weight:bold; margin-bottom:6px;">🌋 五行神火熔煉全品級 (凡/下/中/上/極/神) 極品 & 神品雙向爆率微調 (%)</div>
+              <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:6px; font-size:0.75rem;">
+                <div>凡品極品加成%: <input type="number" class="pixel-input" id="cfg-smelt-q1-xian" value="5" style="padding:2px; text-align:center;"></div>
+                <div>凡品神品加成%: <input type="number" class="pixel-input" id="cfg-smelt-q1-shen" value="2" style="padding:2px; text-align:center;"></div>
+                <div>下品極品加成%: <input type="number" class="pixel-input" id="cfg-smelt-q2-xian" value="10" style="padding:2px; text-align:center;"></div>
+                <div>下品神品加成%: <input type="number" class="pixel-input" id="cfg-smelt-q2-shen" value="5" style="padding:2px; text-align:center;"></div>
+                <div>中品極品加成%: <input type="number" class="pixel-input" id="cfg-smelt-q3-xian" value="18" style="padding:2px; text-align:center;"></div>
+                <div>中品神品加成%: <input type="number" class="pixel-input" id="cfg-smelt-q3-shen" value="10" style="padding:2px; text-align:center;"></div>
+                <div>上品極品加成%: <input type="number" class="pixel-input" id="cfg-smelt-q4-xian" value="25" style="padding:2px; text-align:center;"></div>
+                <div>上品神品加成%: <input type="number" class="pixel-input" id="cfg-smelt-q4-shen" value="20" style="padding:2px; text-align:center;"></div>
+                <div>極品極品加成%: <input type="number" class="pixel-input" id="cfg-smelt-q5-xian" value="35" style="padding:2px; text-align:center;"></div>
+                <div>極品神品加成%: <input type="number" class="pixel-input" id="cfg-smelt-q5-shen" value="35" style="padding:2px; text-align:center;"></div>
+                <div>神品神品加成%: <input type="number" class="pixel-input" id="cfg-smelt-q6-shen" value="50" style="padding:2px; text-align:center;"></div>
+                <div>🔥 5件滿額極品獎勵%: <input type="number" class="pixel-input" id="cfg-smelt-full-xian" value="15" style="padding:2px; text-align:center;"></div>
+                <div>🔥 5件滿額神品獎勵%: <input type="number" class="pixel-input" id="cfg-smelt-full-shen" value="25" style="padding:2px; text-align:center;"></div>
+              </div>
+            </div>
             <div class="gm-settings-grid">
               <div class="gm-setting-item">
                 <span class="gm-setting-label" style="color:#f1c40f;">🗡️ 法寶裝備掉落機率 (%)</span>
@@ -717,7 +814,7 @@
       <p style="font-size:0.85rem; color:var(--text-muted);">請輸入禮包碼以領取豐富資源（例如：歡迎萌新、極品紅裝、我要發財、大吉大利）</p>
       <input type="text" class="pixel-input" id="gift-code-input" placeholder="輸入禮包碼..." value="歡迎萌新">
       <div style="display:flex; gap:10px; justify-content:flex-end;">
-        <button class="pixel-btn" id="close-gift-modal" onclick="document.getElementById('gift-modal').classList.remove('show')">取消</button>
+        <button class="pixel-btn" id="close-gift-modal" onclick="closeGiftModal()">取消</button>
         <button class="pixel-btn btn-gold" id="btn-claim-code" onclick="claimGiftCode()">確認兌換</button>
       </div>
     </div>
@@ -728,7 +825,7 @@
     <div class="modal-box" style="max-width:550px; max-height:80vh;">
       <div class="modal-title">
         <span>🧙‍♂️ 雲遊神秘商人</span>
-        <button class="pixel-btn btn-danger" id="btn-close-merchant-x" onclick="document.getElementById('merchant-modal').classList.remove('show')" style="padding:2px 8px; font-size:0.75rem;">✕ 關閉</button>
+        <button class="pixel-btn btn-danger" id="btn-close-merchant-x" onclick="closeMerchantModal()" style="padding:2px 8px; font-size:0.75rem;">✕ 關閉</button>
       </div>
       <div style="display:flex; justify-content:space-between; align-items:center; background:#11111f; border:1px solid #f1c40f; padding:8px 12px; margin-bottom:10px; flex-wrap:wrap; gap:6px;">
         <span style="font-size:0.8rem; color:var(--pixel-gold);">「老夫看道友有緣，便賤賣武學心法與你！」</span>
@@ -740,7 +837,7 @@
       </div>
 
       <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:10px;">
-        <button class="pixel-btn btn-danger" id="close-merchant-modal" onclick="document.getElementById('merchant-modal').classList.remove('show')">🚪 告辭離開商人</button>
+        <button class="pixel-btn btn-danger" id="close-merchant-modal" onclick="closeMerchantModal()">🚪 告辭離開商人</button>
       </div>
     </div>
   </div>
@@ -791,7 +888,22 @@
 
       <div style="display:flex; gap:10px; justify-content:center;">
         <button class="pixel-btn btn-gold" id="btn-boss-drop-equip-now" onclick="equipBossDropNow()" style="padding:10px 20px; font-weight:bold;">🗡️ 立即穿戴上身</button>
-        <button class="pixel-btn" id="btn-boss-drop-close-modal" onclick="document.getElementById('boss-drop-modal').classList.remove('show')" style="padding:10px 16px;">🎒 放入背包</button>
+        <button class="pixel-btn" id="btn-boss-drop-close-modal" onclick="closeBossDropModal()" style="padding:10px 16px;">🎒 放入背包</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 💊 丹藥使用二次確認 Modal 彈窗 -->
+  <div class="modal-backdrop" id="pill-confirm-modal">
+    <div class="modal-box" style="max-width:380px; text-align:center; border:2px solid #e74c3c; background:#151528;">
+      <div style="font-size:2.2rem;" id="pill-confirm-icon">💊</div>
+      <div style="font-size:1.1rem; color:var(--pixel-gold); font-weight:bold; margin-top:4px;" id="pill-confirm-name">確認服用丹藥</div>
+      <div style="font-size:0.8rem; color:#2ecc71; margin-top:4px;" id="pill-confirm-desc">使用後將恢復氣血與能力</div>
+      <div style="font-size:0.75rem; color:#aaa; margin-top:4px;" id="pill-confirm-count">背包剩餘持數: 1 顆</div>
+
+      <div style="display:flex; gap:12px; justify-content:center; margin-top:16px;">
+        <button class="pixel-btn btn-gold" id="btn-pill-confirm-use" style="padding:8px 20px; font-weight:bold; background:#e74c3c; border-color:#ff6666;">✅ 確定服用</button>
+        <button class="pixel-btn" id="btn-pill-confirm-cancel" onclick="closePillConfirmModal()" style="padding:8px 16px;">❌ 取消</button>
       </div>
     </div>
   </div>
