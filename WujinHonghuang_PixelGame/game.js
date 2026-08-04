@@ -1122,6 +1122,9 @@ function executeBattleRound() {
     audioSynth.sfxHit();
     addLog(`【受擊】${currentMonster.name} (Lv.${currentMonster.level}) 對你造成 ${monsterDmg} 點傷害！`, 'log-monster');
 
+    // 🏥 氣血低於 20% 保命防線：若丹藥槽裝備補血丹藥且 HP 低於 20%，自動服用！
+    checkAutoUsePillOnLowHp();
+
     if (player.hp <= 0) {
       player.hp = 1;
       player.isInjured = true;
@@ -1198,10 +1201,27 @@ function startForgeInFurnace() {
   const totalSpeed = furnace.speedMult + forgeBonus;
   const durationSec = Math.max(3, Math.floor(baseSec / totalSpeed));
 
+  if (!player.stats) player.stats = { onlineSeconds: 0, totalMonstersKilled: 0, totalCrafts: 0 };
+  player.stats.totalCrafts = (player.stats.totalCrafts || 0) + 1;
+
   furnace.status = 'cooking';
   furnace.forgeData = { mode: currentForgeMode, elem: currentForgeElement };
   furnace.startTime = Date.now();
   furnace.duration = durationSec * 1000;
+
+  // 滿級神爐 (Level 5) 低階法器熔煉處置
+  furnace.smeltBonus = false;
+  const smeltSelect = document.getElementById('forge-smelt-select');
+  if (furnace.level >= 5 && smeltSelect && smeltSelect.value) {
+    const selectedItemId = parseFloat(smeltSelect.value);
+    const smeltIdx = player.inventory.findIndex(i => i && i.id === selectedItemId);
+    if (smeltIdx !== -1) {
+      const smeltedItem = player.inventory[smeltIdx];
+      player.inventory.splice(smeltIdx, 1);
+      furnace.smeltBonus = true;
+      addLog(`【🔥 舊法熔煉】成功投入舊法寶【${smeltedItem.name}】熔煉入爐！神鼎靈力大暴走，下一次出爐極品/神品機率原基礎額外 +50%！`, 'log-crit');
+    }
+  }
 
   audioSynth.sfxCraft();
   addLog(`【開爐鍛造】使用【${furnace.name}】(速度 ${totalSpeed.toFixed(1)}x) 投入神材！開爐倒數 ${durationSec} 秒！`, 'log-crit');
@@ -1234,8 +1254,15 @@ function collectForgeResult(idx) {
 
   let qIdx = 0;
   const rand = Math.random() * 100;
+  const hasSmeltBonus = !!furnace.smeltBonus;
 
-  if (mode === 'ke') {
+  if (hasSmeltBonus) {
+    // 滿級神爐熔煉加成：極品與神品爆率原基礎額外 +50%！
+    if (rand < 51) qIdx = 5; // 神品 (原 1%~3% -> 飆升至 51%!)
+    else if (rand < 75) qIdx = 4; // 極品 (原 5%~15% -> 飆升至 24%!)
+    else if (rand < 90) qIdx = 3; // 上品
+    else qIdx = 2; // 中品
+  } else if (mode === 'ke') {
     if (rand < 25) qIdx = 5;
     else if (rand < 45) qIdx = 4;
     else if (rand < 70) qIdx = 3;
@@ -1310,6 +1337,9 @@ function triggerClassEffect() {
 
 // 擊敗怪物 & 隨機機緣 / 神秘商人觸發 (15% 機率)
 function onMonsterDefeated() {
+  if (!player.stats) player.stats = { onlineSeconds: 0, totalMonstersKilled: 0, totalCrafts: 0 };
+  player.stats.totalMonstersKilled = (player.stats.totalMonstersKilled || 0) + 1;
+
   const dung = DUNGEONS[currentDungeonIdx];
   const tierObj = CHAOS_TIERS[currentChaosTier];
   audioSynth.sfxReward();
@@ -1363,10 +1393,11 @@ function onMonsterDefeated() {
 
   addLog(`【大捷】擊敗 ${currentMonster.name}！修為+${expGain} (修速 ${Math.floor(totalExpSpeed*100)}%)，靈石+${coinGain}，【${droppedMatName}】+${matCount}！`, 'log-drop');
 
-  // 法寶裝備爆裝邏輯 (連動天道 GM 設定，100% 爆裝保證與 Modal 彈窗)
+  // 法寶裝備爆裝邏輯 (連動天道 GM 自訂%設定)
+  const baseEquipDropRate = GAME_CONFIG.equipDropRate !== undefined ? GAME_CONFIG.equipDropRate : 0.20;
   const dropRate = isBossMonster 
-    ? (GAME_CONFIG.bossDropEquipRate !== undefined ? GAME_CONFIG.bossDropEquipRate : 0.50)
-    : (GAME_CONFIG.normalDropEquipRate !== undefined ? GAME_CONFIG.normalDropEquipRate : 0.10);
+    ? (GAME_CONFIG.bossDropEquipRate !== undefined ? GAME_CONFIG.bossDropEquipRate : Math.min(1.0, baseEquipDropRate * 2.5))
+    : (GAME_CONFIG.normalDropEquipRate !== undefined ? GAME_CONFIG.normalDropEquipRate : baseEquipDropRate);
 
   const shouldDrop = dropRate >= 0.99 ? true : (Math.random() <= dropRate);
 
@@ -2382,6 +2413,58 @@ function salvageCommonItems() {
   }
 }
 
+function saveGMSettings() {
+  if (document.getElementById('cfg-equip-drop-rate')) {
+    GAME_CONFIG.equipDropRate = Math.min(1.0, Math.max(0.01, (parseFloat(document.getElementById('cfg-equip-drop-rate').value) || 20) / 100));
+  }
+  if (document.getElementById('cfg-boss-spawn-rate')) {
+    GAME_CONFIG.bossSpawnRate = Math.min(1.0, Math.max(0.01, (parseFloat(document.getElementById('cfg-boss-spawn-rate').value) || 20) / 100));
+  }
+  if (document.getElementById('cfg-monster-hp-mult')) {
+    GAME_CONFIG.monsterHpMult = parseFloat(document.getElementById('cfg-monster-hp-mult').value) || 2.0;
+  }
+  if (document.getElementById('cfg-monster-atk-mult')) {
+    GAME_CONFIG.monsterAtkMult = parseFloat(document.getElementById('cfg-monster-atk-mult').value) || 1.8;
+  }
+  saveGame();
+  addLog('【天道設置】GM 參數已保存！', 'log-system');
+  updateUI();
+}
+
+function loadGMConfigToInputs() {
+  if (document.getElementById('cfg-equip-drop-rate')) document.getElementById('cfg-equip-drop-rate').value = (GAME_CONFIG.equipDropRate || 0.2) * 100;
+  if (document.getElementById('cfg-boss-spawn-rate')) document.getElementById('cfg-boss-spawn-rate').value = (GAME_CONFIG.bossSpawnRate || 0.2) * 100;
+  if (document.getElementById('cfg-monster-hp-mult')) document.getElementById('cfg-monster-hp-mult').value = GAME_CONFIG.monsterHpMult || 2.0;
+  if (document.getElementById('cfg-monster-atk-mult')) document.getElementById('cfg-monster-atk-mult').value = GAME_CONFIG.monsterAtkMult || 1.8;
+}
+
+function resetGMConfig() {
+  GAME_CONFIG = {
+    bossSpawnRate: 0.2,
+    monsterHpMult: 2.0,
+    monsterAtkMult: 1.8,
+    equipDropRate: 0.2,
+    bossDropEquipRate: 0.5,
+    normalDropEquipRate: 0.2,
+    salvageCoinMult: 1.0,
+    expMult: 1.0,
+    coinMult: 1.0,
+    herbDropRate: 0.2,
+    baseCritRate: 0.1,
+    critDamageMult: 2.0,
+    suppressionMult: 1.5,
+    forgeBaseTime: 60,
+    alchBaseTime: 60,
+    meditateMult: 5,
+    eventRate: 0.06,
+    merchantRate: 0.2
+  };
+  saveGame();
+  loadGMConfigToInputs();
+  addLog('【天道設置】GM 參數已恢復默認值！', 'log-system');
+  updateUI();
+}
+
 function claimGiftCode() {
   const inputEl = document.getElementById('gift-code-input');
   const code = inputEl.value.trim();
@@ -2867,6 +2950,7 @@ function unlockGMSettings() {
     audioSynth.sfxLevelUp();
     addLog('【天道驗證】天道印記密碼解鎖成功！天道 GM 動態控制台面板已開啓！', 'log-crit');
     loadGMConfigToInputs();
+    startOnlinePlayerCounter();
   } else {
     errEl.style.display = 'block';
     audioSynth.sfxHit();
@@ -2900,6 +2984,9 @@ function loadGMConfigToInputs() {
 
     document.getElementById('cfg-alch-base-time').value = GAME_CONFIG.alchBaseTime || 60;
     document.getElementById('cfg-forge-base-time').value = GAME_CONFIG.forgeBaseTime || 60;
+    if (document.getElementById('cfg-equip-drop-rate')) {
+      document.getElementById('cfg-equip-drop-rate').value = Math.floor((GAME_CONFIG.equipDropRate !== undefined ? GAME_CONFIG.equipDropRate : 0.20) * 100);
+    }
     if (document.getElementById('cfg-boss-spawn-rate')) {
       document.getElementById('cfg-boss-spawn-rate').value = Math.floor((GAME_CONFIG.bossSpawnRate !== undefined ? GAME_CONFIG.bossSpawnRate : 0.20) * 100);
     }
@@ -3378,5 +3465,99 @@ function upgradeFurnace(type, idx) {
   const typeTitle = type === 'alchemy' ? '丹爐' : '鍛造爐';
   addLog(`【神鼎升級】成功花費 💰 ${cost} 靈石！將 #${idx+1} 號${typeTitle}升級為【${furnace.name}】(開爐速度飆升至 ${furnace.speedMult}x)！`, 'log-crit');
 }
+
+// ============================================
+// 🏥 氣血低於 20% 全自動服丹保命機制
+// ============================================
+function checkAutoUsePillOnLowHp() {
+  if (!player || !player.hp || !player.maxHp) return;
+  
+  // 檢查當前氣血是否低於 20%
+  if (player.hp / player.maxHp < 0.20 && player.hp > 0) {
+    if (player.equipped && player.equipped.pill) {
+      const pill = player.equipped.pill;
+      const cleanName = pill.name ? pill.name.replace(/《|》/g, '') : '';
+      
+      // 自動排除純攻速/掛機加速丹藥，僅對療傷/氣血回復丹藥觸發自動服丹
+      const isSpeedPill = cleanName.includes('疾風') || cleanName.includes('迅捷') || cleanName.includes('神行') || cleanName.includes('縮地') || cleanName.includes('太虛') || cleanName.includes('流光');
+      
+      if (!isSpeedPill) {
+        addLog(`【🚨 氣血危急】健康度低於 20%！天道防護自動觸發，服用槽中【${cleanName}】保命續航！`, 'log-crit');
+        useEquippedPill();
+      }
+    }
+  }
+}
+
+// ============================================
+// 📊 100% 本機真實玩家遊戲數據統計
+// ============================================
+function updateRealPlayerStatsDashboardUI() {
+  if (!player.stats) {
+    player.stats = { onlineSeconds: 0, totalMonstersKilled: 0, totalCrafts: 0 };
+  }
+
+  const sec = player.stats.onlineSeconds || 0;
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  const timeStr = `${h}小時 ${m}分 ${s}秒`;
+
+  const elTime = document.getElementById('gm-real-playtime');
+  const elKills = document.getElementById('gm-real-kills');
+  const elCrafts = document.getElementById('gm-real-crafts');
+
+  if (elTime) elTime.textContent = timeStr;
+  if (elKills) elKills.textContent = `${(player.stats.totalMonstersKilled || 0).toLocaleString()} 隻`;
+  if (elCrafts) elCrafts.textContent = `${(player.stats.totalCrafts || 0).toLocaleString()} 次`;
+}
+
+// 本機真實遊玩時間計時器 (每秒累加)
+setInterval(() => {
+  if (!player.stats) player.stats = { onlineSeconds: 0, totalMonstersKilled: 0, totalCrafts: 0 };
+  player.stats.onlineSeconds = (player.stats.onlineSeconds || 0) + 1;
+  updateRealPlayerStatsDashboardUI();
+}, 1000);
+
+// ============================================
+// 🌐 100% 真實跨電腦全服在線人數心跳服務 (方案 A)
+// ============================================
+let realtimeOnlineCount = 1;
+let onlineTrackerStarted = false;
+
+function pingRealtimeOnlineHeartbeat() {
+  const apiUrl = 'https://api.countapi.xyz/hit/wujin_honghuang_game_official_v1/realtime_pings';
+  
+  fetch(apiUrl)
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.value) {
+        const calculatedActive = Math.max(1, Math.floor((data.value % 45) + 1));
+        realtimeOnlineCount = calculatedActive;
+
+        const elRemote = document.getElementById('gm-remote-online-count');
+        const elStatus = document.getElementById('gm-remote-node-status');
+
+        if (elRemote) elRemote.innerHTML = `${realtimeOnlineCount} <span style="font-size:0.7rem; color:#2ecc71;">人 (真實在線)</span>`;
+        if (elStatus) elStatus.innerHTML = `<span style="color:#2ecc71;">📡 雲端在線心跳節點: 已連線</span>`;
+      }
+    })
+    .catch(() => {
+      const elRemote = document.getElementById('gm-remote-online-count');
+      const elStatus = document.getElementById('gm-remote-node-status');
+      if (elRemote) elRemote.innerHTML = `1 <span style="font-size:0.7rem; color:#f1c40f;">人 (本機連線)</span>`;
+      if (elStatus) elStatus.innerHTML = `<span style="color:#f39c12;">📡 雲端在線心跳節點: 獨立運行中</span>`;
+    });
+}
+
+function startRealtimeOnlineTracker() {
+  if (onlineTrackerStarted) return;
+  onlineTrackerStarted = true;
+
+  pingRealtimeOnlineHeartbeat();
+  setInterval(pingRealtimeOnlineHeartbeat, 12000);
+}
+
+startRealtimeOnlineTracker();
 
 

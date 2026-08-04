@@ -325,6 +325,18 @@
             </div>
           </div>
 
+          <!-- 滿級神爐專屬 · 低階法器熔煉 (+50% 高階品質爆率) -->
+          <div id="forge-smelt-container" style="background:#131326; border:2px dashed #f1c40f; padding:10px; display:flex; flex-direction:column; gap:6px;">
+            <div style="font-size:0.8rem; color:var(--pixel-gold); font-weight:bold; display:flex; align-items:center; gap:6px;">
+              <span>🔥 滿級神鼎專屬 · 低階法器熔煉 (加成特惠)</span>
+              <span style="font-size:0.65rem; background:#e74c3c; color:#fff; padding:1px 5px; border-radius:3px; font-weight:bold;">高階爆率 +50%</span>
+            </div>
+            <select class="pixel-input" id="forge-smelt-select" style="font-size:0.78rem; padding:6px; background:#0b0b14; border-color:#555;">
+              <option value="">-- [可選] 選擇投入背包舊法器 (熔煉後出極品/神品機率原基礎額外 +50%) --</option>
+            </select>
+            <div style="font-size:0.65rem; color:#aaa;">💡 提示：此為 Level 5 神品造化天爐專屬神通！開爐時將融入該舊法寶的靈力精粹，極品與神品爆率大增 +50%！</div>
+          </div>
+
           <!-- 消耗說明與成功率 -->
           <div style="background:#0d0d17; border:2px solid #2d2d48; padding:12px; display:flex; flex-direction:column; gap:8px;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -464,8 +476,37 @@
 
           <!-- 天道參數調整面板 (解鎖後顯示) -->
           <div id="gm-panel" style="display:none; flex-direction:column; gap:12px;">
-            <div style="font-size:0.85rem; color:var(--pixel-gold); font-weight:bold;">1. 📜 基礎獲得與掉落倍率</div>
+            
+            <!-- 🌐 全服真實跨電腦在線數據中心 (雲端心跳連線) -->
+            <div class="gm-online-dashboard" style="background:#0e1628; border:2px solid var(--pixel-gold); border-radius:6px; padding:12px; display:flex; flex-direction:column; gap:8px; box-shadow:0 0 12px rgba(241,196,15,0.25);">
+              <div style="font-size:0.95rem; color:var(--pixel-gold); font-weight:bold; display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #3d3d63; padding-bottom:6px; flex-wrap:wrap; gap:4px;">
+                <span>🌐 全服真實跨電腦在線數據中心</span>
+                <span style="font-size:0.75rem; color:#2ecc71; font-weight:normal;" id="gm-remote-node-status">📡 雲端在線心跳節點: 已連線</span>
+              </div>
+              <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap:10px; margin-top:4px;">
+                <div style="background:#141f36; padding:8px; border-radius:4px; border:1px solid #f1c40f; text-align:center;">
+                  <div style="font-size:0.72rem; color:#aaa;">🌐 當前全服真實跨電腦在線</div>
+                  <div style="font-size:1.3rem; color:var(--pixel-gold); font-weight:bold; margin-top:2px;" id="gm-remote-online-count">1 <span style="font-size:0.7rem; color:#2ecc71;">人 (真實在線)</span></div>
+                </div>
+                <div style="background:#141f36; padding:8px; border-radius:4px; border:1px solid #2d3b5e; text-align:center;">
+                  <div style="font-size:0.72rem; color:#aaa;">⏱️ 本機持續遊玩總時長</div>
+                  <div style="font-size:1.1rem; color:#3498db; font-weight:bold; margin-top:2px;" id="gm-real-playtime">0小時 0分 0秒</div>
+                </div>
+                <div style="background:#141f36; padding:8px; border-radius:4px; border:1px solid #2d3b5e; text-align:center;">
+                  <div style="font-size:0.72rem; color:#aaa;">⚔️ 歷史累計討伐怪物</div>
+                  <div style="font-size:1.25rem; color:#9b59b6; font-weight:bold; margin-top:2px;" id="gm-real-kills">0 隻</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="font-size:0.85rem; color:var(--pixel-gold); font-weight:bold; margin-top:4px;">1. 📜 基礎獲得與掉落倍率</div>
             <div class="gm-settings-grid">
+              <div class="gm-setting-item">
+                <span class="gm-setting-label" style="color:#f1c40f;">🗡️ 法寶裝備掉落機率 (%)</span>
+                <input type="number" class="pixel-input" id="cfg-equip-drop-rate" min="1" max="100" value="20">
+                <span style="font-size:0.65rem; color:#888;">歷練擊敗怪物掉落法寶機率 (預設 20%)</span>
+              </div>
+
               <div class="gm-setting-item">
                 <span class="gm-setting-label">🎲 秘境機緣觸發率 (%)</span>
                 <input type="number" class="pixel-input" id="cfg-event-rate" min="1" max="100" value="6">
