@@ -416,18 +416,7 @@ const SHOP_ITEMS = [
   { id: 'shop_mat_wood', name: '神材·神木芯 ×3', icon: '🌿', price: 250, category: 'material', key: 'woodMat', count: 3 },
   { id: 'shop_mat_water', name: '神材·玄冰髓 ×3', icon: '💧', price: 250, category: 'material', key: 'waterMat', count: 3 },
   { id: 'shop_mat_fire', name: '神材·朱雀羽 ×3', icon: '🔥', price: 250, category: 'material', key: 'fireMat', count: 3 },
-  { id: 'shop_mat_earth', name: '神材·息壤土 ×3', icon: '🪨', price: 250, category: 'material', key: 'earthMat', count: 3 },
-  
-  // 實體爐具專區 (解鎖與升級爐位)
-  { id: 'furnace_alch_ling', name: '《靈階紫砂丹爐》', icon: '🍵', price: 1000, category: 'furnace', furnaceType: 'alchemy', level: 2, speedMult: 1.5, desc: '解鎖/升級丹爐！煉化速度提升 1.5 倍 (開爐倒數 -33%)' },
-  { id: 'furnace_alch_di', name: '《地階寒鐵丹爐》', icon: '🏺', price: 3500, category: 'furnace', furnaceType: 'alchemy', level: 3, speedMult: 2.2, desc: '地階神爐！煉化速度提升 2.2 倍 (開爐倒數 -55%)' },
-  { id: 'furnace_alch_tian', name: '《天階赤炎丹爐》', icon: '🔥', price: 10000, category: 'furnace', furnaceType: 'alchemy', level: 4, speedMult: 3.5, desc: '天階聖爐！煉化速度提升 3.5 倍 (開爐倒數 -70%)' },
-  { id: 'furnace_alch_god', name: '《神階九龍造化爐》', icon: '🐉', price: 30000, category: 'furnace', furnaceType: 'alchemy', level: 5, speedMult: 6.0, desc: '造化神爐！煉化速度提升 6.0 倍 (開爐僅需 5 秒)' },
-
-  { id: 'furnace_forge_ling', name: '《靈階青銅鍛造爐》', icon: '🔨', price: 1000, category: 'furnace', furnaceType: 'forge', level: 2, speedMult: 1.5, desc: '解鎖/升級鍛造爐！開爐速度提升 1.5 倍' },
-  { id: 'furnace_forge_di', name: '《地階玄鐵鍛造爐》', icon: '🌋', price: 3500, category: 'furnace', furnaceType: 'forge', level: 3, speedMult: 2.2, desc: '地階鍛造爐！開爐速度提升 2.2 倍' },
-  { id: 'furnace_forge_tian', name: '《天階三昧真火爐》', icon: '♨️', price: 10000, category: 'furnace', furnaceType: 'forge', level: 4, speedMult: 3.5, desc: '天階真火爐！開爐速度提升 3.5 倍' },
-  { id: 'furnace_forge_god', name: '《神階乾坤造化爐》', icon: '🌌', price: 30000, category: 'furnace', furnaceType: 'forge', level: 5, speedMult: 6.0, desc: '乾坤神爐！開爐速度提升 6.0 倍' }
+  { id: 'shop_mat_earth', name: '神材·息壤土 ×3', icon: '🪨', price: 250, category: 'material', key: 'earthMat', count: 3 }
 ];
 
 const DUNGEONS = [
@@ -743,6 +732,12 @@ function setupEventListeners() {
   const btnSortInv = document.getElementById('btn-sort-inventory');
   if (btnSortInv) {
     btnSortInv.addEventListener('click', sortInventoryByStats);
+  }
+
+  // 服用槽中丹藥按鈕綁定
+  const btnUsePill = document.getElementById('btn-use-equipped-pill');
+  if (btnUsePill) {
+    btnUsePill.addEventListener('click', useEquippedPill);
   }
 
   document.getElementById('btn-save').addEventListener('click', () => {
@@ -1807,6 +1802,95 @@ function calculateTotalExpSpeed() {
   return (player.expSpeed || 1.0) + sutraExpSpeed;
 }
 
+// 專門處理丹藥放入背包 (自動堆疊同名丹藥)
+function addPillToInventory(pillItem, count = 1) {
+  if (!player.inventory) player.inventory = [];
+  
+  const cleanName = pillItem.name ? pillItem.name.replace(/《|》/g, '') : '靈丹';
+  const existingPill = player.inventory.find(i => i && i.type === 'pill' && (i.name === pillItem.name || i.name === cleanName));
+  
+  if (existingPill) {
+    existingPill.count = (existingPill.count || 1) + count;
+  } else {
+    pillItem.name = cleanName;
+    pillItem.count = pillItem.count || count;
+    player.inventory.push(pillItem);
+  }
+}
+
+function unequipItem(slotType) {
+  if (!player.equipped[slotType]) return;
+
+  const item = player.equipped[slotType];
+  if (slotType === 'pill') {
+    addPillToInventory(item, item.count || 1);
+  } else {
+    player.inventory.push(item);
+  }
+  player.equipped[slotType] = null;
+
+  audioSynth.sfxHit();
+  recalculatePlayerStats();
+  saveGame();
+  updateUI();
+  addLog(`【卸下裝備】已將 ${item.name} 收回乾坤背包。`, 'log-system');
+}
+
+// 💊 服用槽中丹藥 (並在數量歸零時從背包全自動補充)
+function useEquippedPill() {
+  if (!player.equipped || !player.equipped.pill) {
+    addLog('【服丹提示】丹藥槽為空！請先在背包中點擊丹藥裝備至丹藥槽。', 'log-system');
+    return;
+  }
+
+  const pill = player.equipped.pill;
+  const cleanName = pill.name ? pill.name.replace(/《|》/g, '') : '靈丹';
+  const recipe = PILL_RECIPES.find(r => r.id === pill.recipeId || r.name === cleanName || r.name === `《${cleanName}》`);
+  
+  let msg = '';
+  if (typeof pill.action === 'function') {
+    msg = pill.action(player);
+  } else if (recipe && typeof recipe.action === 'function') {
+    msg = recipe.action(player);
+  } else {
+    const heal = Math.floor(player.maxHp * 0.5);
+    player.hp = Math.min(player.maxHp, player.hp + heal);
+    msg = `吞服【${cleanName}】，氣血回復 ${heal} 點！`;
+  }
+
+  // 扣除 1 顆數量
+  pill.count = (pill.count || 1) - 1;
+
+  // 當數量用盡 (count <= 0) 時，從背包尋找同名丹藥全自動補充！
+  if (pill.count <= 0) {
+    const nextPillIdx = player.inventory.findIndex(i => i && i.type === 'pill' && (i.name === pill.name || i.name === cleanName));
+    
+    if (nextPillIdx !== -1) {
+      const nextPill = player.inventory[nextPillIdx];
+      player.inventory.splice(nextPillIdx, 1);
+      player.equipped.pill = nextPill;
+      addLog(`【⚡ 丹藥自動補充】${msg}！丹藥槽已全自動補充【${nextPill.name}】(剩餘 ${nextPill.count || 1} 顆)！`, 'log-crit');
+    } else {
+      player.equipped.pill = null;
+      addLog(`【丹藥耗盡】${msg}！已用完最後一顆【${cleanName}】，丹藥槽已空。`, 'log-crit');
+    }
+  } else {
+    addLog(`【服用丹藥】${msg} (丹藥槽剩餘 ${pill.count} 顆)`, 'log-crit');
+  }
+
+  audioSynth.sfxReward();
+
+  // 若服用丹藥使氣血全滿，立即消除負傷狀態
+  if (player.hp >= player.maxHp && player.isInjured) {
+    player.isInjured = false;
+    addLog(`【💊 丹效神速】丹藥靈力完全修復全身經脈！負傷痊癒，可以重新歷練！`, 'log-crit');
+  }
+
+  recalculatePlayerStats();
+  saveGame();
+  updateUI();
+}
+
 // ============================================
 // 九轉煉丹房系統
 // ============================================
@@ -1941,16 +2025,19 @@ function collectAlchemyResult(idx) {
     atk: 0, def: 0
   };
 
-  if (!player.inventory || !Array.isArray(player.inventory)) player.inventory = [];
-  player.inventory.push(pillItem);
-
-  furnace.status = 'idle';
-  furnace.recipeId = null;
-
   audioSynth.sfxReward();
   addLog(`【✨ 收穫丹藥】神鼎出丹！成功從 ${furnace.name} 取出【${recipe.name}】正式收入乾坤背包！`, 'log-crit');
 
+  addPillToInventory(pillItem, 1);
+
+  // 關鍵修復：收取完成後將丹爐重置為空閒狀態
+  furnace.status = 'idle';
+  furnace.recipeId = null;
+  furnace.startTime = 0;
+  furnace.duration = 0;
+
   updateUI();
+  renderFurnacesUI();
   saveGame();
 }
 
@@ -2101,38 +2188,7 @@ function unequipItem(slotType) {
   addLog(`【裝備】已卸下 ${item.name}。`, 'log-system');
 }
 
-// 服用裝備在丹藥槽中的丹藥
-function useEquippedPill() {
-  if (!player.equipped || !player.equipped.pill) {
-    addLog('【服丹提示】丹藥槽為空！請先在背包中點擊丹藥裝備至丹藥槽。', 'log-system');
-    return;
-  }
 
-  const pill = player.equipped.pill;
-  const recipe = PILL_RECIPES.find(r => r.id === pill.recipeId);
-  
-  let msg = '';
-  if (recipe && recipe.action) {
-    msg = recipe.action(player);
-  } else {
-    const heal = Math.floor(player.maxHp * 0.5);
-    player.hp = Math.min(player.maxHp, player.hp + heal);
-    msg = `吞服【${pill.name}】，氣血回復 ${heal} 點！`;
-  }
-
-  player.equipped.pill = null; // 消耗丹藥
-  audioSynth.sfxReward();
-  addLog(`【服丹療傷】${msg}`, 'log-crit');
-
-  // 若服用丹藥使氣血全滿，立即消除負傷狀態
-  if (player.hp >= player.maxHp && player.isInjured) {
-    player.isInjured = false;
-    addLog(`【💊 丹效神速】丹藥靈力完全修復全身經脈！負傷痊癒，可以重新歷練！`, 'log-crit');
-  }
-
-  recalculatePlayerStats();
-  updateUI();
-}
 
 // ⚡ 一鍵自動裝備最強法寶與丹藥 (自動掃描背包選擇屬性最高者穿戴)
 function autoEquipBestItems() {
@@ -2145,8 +2201,18 @@ function autoEquipBestItems() {
   const slotTypes = ['weapon', 'armor', 'accessory', 'pill'];
 
   slotTypes.forEach(type => {
-    // 找出背包中符合該類型的所有物品
+    // 100% 模糊相容名稱與類型的雙重篩選 (確保寶鎧/防具100%被抓出)
     const candidateItems = player.inventory.filter(item => {
+      if (!item) return false;
+      if (type === 'weapon') {
+        return item.type === 'weapon' || (item.name && (item.name.includes('劍') || item.name.includes('刀') || item.name.includes('槍') || item.name.includes('杖') || item.name.includes('弓')));
+      }
+      if (type === 'armor') {
+        return item.type === 'armor' || item.type === 'body' || item.type === 'defense' || (item.name && (item.name.includes('鎧') || item.name.includes('甲') || item.name.includes('衣') || item.name.includes('袍')));
+      }
+      if (type === 'accessory') {
+        return item.type === 'accessory' || (item.name && (item.name.includes('佩') || item.name.includes('玉') || item.name.includes('戒') || item.name.includes('鏈')));
+      }
       if (type === 'pill') {
         return item.type === 'pill' || (item.name && item.name.includes('丹'));
       }
@@ -2155,23 +2221,32 @@ function autoEquipBestItems() {
 
     if (candidateItems.length === 0) return;
 
-    // 計算最佳物品評分 (品級加權 * 1000 + 攻擊 + 防禦)
-    candidateItems.sort((a, b) => {
-      const scoreA = (a.quality || 1) * 1000 + (a.atk || 0) * 2 + (a.def || 0);
-      const scoreB = (b.quality || 1) * 1000 + (b.atk || 0) * 2 + (b.def || 0);
-      return scoreB - scoreA;
-    });
+    // 核心戰鬥屬性加權評分 (以防禦/攻擊實質數值為主)
+    const getItemScore = (item) => {
+      if (!item) return 0;
+      const q = item.quality || 1;
+      const atk = item.atk || 0;
+      const def = item.def || 0;
+      if (type === 'weapon') return (atk * 3 + def * 1) + q * 10;
+      if (type === 'armor') return (def * 3 + atk * 1) + q * 10; // 防具以護甲防禦屬性為主
+      if (type === 'accessory') return (atk * 2 + def * 2) + q * 10;
+      if (type === 'pill') return q * 100 + (item.count || 1);
+      return (atk + def) + q * 10;
+    };
+
+    // 按實質戰鬥數值加權由高至低排序
+    candidateItems.sort((a, b) => getItemScore(b) - getItemScore(a));
 
     const bestItem = candidateItems[0];
     const currentEquipped = player.equipped[type];
 
-    // 檢查是否有現有裝備，並比較評分
+    // 檢查是否有現有裝備，並比較實質數值評分
     let shouldReplace = false;
     if (!currentEquipped) {
       shouldReplace = true;
     } else {
-      const currentScore = (currentEquipped.quality || 1) * 1000 + (currentEquipped.atk || 0) * 2 + (currentEquipped.def || 0);
-      const bestScore = (bestItem.quality || 1) * 1000 + (bestItem.atk || 0) * 2 + (bestItem.def || 0);
+      const currentScore = getItemScore(currentEquipped);
+      const bestScore = getItemScore(bestItem);
       if (bestScore > currentScore) {
         shouldReplace = true;
       }
@@ -2186,7 +2261,11 @@ function autoEquipBestItems() {
 
       // 若目前已有裝備，卸下並放回背包
       if (currentEquipped) {
-        player.inventory.push(currentEquipped);
+        if (type === 'pill') {
+          addPillToInventory(currentEquipped, currentEquipped.count || 1);
+        } else {
+          player.inventory.push(currentEquipped);
+        }
       }
 
       // 將最佳物品裝備至槽位
@@ -2200,18 +2279,21 @@ function autoEquipBestItems() {
     recalculatePlayerStats();
     saveGame();
     updateUI();
-    addLog(`【⚡ 自動裝備成功】已全自動掃描乾坤背包，為您穿戴當前最強 ${equippedCount} 件法寶/丹藥！屬性大幅躍升！`, 'log-crit');
+    addLog(`【⚡ 自動裝備成功】已全自動掃描乾坤背包，按【最高戰鬥數值】為您穿戴當前最強 ${equippedCount} 件法寶/寶鎧/丹藥！`, 'log-crit');
   } else {
-    addLog('【自動裝備提示】目前已穿戴當前背包中最高屬性法寶，無須替換。', 'log-system');
+    addLog('【自動裝備提示】目前已穿戴當前背包中最高戰鬥屬性之法寶與寶鎧，無須替換。', 'log-system');
   }
 }
 
 // 🧹 一鍵整理背包 (按品質與攻防數據降序排列)
 function sortInventoryByStats() {
-  if (!player.inventory || !Array.isArray(player.inventory) || player.inventory.length <= 1) {
+  if (!player.inventory || !Array.isArray(player.inventory) || player.inventory.length <= 0) {
     addLog('【背包整理提示】背包物品數量較少，無需整理。', 'log-system');
     return;
   }
+
+  // 先將背包中所有同名丹藥歸併合體為單一格子
+  consolidateInventoryPills();
 
   player.inventory.sort((a, b) => {
     const scoreA = (a.quality || 1) * 1000 + (a.atk || 0) * 2 + (a.def || 0);
@@ -2219,7 +2301,6 @@ function sortInventoryByStats() {
     if (scoreB !== scoreA) {
       return scoreB - scoreA;
     }
-    // 評分相同時按類型排序 (weapon -> armor -> accessory -> pill)
     const typeOrder = { weapon: 1, armor: 2, accessory: 3, pill: 4 };
     const orderA = typeOrder[a.type] || 5;
     const orderB = typeOrder[b.type] || 5;
@@ -2230,7 +2311,7 @@ function sortInventoryByStats() {
   saveGame();
   renderInventory();
   updateUI();
-  addLog(`【🧹 背包整理】乾坤背包已全自動按品質與攻防數據由高至低重新整齊排列！`, 'log-crit');
+  addLog(`【🧹 背包整理】乾坤背包已全自動將所有同名丹藥歸併合體，並按品質數據由高至低重新整齊排列！`, 'log-crit');
 }
 
 // 重新計算屬性 (算入裝備、蒼靈根115% 與心法加成)
@@ -2470,7 +2551,10 @@ function renderEquippedSlots() {
 
       if (infoEl) {
         let statText = '';
-        if (item.atk && item.def) {
+        if (type === 'pill') {
+          const cnt = item.count || 1;
+          statText = `💊 持有: ${cnt} 顆 (服完自動補)`;
+        } else if (item.atk && item.def) {
           statText = `⚔️攻+${item.atk} 🛡️防+${item.def}`;
         } else if (item.atk) {
           statText = `⚔️ 攻擊: +${item.atk}`;
@@ -2500,9 +2584,47 @@ function renderEquippedSlots() {
   });
 }
 
+// 自動將背包中既有的同名丹藥秒速歸併合體為單一格子
+function consolidateInventoryPills() {
+  if (!player.inventory || !Array.isArray(player.inventory)) return;
+
+  const newInventory = [];
+  const pillMap = new Map();
+
+  player.inventory.forEach(item => {
+    if (!item) return;
+
+    if (item.type === 'pill' || (item.name && item.name.includes('丹'))) {
+      const cleanName = item.name.replace(/《|》/g, '');
+      const count = item.count || 1;
+
+      if (pillMap.has(cleanName)) {
+        const existingPill = pillMap.get(cleanName);
+        existingPill.count = (existingPill.count || 1) + count;
+      } else {
+        item.name = cleanName;
+        item.count = count;
+        pillMap.set(cleanName, item);
+        newInventory.push(item);
+      }
+    } else {
+      newInventory.push(item);
+    }
+  });
+
+  player.inventory = newInventory;
+}
+
 function renderInventory() {
   const container = document.getElementById('inventory-grid');
+  if (!container) return;
+
+  // 繪製前先全自動把背包裡所有的同名丹藥秒速歸併為單一格子！
+  consolidateInventoryPills();
+
   container.innerHTML = '';
+
+  if (!player.inventory) player.inventory = [];
 
   player.inventory.forEach(item => {
     const slot = document.createElement('div');
@@ -2512,7 +2634,17 @@ function renderInventory() {
       <span class="item-icon">${item.icon}</span>
       <span style="font-size:0.6rem; color:${item.qualityColor}; text-align:center; line-height:1.1;">${item.name}</span>
     `;
-    slot.title = `點擊裝備 / 拖曳至下方熔練爐\n攻: +${item.atk}  防: +${item.def}`;
+
+    // 若為丹藥或帶有 count 屬性，繪製右下角堆疊角標 (×1, ×2, ×3)
+    if (item.type === 'pill' || item.count) {
+      const cnt = item.count || 1;
+      const badge = document.createElement('span');
+      badge.className = 'item-count-badge';
+      badge.textContent = `×${cnt}`;
+      slot.appendChild(badge);
+    }
+
+    slot.title = `點擊裝備 / 服用\n${item.desc || ''}\n攻: +${item.atk || 0}  防: +${item.def || 0}`;
 
     slot.addEventListener('dragstart', (e) => {
       e.dataTransfer.setData('text/plain', item.id);
@@ -2985,10 +3117,16 @@ function renderFurnacesUI() {
 
       if (!furnace) {
         card.className = 'furnace-card locked';
+        const cost = FURNACE_UNLOCK_COSTS[i] || 1000;
+        const canAfford = player.coins >= cost;
         card.innerHTML = `
-          <div style="font-size:1.5rem;">🔒</div>
-          <div style="font-size:0.75rem; color:var(--text-muted);">丹爐位 #${i+1} 未解鎖</div>
-          <div style="font-size:0.65rem; color:var(--pixel-gold);">可至坊市購入解鎖</div>
+          <div style="font-size:1.4rem; margin-top:2px;">🔒</div>
+          <div style="font-size:0.75rem; color:#aaa; font-weight:bold;">丹爐位 #${i+1} 未解鎖</div>
+          <button class="pixel-btn ${canAfford ? 'btn-gold' : ''}" 
+                  style="font-size:0.75rem; padding:6px; width:100%; font-weight:bold; border-color:${canAfford ? '#f1c40f' : '#666'};" 
+                  onclick="unlockFurnace('alchemy', ${i})">
+            ${canAfford ? `🔓 解鎖 (💰${cost})` : `💰 需 ${cost} 靈石`}
+          </button>
         `;
       } else {
         card.className = `furnace-card ${furnace.status === 'cooking' ? 'active' : ''}`;
@@ -3013,12 +3151,29 @@ function renderFurnacesUI() {
           `;
         }
 
+        let upgradeBtnHtml = '';
+        const curLvl = furnace.level || 1;
+        if (curLvl < 5 && FURNACE_UPGRADE_CONFIG[curLvl]) {
+          const cost = FURNACE_UPGRADE_CONFIG[curLvl].nextCost;
+          const canAfford = player.coins >= cost;
+          upgradeBtnHtml = `
+            <button class="pixel-btn ${canAfford ? 'btn-gold' : ''}" 
+                    style="font-size:0.68rem; padding:3px 6px; margin-top:5px; width:100%; border-color:#f1c40f;" 
+                    onclick="upgradeFurnace('alchemy', ${i})">
+              ⬆️ 升級 (💰 ${cost})
+            </button>
+          `;
+        } else {
+          upgradeBtnHtml = `<div style="font-size:0.65rem; color:var(--pixel-gold); font-weight:bold; margin-top:4px;">✨ 已達神品滿級</div>`;
+        }
+
         card.innerHTML = `
           <div class="furnace-title">
             <span>${furnace.name}</span>
             <span class="furnace-speed-badge">${totalSpeed}x煉化</span>
           </div>
           ${statusHtml}
+          ${upgradeBtnHtml}
         `;
       }
       alchGrid.appendChild(card);
@@ -3037,10 +3192,16 @@ function renderFurnacesUI() {
 
       if (!furnace) {
         card.className = 'furnace-card locked';
+        const cost = FURNACE_UNLOCK_COSTS[i] || 1000;
+        const canAfford = player.coins >= cost;
         card.innerHTML = `
-          <div style="font-size:1.5rem;">🔒</div>
-          <div style="font-size:0.75rem; color:var(--text-muted);">鍛造爐位 #${i+1} 未解鎖</div>
-          <div style="font-size:0.65rem; color:var(--pixel-gold);">可至坊市購入解鎖</div>
+          <div style="font-size:1.4rem; margin-top:2px;">🔒</div>
+          <div style="font-size:0.75rem; color:#aaa; font-weight:bold;">鍛造爐位 #${i+1} 未解鎖</div>
+          <button class="pixel-btn ${canAfford ? 'btn-gold' : ''}" 
+                  style="font-size:0.75rem; padding:6px; width:100%; font-weight:bold; border-color:${canAfford ? '#f1c40f' : '#666'};" 
+                  onclick="unlockFurnace('forge', ${i})">
+            ${canAfford ? `🔓 解鎖 (💰${cost})` : `💰 需 ${cost} 靈石`}
+          </button>
         `;
       } else {
         card.className = `furnace-card ${furnace.status === 'cooking' ? 'active' : ''}`;
@@ -3065,12 +3226,29 @@ function renderFurnacesUI() {
           `;
         }
 
+        let upgradeBtnHtml = '';
+        const curLvl = furnace.level || 1;
+        if (curLvl < 5 && FURNACE_UPGRADE_CONFIG[curLvl]) {
+          const cost = FURNACE_UPGRADE_CONFIG[curLvl].nextCost;
+          const canAfford = player.coins >= cost;
+          upgradeBtnHtml = `
+            <button class="pixel-btn ${canAfford ? 'btn-gold' : ''}" 
+                    style="font-size:0.68rem; padding:3px 6px; margin-top:5px; width:100%; border-color:#f1c40f;" 
+                    onclick="upgradeFurnace('forge', ${i})">
+              ⬆️ 升級 (💰 ${cost})
+            </button>
+          `;
+        } else {
+          upgradeBtnHtml = `<div style="font-size:0.65rem; color:var(--pixel-gold); font-weight:bold; margin-top:4px;">✨ 已達神品滿級</div>`;
+        }
+
         card.innerHTML = `
           <div class="furnace-title">
             <span>${furnace.name}</span>
             <span class="furnace-speed-badge">${totalSpeed}x開爐</span>
           </div>
           ${statusHtml}
+          ${upgradeBtnHtml}
         `;
       }
       forgeGrid.appendChild(card);
@@ -3117,6 +3295,88 @@ function startFurnaceTimer() {
       renderFurnacesUI();
     }
   }, 1000);
+}
+
+// ============================================
+// 丹爐與鍛造爐框內靈石解鎖 & 升級機制
+// ============================================
+const FURNACE_UNLOCK_COSTS = [0, 500, 1200, 2500, 5000];
+
+const FURNACE_UPGRADE_CONFIG = {
+  1: { level: 1, alchName: '凡品草木爐', forgeName: '凡品石木爐', speedMult: 1.0, nextCost: 300 },
+  2: { level: 2, alchName: '良品紫銅爐', forgeName: '良品赤鐵爐', speedMult: 1.6, nextCost: 700 },
+  3: { level: 3, alchName: '上品玄金爐', forgeName: '上品玄鐵爐', speedMult: 2.5, nextCost: 1500 },
+  4: { level: 4, alchName: '極品三昧真火爐', forgeName: '極品五行熔爐', speedMult: 3.8, nextCost: 3200 },
+  5: { level: 5, alchName: '神品乾坤金鼎', forgeName: '神品造化天爐', speedMult: 5.5, nextCost: 0 }
+};
+
+function unlockFurnace(type, idx) {
+  const listKey = type === 'alchemy' ? 'alchFurnaces' : 'forgeFurnaces';
+  if (!player[listKey]) return;
+
+  const cost = FURNACE_UNLOCK_COSTS[idx] || 1000;
+  const typeTitle = type === 'alchemy' ? '丹爐' : '鍛造爐';
+
+  if (player.coins < cost) {
+    addLog(`【解鎖失敗】靈石不足！解鎖 #${idx+1} 號${typeTitle}位需要 💰 ${cost} 靈石。`, 'log-monster');
+    return;
+  }
+
+  // 扣除靈石並解鎖建立 initial Level 1 爐具
+  player.coins -= cost;
+  player[listKey][idx] = {
+    id: Date.now(),
+    name: type === 'alchemy' ? '凡品草木爐' : '凡品石木爐',
+    level: 1,
+    speedMult: 1.0,
+    status: 'idle',
+    recipeId: null, forgeData: null, startTime: 0, duration: 0
+  };
+
+  audioSynth.sfxLevelUp();
+  saveGame();
+  updateUI();
+  renderFurnacesUI();
+
+  addLog(`【神鼎解鎖】成功花費 💰 ${cost} 靈石！正式解鎖 #${idx+1} 號${typeTitle}位！現可直接進行開爐煉製與後續升級！`, 'log-crit');
+}
+
+function upgradeFurnace(type, idx) {
+  const listKey = type === 'alchemy' ? 'alchFurnaces' : 'forgeFurnaces';
+  if (!player[listKey]) return;
+
+  const furnace = player[listKey][idx];
+  if (!furnace) return;
+
+  const currentLevel = furnace.level || 1;
+  if (currentLevel >= 5) {
+    addLog(`【升級提示】該爐具已達到神品最高等級 (5.5x 滿級)！`, 'log-system');
+    return;
+  }
+
+  const upgradeData = FURNACE_UPGRADE_CONFIG[currentLevel];
+  const nextData = FURNACE_UPGRADE_CONFIG[currentLevel + 1];
+  if (!upgradeData || !nextData) return;
+
+  const cost = upgradeData.nextCost;
+  if (player.coins < cost) {
+    addLog(`【升級失敗】靈石不足！升級至【${type === 'alchemy' ? nextData.alchName : nextData.forgeName}】需要 💰 ${cost} 靈石。`, 'log-monster');
+    return;
+  }
+
+  // 扣除靈石並提升等級
+  player.coins -= cost;
+  furnace.level = nextData.level;
+  furnace.speedMult = nextData.speedMult;
+  furnace.name = type === 'alchemy' ? nextData.alchName : nextData.forgeName;
+
+  audioSynth.sfxLevelUp();
+  saveGame();
+  updateUI();
+  renderFurnacesUI();
+
+  const typeTitle = type === 'alchemy' ? '丹爐' : '鍛造爐';
+  addLog(`【神鼎升級】成功花費 💰 ${cost} 靈石！將 #${idx+1} 號${typeTitle}升級為【${furnace.name}】(開爐速度飆升至 ${furnace.speedMult}x)！`, 'log-crit');
 }
 
 
