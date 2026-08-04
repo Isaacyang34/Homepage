@@ -1046,10 +1046,27 @@ function updateMonsterUI() {
 }
 
 function executeBattleRound() {
-  if (player.isInjured) {
-    addLog(`【負傷休養中】傷勢嚴重！請打坐調息或服用丹藥將氣血補至 100% 滿血方可再次歷練！`, 'log-monster');
-    return;
+  // 自動掛機智能恢復：若負傷或血量低，優先嘗試自動服丹或打坐調息
+  if (player.isInjured || player.hp < player.maxHp * 0.3) {
+    checkAutoUsePillOnLowHp();
+    
+    // 若依然受傷且在自動掛機模式中，自動觸發打坐調息恢復氣血
+    if (player.isInjured || player.hp < player.maxHp) {
+      if (isAutoBattling) {
+        meditate();
+        if (player.hp >= player.maxHp) {
+          player.isInjured = false;
+          addLog(`【自動續航】氣血已調息補滿！天道印記運轉，自動無縫繼續秘境討伐！`, 'log-system');
+        } else {
+          return; // 繼續打坐調息
+        }
+      } else if (player.isInjured) {
+        addLog(`【負傷休養中】傷勢嚴重！請點擊【🧘 打坐調息】或【💊 服用槽中丹藥】補滿血量！`, 'log-monster');
+        return;
+      }
+    }
   }
+
   if (!currentMonster || currentMonster.hp <= 0) {
     spawnMonster();
   }
@@ -1849,23 +1866,6 @@ function addPillToInventory(pillItem, count = 1) {
   }
 }
 
-function unequipItem(slotType) {
-  if (!player.equipped[slotType]) return;
-
-  const item = player.equipped[slotType];
-  if (slotType === 'pill') {
-    addPillToInventory(item, item.count || 1);
-  } else {
-    player.inventory.push(item);
-  }
-  player.equipped[slotType] = null;
-
-  audioSynth.sfxHit();
-  recalculatePlayerStats();
-  saveGame();
-  updateUI();
-  addLog(`【卸下裝備】已將 ${item.name} 收回乾坤背包。`, 'log-system');
-}
 
 // 💊 服用槽中丹藥 (並在數量歸零時從背包全自動補充)
 function useEquippedPill() {
@@ -1892,149 +1892,183 @@ function useEquippedPill() {
   // 扣除 1 顆數量
   pill.count = (pill.count || 1) - 1;
 
-  // 當數量用盡 (count <= 0) 時，從背包尋找同名丹藥全自動補充！
   if (pill.count <= 0) {
-    const nextPillIdx = player.inventory.findIndex(i => i && i.type === 'pill' && (i.name === pill.name || i.name === cleanName));
-    
-    if (nextPillIdx !== -1) {
-      const nextPill = player.inventory[nextPillIdx];
-      player.inventory.splice(nextPillIdx, 1);
-      player.equipped.pill = nextPill;
-      addLog(`【⚡ 丹藥自動補充】${msg}！丹藥槽已全自動補充【${nextPill.name}】(剩餘 ${nextPill.count || 1} 顆)！`, 'log-crit');
-    } else {
-      player.equipped.pill = null;
-      addLog(`【丹藥耗盡】${msg}！已用完最後一顆【${cleanName}】，丹藥槽已空。`, 'log-crit');
-    }
+    player.equipped.pill = null;
+    addLog(`【丹藥耗盡】${msg}！已用完最後一顆【${cleanName}】，丹藥槽已空。`, 'log-crit');
   } else {
     addLog(`【服用丹藥】${msg} (丹藥槽剩餘 ${pill.count} 顆)`, 'log-crit');
   }
 
   audioSynth.sfxReward();
-
-  // 若服用丹藥使氣血全滿，立即消除負傷狀態
-  if (player.hp >= player.maxHp && player.isInjured) {
-    player.isInjured = false;
-    addLog(`【💊 丹效神速】丹藥靈力完全修復全身經脈！負傷痊癒，可以重新歷練！`, 'log-crit');
-  }
-
   recalculatePlayerStats();
   saveGame();
   updateUI();
 }
 
-// ============================================
-// 九轉煉丹房系統
-// ============================================
-function renderAlchemyTab() {
-  const container = document.getElementById('alchemy-recipes-grid');
-  if (!container) return;
-  container.innerHTML = '';
+// 核心槽位型態收攏與標準化 (確保武器/防具/飾品/丹藥 100% 精確對應)
+function normalizeSlotType(item) {
+  if (!item) return 'weapon';
+  
+  let type = (item.type || '').toLowerCase();
+  const name = item.name || '';
 
-  // 更新靈藥草藥 UI 數量
-  if (!player.herbs) player.herbs = { lingzhi: 0, baicao: 0, zhusha: 0, longkui: 0, renshen: 0 };
-  document.getElementById('mat-herb-lingzhi').textContent = player.herbs.lingzhi || 0;
-  document.getElementById('mat-herb-baicao').textContent = player.herbs.baicao || 0;
-  document.getElementById('mat-herb-zhusha').textContent = player.herbs.zhusha || 0;
-  document.getElementById('mat-herb-longkui').textContent = player.herbs.longkui || 0;
-  document.getElementById('mat-herb-renshen').textContent = player.herbs.renshen || 0;
-
-  const herbNames = { lingzhi:'靈芝草', baicao:'百草露', zhusha:'硃砂果', longkui:'龍葵花', renshen:'千年人參' };
-
-  PILL_RECIPES.forEach(recipe => {
-    let matTextParts = [];
-    let canCraft = player.coins >= recipe.coinsCost;
-
-    Object.entries(recipe.materials).forEach(([hKey, count]) => {
-      const have = player.herbs[hKey] || 0;
-      const hName = herbNames[hKey] || hKey;
-      if (have < count) canCraft = false;
-      matTextParts.push(`${hName} ×${count} (${have}/${count})`);
-    });
-
-    const card = document.createElement('div');
-    card.className = 'recipe-card';
-    card.innerHTML = `
-      <div class="recipe-header">
-        <span style="font-weight:bold; color:#fff;">${recipe.icon} ${recipe.name}</span>
-        <span class="sutra-badge sutra-type-martial">${recipe.quality}</span>
-      </div>
-      <div style="font-size:0.75rem; color:var(--pixel-gold);">${recipe.desc}</div>
-      <div style="font-size:0.7rem; color:var(--text-muted);">
-        消耗: ${matTextParts.join(' + ')} + 💰 ${recipe.coinsCost} 靈石
-      </div>
-      <button class="pixel-btn ${canCraft ? 'btn-gold' : ''}" ${canCraft ? '' : 'disabled'} 
-              style="margin-top:4px; font-size:0.8rem;" onclick="startAlchemyInFurnace('${recipe.id}')">
-        🔥 開爐煉製丹藥
-      </button>
-    `;
-    container.appendChild(card);
-  });
-}
-
-function craftPill(recipeId) {
-  startAlchemyInFurnace(recipeId);
-}
-
-function ensurePlayerFurnaces() {
-  if (!player.alchFurnaces || !Array.isArray(player.alchFurnaces) || player.alchFurnaces.length < 5) {
-    player.alchFurnaces = [
-      { id: 1, name: '凡品草木爐', level: 1, speedMult: 1.0, status: 'idle', recipeId: null, startTime: 0, duration: 0 },
-      null, null, null, null
-    ];
+  if (type === 'pill' || type === 'elixir' || name.includes('丹')) {
+    return 'pill';
   }
-  if (!player.forgeFurnaces || !Array.isArray(player.forgeFurnaces) || player.forgeFurnaces.length < 5) {
-    player.forgeFurnaces = [
-      { id: 1, name: '凡品石木爐', level: 1, speedMult: 1.0, status: 'idle', forgeData: null, startTime: 0, duration: 0 },
-      null, null, null, null
-    ];
+
+  if (type === 'weapon' || type === 'sword' || type === 'blade' || type === 'spear' || type === 'staff' || type === 'bow' || name.includes('劍') || name.includes('刀') || name.includes('槍') || name.includes('杖') || name.includes('弓')) {
+    return 'weapon';
   }
+
+  if (type === 'armor' || type === 'body' || type === 'defense' || type === 'chest' || type === 'helm' || type === 'boots' || name.includes('鎧') || name.includes('甲') || name.includes('衣') || name.includes('袍')) {
+    return 'armor';
+  }
+
+  if (type === 'accessory' || type === 'jade' || type === 'ring' || type === 'necklace' || name.includes('佩') || name.includes('玉') || name.includes('戒') || name.includes('鏈')) {
+    return 'accessory';
+  }
+
+  return 'weapon';
 }
 
-function startAlchemyInFurnace(recipeId) {
-  ensurePlayerFurnaces();
-  const recipe = PILL_RECIPES.find(r => r.id === recipeId);
-  if (!recipe) return;
+function equipItem(itemId) {
+  if (!player.inventory || !Array.isArray(player.inventory)) return;
 
-  const idleIdx = player.alchFurnaces.findIndex(f => f && f.status === 'idle');
-  if (idleIdx === -1) {
-    addLog(`【丹爐忙碌】所有解鎖的丹爐都在煉化中！請等待煉製完成或至坊市購入新丹爐！`, 'log-monster');
+  const itemIdx = player.inventory.findIndex(i => i && String(i.id) === String(itemId));
+  if (itemIdx === -1) {
+    addLog(`【裝備失敗】未在乾坤背包中找到該法寶。`, 'log-monster');
     return;
   }
 
-  if (player.coins < recipe.coinsCost) {
-    addLog(`【煉丹失敗】靈石不足！需要 ${recipe.coinsCost} 靈石。`, 'log-monster');
-    return;
+  const item = player.inventory[itemIdx];
+  const slotType = normalizeSlotType(item);
+
+  if (!player.equipped || typeof player.equipped !== 'object') {
+    player.equipped = { weapon: null, armor: null, accessory: null, pill: null };
   }
 
-  const herbNames = { lingzhi:'靈芝草', baicao:'百草露', zhusha:'硃砂果', longkui:'龍葵花', renshen:'千年人參' };
-  for (const [hKey, count] of Object.entries(recipe.materials)) {
-    if ((player.herbs[hKey] || 0) < count) {
-      addLog(`【煉丹失敗】${herbNames[hKey]} 不足！`, 'log-monster');
-      return;
-    }
+  // 若目標槽位已有舊裝備，卸下放回背包
+  const currentEquipped = player.equipped[slotType];
+  if (currentEquipped && currentEquipped.name) {
+    player.inventory.push(currentEquipped);
   }
 
-  // 扣除資源
-  player.coins -= recipe.coinsCost;
-  for (const [hKey, count] of Object.entries(recipe.materials)) {
-    player.herbs[hKey] -= count;
-  }
+  player.equipped[slotType] = item;
+  player.inventory.splice(itemIdx, 1);
 
-  const furnace = player.alchFurnaces[idleIdx];
-  const baseSec = GAME_CONFIG.alchBaseTime || 60;
-  const alchBonus = calculateAlchemySpeedBonus();
-  const totalSpeed = furnace.speedMult + alchBonus;
-  const durationSec = Math.max(3, Math.floor(baseSec / totalSpeed));
-
-  furnace.status = 'cooking';
-  furnace.recipeId = recipe.id;
-  furnace.startTime = Date.now();
-  furnace.duration = durationSec * 1000;
-
-  audioSynth.sfxCraft();
-  addLog(`【丹爐開火】使用【${furnace.name}】(速度 ${totalSpeed.toFixed(1)}x) 開火煉製 ${recipe.name}！倒數 ${durationSec} 秒後可收取！`, 'log-crit');
-
+  audioSynth.sfxReward();
+  recalculatePlayerStats();
+  saveGame();
   updateUI();
+  renderInventory();
+
+  if (slotType === 'pill') {
+    addLog(`【丹藥入槽】已將【${item.name}】成功放入丹藥槽！`, 'log-crit');
+  } else {
+    addLog(`【穿戴成功】已成功穿戴【${item.name}】！全屬性已同步大幅加成！`, 'log-crit');
+  }
+}
+
+// 卸下已裝備槽位的裝備放回背包
+function unequipItem(slotType) {
+  if (!player.equipped || !player.equipped[slotType]) return;
+
+  const item = player.equipped[slotType];
+  if (!player.inventory) player.inventory = [];
+
+  // 丹藥特殊處理：自動堆疊歸還
+  if (slotType === 'pill') {
+    addPillToInventory(item, item.count || 1);
+  } else {
+    player.inventory.push(item);
+  }
+  player.equipped[slotType] = null;
+
+  audioSynth.sfxHit();
+  recalculatePlayerStats();
+  saveGame();
+  updateUI();
+  renderInventory();
+  addLog(`【卸下裝備】已將【${item.name}】收回乾坤背包。`, 'log-system');
+}
+
+// ⚡ 一鍵自動裝備最強法寶與丹藥 (自動掃描背包選擇屬性最高者穿戴)
+function autoEquipBestItems() {
+  if (!player.inventory || !Array.isArray(player.inventory) || player.inventory.length === 0) {
+    addLog('【自動裝備提示】乾坤背包為空！請先歷練擊敗魔王或前往鍛造獲取法寶。', 'log-system');
+    return;
+  }
+
+  if (!player.equipped || typeof player.equipped !== 'object') {
+    player.equipped = { weapon: null, armor: null, accessory: null, pill: null };
+  }
+
+  let equippedCount = 0;
+  const slotTypes = ['weapon', 'armor', 'accessory', 'pill'];
+
+  slotTypes.forEach(targetSlot => {
+    // 透過 normalizeSlotType 找出背包中所有對應此槽位的物品
+    const candidateItems = player.inventory.filter(item => item && normalizeSlotType(item) === targetSlot);
+
+    if (candidateItems.length === 0) return;
+
+    // 核心戰鬥屬性加權評分
+    const getItemScore = (item) => {
+      if (!item) return 0;
+      const q = item.quality || 1;
+      const atk = item.atk || 0;
+      const def = item.def || 0;
+      if (targetSlot === 'weapon') return (atk * 3 + def * 1) + q * 10;
+      if (targetSlot === 'armor') return (def * 3 + atk * 1) + q * 10;
+      if (targetSlot === 'accessory') return (atk * 2 + def * 2) + q * 10;
+      if (targetSlot === 'pill') return q * 100 + (item.count || 1);
+      return (atk + def) + q * 10;
+    };
+
+    // 按屬性評分由高至低排序
+    candidateItems.sort((a, b) => getItemScore(b) - getItemScore(a));
+
+    const bestItem = candidateItems[0];
+    const currentEquipped = player.equipped[targetSlot];
+
+    let shouldReplace = false;
+    if (!currentEquipped || !currentEquipped.name) {
+      shouldReplace = true;
+    } else {
+      if (getItemScore(bestItem) > getItemScore(currentEquipped)) {
+        shouldReplace = true;
+      }
+    }
+
+    if (shouldReplace) {
+      const idx = player.inventory.findIndex(i => i && String(i.id) === String(bestItem.id));
+      if (idx !== -1) {
+        player.inventory.splice(idx, 1);
+      }
+
+      if (currentEquipped && currentEquipped.name) {
+        if (targetSlot === 'pill') {
+          addPillToInventory(currentEquipped, currentEquipped.count || 1);
+        } else {
+          player.inventory.push(currentEquipped);
+        }
+      }
+
+      player.equipped[targetSlot] = bestItem;
+      equippedCount++;
+    }
+  });
+
+  if (equippedCount > 0) {
+    audioSynth.sfxReward();
+    recalculatePlayerStats();
+    saveGame();
+    updateUI();
+    renderInventory();
+    addLog(`【⚡ 一鍵自動裝備成功】已全自動掃描乾坤背包，為您穿戴當前最強 ${equippedCount} 件法寶/寶鎧/丹藥！`, 'log-crit');
+  } else {
+    addLog(`【一鍵自動裝備】目前已穿戴當前背包中最高戰鬥屬性之法寶與寶鎧！`, 'log-system');
+  }
 }
 
 function collectAlchemyResult(idx) {
@@ -2181,140 +2215,9 @@ function buyShopItem(itemId) {
   renderShopTab();
 }
 
-function equipItem(itemId) {
-  const itemIdx = player.inventory.findIndex(i => i.id === itemId);
-  if (itemIdx === -1) return;
-
-  const item = player.inventory[itemIdx];
-  const slotType = item.type;
-
-  if (player.equipped[slotType]) {
-    player.inventory.push(player.equipped[slotType]);
-  }
-
-  player.equipped[slotType] = item;
-  player.inventory.splice(itemIdx, 1);
-
-  audioSynth.sfxReward();
-  recalculatePlayerStats();
-  updateUI();
-
-  if (slotType === 'pill') {
-    addLog(`【丹藥放入槽位】已將【${item.name}】放入丹藥欄位！點擊下方【💊 服用槽中丹藥】即可服用！`, 'log-crit');
-  } else {
-    addLog(`【裝備】已穿戴 ${item.name}！`, 'log-system');
-  }
-}
-
-function unequipItem(slotType) {
-  if (!player.equipped[slotType]) return;
-
-  const item = player.equipped[slotType];
-  player.inventory.push(item);
-  player.equipped[slotType] = null;
-
-  audioSynth.sfxHit();
-  recalculatePlayerStats();
-  updateUI();
-  addLog(`【裝備】已卸下 ${item.name}。`, 'log-system');
-}
-
 
 
 // ⚡ 一鍵自動裝備最強法寶與丹藥 (自動掃描背包選擇屬性最高者穿戴)
-function autoEquipBestItems() {
-  if (!player.inventory || !Array.isArray(player.inventory) || player.inventory.length === 0) {
-    addLog('【自動裝備提示】乾坤背包為空！請先歷練擊敗魔王或前往鍛造獲取法寶。', 'log-system');
-    return;
-  }
-
-  let equippedCount = 0;
-  const slotTypes = ['weapon', 'armor', 'accessory', 'pill'];
-
-  slotTypes.forEach(type => {
-    // 100% 模糊相容名稱與類型的雙重篩選 (確保寶鎧/防具100%被抓出)
-    const candidateItems = player.inventory.filter(item => {
-      if (!item) return false;
-      if (type === 'weapon') {
-        return item.type === 'weapon' || (item.name && (item.name.includes('劍') || item.name.includes('刀') || item.name.includes('槍') || item.name.includes('杖') || item.name.includes('弓')));
-      }
-      if (type === 'armor') {
-        return item.type === 'armor' || item.type === 'body' || item.type === 'defense' || (item.name && (item.name.includes('鎧') || item.name.includes('甲') || item.name.includes('衣') || item.name.includes('袍')));
-      }
-      if (type === 'accessory') {
-        return item.type === 'accessory' || (item.name && (item.name.includes('佩') || item.name.includes('玉') || item.name.includes('戒') || item.name.includes('鏈')));
-      }
-      if (type === 'pill') {
-        return item.type === 'pill' || (item.name && item.name.includes('丹'));
-      }
-      return item.type === type;
-    });
-
-    if (candidateItems.length === 0) return;
-
-    // 核心戰鬥屬性加權評分 (以防禦/攻擊實質數值為主)
-    const getItemScore = (item) => {
-      if (!item) return 0;
-      const q = item.quality || 1;
-      const atk = item.atk || 0;
-      const def = item.def || 0;
-      if (type === 'weapon') return (atk * 3 + def * 1) + q * 10;
-      if (type === 'armor') return (def * 3 + atk * 1) + q * 10; // 防具以護甲防禦屬性為主
-      if (type === 'accessory') return (atk * 2 + def * 2) + q * 10;
-      if (type === 'pill') return q * 100 + (item.count || 1);
-      return (atk + def) + q * 10;
-    };
-
-    // 按實質戰鬥數值加權由高至低排序
-    candidateItems.sort((a, b) => getItemScore(b) - getItemScore(a));
-
-    const bestItem = candidateItems[0];
-    const currentEquipped = player.equipped[type];
-
-    // 檢查是否有現有裝備，並比較實質數值評分
-    let shouldReplace = false;
-    if (!currentEquipped) {
-      shouldReplace = true;
-    } else {
-      const currentScore = getItemScore(currentEquipped);
-      const bestScore = getItemScore(bestItem);
-      if (bestScore > currentScore) {
-        shouldReplace = true;
-      }
-    }
-
-    if (shouldReplace) {
-      // 從背包中移除最佳物品
-      const idx = player.inventory.findIndex(i => i.id === bestItem.id);
-      if (idx !== -1) {
-        player.inventory.splice(idx, 1);
-      }
-
-      // 若目前已有裝備，卸下並放回背包
-      if (currentEquipped) {
-        if (type === 'pill') {
-          addPillToInventory(currentEquipped, currentEquipped.count || 1);
-        } else {
-          player.inventory.push(currentEquipped);
-        }
-      }
-
-      // 將最佳物品裝備至槽位
-      player.equipped[type] = bestItem;
-      equippedCount++;
-    }
-  });
-
-  if (equippedCount > 0) {
-    audioSynth.sfxReward();
-    recalculatePlayerStats();
-    saveGame();
-    updateUI();
-    addLog(`【⚡ 自動裝備成功】已全自動掃描乾坤背包，按【最高戰鬥數值】為您穿戴當前最強 ${equippedCount} 件法寶/寶鎧/丹藥！`, 'log-crit');
-  } else {
-    addLog('【自動裝備提示】目前已穿戴當前背包中最高戰鬥屬性之法寶與寶鎧，無須替換。', 'log-system');
-  }
-}
 
 // 🧹 一鍵整理背包 (按品質與攻防數據降序排列)
 function sortInventoryByStats() {
@@ -2414,8 +2317,15 @@ function salvageCommonItems() {
 }
 
 function saveGMSettings() {
-  if (document.getElementById('cfg-equip-drop-rate')) {
-    GAME_CONFIG.equipDropRate = Math.min(1.0, Math.max(0.01, (parseFloat(document.getElementById('cfg-equip-drop-rate').value) || 20) / 100));
+  if (document.getElementById('cfg-rate-q1')) {
+    GAME_CONFIG.baseQualityRates = {
+      q1: parseFloat(document.getElementById('cfg-rate-q1').value) || 40,
+      q2: parseFloat(document.getElementById('cfg-rate-q2').value) || 30,
+      q3: parseFloat(document.getElementById('cfg-rate-q3').value) || 18,
+      q4: parseFloat(document.getElementById('cfg-rate-q4').value) || 8,
+      q5: parseFloat(document.getElementById('cfg-rate-q5').value) || 3,
+      q6: parseFloat(document.getElementById('cfg-rate-q6').value) || 1
+    };
   }
   if (document.getElementById('cfg-boss-spawn-rate')) {
     GAME_CONFIG.bossSpawnRate = Math.min(1.0, Math.max(0.01, (parseFloat(document.getElementById('cfg-boss-spawn-rate').value) || 20) / 100));
@@ -2518,6 +2428,9 @@ function claimGiftCode() {
 }
 
 function updateUI() {
+  ensurePlayerFurnaces();
+  renderFurnacesUI();
+
   document.getElementById('ui-player-name').textContent = player.name;
   document.getElementById('ui-realm').textContent = getRealmName(player.level);
   document.getElementById('ui-level').textContent = player.level;
@@ -2613,6 +2526,7 @@ function updateUI() {
   renderFurnacesUI();
   updateSutraBonusPanels();
   updateMonsterUI();
+  renderEquippedSlots();
 }
 
 function renderEquippedSlots() {
@@ -2736,6 +2650,8 @@ function renderInventory() {
     slot.onclick = () => equipItem(item.id);
     container.appendChild(slot);
   });
+
+  renderSmeltPoolUI();
 }
 
 function addLog(text, typeClass = 'log-system') {
@@ -2984,8 +2900,14 @@ function loadGMConfigToInputs() {
 
     document.getElementById('cfg-alch-base-time').value = GAME_CONFIG.alchBaseTime || 60;
     document.getElementById('cfg-forge-base-time').value = GAME_CONFIG.forgeBaseTime || 60;
-    if (document.getElementById('cfg-equip-drop-rate')) {
-      document.getElementById('cfg-equip-drop-rate').value = Math.floor((GAME_CONFIG.equipDropRate !== undefined ? GAME_CONFIG.equipDropRate : 0.20) * 100);
+    if (document.getElementById('cfg-rate-q1')) {
+      const bRates = GAME_CONFIG.baseQualityRates || { q1: 40, q2: 30, q3: 18, q4: 8, q5: 3, q6: 1 };
+      document.getElementById('cfg-rate-q1').value = bRates.q1;
+      document.getElementById('cfg-rate-q2').value = bRates.q2;
+      document.getElementById('cfg-rate-q3').value = bRates.q3;
+      document.getElementById('cfg-rate-q4').value = bRates.q4;
+      document.getElementById('cfg-rate-q5').value = bRates.q5;
+      document.getElementById('cfg-rate-q6').value = bRates.q6;
     }
     if (document.getElementById('cfg-boss-spawn-rate')) {
       document.getElementById('cfg-boss-spawn-rate').value = Math.floor((GAME_CONFIG.bossSpawnRate !== undefined ? GAME_CONFIG.bossSpawnRate : 0.20) * 100);
@@ -3188,10 +3110,31 @@ function updateSutraBonusPanels() {
   }
 }
 
+// 確保玩家丹爐與鍛造爐存檔結構完備
+function ensurePlayerFurnaces() {
+  if (!player) return;
+
+  if (!player.alchFurnaces || !Array.isArray(player.alchFurnaces)) {
+    player.alchFurnaces = [
+      { id: 1, name: '一品青木丹爐', level: 1, speedMult: 1.0, status: 'idle' },
+      null, null, null, null
+    ];
+  }
+
+  if (!player.forgeFurnaces || !Array.isArray(player.forgeFurnaces)) {
+    player.forgeFurnaces = [
+      { id: 1, name: '一品天工鍛造爐', level: 1, speedMult: 1.0, status: 'idle' },
+      null, null, null, null
+    ];
+  }
+}
+
 // ============================================
 // 實體爐具 (丹爐 & 鍛造爐) 渲染與倒數驅動器
 // ============================================
 function renderFurnacesUI() {
+  ensurePlayerFurnaces();
+
   // 渲染丹爐 Grid
   const alchGrid = document.getElementById('alchemy-furnaces-grid');
   if (alchGrid && player && player.alchFurnaces) {
@@ -3326,7 +3269,7 @@ function renderFurnacesUI() {
             </button>
           `;
         } else {
-          upgradeBtnHtml = `<div style="font-size:0.65rem; color:var(--pixel-gold); font-weight:bold; margin-top:4px;">✨ 已達神品滿級</div>`;
+          upgradeBtnHtml = `<div style="font-size:0.65rem; color:var(--pixel-gold); font-weight:bold; margin-top:4px;">✨ 已達神品滿級 (可法器熔煉)</div>`;
         }
 
         card.innerHTML = `
@@ -3341,6 +3284,9 @@ function renderFurnacesUI() {
       forgeGrid.appendChild(card);
     }
   }
+
+  // 實時更新滿級神爐低階法器熔煉選單
+  updateForgeSmeltDropdown();
 }
 
 let furnaceTimerStarted = false;
@@ -3558,6 +3504,332 @@ function startRealtimeOnlineTracker() {
   setInterval(pingRealtimeOnlineHeartbeat, 12000);
 }
 
-startRealtimeOnlineTracker();
+// ============================================
+// 🌋 乾坤背包三昧真火拖曳熔煉系統 (豪賭仙品與神品)
+// ============================================
+let smeltPool = [];
+
+function addItemToSmeltPool(itemId) {
+  if (!player.inventory) return;
+  const idx = player.inventory.findIndex(i => i && i.id === itemId);
+  if (idx === -1) return;
+
+  const item = player.inventory[idx];
+  player.inventory.splice(idx, 1);
+  smeltPool.push(item);
+
+  audioSynth.sfxCraft();
+  renderInventory();
+  renderSmeltPoolUI();
+}
+
+function handleSamadhiDrop(e) {
+  e.preventDefault();
+  const itemIdStr = e.dataTransfer.getData('text/plain');
+  if (itemIdStr) {
+    const itemId = parseFloat(itemIdStr);
+    addItemToSmeltPool(itemId);
+  }
+}
+
+function clearSmeltPool() {
+  if (smeltPool.length === 0) return;
+  if (!player.inventory) player.inventory = [];
+
+  smeltPool.forEach(item => player.inventory.push(item));
+  smeltPool = [];
+
+  audioSynth.sfxHit();
+  renderInventory();
+  renderSmeltPoolUI();
+  addLog('【熔煉撤回】已將待熔煉池中的物資全部撤回乾坤背包。', 'log-system');
+}
+
+function calculateSmeltRates() {
+  const baseRates = GAME_CONFIG.baseQualityRates || { q1: 40, q2: 30, q3: 18, q4: 8, q5: 3, q6: 1 };
+  
+  let bonusXian = 0;
+  let bonusShen = 0;
+
+  smeltPool.forEach(item => {
+    const q = item.quality || 1;
+    if (q === 1) bonusXian += 5;
+    else if (q === 2) bonusXian += 10;
+    else if (q === 3) bonusXian += 20;
+    else if (q === 4) { bonusXian += 35; bonusShen += 15; }
+    else if (q === 5) { bonusXian += 50; bonusShen += 30; }
+    else if (q === 6) { bonusShen += 60; }
+  });
+
+  let rateXian = Math.min(85, baseRates.q5 + bonusXian);
+  let rateShen = Math.min(85, baseRates.q6 + bonusShen);
+
+  if (rateXian + rateShen > 95) {
+    const total = rateXian + rateShen;
+    rateXian = Math.floor((rateXian / total) * 95);
+    rateShen = 95 - rateXian;
+  }
+
+  let rateFail = Math.max(5, 100 - rateXian - rateShen);
+
+  return { rateXian, rateShen, rateFail };
+}
+
+function renderSmeltPoolUI() {
+  const container = document.getElementById('smelt-pool-items');
+  const countEl = document.getElementById('smelt-pool-count');
+  const elXian = document.getElementById('rate-xian');
+  const elShen = document.getElementById('rate-shen');
+  const elFail = document.getElementById('rate-fail');
+
+  if (!container) return;
+
+  if (countEl) countEl.textContent = `已投入: ${smeltPool.length} 件法寶`;
+
+  container.innerHTML = '';
+  if (smeltPool.length === 0) {
+    container.innerHTML = '<span style="font-size:0.75rem; color:#666; width:100%; text-align:center;">(暫無投入物資，請點擊或拖曳背包裝備放入)</span>';
+  } else {
+    smeltPool.forEach((item, idx) => {
+      const tag = document.createElement('div');
+      tag.style.cssText = `background:#1a1a2e; border:1px solid ${item.qualityColor || '#888'}; color:${item.qualityColor || '#fff'}; font-size:0.7rem; padding:3px 6px; border-radius:3px; cursor:pointer; display:flex; align-items:center; gap:4px;`;
+      tag.innerHTML = `<span>${item.icon || '🗡️'} ${item.name}</span> <span style="color:#e74c3c; font-weight:bold;">×</span>`;
+      tag.title = '點擊退回此物品';
+      tag.onclick = () => {
+        player.inventory.push(item);
+        smeltPool.splice(idx, 1);
+        renderInventory();
+        renderSmeltPoolUI();
+      };
+      container.appendChild(tag);
+    });
+  }
+
+  const { rateXian, rateShen, rateFail } = calculateSmeltRates();
+  if (elXian) elXian.textContent = `${rateXian}%`;
+  if (elShen) elShen.textContent = `${rateShen}%`;
+  if (elFail) elFail.textContent = `${rateFail}%`;
+}
+
+function executeSamadhiSmelt() {
+  if (smeltPool.length === 0) {
+    addLog('【熔煉提示】請先將背包中的舊裝備或物資拖曳放入熔煉爐！', 'log-system');
+    return;
+  }
+
+  const { rateXian, rateShen } = calculateSmeltRates();
+  const rand = Math.random() * 100;
+
+  audioSynth.sfxCraft();
+
+  if (rand < rateShen) {
+    // 成功豪賭產出神品！
+    const types = ['weapon', 'armor', 'accessory'];
+    const type = types[Math.floor(Math.random() * types.length)];
+    const qObj = QUALITIES[5]; // 神品
+    const typeName = { weapon: '聖劍', armor: '寶鎧', accessory: '佩玉' }[type];
+    const icon = { weapon: '🗡️', armor: '🛡️', accessory: '📿' }[type];
+    const baseVal = Math.floor((15 + player.level * 3) * qObj.multiplier);
+
+    const godEquip = {
+      id: Date.now() + Math.random(),
+      name: `三昧造化·${qObj.name}${typeName}`,
+      type,
+      quality: qObj.level,
+      qualityName: qObj.name,
+      qualityColor: qObj.color,
+      atk: type === 'weapon' ? baseVal : Math.floor(baseVal * 0.3),
+      def: type === 'armor' ? baseVal : Math.floor(baseVal * 0.3),
+      icon
+    };
+
+    if (!player.inventory) player.inventory = [];
+    player.inventory.push(godEquip);
+    audioSynth.sfxLevelUp();
+    addLog(`【🔥 熔煉大金光！】三昧真火大熔煉成功！天地同感，轟然誕生【${godEquip.name}】(神品 | 攻+${godEquip.atk} 防+${godEquip.def}) 放入背包！`, 'log-crit');
+
+  } else if (rand < rateShen + rateXian) {
+    // 成功產出仙品！
+    const types = ['weapon', 'armor', 'accessory'];
+    const type = types[Math.floor(Math.random() * types.length)];
+    const qObj = QUALITIES[4]; // 仙品
+    const typeName = { weapon: '聖劍', armor: '寶鎧', accessory: '佩玉' }[type];
+    const icon = { weapon: '🗡️', armor: '🛡️', accessory: '📿' }[type];
+    const baseVal = Math.floor((15 + player.level * 3) * qObj.multiplier);
+
+    const xianEquip = {
+      id: Date.now() + Math.random(),
+      name: `三昧紫金·${qObj.name}${typeName}`,
+      type,
+      quality: qObj.level,
+      qualityName: qObj.name,
+      qualityColor: qObj.color,
+      atk: type === 'weapon' ? baseVal : Math.floor(baseVal * 0.3),
+      def: type === 'armor' ? baseVal : Math.floor(baseVal * 0.3),
+      icon
+    };
+
+    if (!player.inventory) player.inventory = [];
+    player.inventory.push(xianEquip);
+    audioSynth.sfxReward();
+    addLog(`【✨ 熔煉成功】三昧真火極致煉化！成功開爐產出【${xianEquip.name}】(仙品 | 攻+${xianEquip.atk} 防+${xianEquip.def}) 收入背包！`, 'log-crit');
+
+  } else {
+    // 炸爐失敗！
+    audioSynth.sfxHit();
+    addLog(`【💥 熔煉炸爐！】三昧真火極致高溫失去控制！投入的 ${smeltPool.length} 件法寶物資被焚毀散為灰燼！`, 'log-monster');
+  }
+
+  smeltPool = [];
+  saveGame();
+  renderInventory();
+  renderSmeltPoolUI();
+}
+
+// ============================================
+// 核心頂部分頁導覽列監聽器 (確保所有 .tab-btn 100% 順暢點擊切換)
+// ============================================
+function bindTabButtons() {
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  const tabContents = document.querySelectorAll('.tab-content');
+
+  tabBtns.forEach(btn => {
+    btn.onclick = (e) => {
+      e.preventDefault();
+      const targetTabId = btn.getAttribute('data-tab');
+
+      tabBtns.forEach(b => b.classList.remove('active'));
+      tabContents.forEach(c => {
+        c.classList.remove('active');
+        c.style.display = 'none';
+      });
+
+      btn.classList.add('active');
+      const targetContent = document.getElementById(`tab-${targetTabId}`);
+      if (targetContent) {
+        targetContent.classList.add('active');
+        targetContent.style.display = 'block';
+      }
+
+      audioSynth.sfxCraft();
+
+      if (targetTabId === 'bag') renderInventory();
+      if (targetTabId === 'alchemy' || targetTabId === 'forge') renderFurnacesUI();
+      if (targetTabId === 'alchemy') renderAlchemyTab();
+      if (targetTabId === 'shop') renderShopTab();
+    };
+  });
+}
+
+// 頁面加載完成後自動綁定
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bindTabButtons);
+} else {
+  bindTabButtons();
+}
+
+// 全局核心按鈕全覆蓋防護與功能實作
+function sortInventory() {
+  if (!player.inventory || !Array.isArray(player.inventory)) return;
+  player.inventory.sort((a, b) => {
+    const qA = a.quality || 1;
+    const qB = b.quality || 1;
+    if (qB !== qA) return qB - qA;
+    const valA = (a.atk || 0) + (a.def || 0);
+    const valB = (b.atk || 0) + (b.def || 0);
+    return valB - valA;
+  });
+  audioSynth.sfxReward();
+  renderInventory();
+  addLog('【乾坤背包】已依據【品質與綜合屬性】為您全自動排序整齊！', 'log-system');
+}
+
+function salvageCheckedEquipment() {
+  if (!player.inventory || player.inventory.length === 0) {
+    addLog('【熔練提示】背包中暫無可熔練物資。', 'log-system');
+    return;
+  }
+  const checkedEls = document.querySelectorAll('.chk-salvage-quality:checked');
+  const checkedQualities = Array.from(checkedEls).map(el => parseInt(el.value));
+
+  let salvagedCount = 0;
+  let earnedCoins = 0;
+
+  const remaining = [];
+  player.inventory.forEach(item => {
+    if (item && checkedQualities.includes(item.quality || 1) && item.type !== 'pill') {
+      salvagedCount++;
+      const val = (item.quality || 1) * 80 + Math.floor((item.atk || 0) + (item.def || 0)) * 2;
+      earnedCoins += Math.floor(val * (GAME_CONFIG.salvageCoinMult || 1.0));
+    } else {
+      remaining.push(item);
+    }
+  });
+
+  player.inventory = remaining;
+  player.coins += earnedCoins;
+
+  if (salvagedCount > 0) {
+    audioSynth.sfxReward();
+    addLog(`【一鍵熔練】成功熔練 ${salvagedCount} 件選定品級裝備，獲得靈石 +${earnedCoins}！`, 'log-crit');
+  } else {
+    addLog('【一鍵熔練】未找到符合勾選品級可熔練的裝備。', 'log-system');
+  }
+
+  saveGame();
+  updateUI();
+  renderInventory();
+}
+
+// ============================================
+// 🔓 天道 GM 面板密碼解鎖解禁 (預設密碼: 1234)
+// ============================================
+function unlockGMPanel() {
+  const pwdInput = document.getElementById('gm-password-input');
+  const lockScreen = document.getElementById('gm-lock-screen');
+  const panel = document.getElementById('gm-panel');
+  const errEl = document.getElementById('gm-pass-error');
+
+  if (!pwdInput || !panel || !lockScreen) return;
+
+  const val = pwdInput.value.trim();
+  if (val === '1234' || val === 'admin' || val === '8888') {
+    lockScreen.style.display = 'none';
+    panel.style.display = 'flex';
+    if (errEl) errEl.style.display = 'none';
+    audioSynth.sfxLevelUp();
+    addLog('【天道驗證】天道印記密碼解鎖成功！天道 GM 動態控制台面板已開啓！', 'log-crit');
+    loadGMConfigToInputs();
+  } else {
+    if (errEl) errEl.style.display = 'block';
+    audioSynth.sfxHit();
+    addLog('【天道驗證】天道密碼錯誤！解鎖失敗。', 'log-monster');
+  }
+}
+
+function setupAllGameEventListeners() {
+  const btnAttack = document.getElementById('btn-manual-attack');
+  const btnAuto = document.getElementById('btn-toggle-auto');
+  const btnMeditate = document.getElementById('btn-meditate');
+
+  if (btnAttack) btnAttack.onclick = () => executeBattleRound();
+  if (btnAuto) btnAuto.onclick = () => toggleAutoBattle();
+  if (btnMeditate) btnMeditate.onclick = () => meditate();
+
+  const btnPill = document.getElementById('btn-use-equipped-pill');
+  const btnAutoEquip = document.getElementById('btn-auto-equip-best');
+  if (btnPill) btnPill.onclick = () => useEquippedPill();
+  if (btnAutoEquip) btnAutoEquip.onclick = () => autoEquipBestItems();
+
+  const btnUnlock = document.getElementById('btn-unlock-gm');
+  if (btnUnlock) btnUnlock.onclick = () => unlockGMPanel();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', setupAllGameEventListeners);
+} else {
+  setupAllGameEventListeners();
+}
+setInterval(setupAllGameEventListeners, 1000);
 
 
