@@ -3150,7 +3150,9 @@ function loadGMConfigToInputs() {
     document.getElementById('cfg-coin-mult').value = GAME_CONFIG.coinMult;
     document.getElementById('cfg-herb-rate').value = Math.floor((GAME_CONFIG.herbDropRate || 0.2) * 100);
     document.getElementById('cfg-meditate-mult').value = GAME_CONFIG.meditateMult;
-    document.getElementById('cfg-azure-rate').value = Math.floor(GAME_CONFIG.azureRate * 100);
+    if (document.getElementById('cfg-azure-rate')) {
+      document.getElementById('cfg-azure-rate').value = Math.floor((GAME_CONFIG.azureRate || 0.05) * 100);
+    }
 
     document.getElementById('cfg-monster-hp-mult').value = GAME_CONFIG.monsterHpMult || 2.0;
     document.getElementById('cfg-monster-atk-mult').value = GAME_CONFIG.monsterAtkMult || 1.8;
@@ -3193,7 +3195,8 @@ function saveGMSettings() {
   GAME_CONFIG.coinMult = parseFloat(document.getElementById('cfg-coin-mult').value || 1.0);
   GAME_CONFIG.herbDropRate = parseFloat(document.getElementById('cfg-herb-rate').value || 20) / 100;
   GAME_CONFIG.meditateMult = parseFloat(document.getElementById('cfg-meditate-mult').value || 5);
-  GAME_CONFIG.azureRate = parseFloat(document.getElementById('cfg-azure-rate').value || 5) / 100;
+  const azureRateEl = document.getElementById('cfg-azure-rate');
+  if (azureRateEl) GAME_CONFIG.azureRate = parseFloat(azureRateEl.value || 5) / 100;
 
   GAME_CONFIG.monsterHpMult = parseFloat(document.getElementById('cfg-monster-hp-mult').value || 2.0);
   GAME_CONFIG.monsterAtkMult = parseFloat(document.getElementById('cfg-monster-atk-mult').value || 1.8);
@@ -4496,6 +4499,7 @@ function unlockGMPanel() {
     audioSynth.sfxLevelUp();
     addLog('【天道驗證】天道印記密碼解鎖成功！天道 GM 動態控制台面板已開啓！', 'log-crit');
     loadGMConfigToInputs();
+    startOnlinePlayerCounter();
   } else {
     if (errEl) errEl.style.display = 'block';
     audioSynth.sfxHit();
