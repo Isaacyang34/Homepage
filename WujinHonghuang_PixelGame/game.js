@@ -2,6 +2,61 @@
  * 《無盡洪荒：五行聖境》- 遊戲核心邏輯 (Game Engine v1.4 - Sutra & Merchant)
  */
 
+// ============================================
+// 📱 裝置偵測模組 (Device Detection)
+// ============================================
+const DeviceDetector = {
+  STORAGE_KEY: 'hh_device_notice_dismissed',
+
+  // 綜合 User-Agent 特徵與觸控/寬度判斷，偵測是否為手機/平板等行動裝置
+  isMobile() {
+    const ua = navigator.userAgent || navigator.vendor || '';
+    const uaIsMobile = /android|iphone|ipad|ipod|windows phone|mobile|blackberry|opera mini|iemobile/i.test(ua);
+    const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    const isNarrow = window.innerWidth <= 850;
+    // User-Agent 命中即視為行動裝置；否則需同時具備觸控且螢幕較窄才視為行動裝置
+    return uaIsMobile || (isTouch && isNarrow);
+  },
+
+  apply() {
+    const mobile = this.isMobile();
+    document.body.classList.toggle('is-mobile-device', mobile);
+    document.body.classList.toggle('is-desktop-device', !mobile);
+
+    const notice = document.getElementById('device-notice');
+    if (!notice) return;
+
+    const dismissed = sessionStorage.getItem(this.STORAGE_KEY) === '1';
+    if (mobile && !dismissed) {
+      notice.classList.add('show');
+    } else {
+      notice.classList.remove('show');
+    }
+  },
+
+  dismissNotice() {
+    sessionStorage.setItem(this.STORAGE_KEY, '1');
+    const notice = document.getElementById('device-notice');
+    if (notice) notice.classList.remove('show');
+  },
+
+  init() {
+    this.apply();
+    const closeBtn = document.getElementById('device-notice-close');
+    if (closeBtn) closeBtn.addEventListener('click', () => this.dismissNotice());
+    // 視窗尺寸變動（如旋轉螢幕）時重新判斷，但不強制重開已關閉的提示
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const mobile = this.isMobile();
+        document.body.classList.toggle('is-mobile-device', mobile);
+        document.body.classList.toggle('is-desktop-device', !mobile);
+      }, 200);
+    });
+  }
+};
+
 class PixelAudioSynthesizer {
   constructor() {
     this.ctx = null;
@@ -653,6 +708,7 @@ const ELEMENT_MAT_MAP = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+  DeviceDetector.init();
   loadGame();
   applyUIScale();
   loadGMConfigToInputs();

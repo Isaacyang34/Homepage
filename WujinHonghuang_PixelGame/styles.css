@@ -84,6 +84,70 @@ body {
   margin: 0 auto;
 }
 
+/* ============================================
+   📱 裝置偵測提示橫幅
+   ============================================ */
+.device-notice {
+  display: none;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto 12px;
+}
+
+.device-notice.show {
+  display: block;
+}
+
+.device-notice-content {
+  background: linear-gradient(90deg, #2b1a08 0%, #4a320d 50%, #2b1a08 100%);
+  border: 3px solid var(--pixel-gold);
+  box-shadow: 0 0 0 3px #000, 0 0 12px var(--pixel-gold-glow);
+  padding: 10px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.device-notice-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.device-notice-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.device-notice-text strong {
+  color: var(--pixel-gold);
+  font-size: 0.9rem;
+}
+
+.device-notice-text p {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.device-notice-close {
+  background: transparent;
+  border: 2px solid #56567a;
+  color: var(--text-main);
+  cursor: pointer;
+  font-family: var(--font-pixel);
+  font-size: 0.8rem;
+  padding: 2px 8px;
+  flex-shrink: 0;
+}
+
+.device-notice-close:hover {
+  border-color: var(--pixel-gold);
+  color: var(--pixel-gold);
+}
+
 header {
   background: var(--panel-bg);
   border: 4px solid var(--panel-border);
@@ -951,6 +1015,200 @@ header {
   background: linear-gradient(90deg, #e67e22, #f1c40f);
   width: 0%;
   transition: width 0.3s linear;
+}
+
+/* ============================================
+   📱 手機/平板 響應式排版 (<= 850px)
+   ============================================ */
+@media (max-width: 850px) {
+  body { padding: 6px; }
+
+  #app { gap: 10px; }
+
+  header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .game-title {
+    justify-content: center;
+  }
+
+  .game-title h1 {
+    font-size: 1.2rem;
+  }
+
+  .header-controls {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .header-controls .pixel-btn {
+    flex: 1 1 auto;
+    min-width: 78px;
+    font-size: 0.72rem;
+    padding: 7px 8px;
+  }
+
+  .pixel-box {
+    padding: 10px;
+  }
+
+  .avatar-container {
+    flex-wrap: wrap;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+    font-size: 0.78rem;
+    padding: 8px;
+  }
+
+  .nav-tabs {
+    gap: 4px;
+    padding-bottom: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tab-btn {
+    font-size: 0.78rem;
+    padding: 7px 10px;
+  }
+
+  .sub-nav-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sub-tab-btn {
+    white-space: nowrap;
+  }
+
+  .enemy-display {
+    flex-direction: column;
+    text-align: center;
+    gap: 10px;
+  }
+
+  .monster-info {
+    width: 100%;
+    align-items: center;
+  }
+
+  .modal-box {
+    width: 95%;
+    padding: 14px;
+    max-height: 90vh;
+  }
+
+  .modal-title {
+    font-size: 1.05rem;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .combat-log {
+    height: 200px;
+    min-height: 150px;
+  }
+
+  .gacha-card-box {
+    width: 120px;
+    height: 160px;
+  }
+
+  .sutra-grid,
+  .alchemy-grid,
+  .shop-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .gm-settings-grid,
+  .furnace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .item-slot {
+    width: 56px;
+    height: 56px;
+  }
+
+  .inventory-grid {
+    grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  }
+}
+
+/* ============================================
+   📱 小型手機螢幕 響應式排版 (<= 480px)
+   ============================================ */
+@media (max-width: 480px) {
+  .game-title {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .game-title h1 {
+    font-size: 1.05rem;
+    letter-spacing: 1px;
+  }
+
+  .badge {
+    font-size: 0.6rem;
+  }
+
+  .header-controls .pixel-btn {
+    font-size: 0.65rem;
+    padding: 6px 6px;
+    min-width: 68px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pixel-avatar {
+    width: 44px;
+    height: 44px;
+    font-size: 1.4rem;
+  }
+
+  .player-name {
+    font-size: 0.9rem;
+  }
+
+  .gacha-card-box {
+    width: 100px;
+    height: 140px;
+  }
+
+  .gacha-icon {
+    font-size: 2.4rem;
+  }
+
+  .dungeon-select {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  }
+
+  .chaos-level-bar {
+    gap: 4px;
+  }
+
+  .chaos-lvl-btn {
+    font-size: 0.68rem;
+    padding: 4px 6px;
+  }
+
+  .device-notice-text strong {
+    font-size: 0.82rem;
+  }
+
+  .device-notice-text p {
+    font-size: 0.68rem;
+  }
 }
 
 
