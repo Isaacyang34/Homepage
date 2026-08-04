@@ -3872,42 +3872,109 @@ setInterval(() => {
 }, 1000);
 
 // ============================================
-// 🌐 100% 真實跨電腦全服在線人數心跳服務 (方案 A)
+// 🌐 全服真實跨裝置在線人數 (Firebase Realtime Database Presence)
 // ============================================
-let realtimeOnlineCount = 1;
+// 【設定步驟】(免費即可，Firebase Spark 方案)：
+// 1. 前往 https://console.firebase.google.com 建立新專案
+// 2. 左側選單「建構」→「Realtime Database」→ 建立資料庫（區域任選，安全規則先選「測試模式」）
+// 3. 進入該資料庫的「規則」分頁，貼上以下規則後點「發布」：
+//    {
+//      "rules": {
+//        "onlinePlayers": {
+//          ".read": true,
+//          ".write": true
+//        }
+//      }
+//    }
+//    (只開放 onlinePlayers 這個節點的讀寫，其餘資料仍受保護)
+// 4. 「專案設定」(齒輪圖示) → 一般 → 新增應用程式 (</> 網頁) → 複製產生的 firebaseConfig
+// 5. 把複製到的內容貼進下面的 FIREBASE_CONFIG 物件即可啟用真實在線人數
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAI8p0RKTRCULBtxC4vse3Ilo5Dwv6DF38",
+  authDomain: "playeronline-6f807.firebaseapp.com",
+  databaseURL: "https://playeronline-6f807-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "playeronline-6f807",
+  storageBucket: "playeronline-6f807.firebasestorage.app",
+  messagingSenderId: "449561293408",
+  appId: "1:449561293408:web:230821811fdcaf38298905"
+};
+
 let onlineTrackerStarted = false;
+let firebaseDb = null;
 
-function pingRealtimeOnlineHeartbeat() {
-  const apiUrl = 'https://api.countapi.xyz/hit/wujin_honghuang_game_official_v1/realtime_pings';
-  
-  fetch(apiUrl)
-    .then(res => res.json())
-    .then(data => {
-      if (data && data.value) {
-        const calculatedActive = Math.max(1, Math.floor((data.value % 45) + 1));
-        realtimeOnlineCount = calculatedActive;
-
-        const elRemote = document.getElementById('gm-remote-online-count');
-        const elStatus = document.getElementById('gm-remote-node-status');
-
-        if (elRemote) elRemote.innerHTML = `${realtimeOnlineCount} <span style="font-size:0.7rem; color:#2ecc71;">人 (真實在線)</span>`;
-        if (elStatus) elStatus.innerHTML = `<span style="color:#2ecc71;">📡 雲端在線心跳節點: 已連線</span>`;
-      }
-    })
-    .catch(() => {
-      const elRemote = document.getElementById('gm-remote-online-count');
-      const elStatus = document.getElementById('gm-remote-node-status');
-      if (elRemote) elRemote.innerHTML = `1 <span style="font-size:0.7rem; color:#f1c40f;">人 (本機連線)</span>`;
-      if (elStatus) elStatus.innerHTML = `<span style="color:#f39c12;">📡 雲端在線心跳節點: 獨立運行中</span>`;
-    });
+// 每個瀏覽器持久化一組匿名玩家識別碼，用來當作 onlinePlayers 底下的 key
+function getOrCreatePlayerUID() {
+  let uid = localStorage.getItem('hh_player_uid');
+  if (!uid) {
+    uid = 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+    localStorage.setItem('hh_player_uid', uid);
+  }
+  return uid;
 }
 
-function startRealtimeOnlineTracker() {
+function isFirebaseConfigured() {
+  // Realtime Database 在規則開放讀寫、且不使用 Firebase Auth 的情況下，
+  // apiKey 並非必要欄位，只要有 databaseURL 就能連線；但強烈建議之後補齊完整 config。
+  return !!FIREBASE_CONFIG.databaseURL;
+}
+
+function renderOnlineCountUI(html, statusHtml) {
+  const elRemote = document.getElementById('gm-remote-online-count');
+  const elStatus = document.getElementById('gm-remote-node-status');
+  if (elRemote && html !== null) elRemote.innerHTML = html;
+  if (elStatus && statusHtml !== null) elStatus.innerHTML = statusHtml;
+}
+
+function startOnlinePlayerCounter() {
   if (onlineTrackerStarted) return;
   onlineTrackerStarted = true;
 
-  pingRealtimeOnlineHeartbeat();
-  setInterval(pingRealtimeOnlineHeartbeat, 12000);
+  // 尚未填入 Firebase 設定，或 SDK 未載入 → 誠實顯示「僅本機」，不再顯示假數字
+  if (typeof firebase === 'undefined' || !isFirebaseConfigured()) {
+    renderOnlineCountUI(
+      `1 <span style="font-size:0.7rem; color:#f1c40f;">人（尚未設定雲端後端，僅顯示本機）</span>`,
+      `<span style="color:#f39c12;">📡 尚未設定 Firebase，無法統計全服真實人數</span>`
+    );
+    return;
+  }
+
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    firebaseDb = firebase.database();
+
+    const uid = getOrCreatePlayerUID();
+    const myRef = firebaseDb.ref('onlinePlayers/' + uid);
+    const connectedRef = firebaseDb.ref('.info/connected');
+    const onlinePlayersRef = firebaseDb.ref('onlinePlayers');
+
+    // Firebase 官方標準 Presence 寫法：
+    // 只要這個瀏覽器連線到 Realtime Database，就在 onlinePlayers/自己的UID 寫入 true，
+    // 並用 onDisconnect() 註冊「斷線時（關分頁/斷網）由伺服器自動移除」，
+    // 這樣不論是正常離開還是斷網關機，人數都會即時準確地增減。
+    connectedRef.on('value', (snap) => {
+      if (snap.val() === true) {
+        myRef.onDisconnect().remove();
+        myRef.set(true);
+        renderOnlineCountUI(null, `<span style="color:#2ecc71;">📡 雲端在線心跳節點: 已連線</span>`);
+      } else {
+        renderOnlineCountUI(null, `<span style="color:#f39c12;">📡 雲端在線心跳節點: 連線中斷，嘗試重連中...</span>`);
+      }
+    });
+
+    onlinePlayersRef.on('value', (snap) => {
+      const count = snap.numChildren();
+      renderOnlineCountUI(
+        `${Math.max(1, count)} <span style="font-size:0.7rem; color:#2ecc71;">人（全服真實在線）</span>`,
+        null
+      );
+    });
+  } catch (err) {
+    console.error('Firebase 在線人數初始化失敗:', err);
+    renderOnlineCountUI(
+      `1 <span style="font-size:0.7rem; color:#e74c3c;">人（雲端連線失敗）</span>`,
+      `<span style="color:#e74c3c;">📡 雲端在線心跳節點: 連線失敗，請檢查 FIREBASE_CONFIG 設定</span>`
+    );
+  }
 }
 
 // ============================================
