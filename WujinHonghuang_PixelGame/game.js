@@ -223,6 +223,184 @@ const PILL_RECIPES = [
       p.def += 15;
       return `服下【先天淬靈洗髓丹】，靈根獲洗髓升級！修速+5%，防禦+15！`;
     }
+  },
+  
+  // 🟢 氣血/修為恢復速度丹藥體系 (多品級對應 %)
+  {
+    id: 'recipe_regen_1',
+    name: '《養氣丹》',
+    quality: '凡品',
+    icon: '🌿',
+    coinsCost: 80,
+    materials: { lingzhi: 2 },
+    desc: '基礎養氣，使用後氣血恢復速度提升 +20%！',
+    action: (p) => {
+      p.activeRegenPill = { name: '養氣丹', boost: 0.20, qualityColor: '#888888' };
+      updateUI();
+      return `服下【養氣丹】，氣血恢復速度提升 +20%！`;
+    }
+  },
+  {
+    id: 'recipe_regen_2',
+    name: '《生化丹》',
+    quality: '下品',
+    icon: '🌱',
+    coinsCost: 180,
+    materials: { lingzhi: 3, baicao: 2 },
+    desc: '生化萬物，使用後氣血恢復速度提升 +40%！',
+    action: (p) => {
+      p.activeRegenPill = { name: '生化丹', boost: 0.40, qualityColor: '#2ecc71' };
+      updateUI();
+      return `服下【生化丹】，氣血恢復速度提升 +40%！`;
+    }
+  },
+  {
+    id: 'recipe_regen_3',
+    name: '《培元丹》',
+    quality: '中品',
+    icon: '🍃',
+    coinsCost: 350,
+    materials: { baicao: 4, zhusha: 2 },
+    desc: '固本培元，使用後氣血恢復速度大增 +70%！',
+    action: (p) => {
+      p.activeRegenPill = { name: '培元丹', boost: 0.70, qualityColor: '#3498db' };
+      updateUI();
+      return `服下【培元丹】，氣血恢復速度提升 +70%！`;
+    }
+  },
+  {
+    id: 'recipe_regen_4',
+    name: '《九轉大還丹》',
+    quality: '上品',
+    icon: '✨',
+    coinsCost: 650,
+    materials: { zhusha: 3, longkui: 3 },
+    desc: '九轉玄功！使用後氣血恢復速度暴增 +110%！',
+    action: (p) => {
+      p.activeRegenPill = { name: '九轉大還丹', boost: 1.10, qualityColor: '#9b59b6' };
+      updateUI();
+      return `服下【九轉大還丹】，氣血恢復速度暴增 +110%！`;
+    }
+  },
+  {
+    id: 'recipe_regen_5',
+    name: '《造化聖血丹》',
+    quality: '極品',
+    icon: '🩸',
+    coinsCost: 1200,
+    materials: { longkui: 4, renshen: 2 },
+    desc: '造化神力！使用後氣血恢復速度狂暴 +160%！',
+    action: (p) => {
+      p.activeRegenPill = { name: '造化聖血丹', boost: 1.60, qualityColor: '#f1c40f' };
+      updateUI();
+      return `服下【造化聖血丹】，氣血恢復速度狂暴 +160%！`;
+    }
+  },
+  {
+    id: 'recipe_regen_6',
+    name: '《不滅不死神丹》',
+    quality: '神品',
+    icon: '👑',
+    coinsCost: 2500,
+    materials: { renshen: 5, longkui: 5, zhusha: 5 },
+    desc: '不死不滅！使用後氣血恢復速度極限暴漲 +230%！',
+    action: (p) => {
+      p.activeRegenPill = { name: '不滅不死神丹', boost: 2.30, qualityColor: '#e74c3c' };
+      updateUI();
+      return `服下【不滅不死神丹】，氣血恢復速度極限暴漲 +230%！`;
+    }
+  },
+
+  // ⚡ 加速自動掛機點擊速度丹藥體系 (多品級對應 %)
+  {
+    id: 'recipe_speed_1',
+    name: '《疾風丹》',
+    quality: '凡品',
+    icon: '💨',
+    coinsCost: 100,
+    materials: { baicao: 2 },
+    desc: '疾風加持，自動掛機攻速提升 +15%！',
+    action: (p) => {
+      p.activeSpeedPill = { name: '疾風丹', boost: 0.15, qualityColor: '#888888' };
+      if (isAutoBattling) { toggleAutoBattle(); toggleAutoBattle(); }
+      updateUI();
+      return `服下【疾風丹】，自動掛機攻速提升 +15%！`;
+    }
+  },
+  {
+    id: 'recipe_speed_2',
+    name: '《迅捷丹》',
+    quality: '下品',
+    icon: '⚡',
+    coinsCost: 220,
+    materials: { baicao: 3, zhusha: 2 },
+    desc: '迅捷如風，自動掛機攻速提升 +30%！',
+    action: (p) => {
+      p.activeSpeedPill = { name: '迅捷丹', boost: 0.30, qualityColor: '#2ecc71' };
+      if (isAutoBattling) { toggleAutoBattle(); toggleAutoBattle(); }
+      updateUI();
+      return `服下【迅捷丹】，自動掛機攻速提升 +30%！`;
+    }
+  },
+  {
+    id: 'recipe_speed_3',
+    name: '《神行丹》',
+    quality: '中品',
+    icon: '🏃',
+    coinsCost: 450,
+    materials: { zhusha: 4, longkui: 2 },
+    desc: '神行千里！自動掛機攻速大增 +50% (頻率 1.5 倍)！',
+    action: (p) => {
+      p.activeSpeedPill = { name: '神行丹', boost: 0.50, qualityColor: '#3498db' };
+      if (isAutoBattling) { toggleAutoBattle(); toggleAutoBattle(); }
+      updateUI();
+      return `服下【神行丹】，自動掛機攻速大增 +50%！`;
+    }
+  },
+  {
+    id: 'recipe_speed_4',
+    name: '《縮地成寸丹》',
+    quality: '上品',
+    icon: '🌀',
+    coinsCost: 850,
+    materials: { longkui: 4, renshen: 2 },
+    desc: '空間折疊！自動掛機攻速暴增 +75%！',
+    action: (p) => {
+      p.activeSpeedPill = { name: '縮地成寸丹', boost: 0.75, qualityColor: '#9b59b6' };
+      if (isAutoBattling) { toggleAutoBattle(); toggleAutoBattle(); }
+      updateUI();
+      return `服下【縮地成寸丹】，自動掛機攻速暴增 +75%！`;
+    }
+  },
+  {
+    id: 'recipe_speed_5',
+    name: '《太虛光陰丹》',
+    quality: '極品',
+    icon: '⏳',
+    coinsCost: 1500,
+    materials: { renshen: 4, longkui: 4, zhusha: 3 },
+    desc: '光陰逆轉！自動掛機攻速狂暴 +100% (攻速翻倍)！',
+    action: (p) => {
+      p.activeSpeedPill = { name: '太虛光陰丹', boost: 1.00, qualityColor: '#f1c40f' };
+      if (isAutoBattling) { toggleAutoBattle(); toggleAutoBattle(); }
+      updateUI();
+      return `服下【太虛光陰丹】，自動掛機攻速狂暴翻倍 +100%！`;
+    }
+  },
+  {
+    id: 'recipe_speed_6',
+    name: '《天道流光神丹》',
+    quality: '神品',
+    icon: '🌌',
+    coinsCost: 3000,
+    materials: { renshen: 6, longkui: 6, zhusha: 6 },
+    desc: '天道流光！自動掛機攻速極限暴增 +150% (超高速光速殘影)！',
+    action: (p) => {
+      p.activeSpeedPill = { name: '天道流光神丹', boost: 1.50, qualityColor: '#e74c3c' };
+      if (isAutoBattling) { toggleAutoBattle(); toggleAutoBattle(); }
+      updateUI();
+      return `服下【天道流光神丹】，自動掛機攻速極限暴漲 +150%！`;
+    }
   }
 ];
 
@@ -555,6 +733,17 @@ function setupEventListeners() {
   document.getElementById('btn-boss-drop-close-modal').addEventListener('click', () => {
     bossDropModal.classList.remove('show');
   });
+
+  // 一鍵自動裝備與一鍵整理背包按鈕綁定
+  const btnAutoEquip = document.getElementById('btn-auto-equip-best');
+  if (btnAutoEquip) {
+    btnAutoEquip.addEventListener('click', autoEquipBestItems);
+  }
+
+  const btnSortInv = document.getElementById('btn-sort-inventory');
+  if (btnSortInv) {
+    btnSortInv.addEventListener('click', sortInventoryByStats);
+  }
 
   document.getElementById('btn-save').addEventListener('click', () => {
     saveGame();
@@ -1221,10 +1410,9 @@ function onMonsterDefeated() {
     player.inventory.push(droppedEquip);
 
     if (isBossMonster) {
-      addLog(`【👑 首領大爆裝備】${currentMonster.name} 轟然倒地解體！暴出【${droppedEquip.name}】(品級:${droppedEquip.qualityName} | 攻+${droppedEquip.atk} 防+${droppedEquip.def})！已寫入【🎒乾坤背包】(當前共 ${player.inventory.length} 件)！`, 'log-crit');
-      showBossDropModal(droppedEquip);
+      addLog(`【👑 首領大爆裝備】${currentMonster.name} 轟然倒地解體！暴出【${droppedEquip.name}】(品級:${droppedEquip.qualityName} | 攻+${droppedEquip.atk} 防+${droppedEquip.def})！已放入【🎒乾坤背包】(當前共 ${player.inventory.length} 件)！`, 'log-crit');
     } else {
-      addLog(`【🎁 戰利品爆裝】擊敗 ${currentMonster.name}！獲得【${droppedEquip.name}】(品級:${droppedEquip.qualityName})！已寫入【🎒乾坤背包】(當前共 ${player.inventory.length} 件)！`, 'log-drop');
+      addLog(`【🎁 戰利品爆裝】擊敗 ${currentMonster.name}！獲得【${droppedEquip.name}】(品級:${droppedEquip.qualityName})！已放入【🎒乾坤背包】(當前共 ${player.inventory.length} 件)！`, 'log-drop');
     }
   }
 
@@ -1275,18 +1463,24 @@ function getRealmName(lvl) {
 function toggleAutoBattle() {
   const btn = document.getElementById('btn-toggle-auto');
   if (isAutoBattling) {
-    clearInterval(autoBattleInterval);
+    if (autoBattleInterval) clearInterval(autoBattleInterval);
     isAutoBattling = false;
     btn.textContent = '⚔️ 開啟自動掛機';
     btn.classList.remove('btn-gold');
     addLog(`【系統】已停止自動掛機。`, 'log-system');
   } else {
     isAutoBattling = true;
-    btn.textContent = '⏸️ 停止自動掛機';
     btn.classList.add('btn-gold');
-    addLog(`【系統】開始自動掛機修煉中...`, 'log-system');
+    
+    // 算入掛機攻速加速丹藥加成
+    const speedBoost = (player.activeSpeedPill && player.activeSpeedPill.boost) ? player.activeSpeedPill.boost : 0;
+    const interval = Math.max(150, Math.floor(1200 / (1 + speedBoost)));
+    const pillText = player.activeSpeedPill ? ` (${player.activeSpeedPill.name} 攻速 +${Math.floor(speedBoost * 100)}%)` : '';
+
+    btn.textContent = `⏸️ 停止自動掛機${pillText}`;
+    addLog(`【自動掛機】開啟自動討伐秘境魔物... 戰鬥頻率: ${interval}ms/次${pillText}`, 'log-system');
     executeBattleRound();
-    autoBattleInterval = setInterval(executeBattleRound, 1500);
+    autoBattleInterval = setInterval(executeBattleRound, interval);
   }
 }
 
@@ -1940,6 +2134,105 @@ function useEquippedPill() {
   updateUI();
 }
 
+// ⚡ 一鍵自動裝備最強法寶與丹藥 (自動掃描背包選擇屬性最高者穿戴)
+function autoEquipBestItems() {
+  if (!player.inventory || !Array.isArray(player.inventory) || player.inventory.length === 0) {
+    addLog('【自動裝備提示】乾坤背包為空！請先歷練擊敗魔王或前往鍛造獲取法寶。', 'log-system');
+    return;
+  }
+
+  let equippedCount = 0;
+  const slotTypes = ['weapon', 'armor', 'accessory', 'pill'];
+
+  slotTypes.forEach(type => {
+    // 找出背包中符合該類型的所有物品
+    const candidateItems = player.inventory.filter(item => {
+      if (type === 'pill') {
+        return item.type === 'pill' || (item.name && item.name.includes('丹'));
+      }
+      return item.type === type;
+    });
+
+    if (candidateItems.length === 0) return;
+
+    // 計算最佳物品評分 (品級加權 * 1000 + 攻擊 + 防禦)
+    candidateItems.sort((a, b) => {
+      const scoreA = (a.quality || 1) * 1000 + (a.atk || 0) * 2 + (a.def || 0);
+      const scoreB = (b.quality || 1) * 1000 + (b.atk || 0) * 2 + (b.def || 0);
+      return scoreB - scoreA;
+    });
+
+    const bestItem = candidateItems[0];
+    const currentEquipped = player.equipped[type];
+
+    // 檢查是否有現有裝備，並比較評分
+    let shouldReplace = false;
+    if (!currentEquipped) {
+      shouldReplace = true;
+    } else {
+      const currentScore = (currentEquipped.quality || 1) * 1000 + (currentEquipped.atk || 0) * 2 + (currentEquipped.def || 0);
+      const bestScore = (bestItem.quality || 1) * 1000 + (bestItem.atk || 0) * 2 + (bestItem.def || 0);
+      if (bestScore > currentScore) {
+        shouldReplace = true;
+      }
+    }
+
+    if (shouldReplace) {
+      // 從背包中移除最佳物品
+      const idx = player.inventory.findIndex(i => i.id === bestItem.id);
+      if (idx !== -1) {
+        player.inventory.splice(idx, 1);
+      }
+
+      // 若目前已有裝備，卸下並放回背包
+      if (currentEquipped) {
+        player.inventory.push(currentEquipped);
+      }
+
+      // 將最佳物品裝備至槽位
+      player.equipped[type] = bestItem;
+      equippedCount++;
+    }
+  });
+
+  if (equippedCount > 0) {
+    audioSynth.sfxReward();
+    recalculatePlayerStats();
+    saveGame();
+    updateUI();
+    addLog(`【⚡ 自動裝備成功】已全自動掃描乾坤背包，為您穿戴當前最強 ${equippedCount} 件法寶/丹藥！屬性大幅躍升！`, 'log-crit');
+  } else {
+    addLog('【自動裝備提示】目前已穿戴當前背包中最高屬性法寶，無須替換。', 'log-system');
+  }
+}
+
+// 🧹 一鍵整理背包 (按品質與攻防數據降序排列)
+function sortInventoryByStats() {
+  if (!player.inventory || !Array.isArray(player.inventory) || player.inventory.length <= 1) {
+    addLog('【背包整理提示】背包物品數量較少，無需整理。', 'log-system');
+    return;
+  }
+
+  player.inventory.sort((a, b) => {
+    const scoreA = (a.quality || 1) * 1000 + (a.atk || 0) * 2 + (a.def || 0);
+    const scoreB = (b.quality || 1) * 1000 + (b.atk || 0) * 2 + (b.def || 0);
+    if (scoreB !== scoreA) {
+      return scoreB - scoreA;
+    }
+    // 評分相同時按類型排序 (weapon -> armor -> accessory -> pill)
+    const typeOrder = { weapon: 1, armor: 2, accessory: 3, pill: 4 };
+    const orderA = typeOrder[a.type] || 5;
+    const orderB = typeOrder[b.type] || 5;
+    return orderA - orderB;
+  });
+
+  audioSynth.sfxCraft();
+  saveGame();
+  renderInventory();
+  updateUI();
+  addLog(`【🧹 背包整理】乾坤背包已全自動按品質與攻防數據由高至低重新整齊排列！`, 'log-crit');
+}
+
 // 重新計算屬性 (算入裝備、蒼靈根115% 與心法加成)
 function recalculatePlayerStats() {
   let extraAtk = 0;
@@ -2163,19 +2456,46 @@ function renderEquippedSlots() {
   if (!eq) return;
   ['weapon', 'armor', 'accessory', 'pill'].forEach(type => {
     const el = document.getElementById(`eq-${type}`);
+    const infoEl = document.getElementById(`eq-${type}-info`);
     if (!el) return;
+
+    const slotTitleMap = { weapon: '武器', armor: '防具', accessory: '飾品', pill: '丹藥' };
+    const typeTitle = slotTitleMap[type] || '裝備';
+
     if (eq[type]) {
-      el.style.borderColor = eq[type].qualityColor || '#f1c40f';
-      el.innerHTML = `
-        <span style="font-size:1.3rem;">${eq[type].icon}</span>
-        <span style="font-size:0.6rem; color:${eq[type].qualityColor || '#fff'}; font-weight:bold; line-height:1.1; text-align:center;">${eq[type].name}</span>
-      `;
+      const item = eq[type];
+      el.style.borderColor = item.qualityColor || '#f1c40f';
+      el.innerHTML = `<span style="font-size:1.3rem;">${item.icon}</span>`;
       el.onclick = () => unequipItem(type);
+
+      if (infoEl) {
+        let statText = '';
+        if (item.atk && item.def) {
+          statText = `⚔️攻+${item.atk} 🛡️防+${item.def}`;
+        } else if (item.atk) {
+          statText = `⚔️ 攻擊: +${item.atk}`;
+        } else if (item.def) {
+          statText = `🛡️ 防禦: +${item.def}`;
+        } else {
+          statText = `✨ 已裝備備用`;
+        }
+
+        infoEl.innerHTML = `
+          <span style="font-size:0.75rem; color:${item.qualityColor || '#f1c40f'}; font-weight:bold; white-space:nowrap; text-overflow:ellipsis; overflow:hidden; max-width:140px;">${item.name}</span>
+          <span style="font-size:0.68rem; color:#2ecc71; font-weight:bold; line-height:1.2; white-space:nowrap;">${statText}</span>
+        `;
+      }
     } else {
       el.style.borderColor = type === 'pill' ? '#e74c3c' : '#3d3d63';
-      let title = type === 'weapon' ? '空武器' : type === 'armor' ? '空防具' : type === 'accessory' ? '空飾品' : '空丹藥';
-      el.innerHTML = `<span style="color:#666; font-size:0.75rem;">${title}</span>`;
+      el.innerHTML = `<span style="color:#666; font-size:0.7rem;">空</span>`;
       el.onclick = null;
+
+      if (infoEl) {
+        infoEl.innerHTML = `
+          <span style="font-size:0.75rem; color:#888; font-weight:bold;">${typeTitle}：未穿戴</span>
+          <span style="font-size:0.68rem; color:#666;">--</span>
+        `;
+      }
     }
   });
 }
@@ -2245,7 +2565,10 @@ function getRegenAmount() {
   if (isMeditating) base *= (GAME_CONFIG.meditateMult || 5);
   // 一旦被擊倒負傷，恢復速度打折剩下 50%
   if (player.isInjured) base = Math.max(1, Math.floor(base * 0.5));
-  return base;
+
+  // 算入氣血/修為恢復速度丹藥加成 (%)
+  const regenBoost = (player.activeRegenPill && player.activeRegenPill.boost) ? player.activeRegenPill.boost : 0;
+  return Math.floor(base * (1 + regenBoost));
 }
 
 function startRegenTimer() {

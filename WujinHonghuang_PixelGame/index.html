@@ -87,15 +87,58 @@
           <div class="panel-title" style="margin-top:5px; font-size:0.95rem;">
             <span>法寶與丹藥槽</span>
           </div>
-          <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:6px;">
-            <div class="item-slot" id="eq-weapon" title="點擊卸下武器"><span style="color:#666; font-size:0.75rem;">空武器</span></div>
-            <div class="item-slot" id="eq-armor" title="點擊卸下防具"><span style="color:#666; font-size:0.75rem;">空防具</span></div>
-            <div class="item-slot" id="eq-accessory" title="點擊卸下飾品"><span style="color:#666; font-size:0.75rem;">空飾品</span></div>
-            <div class="item-slot" id="eq-pill" style="border-color:#e74c3c;" title="點擊卸下丹藥"><span style="color:#666; font-size:0.75rem;">空丹藥</span></div>
+          <div style="display:flex; flex-direction:column; gap:6px; margin-top:4px;">
+            <!-- 武器槽位與右側獨立數據 -->
+            <div style="display:flex; align-items:center; gap:8px; background:#11111f; border:1px solid #333; padding:4px 6px; border-radius:4px;">
+              <div class="item-slot" id="eq-weapon" style="flex-shrink:0; width:40px; height:40px;" title="點擊卸下武器">
+                <span style="color:#666; font-size:0.7rem;">空</span>
+              </div>
+              <div id="eq-weapon-info" style="display:flex; flex-direction:column; overflow:hidden; justify-content:center;">
+                <span style="font-size:0.75rem; color:#888; font-weight:bold;">武器：未穿戴</span>
+                <span style="font-size:0.68rem; color:#666;">--</span>
+              </div>
+            </div>
+
+            <!-- 防具槽位與右側獨立數據 -->
+            <div style="display:flex; align-items:center; gap:8px; background:#11111f; border:1px solid #333; padding:4px 6px; border-radius:4px;">
+              <div class="item-slot" id="eq-armor" style="flex-shrink:0; width:40px; height:40px;" title="點擊卸下防具">
+                <span style="color:#666; font-size:0.7rem;">空</span>
+              </div>
+              <div id="eq-armor-info" style="display:flex; flex-direction:column; overflow:hidden; justify-content:center;">
+                <span style="font-size:0.75rem; color:#888; font-weight:bold;">防具：未穿戴</span>
+                <span style="font-size:0.68rem; color:#666;">--</span>
+              </div>
+            </div>
+
+            <!-- 飾品槽位與右側獨立數據 -->
+            <div style="display:flex; align-items:center; gap:8px; background:#11111f; border:1px solid #333; padding:4px 6px; border-radius:4px;">
+              <div class="item-slot" id="eq-accessory" style="flex-shrink:0; width:40px; height:40px;" title="點擊卸下飾品">
+                <span style="color:#666; font-size:0.7rem;">空</span>
+              </div>
+              <div id="eq-accessory-info" style="display:flex; flex-direction:column; overflow:hidden; justify-content:center;">
+                <span style="font-size:0.75rem; color:#888; font-weight:bold;">飾品：未穿戴</span>
+                <span style="font-size:0.68rem; color:#666;">--</span>
+              </div>
+            </div>
+
+            <!-- 丹藥槽位與右側獨立數據 -->
+            <div style="display:flex; align-items:center; gap:8px; background:#11111f; border:1px solid #333; padding:4px 6px; border-radius:4px;">
+              <div class="item-slot" id="eq-pill" style="border-color:#e74c3c; flex-shrink:0; width:40px; height:40px;" title="點擊卸下丹藥">
+                <span style="color:#666; font-size:0.7rem;">空</span>
+              </div>
+              <div id="eq-pill-info" style="display:flex; flex-direction:column; overflow:hidden; justify-content:center;">
+                <span style="font-size:0.75rem; color:#888; font-weight:bold;">丹藥：未備用</span>
+                <span style="font-size:0.68rem; color:#666;">--</span>
+              </div>
+            </div>
           </div>
 
           <button class="pixel-btn btn-gold" id="btn-use-equipped-pill" style="margin-top:6px; width:100%; padding:6px; font-size:0.8rem; border-color:#e74c3c;">
             💊 服用槽中丹藥
+          </button>
+
+          <button class="pixel-btn btn-wood" id="btn-auto-equip-best" style="margin-top:6px; width:100%; padding:8px; font-size:0.8rem; font-weight:bold;">
+            ⚡ 一鍵自動裝備最強法寶
           </button>
 
         </div>
@@ -311,7 +354,10 @@
         <div class="tab-content" id="tab-bag">
           <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
             <span style="color:var(--pixel-gold);">🎒 乾坤背包 (可點擊裝備或拖曳熔練)</span>
-            <button class="pixel-btn btn-gold" id="btn-salvage-all" style="font-size:0.75rem;">♻️ 一鍵熔練勾選品級裝備</button>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="pixel-btn btn-wood" id="btn-sort-inventory" style="font-size:0.75rem;">🧹 一鍵整理背包 (數值排序)</button>
+              <button class="pixel-btn btn-gold" id="btn-salvage-all" style="font-size:0.75rem;">♻️ 一鍵熔練勾選品級裝備</button>
+            </div>
           </div>
 
           <!-- 一鍵熔練品級勾選器 -->
