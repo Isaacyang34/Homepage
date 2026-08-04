@@ -580,12 +580,12 @@
             <div class="gm-online-dashboard" style="background:#0e1628; border:2px solid var(--pixel-gold); border-radius:6px; padding:12px; display:flex; flex-direction:column; gap:8px; box-shadow:0 0 12px rgba(241,196,15,0.25);">
               <div style="font-size:0.95rem; color:var(--pixel-gold); font-weight:bold; display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #3d3d63; padding-bottom:6px; flex-wrap:wrap; gap:4px;">
                 <span>🌐 全服真實跨電腦在線數據中心</span>
-                <span style="font-size:0.75rem; color:#2ecc71; font-weight:normal;" id="gm-remote-node-status">📡 雲端在線心跳節點: 已連線</span>
+                <span style="font-size:0.75rem; color:#888; font-weight:normal;" id="gm-remote-node-status">📡 尚未連線</span>
               </div>
               <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap:10px; margin-top:4px;">
                 <div style="background:#141f36; padding:8px; border-radius:4px; border:1px solid #f1c40f; text-align:center;">
                   <div style="font-size:0.72rem; color:#aaa;">🌐 當前全服真實跨電腦在線</div>
-                  <div style="font-size:1.3rem; color:var(--pixel-gold); font-weight:bold; margin-top:2px;" id="gm-remote-online-count">1 <span style="font-size:0.7rem; color:#2ecc71;">人 (真實在線)</span></div>
+                  <div style="font-size:1.3rem; color:var(--pixel-gold); font-weight:bold; margin-top:2px;" id="gm-remote-online-count">-- <span style="font-size:0.7rem; color:#888;">尚未連線</span></div>
                 </div>
                 <div style="background:#141f36; padding:8px; border-radius:4px; border:1px solid #2d3b5e; text-align:center;">
                   <div style="font-size:0.72rem; color:#aaa;">⏱️ 本機持續遊玩總時長</div>
@@ -920,6 +920,9 @@
     </div>
   </div>
 
-  <script src="game.js?v=5.0_FORCE_RELOAD"></script>
+  <!-- 🌐 Firebase SDK (用於全服真實在線人數 Presence 功能，需在 game.js 中填入 FIREBASE_CONFIG 才會啟用) -->
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+  <script src="game.js?v=5.1_FIREBASE_PRESENCE"></script>
 </body>
 </html>
