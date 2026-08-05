@@ -377,7 +377,7 @@ const PILL_RECIPES = [
     desc: '疾風加持，自動掛機攻速提升 +15%！',
     action: (p) => {
       p.activeSpeedPill = { name: '疾風丹', boost: 0.15, qualityColor: '#888888' };
-      if (isAutoBattling) { toggleAutoBattle(); toggleAutoBattle(); }
+      if (isAutoBattling) startAutoBattle();
       updateUI();
       return `服下【疾風丹】，自動掛機攻速提升 +15%！`;
     }
@@ -392,7 +392,7 @@ const PILL_RECIPES = [
     desc: '迅捷如風，自動掛機攻速提升 +30%！',
     action: (p) => {
       p.activeSpeedPill = { name: '迅捷丹', boost: 0.30, qualityColor: '#2ecc71' };
-      if (isAutoBattling) { toggleAutoBattle(); toggleAutoBattle(); }
+      if (isAutoBattling) startAutoBattle();
       updateUI();
       return `服下【迅捷丹】，自動掛機攻速提升 +30%！`;
     }
@@ -407,7 +407,7 @@ const PILL_RECIPES = [
     desc: '神行千里！自動掛機攻速大增 +50% (頻率 1.5 倍)！',
     action: (p) => {
       p.activeSpeedPill = { name: '神行丹', boost: 0.50, qualityColor: '#3498db' };
-      if (isAutoBattling) { toggleAutoBattle(); toggleAutoBattle(); }
+      if (isAutoBattling) startAutoBattle();
       updateUI();
       return `服下【神行丹】，自動掛機攻速大增 +50%！`;
     }
@@ -422,7 +422,7 @@ const PILL_RECIPES = [
     desc: '空間折疊！自動掛機攻速暴增 +75%！',
     action: (p) => {
       p.activeSpeedPill = { name: '縮地成寸丹', boost: 0.75, qualityColor: '#9b59b6' };
-      if (isAutoBattling) { toggleAutoBattle(); toggleAutoBattle(); }
+      if (isAutoBattling) startAutoBattle();
       updateUI();
       return `服下【縮地成寸丹】，自動掛機攻速暴增 +75%！`;
     }
@@ -437,7 +437,7 @@ const PILL_RECIPES = [
     desc: '光陰逆轉！自動掛機攻速狂暴 +100% (攻速翻倍)！',
     action: (p) => {
       p.activeSpeedPill = { name: '太虛光陰丹', boost: 1.00, qualityColor: '#f1c40f' };
-      if (isAutoBattling) { toggleAutoBattle(); toggleAutoBattle(); }
+      if (isAutoBattling) startAutoBattle();
       updateUI();
       return `服下【太虛光陰丹】，自動掛機攻速狂暴翻倍 +100%！`;
     }
@@ -452,7 +452,7 @@ const PILL_RECIPES = [
     desc: '天道流光！自動掛機攻速極限暴增 +150% (超高速光速殘影)！',
     action: (p) => {
       p.activeSpeedPill = { name: '天道流光神丹', boost: 1.50, qualityColor: '#e74c3c' };
-      if (isAutoBattling) { toggleAutoBattle(); toggleAutoBattle(); }
+      if (isAutoBattling) startAutoBattle();
       updateUI();
       return `服下【天道流光神丹】，自動掛機攻速極限暴漲 +150%！`;
     }
@@ -1123,6 +1123,11 @@ function updateMonsterUI() {
 }
 
 function executeBattleRound() {
+  // 手動發起戰鬥時，若處於打坐狀態，自動結束打坐
+  if (isMeditating && !isAutoBattling) {
+    stopMeditate();
+  }
+
   // 自動掛機智能恢復：若負傷或血量低，優先嘗試自動服丹或打坐調息
   if (player.isInjured || player.hp < player.maxHp * 0.3) {
     checkAutoUsePillOnLowHp();
@@ -1224,7 +1229,7 @@ function executeBattleRound() {
       player.isInjured = true;
       audioSynth.sfxHit();
       addLog(`【🤕 戰敗負傷】你被 ${currentMonster.name} 重創擊倒！體力透支逃回洞府！負傷期間恢復速度降為 50%，氣血全滿前無法再次歷練！`, 'log-crit');
-      if (isAutoBattling) toggleAutoBattle();
+      if (isAutoBattling) stopAutoBattle();
       if (isMeditating) stopMeditate();
     }
     updateUI();
@@ -1581,27 +1586,60 @@ function getRealmName(lvl) {
   return REALMS[idx];
 }
 
-function toggleAutoBattle() {
+function stopAutoBattle() {
+  if (autoBattleInterval) {
+    clearInterval(autoBattleInterval);
+    autoBattleInterval = null;
+  }
+  isAutoBattling = false;
   const btn = document.getElementById('btn-toggle-auto');
-  if (isAutoBattling) {
-    if (autoBattleInterval) clearInterval(autoBattleInterval);
-    isAutoBattling = false;
+  if (btn) {
     btn.textContent = '⚔️ 開啟自動掛機';
     btn.classList.remove('btn-gold');
-    addLog(`【系統】已停止自動掛機。`, 'log-system');
-  } else {
-    isAutoBattling = true;
-    btn.classList.add('btn-gold');
-    
-    // 算入掛機攻速加速丹藥加成
-    const speedBoost = (player.activeSpeedPill && player.activeSpeedPill.boost) ? player.activeSpeedPill.boost : 0;
-    const interval = Math.max(150, Math.floor(1200 / (1 + speedBoost)));
-    const pillText = player.activeSpeedPill ? ` (${player.activeSpeedPill.name} 攻速 +${Math.floor(speedBoost * 100)}%)` : '';
+  }
+}
 
-    btn.textContent = `⏸️ 停止自動掛機${pillText}`;
-    addLog(`【自動掛機】開啟自動討伐秘境魔物... 戰鬥頻率: ${interval}ms/次${pillText}`, 'log-system');
+function startAutoBattle() {
+  if (isAutoBattling) {
+    // 若已經在掛機中，僅重置定時器頻率 (例如服用了攻速丹)
+    if (autoBattleInterval) clearInterval(autoBattleInterval);
+  }
+  
+  // 若在打坐，自動停止打坐
+  if (isMeditating) stopMeditate();
+
+  isAutoBattling = true;
+  const btn = document.getElementById('btn-toggle-auto');
+  if (btn) btn.classList.add('btn-gold');
+
+  // 算入掛機攻速加速丹藥加成
+  const speedBoost = (player.activeSpeedPill && player.activeSpeedPill.boost) ? player.activeSpeedPill.boost : 0;
+  const interval = Math.max(150, Math.floor(1200 / (1 + speedBoost)));
+  const pillText = player.activeSpeedPill ? ` (${player.activeSpeedPill.name} 攻速 +${Math.floor(speedBoost * 100)}%)` : '';
+
+  if (btn) btn.textContent = `⏸️ 停止自動掛機${pillText}`;
+  addLog(`【自動掛機】開啟自動討伐秘境魔物... 戰鬥頻率: ${interval}ms/次${pillText}`, 'log-system');
+
+  // 立即執行首輪戰鬥
+  executeBattleRound();
+
+  // 建立持續掛機定時器
+  autoBattleInterval = setInterval(() => {
+    if (!isAutoBattling) {
+      clearInterval(autoBattleInterval);
+      autoBattleInterval = null;
+      return;
+    }
     executeBattleRound();
-    autoBattleInterval = setInterval(executeBattleRound, interval);
+  }, interval);
+}
+
+function toggleAutoBattle() {
+  if (isAutoBattling) {
+    stopAutoBattle();
+    addLog(`【系統】已手動停止自動掛機。`, 'log-system');
+  } else {
+    startAutoBattle();
   }
 }
 
