@@ -12,7 +12,7 @@
   --jade:#52c8a0;--blue:#00cfff;
   --red:#e84040;--panel:#06091a;
   --border:#2a3860;--text:#dde4f0;--dim:#6b7a9a;
-  --scale:1.2;
+  --scale:1.45;
 }
 html,body{height:100%;}
 body{
@@ -123,6 +123,7 @@ canvas{image-rendering:pixelated;display:block;}
 .modal-title{color:var(--gold);font-size:13px;font-weight:700;letter-spacing:3px;
   text-shadow:0 0 10px var(--gold-d);}
 .close-x{background:none;border:none;color:var(--dim);font-size:16px;cursor:pointer;
+.close-x{background:none;border:none;color:var(--dim);font-size:20px;cursor:pointer;
   transition:color .2s;padding:2px 6px;}
 .close-x:hover{color:var(--red);}
 
@@ -141,9 +142,6 @@ canvas{image-rendering:pixelated;display:block;}
 .islot.empty:hover{border-color:#1e2840;background:#06091a;}
 .inv-tip{font-size:9px;color:var(--dim);text-align:center;padding-bottom:4px;}
 
-/* ───── 角色面板 ─────────────────────── */
-#char-modal{width:420px;}
-.char-body{display:flex;gap:14px;padding:14px 16px;}
 .char-sprite-box{width:80px;flex-shrink:0;display:flex;flex-direction:column;
   align-items:center;gap:6px;}
 .char-canvas{border:1px solid var(--border);border-radius:4px;background:#06091a;
@@ -361,11 +359,11 @@ canvas{image-rendering:pixelated;display:block;}
 <!-- ══════════ 人物面板浮層 ══════════ -->
 <div class="overlay" id="char-overlay">
   <div class="modal" id="char-modal">
-    <div class="modal-hdr"><div class="modal-title">📋 人物資訊</div><button class="close-x" onclick="closeChar()">✕</button></div>
+    <div class="modal-hdr"><div class="modal-title">📋 人物資訊 (HD 狀態)</div><button class="close-x" onclick="closeChar()">✕</button></div>
     <div class="char-body">
       <div class="char-sprite-box">
-        <canvas class="char-canvas" id="char-canvas" width="64" height="80"></canvas>
-        <div style="font-size:10px;color:var(--dim);text-align:center;margin-top:4px;">修仙者</div>
+        <canvas class="char-canvas" id="char-canvas" width="96" height="120"></canvas>
+        <div style="font-size:11px;color:var(--gold);text-align:center;margin-top:4px;font-weight:700;">修仙者</div>
       </div>
       <div class="char-stats" id="char-stats"></div>
     </div>
@@ -809,15 +807,24 @@ function closeInv(){ $('inv-overlay').classList.remove('show'); }
 $('inv-overlay').addEventListener('click',e=>{ if(e.target===$('inv-overlay')) closeInv(); });
 
 // ═══════════════════════════════════════════════════════════
-//  人物面板
+//  人物面板 (高解析度 HD 預覽)
 // ═══════════════════════════════════════════════════════════
 function openChar(){
   const r=REALMS[P.realmIdx];
   const sc=$('char-canvas').getContext('2d');
   sc.imageSmoothingEnabled=false;
-  sc.clearRect(0,0,64,80);
-  sc.fillStyle='#06091a'; sc.fillRect(0,0,64,80);
-  drawSpriteSmall(IDLE0,sc,4,6,3);
+  sc.clearRect(0,0,96,120);
+  sc.fillStyle='#06091a'; sc.fillRect(0,0,96,120);
+
+  if(hdPlayerLoaded){
+    const fw = hdPlayerImg.width / 4;
+    const fh = hdPlayerImg.height / 2;
+    // 渲染 96x120 HD 角色預覽
+    sc.drawImage(hdPlayerImg, 0, 0, fw, fh, 12, 10, 72, 96);
+  } else {
+    drawSpriteSmall(IDLE0,sc,12,15,4);
+  }
+
   const st=$('char-stats'); st.innerHTML='';
   const rows=[
     ['境界',r.name],
