@@ -1,0 +1,1999 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>修仙傳 · MyPixelGame</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&family=Noto+Sans+Mono&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;user-select:none;}
+:root{
+  --gold:#d4a843;--gold-d:rgba(212,168,67,.7);
+  --jade:#52c8a0;--blue:#00cfff;
+  --red:#e84040;--panel:#06091a;
+  --border:#2a3860;--text:#dde4f0;--dim:#6b7a9a;
+  --scale:1.2;
+}
+html,body{height:100%;}
+body{
+  background:#030509;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-family:'Noto Serif TC',serif;overflow:hidden;min-height:100vh;
+}
+/* ───── 標題列 ───────────────────────── */
+#title-bar{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
+#title{color:var(--gold);font-size:15px;letter-spacing:5px;text-shadow:0 0 14px var(--gold-d);}
+.icon-btn{
+  width:30px;height:30px;background:rgba(6,9,26,.9);
+  border:1px solid var(--border);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:14px;color:var(--dim);
+  transition:border-color .2s,color .2s,transform .4s;
+}
+.icon-btn:hover{border-color:var(--gold);color:var(--gold);}
+.icon-btn.spin{transform:rotate(90deg);border-color:var(--gold);color:var(--gold);}
+
+/* ───── 遊戲容器 ─────────────────────── */
+#wrap-outer{display:flex;flex-direction:column;align-items:center;}
+#wrap{
+  position:relative;width:800px;height:450px;
+  transform:scale(var(--scale));transform-origin:top center;
+  transition:transform .3s;
+}
+#wrap-spacer{transition:height .3s;}
+canvas{image-rendering:pixelated;display:block;}
+#gc{width:800px;height:450px;border:2px solid #1e2840;border-radius:3px;
+  box-shadow:0 0 50px rgba(0,0,0,.95),0 0 20px rgba(0,207,255,.06);}
+
+/* ───── 通用面板 ─────────────────────── */
+.panel{background:rgba(6,9,26,.9);border:1px solid var(--border);border-radius:5px;backdrop-filter:blur(4px);}
+.panel::before{content:'';position:absolute;inset:0;border-radius:inherit;
+  background:linear-gradient(135deg,rgba(255,255,255,.03),transparent 60%);pointer-events:none;}
+
+/* ───── 左側 HUD ─────────────────────── */
+#hud-l{position:absolute;top:8px;left:8px;padding:9px 12px;width:205px;pointer-events:none;}
+.realm-nm{font-size:11px;font-weight:700;color:var(--gold);letter-spacing:2px;
+  text-shadow:0 0 10px var(--gold-d);margin-bottom:7px;display:flex;align-items:center;gap:4px;}
+.realm-nm::before{content:'☯';font-size:13px;}
+.br{display:flex;align-items:center;gap:5px;margin:3px 0;font-size:10px;}
+.bl{width:28px;text-align:right;font-weight:700;}
+.bt{flex:1;height:8px;background:#0a0e1a;border:1px solid #1e2840;border-radius:8px;overflow:hidden;position:relative;}
+.bf{height:100%;border-radius:8px;transition:width .1s;}
+.bf::after{content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.2),transparent);
+  animation:shim 2s linear infinite;}
+@keyframes shim{0%{transform:translateX(-100%);}100%{transform:translateX(100%);}}
+.bh{background:linear-gradient(90deg,#8b1a1a,#e84040);}
+.bq{background:linear-gradient(90deg,#0a4a8a,#00cfff);}
+.be{background:linear-gradient(90deg,#4a1a8a,#b86fff);}
+.bv{font-size:9px;color:var(--dim);min-width:44px;text-align:right;white-space:nowrap;}
+.div{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin:6px 0;}
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:2px 5px;font-size:10px;color:var(--dim);}
+.sg .v{color:var(--text);}
+
+/* ───── 右側 HUD ─────────────────────── */
+#hud-r{position:absolute;top:8px;right:8px;padding:8px 10px;width:145px;pointer-events:none;}
+.kr{display:flex;align-items:center;gap:4px;margin:2px 0;font-size:10px;color:var(--dim);}
+.kk{background:#0a0e1a;border:1px solid #3a4870;border-radius:3px;padding:0 4px;
+  min-width:20px;text-align:center;font-size:9px;color:var(--jade);font-weight:700;
+  line-height:15px;white-space:nowrap;box-shadow:0 2px 0 #111;}
+
+/* ───── 底部快捷鍵列 ─────────────────── */
+#hotbar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:4px;}
+.hslot{width:46px;height:46px;background:#060a18;border:1px solid var(--border);
+  border-radius:4px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;font-size:18px;position:relative;cursor:pointer;
+  transition:border-color .2s;}
+.hslot:hover{border-color:var(--gold);}
+.hslot .hk{position:absolute;bottom:2px;right:3px;font-size:7px;color:var(--jade);font-weight:700;}
+.hslot .hl{font-size:8px;color:var(--dim);margin-top:1px;}
+.hslot.active-slot{border-color:var(--blue);box-shadow:0 0 8px rgba(0,207,255,.4);}
+.hsep{width:1px;height:40px;background:var(--border);}
+
+/* ───── 底部狀態條 ───────────────────── */
+#hud-bot{position:absolute;bottom:62px;left:50%;transform:translateX(-50%);
+  padding:4px 14px;font-size:10px;pointer-events:none;white-space:nowrap;}
+#state-txt{color:var(--gold);font-weight:700;letter-spacing:1px;}
+
+/* ───── 迷你地圖 ───────────────────── */
+#mm-canvas{position:absolute;bottom:62px;right:8px;width:90px;height:68px;
+  border:1px solid var(--border);border-radius:3px;background:rgba(4,8,18,.9);}
+#mm-lbl{position:absolute;bottom:133px;right:8px;font-size:9px;color:var(--dim);}
+
+/* ───── 破境按鈕 ─────────────────────── */
+#btn-bt{position:absolute;bottom:108px;left:50%;transform:translateX(-50%);
+  display:none;padding:9px 24px;
+  background:linear-gradient(135deg,#906000,#d4880a,#906000);
+  border:2px solid var(--gold);color:#fff8e0;font-family:'Noto Serif TC',serif;
+  font-size:12px;font-weight:700;border-radius:20px;cursor:pointer;letter-spacing:2px;
+  box-shadow:0 0 24px var(--gold-d);pointer-events:auto;z-index:15;
+  animation:btp 1.3s ease-in-out infinite alternate;}
+@keyframes btp{from{box-shadow:0 0 18px var(--gold-d);}to{box-shadow:0 0 36px rgba(212,168,67,.9);}}
+
+/* ───── 浮層共用 ─────────────────────── */
+.overlay{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.7);
+  backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;}
+.overlay.show{display:flex;}
+.modal{background:#080c1e;border:1.5px solid var(--border);border-radius:10px;
+  overflow:hidden;animation:mdin .2s ease;max-width:95vw;}
+@keyframes mdin{from{opacity:0;transform:scale(.94);}to{opacity:1;transform:none;}}
+.modal-hdr{display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px 8px;border-bottom:1px solid var(--border);}
+.modal-title{color:var(--gold);font-size:13px;font-weight:700;letter-spacing:3px;
+  text-shadow:0 0 10px var(--gold-d);}
+.close-x{background:none;border:none;color:var(--dim);font-size:16px;cursor:pointer;
+  transition:color .2s;padding:2px 6px;}
+.close-x:hover{color:var(--red);}
+
+/* ───── 儲物袋 ─────────────────────── */
+#inv-modal{width:380px;}
+.inv-body{padding:14px 16px 12px;}
+.inv-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px;}
+.islot{background:#06091a;border:1px solid #1e2840;border-radius:4px;
+  height:58px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;cursor:pointer;position:relative;
+  transition:border-color .2s,background .2s;font-size:22px;}
+.islot:hover{border-color:var(--gold);background:#0e1830;}
+.islot .inm{font-size:8px;color:var(--dim);margin-top:2px;}
+.islot .iqt{position:absolute;bottom:3px;right:5px;font-size:9px;color:var(--gold);font-weight:700;}
+.islot.empty{opacity:.2;cursor:default;}
+.islot.empty:hover{border-color:#1e2840;background:#06091a;}
+.inv-tip{font-size:9px;color:var(--dim);text-align:center;padding-bottom:4px;}
+
+/* ───── 角色面板 ─────────────────────── */
+#char-modal{width:420px;}
+.char-body{display:flex;gap:14px;padding:14px 16px;}
+.char-sprite-box{width:80px;flex-shrink:0;display:flex;flex-direction:column;
+  align-items:center;gap:6px;}
+.char-canvas{border:1px solid var(--border);border-radius:4px;background:#06091a;
+  image-rendering:pixelated;}
+.char-stats{flex:1;}
+.cs-row{display:flex;justify-content:space-between;align-items:center;
+  padding:4px 0;border-bottom:1px solid rgba(42,56,96,.4);font-size:11px;}
+.cs-lbl{color:var(--dim);}
+.cs-val{color:var(--text);font-weight:700;}
+.cs-val.hi{color:var(--gold);}
+
+/* ───── 世界地圖 ─────────────────────── */
+#map-modal{width:640px;}
+.wmap-body{padding:0;position:relative;}
+#wmap-canvas{width:600px;height:340px;image-rendering:pixelated;display:block;
+  margin:0 auto;cursor:pointer;}
+#wmap-info{padding:10px 16px 12px;border-top:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;}
+#wmap-desc{font-size:11px;color:var(--dim);flex:1;}
+#wmap-desc .area-name{color:var(--gold);font-size:13px;font-weight:700;margin-bottom:2px;}
+#btn-enter{padding:8px 22px;background:linear-gradient(135deg,#0a4a8a,#1a6ab0);
+  border:1.5px solid var(--blue);color:#fff;font-size:12px;font-weight:700;
+  border-radius:16px;cursor:pointer;letter-spacing:1px;font-family:'Noto Serif TC',serif;
+  transition:background .2s;}
+#btn-enter:hover{background:linear-gradient(135deg,#1a6ab0,#2a8ad0);}
+#btn-enter:disabled{opacity:.4;cursor:not-allowed;}
+
+/* ───── 對話框 ─────────────────────── */
+#dlg-box{position:absolute;bottom:78px;left:50%;transform:translateX(-50%);
+  width:520px;padding:12px 16px;display:none;pointer-events:auto;z-index:20;}
+#dlg-port{width:40px;height:40px;border:1px solid var(--gold);border-radius:3px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:26px;background:#06091a;margin-right:10px;float:left;}
+#dlg-name{color:var(--gold);font-size:11px;font-weight:700;margin-bottom:4px;}
+#dlg-txt{font-size:11px;color:var(--text);line-height:1.8;min-height:28px;}
+#dlg-txt.typing{border-right:2px solid var(--gold);}
+#dlg-nxt{float:right;font-size:10px;color:var(--jade);cursor:pointer;
+  animation:blink 1s infinite;letter-spacing:1px;margin-top:6px;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+/* ───── 地圖切換橫幅 ─────────────────── */
+#map-banner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:rgba(4,8,20,.95);border:2px solid var(--gold);border-radius:8px;
+  padding:20px 44px;text-align:center;display:none;z-index:25;pointer-events:none;}
+#bnr-name{color:var(--gold);font-size:20px;font-weight:700;letter-spacing:4px;
+  text-shadow:0 0 18px var(--gold-d);}
+#bnr-sub{color:var(--dim);font-size:11px;margin-top:4px;letter-spacing:2px;}
+
+/* ───── 通知 ─────────────────────────── */
+#notif{position:absolute;top:58px;left:50%;transform:translateX(-50%);
+  padding:6px 20px;background:rgba(6,9,26,.9);border:1px solid var(--jade);
+  border-radius:14px;color:var(--jade);font-size:11px;display:none;
+  pointer-events:none;z-index:30;white-space:nowrap;animation:nin .3s ease;}
+@keyframes nin{from{opacity:0;transform:translate(-50%,-8px);}to{opacity:1;transform:translate(-50%,0);}}
+
+/* ───── 設定浮層 ─────────────────────── */
+#cfg-overlay{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.7);
+  backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;}
+#cfg-overlay.show{display:flex;}
+#cfg-modal{background:#080c1e;border:1.5px solid var(--border);border-radius:10px;
+  width:500px;max-width:95vw;overflow:hidden;animation:mdin .2s ease;}
+.cfg-tabs{display:flex;background:#06091a;border-bottom:1px solid var(--border);}
+.ctab{flex:1;padding:8px 0;text-align:center;font-size:11px;color:var(--dim);
+  cursor:pointer;border-bottom:2px solid transparent;transition:color .2s,border-color .2s;
+  display:flex;align-items:center;justify-content:center;gap:4px;}
+.ctab:hover{color:var(--text);}
+.ctab.act{color:var(--gold);border-bottom-color:var(--gold);}
+.cfg-body{padding:16px 18px;}
+.cpg{display:none;}
+.cpg.act{display:block;}
+.crow{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;}
+.clg{flex:1;}
+.clbl{font-size:11px;color:var(--text);letter-spacing:1px;}
+.chnt{font-size:9px;color:var(--dim);margin-top:2px;}
+.csl{width:190px;appearance:none;height:5px;background:#1e2840;
+  border-radius:3px;outline:none;cursor:pointer;}
+.csl::-webkit-slider-thumb{appearance:none;width:13px;height:13px;
+  background:var(--gold);border-radius:50%;box-shadow:0 0 5px var(--gold-d);
+  border:2px solid #fff;cursor:pointer;}
+.cval{min-width:34px;text-align:right;font-size:11px;color:var(--gold);font-weight:700;}
+.ctog{width:40px;height:20px;background:#1e2840;border-radius:10px;position:relative;
+  cursor:pointer;transition:background .25s;border:1px solid var(--border);flex-shrink:0;}
+.ctog.on{background:linear-gradient(135deg,#0a6a50,var(--jade));border-color:var(--jade);}
+.ctog::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;
+  background:#fff;border-radius:50%;transition:transform .25s;box-shadow:0 1px 3px rgba(0,0,0,.5);}
+.ctog.on::after{transform:translateX(18px);}
+.cbtn{padding:5px 14px;background:#0d1528;border:1.5px solid var(--border);
+  color:var(--text);border-radius:4px;cursor:pointer;font-size:10px;
+  transition:background .2s,border-color .2s;font-family:'Noto Serif TC',serif;}
+.cbtn:hover{background:#1a2440;border-color:var(--jade);color:var(--jade);}
+.cfg-ftr{display:flex;justify-content:flex-end;padding:8px 18px 12px;
+  border-top:1px solid var(--border);}
+.kb-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px 16px;}
+.kb-r{display:flex;justify-content:space-between;align-items:center;
+  padding:3px 0;border-bottom:1px solid rgba(42,56,96,.4);font-size:10px;}
+.kb-a{color:var(--dim);}
+.kb-k{background:#0a0e1a;border:1px solid #3a4870;border-radius:3px;padding:1px 6px;
+  color:var(--jade);font-size:9px;font-weight:700;box-shadow:0 2px 0 #111;}
+
+/* ───── 底部腳標 ─────────────────────── */
+#footer{margin-top:8px;font-size:10px;color:#1e2840;letter-spacing:2px;}
+</style>
+</head>
+<body>
+<div id="title-bar">
+  <div id="title">⚔ 修仙傳 · MyPixelGame ⚔</div>
+  <div class="icon-btn" id="btn-cfg" title="設定 (Esc)">⚙</div>
+</div>
+
+<div id="wrap-outer">
+  <div id="wrap">
+    <canvas id="gc" width="480" height="270"></canvas>
+
+    <!-- 左側 HUD -->
+    <div id="hud-l" class="panel">
+      <div class="realm-nm" id="ui-realm">練氣期一重</div>
+      <div class="br"><span class="bl" style="color:#e84040">氣血</span><div class="bt"><div class="bf bh" id="ui-hp" style="width:100%"></div></div><span class="bv" id="hp-v">100/100</span></div>
+      <div class="br"><span class="bl" style="color:var(--blue)">靈力</span><div class="bt"><div class="bf bq" id="ui-qi" style="width:0%"></div></div><span class="bv" id="qi-v">0/100</span></div>
+      <div class="br"><span class="bl" style="color:#b86fff">悟道</span><div class="bt"><div class="bf be" id="ui-exp" style="width:0%"></div></div><span class="bv" id="exp-v">0/80</span></div>
+      <div class="div"></div>
+      <div class="sg">
+        <div>💎靈石</div><div class="v" id="ui-st">0</div>
+        <div>⚔擊殺</div><div class="v" id="ui-kl">0</div>
+        <div>⚡攻擊</div><div class="v" id="ui-atk">10</div>
+        <div>🛡防禦</div><div class="v" id="ui-def">2</div>
+        <div>🗺地圖</div><div class="v" id="ui-mp">宗門</div>
+      </div>
+    </div>
+
+    <!-- 右側 HUD -->
+    <div id="hud-r" class="panel">
+      <div style="font-size:10px;color:var(--gold);margin-bottom:5px;letter-spacing:1px;">快捷操作</div>
+      <div class="kr"><span class="kk">WASD</span><span>移動</span></div>
+      <div class="kr"><span class="kk">J/空白</span><span>揮劍</span></div>
+      <div class="kr"><span class="kk">K</span><span>打坐</span></div>
+      <div class="kr"><span class="kk">L/Shift</span><span>閃避</span></div>
+      <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+      <div class="kr"><span class="kk">I</span><span>儲物袋</span></div>
+      <div class="kr"><span class="kk">C</span><span>人物面板</span></div>
+      <div class="kr"><span class="kk">M</span><span>世界地圖</span></div>
+      <div class="kr"><span class="kk">F</span><span>NPC 互動</span></div>
+    </div>
+
+    <!-- 迷你地圖 -->
+    <div id="mm-lbl">小地圖</div>
+    <canvas id="mm-canvas" width="90" height="68"></canvas>
+
+    <!-- 底部狀態 -->
+    <div id="hud-bot" class="panel"><span id="state-txt">✨ 踏入宗門…</span></div>
+
+    <!-- 底部快捷鍵列 (1/2/3 切換型態) -->
+    <div id="hotbar">
+      <div class="hslot active-slot" id="st-sword" title="[1] 御劍型態 (按住蓄力發射劍陣)" onclick="setStance('SWORD')">🗡️<span class="hk">1</span><span class="hl">御劍</span></div>
+      <div class="hslot" id="st-talisman" title="[2] 雷符型態 (按住蓄力發射九天雷陣)" onclick="setStance('TALISMAN')">⚡<span class="hk">2</span><span class="hl">雷符</span></div>
+      <div class="hslot" id="st-frost" title="[3] 冰法型態 (按住蓄力凍結全場)" onclick="setStance('FROST')">❄️<span class="hk">3</span><span class="hl">冰法</span></div>
+      <div class="hsep"></div>
+      <div class="hslot" title="打坐 K" onclick="toggleMed()">🧘<span class="hk">K</span></div>
+      <div class="hslot" title="閃避 L" onclick="doDash()">💨<span class="hk">L</span></div>
+      <div class="hslot" title="快速丹藥 Q" onclick="quickPill()">💊<span class="hk">Q</span></div>
+      <div class="hsep"></div>
+      <div class="hslot" title="儲物袋 I" onclick="openInv()">🎒<span class="hk">I</span></div>
+      <div class="hslot" title="人物 C" onclick="openChar()">📋<span class="hk">C</span></div>
+      <div class="hslot" title="世界地圖 M" onclick="openMap()">🗺<span class="hk">M</span></div>
+    </div>
+
+    <!-- 破境按鈕 -->
+    <button id="btn-bt">⚡ 靈氣滿溢 ─ 發起破境！</button>
+
+    <!-- 對話框 -->
+    <div id="dlg-box" class="panel">
+      <div id="dlg-port"></div>
+      <div id="dlg-name"></div>
+      <div id="dlg-txt"></div>
+      <div id="dlg-nxt">▶ 繼續 (F / 點擊)</div>
+      <div style="clear:both"></div>
+    </div>
+
+    <!-- 地圖切換橫幅 -->
+    <div id="map-banner"><div id="bnr-name"></div><div id="bnr-sub"></div></div>
+
+    <!-- 通知 -->
+    <div id="notif"></div>
+  </div>
+  <div id="wrap-spacer"></div>
+</div>
+
+<!-- ══════════ 儲物袋浮層 ══════════ -->
+<div class="overlay" id="inv-overlay">
+  <div class="modal" id="inv-modal">
+    <div class="modal-hdr"><div class="modal-title">⚗ 儲物袋</div><button class="close-x" onclick="closeInv()">✕</button></div>
+    <div class="inv-body">
+      <div class="inv-grid" id="inv-grid"></div>
+      <div class="inv-tip">💡 點擊物品使用 · 持有 10 格</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 人物面板浮層 ══════════ -->
+<div class="overlay" id="char-overlay">
+  <div class="modal" id="char-modal">
+    <div class="modal-hdr"><div class="modal-title">📋 人物資訊</div><button class="close-x" onclick="closeChar()">✕</button></div>
+    <div class="char-body">
+      <div class="char-sprite-box">
+        <canvas class="char-canvas" id="char-canvas" width="64" height="80"></canvas>
+        <div style="font-size:10px;color:var(--dim);text-align:center;margin-top:4px;">修仙者</div>
+      </div>
+      <div class="char-stats" id="char-stats"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 世界地圖浮層 ══════════ -->
+<div class="overlay" id="map-overlay">
+  <div class="modal" id="map-modal">
+    <div class="modal-hdr"><div class="modal-title">🗺 界域全圖</div><button class="close-x" onclick="closeMap()">✕</button></div>
+    <div class="wmap-body">
+      <canvas id="wmap-canvas" width="600" height="340"></canvas>
+      <div id="wmap-info">
+        <div id="wmap-desc"><div class="area-name" id="wmap-area-name">選擇目的地</div><div id="wmap-area-desc">點擊地圖上的區域節點以選擇前往</div></div>
+        <button id="btn-enter" disabled onclick="enterArea()">✈ 前往</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 設定浮層 ══════════ -->
+<div id="cfg-overlay">
+  <div id="cfg-modal">
+    <div class="modal-hdr" style="padding:12px 16px 8px;border-bottom:1px solid var(--border);">
+      <div class="modal-title">⚙ 遊戲設定</div>
+      <button class="close-x" onclick="closeCfg()">✕</button>
+    </div>
+    <div class="cfg-tabs">
+      <div class="ctab act" data-pg="pg-disp">🖥 顯示</div>
+      <div class="ctab" data-pg="pg-audio">🔊 音效</div>
+      <div class="ctab" data-pg="pg-game">⚙ 遊戲</div>
+      <div class="ctab" data-pg="pg-keys">⌨ 按鍵</div>
+      <div class="ctab" data-pg="pg-about">📜 關於</div>
+    </div>
+    <div class="cfg-body">
+      <div class="cpg act" id="pg-disp">
+        <div class="crow"><div class="clg"><div class="clbl">🔍 畫面縮放</div><div class="chnt">調整遊戲視窗大小（60%–180%）</div></div><input class="csl" id="sl-scale" type="range" min="60" max="180" step="5" value="120"><span class="cval" id="vl-scale">120%</span></div>
+        <div style="background:#06091a;border:1px solid var(--border);border-radius:4px;padding:5px 10px;font-size:10px;color:var(--dim);margin-bottom:12px;display:flex;justify-content:space-between;"><span>實際尺寸</span><span id="scale-size" style="color:var(--gold);font-weight:700;">960 × 540 px</span></div>
+        <div class="crow"><div class="clg"><div class="clbl">🌙 暗角效果</div><div class="chnt">邊緣加深，突出中央</div></div><div class="ctog on" id="tog-vig"></div></div>
+        <div class="crow"><div class="clg"><div class="clbl">✨ 粒子特效</div><div class="chnt">靈氣、劍氣粒子</div></div><div class="ctog on" id="tog-ptc"></div></div>
+        <div class="crow"><div class="clg"><div class="clbl">📊 FPS 顯示</div><div class="chnt">右上角幀率計</div></div><div class="ctog" id="tog-fps"></div></div>
+      </div>
+      <div class="cpg" id="pg-audio">
+        <div class="crow"><div class="clg"><div class="clbl">🎵 BGM 音量</div><div class="chnt">背景音樂</div></div><input class="csl" id="sl-bgm" type="range" min="0" max="100" step="5" value="80"><span class="cval" id="vl-bgm">80%</span></div>
+        <div class="crow"><div class="clg"><div class="clbl">⚔ 音效音量</div><div class="chnt">戰鬥/環境音效</div></div><input class="csl" id="sl-sfx" type="range" min="0" max="100" step="5" value="100"><span class="cval" id="vl-sfx">100%</span></div>
+        <div class="crow"><div class="clg"><div class="clbl">🔇 靜音</div></div><div class="ctog" id="tog-mute"></div></div>
+        <div style="font-size:9px;color:var(--dim);">※ 音效功能於 Godot 4 正式版實作</div>
+      </div>
+      <div class="cpg" id="pg-game">
+        <div class="crow"><div class="clg"><div class="clbl">⚡ 修煉速度</div><div class="chnt">打坐吸納靈氣倍率</div></div><input class="csl" id="sl-qi" type="range" min="50" max="400" step="25" value="100"><span class="cval" id="vl-qi">1.0×</span></div>
+        <div class="crow"><div class="clg"><div class="clbl">🎯 妖獸重生</div><div class="chnt">重生間隔（秒）</div></div><input class="csl" id="sl-rs" type="range" min="5" max="60" step="5" value="12"><span class="cval" id="vl-rs">12s</span></div>
+        <div class="crow" style="margin-top:10px;border-top:1px solid var(--border);padding-top:12px;"><span class="clbl">💾 進度</span><div style="display:flex;gap:6px;"><button class="cbtn" id="btn-sv">存檔</button><button class="cbtn" id="btn-rst" style="color:var(--red);">重置</button></div></div>
+      </div>
+      <div class="cpg" id="pg-keys">
+        <div class="kb-grid">
+          <div class="kb-r"><span class="kb-a">移動</span><span class="kb-k">WASD/方向鍵</span></div>
+          <div class="kb-r"><span class="kb-a">揮劍</span><span class="kb-k">J / Space</span></div>
+          <div class="kb-r"><span class="kb-a">打坐</span><span class="kb-k">K</span></div>
+          <div class="kb-r"><span class="kb-a">閃避</span><span class="kb-k">L / Shift</span></div>
+          <div class="kb-r"><span class="kb-a">丹藥</span><span class="kb-k">Q</span></div>
+          <div class="kb-r"><span class="kb-a">儲物袋</span><span class="kb-k">I</span></div>
+          <div class="kb-r"><span class="kb-a">人物</span><span class="kb-k">C</span></div>
+          <div class="kb-r"><span class="kb-a">世界地圖</span><span class="kb-k">M</span></div>
+          <div class="kb-r"><span class="kb-a">NPC 互動</span><span class="kb-k">F</span></div>
+          <div class="kb-r"><span class="kb-a">設定</span><span class="kb-k">Esc</span></div>
+        </div>
+      </div>
+      <div class="cpg" id="pg-about">
+        <div style="text-align:center;padding:6px 0;">
+          <div style="font-size:22px;margin-bottom:6px;">⚔ 修仙傳</div>
+          <div style="color:var(--gold);font-size:12px;letter-spacing:3px;margin-bottom:10px;">MyPixelGame v0.2</div>
+          <div style="font-size:10px;color:var(--dim);line-height:2.2;">
+            <div>引擎：Godot 4.x GDScript 2.0</div>
+            <div>技術：HTML5 Canvas 2D 像素渲染</div>
+            <div>系統：境界 · 打坐 · 天劫 · 背包 · NPC · 世界地圖</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cfg-ftr"><button class="cbtn" onclick="closeCfg()" style="border-color:var(--jade);color:var(--jade);">✓ 關閉</button></div>
+  </div>
+</div>
+
+<div id="footer">修仙傳 · MyPixelGame — Godot 4 像素 Action RPG · HTML5 互動預覽</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  核心工具
+// ═══════════════════════════════════════════════════════════
+const $ = id => document.getElementById(id);
+const GC = $('gc'), ctx = GC.getContext('2d');
+const MM = $('mm-canvas'), mm = MM.getContext('2d');
+ctx.imageSmoothingEnabled = mm.imageSmoothingEnabled = false;
+
+let T = 0, lastT = 0;
+
+// ─── 縮放 ───
+const CFG = {scale:1.2,vignette:true,particles:true,fps:false,qiSpd:1,rsSec:12};
+function applyScale(v){
+  CFG.scale = v/100;
+  document.documentElement.style.setProperty('--scale', CFG.scale);
+  const diff = Math.round(450*(CFG.scale-1));
+  $('wrap-spacer').style.height = (diff>0?diff:0)+'px';
+  $('scale-size').textContent = Math.round(800*CFG.scale)+' × '+Math.round(450*CFG.scale)+' px';
+}
+function syncSl(el,pct){ el.style.background=`linear-gradient(90deg,var(--blue) ${pct}%,#1e2840 ${pct}%)`; }
+
+// ─── 設定面板 ───
+$('btn-cfg').addEventListener('click',()=>{ $('cfg-overlay').classList.add('show'); $('btn-cfg').classList.add('spin'); });
+function closeCfg(){ $('cfg-overlay').classList.remove('show'); $('btn-cfg').classList.remove('spin'); }
+document.querySelectorAll('.ctab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.ctab').forEach(x=>x.classList.remove('act'));
+  document.querySelectorAll('.cpg').forEach(x=>x.classList.remove('act'));
+  t.classList.add('act'); $(t.dataset.pg).classList.add('act');
+}));
+function togFn(id,key){ const e=$(id); e.addEventListener('click',()=>{ CFG[key]=!CFG[key]; e.classList.toggle('on',CFG[key]); }); }
+togFn('tog-vig','vignette'); togFn('tog-ptc','particles'); togFn('tog-fps','fps'); togFn('tog-mute','mute');
+
+const slSc=$('sl-scale');
+slSc.addEventListener('input',()=>{ applyScale(parseInt(slSc.value)); $('vl-scale').textContent=slSc.value+'%'; syncSl(slSc,(slSc.value-60)/(180-60)*100); });
+syncSl(slSc,(120-60)/(180-60)*100);
+
+[['sl-bgm','vl-bgm','%'],['sl-sfx','vl-sfx','%']].forEach(([s,v,u])=>{
+  const el=$(s); el.addEventListener('input',()=>{ $(v).textContent=el.value+u; syncSl(el,el.value); }); syncSl(el,el.value);
+});
+const slQi=$('sl-qi');
+slQi.addEventListener('input',()=>{ CFG.qiSpd=parseInt(slQi.value)/100; $('vl-qi').textContent=CFG.qiSpd.toFixed(2)+'×'; syncSl(slQi,(slQi.value-50)/(400-50)*100); });
+syncSl(slQi,(100-50)/(400-50)*100);
+const slRs=$('sl-rs');
+slRs.addEventListener('input',()=>{ CFG.rsSec=parseInt(slRs.value); $('vl-rs').textContent=slRs.value+'s'; syncSl(slRs,(slRs.value-5)/(60-5)*100); });
+syncSl(slRs,(12-5)/(60-5)*100);
+
+$('btn-sv').addEventListener('click',()=>{ localStorage.setItem('pg_sv',JSON.stringify({stones:P.stones,kills:P.kills,realmIdx:P.realmIdx,exp:P.exp})); notify('💾 存檔成功！'); });
+$('btn-rst').addEventListener('click',()=>{ if(confirm('重置所有進度？')) { localStorage.removeItem('pg_sv'); location.reload(); } });
+
+// ═══════════════════════════════════════════════════════════
+//  像素角色 Sprite 定義（16px 寬 × 24px 高）
+// ═══════════════════════════════════════════════════════════
+// ═══ 色彩常數 ═══
+const _=null;
+// 玩家色
+const pH='#2c1a08',pB='#4a2a10',pb='#6a3a18',pH2='#5a3218';
+const pS='#f0c08a',ps='#d09a60',pe='#001a30',pE='#00d4ff';
+const pW='#eaedf8',pw='#c8ccdc',pv='#a0a8c0',pG='#d4a843',pg='#9a6e20';
+const pX='#b8c4de',px='#7888b0',pN='#18206a',pn='#0e1650',pL='#8b0000';
+const pR='#e84040',pO='#c8d8ff',pm='#d0a870';
+
+// ═════ 玩家 Sprite 20×22px (scale=2 → 40×44px渲染) ═════
+// 站立正面
+const SPR_IDLE_0 = [
+  [_,_,_,_,pB,pB,pH,pH,pB,pB,_,_,_,_,_,_,_,_,_,_],
+  [_,_,_,pB,pb,pb,pH2,pH2,pb,pb,pB,_,_,_,_,_,_,_,_,_],
+  [_,_,_,pH,pH,pH2,pH2,pH2,pH2,pH,pH,_,_,_,_,_,_,_,_,_],
+  [_,_,_,pB,pS,pS,pS,pS,pS,pS,pB,_,_,_,_,_,_,_,_,_],
+  [_,_,_,pB,ps,pe,pS,pS,pe,ps,pB,_,_,_,_,_,_,_,_,_],
+  [_,_,_,pB,pE,pS,pS,pS,pS,pE,pB,_,_,_,_,_,_,_,_,_],
+  [_,_,_,_,ps,pS,pm,pm,pS,ps,_,_,_,_,_,_,_,_,_,_],
+  [_,_,pG,pG,pW,pW,pW,pW,pW,pW,pG,pG,_,_,_,_,_,_,_,_],
+  [_,pW,pW,pW,pN,pN,pN,pN,pN,pW,pW,pW,pX,_,_,_,_,_,_,_],
+  [_,pW,pO,pW,pN,pG,pG,pG,pN,pW,pO,pW,pX,px,_,_,_,_,_,_],
+  [pW,pW,pW,pW,pL,pL,pL,pL,pL,pW,pW,pW,pX,px,_,_,_,_,_,_],
+  [pW,pw,pW,pW,pW,pW,pW,pW,pW,pW,pw,pW,pX,_,_,_,_,_,_,_],
+  [_,pW,pw,pW,pW,pW,pW,pW,pW,pw,pW,_,_,_,_,_,_,_,_,_],
+  [_,pW,pW,pw,pW,pG,pG,pW,pw,pW,pW,_,_,_,_,_,_,_,_,_],
+  [_,_,pW,pW,pw,pW,pW,pw,pW,pW,_,_,_,_,_,_,_,_,_,_],
+  [_,_,pv,pW,pW,pw,pw,pW,pW,pv,_,_,_,_,_,_,_,_,_,_],
+  [_,_,pv,pv,pW,pv,pv,pW,pv,pv,_,_,_,_,_,_,_,_,_,_],
+  [_,_,_,pv,pv,_,_,pv,pv,_,_,_,_,_,_,_,_,_,_,_],
+];
+// 打坐（盤腿）
+const SPR_MED = [
+  [_,_,_,_,pB,pB,pH,pH,pB,pB,_,_,_,_,_,_,_,_,_,_],
+  [_,_,_,pB,pb,pb,pH2,pH2,pb,pb,pB,_,_,_,_,_,_,_,_,_],
+  [_,_,_,pH,pH,pH2,pH2,pH2,pH2,pH,pH,_,_,_,_,_,_,_,_,_],
+  [_,_,_,pB,pS,pS,pS,pS,pS,pS,pB,_,_,_,_,_,_,_,_,_],
+  [_,_,_,pB,pE,pS,pS,pS,pS,pE,pB,_,_,_,_,_,_,_,_,_],
+  [_,_,_,_,ps,pS,pm,pm,pS,ps,_,_,_,_,_,_,_,_,_,_],
+  [_,_,pG,pG,pW,pW,pW,pW,pW,pW,pG,pG,_,_,_,_,_,_,_,_],
+  [_,pW,pW,pW,pN,pG,pG,pG,pN,pW,pW,pW,_,_,_,_,_,_,_,_],
+  [pW,pW,pW,pW,pL,pL,pL,pL,pL,pW,pW,pW,_,_,_,_,_,_,_,_],
+  [pW,pW,pO,pW,pW,pW,pW,pW,pW,pO,pW,pW,_,_,_,_,_,_,_,_],
+  [pW,pW,pW,pW,pW,pG,pG,pW,pW,pW,pW,pW,_,_,_,_,_,_,_,_],
+  [_,pW,pW,pW,pW,pW,pW,pW,pW,pW,pW,_,_,_,_,_,_,_,_,_],
+  [_,_,pv,pW,pW,pW,pW,pW,pW,pv,_,_,_,_,_,_,_,_,_,_],
+  [_,_,_,pv,pv,pv,pv,pv,pv,_,_,_,_,_,_,_,_,_,_,_],
+];
+// 攻擊右向
+const SPR_ATK = [
+  [_,_,_,_,pB,pB,pH,pH,pB,pB,_,_,_,_,_,_,_,_,_,_],
+  [_,_,_,pB,pb,pb,pH2,pH2,pb,pb,pB,_,_,_,_,_,_,_,_,_],
+  [_,_,_,pH,pH,pH2,pH2,pH2,pH2,pH,pH,_,_,_,_,_,_,_,_,_],
+  [_,_,_,pB,pS,pS,pS,pS,pS,pS,pB,_,_,_,_,_,_,_,_,_],
+  [_,_,_,pB,pe,pS,pS,pS,pe,pR,pB,_,_,_,_,_,_,_,_,_],
+  [_,_,_,_,ps,pS,pm,pS,ps,_,_,_,_,_,_,_,_,_,_,_],
+  [_,_,pG,pG,pW,pW,pW,pW,pG,pG,_,_,_,_,_,_,_,_,_,_],
+  [_,pW,pW,pW,pN,pN,pN,pW,pW,pX,pX,pX,pX,pX,px,_,_,_,_,_],
+  [pW,pW,pW,pW,pN,pG,pN,pW,pW,pX,pO,pO,pO,px,_,_,_,_,_,_],
+  [pW,pW,pW,pW,pL,pL,pL,pW,pW,pX,pX,pX,px,_,_,_,_,_,_,_],
+  [_,pW,pW,pw,pW,pW,pW,pw,pW,_,_,_,_,_,_,_,_,_,_,_],
+  [_,_,pW,pW,pw,pW,pw,pW,pW,_,_,_,_,_,_,_,_,_,_,_],
+  [_,_,pv,pW,pW,pw,pW,pW,pv,_,_,_,_,_,_,_,_,_,_,_],
+  [_,_,pv,pv,_,_,_,pv,pv,_,_,_,_,_,_,_,_,_,_,_],
+];
+
+function fixSpr(s){return s.map(r=>r.map(p=>p===undefined?null:p));}
+const IDLE0=fixSpr(SPR_IDLE_0), MED=fixSpr(SPR_MED), ATK=fixSpr(SPR_ATK);
+
+// ═════ 敵人 Sprite（各 12×10px）═════
+// 1. 赤焰妖狼（四腳獸形）
+const ES_WOLF=[
+  [_,_,'#6e1010','#6e1010',_,'#6e1010','#6e1010',_,_,_,_,_],
+  [_,'#8b1a1a','#cc2200','#cc2200','#8b1a1a','#cc2200','#cc2200','#8b1a1a',_,_,_,_],
+  ['#8b1a1a','#e84040','#ff6644','#e84040','#aa2200','#e84040','#ff6644','#e84040','#8b1a1a',_,_,_],
+  ['#aa2200','#e84040','#fff','#e84040','#e84040','#e84040','#fff','#e84040','#aa2200',_,_,_],
+  [_,'#cc2200','#dd3300','#dd3300','#cc4400','#dd3300','#dd3300','#cc2200',_,_,_,_],
+  ['#8b1a1a','#cc2200','#cc2200','#cc2200','#cc2200','#cc2200','#cc2200','#cc2200','#8b1a1a',_,_,_],
+  ['#6e1010','#8b1a1a','#cc2200','#cc2200',_,'#cc2200','#cc2200','#8b1a1a','#6e1010',_,_,_],
+  ['#6e1010',_,'#6e1010','#8b1a1a',_,'#8b1a1a','#6e1010',_,'#6e1010',_,_,_],
+];
+// 2. 青脊毒蛛（八腳蜘蛛）
+const ES_SPIDER=[
+  ['#1a6632',_,'#27ae60','#27ae60','#27ae60','#27ae60',_,'#1a6632',_,_,_,_],
+  [_,'#27ae60','#2ecc71','#1a9958','#1a9958','#2ecc71','#27ae60',_,_,_,_,_],
+  ['#0f5c2e','#2ecc71','#5dff8a','#27ae60','#27ae60','#5dff8a','#2ecc71','#0f5c2e',_,_,_,_],
+  ['#1a9958','#27ae60','#1a9958','#ff4444','#ff4444','#1a9958','#27ae60','#1a9958',_,_,_,_],
+  ['#0f5c2e','#1a6632','#27ae60','#27ae60','#27ae60','#27ae60','#1a6632','#0f5c2e',_,_,_,_],
+  ['#2ecc71','#1a6632',_,'#27ae60','#27ae60',_,'#1a6632','#2ecc71',_,_,_,_],
+  ['#5dff8a',_,_,'#2ecc71','#2ecc71',_,_,'#5dff8a',_,_,_,_],
+  ['#1a6632',_,_,'#1a6632','#1a6632',_,_,'#1a6632',_,_,_,_],
+];
+// 3. 玄鐵地鼠（矮胖挖掘型）
+const ES_MOLE=[
+  [_,_,'#4a4a5a','#5a5a6a','#5a5a6a','#4a4a5a',_,_,_,_,_,_],
+  [_,'#3a3a4a','#6a6a7a','#7a7a8a','#7a7a8a','#6a6a7a','#3a3a4a',_,_,_,_,_],
+  ['#2a2a38','#5a5a6a','#8a8a9a','#aaaabc','#aaaabc','#8a8a9a','#5a5a6a','#2a2a38',_,_,_,_],
+  ['#3a3a4a','#6a6a7a','#fff','#8a8a9a','#8a8a9a','#fff','#6a6a7a','#3a3a4a',_,_,_,_],
+  ['#ff8800','#ff8800','#6a6a7a','#7a7a8a','#7a7a8a','#6a6a7a','#ff8800','#ff8800',_,_,_,_],
+  ['#cc6600','#cc6600','#5a5a6a','#6a6a7a','#6a6a7a','#5a5a6a','#cc6600','#cc6600',_,_,_,_],
+  [_,'#3a3a4a','#4a4a5a','#5a5a6a','#5a5a6a','#4a4a5a','#3a3a4a',_,_,_,_,_],
+  ['#2a2a38','#ff8800',_,'#3a3a4a','#3a3a4a',_,'#ff8800','#2a2a38',_,_,_,_],
+];
+// 4. 洞穴岩魔（大型石怪）
+const ES_GOLEM=[
+  [_,'#5a3e2a','#7a5e3a','#8a6a4a','#8a6a4a','#7a5e3a','#5a3e2a',_,_,_,_,_],
+  ['#4a2e1a','#8a6a4a','#aa8a6a','#bba080','#bba080','#aa8a6a','#8a6a4a','#4a2e1a',_,_,_,_],
+  ['#5a3e2a','#aa8a6a','#cc6600','#aa8a6a','#aa8a6a','#cc6600','#aa8a6a','#5a3e2a',_,_,_,_],
+  ['#4a2e1a','#8a6a4a','#aa8a6a','#cc6600','#cc6600','#aa8a6a','#8a6a4a','#4a2e1a',_,_,_,_],
+  ['#5a3e2a','#7a5e3a','#8a6a4a','#8a6a4a','#8a6a4a','#8a6a4a','#7a5e3a','#5a3e2a',_,_,_,_],
+  ['#6a4e3a','#8a6a4a','#aa8a6a','#cc9960','#cc9960','#aa8a6a','#8a6a4a','#6a4e3a',_,_,_,_],
+  ['#4a2e1a','#5a3e2a','#7a5e3a','#8a6a4a','#8a6a4a','#7a5e3a','#5a3e2a','#4a2e1a',_,_,_,_],
+  ['#4a2e1a','#6a4e3a',_,'#5a3e2a','#5a3e2a',_,'#6a4e3a','#4a2e1a',_,_,_,_],
+  ['#5a3e2a',_,_,'#4a2e1a','#4a2e1a',_,_,'#5a3e2a',_,_,_,_],
+];
+// 5. 幽影冥蝠（飛行型）
+const ES_BAT=[
+  ['#2a1050','#3a1870','#5a30a0','#7040c0',_,'#7040c0','#5a30a0','#3a1870','#2a1050',_,_,_],
+  ['#5a30a0','#8050d0','#a070f0','#c090ff','#7040c0','#c090ff','#a070f0','#8050d0','#5a30a0',_,_,_],
+  ['#3a1870','#7040c0','#c090ff','#fff','#a070f0','#fff','#c090ff','#7040c0','#3a1870',_,_,_],
+  [_,'#5a30a0','#8050d0','#ff4444','#c090ff','#ff4444','#8050d0','#5a30a0',_,_,_,_],
+  [_,'#3a1870','#5a30a0','#8050d0','#7040c0','#8050d0','#5a30a0','#3a1870',_,_,_,_],
+  ['#2a1050','#3a1870',_,'#5a30a0','#5a30a0',_,'#3a1870','#2a1050',_,_,_,_],
+];
+// 6. 遺跡守衛（機甲型）
+const ES_GUARD=[
+  [_,'#3a0060','#5a00a0','#7000d0','#7000d0','#5a00a0','#3a0060',_,_,_,_,_],
+  ['#2a0040','#5a00a0','#9000e0','#b000ff','#b000ff','#9000e0','#5a00a0','#2a0040',_,_,_,_],
+  ['#3a0060','#9000e0','#ff4488','#9000e0','#9000e0','#ff4488','#9000e0','#3a0060',_,_,_,_],
+  ['#2a0040','#7000d0','#9000e0','#b000ff','#b000ff','#9000e0','#7000d0','#2a0040',_,_,_,_],
+  ['#3a0060','#5a00a0','#7000d0','#9000e0','#9000e0','#7000d0','#5a00a0','#3a0060',_,_,_,_],
+  ['#2a0040','#3a0060','#5a00a0','#7000d0','#7000d0','#5a00a0','#3a0060','#2a0040',_,_,_,_],
+  ['#2a0040','#3a0060',_,'#5a00a0','#5a00a0',_,'#3a0060','#2a0040',_,_,_,_],
+  ['#2a0040',_,_,'#3a0060','#3a0060',_,_,'#2a0040',_,_,_,_],
+];
+
+const ES={wolf:fixSpr(ES_WOLF),spider:fixSpr(ES_SPIDER),mole:fixSpr(ES_MOLE),golem:fixSpr(ES_GOLEM),bat:fixSpr(ES_BAT),guard:fixSpr(ES_GUARD)};
+
+function drawSprite(spr,x,y,scale=2,flipX=false,tint=null){
+  spr.forEach((row,ry)=>{
+    row.forEach((col,rx)=>{
+      if(!col) return;
+      const px=flipX?x+(row.length-1-rx)*scale:x+rx*scale;
+      const py=y+ry*scale;
+      ctx.fillStyle=tint||col;
+      ctx.fillRect(Math.round(px),Math.round(py),scale,scale);
+    });
+  });
+}
+function drawSpriteSmall(spr,ctx2,x,y,scale=3){
+  spr.forEach((row,ry)=>{
+    row.forEach((col,rx)=>{
+      if(!col)return;
+      ctx2.fillStyle=col;
+      ctx2.fillRect(x+rx*scale,y+ry*scale,scale,scale);
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  境界資料
+// ═══════════════════════════════════════════════════════════
+const REALMS=[
+  {name:'練氣期一重',maxQi:100, maxHp:100, atk:10,def:2, expNext:80},
+  {name:'練氣期二重',maxQi:250, maxHp:130, atk:14,def:3, expNext:150},
+  {name:'練氣期三重',maxQi:500, maxHp:170, atk:19,def:5, expNext:250},
+  {name:'練氣期四重',maxQi:900, maxHp:220, atk:25,def:7, expNext:400},
+  {name:'練氣期五重',maxQi:1500,maxHp:280, atk:32,def:10,expNext:600},
+  {name:'練氣期六重',maxQi:2300,maxHp:350, atk:40,def:13,expNext:900},
+  {name:'練氣期七重',maxQi:3300,maxHp:430, atk:50,def:17,expNext:1200},
+  {name:'練氣期八重',maxQi:4500,maxHp:520, atk:62,def:21,expNext:1600},
+  {name:'練氣期九重',maxQi:6000,maxHp:630, atk:76,def:26,expNext:2000,tribulation:true},
+  {name:'築基期前期',maxQi:12000,maxHp:1000,atk:120,def:45,expNext:5000},
+];
+
+// ═══════════════════════════════════════════════════════════
+//  玩家
+// ═══════════════════════════════════════════════════════════
+const P={
+  x:240,y:150,
+  state:'IDLE',facing:{x:1,y:0},
+  realmIdx:0,
+  hp:100,maxHp:100,qi:0,maxQi:100,exp:0,
+  atk:10,def:2,stones:0,kills:0,
+  invincible:false,hurtFlash:0,dashTimer:0,
+  speed:1.8,
+  stance:'SWORD', // 'SWORD' (御劍) | 'TALISMAN' (雷符) | 'FROST' (冰法)
+  charging:false,
+  chargeTime:0,
+};
+let screenShake=0;
+
+// ═══════════════════════════════════════════════════════════
+//  世界地圖定義
+// ═══════════════════════════════════════════════════════════
+const WORLD_AREAS=[
+  {
+    id:'sect',name:'青雲宗 · 宗門大殿',
+    desc:'修仙聖地，安全區域。可與長老、藥師互動，補充物資，準備出發修行。',
+    x:300,y:170,safe:true,
+    bg:'#0c0a1a',qiDensity:2.0,mapLabel:'宗門',
+    enemies:[],
+    npcs:[
+      {x:240,y:110,name:'青雲宗主',icon:'👑',dlg:['本座觀汝骨相清奇，日後必成大器。','若能成功渡劫築基，本座親贈一枚築基丹！','去靈山磨礪吧，那裡有赤焰妖狼與毒蛛，頗適合修行。']},
+      {x:140,y:185,name:'藥師兄',icon:'🌿',dlg:['師弟！這幾顆丹藥你拿去備用。','聚元丹可快速恢復氣血，聚靈丹可恢復靈力。','去靈山前記得裝備好！(已加入儲物袋)'],onStart:()=>{addItem('pill_hp','聚元丹','💊',2,'服用後恢復60氣血');addItem('pill_qi','聚靈丹','💫',1,'服用後恢復30%靈力');}},
+      {x:360,y:130,name:'藏劍閣長老',icon:'⚔',dlg:['汝劍法尚可，但修為尚淺。','練氣九重圓滿後，記得回來本座處領渡劫丹！']},
+    ],
+    terrain:'sect',
+  },
+  {
+    id:'mountain',name:'青雲宗 · 外門靈山',
+    desc:'靈氣充沛（1.5×），有赤焰妖狼與青脊毒蛛出沒，適合初期修煉。',
+    x:155,y:115,safe:false,
+    bg:'#0b1220',qiDensity:1.5,mapLabel:'靈山',
+    enemies:[
+      {id:0,x:310,y:80,hp:60,maxHp:60,name:'赤焰妖狼',aiType:'wolf',color:'#e84040',spd:.85,atk:8,reward:{stones:15,exp:25}},
+      {id:1,x:150,y:195,hp:40,maxHp:40,name:'青脊毒蛛',aiType:'spider',color:'#2ecc71',spd:.7,atk:5,reward:{stones:10,exp:15}},
+      {id:2,x:410,y:65,hp:80,maxHp:80,name:'玄鐵地鼠',aiType:'mole',color:'#7f8c8d',spd:.6,atk:10,reward:{stones:20,exp:35}},
+    ],
+    npcs:[{x:80,y:90,name:'巡山弟子',icon:'🧑',dlg:['師兄！前方有赤焰妖狼群，危險！','不過妖狼的妖丹可以換靈石，值得去打。']}],
+    terrain:'mountain',
+  },
+  {
+    id:'cave',name:'玄陰洞府',
+    desc:'靈氣極濃（3×），有洞穴岩魔與幽影冥蝠，適合中期修煉。',
+    x:440,y:115,safe:false,
+    bg:'#07091a',qiDensity:3.0,mapLabel:'洞府',
+    enemies:[
+      {id:3,x:200,y:160,hp:120,maxHp:120,name:'洞穴岩魔',aiType:'golem',color:'#8d6e63',spd:.5,atk:15,reward:{stones:35,exp:55}},
+      {id:4,x:360,y:90,hp:90,maxHp:90,name:'幽影冥蝠',aiType:'bat',color:'#5c6bc0',spd:1.2,atk:12,reward:{stones:25,exp:40}},
+    ],
+    npcs:[{x:235,y:110,name:'聚靈陣',icon:'⭕',dlg:['此陣引天地靈氣，在此打坐效率×3！']}],
+    terrain:'cave',
+  },
+  {
+    id:'ruins',name:'古修遺跡',
+    desc:'傳說中的強大遺跡，充斥魔氣（靈氣2×），遺跡守衛實力強橫，務必在練氣後期方可前往。',
+    x:300,y:270,safe:false,
+    bg:'#0e0812',qiDensity:2.0,mapLabel:'遺跡',
+    enemies:[
+      {id:5,x:200,y:130,hp:200,maxHp:200,name:'遺跡守衛',aiType:'guard',color:'#6c3483',spd:.7,atk:22,reward:{stones:60,exp:90}},
+    ],
+    npcs:[],
+    terrain:'ruins',
+    reqRealm:3, // 需要練氣四重
+  },
+];
+
+let curAreaId='sect';
+let spawnedE={};
+let selectedArea=null;
+
+function getCurArea(){ return WORLD_AREAS.find(a=>a.id===curAreaId); }
+function getEnemies(){
+  if(!spawnedE[curAreaId]) spawnedE[curAreaId]=getCurArea().enemies.map(e=>({...e,alive:true}));
+  return spawnedE[curAreaId];
+}
+
+// ═══════════════════════════════════════════════════════════
+//  背包
+// ═══════════════════════════════════════════════════════════
+const INV=[];
+function addItem(id,name,icon,qty,desc){
+  const ex=INV.find(i=>i.id===id);
+  if(ex) ex.qty+=qty; else INV.push({id,name,icon,qty,desc});
+  renderInv();
+  notify(`✦ 獲得 ${icon}${name} ×${qty}`);
+}
+function useItem(id){
+  const it=INV.find(i=>i.id===id);
+  if(!it||it.qty<=0) return;
+  if(id==='pill_hp'){P.hp=Math.min(P.maxHp,P.hp+60);notify('💊 聚元丹：恢復 60 氣血');}
+  else if(id==='pill_qi'){P.qi=Math.min(P.maxQi,P.qi+P.maxQi*.3);notify('💫 聚靈丹：恢復 30% 靈力');}
+  else if(id==='pill_break'){P.breakBonus=(P.breakBonus||0)+.15;notify('🔥 築基丹：破境成功率+15%');}
+  it.qty--; if(it.qty<=0) INV.splice(INV.indexOf(it),1);
+  renderInv(); updateHUD();
+}
+function renderInv(){
+  const g=$('inv-grid'); g.innerHTML='';
+  INV.forEach(it=>{
+    const s=document.createElement('div'); s.className='islot'; s.title=it.desc;
+    s.innerHTML=`${it.icon}<div class="inm">${it.name}</div><span class="iqt">×${it.qty}</span>`;
+    s.onclick=()=>useItem(it.id); g.appendChild(s);
+  });
+  for(let i=INV.length;i<10;i++){const s=document.createElement('div');s.className='islot empty';g.appendChild(s);}
+}
+function openInv(){ renderInv(); $('inv-overlay').classList.add('show'); }
+function closeInv(){ $('inv-overlay').classList.remove('show'); }
+$('inv-overlay').addEventListener('click',e=>{ if(e.target===$('inv-overlay')) closeInv(); });
+
+// ═══════════════════════════════════════════════════════════
+//  人物面板
+// ═══════════════════════════════════════════════════════════
+function openChar(){
+  const r=REALMS[P.realmIdx];
+  const sc=$('char-canvas').getContext('2d');
+  sc.imageSmoothingEnabled=false;
+  sc.clearRect(0,0,64,80);
+  sc.fillStyle='#06091a'; sc.fillRect(0,0,64,80);
+  drawSpriteSmall(IDLE0,sc,4,6,3);
+  const st=$('char-stats'); st.innerHTML='';
+  const rows=[
+    ['境界',r.name],
+    ['氣血',`${Math.ceil(P.hp)} / ${P.maxHp}`],
+    ['靈力',`${Math.ceil(P.qi)} / ${P.maxQi}`],
+    ['悟道',`${Math.ceil(P.exp)} / ${r.expNext}`],
+    ['攻擊力',P.atk],['防禦力',P.def],
+    ['靈石',P.stones],['擊殺',P.kills],
+    ['當前地圖',getCurArea().name.split('·')[1]?.trim()||getCurArea().name],
+  ];
+  rows.forEach(([l,v])=>{
+    const d=document.createElement('div'); d.className='cs-row';
+    d.innerHTML=`<span class="cs-lbl">${l}</span><span class="cs-val">${v}</span>`;
+    st.appendChild(d);
+  });
+  $('char-overlay').classList.add('show');
+}
+function closeChar(){ $('char-overlay').classList.remove('show'); }
+$('char-overlay').addEventListener('click',e=>{ if(e.target===$('char-overlay')) closeChar(); });
+
+// ═══════════════════════════════════════════════════════════
+//  世界地圖
+// ═══════════════════════════════════════════════════════════
+const PATHS=[[0,1],[0,2],[0,3],[1,2]]; // 區域連接索引
+
+function drawWorldMap(){
+  const wc=$('wmap-canvas'), wctx=wc.getContext('2d');
+  wctx.imageSmoothingEnabled=false;
+  // 背景
+  wctx.fillStyle='#04060e'; wctx.fillRect(0,0,600,340);
+  // 裝飾格線
+  wctx.strokeStyle='rgba(42,56,96,.2)'; wctx.lineWidth=1;
+  for(let x=0;x<600;x+=30){wctx.beginPath();wctx.moveTo(x,0);wctx.lineTo(x,340);wctx.stroke();}
+  for(let y=0;y<340;y+=30){wctx.beginPath();wctx.moveTo(0,y);wctx.lineTo(600,y);wctx.stroke();}
+
+  // 路徑連線
+  PATHS.forEach(([a,b])=>{
+    const A=WORLD_AREAS[a],B=WORLD_AREAS[b];
+    const grad=wctx.createLinearGradient(A.x,A.y,B.x,B.y);
+    grad.addColorStop(0,'rgba(212,168,67,.4)'); grad.addColorStop(1,'rgba(82,200,160,.4)');
+    wctx.strokeStyle=grad; wctx.lineWidth=1.5; wctx.setLineDash([6,4]);
+    wctx.beginPath(); wctx.moveTo(A.x,A.y); wctx.lineTo(B.x,B.y); wctx.stroke();
+    wctx.setLineDash([]);
+  });
+
+  // 區域節點
+  WORLD_AREAS.forEach((a,i)=>{
+    const isSelected = selectedArea&&selectedArea.id===a.id;
+    const isCurrent = a.id===curAreaId;
+    const locked = a.reqRealm && P.realmIdx < a.reqRealm;
+
+    const grd=wctx.createRadialGradient(a.x,a.y,0,a.x,a.y,24);
+    if(locked){
+      grd.addColorStop(0,'rgba(60,60,80,.5)'); grd.addColorStop(1,'rgba(30,30,50,.2)');
+    } else if(isSelected){
+      grd.addColorStop(0,'rgba(0,207,255,.4)'); grd.addColorStop(1,'rgba(0,207,255,.05)');
+    } else if(isCurrent){
+      grd.addColorStop(0,'rgba(212,168,67,.4)'); grd.addColorStop(1,'rgba(212,168,67,.05)');
+    } else {
+      grd.addColorStop(0,'rgba(82,200,160,.2)'); grd.addColorStop(1,'rgba(82,200,160,.02)');
+    }
+    wctx.fillStyle=grd;
+    wctx.beginPath(); wctx.arc(a.x,a.y,24,0,Math.PI*2); wctx.fill();
+
+    // 外環
+    wctx.strokeStyle = locked?'rgba(60,70,100,.5)':isSelected?'rgba(0,207,255,.9)':isCurrent?'rgba(212,168,67,.9)':'rgba(82,200,160,.6)';
+    wctx.lineWidth=1.5;
+    wctx.beginPath(); wctx.arc(a.x,a.y,22,0,Math.PI*2); wctx.stroke();
+
+    // 安全標記
+    if(a.safe){
+      wctx.strokeStyle='rgba(82,200,160,.4)'; wctx.lineWidth=1;
+      wctx.beginPath(); wctx.arc(a.x,a.y,28,0,Math.PI*2); wctx.stroke();
+    }
+
+    // 鎖定遮罩
+    if(locked){
+      wctx.fillStyle='rgba(20,20,40,.6)';
+      wctx.beginPath(); wctx.arc(a.x,a.y,22,0,Math.PI*2); wctx.fill();
+    }
+
+    // 圖示
+    wctx.font='20px serif'; wctx.textAlign='center'; wctx.textBaseline='middle';
+    wctx.fillText(locked?'🔒':a.safe?'🛡':a.id==='mountain'?'⛰':a.id==='cave'?'🌊':'🏛',a.x,a.y);
+
+    // 現在位置標記
+    if(isCurrent){
+      wctx.fillStyle='rgba(212,168,67,.9)';
+      wctx.font='bold 10px monospace'; wctx.textAlign='center';
+      wctx.fillText('▲',a.x,a.y-30);
+    }
+
+    // 地名
+    const lblColor = locked?'rgba(60,80,120,.8)':isSelected?'#00cfff':isCurrent?'#d4a843':'#dde4f0';
+    wctx.fillStyle=lblColor; wctx.font=`bold ${isSelected||isCurrent?12:10}px "Noto Serif TC",serif`;
+    wctx.textAlign='center'; wctx.textBaseline='top';
+    wctx.fillText(a.mapLabel,a.x,a.y+28);
+    if(a.qiDensity){
+      wctx.fillStyle='rgba(0,207,255,.6)'; wctx.font='9px monospace';
+      wctx.fillText(locked?`需${REALMS[a.reqRealm||0].name}`:`靈氣 ${a.qiDensity}×`,a.x,a.y+41);
+    }
+  });
+}
+
+function openMap(){
+  drawWorldMap(); selectedArea=null; updateWmapInfo(null);
+  $('map-overlay').classList.add('show');
+}
+function closeMap(){ $('map-overlay').classList.remove('show'); }
+$('map-overlay').addEventListener('click',e=>{ if(e.target===$('map-overlay')) closeMap(); });
+
+function updateWmapInfo(area){
+  if(!area){
+    $('wmap-area-name').textContent='選擇目的地';
+    $('wmap-area-desc').textContent='點擊地圖上的區域節點以選擇前往';
+    $('btn-enter').disabled=true; $('btn-enter').textContent='✈ 前往'; return;
+  }
+  const locked=area.reqRealm&&P.realmIdx<area.reqRealm;
+  $('wmap-area-name').textContent=area.name;
+  $('wmap-area-desc').textContent = locked ? `⚠ 需達 ${REALMS[area.reqRealm].name} 方可進入！`
+    : area.desc;
+  $('btn-enter').disabled = locked || area.id===curAreaId;
+  $('btn-enter').textContent = area.id===curAreaId ? '📍 當前位置' : '✈ 前往此地';
+}
+
+$('wmap-canvas').addEventListener('click',e=>{
+  const rect=$('wmap-canvas').getBoundingClientRect();
+  const scaleX=600/rect.width, scaleY=340/rect.height;
+  const mx=(e.clientX-rect.left)*scaleX, my=(e.clientY-rect.top)*scaleY;
+  selectedArea=null;
+  WORLD_AREAS.forEach(a=>{
+    if(Math.hypot(mx-a.x,my-a.y)<28) selectedArea=a;
+  });
+  updateWmapInfo(selectedArea);
+  drawWorldMap();
+});
+
+function enterArea(){
+  if(!selectedArea||selectedArea.id===curAreaId) return;
+  const locked=selectedArea.reqRealm&&P.realmIdx<selectedArea.reqRealm;
+  if(locked){ notify('⚠ 修為不足，無法進入此區域！'); return; }
+  closeMap();
+  transitToArea(selectedArea.id);
+}
+
+function transitToArea(id){
+  const a=WORLD_AREAS.find(x=>x.id===id);
+  $('bnr-name').textContent=a.name; $('bnr-sub').textContent=a.desc.substring(0,28)+'…';
+  $('map-banner').style.display='block';
+  setTimeout(()=>{
+    curAreaId=id;
+    P.x=240; P.y=150;
+    $('map-banner').style.display='none';
+    $('ui-mp').textContent=a.mapLabel;
+    if(!spawnedE[id]) spawnedE[id]=a.enemies.map(e=>({...e,alive:true}));
+    // 宗門觸發給藥
+    if(id==='sect') a.npcs.forEach(n=>{ if(n.onStart){n.onStart();n.onStart=null;} });
+    notify(`✈ 抵達：${a.name}`);
+  },1000);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  對話
+// ═══════════════════════════════════════════════════════════
+let dlgActive=false,dlgNpc=null,dlgIdx=0,typTO=null;
+function startDlg(npc){
+  if(dlgActive) return;
+  dlgActive=true; dlgNpc=npc; dlgIdx=0;
+  $('dlg-port').textContent=npc.icon;
+  $('dlg-name').textContent=npc.name;
+  typeDlg(npc.dlg[0]);
+  $('dlg-box').style.display='block';
+}
+function typeDlg(text){
+  const el=$('dlg-txt'); el.textContent=''; el.classList.add('typing');
+  clearTimeout(typTO); let i=0;
+  const t=()=>{ if(i<text.length){el.textContent+=text[i++];typTO=setTimeout(t,26);}else el.classList.remove('typing'); };
+  t();
+}
+function advanceDlg(){
+  if(!dlgNpc) return; dlgIdx++;
+  if(dlgIdx>=dlgNpc.dlg.length){ dlgActive=false;dlgNpc=null;$('dlg-box').style.display='none'; }
+  else typeDlg(dlgNpc.dlg[dlgIdx]);
+}
+$('dlg-nxt').addEventListener('click', advanceDlg);
+
+// ═══════════════════════════════════════════════════════════
+//  通知
+// ═══════════════════════════════════════════════════════════
+let nTO=null;
+function notify(msg){ $('notif').textContent=msg;$('notif').style.display='block';clearTimeout(nTO);nTO=setTimeout(()=>$('notif').style.display='none',2800); }
+
+// ═══════════════════════════════════════════════════════════
+//  天劫
+// ═══════════════════════════════════════════════════════════
+const LGHTS=[], PARTS=[], SQS=[], FLOATS=[];
+let tribActive=false;
+
+function spark(x,y,col,n=6,spd=2.5,life=30,sz=2){
+  if(!CFG.particles) return;
+  for(let i=0;i<n;i++){
+    const a=Math.random()*Math.PI*2;
+    PARTS.push({x,y,vx:Math.cos(a)*Math.random()*spd,vy:Math.sin(a)*Math.random()*spd-spd*.4,
+      col,life,ml:life,sz});
+  }
+}
+function spiralQi(x,y){
+  if(!CFG.particles) return;
+  const a=Math.random()*Math.PI*2,r=20+Math.random()*22;
+  PARTS.push({x:x+Math.cos(a)*r,y:y+Math.sin(a)*r,tx:x,ty:y,col:'#00cfff',life:50,ml:50,sz:2,qi:true});
+}
+function floatTxt(x,y,text,col='#ffd700'){
+  FLOATS.push({x,y,text,col,life:75,ml:75,vy:-0.45});
+}
+function mkLightning(cx){
+  const segs=[{x:cx,y:0}];
+  for(let i=1;i<=9;i++) segs.push({x:segs[i-1].x+(Math.random()-.5)*22,y:i*30});
+  return segs;
+}
+
+function startTribulation(){
+  tribActive=true; notify('⚡⚡ 九天雷劫降臨！頂住三波天雷！⚡⚡');
+  let wave=0;
+  const doW=()=>{
+    if(wave>=3){ tribActive=false; doBreakthrough(.92); return; }
+    wave++;
+    for(let i=0;i<4+wave;i++) LGHTS.push({segs:mkLightning(P.x+(Math.random()*60-30)),life:20});
+    const dmg=35+wave*15;
+    P.hp=Math.max(5,P.hp-dmg);
+    floatTxt(P.x,P.y-20,`⚡-${dmg}`,'#ffd700');
+    spark(P.x,P.y,'#ffd700',12,3,40,3);
+    updateHUD();
+    setTimeout(doW,1000);
+  };
+  setTimeout(doW,600);
+}
+
+$('btn-bt').addEventListener('click',attemptBreakthrough);
+function attemptBreakthrough(){
+  if(tribActive||P.qi<P.maxQi) return;
+  $('btn-bt').style.display='none';
+  REALMS[P.realmIdx].tribulation ? startTribulation() : doBreakthrough(.85+(P.breakBonus||0));
+}
+function doBreakthrough(rate){
+  if(Math.random()<rate&&P.realmIdx<REALMS.length-1){
+    P.realmIdx++;
+    const r=REALMS[P.realmIdx];
+    P.maxHp=r.maxHp;P.hp=P.maxHp;P.maxQi=r.maxQi;P.qi=0;P.atk=r.atk;P.def=r.def;P.exp=0;
+    P.breakBonus=0;
+    notify(`✨ 破境成功！晉升 ${r.name}`);
+    for(let i=0;i<50;i++) PARTS.push({x:P.x+(Math.random()*60-30),y:P.y+(Math.random()*60-30),
+      vx:(Math.random()-.5)*4,vy:(Math.random()-.5)*4-1.5,col:i%2?'#ffd700':'#fff',life:90,ml:90,sz:3});
+  } else {
+    P.qi*=.7; notify('😔 心魔干擾，突破失敗！靈力損耗 30%');
+  }
+  updateHUD();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  動作
+// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+//  戰鬥與型態切換系統
+// ═══════════════════════════════════════════════════════════
+function setStance(st){
+  P.stance=st;
+  document.querySelectorAll('#hotbar .hslot').forEach(s=>s.classList.remove('active-slot'));
+  const m={SWORD:['st-sword','🗡️ 御劍型態 (劍氣與萬劍歸宗)'],TALISMAN:['st-talisman','⚡ 雷符型態 (神雷與九天雷陣)'],FROST:['st-frost','❄️ 冰法型態 (冰錐與冰封萬里)']};
+  if(m[st]){
+    $(m[st][0]).classList.add('active-slot');
+    notify(m[st][1]);
+  }
+}
+
+function triggerAttack(chargeLevel){
+  if(P.state==='DIE') return;
+  if(P.state==='MEDITATE') P.state='IDLE';
+  const fx=P.facing.x||(P.facing.y===0?1:0), fy=P.facing.y;
+  P.state='ATTACK';
+  setTimeout(()=>{ if(P.state==='ATTACK') P.state='IDLE'; },280);
+
+  if(P.stance==='SWORD'){
+    if(chargeLevel===0){
+      // 普通御劍劍氣
+      SQS.push({x:P.x+fx*14,y:P.y+fy*14,dx:fx,dy:fy,life:65,type:'sword',dmgMult:1});
+      spark(P.x+fx*14,P.y+fy*14,'#00cfff',5,3,18);
+    } else if(chargeLevel===1){
+      // 階段 1：巨型劍芒波
+      SQS.push({x:P.x+fx*16,y:P.y+fy*16,dx:fx,dy:fy,life:80,type:'mega_sword',dmgMult:2.5,sz:16});
+      spark(P.x+fx*16,P.y+fy*16,'#00ffff',15,4,30,4);
+      notify('⚔ 強化斬！巨型劍芒！');
+    } else {
+      // 階段 2 (MAX)：萬劍歸宗 (全螢幕掃蕩)
+      screenShake=12;
+      notify('⚡⚡ 萬劍歸宗 ⚡⚡');
+      const enemies=getEnemies().filter(e=>e.alive);
+      for(let i=0;i<8;i++){
+        setTimeout(()=>{
+          const a=i*Math.PI*2/8;
+          const sx=P.x+Math.cos(a)*40, sy=P.y+Math.sin(a)*40;
+          const target=enemies[i%enemies.length]||{x:P.x+fx*100,y:P.y+fy*100};
+          const tdx=target.x-sx, tdy=target.y-sy, tl=Math.hypot(tdx,tdy)||1;
+          SQS.push({x:sx,y:sy,dx:tdx/tl,dy:tdy/tl,life:90,type:'homing_sword',dmgMult:3.5,sz:12});
+          spark(sx,sy,'#00e5ff',10,3.5,25,3);
+        },i*70);
+      }
+    }
+  } else if(P.stance==='TALISMAN'){
+    if(chargeLevel===0){
+      // 快速三連符籙
+      for(let i=-1;i<=1;i++){
+        const a=Math.atan2(fy,fx)+i*0.2;
+        SQS.push({x:P.x+Math.cos(a)*12,y:P.y+Math.sin(a)*12,dx:Math.cos(a),dy:Math.sin(a),life:55,type:'talisman',dmgMult:1.1});
+      }
+      spark(P.x+fx*12,P.y+fy*12,'#ffd700',8,3,20);
+    } else if(chargeLevel===1){
+      // 狂雷轟頂
+      const tx=P.x+fx*50, ty=P.y+fy*50;
+      LGHTS.push({segs:mkLightning(tx),life:25});
+      floatTxt(tx,ty,'⚡狂雷！','#ffe033');
+      spark(tx,ty,'#ffd700',16,4,35,4);
+      getEnemies().filter(e=>e.alive).forEach(e=>{
+        if(Math.hypot(e.x-tx,e.y-ty)<45){
+          const dmg=Math.round(P.atk*2.2); e.hp-=dmg;
+          floatTxt(e.x,e.y-14,`-${dmg}`,'#ffe033'); e.hflash=12;
+        }
+      });
+      notify('⚡ 狂雷轟頂！');
+    } else {
+      // 階段 2 (MAX)：九天神雷陣
+      screenShake=16;
+      notify('⚡⚡ 九天神雷大陣 ⚡⚡');
+      getEnemies().filter(e=>e.alive).forEach(e=>{
+        for(let i=0;i<3;i++){
+          setTimeout(()=>{
+            LGHTS.push({segs:mkLightning(e.x+(Math.random()*30-15)),life:25});
+            const dmg=Math.round(P.atk*3.8); e.hp-=dmg; e.hflash=15;
+            floatTxt(e.x,e.y-20,`⚡-${dmg}`,'#ffea00');
+            spark(e.x,e.y,'#ffff00',12,4,30,4);
+          },i*180);
+        }
+      });
+    }
+  } else if(P.stance==='FROST'){
+    if(chargeLevel===0){
+      // 冰錐 (緩速敵方 50%)
+      SQS.push({x:P.x+fx*14,y:P.y+fy*14,dx:fx,dy:fy,life:60,type:'frost',dmgMult:1.2,slow:true});
+      spark(P.x+fx*14,P.y+fy*14,'#a0e0ff',6,2.5,22);
+    } else if(chargeLevel===1){
+      // 冰霜新星 (360度8向冰錐)
+      for(let i=0;i<8;i++){
+        const a=i*Math.PI*2/8;
+        SQS.push({x:P.x+Math.cos(a)*14,y:P.y+Math.sin(a)*14,dx:Math.cos(a),dy:Math.sin(a),life:70,type:'frost',dmgMult:1.8,slow:true});
+      }
+      spark(P.x,P.y,'#80d0ff',24,3.5,35,3);
+      notify('❄️ 冰霜新星！');
+    } else {
+      // 階段 2 (MAX)：冰封萬里 (凍結全場 3.5秒)
+      screenShake=10;
+      notify('❄️❄️ 冰封萬里 ─ 全場凍結！ ❄️❄️');
+      spark(P.x,P.y,'#c0efff',40,5,50,4);
+      getEnemies().filter(e=>e.alive).forEach(e=>{
+        e.frozenTimer=3.5;
+        const dmg=Math.round(P.atk*2.5); e.hp-=dmg; e.hflash=15;
+        floatTxt(e.x,e.y-16,`❄️-${dmg}`,'#80d4ff');
+        spark(e.x,e.y,'#a0e5ff',15,3,30,3);
+      });
+    }
+  }
+}
+function toggleMed(){
+  P.state=P.state==='MEDITATE'?'IDLE':'MEDITATE';
+  notify(P.state==='MEDITATE'?'🧘 進入打坐吐納…（再按 K 離開）':'踏出打坐');
+}
+function doDash(){
+  if(P.state==='DASH'||P.state==='DIE') return;
+  if(P.state==='MEDITATE') P.state='IDLE';
+  P.state='DASH'; P.invincible=true;
+  const ox=P.x,oy=P.y;
+  P.x=Math.max(10,Math.min(470,P.x+P.facing.x*32));
+  P.y=Math.max(10,Math.min(260,P.y+P.facing.y*32));
+  for(let i=0;i<6;i++) PARTS.push({x:ox+(P.x-ox)*i/6,y:oy+(P.y-oy)*i/6,vx:0,vy:0,col:'#4a8ad8',life:18,ml:18,sz:3});
+  setTimeout(()=>{ P.invincible=false; if(P.state==='DASH') P.state='IDLE'; },240);
+}
+function quickPill(){ useItem('pill_hp'); }
+
+// ═══════════════════════════════════════════════════════════
+//  按鍵
+// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+//  按鍵監聽 (支援蓄力與數字鍵型態切換)
+// ═══════════════════════════════════════════════════════════
+const keys={}, JP={};
+window.addEventListener('keydown',e=>{
+  const k=e.key==='ArrowUp'?'w':e.key==='ArrowDown'?'s':e.key==='ArrowLeft'?'a':e.key==='ArrowRight'?'d':e.key.toLowerCase();
+  if(!keys[k]) JP[k]=true; keys[k]=true;
+  if(e.code==='Space'){if(!keys['j'])JP['j']=true;keys['j']=true;}
+  if(e.key==='Shift'){if(!keys['l'])JP['l']=true;keys['l']=true;}
+
+  // 數字鍵型態切換
+  if(e.key==='1') setStance('SWORD');
+  if(e.key==='2') setStance('TALISMAN');
+  if(e.key==='3') setStance('FROST');
+
+  // 開始蓄力
+  if((k==='j'||e.code==='Space')&&!P.charging&&P.state!=='DIE'){
+    P.charging=true; P.chargeTime=0;
+  }
+  e.preventDefault();
+},{capture:true});
+
+window.addEventListener('keyup',e=>{
+  const k=e.key==='ArrowUp'?'w':e.key==='ArrowDown'?'s':e.key==='ArrowLeft'?'a':e.key==='ArrowRight'?'d':e.key.toLowerCase();
+  keys[k]=false;
+  if(e.code==='Space') keys['j']=false;
+  if(e.key==='Shift') keys['l']=false;
+
+  // 釋放蓄力
+  if((k==='j'||e.code==='Space')&&P.charging){
+    P.charging=false;
+    const lvl=P.chargeTime>=1.0?2:P.chargeTime>=0.4?1:0;
+    triggerAttack(lvl);
+    P.chargeTime=0;
+  }
+});
+function cjp(){ const c={...JP}; for(const k in JP) delete JP[k]; return c; }
+
+// ═══════════════════════════════════════════════════════════
+//  HUD 更新
+// ═══════════════════════════════════════════════════════════
+function updateHUD(){
+  const r=REALMS[P.realmIdx];
+  $('ui-realm').textContent=r.name;
+  $('ui-hp').style.width=(P.hp/P.maxHp*100)+'%'; $('hp-v').textContent=Math.ceil(P.hp)+'/'+P.maxHp;
+  $('ui-qi').style.width=(P.qi/P.maxQi*100)+'%'; $('qi-v').textContent=Math.ceil(P.qi)+'/'+P.maxQi;
+  const ep=Math.min(P.exp,r.expNext);
+  $('ui-exp').style.width=(ep/r.expNext*100)+'%'; $('exp-v').textContent=Math.ceil(ep)+'/'+r.expNext;
+  $('ui-st').textContent=P.stones; $('ui-kl').textContent=P.kills;
+  $('ui-atk').textContent=P.atk; $('ui-def').textContent=P.def;
+  const can=P.qi>=P.maxQi&&P.realmIdx<REALMS.length-1&&!tribActive;
+  $('btn-bt').style.display=can?'block':'none';
+}
+
+// ═══════════════════════════════════════════════════════════
+//  地形繪製
+// ═══════════════════════════════════════════════════════════
+function drawBg(){
+  const a=getCurArea();
+  ctx.fillStyle=a.bg; ctx.fillRect(0,0,480,270);
+
+  switch(a.terrain){
+    case 'mountain': drawMountain(); break;
+    case 'cave':     drawCave(); break;
+    case 'sect':     drawSect(); break;
+    case 'ruins':    drawRuins(); break;
+  }
+
+  ctx.strokeStyle='rgba(255,255,255,.025)'; ctx.lineWidth=.5;
+  for(let x=0;x<480;x+=16){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,270);ctx.stroke();}
+  for(let y=0;y<270;y+=16){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(480,y);ctx.stroke();}
+}
+
+function drawMountain(){
+  // 遠山
+  [[0,'#111825',220,130],[20,'#0e1520',190,100],[50,'#0c1218',160,80]].forEach(([ox,c,h,bh])=>{
+    ctx.fillStyle=c;
+    ctx.beginPath(); ctx.moveTo(ox,270);
+    for(let x=ox;x<=480;x+=20) ctx.lineTo(x,270-bh-Math.sin((x+ox)*.04)*h*.4-Math.cos(x*.02)*h*.25);
+    ctx.lineTo(480,270); ctx.closePath(); ctx.fill();
+  });
+  // 草地
+  ctx.fillStyle='#1a2e18'; ctx.fillRect(0,215,480,55);
+  ctx.fillStyle='#1f3520';
+  for(let x=6;x<480;x+=13){ const h=3+Math.sin(x*.3)*2; ctx.fillRect(x,214,2,h); }
+  // 石道
+  ctx.fillStyle='#1a2a14'; ctx.fillRect(180,215,120,55);
+  // 樹
+  [[20,80],[45,60],[380,70],[430,50],[55,185],[460,200]].forEach(([x,y])=>{
+    ctx.fillStyle='#3a2a18'; ctx.fillRect(x+5,y+16,6,18);
+    ctx.fillStyle='#1a3a18'; ctx.fillRect(x,y+8,16,14);
+    ctx.fillStyle='#1e4420'; ctx.fillRect(x+2,y+2,12,12);
+    ctx.fillStyle='#247028'; ctx.fillRect(x+4,y,8,8);
+    ctx.fillStyle='rgba(100,200,80,.2)'; ctx.fillRect(x+2,y,4,4);
+  });
+  // 聚靈陣
+  ctx.save(); ctx.translate(340,160);
+  ctx.strokeStyle=`rgba(100,200,255,${.3+.2*Math.sin(T*2)})`; ctx.lineWidth=1.5;
+  for(let i=0;i<6;i++){const a=T*.5+i*Math.PI/3; ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(a)*22,Math.sin(a)*22);ctx.stroke();}
+  ctx.beginPath();ctx.arc(0,0,22,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle='rgba(0,207,255,.2)'; ctx.fill();
+  ctx.font='14px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle=`rgba(0,207,255,${.4+.3*Math.sin(T*4)})`; ctx.fillText('☯',0,0);
+  ctx.restore();
+}
+
+function drawCave(){
+  ctx.fillStyle='#0a0c18'; ctx.fillRect(0,0,480,270);
+  // 鐘乳石
+  ctx.fillStyle='#12141e';
+  for(let x=0;x<480;x+=20){ const h=18+Math.sin(x*.14)*12; ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x+10,h);ctx.lineTo(x+20,0);ctx.fill(); }
+  // 水晶
+  [[40,100,'#1a4a9a'],[90,150,'#0d3a7a'],[380,90,'#4a2a8a'],[440,160,'#1a4a9a']].forEach(([x,y,c])=>{
+    ctx.fillStyle=c; ctx.beginPath();ctx.moveTo(x+6,y);ctx.lineTo(x+12,y+8);ctx.lineTo(x+8,y+24);ctx.lineTo(x+4,y+24);ctx.lineTo(x,y+8);ctx.closePath();ctx.fill();
+    ctx.shadowColor=c; ctx.shadowBlur=10; ctx.fill(); ctx.shadowBlur=0;
+    ctx.fillStyle='rgba(255,255,255,.3)'; ctx.beginPath();ctx.moveTo(x+6,y);ctx.lineTo(x+10,y+8);ctx.lineTo(x+8,y+8);ctx.closePath();ctx.fill();
+  });
+  // 水面
+  for(let wy=200;wy<270;wy+=4){
+    ctx.fillStyle=`rgba(10,30,80,${.6-(wy-200)/80*.3})`; ctx.fillRect(0,wy,480,4);
+  }
+  for(let x=0;x<480;x+=28){
+    const w=Math.sin(T*2+x*.1)*2;
+    ctx.strokeStyle='rgba(100,180,255,.3)'; ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(x,200+w);ctx.lineTo(x+18,201+w);ctx.stroke();
+  }
+  // 靈泉
+  ctx.save(); ctx.translate(235,110);
+  for(let r=14;r<=28;r+=7){
+    ctx.strokeStyle=`rgba(0,207,255,${.08+.06*Math.sin(T*3+r)})`; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.stroke();
+  }
+  ctx.font='18px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle=`rgba(0,207,255,${.4+.3*Math.sin(T*4)})`; ctx.fillText('⊕',0,0);
+  ctx.restore();
+}
+
+function drawSect(){
+  // 棋盤地板
+  ctx.fillStyle='#0e0c1e'; ctx.fillRect(0,0,480,270);
+  for(let x=0;x<480;x+=32) for(let y=0;y<270;y+=32) if((x/32+y/32)%2===0){ctx.fillStyle='#131128';ctx.fillRect(x,y,32,32);}
+  ctx.strokeStyle='rgba(212,168,67,.08)'; ctx.lineWidth=1;
+  for(let x=0;x<480;x+=32){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,270);ctx.stroke();}
+  for(let y=0;y<270;y+=32){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(480,y);ctx.stroke();}
+  // 石柱
+  [[100,40],[380,40],[100,180],[380,180]].forEach(([x,y])=>{
+    ctx.fillStyle='#2a2050'; ctx.fillRect(x,y,16,60);
+    ctx.fillStyle='#3a3060'; ctx.fillRect(x+2,y,12,58);
+    ctx.fillStyle='#d4a843'; ctx.fillRect(x-2,y-4,20,6); ctx.fillRect(x-2,y+56,20,6);
+    ctx.fillStyle='rgba(255,255,255,.06)'; ctx.fillRect(x+2,y,4,60);
+    ctx.fillStyle=`rgba(212,168,67,${.08+.06*Math.sin(T*2+x)})`; ctx.fillRect(x+4,y+8,8,44);
+  });
+  // 大殿結構
+  ctx.fillStyle='#1e1a3a'; ctx.fillRect(150,50,180,80);
+  ctx.fillStyle='#2a2448'; ctx.fillRect(154,54,172,72);
+  ctx.fillStyle='rgba(212,168,67,.35)'; ctx.lineWidth=2; ctx.strokeStyle=`rgba(212,168,67,${.4+.3*Math.sin(T*2)})`;
+  ctx.strokeRect(158,58,164,64);
+  ctx.font='28px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle=`rgba(180,100,255,${.5+.3*Math.sin(T*3)})`; ctx.fillText('⊕',240,90);
+  // 光柱
+  const grad=ctx.createLinearGradient(240,0,240,58);
+  grad.addColorStop(0,'rgba(180,100,255,0)'); grad.addColorStop(1,`rgba(180,100,255,${.15+.1*Math.sin(T*4)})`);
+  ctx.fillStyle=grad; ctx.fillRect(228,0,24,58);
+}
+
+function drawRuins(){
+  ctx.fillStyle='#0e0812'; ctx.fillRect(0,0,480,270);
+  for(let x=0;x<480;x+=24) for(let y=0;y<270;y+=24){
+    if((x/24+y/24)%3===0){ctx.fillStyle='rgba(60,20,80,.3)';ctx.fillRect(x,y,24,24);}
+  }
+  // 破碎石柱
+  [[60,60,'#3a2050'],[400,70,'#3a2050'],[180,40,'#2a1040']].forEach(([x,y,c])=>{
+    ctx.fillStyle=c; ctx.fillRect(x,y,12,Math.random()*40+30);
+    ctx.fillStyle='rgba(100,0,150,.4)'; ctx.fillRect(x,y-6,16,7);
+  });
+  // 魔氣漩渦
+  ctx.save(); ctx.translate(240,135);
+  for(let i=0;i<5;i++){
+    const a=T*.8+i*Math.PI*2/5,r=50+Math.sin(T*2+i)*15;
+    ctx.strokeStyle=`rgba(150,50,200,${.2+.15*Math.sin(T*3+i)})`; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(0,0,r,a,a+Math.PI*.5); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  NPC / 傳送門繪製
+// ═══════════════════════════════════════════════════════════
+function drawNPCs(){
+  const area=getCurArea();
+  area.npcs.forEach(npc=>{
+    ctx.save(); ctx.translate(npc.x,npc.y);
+    ctx.strokeStyle=`rgba(212,168,67,${.2+.15*Math.sin(T*2)})`; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(0,0,14,0,Math.PI*2); ctx.stroke();
+    ctx.font='18px serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(npc.icon,0,0);
+    ctx.fillStyle=`rgba(255,215,0,${.5+.5*Math.abs(Math.sin(T*2.5))})`; ctx.font='bold 10px monospace';
+    ctx.fillText('!',0,-18);
+    ctx.restore();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  敵人繪製
+// ═══════════════════════════════════════════════════════════
+// 敵人投射物
+const EPROJ=[];
+
+function drawEnemies(){
+  getEnemies().filter(e=>e.alive).forEach(e=>{
+    ctx.save(); ctx.translate(e.x,e.y);
+    // 飛行型懸浮效果
+    const isFlying=e.aiType==='bat';
+    const hov=isFlying?Math.sin(T*4+e.id)*4:0;
+    // 地鼠挖地隱形
+    if(e.aiSt==='BURROW'){
+      ctx.globalAlpha=0.25;
+      // 挖地塵土
+      spark(e.x,e.y,'#8a6a4a',2,1,15);
+    }
+    // 冰封狀態繪製 (藍凍結)
+    if(e.frozenTimer>0){
+      ctx.fillStyle='rgba(100,220,255,.45)'; ctx.fillRect(-10,-14+hov,20,20);
+      ctx.strokeStyle='#a0efff'; ctx.lineWidth=1; ctx.strokeRect(-10,-14+hov,20,20);
+      ctx.fillStyle='#ffffff'; ctx.font='bold 8px monospace'; ctx.textAlign='center';
+      ctx.fillText('❄️ 凍結',0,-22);
+    }
+    // 陰影
+    ctx.fillStyle='rgba(0,0,0,.4)';
+    ctx.beginPath(); ctx.ellipse(0,9-hov,8,3,0,0,Math.PI*2); ctx.fill();
+    // Sprite 選擇（攻擊幀 or 普通幀）
+    const spr=ES[e.aiType]||null;
+    const attacking=e.aiSt==='ATTACK'||e.aiSt==='WINDUP';
+    const tint=e.frozenTimer>0?'rgba(100,200,255,.6)':attacking?`rgba(255,${e.aiType==='mole'?180:60},${e.aiType==='mole'?0:60},.5)`:null;
+    if(spr){
+      if(e.hflash>0){
+        // 閃白受傷
+        ctx.globalAlpha=.5;
+        drawSprite(spr,-8,-10+hov,2,e.facingLeft,`rgba(255,255,255,1)`);
+        ctx.globalAlpha=1;
+      }
+      drawSprite(spr,-8,-10+hov,2,e.facingLeft,tint);
+      // 攻擊預警圈（Windup）
+      if(e.aiSt==='WINDUP'){
+        ctx.strokeStyle=`rgba(255,80,0,${.3+.3*Math.sin(T*10)})`;
+        ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.arc(0,0,e.atkRange||14,0,Math.PI*2); ctx.stroke();
+      }
+    } else {
+      ctx.fillStyle=e.color||'#e84040';
+      ctx.fillRect(-7,-7+hov,14,14);
+    }
+    ctx.globalAlpha=1;
+    // 血條
+    const bw=20+Math.round(e.maxHp/20);
+    ctx.fillStyle='rgba(0,0,0,.7)'; ctx.fillRect(-bw/2,-18,bw,5);
+    ctx.fillStyle=e.hp>e.maxHp*.5?'#e74c3c':'#e67e22';
+    ctx.fillRect(-bw/2,-18,bw*(e.hp/e.maxHp),5);
+    ctx.strokeStyle='rgba(80,80,120,.4)'; ctx.lineWidth=.5;
+    ctx.strokeRect(-bw/2,-18,bw,5);
+    // 敵人名稱（近距離）
+    if(Math.hypot(P.x-e.x,P.y-e.y)<80){
+      ctx.fillStyle='rgba(220,160,160,.9)'; ctx.font='bold 7px monospace';
+      ctx.textAlign='center'; ctx.textBaseline='bottom';
+      ctx.fillText(e.name,0,-20);
+    }
+    ctx.restore();
+  });
+  // 敵人投射物
+  for(let i=EPROJ.length-1;i>=0;i--){
+    const q=EPROJ[i];
+    q.x+=q.dx*q.spd; q.y+=q.dy*q.spd; q.life--;
+    if(q.x<0||q.x>480||q.y<0||q.y>270||q.life<=0){EPROJ.splice(i,1);continue;}
+    // 碰撞玩家
+    if(Math.hypot(q.x-P.x,q.y-P.y)<12&&!P.invincible){
+      const dmg=Math.max(1,q.dmg-P.def);
+      P.hp=Math.max(0,P.hp-dmg); P.hurtFlash=14; P.invincible=true;
+      floatTxt(P.x,P.y-20,`-${dmg}`,'#ff8844');
+      spark(P.x,P.y,q.col||'#ff8844',6,2,20);
+      setTimeout(()=>P.invincible=false,600);
+      EPROJ.splice(i,1); updateHUD(); continue;
+    }
+    // 繪製投射物
+    ctx.save();
+    ctx.shadowColor=q.col; ctx.shadowBlur=8;
+    ctx.fillStyle=q.col;
+    ctx.beginPath(); ctx.arc(q.x,q.y,q.r||4,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.5)';
+    ctx.beginPath(); ctx.arc(q.x-q.r*.3,q.y-q.r*.3,q.r*.35,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0; ctx.restore();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  玩家繪製（精細 Sprite）
+// ═══════════════════════════════════════════════════════════
+const hdPlayerImg = new Image();
+hdPlayerImg.src = 'assets/sprites/player_hd_transparent.png';
+let hdPlayerLoaded = false;
+hdPlayerImg.onload = () => { hdPlayerLoaded = true; };
+
+function drawPlayer(){
+  ctx.save(); ctx.translate(P.x,P.y);
+  // 陰影
+  ctx.fillStyle='rgba(0,0,0,.45)';
+  ctx.beginPath(); ctx.ellipse(0,12,12,4,0,0,Math.PI*2); ctx.fill();
+
+  if(P.state==='MEDITATE'){
+    // 靈氣護體
+    for(let r=18;r<=36;r+=7){
+      ctx.strokeStyle=`rgba(0,207,255,${.07+.06*Math.sin(T*3+r)})`; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.stroke();
+    }
+    for(let i=0;i<4;i++){
+      const a=T+i*Math.PI/2;
+      ctx.fillStyle='#00cfff';
+      ctx.beginPath(); ctx.arc(Math.cos(a)*24,Math.sin(a)*24,2.5,0,Math.PI*2); ctx.fill();
+    }
+  }
+
+  if(hdPlayerLoaded){
+    // 使用 HD 高解析度 Sprite Sheet 繪製
+    const fw = hdPlayerImg.width / 4;
+    const fh = hdPlayerImg.height / 2;
+    let fIdx = 0;
+
+    if(P.state === 'IDLE' || P.state === 'MEDITATE') fIdx = 0; // 靜止不動時固定靜態幀
+    else if(P.state === 'MOVE') fIdx = 1 + (Math.floor(T * 8) % 3);
+    else if(P.state === 'ATTACK') fIdx = 4 + (Math.floor(T * 12) % 4);
+    else fIdx = 0;
+
+    const sx = (fIdx % 4) * fw;
+    const sy = Math.floor(fIdx / 4) * fh;
+
+    ctx.save();
+    if(P.facing.x < 0) ctx.scale(-1, 1);
+    if(P.hurtFlash > 0) ctx.globalAlpha = 0.5;
+
+    // 渲染 36×48px 高解析度修仙者
+    ctx.drawImage(hdPlayerImg, sx, sy, fw, fh, -18, -36, 36, 48);
+    ctx.restore();
+  } else {
+    // 降級 Procedural 繪製
+    if(P.hurtFlash>0){ ctx.fillStyle='rgba(255,50,50,.45)'; ctx.fillRect(-10,-22,20,28); }
+    drawSprite(P.state==='ATTACK'?ATK:P.state==='MEDITATE'?MED:IDLE0,-8,-22,2, P.facing.x<0);
+  }
+
+  // 蓄力特效與頭頂蓄力條
+  if(P.charging){
+    const col=P.stance==='TALISMAN'?'#ffd700':P.stance==='FROST'?'#a0e0ff':'#00cfff';
+    const pct=Math.min(1,P.chargeTime/1.0);
+    ctx.strokeStyle=col; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(0,-12,20+pct*6,T*6,T*6+Math.PI*1.5); ctx.stroke();
+    ctx.fillStyle='rgba(0,0,0,.8)'; ctx.fillRect(-14,-42,28,5);
+    ctx.fillStyle=P.chargeTime>=1.0?'#ffea00':P.chargeTime>=0.4?'#00ffff':col;
+    ctx.fillRect(-14,-42,28*pct,5);
+    ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.lineWidth=.5; ctx.strokeRect(-14,-42,28,5);
+    ctx.fillStyle='#ffffff'; ctx.font='bold 7px monospace'; ctx.textAlign='center';
+    ctx.fillText(P.chargeTime>=1.0?'⚡ MAX!':P.chargeTime>=0.4?'⚔ 蓄力I':'蓄力中',0,-45);
+  }
+
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  劍氣 / 粒子 / 特效繪製
+// ═══════════════════════════════════════════════════════════
+function drawSQS(){
+  SQS.forEach(q=>{
+    ctx.save(); ctx.translate(q.x,q.y); ctx.rotate(Math.atan2(q.dy,q.dx));
+    if(q.type==='talisman'){
+      // 閃電黃符
+      ctx.fillStyle='#ffe033'; ctx.shadowColor='#ffd700'; ctx.shadowBlur=8;
+      ctx.fillRect(-6,-4,12,8);
+      ctx.fillStyle='#ff0000'; ctx.fillRect(-2,-2,4,4);
+    } else if(q.type==='frost'){
+      // 冰晶錐
+      ctx.fillStyle='#80d0ff'; ctx.shadowColor='#00bfff'; ctx.shadowBlur=8;
+      ctx.beginPath(); ctx.moveTo(10,0); ctx.lineTo(-6,-5); ctx.lineTo(-4,0); ctx.lineTo(-6,5); ctx.closePath(); ctx.fill();
+    } else if(q.type==='mega_sword'||q.type==='homing_sword'){
+      // 巨型劍芒/萬劍歸宗飛劍
+      const sz=q.sz||12;
+      ctx.fillStyle='#00ffff'; ctx.shadowColor='#00e5ff'; ctx.shadowBlur=14;
+      ctx.beginPath(); ctx.moveTo(sz,0); ctx.lineTo(-sz,-sz*.4); ctx.lineTo(-sz*.5,0); ctx.lineTo(-sz,sz*.4); ctx.closePath(); ctx.fill();
+      ctx.fillStyle='#ffffff'; ctx.beginPath(); ctx.arc(0,0,sz*.25,0,Math.PI*2); ctx.fill();
+    } else {
+      // 普通劍氣
+      const gd=ctx.createLinearGradient(-16,0,16,0);
+      gd.addColorStop(0,'rgba(0,207,255,0)');
+      gd.addColorStop(.5,'rgba(180,240,255,.95)');
+      gd.addColorStop(1,'rgba(0,207,255,0)');
+      ctx.fillStyle=gd; ctx.shadowColor='#00cfff'; ctx.shadowBlur=8;
+      ctx.fillRect(-16,-2,32,4);
+      ctx.fillStyle='rgba(255,255,255,.8)'; ctx.fillRect(-3,-1,6,2);
+    }
+    ctx.shadowBlur=0; ctx.restore();
+  });
+}
+function drawParts(){
+  PARTS.forEach(p=>{
+    ctx.globalAlpha=p.life/p.ml;
+    ctx.fillStyle=p.col;
+    ctx.fillRect(p.x-p.sz/2,p.y-p.sz/2,p.sz,p.sz);
+  });
+  ctx.globalAlpha=1;
+}
+function drawFloats(){
+  FLOATS.forEach(f=>{
+    ctx.globalAlpha=f.life/f.ml;
+    ctx.fillStyle=f.col; ctx.font='bold 11px "Noto Serif TC",serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(f.text,f.x,f.y);
+  });
+  ctx.globalAlpha=1; ctx.textBaseline='alphabetic';
+}
+function drawLghts(){
+  LGHTS.forEach(l=>{
+    const a=l.life/20;
+    ctx.save(); ctx.shadowColor='#ffd700'; ctx.shadowBlur=16;
+    ctx.strokeStyle=`rgba(255,220,50,${a*.4})`; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.moveTo(l.segs[0].x,l.segs[0].y);
+    l.segs.slice(1).forEach(s=>ctx.lineTo(s.x,s.y)); ctx.stroke();
+    ctx.strokeStyle=`rgba(255,255,200,${a})`; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(l.segs[0].x,l.segs[0].y);
+    l.segs.slice(1).forEach(s=>ctx.lineTo(s.x,s.y)); ctx.stroke();
+    ctx.shadowBlur=0; ctx.restore();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  迷你地圖
+// ═══════════════════════════════════════════════════════════
+function drawMM(){
+  const a=getCurArea(); const sx=90/480,sy=68/270;
+  mm.fillStyle='#05080e'; mm.fillRect(0,0,90,68);
+  mm.strokeStyle='#1e2840'; mm.lineWidth=1; mm.strokeRect(0,0,90,68);
+  a.npcs.forEach(n=>{ mm.fillStyle='rgba(212,168,67,.7)'; mm.fillRect(n.x*sx-2,n.y*sy-2,4,4); });
+  getEnemies().filter(e=>e.alive).forEach(e=>{ mm.fillStyle='rgba(220,60,60,.7)'; mm.fillRect(e.x*sx-1,e.y*sy-1,3,3); });
+  mm.fillStyle='#ffd700'; mm.fillRect(P.x*sx-3,P.y*sy-3,6,6);
+  mm.fillStyle='rgba(110,120,160,.8)'; mm.font='7px monospace'; mm.textAlign='center';
+  mm.fillText(getCurArea().mapLabel,45,65);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  敵人 AI 狀態機
+//  狀態：PATROL → CHASE → WINDUP → ATTACK → COOLDOWN → RETREAT → SPECIAL
+// ═══════════════════════════════════════════════════════════
+function initEnemyAI(e){
+  if(e._aiInit) return;
+  e._aiInit=true;
+  e.aiSt='PATROL';
+  e.aiTimer=0;
+  e.specialCd=4+Math.random()*4;
+  e.atkCd=0;
+  e.retreatTimer=0;
+  e.hflash=0;
+  e.patrolAngle=Math.random()*Math.PI*2;
+  e.patrolSpeed=0.4+Math.random()*.3;
+  e.ox=e.x; e.oy=e.y; // 原始位置（巡邏中心）
+  e.facingLeft=false;
+  // 根據類型設定行為參數
+  switch(e.aiType){
+    case 'wolf':   e.aggroR=120;e.atkRange=16;e.chargeSpd=4.5;e.canCharge=true; break;
+    case 'spider': e.aggroR=150;e.atkRange=80;e.keepDist=70;e.canShoot=true; break;
+    case 'mole':   e.aggroR=100;e.atkRange=22;e.canBurrow=true; break;
+    case 'golem':  e.aggroR=90;e.atkRange=24;e.canSlam=true; break;
+    case 'bat':    e.aggroR=160;e.atkRange=12;e.canDive=true;e.flying=true; break;
+    case 'guard':  e.aggroR=130;e.atkRange=18;e.canShoot=true;e.canSlam=true; break;
+    default:       e.aggroR=120;e.atkRange=15;
+  }
+}
+
+function aiDamagePlayer(e,mult=1){
+  if(P.invincible||P.state==='DIE') return;
+  const dmg=Math.max(1,Math.round(e.atk*mult)-P.def);
+  P.hp=Math.max(0,P.hp-dmg);
+  P.hurtFlash=14; P.invincible=true;
+  setTimeout(()=>P.invincible=false,620);
+  floatTxt(P.x,P.y-22,`-${dmg}`,'#e84040');
+  spark(P.x,P.y,'#e84040',7,2.5,25);
+  updateHUD();
+  if(P.hp<=0&&P.state!=='DIE'){
+    P.state='DIE'; notify('💀 道消身亡。修為倒退至練氣一重…');
+    setTimeout(()=>{
+      P.realmIdx=0;const r=REALMS[0];
+      P.maxHp=r.maxHp;P.hp=P.maxHp;P.maxQi=r.maxQi;P.qi=0;P.atk=r.atk;P.def=r.def;P.exp=0;
+      P.stones=Math.floor(P.stones/2);P.state='IDLE';updateHUD();transitToArea('sect');
+    },2500);
+  }
+}
+
+function runEnemyAI(e, dt){
+  initEnemyAI(e);
+  // 冰封狀態凍結
+  if(e.frozenTimer>0){
+    e.frozenTimer-=dt;
+    if(Math.random()<.3) spark(e.x,e.y,'#a0efff',1,0.5,12);
+    return; // 冰封狀態下完全無法動作與移動
+  }
+  const spdMult = e.slowTimer>0 ? 0.45 : 1.0;
+  if(e.slowTimer>0) e.slowTimer-=dt;
+
+  const dx=P.x-e.x, dy=P.y-e.y, dist=Math.hypot(dx,dy);
+  const ndx=dist>0?dx/dist:0, ndy=dist>0?dy/dist:0;
+  e.facingLeft = dx<0;
+  e.hflash=Math.max(0,e.hflash-1);
+  e.aiTimer-=dt;
+  e.atkCd=Math.max(0,e.atkCd-dt);
+  e.specialCd=Math.max(0,e.specialCd-dt);
+
+  // ── BURROW（地鼠特殊：潛地）
+  if(e.aiSt==='BURROW'){
+    e.aiTimer-=0; // 已在外面計時
+    return; // 潛地期間不移動
+  }
+
+  switch(e.aiSt){
+    case 'PATROL':{
+      // 圓形巡邏
+      e.patrolAngle+=e.patrolSpeed*dt;
+      const pr=30;
+      const tx=e.ox+Math.cos(e.patrolAngle)*pr;
+      const ty=e.oy+Math.sin(e.patrolAngle)*pr;
+      const pdx=tx-e.x,pdy=ty-e.y,pl=Math.hypot(pdx,pdy)||1;
+      e.x+=pdx/pl*e.spd*.6;
+      e.y+=pdy/pl*e.spd*.6;
+      // 感知玩家
+      if(dist<e.aggroR){ e.aiSt='CHASE'; notify(`⚠ ${e.name} 發現你！`); }
+      break;
+    }
+    case 'CHASE':{
+      // 追擊：保持間距（毒蛛需要保距離）
+      const targetDist=e.keepDist||0;
+      if(dist>targetDist+5){
+        e.x+=ndx*e.spd;
+        e.y+=ndy*e.spd;
+      } else if(e.keepDist&&dist<e.keepDist-5){
+        // 維持安全距離，後退
+        e.x-=ndx*e.spd*.5;
+        e.y-=ndy*e.spd*.5;
+      }
+      e.x=Math.max(12,Math.min(468,e.x));
+      e.y=Math.max(12,Math.min(258,e.y));
+      // 脫敵範圍
+      if(dist>e.aggroR*1.4){ e.aiSt='PATROL'; e.ox=e.x;e.oy=e.y; break; }
+      // 進入攻擊距離 → 蓄力
+      if(dist<=e.atkRange+4&&e.atkCd<=0){
+        e.aiSt='WINDUP'; e.aiTimer=0.35+Math.random()*.2;
+        break;
+      }
+      // 特殊技能
+      if(e.specialCd<=0&&dist<e.aggroR){
+        e.specialCd=6+Math.random()*4;
+        if(e.canCharge){doCharge(e,ndx,ndy);}
+        else if(e.canShoot){doShoot(e,ndx,ndy);}
+        else if(e.canBurrow&&Math.random()<.4){doBurrow(e);}
+      }
+      break;
+    }
+    case 'WINDUP':{
+      // 蓄力：原地等待，顯示預警
+      if(e.aiTimer<=0){
+        e.aiSt='ATTACK'; e.aiTimer=0.15;
+      }
+      break;
+    }
+    case 'ATTACK':{
+      if(e.aiTimer<=0){
+        // 執行攻擊
+        if(dist<=e.atkRange+6){
+          aiDamagePlayer(e,1);
+          spark(e.x+(P.x-e.x)*.5,e.y+(P.y-e.y)*.5,e.color||'#e84040',8,2,20);
+        }
+        e.aiSt='COOLDOWN';
+        e.aiTimer=0.6+Math.random()*.5;
+        e.atkCd=1.2+Math.random()*.8;
+        // 攻擊後後退
+        e.retreatDx=-ndx; e.retreatDy=-ndy;
+      }
+      break;
+    }
+    case 'COOLDOWN':{
+      // 冷卻期：微微後退
+      if(e.retreatDx!==undefined){
+        e.x+=e.retreatDx*e.spd*.8;
+        e.y+=e.retreatDy*e.spd*.8;
+        e.x=Math.max(12,Math.min(468,e.x));
+        e.y=Math.max(12,Math.min(258,e.y));
+      }
+      if(e.aiTimer<=0){ e.aiSt='CHASE'; }
+      break;
+    }
+    case 'CHARGE':{
+      // 衝刺
+      e.x+=e.chargeDx*(e.chargeSpd||4);
+      e.y+=e.chargeDy*(e.chargeSpd||4);
+      e.x=Math.max(12,Math.min(468,e.x));
+      e.y=Math.max(12,Math.min(258,e.y));
+      // 衝刺中碰到玩家
+      if(Math.hypot(P.x-e.x,P.y-e.y)<16) aiDamagePlayer(e,1.4);
+      e.aiTimer-=0;
+      if(e.aiTimer<=0){ e.aiSt='COOLDOWN'; e.aiTimer=1.2; }
+      break;
+    }
+    case 'EMERGE':{
+      // 地鼠出現（AOE）
+      if(e.aiTimer<=0){
+        // 範圍 AOE
+        spark(e.x,e.y,'#8a6a4a',18,3.5,40,4);
+        for(let r=10;r<=24;r+=7){
+          ctx.strokeStyle=`rgba(200,150,50,.6)`; ctx.lineWidth=2;
+          ctx.beginPath(); ctx.arc(e.x,e.y,r,0,Math.PI*2); ctx.stroke();
+        }
+        if(Math.hypot(P.x-e.x,P.y-e.y)<26) aiDamagePlayer(e,1.5);
+        e.aiSt='COOLDOWN'; e.aiTimer=2.0; e.atkCd=2.0;
+      }
+      break;
+    }
+  }
+}
+
+// ── 特殊技能 ──
+function doCharge(e,ndx,ndy){
+  floatTxt(e.x,e.y-20,'⚡衝！','#ff6600');
+  e.chargeDx=ndx; e.chargeDy=ndy;
+  e.aiSt='CHARGE'; e.aiTimer=0.3;
+  spark(e.x,e.y,'#e84040',10,3,25);
+}
+function doShoot(e,ndx,ndy){
+  const isGuard=e.aiType==='guard';
+  const col=isGuard?'#b000ff':'#44ff88';
+  const r=isGuard?5:4;
+  // 毒蛛三連發，守衛單發
+  const cnt=isGuard?1:3;
+  for(let i=0;i<cnt;i++){
+    const spread=(i-(cnt-1)/2)*0.18;
+    const cos=Math.cos(spread),sin=Math.sin(spread);
+    const fdx=ndx*cos-ndy*sin, fdy=ndx*sin+ndy*cos;
+    setTimeout(()=>{
+      EPROJ.push({x:e.x+fdx*12,y:e.y+fdy*12,dx:fdx,dy:fdy,spd:isGuard?3.5:2.5,
+        dmg:e.atk*.6,col,r,life:80});
+    },i*100);
+  }
+  floatTxt(e.x,e.y-20,isGuard?'⚡魔彈！':'☠毒彈！',col);
+}
+function doBurrow(e){
+  floatTxt(e.x,e.y-20,'▼潛入地下…','#8a6a4a');
+  e.aiSt='BURROW'; e.aiTimer=1.8;
+  spark(e.x,e.y,'#8a6a4a',12,2,30);
+  // 潛地結束後從玩家附近出現
+  setTimeout(()=>{
+    const a=Math.random()*Math.PI*2;
+    e.x=Math.max(20,Math.min(460,P.x+Math.cos(a)*20));
+    e.y=Math.max(20,Math.min(250,P.y+Math.sin(a)*20));
+    e.aiSt='EMERGE'; e.aiTimer=0.4;
+    floatTxt(e.x,e.y-20,'▲出現！','#ff8800');
+    spark(e.x,e.y,'#cc8800',15,3,35);
+  },1800);
+}
+
+function updEnemies(){
+  const area=getCurArea();
+  if(area.safe) return;
+  getEnemies().filter(e=>e.alive).forEach(e=>runEnemyAI(e,1/60));
+}
+function updSQS(){
+  for(let i=SQS.length-1;i>=0;i--){
+    const q=SQS[i]; q.x+=q.dx*(q.type==='homing_sword'?6.5:5); q.y+=q.dy*(q.type==='homing_sword'?6.5:5); q.life--;
+    if(q.x<0||q.x>480||q.y<0||q.y>270||q.life<=0){SQS.splice(i,1);continue;}
+    const enemies=getEnemies().filter(e=>e.alive); let hit=false;
+    for(const e of enemies){
+      if(Math.hypot(q.x-e.x,q.y-e.y)<(q.sz||14)){
+        const dmg=Math.round((P.atk+Math.floor(Math.random()*8))*(q.dmgMult||1)); e.hp-=dmg;
+        if(q.slow) e.slowTimer=3.0; // 冰錐附帶緩速
+        floatTxt(e.x,e.y-12,`-${dmg}`,q.type==='frost'?'#80d0ff':q.type==='talisman'?'#ffe033':'#00cfff');
+        spark(e.x,e.y,e.color||'#00cfff',8,2.5,28);
+        if(e.hp<=0){
+          e.alive=false; P.stones+=e.reward.stones; P.kills++; P.exp+=e.reward.exp;
+          floatTxt(e.x,e.y-28,`+${e.reward.stones}💎`,'#ffd700');
+          if(Math.random()<.35) addItem('pill_hp','聚元丹','💊',1,'服用後恢復60氣血');
+          if(Math.random()<.18) addItem('pill_qi','聚靈丹','💫',1,'服用後恢復30%靈力');
+          spark(e.x,e.y,e.color,20,3.5,40,3);
+          const eid=e.id; const mapId=curAreaId;
+          setTimeout(()=>{ const arr=spawnedE[mapId]; if(arr){const t=arr.find(x=>x.id===eid); if(t){t.hp=t.maxHp;t.alive=true;}} }, CFG.rsSec*1000);
+          updateHUD();
+          if(P.exp>=REALMS[P.realmIdx].expNext&&!tribActive){ P.qi=P.maxQi; notify('💡 悟道圓滿！靈力蓄滿，可嘗試破境！'); updateHUD(); }
+        }
+        hit=true; break;
+      }
+    }
+    if(hit) SQS.splice(i,1);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  主更新
+// ═══════════════════════════════════════════════════════════
+let _fps=0,_fpsC=0,_fpsT=0;
+function update(dt,j){
+  // 設定 Esc
+  if(j['escape']){
+    if($('cfg-overlay').classList.contains('show')) closeCfg();
+    else $('cfg-overlay').classList.add('show'),$('btn-cfg').classList.add('spin');
+  }
+  // 浮層快捷鍵
+  if(j['i']){ const inv=$('inv-overlay'); inv.classList.contains('show')?closeInv():openInv(); }
+  if(j['c']){ const co=$('char-overlay'); co.classList.contains('show')?closeChar():openChar(); }
+  if(j['m']){ const mo=$('map-overlay'); mo.classList.contains('show')?closeMap():openMap(); }
+  if(j['f']||j['enter']){
+    if(dlgActive){ advanceDlg(); }
+    else if(j['f']){ getCurArea().npcs.forEach(npc=>{ if(Math.hypot(P.x-npc.x,P.y-npc.y)<35) startDlg(npc); }); }
+  }
+
+  // 浮層開啟時暫停遊戲邏輯
+  const paused=$('inv-overlay').classList.contains('show')||
+    $('char-overlay').classList.contains('show')||
+    $('map-overlay').classList.contains('show')||
+    $('cfg-overlay').classList.contains('show')||
+    $('map-banner').style.display==='block'||
+    dlgActive;
+
+  if(!paused&&P.state!=='DIE'){
+    // 蓄力計時
+    if(P.charging){
+      P.chargeTime+=dt;
+      const ccol=P.stance==='TALISMAN'?'#ffd700':P.stance==='FROST'?'#a0e0ff':'#00cfff';
+      spark(P.x+(Math.random()*24-12),P.y+(Math.random()*24-12),ccol,1,1.5,16,2);
+    }
+
+    // 揮劍 / 閃避
+    if(j['k']||j['c']&&!$('char-overlay').classList.contains('show')) /* K only */;
+    if(j['k']) toggleMed();
+    if(j['l']||j['shift']) doDash();
+
+    // 移動
+    let dx=0,dy=0;
+    if(keys['w']) dy-=1; if(keys['s']) dy+=1;
+    if(keys['a']) dx-=1; if(keys['d']) dx+=1;
+    if(dx||dy){
+      if(P.state==='MEDITATE') P.state='IDLE';
+      if(P.state!=='ATTACK'&&P.state!=='DASH') P.state='MOVE';
+      const l=Math.hypot(dx,dy)||1;
+      P.facing={x:dx/l,y:dy/l};
+      P.x=Math.max(10,Math.min(470,P.x+dx/l*P.speed));
+      P.y=Math.max(10,Math.min(260,P.y+dy/l*P.speed));
+    } else if(P.state==='MOVE') P.state='IDLE';
+
+    // 吐納
+    if(P.state==='MEDITATE'){
+      const qd=getCurArea().qiDensity;
+      P.qi=Math.min(P.maxQi,P.qi+.38*qd*CFG.qiSpd);
+      spiralQi(P.x,P.y); updateHUD();
+    } else { P.qi=Math.min(P.maxQi,P.qi+.018); updateHUD(); }
+
+    updEnemies(); updSQS();
+  }
+
+  if(P.hurtFlash>0) P.hurtFlash--;
+
+  // 粒子更新
+  for(let i=PARTS.length-1;i>=0;i--){
+    const p=PARTS[i];
+    if(p.qi){ p.x+=(p.tx-p.x)*.08;p.y+=(p.ty-p.y)*.08; }
+    else{ p.x+=p.vx;p.y+=p.vy;p.vy+=.04; }
+    p.life--; if(p.life<=0) PARTS.splice(i,1);
+  }
+  for(let i=FLOATS.length-1;i>=0;i--){ const f=FLOATS[i];f.y+=f.vy;f.life--;if(f.life<=0) FLOATS.splice(i,1); }
+  for(let i=LGHTS.length-1;i>=0;i--){ LGHTS[i].life--;if(LGHTS[i].life<=0) LGHTS.splice(i,1); }
+
+  // FPS
+  _fpsC++;_fpsT+=dt; if(_fpsT>=.5){_fps=Math.round(_fpsC/_fpsT);_fpsC=0;_fpsT=0;}
+
+  // 狀態文字
+  const sm={IDLE:'✨ 靜立凝神',MOVE:'🏃 御風奔行',ATTACK:'⚔ 劍氣縱橫',MEDITATE:'🧘 打坐吐納',DASH:'💨 御劍閃現',HURT:'💥 受創',DIE:'💀 道消身亡'};
+  $('state-txt').textContent=(sm[P.state]||P.state)+'  ─  '+getCurArea().name;
+}
+
+function render(){
+  ctx.save();
+  // 畫面震動特效 (絕招觸發)
+  if(screenShake>0){
+    screenShake--;
+    const sx=(Math.random()-.5)*screenShake*1.2;
+    const sy=(Math.random()-.5)*screenShake*1.2;
+    ctx.translate(sx,sy);
+  }
+  drawBg();
+  if(CFG.particles) drawParts();
+  drawNPCs(); drawEnemies(); drawSQS(); drawLghts(); drawPlayer(); drawFloats();
+  // 暗角後製
+  if(CFG.vignette){
+    const vg=ctx.createRadialGradient(240,135,55,240,135,275);
+    vg.addColorStop(0,'transparent'); vg.addColorStop(1,'rgba(0,0,0,.5)');
+    ctx.fillStyle=vg; ctx.fillRect(0,0,480,270);
+  }
+  // FPS
+  if(CFG.fps){ ctx.fillStyle='rgba(255,255,0,.8)';ctx.font='bold 9px monospace';ctx.textAlign='right';ctx.textBaseline='top';ctx.fillText('FPS '+_fps,477,4);ctx.textBaseline='alphabetic'; }
+  drawMM();
+  ctx.restore();
+}
+
+function loop(ts){
+  const dt=Math.min((ts-lastT)/1000,.05); lastT=ts; T+=dt;
+  const j=cjp(); update(dt,j); render();
+  requestAnimationFrame(loop);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  初始化
+// ═══════════════════════════════════════════════════════════
+applyScale(120);
+(()=>{
+  const sv=localStorage.getItem('pg_sv');
+  if(sv){try{const d=JSON.parse(sv);P.stones=d.stones||0;P.kills=d.kills||0;P.realmIdx=d.realmIdx||0;P.exp=d.exp||0;const r=REALMS[P.realmIdx];P.maxHp=r.maxHp;P.hp=P.maxHp;P.maxQi=r.maxQi;P.atk=r.atk;P.def=r.def;}catch(e){}}
+})();
+// 初始進入宗門觸發給藥
+setTimeout(()=>{ getCurArea().npcs.forEach(n=>{ if(n.onStart){n.onStart();n.onStart=null;} }); },500);
+renderInv(); updateHUD();
+notify('⚔ 歡迎踏入宗門！按 M 開啟世界地圖，選擇前往靈山修行');
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
