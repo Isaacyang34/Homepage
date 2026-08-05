@@ -412,12 +412,12 @@
       const monthLabelEl = document.getElementById('counter-month-label');
       if (monthLabelEl) monthLabelEl.textContent = monthLabel;
 
-      // 本機與 localStorage 次數持久化 (雙重補償)
-      const localTotalKey = 'kp_traffic_total_count';
-      const localMonthKey = `kp_traffic_month_${yearMonthKey}_count`;
+      // 真實本機與訪客紀錄 (嚴格從 0 開始累加，絕無任何假數據預設值)
+      const localTotalKey = 'kp_real_total_views_v2';
+      const localMonthKey = `kp_real_month_${yearMonthKey}_v2`;
 
-      let currentTotal = parseInt(localStorage.getItem(localTotalKey) || '1280', 10) + 1;
-      let currentMonth = parseInt(localStorage.getItem(localMonthKey) || '320', 10) + 1;
+      let currentTotal = parseInt(localStorage.getItem(localTotalKey) || '0', 10) + 1;
+      let currentMonth = parseInt(localStorage.getItem(localMonthKey) || '0', 10) + 1;
 
       localStorage.setItem(localTotalKey, currentTotal);
       localStorage.setItem(localMonthKey, currentMonth);
@@ -425,19 +425,19 @@
       document.getElementById('counter-total').textContent = currentTotal.toLocaleString();
       document.getElementById('counter-monthly').textContent = currentMonth.toLocaleString();
 
-      // 嘗試請求公用 CountAPI 進行全球同步
+      // 全球實際連線請求計數 (若 API 成功則以真實 CountAPI 值覆蓋)
       try {
-        const totalRes = await fetch('https://api.countapi.xyz/hit/kingpoint-jindian-art/total').then(r => r.json()).catch(() => null);
-        const monthRes = await fetch(`https://api.countapi.xyz/hit/kingpoint-jindian-art/${yearMonthKey}`).then(r => r.json()).catch(() => null);
+        const totalRes = await fetch('https://api.countapi.xyz/hit/isaacyang34-kp-jindian/total_v2').then(r => r.json()).catch(() => null);
+        const monthRes = await fetch(`https://api.countapi.xyz/hit/isaacyang34-kp-jindian/${yearMonthKey}_v2`).then(r => r.json()).catch(() => null);
 
-        if (totalRes && totalRes.value) {
+        if (totalRes && typeof totalRes.value === 'number') {
           document.getElementById('counter-total').textContent = totalRes.value.toLocaleString();
         }
-        if (monthRes && monthRes.value) {
+        if (monthRes && typeof monthRes.value === 'number') {
           document.getElementById('counter-monthly').textContent = monthRes.value.toLocaleString();
         }
       } catch (err) {
-        console.log('Counter ready');
+        // 保持從 0 開始的真實 local 累加值
       }
     }
 
