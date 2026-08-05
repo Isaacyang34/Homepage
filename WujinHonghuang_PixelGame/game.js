@@ -718,6 +718,7 @@ document.addEventListener('DOMContentLoaded', () => {
   selectDungeon(5);
   startRegenTimer();
   startFurnaceTimer();
+  startOnlinePlayerCounter();
 });
 
 function setupEventListeners() {
@@ -3959,11 +3960,22 @@ function isFirebaseConfigured() {
   return !!FIREBASE_CONFIG.databaseURL;
 }
 
-function renderOnlineCountUI(html, statusHtml) {
+function renderOnlineCountUI(html, statusHtml, rawCount) {
   const elRemote = document.getElementById('gm-remote-online-count');
   const elStatus = document.getElementById('gm-remote-node-status');
+  const elHeaderNum = document.getElementById('header-online-num');
+
   if (elRemote && html !== null) elRemote.innerHTML = html;
   if (elStatus && statusHtml !== null) elStatus.innerHTML = statusHtml;
+
+  if (elHeaderNum) {
+    if (typeof rawCount === 'number') {
+      elHeaderNum.textContent = rawCount;
+    } else if (html !== null) {
+      const match = html.match(/^(\d+)/);
+      if (match) elHeaderNum.textContent = match[1];
+    }
+  }
 }
 
 function startOnlinePlayerCounter() {
@@ -3974,7 +3986,8 @@ function startOnlinePlayerCounter() {
   if (typeof firebase === 'undefined' || !isFirebaseConfigured()) {
     renderOnlineCountUI(
       `1 <span style="font-size:0.7rem; color:#f1c40f;">人（尚未設定雲端後端，僅顯示本機）</span>`,
-      `<span style="color:#f39c12;">📡 尚未設定 Firebase，無法統計全服真實人數</span>`
+      `<span style="color:#f39c12;">📡 尚未設定 Firebase，無法統計全服真實人數</span>`,
+      1
     );
     return;
   }
@@ -3988,10 +4001,6 @@ function startOnlinePlayerCounter() {
     const connectedRef = firebaseDb.ref('.info/connected');
     const onlinePlayersRef = firebaseDb.ref('onlinePlayers');
 
-    // Firebase 官方標準 Presence 寫法：
-    // 只要這個瀏覽器連線到 Realtime Database，就在 onlinePlayers/自己的UID 寫入 true，
-    // 並用 onDisconnect() 註冊「斷線時（關分頁/斷網）由伺服器自動移除」，
-    // 這樣不論是正常離開還是斷網關機，人數都會即時準確地增減。
     connectedRef.on('value', (snap) => {
       if (snap.val() === true) {
         myRef.onDisconnect().remove();
@@ -4004,16 +4013,19 @@ function startOnlinePlayerCounter() {
 
     onlinePlayersRef.on('value', (snap) => {
       const count = snap.numChildren();
+      const finalCount = Math.max(1, count);
       renderOnlineCountUI(
-        `${Math.max(1, count)} <span style="font-size:0.7rem; color:#2ecc71;">人（全服真實在線）</span>`,
-        null
+        `${finalCount} <span style="font-size:0.7rem; color:#2ecc71;">人（全服真實在線）</span>`,
+        null,
+        finalCount
       );
     });
   } catch (err) {
     console.error('Firebase 在線人數初始化失敗:', err);
     renderOnlineCountUI(
       `1 <span style="font-size:0.7rem; color:#e74c3c;">人（雲端連線失敗）</span>`,
-      `<span style="color:#e74c3c;">📡 雲端在線心跳節點: 連線失敗，請檢查 FIREBASE_CONFIG 設定</span>`
+      `<span style="color:#e74c3c;">📡 雲端在線心跳節點: 連線失敗，請檢查 FIREBASE_CONFIG 設定</span>`,
+      1
     );
   }
 }

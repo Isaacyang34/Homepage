@@ -188,6 +188,37 @@ header {
   animation: pulse 1.5s infinite alternate;
 }
 
+.badge-online {
+  background: rgba(46, 204, 113, 0.15);
+  color: #2ecc71;
+  border: 1px solid rgba(46, 204, 113, 0.4);
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: bold;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  box-shadow: 0 0 8px rgba(46, 204, 113, 0.2);
+  line-height: 1;
+}
+
+.badge-online .online-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  background-color: #2ecc71;
+  border-radius: 50%;
+  box-shadow: 0 0 6px #2ecc71;
+  animation: onlinePulse 2s infinite ease-in-out;
+}
+
+@keyframes onlinePulse {
+  0% { transform: scale(0.9); opacity: 0.6; box-shadow: 0 0 4px #2ecc71; }
+  50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 8px #2ecc71; }
+  100% { transform: scale(0.9); opacity: 0.6; box-shadow: 0 0 4px #2ecc71; }
+}
+
 @keyframes pulse {
   0% { transform: scale(0.95); opacity: 0.8; }
   100% { transform: scale(1.05); opacity: 1; }
