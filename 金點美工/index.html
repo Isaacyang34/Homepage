@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金點美工 — 廠房開關標示 SS系列公版目錄與價目預覽中心</title>
+  <meta name="description" content="金點美工專業廠房開關標示 SS系列公版目錄、最新批價價目表、規格尺寸對照與 PDF 在線預覽嵌入系統。">
+  
+  <!-- Tailwind CSS & Google Fonts -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+      background-color: #f8fafc;
+      color: #1e293b;
+    }
+    .gradient-header {
+      background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
+    }
+    .badge-price {
+      background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+    }
+    .shadow-custom {
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+    }
+    /* PDF Viewer Container */
+    .pdf-container {
+      position: relative;
+      width: 100%;
+      height: 750px;
+      border-radius: 0.75rem;
+      overflow: hidden;
+      box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+    }
+    @media (max-width: 768px) {
+      .pdf-container {
+        height: 500px;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+
+  <!-- 頂部導航與主題 Header -->
+  <header class="gradient-header text-white shadow-lg border-b border-blue-900">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-amber-400 text-blue-950 flex items-center justify-center font-black text-xl shadow-md">
+              金
+            </div>
+            <div>
+              <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">金點美工 · KING POINT</h1>
+              <p class="text-blue-200 text-xs sm:text-sm mt-0.5">廠房開關標示 SS系列【公版目錄】與最新價目中心</p>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 聯絡資訊快照 -->
+        <div class="flex flex-wrap gap-2 text-xs sm:text-sm">
+          <a href="tel:0422976116" class="bg-blue-800/80 hover:bg-blue-700 px-3 py-1.5 rounded-lg border border-blue-600 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-phone text-amber-400"></i>
+            <span>04-22976116</span>
+          </a>
+          <a href="mailto:king.poing@msa.hinet.net" class="bg-blue-800/80 hover:bg-blue-700 px-3 py-1.5 rounded-lg border border-blue-600 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-envelope text-amber-400"></i>
+            <span>king.poing@msa.hinet.net</span>
+          </a>
+          <a href="https://www.facebook.com/kingpoint.com.tw" target="_blank" class="bg-amber-500 hover:bg-amber-400 text-blue-950 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+            <i class="fa-brands fa-facebook"></i>
+            <span>官方 Facebook</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主要內容區 -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full space-y-8">
+
+    <!-- 頂部公告橫幅 -->
+    <div class="bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-amber-500 p-4 rounded-r-xl shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-full bg-amber-200 text-amber-800 flex items-center justify-center flex-shrink-0">
+          <i class="fa-solid fa-bullhorn text-sm"></i>
+        </div>
+        <div>
+          <span class="font-bold text-amber-900 text-sm sm:text-base">115.05.01 最新修訂公告：</span>
+          <span class="text-amber-800 text-xs sm:text-sm">SS系列廠房開關標示批價表與鏈條配置調整公告已發布。</span>
+        </div>
+      </div>
+      <button onclick="scrollToSection('price-calculator')" class="text-xs bg-amber-600 hover:bg-amber-700 text-white font-medium px-3 py-1.5 rounded-md transition flex-shrink-0">
+        快速試算批價 <i class="fa-solid fa-arrow-down ml-1"></i>
+      </button>
+    </div>
+
+    <!-- 區塊一：PDF 內嵌預覽視窗 (可切換目錄/價目表) -->
+    <section class="bg-white rounded-2xl p-4 sm:p-6 shadow-custom border border-slate-200/80">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+        <div>
+          <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-file-pdf text-red-600"></i>
+            <span>PDF 文件內嵌即時預覽</span>
+          </h2>
+          <p class="text-xs text-slate-500 mt-1">無需下載，可直接在網頁中滑動瀏覽高清產品圖與公版規格標記</p>
+        </div>
+
+        <!-- PDF 分頁切換按鈕 -->
+        <div class="flex bg-slate-100 p-1 rounded-xl gap-1 self-start sm:self-auto border border-slate-200">
+          <button id="btn-pdf-catalog" onclick="switchPdf('catalog')" class="px-4 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all shadow-sm bg-blue-900 text-white">
+            <i class="fa-solid fa-book-open mr-1.5"></i>SS系列公版目錄 (圖檔)
+          </button>
+          <button id="btn-pdf-price" onclick="switchPdf('price')" class="px-4 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all text-slate-600 hover:text-slate-900">
+            <i class="fa-solid fa-calculator mr-1.5"></i>最新價目調整表 (PDF)
+          </button>
+        </div>
+      </div>
+
+      <!-- PDF 預覽框體 -->
+      <div class="mt-4">
+        <!-- 檔案操作工具列 -->
+        <div class="bg-slate-800 text-slate-200 px-4 py-2.5 rounded-t-xl text-xs flex items-center justify-between flex-wrap gap-2">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span id="pdf-title-display" class="font-medium">SS系列目錄.pdf (公版目錄)</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <a id="pdf-download-link" href="SS_Catalog.pdf" download class="hover:text-amber-400 transition flex items-center gap-1">
+              <i class="fa-solid fa-download"></i> 下載 PDF
+            </a>
+            <a id="pdf-external-link" href="SS_Catalog.pdf" target="_blank" class="hover:text-amber-400 transition flex items-center gap-1">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i> 全螢幕開啟
+            </a>
+          </div>
+        </div>
+
+        <!-- PDF 嵌入載體 -->
+        <div class="pdf-container bg-slate-900 border-x border-b border-slate-800">
+          <iframe id="pdf-iframe" src="SS_Catalog.pdf" class="w-full h-full border-0"></iframe>
+        </div>
+      </div>
+    </section>
+
+    <!-- 區塊二：SS系列完整規格與批價快速查詢表 -->
+    <section class="bg-white rounded-2xl p-4 sm:p-6 shadow-custom border border-slate-200/80 space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-table-list text-blue-600"></i>
+            <span>SS系列公版型號對照與批價速查</span>
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">點擊搜尋即可過濾特定尺寸、附磁鐵或鍊條型號</p>
+        </div>
+
+        <!-- 搜尋過濾器 -->
+        <div class="relative w-full sm:w-64">
+          <input type="text" id="search-input" onkeyup="filterTable()" placeholder="搜尋型號 (例如 SS-11, 附磁鐵)..." class="w-full pl-9 pr-4 py-2 text-xs sm:text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:outline-none">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+        </div>
+      </div>
+
+      <!-- 規格表格 -->
+      <div class="overflow-x-auto rounded-xl border border-slate-200">
+        <table class="w-full text-xs sm:text-sm text-left text-slate-700" id="spec-table">
+          <thead class="text-xs uppercase bg-slate-100 text-slate-600 border-b border-slate-200">
+            <tr>
+              <th scope="col" class="px-4 py-3 font-bold">產品型號</th>
+              <th scope="col" class="px-4 py-3 font-bold">尺寸規格 (H/W/Ø/T)</th>
+              <th scope="col" class="px-4 py-3 font-bold text-center">市價參考</th>
+              <th scope="col" class="px-4 py-3 font-bold text-center">建議售價</th>
+              <th scope="col" class="px-4 py-3 font-bold text-center text-blue-900">經銷批價</th>
+              <th scope="col" class="px-4 py-3 font-bold">備註與配備</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <!-- 動態生成或靜態對照 -->
+            <tr class="hover:bg-slate-50 transition">
+              <td class="px-4 py-2.5 font-bold text-blue-900">SS-11</td>
+              <td class="px-4 py-2.5">H:100mm Ø:50mm T:4mm</td>
+              <td class="px-4 py-2.5 text-center text-slate-400 line-through">$60</td>
+              <td class="px-4 py-2.5 text-center">$50</td>
+              <td class="px-4 py-2.5 text-center font-bold text-emerald-600 bg-emerald-50/50">$45</td>
+              <td class="px-4 py-2.5 text-slate-500">滑套/鍊條配置完善</td>
+            </tr>
+            <tr class="hover:bg-slate-50 transition">
+              <td class="px-4 py-2.5 font-bold text-blue-900">SS-12</td>
+              <td class="px-4 py-2.5">H:90mm Ø:50mm W:34mm T:4mm</td>
+              <td class="px-4 py-2.5 text-center text-slate-400 line-through">$45</td>
+              <td class="px-4 py-2.5 text-center">$40</td>
+              <td class="px-4 py-2.5 text-center font-bold text-emerald-600 bg-emerald-50/50">$34</td>
+              <td class="px-4 py-2.5 text-slate-500">建議不須再加阻條</td>
+            </tr>
+            <tr class="hover:bg-slate-50 transition">
+              <td class="px-4 py-2.5 font-bold text-blue-900">SS-13</td>
+              <td class="px-4 py-2.5">H:60mm Ø:50mm W:30mm T:4mm</td>
+              <td class="px-4 py-2.5 text-center text-slate-400 line-through">$35</td>
+              <td class="px-4 py-2.5 text-center">$28</td>
+              <td class="px-4 py-2.5 text-center font-bold text-emerald-600 bg-emerald-50/50">$23</td>
+              <td class="px-4 py-2.5 text-slate-500">-</td>
+            </tr>
+            <tr class="hover:bg-slate-50 transition">
+              <td class="px-4 py-2.5 font-bold text-blue-900">SS-14</td>
+              <td class="px-4 py-2.5">H:60mm Ø:50mm W:30mm T:4mm</td>
+              <td class="px-4 py-2.5 text-center text-slate-400 line-through">$35</td>
+              <td class="px-4 py-2.5 text-center">$28</td>
+              <td class="px-4 py-2.5 text-center font-bold text-emerald-600 bg-emerald-50/50">$23</td>
+              <td class="px-4 py-2.5 text-slate-500">-</td>
+            </tr>
+            <tr class="hover:bg-slate-50 transition bg-amber-50/30">
+              <td class="px-4 py-2.5 font-bold text-blue-900">SS-27 ~ SS-30</td>
+              <td class="px-4 py-2.5">各式標準規格/多種款式</td>
+              <td class="px-4 py-2.5 text-center text-slate-400 line-through">$30</td>
+              <td class="px-4 py-2.5 text-center">$25</td>
+              <td class="px-4 py-2.5 text-center font-bold text-emerald-600 bg-emerald-50/50">$23</td>
+              <td class="px-4 py-2.5 font-semibold text-amber-700"><i class="fa-solid fa-magnet mr-1"></i>附強力磁鐵</td>
+            </tr>
+            <tr class="hover:bg-slate-50 transition">
+              <td class="px-4 py-2.5 font-bold text-blue-900">SS-33 ~ SS-35</td>
+              <td class="px-4 py-2.5">H:60~70mm W:40mm T:2mm</td>
+              <td class="px-4 py-2.5 text-center text-slate-400 line-through">$25</td>
+              <td class="px-4 py-2.5 text-center">$19</td>
+              <td class="px-4 py-2.5 text-center font-bold text-emerald-600 bg-emerald-50/50">$14.5</td>
+              <td class="px-4 py-2.5 text-slate-500">標準經典款</td>
+            </tr>
+            <tr class="hover:bg-slate-50 transition">
+              <td class="px-4 py-2.5 font-bold text-blue-900">SS-36 ~ SS-38</td>
+              <td class="px-4 py-2.5">H:60mm W:30mm T:2mm</td>
+              <td class="px-4 py-2.5 text-center text-slate-400 line-through">$22</td>
+              <td class="px-4 py-2.5 text-center">$18</td>
+              <td class="px-4 py-2.5 text-center font-bold text-emerald-600 bg-emerald-50/50">$12.5</td>
+              <td class="px-4 py-2.5 text-slate-500">超值熱銷款</td>
+            </tr>
+            <tr class="hover:bg-slate-50 transition">
+              <td class="px-4 py-2.5 font-bold text-blue-900">SS-40 鍍鎳鍊條</td>
+              <td class="px-4 py-2.5">Ø:2.4mm L:220mm (100條裝)</td>
+              <td class="px-4 py-2.5 text-center text-slate-400">-</td>
+              <td class="px-4 py-2.5 text-center">-</td>
+              <td class="px-4 py-2.5 text-center font-bold text-emerald-600 bg-emerald-50/50">$3/條</td>
+              <td class="px-4 py-2.5 text-slate-500">基本配置款</td>
+            </tr>
+            <tr class="hover:bg-slate-50 transition">
+              <td class="px-4 py-2.5 font-bold text-blue-900">SS-41 白鐵鍊條</td>
+              <td class="px-4 py-2.5">Ø:2.4mm L:220mm (100條裝)</td>
+              <td class="px-4 py-2.5 text-center text-slate-400">-</td>
+              <td class="px-4 py-2.5 text-center">-</td>
+              <td class="px-4 py-2.5 text-center font-bold text-emerald-600 bg-emerald-50/50">$4.5/條</td>
+              <td class="px-4 py-2.5 text-slate-500">補差價升級</td>
+            </tr>
+            <tr class="hover:bg-slate-50 transition">
+              <td class="px-4 py-2.5 font-bold text-blue-900">SS-42 塑鋼鍊條</td>
+              <td class="px-4 py-2.5">Ø:3.0mm L:220mm (100條裝)</td>
+              <td class="px-4 py-2.5 text-center text-slate-400">-</td>
+              <td class="px-4 py-2.5 text-center">-</td>
+              <td class="px-4 py-2.5 text-center font-bold text-emerald-600 bg-emerald-50/50">$4/條</td>
+              <td class="px-4 py-2.5 text-slate-500">補差價升級</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 區塊三：一鍵導出 Google Sites (協作平台) 內嵌代碼面板 -->
+    <section class="bg-gradient-to-br from-slate-900 to-blue-950 text-white rounded-2xl p-4 sm:p-6 shadow-xl border border-blue-800">
+      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+          <h3 class="text-lg font-bold text-amber-400 flex items-center gap-2">
+            <i class="fa-solid fa-code"></i>
+            <span>Google Sites (協作平台) 內嵌 HTML 語法匯出</span>
+          </h3>
+          <p class="text-xs text-slate-300 mt-1">若要在 Google Sites 網頁中直接內嵌此 PDF 預覽與全功能網頁，請複製下方 <iframe> 語法：</p>
+        </div>
+        <button onclick="copyGoogleSitesCode()" class="bg-amber-500 hover:bg-amber-400 text-blue-950 font-bold px-4 py-2 rounded-xl text-xs sm:text-sm transition flex items-center gap-2 shadow-lg flex-shrink-0">
+          <i class="fa-solid fa-copy"></i>
+          <span id="copy-btn-text">複製 Google Sites 內嵌碼</span>
+        </button>
+      </div>
+
+      <div class="mt-4 bg-slate-950/80 rounded-xl p-3 border border-slate-800 font-mono text-xs text-emerald-400 overflow-x-auto">
+        <code id="embed-code-text">&lt;iframe src="https://isaacyang34.github.io/Homepage/Jindian_Art_Catalog/" width="100%" height="800" frameborder="0" style="border:none; border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,0.15);" allowfullscreen&gt;&lt;/iframe&gt;</code>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 頁尾 Footer -->
+  <footer class="bg-slate-900 text-slate-400 text-xs border-t border-slate-800 py-6 mt-12">
+    <div class="max-w-7xl mx-auto px-4 text-center space-y-2">
+      <p class="font-medium text-slate-300">金點美工版權所有 © King Point Art & Industrial Signage. All Rights Reserved.</p>
+      <p class="text-slate-500">電話: 04-22976116 · 04-22968855 · 04-22970009 | 傳真: 04-22970546 | 信箱: king.poing@msa.hinet.net</p>
+    </div>
+  </footer>
+
+  <script>
+    // PDF 切換機制
+    function switchPdf(type) {
+      const iframe = document.getElementById('pdf-iframe');
+      const titleDisplay = document.getElementById('pdf-title-display');
+      const downloadLink = document.getElementById('pdf-download-link');
+      const externalLink = document.getElementById('pdf-external-link');
+      const btnCatalog = document.getElementById('btn-pdf-catalog');
+      const btnPrice = document.getElementById('btn-pdf-price');
+
+      if (type === 'catalog') {
+        iframe.src = 'SS_Catalog.pdf';
+        titleDisplay.textContent = 'SS系列目錄.pdf (公版目錄圖檔)';
+        downloadLink.href = 'SS_Catalog.pdf';
+        externalLink.href = 'SS_Catalog.pdf';
+
+        btnCatalog.className = 'px-4 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all shadow-sm bg-blue-900 text-white';
+        btnPrice.className = 'px-4 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all text-slate-600 hover:text-slate-900';
+      } else {
+        iframe.src = 'Price_Adjustment_1150501.pdf';
+        titleDisplay.textContent = '通知廠房開關標價格調整1150501.pdf (最新修訂價目表)';
+        downloadLink.href = 'Price_Adjustment_1150501.pdf';
+        externalLink.href = 'Price_Adjustment_1150501.pdf';
+
+        btnPrice.className = 'px-4 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all shadow-sm bg-blue-900 text-white';
+        btnCatalog.className = 'px-4 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all text-slate-600 hover:text-slate-900';
+      }
+    }
+
+    // 搜尋表格過濾
+    function filterTable() {
+      const input = document.getElementById('search-input');
+      const filter = input.value.toUpperCase();
+      const table = document.getElementById('spec-table');
+      const tr = table.getElementsByTagName('tr');
+
+      for (let i = 1; i < tr.length; i++) {
+        const textContent = tr[i].textContent || tr[i].innerText;
+        if (textContent.toUpperCase().indexOf(filter) > -1) {
+          tr[i].style.display = '';
+        } else {
+          tr[i].style.display = 'none';
+        }
+      }
+    }
+
+    // 複製內嵌碼
+    function copyGoogleSitesCode() {
+      const codeText = document.getElementById('embed-code-text').textContent;
+      navigator.clipboard.writeText(codeText).then(() => {
+        const btnText = document.getElementById('copy-btn-text');
+        btnText.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> 已複製內嵌碼！';
+        setTimeout(() => {
+          btnText.textContent = '複製 Google Sites 內嵌碼';
+        }, 2500);
+      });
+    }
+
+    function scrollToSection(id) {
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }
+  </script>
+</body>
+</html>

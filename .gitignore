@@ -1,0 +1,16 @@
+# 系統與安裝包大檔
+*.iso
+*.exe
+*.zip
+*.rar
+*.7z
+*.yaml
+*.ini
+*.pdf
+Rufus/
+
+# AI Agents 暫存
+.agents/
+
+# 歷史備份
+backups/

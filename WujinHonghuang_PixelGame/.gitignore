@@ -1,0 +1,8 @@
+# 忽略本機歷史備份資料夾 (避免備份巨大檔案推上 Git)
+backups/
+
+# 臨時檔與系統檔
+*.tmp
+*.log
+.DS_Store
+Thumbs.db
