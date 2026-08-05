@@ -250,7 +250,10 @@ canvas{image-rendering:pixelated;display:block;}
 <body>
 <div id="title-bar">
   <div id="title">⚔ 修仙傳 · MyPixelGame ⚔</div>
-  <div class="icon-btn" id="btn-cfg" title="設定 (Esc)">⚙</div>
+  <div style="display:flex;gap:8px;">
+    <div class="icon-btn" id="btn-help" title="操作說明 (?)">?</div>
+    <div class="icon-btn" id="btn-cfg" title="設定 (Esc)">⚙</div>
+  </div>
 </div>
 
 <div id="wrap-outer">
@@ -266,34 +269,12 @@ canvas{image-rendering:pixelated;display:block;}
       <div id="boss-hp-val" style="font-size:9px;color:#ffaaaa;margin-top:2px;">600 / 600</div>
     </div>
 
-    <!-- 左側 HUD -->
-    <div id="hud-l" class="panel">
+    <!-- 左上角極簡 HUD (僅保留境界與地圖) -->
+    <div id="hud-l" class="panel" style="width:130px;padding:7px 10px;">
       <div class="realm-nm" id="ui-realm">練氣期一重</div>
-      <div class="br"><span class="bl" style="color:#e84040">氣血</span><div class="bt"><div class="bf bh" id="ui-hp" style="width:100%"></div></div><span class="bv" id="hp-v">100/100</span></div>
-      <div class="br"><span class="bl" style="color:var(--blue)">靈力</span><div class="bt"><div class="bf bq" id="ui-qi" style="width:0%"></div></div><span class="bv" id="qi-v">0/100</span></div>
-      <div class="br"><span class="bl" style="color:#b86fff">悟道</span><div class="bt"><div class="bf be" id="ui-exp" style="width:0%"></div></div><span class="bv" id="exp-v">0/80</span></div>
-      <div class="div"></div>
-      <div class="sg">
-        <div>💎靈石</div><div class="v" id="ui-st">0</div>
-        <div>⚔擊殺</div><div class="v" id="ui-kl">0</div>
-        <div>⚡攻擊</div><div class="v" id="ui-atk">10</div>
-        <div>🛡防禦</div><div class="v" id="ui-def">2</div>
-        <div>🗺地圖</div><div class="v" id="ui-mp">宗門</div>
+      <div style="font-size:9px;color:var(--dim);margin-top:3px;display:flex;align-items:center;gap:4px;">
+        <span>🗺 地圖:</span><span id="ui-mp" style="color:var(--gold);font-weight:700;">宗門</span>
       </div>
-    </div>
-
-    <!-- 右側 HUD -->
-    <div id="hud-r" class="panel">
-      <div style="font-size:10px;color:var(--gold);margin-bottom:5px;letter-spacing:1px;">快捷操作</div>
-      <div class="kr"><span class="kk">WASD</span><span>移動</span></div>
-      <div class="kr"><span class="kk">J/空白</span><span>揮劍</span></div>
-      <div class="kr"><span class="kk">K</span><span>打坐</span></div>
-      <div class="kr"><span class="kk">L/Shift</span><span>閃避</span></div>
-      <div style="height:1px;background:var(--border);margin:4px 0;"></div>
-      <div class="kr"><span class="kk">I</span><span>儲物袋</span></div>
-      <div class="kr"><span class="kk">C</span><span>人物面板</span></div>
-      <div class="kr"><span class="kk">M</span><span>世界地圖</span></div>
-      <div class="kr"><span class="kk">F</span><span>NPC 互動</span></div>
     </div>
 
     <!-- 迷你地圖 -->
@@ -301,21 +282,28 @@ canvas{image-rendering:pixelated;display:block;}
     <canvas id="mm-canvas" width="90" height="68"></canvas>
 
     <!-- 底部狀態 -->
-    <div id="hud-bot" class="panel"><span id="state-txt">✨ 踏入宗門…</span></div>
+    <div id="hud-bot" class="panel" style="bottom:102px;"><span id="state-txt">✨ 踏入宗門…</span></div>
 
-    <!-- 底部快捷鍵列 (1/2/3 切換型態) -->
-    <div id="hotbar">
-      <div class="hslot active-slot" id="st-sword" title="[1] 御劍型態 (按住蓄力發射劍陣)" onclick="setStance('SWORD')">🗡️<span class="hk">1</span><span class="hl">御劍</span></div>
-      <div class="hslot" id="st-talisman" title="[2] 雷符型態 (按住蓄力發射九天雷陣)" onclick="setStance('TALISMAN')">⚡<span class="hk">2</span><span class="hl">雷符</span></div>
-      <div class="hslot" id="st-frost" title="[3] 冰法型態 (按住蓄力凍結全場)" onclick="setStance('FROST')">❄️<span class="hk">3</span><span class="hl">冰法</span></div>
+    <!-- 底部最下方長條資源列 (氣血、靈力、悟道) -->
+    <div id="bottom-resource-panel" class="panel" style="position:absolute;bottom:54px;left:50%;transform:translateX(-50%);width:460px;padding:5px 12px;z-index:10;">
+      <div class="br" style="margin:2px 0;"><span class="bl" style="color:#e84040">氣血</span><div class="bt"><div class="bf bh" id="ui-hp" style="width:100%"></div></div><span class="bv" id="hp-v">100/100</span></div>
+      <div class="br" style="margin:2px 0;"><span class="bl" style="color:var(--blue)">靈力</span><div class="bt"><div class="bf bq" id="ui-qi" style="width:0%"></div></div><span class="bv" id="qi-v">0/100</span></div>
+      <div class="br" style="margin:2px 0;"><span class="bl" style="color:#b86fff">悟道</span><div class="bt"><div class="bf be" id="ui-exp" style="width:0%"></div></div><span class="bv" id="exp-v">0/80</span></div>
+    </div>
+
+    <!-- 底部快捷鍵列 (數字鍵 1~9) -->
+    <div id="hotbar" style="bottom:6px;">
+      <div class="hslot active-slot" id="st-sword" title="[1] 🗡️ 近身短劍 (已裝備)" onclick="setStance('SWORD')">🗡️<span class="hk">1</span><span class="hl">短劍</span></div>
+      <div class="hslot" id="st-talisman" title="[2] ⚡ 五行雷符 (🔒 未解鎖)" onclick="setStance('TALISMAN')">⚡<span class="hk">2</span><span class="hl" id="lbl-talisman">雷符🔒</span></div>
+      <div class="hslot" id="st-frost" title="[3] ❄️ 寒冰法訣 (🔒 未解鎖)" onclick="setStance('FROST')">❄️<span class="hk">3</span><span class="hl" id="lbl-frost">冰法🔒</span></div>
       <div class="hsep"></div>
-      <div class="hslot" title="打坐 K" onclick="toggleMed()">🧘<span class="hk">K</span></div>
-      <div class="hslot" title="閃避 L" onclick="doDash()">💨<span class="hk">L</span></div>
-      <div class="hslot" title="快速丹藥 Q" onclick="quickPill()">💊<span class="hk">Q</span></div>
+      <div class="hslot" title="[4] 💊 聚元丹 (回復60氣血)" onclick="quickPill('pill_hp')">💊<span class="hk">4</span><span class="hl">聚元</span></div>
+      <div class="hslot" title="[5] 💫 聚靈丹 (回復30%靈力)" onclick="quickPill('pill_qi')">💫<span class="hk">5</span><span class="hl">聚靈</span></div>
+      <div class="hslot" title="[6] 🔥 築基丹 (破境率+15%)" onclick="quickPill('pill_break')">🔥<span class="hk">6</span><span class="hl">築基</span></div>
       <div class="hsep"></div>
-      <div class="hslot" title="儲物袋 I" onclick="openInv()">🎒<span class="hk">I</span></div>
-      <div class="hslot" title="人物 C" onclick="openChar()">📋<span class="hk">C</span></div>
-      <div class="hslot" title="世界地圖 M" onclick="openMap()">🗺<span class="hk">M</span></div>
+      <div class="hslot" title="[7] 🎒 儲物袋" onclick="openInv()">🎒<span class="hk">7</span><span class="hl">背包</span></div>
+      <div class="hslot" title="[8] 📋 人物資訊" onclick="openChar()">📋<span class="hk">8</span><span class="hl">屬性</span></div>
+      <div class="hslot" title="[9] 🗺 世界地圖" onclick="openMap()">🗺<span class="hk">9</span><span class="hl">地圖</span></div>
     </div>
 
     <!-- 破境按鈕 -->
@@ -337,6 +325,26 @@ canvas{image-rendering:pixelated;display:block;}
     <div id="notif"></div>
   </div>
   <div id="wrap-spacer"></div>
+</div>
+
+<!-- ══════════ 操作說明浮層 ══════════ -->
+<div class="overlay" id="help-overlay">
+  <div class="modal" style="width:380px;">
+    <div class="modal-hdr"><div class="modal-title">❓ 操作與快捷鍵對照</div><button class="close-x" onclick="closeHelp()">✕</button></div>
+    <div style="padding:14px 18px;">
+      <div class="kb-grid">
+        <div class="kb-r"><span class="kb-a">移動角色</span><span class="kb-k">WASD / 方向鍵</span></div>
+        <div class="kb-r"><span class="kb-a">招式/揮劍</span><span class="kb-k">J / 空白 (按住蓄力)</span></div>
+        <div class="kb-r"><span class="kb-a">切換武器/法術</span><span class="kb-k">數字 1 ~ 3</span></div>
+        <div class="kb-r"><span class="kb-a">使用丹藥</span><span class="kb-k">數字 4 ~ 6</span></div>
+        <div class="kb-r"><span class="kb-a">開啟功能面板</span><span class="kb-k">數字 7 ~ 9</span></div>
+        <div class="kb-r"><span class="kb-a">打坐吐納</span><span class="kb-k">K</span></div>
+        <div class="kb-r"><span class="kb-a">御劍閃避</span><span class="kb-k">L / Shift</span></div>
+        <div class="kb-r"><span class="kb-a">NPC 對話</span><span class="kb-k">F (連續按推進)</span></div>
+        <div class="kb-r"><span class="kb-a">系統設定</span><span class="kb-k">Esc / 右上角⚙</span></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ══════════ 儲物袋浮層 ══════════ -->
@@ -694,7 +702,8 @@ const P={
   atk:10,def:2,stones:0,kills:0,
   invincible:false,hurtFlash:0,dashTimer:0,
   speed:1.8,
-  stance:'SWORD', // 'SWORD' (御劍) | 'TALISMAN' (雷符) | 'FROST' (冰法)
+  stance:'SWORD', // 'SWORD' | 'TALISMAN' | 'FROST'
+  unlockedStances:['SWORD'], // 初始只有近身短劍！功法解鎖後方可用法術
   charging:false,
   chargeTime:0,
 };
@@ -1058,6 +1067,17 @@ function doBreakthrough(rate){
     const r=REALMS[P.realmIdx];
     P.maxHp=r.maxHp;P.hp=P.maxHp;P.maxQi=r.maxQi;P.qi=0;P.atk=r.atk;P.def=r.def;P.exp=0;
     P.breakBonus=0;
+    // 檢查功法解鎖
+    if(P.realmIdx>=1&&!P.unlockedStances.includes('TALISMAN')){
+      P.unlockedStances.push('TALISMAN');
+      $('lbl-talisman').textContent='雷符';
+      notify('⚡ 晉升練氣二重！悟得功法【五行雷符】！');
+    }
+    if(P.realmIdx>=2&&!P.unlockedStances.includes('FROST')){
+      P.unlockedStances.push('FROST');
+      $('lbl-frost').textContent='冰法';
+      notify('❄️ 晉升練氣三重！悟得功法【寒冰法訣】！');
+    }
     notify(`✨ 破境成功！晉升 ${r.name}`);
     for(let i=0;i<50;i++) PARTS.push({x:P.x+(Math.random()*60-30),y:P.y+(Math.random()*60-30),
       vx:(Math.random()-.5)*4,vy:(Math.random()-.5)*4-1.5,col:i%2?'#ffd700':'#fff',life:90,ml:90,sz:3});
@@ -1074,13 +1094,22 @@ function doBreakthrough(rate){
 //  戰鬥與型態切換系統
 // ═══════════════════════════════════════════════════════════
 function setStance(st){
+  if(!P.unlockedStances.includes(st)){
+    const msg = st === 'TALISMAN' ? '🔒 【五行雷符】未解鎖！需要晉升【練氣二重】或向長老求教' : '🔒 【寒冰法訣】未解鎖！需要晉升【練氣三重】或向長老求教';
+    notify(msg);
+    return;
+  }
   P.stance=st;
   document.querySelectorAll('#hotbar .hslot').forEach(s=>s.classList.remove('active-slot'));
-  const m={SWORD:['st-sword','🗡️ 御劍型態 (劍氣與萬劍歸宗)'],TALISMAN:['st-talisman','⚡ 雷符型態 (神雷與九天雷陣)'],FROST:['st-frost','❄️ 冰法型態 (冰錐與冰封萬里)']};
+  const m={SWORD:['st-sword','🗡️ 近身短劍 (劍氣與萬劍歸宗)'],TALISMAN:['st-talisman','⚡ 五行雷符 (神雷與九天雷陣)'],FROST:['st-frost','❄️ 寒冰法訣 (冰錐與冰封萬里)']};
   if(m[st]){
     $(m[st][0]).classList.add('active-slot');
     notify(m[st][1]);
   }
+}
+
+function quickPill(type='pill_hp'){
+  useItem(type);
 }
 
 function triggerAttack(chargeLevel){
@@ -1195,11 +1224,14 @@ function doDash(){
 }
 function quickPill(){ useItem('pill_hp'); }
 
+// ─── 說明 Modal ───
+$('btn-help').addEventListener('click',()=>{ openHelp(); });
+function openHelp(){ $('help-overlay').classList.add('show'); $('btn-help').classList.add('spin'); }
+function closeHelp(){ $('help-overlay').classList.remove('show'); $('btn-help').classList.remove('spin'); }
+$('help-overlay').addEventListener('click',e=>{ if(e.target===$('help-overlay')) closeHelp(); });
+
 // ═══════════════════════════════════════════════════════════
-//  按鍵
-// ═══════════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════════
-//  按鍵監聽 (支援蓄力與數字鍵型態切換)
+//  按鍵監聽 (1~9 快捷鍵對應)
 // ═══════════════════════════════════════════════════════════
 const keys={}, JP={};
 window.addEventListener('keydown',e=>{
@@ -1208,10 +1240,17 @@ window.addEventListener('keydown',e=>{
   if(e.code==='Space'){if(!keys['j'])JP['j']=true;keys['j']=true;}
   if(e.key==='Shift'){if(!keys['l'])JP['l']=true;keys['l']=true;}
 
-  // 數字鍵型態切換
+  // 數字鍵 1~9 快捷鍵
   if(e.key==='1') setStance('SWORD');
   if(e.key==='2') setStance('TALISMAN');
   if(e.key==='3') setStance('FROST');
+  if(e.key==='4') quickPill('pill_hp');
+  if(e.key==='5') quickPill('pill_qi');
+  if(e.key==='6') quickPill('pill_break');
+  if(e.key==='7'||e.key==='i') openInv();
+  if(e.key==='8'||e.key==='c') openChar();
+  if(e.key==='9'||e.key==='m') openMap();
+  if(e.key==='?') openHelp();
 
   // 開始蓄力
   if((k==='j'||e.code==='Space')&&!P.charging&&P.state!=='DIE'){
