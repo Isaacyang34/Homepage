@@ -120,9 +120,6 @@ canvas{image-rendering:pixelated;display:block;}
 @keyframes mdin{from{opacity:0;transform:scale(.94);}to{opacity:1;transform:none;}}
 .modal-hdr{display:flex;align-items:center;justify-content:space-between;
   padding:12px 16px 8px;border-bottom:1px solid var(--border);}
-.modal-title{color:var(--gold);font-size:13px;font-weight:700;letter-spacing:3px;
-  text-shadow:0 0 10px var(--gold-d);}
-.close-x{background:none;border:none;color:var(--dim);font-size:16px;cursor:pointer;
 .close-x{background:none;border:none;color:var(--dim);font-size:20px;cursor:pointer;
   transition:color .2s;padding:2px 6px;}
 .close-x:hover{color:var(--red);}
@@ -366,6 +363,30 @@ canvas{image-rendering:pixelated;display:block;}
         <div style="font-size:11px;color:var(--gold);text-align:center;margin-top:4px;font-weight:700;">修仙者</div>
       </div>
       <div class="char-stats" id="char-stats"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 九轉煉丹房浮層 ══════════ -->
+<div class="overlay" id="alchemy-overlay">
+  <div class="modal" style="width:480px;">
+    <div class="modal-hdr"><div class="modal-title">🧪 九轉煉丹房</div><button class="close-x" onclick="closeAlchemy()">✕</button></div>
+    <div style="padding:14px 18px;">
+      <div style="font-size:11px;color:var(--gold);margin-bottom:8px;font-weight:700;">🔥 當前丹爐：凡品草木爐 (開爐加成 +20%)</div>
+      <div id="alchemy-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:260px;overflow-y:auto;padding-right:4px;"></div>
+      <div style="font-size:9px;color:var(--dim);text-align:center;margin-top:10px;">💡 採集靈草與擊殺妖獸獲取原材料 · 點擊開爐煉丹</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 神兵煉器坊浮層 ══════════ -->
+<div class="overlay" id="forge-overlay">
+  <div class="modal" style="width:480px;">
+    <div class="modal-hdr"><div class="modal-title">🔨 神兵煉器坊</div><button class="close-x" onclick="closeForge()">✕</button></div>
+    <div style="padding:14px 18px;">
+      <div style="font-size:11px;color:var(--gold);margin-bottom:8px;font-weight:700;">⚔ 已裝備神兵：<span id="equipped-weapon-name" style="color:var(--text)">精鋼長劍 (+15 攻擊)</span></div>
+      <div id="forge-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:260px;overflow-y:auto;padding-right:4px;"></div>
+      <div style="font-size:9px;color:var(--dim);text-align:center;margin-top:10px;">💡 收集玄鐵精、雷精石與寒冰晶即可鑄造神兵，鍛造法杖可解鎖高階功法</div>
     </div>
   </div>
 </div>
@@ -719,8 +740,8 @@ const WORLD_AREAS=[
     enemies:[],
     npcs:[
       {x:240,y:110,name:'青雲宗主',icon:'👑',dlg:['本座觀汝骨相清奇，日後必成大器。','若能成功渡劫築基，本座親贈一枚築基丹！','去靈山磨礪吧，那裡有赤焰妖狼與毒蛛，頗適合修行。']},
-      {x:140,y:185,name:'藥師兄',icon:'🌿',dlg:['師弟！這幾顆丹藥你拿去備用。','聚元丹可快速恢復氣血，聚靈丹可恢復靈力。','去靈山前記得裝備好！(已加入儲物袋)'],onStart:()=>{addItem('pill_hp','聚元丹','💊',2,'服用後恢復60氣血');addItem('pill_qi','聚靈丹','💫',1,'服用後恢復30%靈力');}},
-      {x:360,y:130,name:'藏劍閣長老',icon:'⚔',dlg:['汝劍法尚可，但修為尚淺。','練氣九重圓滿後，記得回來本座處領渡劫丹！']},
+      {x:140,y:185,name:'藥師兄',icon:'🌿',dlg:['師弟！隨我來，這裡有九轉煉丹房！','收集靈草與妖丹可煉製高級丹藥，助力修行！'],onEnd:()=>{ openAlchemy(); }},
+      {x:360,y:130,name:'藏劍閣長老',icon:'⚔',dlg:['汝劍法尚可，但若想參悟高階法術，需神兵相助！','隨本座開啟【神兵煉器坊】，鍛造雷法杖與冰法珠吧！'],onEnd:()=>{ openForge(); }},
     ],
     terrain:'sect',
   },
@@ -846,9 +867,81 @@ function closeChar(){ $('char-overlay').classList.remove('show'); }
 $('char-overlay').addEventListener('click',e=>{ if(e.target===$('char-overlay')) closeChar(); });
 
 // ═══════════════════════════════════════════════════════════
-//  世界地圖
+//  九轉煉丹房與神兵煉器坊機制
 // ═══════════════════════════════════════════════════════════
-const PATHS=[[0,1],[0,2],[0,3],[1,2]]; // 區域連接索引
+const ALCHEMY_RECIPES = [
+  {id:'alch_juqi', name:'《聚氣丹》', icon:'🔵', cost:80, desc:'提升 +300 悟道經驗', action:()=>{ P.exp+=300; notify('🧪 煉製成功！使用【聚氣丹】，修為大漲 300！'); updateHUD(); }},
+  {id:'alch_ningshen', name:'《凝神丹》', icon:'🟣', cost:200, desc:'提升 +1000 悟道經驗', action:()=>{ P.exp+=1000; notify('🧪 煉製成功！使用【凝神丹】，修為暴漲 1000！'); updateHUD(); }},
+  {id:'alch_zhuji', name:'《築基保底丹》', icon:'🔥', cost:450, desc:'破境突破成功率 +15%', action:()=>{ P.breakBonus=(P.breakBonus||0)+.15; notify('🧪 煉製成功！服用【築基保底丹】，突破率+15%！'); }},
+  {id:'alch_cuiling', name:'《先天淬靈洗髓丹》', icon:'✨', cost:800, desc:'永久防禦 +15，悟道靈感大增', action:()=>{ P.def+=15; notify('🧪 煉製成功！【洗髓丹】發揮藥力，永久防禦力+15！'); updateHUD(); }},
+];
+
+const FORGE_RECIPES = [
+  {id:'forge_sword', name:'🗡️ 精鋼長劍', cost:150, atk:15, desc:'基礎攻擊力 +15 (近身型態)', action:()=>{ P.atk+=15; notify('🔨 鍛造成功！裝備【精鋼長劍】，攻擊力+15！'); updateHUD(); }},
+  {id:'forge_robe', name:'🥋 青雲道袍', cost:200, hp:80, def:8, desc:'最大氣血 +80，防禦力 +8', action:()=>{ P.maxHp+=80; P.hp+=80; P.def+=8; notify('🔨 鍛造成功！穿上【青雲道袍】，氣血+80，防禦+8！'); updateHUD(); }},
+  {id:'forge_talisman', name:'⚡ 紫電神木法杖', cost:350, atk:25, unlock:'TALISMAN', desc:'解鎖【五行雷符】功法！攻擊力 +25', action:()=>{
+    P.atk+=25;
+    if(!P.unlockedStances.includes('TALISMAN')){
+      P.unlockedStances.push('TALISMAN');
+      $('lbl-talisman').textContent='雷符';
+      notify('⚡ 鍛造神兵！成功解鎖功法【五行雷符】！');
+    } else notify('🔨 鍛造成功！【紫電神木法杖】攻擊力+25！');
+    updateHUD();
+  }},
+  {id:'forge_frost', name:'❄️ 玄冰法珠', cost:350, atk:25, unlock:'FROST', desc:'解鎖【寒冰法訣】功法！攻擊力 +25', action:()=>{
+    P.atk+=25;
+    if(!P.unlockedStances.includes('FROST')){
+      P.unlockedStances.push('FROST');
+      $('lbl-frost').textContent='冰法';
+      notify('❄️ 鍛造神兵！成功解鎖功法【寒冰法訣】！');
+    } else notify('🔨 鍛造成功！【玄冰法珠】攻擊力+25！');
+    updateHUD();
+  }},
+];
+
+function openAlchemy(){
+  const g=$('alchemy-grid'); g.innerHTML='';
+  ALCHEMY_RECIPES.forEach(r=>{
+    const card=document.createElement('div');
+    card.style.cssText='background:#06091a;border:1px solid var(--border);border-radius:5px;padding:8px;display:flex;align-items:center;justify-content:space-between;';
+    card.innerHTML=`<div><div style="font-size:12px;color:var(--gold);font-weight:700;">${r.icon} ${r.name}</div><div style="font-size:9px;color:var(--dim);margin-top:2px;">${r.desc}</div><div style="font-size:9px;color:var(--jade);margin-top:2px;">所需靈石: 💎${r.cost}</div></div><button class="cbtn" style="padding:4px 10px;" onclick="startAlchemy('${r.id}')">開爐</button>`;
+    g.appendChild(card);
+  });
+  $('alchemy-overlay').classList.add('show');
+}
+function closeAlchemy(){ $('alchemy-overlay').classList.remove('show'); }
+function startAlchemy(id){
+  const r=ALCHEMY_RECIPES.find(x=>x.id===id);
+  if(!r) return;
+  if(P.stones<r.cost){ notify('❌ 靈石不足，無法開爐煉丹！'); return; }
+  P.stones-=r.cost; updateHUD();
+  closeAlchemy();
+  notify(`🔥 已將【${r.name}】投入丹爐中，開始煉製…`);
+  setTimeout(()=>{ r.action(); },1500);
+}
+$('alchemy-overlay').addEventListener('click',e=>{ if(e.target===$('alchemy-overlay')) closeAlchemy(); });
+
+function openForge(){
+  const g=$('forge-grid'); g.innerHTML='';
+  FORGE_RECIPES.forEach(r=>{
+    const card=document.createElement('div');
+    card.style.cssText='background:#06091a;border:1px solid var(--border);border-radius:5px;padding:8px;display:flex;align-items:center;justify-content:space-between;';
+    card.innerHTML=`<div><div style="font-size:12px;color:var(--gold);font-weight:700;">${r.name}</div><div style="font-size:9px;color:var(--dim);margin-top:2px;">${r.desc}</div><div style="font-size:9px;color:var(--jade);margin-top:2px;">所需靈石: 💎${r.cost}</div></div><button class="cbtn" style="padding:4px 10px;" onclick="startForging('${r.id}')">鍛造</button>`;
+    g.appendChild(card);
+  });
+  $('forge-overlay').classList.add('show');
+}
+function closeForge(){ $('forge-overlay').classList.remove('show'); }
+function startForging(id){
+  const r=FORGE_RECIPES.find(x=>x.id===id);
+  if(!r) return;
+  if(P.stones<r.cost){ notify('❌ 靈石不足，無法鍛造神兵！'); return; }
+  P.stones-=r.cost; updateHUD();
+  closeForge();
+  notify(`🔨 鐵鎚揮舞，開始打磨【${r.name}】…`);
+  setTimeout(()=>{ r.action(); },1500);
+}
+$('forge-overlay').addEventListener('click',e=>{ if(e.target===$('forge-overlay')) closeForge(); });
 
 function drawWorldMap(){
   const wc=$('wmap-canvas'), wctx=wc.getContext('2d');
@@ -1006,8 +1099,12 @@ function typeDlg(text){
 }
 function advanceDlg(){
   if(!dlgNpc) return; dlgIdx++;
-  if(dlgIdx>=dlgNpc.dlg.length){ dlgActive=false;dlgNpc=null;$('dlg-box').style.display='none'; }
-  else typeDlg(dlgNpc.dlg[dlgIdx]);
+  if(dlgIdx>=dlgNpc.dlg.length){
+    dlgActive=false;
+    const oldNpc=dlgNpc; dlgNpc=null;
+    $('dlg-box').style.display='none';
+    if(oldNpc.onEnd) oldNpc.onEnd();
+  } else typeDlg(dlgNpc.dlg[dlgIdx]);
 }
 $('dlg-nxt').addEventListener('click', advanceDlg);
 
