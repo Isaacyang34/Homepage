@@ -1128,23 +1128,20 @@ function executeBattleRound() {
     stopMeditate();
   }
 
-  // 自動掛機智能恢復：若負傷或血量低，優先嘗試自動服丹或打坐調息
+  // 自動掛機智能恢復：若負傷或血量低於 30%，優先嘗試自動服丹
   if (player.isInjured || player.hp < player.maxHp * 0.3) {
     checkAutoUsePillOnLowHp();
     
-    // 若依然受傷且在自動掛機模式中，自動觸發打坐調息恢復氣血
-    if (player.isInjured || player.hp < player.maxHp) {
-      if (isAutoBattling) {
-        meditate();
-        if (player.hp >= player.maxHp) {
-          player.isInjured = false;
-          addLog(`【自動續航】氣血已調息補滿！天道印記運轉，自動無縫繼續秘境討伐！`, 'log-system');
-        } else {
-          return; // 繼續打坐調息
+    // 若依然受傷，等待氣血恢復滿
+    if (player.isInjured) {
+      if (player.hp >= player.maxHp) {
+        player.isInjured = false;
+        addLog(`【自動續航】氣血已完全恢復！天道印記運轉，自動無縫繼續秘境討伐！`, 'log-system');
+      } else {
+        if (!isAutoBattling) {
+          addLog(`【負傷休養中】傷勢嚴重！請點擊【🧘 打坐調息】或【💊 服用丹藥】補滿血量！`, 'log-monster');
         }
-      } else if (player.isInjured) {
-        addLog(`【負傷休養中】傷勢嚴重！請點擊【🧘 打坐調息】或【💊 服用槽中丹藥】補滿血量！`, 'log-monster');
-        return;
+        return; // 暫停攻擊，等待自然回血或自動服丹，但不中斷掛機計時器
       }
     }
   }
@@ -4548,15 +4545,8 @@ function unlockGMPanel() {
   }
 }
 
-function setupAllGameEventListeners() {
-  const btnAttack = document.getElementById('btn-manual-attack');
-  const btnAuto = document.getElementById('btn-toggle-auto');
-  const btnMeditate = document.getElementById('btn-meditate');
-
-  if (btnAttack) btnAttack.onclick = () => executeBattleRound();
-  if (btnAuto) btnAuto.onclick = () => toggleAutoBattle();
-  if (btnMeditate) btnMeditate.onclick = () => meditate();
-
+// 確保輔助按鈕與全域功能綁定 (非重複綁定)
+function setupAuxiliaryEventListeners() {
   const btnPill = document.getElementById('btn-use-equipped-pill');
   const btnAutoEquip = document.getElementById('btn-auto-equip-best');
   if (btnPill) btnPill.onclick = () => useEquippedPill();
@@ -4565,13 +4555,6 @@ function setupAllGameEventListeners() {
   const btnUnlock = document.getElementById('btn-unlock-gm');
   if (btnUnlock) btnUnlock.onclick = () => unlockGMPanel();
 }
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', setupAllGameEventListeners);
-} else {
-  setupAllGameEventListeners();
-}
-setInterval(setupAllGameEventListeners, 1000);
 
 // ============================================
 // 🌐 全域按鈕相容別名與補充導出函數 (保證 HTML onclick 100% 成功)
