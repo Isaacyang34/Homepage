@@ -257,6 +257,15 @@ canvas{image-rendering:pixelated;display:block;}
   <div id="wrap">
     <canvas id="gc" width="480" height="270"></canvas>
 
+    <!-- 頂部 Boss 血條 HUD -->
+    <div id="boss-hud" style="display:none;position:absolute;top:10px;left:50%;transform:translateX(-50%);width:380px;padding:6px 14px;background:rgba(20,4,4,.95);border:1.5px solid #e84040;border-radius:6px;box-shadow:0 0 24px rgba(232,64,64,.5);z-index:20;text-align:center;">
+      <div id="boss-name" style="font-size:11px;font-weight:700;color:#ff6666;letter-spacing:2px;margin-bottom:4px;">👑 赤焰魔狼皇 · 首領 (Phase 1)</div>
+      <div style="height:10px;background:#1a0808;border:1px solid #4a1010;border-radius:5px;overflow:hidden;">
+        <div id="boss-hp-bar" style="width:100%;height:100%;background:linear-gradient(90deg,#990000,#ff3333);transition:width .2s;"></div>
+      </div>
+      <div id="boss-hp-val" style="font-size:9px;color:#ffaaaa;margin-top:2px;">600 / 600</div>
+    </div>
+
     <!-- 左側 HUD -->
     <div id="hud-l" class="panel">
       <div class="realm-nm" id="ui-realm">練氣期一重</div>
@@ -623,7 +632,19 @@ const ES_GUARD=[
   ['#2a0040',_,_,'#3a0060','#3a0060',_,_,'#2a0040',_,_,_,_],
 ];
 
-const ES={wolf:fixSpr(ES_WOLF),spider:fixSpr(ES_SPIDER),mole:fixSpr(ES_MOLE),golem:fixSpr(ES_GOLEM),bat:fixSpr(ES_BAT),guard:fixSpr(ES_GUARD)};
+// 7. 赤焰魔狼皇 (Boss 巨型獸皇)
+const ES_BOSS=[
+  [_,_,'#d4a843',_,'#990000','#990000',_,'#990000','#990000',_,'#d4a843',_,_,_],
+  [_,'#d4a843','#ff2200','#cc0000','#ff2200','#ff2200','#cc0000','#ff2200','#ff2200','#d4a843',_,_,_],
+  ['#cc0000','#ff4400','#ffaa00','#ff4400','#990000','#ff4400','#ffaa00','#ff4400','#cc0000',_,_,_],
+  ['#ff2200','#ff4400','#ffff00','#ff4400','#ff2200','#ff4400','#ffff00','#ff4400','#ff2200',_,_,_],
+  [_,'#ff2200','#ff6600','#ff6600','#ff8800','#ff6600','#ff6600','#ff2200',_,_,_,_],
+  ['#cc0000','#ff2200','#ff4400','#ff4400','#ff4400','#ff4400','#ff4400','#ff2200','#cc0000',_,_,_],
+  ['#990000','#cc0000','#ff2200','#ff2200',_,'#ff2200','#ff2200','#cc0000','#990000',_,_,_],
+  ['#990000',_,'#990000','#cc0000',_,'#cc0000','#990000',_,'#990000',_,_,_],
+];
+
+const ES={wolf:fixSpr(ES_WOLF),spider:fixSpr(ES_SPIDER),mole:fixSpr(ES_MOLE),golem:fixSpr(ES_GOLEM),bat:fixSpr(ES_BAT),guard:fixSpr(ES_GUARD),boss:fixSpr(ES_BOSS)};
 
 function drawSprite(spr,x,y,scale=2,flipX=false,tint=null){
   spr.forEach((row,ry)=>{
@@ -722,16 +743,17 @@ const WORLD_AREAS=[
     terrain:'cave',
   },
   {
-    id:'ruins',name:'古修遺跡',
-    desc:'傳說中的強大遺跡，充斥魔氣（靈氣2×），遺跡守衛實力強橫，務必在練氣後期方可前往。',
+    id:'ruins',name:'古修遺跡 · 萬魔窟',
+    desc:'傳說中的古魔禁地，赤焰魔狼皇在此盤踞！擁有 3 階段狂暴招式，擊敗 100% 掉落【築基丹】！',
     x:300,y:270,safe:false,
-    bg:'#0e0812',qiDensity:2.0,mapLabel:'遺跡',
+    bg:'#14040a',qiDensity:3.5,mapLabel:'遺跡Boss',
     enemies:[
-      {id:5,x:200,y:130,hp:200,maxHp:200,name:'遺跡守衛',aiType:'guard',color:'#6c3483',spd:.7,atk:22,reward:{stones:60,exp:90}},
+      {id:5,x:240,y:120,hp:600,maxHp:600,name:'👑 赤焰魔狼皇 · 首領',aiType:'boss',isBoss:true,color:'#ff1100',spd:1.0,atk:32,reward:{stones:350,exp:600}},
+      {id:6,x:140,y:180,hp:80,maxHp:80,name:'護法妖狼',aiType:'wolf',color:'#e84040',spd:1.0,atk:12,reward:{stones:20,exp:30}},
     ],
     npcs:[],
     terrain:'ruins',
-    reqRealm:3, // 需要練氣四重
+    reqRealm:2, // 需要練氣三重
   },
 ];
 
@@ -1409,19 +1431,18 @@ function drawEnemies(){
     const spr=ES[e.aiType]||null;
     const attacking=e.aiSt==='ATTACK'||e.aiSt==='WINDUP';
     const tint=e.frozenTimer>0?'rgba(100,200,255,.6)':attacking?`rgba(255,${e.aiType==='mole'?180:60},${e.aiType==='mole'?0:60},.5)`:null;
+    const scale=e.isBoss?3.2:2; // Boss 放大 3.2 倍！
     if(spr){
       if(e.hflash>0){
-        // 閃白受傷
         ctx.globalAlpha=.5;
-        drawSprite(spr,-8,-10+hov,2,e.facingLeft,`rgba(255,255,255,1)`);
+        drawSprite(spr,-12,-16+hov,scale,e.facingLeft,`rgba(255,255,255,1)`);
         ctx.globalAlpha=1;
       }
-      drawSprite(spr,-8,-10+hov,2,e.facingLeft,tint);
-      // 攻擊預警圈（Windup）
+      drawSprite(spr,-12,-16+hov,scale,e.facingLeft,tint);
       if(e.aiSt==='WINDUP'){
-        ctx.strokeStyle=`rgba(255,80,0,${.3+.3*Math.sin(T*10)})`;
-        ctx.lineWidth=1.5;
-        ctx.beginPath(); ctx.arc(0,0,e.atkRange||14,0,Math.PI*2); ctx.stroke();
+        ctx.strokeStyle=`rgba(255,30,0,${.5+.4*Math.sin(T*12)})`;
+        ctx.lineWidth=2;
+        ctx.beginPath(); ctx.arc(0,0,e.atkRange||24,0,Math.PI*2); ctx.stroke();
       }
     } else {
       ctx.fillStyle=e.color||'#e84040';
@@ -1636,6 +1657,7 @@ function initEnemyAI(e){
   e.facingLeft=false;
   // 根據類型設定行為參數
   switch(e.aiType){
+    case 'boss':   e.aggroR=220;e.atkRange=28;e.canCharge=true;e.canShoot=true;e.canSlam=true; break;
     case 'wolf':   e.aggroR=120;e.atkRange=16;e.chargeSpd=4.5;e.canCharge=true; break;
     case 'spider': e.aggroR=150;e.atkRange=80;e.keepDist=70;e.canShoot=true; break;
     case 'mole':   e.aggroR=100;e.atkRange=22;e.canBurrow=true; break;
@@ -1705,7 +1727,35 @@ function runEnemyAI(e, dt){
       break;
     }
     case 'CHASE':{
-      // 追擊：保持間距（毒蛛需要保距離）
+      // Boss 階段行為與血條同步
+      if(e.isBoss){
+        const pct=e.hp/e.maxHp;
+        const phaseStr=pct>.5?'Phase 1':pct>.2?'Phase 2 (狂暴!)':'Phase 3 (毀滅狂暴!)';
+        $('boss-hud').style.display='block';
+        $('boss-name').textContent=`👑 ${e.name} (${phaseStr})`;
+        $('boss-hp-bar').style.width=(pct*100)+'%';
+        $('boss-hp-val').textContent=`${Math.ceil(e.hp)} / ${e.maxHp}`;
+
+        // 階段二：狂暴提升移動速度
+        if(pct<=.5&&!e._p2Rage){ e._p2Rage=true; e.spd*=1.45; floatTxt(e.x,e.y-25,'🔥魔狼狂暴！','#ff2200'); }
+        // 階段三：絕招魔火雨
+        if(pct<=.2&&e.specialCd<=0){
+          e.specialCd=5; screenShake=14;
+          notify('🔥 毀天滅地魔火降臨！');
+          for(let i=0;i<6;i++){
+            setTimeout(()=>{
+              const fx=Math.random()*440+20, fy=Math.random()*220+20;
+              spark(fx,fy,'#ff3300',16,4,30,4);
+              if(Math.hypot(P.x-fx,P.y-fy)<30&&!P.invincible){
+                const dmg=Math.round(e.atk*1.2); P.hp=Math.max(0,P.hp-dmg);
+                floatTxt(P.x,P.y-20,`🔥-${dmg}`,'#ff2200'); updateHUD();
+              }
+            },i*120);
+          }
+        }
+      }
+
+      // 追擊：保持間距
       const targetDist=e.keepDist||0;
       if(dist>targetDist+5){
         e.x+=ndx*e.spd;
@@ -1852,7 +1902,14 @@ function updSQS(){
         spark(e.x,e.y,e.color||'#00cfff',8,2.5,28);
         if(e.hp<=0){
           e.alive=false; P.stones+=e.reward.stones; P.kills++; P.exp+=e.reward.exp;
-          floatTxt(e.x,e.y-28,`+${e.reward.stones}💎`,'#ffd700');
+          if(e.isBoss){
+            $('boss-hud').style.display='none';
+            notify('🎉🎉 恭喜擊敗【赤焰魔狼皇】！獲得 350 靈石與【築基丹】！');
+            addItem('pill_break','築基丹','🔥',1,'破境關鍵丹藥！突破成功率+15%');
+            screenShake=20;
+          } else {
+            floatTxt(e.x,e.y-28,`+${e.reward.stones}💎`,'#ffd700');
+          }
           if(Math.random()<.35) addItem('pill_hp','聚元丹','💊',1,'服用後恢復60氣血');
           if(Math.random()<.18) addItem('pill_qi','聚靈丹','💫',1,'服用後恢復30%靈力');
           spark(e.x,e.y,e.color,20,3.5,40,3);
