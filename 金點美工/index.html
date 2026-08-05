@@ -61,7 +61,7 @@
         </div>
         
         <!-- 聯絡資訊快照 -->
-        <div class="flex flex-wrap gap-2 text-xs sm:text-sm">
+        <div class="flex flex-wrap gap-2 text-xs sm:text-sm items-center">
           <a href="tel:0422976116" class="bg-blue-800/80 hover:bg-blue-700 px-3 py-1.5 rounded-lg border border-blue-600 transition flex items-center gap-1.5">
             <i class="fa-solid fa-phone text-amber-400"></i>
             <span>04-22976116</span>
@@ -70,6 +70,10 @@
             <i class="fa-solid fa-envelope text-amber-400"></i>
             <span>king.poing@msa.hinet.net</span>
           </a>
+          <button onclick="openLineModal()" class="bg-emerald-500 hover:bg-emerald-400 text-white font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-md">
+            <i class="fa-brands fa-line text-lg"></i>
+            <span>LINE 官方客服</span>
+          </button>
         </div>
       </div>
     </div>
@@ -263,15 +267,62 @@
 
   </main>
 
+  <!-- LINE 官方客服彈窗 Modal -->
+  <div id="line-modal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden transition-opacity duration-300">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl relative border border-slate-100 transform transition-all scale-100">
+      <button onclick="closeLineModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl font-bold w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center transition">
+        &times;
+      </button>
+
+      <div class="inline-flex items-center justify-center w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl mb-3 shadow-inner">
+        <i class="fa-brands fa-line text-3xl"></i>
+      </div>
+
+      <h3 class="text-xl font-extrabold text-slate-800">金點美工 LINE 官方客服</h3>
+      <p class="text-xs text-slate-500 mt-1">請使用手機 LINE 掃描下方 QR Code 即可加入好友快速諮詢與下單</p>
+
+      <div class="my-5 p-3 bg-slate-50 rounded-2xl border border-slate-200 inline-block shadow-sm">
+        <img src="line_qr.png" alt="LINE 官方客服 QR Code" class="w-56 h-auto mx-auto rounded-xl shadow-md">
+      </div>
+
+      <button onclick="closeLineModal()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-sm transition shadow-lg">
+        完成
+      </button>
+    </div>
+  </div>
+
   <!-- 頁尾 Footer -->
-  <footer class="bg-slate-900 text-slate-400 text-xs border-t border-slate-800 py-6 mt-12">
-    <div class="max-w-7xl mx-auto px-4 text-center space-y-2">
-      <p class="font-medium text-slate-300">金點美工版權所有 © King Point Art & Industrial Signage. All Rights Reserved.</p>
-      <p class="text-slate-500">電話: 04-22976116 · 04-22968855 · 04-22970009 | 傳真: 04-22970546 | 信箱: king.poing@msa.hinet.net</p>
+  <footer class="bg-slate-900 text-slate-400 text-xs border-t border-slate-800 py-8 mt-12">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
+      <div class="space-y-2">
+        <p class="font-bold text-slate-200 text-sm">金點美工版權所有 © King Point Art & Industrial Signage. All Rights Reserved.</p>
+        <p class="text-slate-400">電話: 04-22976116 · 04-22968855 · 04-22970009 | 傳真: 04-22970546 | 信箱: king.poing@msa.hinet.net</p>
+      </div>
+      
+      <!-- 頁尾 LINE 快掃卡片 -->
+      <div onclick="openLineModal()" class="cursor-pointer bg-slate-800/80 hover:bg-slate-800 p-2.5 rounded-2xl border border-slate-700/80 flex items-center gap-3 transition shadow-md">
+        <img src="line_qr.png" alt="LINE QR Code" class="w-12 h-12 rounded-lg bg-white p-0.5 shadow-sm">
+        <div class="text-left pr-2">
+          <p class="font-bold text-emerald-400 text-xs flex items-center gap-1">
+            <i class="fa-brands fa-line"></i> LINE 官方客服
+          </p>
+          <p class="text-[10px] text-slate-400">點擊放大掃描 QR Code</p>
+        </div>
+      </div>
     </div>
   </footer>
 
   <script>
+    // LINE Modal 開關
+    function openLineModal() {
+      const modal = document.getElementById('line-modal');
+      modal.classList.remove('hidden');
+    }
+    function closeLineModal() {
+      const modal = document.getElementById('line-modal');
+      modal.classList.add('hidden');
+    }
+
     // PDF 切換機制
     function switchPdf(type) {
       const iframe = document.getElementById('pdf-iframe');
@@ -315,18 +366,6 @@
           tr[i].style.display = 'none';
         }
       }
-    }
-
-    // 複製內嵌碼
-    function copyGoogleSitesCode() {
-      const codeText = document.getElementById('embed-code-text').textContent;
-      navigator.clipboard.writeText(codeText).then(() => {
-        const btnText = document.getElementById('copy-btn-text');
-        btnText.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> 已複製內嵌碼！';
-        setTimeout(() => {
-          btnText.textContent = '複製 Google Sites 內嵌碼';
-        }, 2500);
-      });
     }
 
     function scrollToSection(id) {
