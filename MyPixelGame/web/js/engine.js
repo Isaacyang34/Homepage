@@ -158,12 +158,117 @@ window.addEventListener('keyup', e => {
 
 // 渲染與主迴圈
 function drawBg() {
-  const area = getCurArea();
-  ctx.fillStyle = area.bg || '#0c0a1a';
-  ctx.fillRect(0, 0, 480, 270);
-  ctx.strokeStyle = 'rgba(42,56,96,.15)'; ctx.lineWidth = 1;
-  for (let x = 0; x < 480; x += 24) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 270); ctx.stroke(); }
-  for (let y = 0; y < 270; y += 24) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(480, y); ctx.stroke(); }
+  const area = getCurArea ? getCurArea() : { bg: '#0c0a1a', terrain: 'sect' };
+  const terr = area.terrain || 'sect';
+
+  if (terr === 'sect') {
+    // 🏛️ 青雲宗大殿：白玉青石地磚、金紋柱子與宗門大旗
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, 480, 270);
+
+    // 地磚格線
+    ctx.strokeStyle = 'rgba(51, 65, 85, 0.4)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < 480; x += 32) {
+      for (let y = 0; y < 270; y += 32) {
+        ctx.strokeRect(x, y, 32, 32);
+      }
+    }
+
+    // 兩側朱紅大柱
+    ctx.fillStyle = '#881337';
+    ctx.fillRect(20, 0, 16, 270);
+    ctx.fillRect(444, 0, 16, 270);
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillRect(24, 0, 8, 270);
+    ctx.fillRect(448, 0, 8, 270);
+
+    // 中央宗門聖徽
+    ctx.strokeStyle = 'rgba(245, 158, 11, 0.25)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(240, 135, 70, 0, Math.PI * 2);
+    ctx.stroke();
+
+  } else if (terr === 'mountain') {
+    // 🌲 外門靈山：青翠草地、山石台階與古松
+    ctx.fillStyle = '#064e3b';
+    ctx.fillRect(0, 0, 480, 270);
+
+    // 草皮斑駁紋理
+    ctx.fillStyle = '#047857';
+    for (let x = 0; x < 480; x += 40) {
+      for (let y = 0; y < 270; y += 40) {
+        if ((x + y) % 80 === 0) ctx.fillRect(x, y, 20, 20);
+      }
+    }
+
+    // 石路小徑
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(200, 0, 80, 270);
+    ctx.fillStyle = '#475569';
+    for (let y = 10; y < 270; y += 24) {
+      ctx.fillRect(210, y, 60, 12);
+    }
+
+    // 古松裝飾 (四周樹叢)
+    ctx.fillStyle = '#022c22';
+    ctx.beginPath(); ctx.arc(40, 40, 35, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(440, 50, 40, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(30, 230, 35, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(450, 220, 38, 0, Math.PI * 2); ctx.fill();
+
+  } else if (terr === 'cave') {
+    // 🌌 玄陰洞府：幽暗岩石與螢光水晶脈
+    ctx.fillStyle = '#090d16';
+    ctx.fillRect(0, 0, 480, 270);
+
+    // 洞穴基岩石紋
+    ctx.strokeStyle = 'rgba(30, 41, 59, 0.6)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 480; i += 60) {
+      ctx.beginPath();
+      ctx.moveTo(i, 0); ctx.lineTo(i + 30, 270);
+      ctx.stroke();
+    }
+
+    // 螢光水晶簇 (發光亮藍點)
+    const crystals = [
+      { x: 50, y: 40, c: '#38bdf8' }, { x: 420, y: 60, c: '#818cf8' },
+      { x: 80, y: 220, c: '#38bdf8' }, { x: 400, y: 210, c: '#c084fc' }
+    ];
+    crystals.forEach(cr => {
+      ctx.fillStyle = cr.c;
+      ctx.beginPath(); ctx.arc(cr.x, cr.y, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.2)';
+      ctx.beginPath(); ctx.arc(cr.x, cr.y, 16, 0, Math.PI * 2); ctx.fill();
+    });
+
+  } else if (terr === 'ruins') {
+    // 🌋 古修遺跡萬魔窟：焦黑熾熱大地與赤紅熔岩裂隙
+    ctx.fillStyle = '#18040a';
+    ctx.fillRect(0, 0, 480, 270);
+
+    // 熔岩裂痕
+    ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, 80); ctx.lineTo(180, 140); ctx.lineTo(320, 100); ctx.lineTo(480, 190);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(245, 158, 11, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(100, 0); ctx.lineTo(220, 270);
+    ctx.stroke();
+
+    // 斷壁殘垣柱基
+    ctx.fillStyle = '#290814';
+    ctx.fillRect(60, 30, 30, 30);
+    ctx.fillRect(390, 30, 30, 30);
+    ctx.fillRect(60, 200, 30, 30);
+    ctx.fillRect(390, 200, 30, 30);
+  }
 }
 
 function drawPlayer() {

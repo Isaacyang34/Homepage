@@ -23,45 +23,41 @@ const IDLE0 = [
 // ─── HD 圖片載入工具 ───
 
 /**
- * 載入圖片並透過像素處理去除背景色
- * @param {string} src       圖片路徑
- * @param {'white'|'black'} bgType  背景色類型
- * @param {number} threshold 顏色閾值（預設 30）
- * @returns {{ canvas: HTMLCanvasElement|null, loaded: boolean }}
+ * 載入 HD 圖片並處理成 Canvas/Image
+ * @param {string} src 圖片路徑
+ * @returns {{ canvas: HTMLCanvasElement|HTMLImageElement|null, loaded: boolean }}
  */
-function loadHDImageProcessed(src, bgType = 'white', threshold = 30) {
+function loadHDImageProcessed(src) {
   const ref = { canvas: null, loaded: false };
   const img = new Image();
-  img.crossOrigin = 'anonymous';
   img.onload = () => {
-    const oc = document.createElement('canvas');
-    oc.width = img.naturalWidth;
-    oc.height = img.naturalHeight;
-    const oc2d = oc.getContext('2d');
-    oc2d.drawImage(img, 0, 0);
-    const id = oc2d.getImageData(0, 0, oc.width, oc.height);
-    const d = id.data;
-    for (let i = 0; i < d.length; i += 4) {
-      const r = d[i], g = d[i+1], b = d[i+2];
-      if (bgType === 'white') {
-        // 去白背景：高亮且接近中性色
-        if (r > 220 && g > 220 && b > 220) d[i+3] = 0;
-      } else {
-        // 去黑背景：三通道皆低
-        if (r < threshold && g < threshold && b < threshold) d[i+3] = 0;
-      }
+    try {
+      const oc = document.createElement('canvas');
+      oc.width = img.naturalWidth || img.width;
+      oc.height = img.naturalHeight || img.height;
+      const oc2d = oc.getContext('2d');
+      oc2d.drawImage(img, 0, 0);
+      ref.canvas = oc;
+      ref.loaded = true;
+    } catch(e) {
+      ref.canvas = img;
+      ref.loaded = true;
     }
-    oc2d.putImageData(id, 0, 0);
-    ref.canvas = oc;
-    ref.loaded = true;
   };
-  img.onerror = () => console.warn('[HD] 圖片載入失敗:', src);
+  img.onerror = () => {
+    const fallbackImg = new Image();
+    fallbackImg.onload = () => {
+      ref.canvas = fallbackImg;
+      ref.loaded = true;
+    };
+    fallbackImg.src = src;
+  };
   img.src = src;
   return ref;
 }
 
-// ─── HD 玩家圖集載入（白背景去背）───
-const hdPlayerRef = loadHDImageProcessed('assets/sprites/player_hd.png', 'white', 30);
+// ─── HD 玩家圖集載入 ───
+const hdPlayerRef = loadHDImageProcessed('assets/sprites/player_hd.png');
 
 // 相容舊邏輯的代理屬性
 Object.defineProperty(window, 'hdPlayerLoaded', { get: () => hdPlayerRef.loaded });
