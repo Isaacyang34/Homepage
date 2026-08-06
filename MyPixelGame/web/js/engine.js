@@ -8,15 +8,20 @@ let SQS = [], PARTS = [], FLOATS = [], LGHTS = [];
 
 // 動態滿板縮放計算 (Auto-Scale to fill screen nicely)
 function autoScaleViewport() {
-  const wrap = document.getElementById('wrap');
-  if (!wrap) return;
+  const viewport = document.getElementById('game-viewport');
+  const gc = document.getElementById('gc');
+  if (!viewport || !gc) return;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  // 計算滿板最佳比例 (保留 480x270 像素點陣解析度比 16:9)
+  // 保持 480x270 的 16:9 比例，等比放大至填滿螢幕
   const scaleX = vw / 480;
   const scaleY = vh / 270;
-  const fitScale = Math.min(scaleX, scaleY) * 0.95; // 95% 全螢幕滿板
-  wrap.style.transform = `scale(${Math.max(1.0, fitScale)})`;
+  // 取較小的陷位保持比例
+  const scale = Math.min(scaleX, scaleY);
+  const displayW = Math.round(480 * scale);
+  const displayH = Math.round(270 * scale);
+  gc.style.width = displayW + 'px';
+  gc.style.height = displayH + 'px';
 }
 
 window.addEventListener('resize', autoScaleViewport);
@@ -288,9 +293,9 @@ function drawPlayer() {
     }
     const fr = PLAYER_FRAMES[fKey] || PLAYER_FRAMES.IDLE;
     const flipX = P.facing.x < 0;
-    // 玩家顯示尺寸：48×64（保持比例）
+    // 玩家顯示尺寸：72×96（放大高清）
     drawHDFrame(hdPlayerImg, fr.col, fr.row, PLAYER_SHEET_COLS, PLAYER_SHEET_ROWS,
-      P.x - 24, P.y - 36 + hov, 48, 64, flipX);
+      P.x - 36, P.y - 56 + hov, 72, 96, flipX);
   } else {
     drawSprite(IDLE0, P.x - 14, P.y - 20 + hov, 2, P.facing.x < 0);
   }

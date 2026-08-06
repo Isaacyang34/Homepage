@@ -15,11 +15,15 @@ body{
   position:fixed;inset:0;width:100vw;height:100vh;
   display:flex;align-items:center;justify-content:center;
   background:#030509;
+  overflow:hidden;
 }
 #gc{
-  width:100vw;height:100vh;
-  object-fit:contain;
+  /* 等比放大至填滿螢幕，維持 16:9 比例 */
+  width:100%;
+  height:100%;
+  object-fit:fill;
   image-rendering:pixelated;
+  image-rendering:crisp-edges;
   display:block;
 }
 
