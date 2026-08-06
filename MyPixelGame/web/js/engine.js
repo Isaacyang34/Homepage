@@ -170,17 +170,50 @@ function drawPlayer() {
   if (P.hurtFlash > 0 && P.hurtFlash % 2 === 0) return;
   const hov = P.state === 'MOVE' ? Math.sin(T * 12) * 1.5 : 0;
   if (hdPlayerLoaded) {
-    const fw = hdPlayerImg.width / 4;
-    const fh = hdPlayerImg.height / 2;
-    let fIdx = 0;
-    if (P.state === 'MOVE') fIdx = 1 + (Math.floor(T * 8) % 3);
-    else if (P.state === 'ATTACK') fIdx = 4 + (Math.floor(T * 12) % 4);
-    const col = fIdx % 4;
-    const row = Math.floor(fIdx / 4);
-    ctx.drawImage(hdPlayerImg, col * fw, row * fh, fw, fh, P.x - 18, P.y - 28 + hov, 36, 48);
+    // 依狀態決定 Spritesheet 幀
+    let fKey = 'IDLE';
+    if (P.state === 'MOVE') {
+      const wi = Math.floor(T * 8) % 3;
+      fKey = ['WALK1', 'WALK2', 'WALK3'][wi];
+    } else if (P.state === 'ATTACK') {
+      const ai = Math.floor(T * 12) % 2;
+      fKey = ['ATK1', 'ATK2'][ai];
+    } else if (P.state === 'MEDITATE') {
+      fKey = 'IDLE1';
+    }
+    const fr = PLAYER_FRAMES[fKey] || PLAYER_FRAMES.IDLE;
+    const flipX = P.facing.x < 0;
+    // 玩家顯示尺寸：48×64（保持比例）
+    drawHDFrame(hdPlayerImg, fr.col, fr.row, PLAYER_SHEET_COLS, PLAYER_SHEET_ROWS,
+      P.x - 24, P.y - 36 + hov, 48, 64, flipX);
   } else {
     drawSprite(IDLE0, P.x - 14, P.y - 20 + hov, 2, P.facing.x < 0);
   }
+}
+
+function drawEnemies() {
+  const list = getEnemies ? getEnemies() : [];
+  list.forEach(e => {
+    if (!e.alive) return;
+    const flash = e.hflash > 0 && e.hflash % 2 === 0;
+    if (flash) return;
+    if (e.isBoss) {
+      // 決定 BOSS 動作
+      let animKey = 'IDLE';
+      if (e.atkCd > 0.8) animKey = 'ATTACK';
+      else if (e._p2Rage && e.specialCd > 0) animKey = 'ROAR';
+      const drawn = drawBossHD(e, animKey, T);
+      if (!drawn) {
+        // Fallback 像素陣列
+        const sc = e.hflash > 0 ? '#ff4444' : null;
+        drawSprite(ES[e.sprite] || ES.wolf, e.x - 8, e.y - 10, 3, e.facingLeft, sc);
+      }
+    } else {
+      // 一般敵人：像素陣列
+      const sc = e.hflash > 0 ? '#ff4444' : null;
+      drawSprite(ES[e.sprite] || ES.wolf, e.x - 6, e.y - 8, 2, e.facingLeft, sc);
+    }
+  });
 }
 
 function drawMM() {
@@ -200,6 +233,7 @@ function render() {
     ctx.translate((Math.random() - .5) * screenShake, (Math.random() - .5) * screenShake);
   }
   drawBg();
+  drawEnemies();
   drawPlayer();
   drawMM();
   ctx.restore();
