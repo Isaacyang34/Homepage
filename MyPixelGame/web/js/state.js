@@ -3,6 +3,26 @@
 //  【修仙地牢、五行功法熟練度與武器相生面板運算】
 // ═══════════════════════════════════════════════════════════
 
+// 🚌 全域事件總線 (EventBus) - 採用發佈/訂閱模式實現 UI、玩家與 AI 完全解耦
+const EventBus = {
+  listeners: {},
+  on(event, callback) {
+    if (!this.listeners[event]) this.listeners[event] = [];
+    this.listeners[event].push(callback);
+  },
+  off(event, callback) {
+    if (!this.listeners[event]) return;
+    this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
+  },
+  emit(event, ...args) {
+    if (!this.listeners[event]) return;
+    this.listeners[event].forEach(cb => {
+      try { cb(...args); } catch(e) { console.error(`[EventBus] Event '${event}' handler error:`, e); }
+    });
+  }
+};
+window.EventBus = EventBus;
+
 const P = {
   x: 640, y: 480,
   state: 'IDLE', facing: { x: 1, y: 0 },
@@ -150,6 +170,11 @@ function updateHUD() {
   if ($('qi-v')) $('qi-v').textContent = `${Math.ceil(P.qi)} / ${P.maxQi}`;
   if ($('exp-v')) $('exp-v').textContent = `${Math.ceil(P.exp)} / ${r.expNext}`;
   if ($('ui-st')) $('ui-st').textContent = P.stones;
+
+  // 🚌 發射 EventBus 訊號 (發佈/訂閱解耦)
+  EventBus.emit('player_health_changed', P.hp, P.maxHp);
+  EventBus.emit('player_qi_changed', P.qi, P.maxQi);
+  EventBus.emit('hud_updated', P);
 }
 
 // 掛載至全域 window 物件
