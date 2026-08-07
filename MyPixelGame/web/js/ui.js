@@ -1,7 +1,115 @@
 // ═══════════════════════════════════════════════════════════
 //  UI 彈窗與選單互動模組 (UI & Modals)
-//  【地圖未探索隱藏、1~8號道具欄、徹底刪除煉丹煉器進度與右下角對應按鈕】
+//  【地圖未探索隱藏、1~8號道具欄、右側訊息紀錄面板】
 // ═══════════════════════════════════════════════════════════
+
+// ────────────────────────────────────────────────────────
+// 🗒 右側訊息紀錄面板 (Game Log Panel) 動態注入
+//    位於右下角，緊貼 #hud-sys 系統按鈕上方
+// ────────────────────────────────────────────────────────
+(function injectGameLog() {
+  // 若已存在則跳過
+  if (document.getElementById('game-log-panel')) return;
+
+  // ── 注入 CSS ──
+  const style = document.createElement('style');
+  style.textContent = `
+    #game-log-panel {
+      position: fixed;
+      right: 14px;
+      bottom: 170px;
+      width: 240px;
+      max-height: 220px;
+      background: rgba(4,6,16,0.88);
+      border: 1px solid rgba(180,150,70,0.25);
+      border-left: 3px solid rgba(180,150,70,0.5);
+      border-radius: 6px 0 0 6px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      z-index: 21;
+      pointer-events: auto;
+      backdrop-filter: blur(5px);
+    }
+    #game-log-hdr {
+      padding: 5px 10px;
+      font-size: 9px;
+      color: rgba(200,168,75,0.7);
+      letter-spacing: 1.5px;
+      font-weight: 700;
+      border-bottom: 1px solid rgba(180,150,70,0.15);
+      background: rgba(0,0,0,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    #game-log-hdr button {
+      background: none;
+      border: none;
+      color: rgba(107,122,144,0.7);
+      font-size: 10px;
+      cursor: pointer;
+      padding: 0 2px;
+      line-height: 1;
+    }
+    #game-log-hdr button:hover { color: rgba(200,168,75,0.9); }
+    #game-log {
+      overflow-y: auto;
+      flex: 1;
+      padding: 4px 0;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(180,150,70,0.3) transparent;
+    }
+    #game-log::-webkit-scrollbar { width: 3px; }
+    #game-log::-webkit-scrollbar-thumb { background: rgba(180,150,70,0.3); border-radius: 2px; }
+    .log-entry {
+      display: flex;
+      gap: 6px;
+      padding: 2px 10px;
+      font-size: 10px;
+      line-height: 1.5;
+      border-bottom: 1px solid rgba(60,70,100,0.2);
+      animation: logIn 0.2s ease;
+    }
+    .log-entry:last-child { border-bottom: none; }
+    @keyframes logIn { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; } }
+    .log-ts {
+      color: rgba(107,122,144,0.6);
+      font-size: 8px;
+      flex-shrink: 0;
+      padding-top: 1px;
+      font-variant-numeric: tabular-nums;
+    }
+    .log-msg {
+      color: rgba(216,223,232,0.9);
+      word-break: break-all;
+    }
+    /* 讓 #notif 縮小至頂部，僅作緊急大字警示 */
+    #notif {
+      top: 12% !important;
+      font-size: 14px !important;
+      text-shadow: 0 0 16px rgba(200,168,75,0.9), 0 0 4px #000 !important;
+    }
+  `;
+  document.head.appendChild(style);
+
+  // ── 注入 DOM ──
+  const panel = document.createElement('div');
+  panel.id = 'game-log-panel';
+  panel.innerHTML = `
+    <div id="game-log-hdr">
+      <span>📜 訊息紀錄</span>
+      <button onclick="document.getElementById('game-log').innerHTML='';logCnt=0;" title="清除紀錄">✕</button>
+    </div>
+    <div id="game-log"></div>
+  `;
+
+  // 插入至 #hud 或 body
+  const hud = document.getElementById('hud');
+  if (hud) hud.appendChild(panel);
+  else document.body.appendChild(panel);
+})();
 
 function openInv() { renderInv(); $('inv-overlay').classList.add('show'); }
 function closeInv() { $('inv-overlay').classList.remove('show'); }

@@ -69,13 +69,40 @@ const INV = [];
 
 function $(id) { return document.getElementById(id); }
 
+let logCnt = 0;
+const MAX_LOG = 50; // 最多保留 50 則訊息
+
 function notify(msg) {
+  // 主通知文字（畫面中央，保留作緊急提示）
   const n = $('notif');
-  if (!n) return;
-  n.textContent = msg;
-  n.style.opacity = '1';
-  clearTimeout(nTO);
-  nTO = setTimeout(() => { n.style.opacity = '0'; }, 2800);
+  if (n) {
+    n.textContent = msg;
+    n.style.opacity = '1';
+    clearTimeout(nTO);
+    nTO = setTimeout(() => { n.style.opacity = '0'; }, 2500);
+  }
+
+  // 右側滾動訊息紀錄盒
+  const logBox = $('game-log');
+  if (logBox) {
+    const now = new Date();
+    const ts = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML = `<span class="log-ts">${ts}</span><span class="log-msg">${msg}</span>`;
+    logBox.appendChild(entry);
+
+    // 超過上限時移除最舊一則
+    logCnt++;
+    if (logCnt > MAX_LOG) {
+      const first = logBox.querySelector('.log-entry');
+      if (first) logBox.removeChild(first);
+      logCnt--;
+    }
+
+    // 自動捲到最新
+    logBox.scrollTop = logBox.scrollHeight;
+  }
 }
 
 // 🧮 功法熟練度提升與自動突破 (Mastery System)

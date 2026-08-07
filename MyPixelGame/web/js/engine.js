@@ -15,6 +15,35 @@ let roomTransitionAlpha = 0;
 let roomTransitionPhase = 'IDLE'; // 'FADE_OUT' | 'FADE_IN' | 'IDLE'
 let onPeakAction = null;
 
+// ════ 牆壁碰撞常數 ════
+// 畫布 1280x720，四周牆壁厚度 24px，內緣安全留一個 Tile(64px) 確保人物不卡入牆中
+const WALL_N = 64;    // 北牆 (頂部) 內緣 Y 最小值
+const WALL_S = 656;   // 南牆 (底部) 內緣 Y 最大值
+const WALL_W = 64;    // 西牆 (左側) 內緣 X 最小值
+const WALL_E = 1216;  // 東牆 (右側) 內緣 X 最大值
+// 門洞開放區域：人物可穿越門洞觸發換房間
+const DOOR_GAP = 90;  // 門洞半寬 (以畫布中央為基準)
+const DOOR_CX = 640;  // 門洞中央 X (水平門)
+const DOOR_CY = 360;  // 門洞中央 Y (垂直門)
+
+// 根據當前房間門洞動態計算可行走邊界
+function getPlayerBounds() {
+  const area = (typeof SECT_ROOMS !== 'undefined' && SECT_ROOMS[curAreaId])
+    ? SECT_ROOMS[curAreaId]
+    : (activeDungeonRooms && activeDungeonRooms[currentRoomId])
+      ? activeDungeonRooms[currentRoomId]
+      : null;
+  const doors = area ? (area.doors || []) : [];
+
+  return {
+    // 有北門且玩家 X 在門洞範圍內，才允許繼續北行（觸發 checkDoorTriggers）
+    minY: (doors.includes('N') && Math.abs(P.x - DOOR_CX) <= DOOR_GAP) ? 0  : WALL_N,
+    maxY: (doors.includes('S') && Math.abs(P.x - DOOR_CX) <= DOOR_GAP) ? 720 : WALL_S,
+    minX: (doors.includes('W') && Math.abs(P.y - DOOR_CY) <= DOOR_GAP) ? 0  : WALL_W,
+    maxX: (doors.includes('E') && Math.abs(P.y - DOOR_CY) <= DOOR_GAP) ? 1280 : WALL_E,
+  };
+}
+
 function triggerRoomTransition(onPeakCallback) {
   if (isRoomTransitioning) return;
   isRoomTransitioning = true;
@@ -152,8 +181,10 @@ function doDash() {
   if (P.state === 'MEDITATE') P.state = 'IDLE';
   P.state = 'DASH'; P.invincible = true;
   const ox = P.x, oy = P.y;
-  P.x = Math.max(64, Math.min(1216, P.x + P.facing.x * 75));
-  P.y = Math.max(64, Math.min(656, P.y + P.facing.y * 75));
+  // 衝刺也遵循牆壁內緣限制（統一使用 WALL_* 常數）
+  const bounds = getPlayerBounds();
+  P.x = Math.max(bounds.minX, Math.min(bounds.maxX, P.x + P.facing.x * 75));
+  P.y = Math.max(bounds.minY, Math.min(bounds.maxY, P.y + P.facing.y * 75));
   for (let i = 0; i < 6; i++) PARTS.push({ x: ox + (P.x - ox) * i / 6, y: oy + (P.y - oy) * i / 6, vx: 0, vy: 0, col: '#4a8ad8', life: 18, ml: 18, sz: 3 });
   setTimeout(() => { P.invincible = false; if (P.state === 'DASH') P.state = 'IDLE'; }, 240);
 }
@@ -579,23 +610,213 @@ function render() {
   ctx.restore();
 }
 
+// 🗺 右上角羅盤小地圖（完整功能版）
+// 畫布 90x90，對應遊戲場景 1280x720
+// 縮放比例：sx = 90/1280 ≈ 0.0703，sy = 90/720 = 0.125
 function drawMM() {
   const mc = document.getElementById('mm-canvas');
   if (!mc) return;
   const mctx = mc.getContext('2d');
-  mctx.clearRect(0, 0, 90, 90);
-  mctx.fillStyle = '#040814'; mctx.fillRect(0, 0, 90, 90);
-  mctx.fillStyle = '#c8a84b'; mctx.beginPath(); mctx.arc(P.x / 14.2, P.y / 8, 3, 0, Math.PI * 2); mctx.fill();
+  const MW = 90, MH = 90;
+  const SX = MW / 1280, SY = MH / 720;
+
+  // ─ 0. 清底 ─
+  mctx.clearRect(0, 0, MW, MH);
+  mctx.fillStyle = '#020510';
+  mctx.fillRect(0, 0, MW, MH);
+
+  // 取得當前房間資料
+  const isSect = typeof SECT_ROOMS !== 'undefined' && SECT_ROOMS[curAreaId];
+  const isDungeon = !isSect && typeof activeDungeonRooms !== 'undefined' && activeDungeonRooms;
+  const area = isSect
+    ? SECT_ROOMS[curAreaId]
+    : isDungeon
+      ? activeDungeonRooms[currentRoomId]
+      : null;
+  const doors  = area ? (area.doors || []) : [];
+  const isBossRoom = area && area.isBossRoom;
+
+  // ─ 1. 房間地板底色 ─
+  const floorCol = isBossRoom
+    ? 'rgba(180,0,0,0.35)'
+    : isSect
+      ? 'rgba(10,25,55,0.85)'
+      : 'rgba(5,18,38,0.85)';
+  mctx.fillStyle = floorCol;
+  // 地板留牆壁內緣（64px對應到縮放後約4.5px）
+  const wallPx = Math.round(64 * SX);
+  mctx.fillRect(wallPx, wallPx, MW - wallPx * 2, MH - wallPx * 2);
+
+  // ─ 2. 牆壁外框 ─
+  mctx.strokeStyle = isBossRoom ? '#ef4444' : '#2a3860';
+  mctx.lineWidth = 1.5;
+  mctx.strokeRect(wallPx, wallPx, MW - wallPx * 2, MH - wallPx * 2);
+
+  // ─ 3. 門洞（以缺口表示，在對應牆壁位置畫亮色小方塊） ─
+  const doorCol = isBossRoom ? '#ff6060' : '#f59e0b';
+  mctx.fillStyle = doorCol;
+  const gapHalf = Math.round(DOOR_GAP * SX); // 門洞半寬縮放後
+  const gapCX   = Math.round(DOOR_CX * SX);
+  const gapCY   = Math.round(DOOR_CY * SY);
+
+  if (doors.includes('N')) {
+    mctx.fillRect(gapCX - gapHalf, 0, gapHalf * 2, wallPx + 1);
+  }
+  if (doors.includes('S')) {
+    mctx.fillRect(gapCX - gapHalf, MH - wallPx - 1, gapHalf * 2, wallPx + 1);
+  }
+  if (doors.includes('W')) {
+    const gapTop = Math.round((DOOR_CY - DOOR_GAP) * SY);
+    const gapH   = Math.round(DOOR_GAP * 2 * SY);
+    mctx.fillRect(0, gapTop, wallPx + 1, gapH);
+  }
+  if (doors.includes('E')) {
+    const gapTop = Math.round((DOOR_CY - DOOR_GAP) * SY);
+    const gapH   = Math.round(DOOR_GAP * 2 * SY);
+    mctx.fillRect(MW - wallPx - 1, gapTop, wallPx + 1, gapH);
+  }
+
+  // ─ 4. 宗門模式：顯示靜態場景物件圖示 ─
+  if (isSect && typeof STATIC_COLLIDERS !== 'undefined') {
+    const rects = STATIC_COLLIDERS[curAreaId] || [];
+    mctx.fillStyle = 'rgba(168,85,247,0.55)';
+    for (const r of rects) {
+      mctx.fillRect(
+        Math.round(r.x * SX), Math.round(r.y * SY),
+        Math.max(3, Math.round(r.w * SX)), Math.max(3, Math.round(r.h * SY))
+      );
+    }
+    // 靈泉池（圓形）
+    if (curAreaId === 'sect_spring') {
+      mctx.fillStyle = 'rgba(14,165,233,0.45)';
+      mctx.beginPath();
+      mctx.arc(Math.round(640 * SX), Math.round(360 * SY), Math.round(170 * SX), 0, Math.PI * 2);
+      mctx.fill();
+    }
+  }
+
+  // ─ 5. 地牢模式：顯示生成的其他房間節點 ─
+  if (isDungeon && activeDungeonRooms) {
+    const roomKeys = Object.keys(activeDungeonRooms);
+    const total = roomKeys.length;
+    roomKeys.forEach((rk, idx) => {
+      const rm = activeDungeonRooms[rk];
+      const isMe = (rk === currentRoomId);
+      // 以格子方式排列在小地圖上
+      const gx = 8 + (idx % 5) * 14;
+      const gy = 6 + Math.floor(idx / 5) * 14;
+      mctx.fillStyle = isMe
+        ? '#ffd700'
+        : rm.isBossRoom
+          ? '#ef4444'
+          : rm.cleared
+            ? '#2a4a20'
+            : '#1e3a5a';
+      mctx.fillRect(gx, gy, 10, 10);
+      if (rm.isBossRoom) {
+        mctx.fillStyle = '#fff';
+        mctx.font = '6px sans-serif';
+        mctx.textAlign = 'center';
+        mctx.fillText('B', gx + 5, gy + 8);
+      }
+    });
+  }
+
+  // ─ 6. NPC 藍點（宗門模式） ─
+  if (isSect && area && area.npcs) {
+    mctx.fillStyle = '#38bdf8';
+    for (const npc of area.npcs) {
+      mctx.beginPath();
+      mctx.arc(
+        Math.round((npc.x || 640) * SX),
+        Math.round((npc.y || 360) * SY),
+        2.5, 0, Math.PI * 2
+      );
+      mctx.fill();
+    }
+  }
+
+  // ─ 7. 怪物紅點（地牢模式） ─
+  if (typeof getEnemies === 'function') {
+    const enemies = getEnemies();
+    mctx.fillStyle = '#ef4444';
+    for (const e of enemies) {
+      if (!e || !e.alive) continue;
+      mctx.beginPath();
+      mctx.arc(
+        Math.round(e.x * SX), Math.round(e.y * SY),
+        e.isBoss ? 3.5 : 2, 0, Math.PI * 2
+      );
+      mctx.fill();
+    }
+  }
+
+  // ─ 8. 玩家金色三角羅盤標記 ─
+  const px = Math.round(P.x * SX);
+  const py = Math.round(P.y * SY);
+  // 外圈發光
+  mctx.shadowColor = '#ffd700';
+  mctx.shadowBlur = 4;
+  mctx.fillStyle = '#ffd700';
+  mctx.beginPath();
+  // 方向三角形（朝向 P.facing）
+  const fx = P.facing.x, fy = P.facing.y;
+  const sz = 3.5;
+  const angle = Math.atan2(fy, fx);
+  mctx.save();
+  mctx.translate(px, py);
+  mctx.rotate(angle);
+  mctx.beginPath();
+  mctx.moveTo(sz * 1.5, 0);
+  mctx.lineTo(-sz, sz);
+  mctx.lineTo(-sz, -sz);
+  mctx.closePath();
+  mctx.fill();
+  mctx.restore();
+  mctx.shadowBlur = 0;
+
+  // ─ 9. 更新地圖文字標籤（截短房間名稱）─
+  const lbl = document.getElementById('mm-lbl');
+  if (lbl) {
+    const name = area ? (area.name || '未知區域') : '未知區域';
+    // 只取最後的「·」後面的部分，或截短顯示
+    const short = name.includes('·') ? name.split('·').pop().trim() : name;
+    lbl.textContent = short.length > 10 ? short.slice(0, 10) + '…' : short;
+  }
 }
+
 
 function gameLoop(ts) {
   try {
     const dt = Math.min((ts - lastT) / 1000, .05); lastT = ts; T += dt;
+
     if (!isRoomTransitioning) {
-      if (keys['w']) { P.y = Math.max(15, P.y - P.speed); P.facing.y = -1; P.facing.x = 0; }
-      if (keys['s']) { P.y = Math.min(705, P.y + P.speed); P.facing.y = 1; P.facing.x = 0; }
-      if (keys['a']) { P.x = Math.max(15, P.x - P.speed); P.facing.x = -1; P.facing.y = 0; }
-      if (keys['d']) { P.x = Math.min(1265, P.x + P.speed); P.facing.x = 1; P.facing.y = 0; }
+      // ─── 玩家移動：使用動態邊界（根據房間門洞決定哪個方向可穿越）───
+      const bounds = getPlayerBounds();
+
+      let moved = false;
+      if (keys['w'] || keys['arrowup']) {
+        P.y = Math.max(bounds.minY, P.y - P.speed);
+        P.facing.y = -1; P.facing.x = 0; moved = true;
+      }
+      if (keys['s'] || keys['arrowdown']) {
+        P.y = Math.min(bounds.maxY, P.y + P.speed);
+        P.facing.y = 1; P.facing.x = 0; moved = true;
+      }
+      if (keys['a'] || keys['arrowleft']) {
+        P.x = Math.max(bounds.minX, P.x - P.speed);
+        P.facing.x = -1; P.facing.y = 0; moved = true;
+      }
+      if (keys['d'] || keys['arrowright']) {
+        P.x = Math.min(bounds.maxX, P.x + P.speed);
+        P.facing.x = 1; P.facing.y = 0; moved = true;
+      }
+
+      if (moved && P.state === 'IDLE') P.state = 'WALK';
+      if (!moved && P.state === 'WALK') P.state = 'IDLE';
+
+      // 充能計時器
+      if (P.charging) P.chargeTime += dt;
     }
 
     updRoomTransition();
@@ -603,6 +824,9 @@ function gameLoop(ts) {
     try { if (typeof updEnemies === 'function') updEnemies(); else if (window.updEnemies) window.updEnemies(); } catch(e) {}
     try { if (typeof updAttacks === 'function') updAttacks(); else if (window.updAttacks) window.updAttacks(); } catch(e) {}
     try { if (typeof checkDoorTriggers === 'function') checkDoorTriggers(); else if (window.checkDoorTriggers) window.checkDoorTriggers(); } catch(e) {}
+
+    // 每幀同步 HUD（確保 HP/Qi/Exp 條即時更新）
+    if (typeof updateHUD === 'function') { try { updateHUD(); } catch(e) {} }
 
     render();
   } catch (err) {

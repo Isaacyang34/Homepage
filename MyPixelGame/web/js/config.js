@@ -189,5 +189,19 @@ window.FIVE_ELEMENT_SYNERGY = FIVE_ELEMENT_SYNERGY;
 window.WEAPON_TYPES = WEAPON_TYPES;
 window.FORGE_RECIPES_V2 = FORGE_RECIPES_V2;
 
+// ════ 全域牆壁與門洞常數 (共用於 collision.js 與 engine.js) ════
+// 畫布 1280x720，四周牆壁厚24px，內緣限制在一個 Tile(64px)
+const WALL_N = 64;    // 北牆 (頂部) 內緣 Y 最小值
+const WALL_S = 656;   // 南牆 (底部) 內緣 Y 最大值
+const WALL_W = 64;    // 西牆 (左側) 內緣 X 最小值
+const WALL_E = 1216;  // 東牆 (右側) 內緣 X 最大值
+const DOOR_GAP = 90;  // 門洞半寬
+const DOOR_CX  = 640; // 北南門中心 X
+const DOOR_CY  = 360; // 東西門中心 Y
+
+window.WALL_N = WALL_N; window.WALL_S = WALL_S;
+window.WALL_W = WALL_W; window.WALL_E = WALL_E;
+window.DOOR_GAP = DOOR_GAP; window.DOOR_CX = DOOR_CX; window.DOOR_CY = DOOR_CY;
+
 // 舊版相容性 WORLD_AREAS 匯出 (包含宗門與秘境)
 const WORLD_AREAS = Object.values(SECT_ROOMS).concat(DUNGEON_WORLDS);
