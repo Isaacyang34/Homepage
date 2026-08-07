@@ -73,13 +73,10 @@ let logCnt = 0;
 const MAX_LOG = 50; // 最多保留 50 則訊息
 
 function notify(msg) {
-  // 主通知文字（畫面中央，保留作緊急提示）
+  // 徹底停用畫面中央浮現提示 (依據使用者指示完全移除中央 pop-up 文字)
   const n = $('notif');
   if (n) {
-    n.textContent = msg;
-    n.style.opacity = '1';
-    clearTimeout(nTO);
-    nTO = setTimeout(() => { n.style.opacity = '0'; }, 2500);
+    n.style.display = 'none';
   }
 
   // 右側滾動訊息紀錄盒
