@@ -94,100 +94,90 @@ window.BackgroundRenderer = {
     const doors = (area && area.doors) ? area.doors : ['N', 'S', 'E', 'W'];
     const terr = (area && area.terrain) ? area.terrain : 'sect';
     const isBossRoom = area && area.isBossRoom;
-
-    // 通道靈光與石牆材質色彩
-    const portalGlow = isBossRoom ? '#ef4444' : (terr === 'ruins') ? '#ef4444' : (terr === 'cave') ? '#38bdf8' : '#00cfff';
-    const wallColor = (terr === 'ruins') ? '#1e141a' : (terr === 'cave') ? '#0d192e' : '#111827';
-    const wallBorder = (terr === 'ruins') ? '#451a24' : (terr === 'cave') ? '#1d3354' : '#26344d';
+    const hasImg = this.images[terr] && this.loaded[terr];
 
     ctx.save();
 
-    // ── 1. 北通道 (North Corridor: X: 570~710, Y: 0~110) ──
+    // ── 1. 北通道 (North: 560~720, Y: 0~112) ──
     if (doors.includes('N')) {
-      const glow = ctx.createLinearGradient(640, 0, 640, 110);
-      glow.addColorStop(0, portalGlow);
-      glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = glow;
-      ctx.fillRect(570, 0, 140, 110);
-      ctx.strokeStyle = portalGlow; ctx.lineWidth = 2.5;
-      ctx.strokeRect(570, 0, 140, 110);
+      // 有通道：柔和仙家靈氣法陣光暈（完全取消生硬藍色外框與粗暴漸層）
+      this.drawOpenPortalEffect(ctx, 640, 55, 55, isBossRoom ? 'rgba(239,68,68,0.35)' : 'rgba(212,168,67,0.35)');
     } else {
-      // 封密石牆：覆蓋無門區域，形態完美融入周圍牆壁
-      ctx.fillStyle = wallColor;
-      ctx.fillRect(560, 0, 160, 112);
-      ctx.strokeStyle = wallBorder; ctx.lineWidth = 3.5;
-      ctx.strokeRect(560, 0, 160, 112);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'; ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(560, 40); ctx.lineTo(720, 40);
-      ctx.moveTo(560, 80); ctx.lineTo(720, 80);
-      ctx.stroke();
+      // 無通道：直接採樣背景原圖的實體壁磚紋理進行無縫封密覆蓋
+      if (hasImg) {
+        // 從背景原圖的左側牆面 (320~480, 0~112) 採樣高畫質壁磚紋理，遮擋北部門洞
+        ctx.drawImage(this.images[terr], 320, 0, 160, 112, 560, 0, 160, 112);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.12)'; ctx.fillRect(560, 0, 160, 112);
+      } else {
+        this.drawFallbackClosedWall(ctx, 560, 0, 160, 112, terr);
+      }
     }
 
-    // ── 2. 南通道 (South Corridor: X: 570~710, Y: 610~720) ──
+    // ── 2. 南通道 (South: 560~720, Y: 608~720) ──
     if (doors.includes('S')) {
-      const glow = ctx.createLinearGradient(640, 720, 640, 610);
-      glow.addColorStop(0, portalGlow);
-      glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = glow;
-      ctx.fillRect(570, 610, 140, 110);
-      ctx.strokeStyle = portalGlow; ctx.lineWidth = 2.5;
-      ctx.strokeRect(570, 610, 140, 110);
+      this.drawOpenPortalEffect(ctx, 640, 665, 55, isBossRoom ? 'rgba(239,68,68,0.35)' : 'rgba(212,168,67,0.35)');
     } else {
-      ctx.fillStyle = wallColor;
-      ctx.fillRect(560, 608, 160, 112);
-      ctx.strokeStyle = wallBorder; ctx.lineWidth = 3.5;
-      ctx.strokeRect(560, 608, 160, 112);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'; ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(560, 648); ctx.lineTo(720, 648);
-      ctx.moveTo(560, 688); ctx.lineTo(720, 688);
-      ctx.stroke();
+      if (hasImg) {
+        ctx.drawImage(this.images[terr], 320, 608, 160, 112, 560, 608, 160, 112);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.12)'; ctx.fillRect(560, 608, 160, 112);
+      } else {
+        this.drawFallbackClosedWall(ctx, 560, 608, 160, 112, terr);
+      }
     }
 
-    // ── 3. 西通道 (West Corridor: X: 0~180, Y: 290~430) ──
+    // ── 3. 西通道 (West: 0~182, Y: 280~440) ──
     if (doors.includes('W')) {
-      const glow = ctx.createLinearGradient(0, 360, 180, 360);
-      glow.addColorStop(0, portalGlow);
-      glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = glow;
-      ctx.fillRect(0, 290, 180, 140);
-      ctx.strokeStyle = portalGlow; ctx.lineWidth = 2.5;
-      ctx.strokeRect(0, 290, 180, 140);
+      this.drawOpenPortalEffect(ctx, 90, 360, 55, isBossRoom ? 'rgba(239,68,68,0.35)' : 'rgba(212,168,67,0.35)');
     } else {
-      ctx.fillStyle = wallColor;
-      ctx.fillRect(0, 280, 182, 160);
-      ctx.strokeStyle = wallBorder; ctx.lineWidth = 3.5;
-      ctx.strokeRect(0, 280, 182, 160);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'; ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(60, 280); ctx.lineTo(60, 440);
-      ctx.moveTo(120, 280); ctx.lineTo(120, 440);
-      ctx.stroke();
+      if (hasImg) {
+        ctx.drawImage(this.images[terr], 0, 112, 182, 160, 0, 280, 182, 160);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.12)'; ctx.fillRect(0, 280, 182, 160);
+      } else {
+        this.drawFallbackClosedWall(ctx, 0, 280, 182, 160, terr);
+      }
     }
 
-    // ── 4. 東通道 (East Corridor: X: 1100~1280, Y: 290~430) ──
+    // ── 4. 東通道 (East: 1098~1280, Y: 280~440) ──
     if (doors.includes('E')) {
-      const glow = ctx.createLinearGradient(1280, 360, 1100, 360);
-      glow.addColorStop(0, portalGlow);
-      glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = glow;
-      ctx.fillRect(1100, 290, 180, 140);
-      ctx.strokeStyle = portalGlow; ctx.lineWidth = 2.5;
-      ctx.strokeRect(1100, 290, 180, 140);
+      this.drawOpenPortalEffect(ctx, 1190, 360, 55, isBossRoom ? 'rgba(239,68,68,0.35)' : 'rgba(212,168,67,0.35)');
     } else {
-      ctx.fillStyle = wallColor;
-      ctx.fillRect(1098, 280, 182, 160);
-      ctx.strokeStyle = wallBorder; ctx.lineWidth = 3.5;
-      ctx.strokeRect(1098, 280, 182, 160);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'; ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(1160, 280); ctx.lineTo(1160, 440);
-      ctx.moveTo(1220, 280); ctx.lineTo(1220, 440);
-      ctx.stroke();
+      if (hasImg) {
+        ctx.drawImage(this.images[terr], 1098, 112, 182, 160, 1098, 280, 182, 160);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.12)'; ctx.fillRect(1098, 280, 182, 160);
+      } else {
+        this.drawFallbackClosedWall(ctx, 1098, 280, 182, 160, terr);
+      }
     }
 
     ctx.restore();
+  },
+
+  // ✨ 有通道時的仙家靈氣法陣光暈 (極簡高雅，自然融入背景)
+  drawOpenPortalEffect(ctx, cx, cy, r, colorStr) {
+    ctx.save();
+    const rad = ctx.createRadialGradient(cx, cy, 4, cx, cy, r);
+    rad.addColorStop(0, colorStr);
+    rad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = rad;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+
+    ctx.strokeStyle = colorStr; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(cx, cy, r * 0.45, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  },
+
+  // 🧱 無圖片載入時的後備高品質壁磚紋理
+  drawFallbackClosedWall(ctx, x, y, w, h, terr) {
+    const wallCol = (terr === 'ruins') ? '#1c1216' : (terr === 'cave') ? '#0c1626' : '#111827';
+    const lineCol = (terr === 'ruins') ? '#382028' : (terr === 'cave') ? '#1a2e48' : '#26344d';
+    ctx.fillStyle = wallCol; ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = lineCol; ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, w, h);
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.beginPath();
+    ctx.moveTo(x, y + h * 0.33); ctx.lineTo(x + w, y + h * 0.33);
+    ctx.moveTo(x, y + h * 0.66); ctx.lineTo(x + w, y + h * 0.66);
+    ctx.stroke();
   },
 
   drawFallbackTopDownFloor(ctx, terr) {
