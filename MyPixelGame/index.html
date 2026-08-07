@@ -3,162 +3,174 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>⚔ 修仙傳 · MyPixelGame (正統 MMORPG 滿板版) ⚔</title>
+<title>⚔ 修仙傳 · MyPixelGame</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700;900&display=swap" rel="stylesheet">
-<!-- 引入滿板樣式表 -->
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="web/css/styles.css">
 </head>
 <body>
 
-<!-- 1. 全螢幕滿板遊戲畫面 Canvas (滿視窗 100vw × 100vh) -->
+<!-- 遊戲主畫面 Canvas -->
 <div id="game-viewport">
   <canvas id="gc" width="480" height="270"></canvas>
 </div>
 
-<!-- 2. MMORPG 原生螢幕解析度 HUD 圖層 (固定四角，無變形) -->
-<div id="mmo-hud">
+<!-- HUD 圖層（燕雲十六聲風格） -->
+<div id="hud">
 
-  <!-- 頂部 Boss 血條 HUD -->
-  <div id="boss-hud" style="display:none;">
-    <div id="boss-name" style="font-size:11px;font-weight:700;color:#ff6666;letter-spacing:2px;margin-bottom:4px;">👑 赤焰魔狼皇 · 首領 (Phase 1)</div>
-    <div style="height:10px;background:#1a0808;border:1px solid #4a1010;border-radius:5px;overflow:hidden;">
-      <div id="boss-hp-bar" style="width:100%;height:100%;background:linear-gradient(90deg,#990000,#ff3333);transition:width .2s;"></div>
-    </div>
-    <div id="boss-hp-val" style="font-size:9px;color:#ffaaaa;margin-top:2px;">600 / 600</div>
-  </div>
-
-  <!-- 1. 左上角：目標與主線任務 (Main Scenario Guide) -->
-  <div id="mmo-target-bar" class="panel">
-    <div style="width:36px;height:36px;border:1.5px solid var(--gold);border-radius:50%;background:#040814;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 0 10px var(--gold-d);">☯</div>
+  <!-- ① 左上角：境界 + 當前地圖 (精簡版) -->
+  <div id="hud-realm">
+    <div id="hud-realm-icon">☯</div>
     <div>
-      <div style="font-size:11px;color:var(--gold);font-weight:700;" id="ui-realm">練氣期一重</div>
-      <div style="font-size:9px;color:var(--dim);margin-top:1px;">當前界域: <span id="ui-mp" style="color:var(--text);font-weight:700;">宗門大殿</span></div>
+      <div id="ui-realm" class="realm-name">練氣期一重</div>
+      <div class="realm-loc">📍 <span id="ui-mp">宗門大殿</span></div>
     </div>
   </div>
 
-  <div id="mmo-quest-banner" class="panel">
-    📜 主線修仙引導: <span style="color:var(--text)" id="quest-text">參悟青雲仙道 ➔ 與藥師兄及長老對話</span>
-  </div>
-
-  <!-- 2. 右上角：歐式金框圓形羅盤小地圖 (Circular Ornate Minimap) -->
-  <div id="mmo-minimap-wrap">
-    <div style="position:relative;width:110px;height:110px;">
-      <canvas id="mm-canvas" width="110" height="110"></canvas>
-      <div style="position:absolute;top:3px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--gold);font-weight:700;text-shadow:0 0 4px #000;">N</div>
-      <div style="position:absolute;bottom:3px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--dim);">S</div>
+  <!-- ② 左下角：HP/MP/EXP 長條（燕雲風格，細長優雅） -->
+  <div id="hud-bars">
+    <div class="bar-row">
+      <span class="bar-ico">⚔</span>
+      <div class="bar-track">
+        <div class="bar-fill bar-hp" id="ui-hp"></div>
+      </div>
+      <span class="bar-val" id="hp-v">100/100</span>
     </div>
-    <div style="font-size:10px;color:var(--gold);margin-top:4px;font-weight:700;letter-spacing:1px;" id="mm-lbl">宗門大殿</div>
-  </div>
-
-  <!-- 3. 右側：任務追蹤清單 (Duty List) -->
-  <div id="mmo-duty-list" class="panel">
-    <div style="font-size:11px;color:var(--gold);font-weight:700;border-bottom:1px solid var(--border);padding-bottom:4px;margin-bottom:6px;">📜 宗門任務清單</div>
-    <div style="color:#52c8a0;margin:3px 0;font-size:10px;">[✓] 與藥師兄學習九轉煉丹</div>
-    <div style="color:#52c8a0;margin:3px 0;font-size:10px;">[✓] 向長老解鎖神兵鍛造</div>
-    <div style="color:var(--text);margin:3px 0;font-size:10px;">[ ] 前往靈山擊敗妖狼 (0/3)</div>
-    <div style="color:#e84040;margin:3px 0;font-size:10px;">[ ] 討伐遺跡【赤焰魔狼皇】</div>
-  </div>
-
-  <!-- 4. 左下角：MMORPG 戰鬥與系統訊息日誌視窗 (Log Window) -->
-  <div id="mmo-log-window" class="panel">
-    <div style="color:var(--gold);font-weight:700;border-bottom:1px solid var(--border);padding-bottom:4px;margin-bottom:4px;">
-      <span>💬 戰鬥與系統日誌</span>
+    <div class="bar-row">
+      <span class="bar-ico">✦</span>
+      <div class="bar-track">
+        <div class="bar-fill bar-mp" id="ui-qi"></div>
+      </div>
+      <span class="bar-val" id="qi-v">0/100</span>
     </div>
-    <div id="mmo-chat-log" style="display:flex;flex-direction:column;gap:3px;max-height:92px;overflow-y:auto;color:var(--text);">
-      <div style="color:var(--jade);">[系統] 歡迎踏入青雲宗修仙世界！</div>
+    <div class="bar-row">
+      <span class="bar-ico">◈</span>
+      <div class="bar-track">
+        <div class="bar-fill bar-exp" id="ui-exp"></div>
+      </div>
+      <span class="bar-val" id="exp-v">0/80</span>
     </div>
   </div>
 
-  <!-- 5. 底部中央：資源條 + 技能熱鍵 (Flex 垂直排列，無重疊) -->
-  <div id="mmo-center-hud">
-    <!-- Parameter Bar -->
-    <div id="bottom-resource-panel" class="panel">
-      <div class="br" style="margin:2px 0;"><span class="bl" style="color:#e84040">HP</span><div class="bt"><div class="bf bh" id="ui-hp" style="width:100%"></div></div><span class="bv" id="hp-v">100/100</span></div>
-      <div class="br" style="margin:2px 0;"><span class="bl" style="color:var(--blue)">MP</span><div class="bt"><div class="bf bq" id="ui-qi" style="width:0%"></div></div><span class="bv" id="qi-v">0/100</span></div>
-      <div class="br" style="margin:2px 0;"><span class="bl" style="color:#b86fff">EXP</span><div class="bt"><div class="bf be" id="ui-exp" style="width:0%"></div></div><span class="bv" id="exp-v">0/80</span></div>
+  <!-- ③ 底部中央：9 格純道具快捷欄（空格就是空格） -->
+  <div id="hud-hotbar">
+    <!-- 左側功法/姿態切換（獨立於道具欄） -->
+    <div id="hotbar-stance">
+      <div class="stance-btn active-stance" id="st-sword" onclick="setStance('SWORD')" title="[1] 近身劍法">
+        <span class="stance-ico">🗡️</span>
+        <span class="stance-lbl">短劍</span>
+      </div>
+      <div class="stance-btn" id="st-talisman" onclick="setStance('TALISMAN')" title="[2] 五行雷符">
+        <span class="stance-ico">⚡</span>
+        <span class="stance-lbl" id="lbl-talisman">雷符🔒</span>
+      </div>
+      <div class="stance-btn" id="st-frost" onclick="setStance('FROST')" title="[3] 寒冰法訣">
+        <span class="stance-ico">❄️</span>
+        <span class="stance-lbl" id="lbl-frost">冰法🔒</span>
+      </div>
     </div>
-    <!-- Hotbar Grid -->
-    <div id="hotbar">
-      <div class="hslot active-slot" id="st-sword" title="[1] 🗡️ 近身短劍" onclick="setStance('SWORD')">🗡️<span class="hk">1</span><span class="hl">短劍</span></div>
-      <div class="hslot" id="st-talisman" title="[2] ⚡ 五行雷符 (🔒 未解鎖)" onclick="setStance('TALISMAN')">⚡<span class="hk">2</span><span class="hl" id="lbl-talisman">雷符🔒</span></div>
-      <div class="hslot" id="st-frost" title="[3] ❄️ 寒冰法訣 (🔒 未解鎖)" onclick="setStance('FROST')">❄️<span class="hk">3</span><span class="hl" id="lbl-frost">冰法🔒</span></div>
-      <div class="hsep"></div>
-      <div class="hslot" title="[4] 💊 聚元丹" onclick="quickPill('pill_hp')">💊<span class="hk">4</span><span class="hl">聚元</span></div>
-      <div class="hslot" title="[5] 💫 聚靈丹" onclick="quickPill('pill_qi')">💫<span class="hk">5</span><span class="hl">聚靈</span></div>
-      <div class="hslot" title="[6] 🔥 築基丹" onclick="quickPill('pill_break')">🔥<span class="hk">6</span><span class="hl">築基</span></div>
-      <div class="hsep"></div>
-      <div class="hslot" title="[7] 🎒 儲物袋" onclick="openInv()">🎒<span class="hk">7</span><span class="hl">背包</span></div>
-      <div class="hslot" title="[8] 📋 人物資訊" onclick="openChar()">📋<span class="hk">8</span><span class="hl">屬性</span></div>
-      <div class="hslot" title="[9] 🗺 世界地圖" onclick="openMap()">🗺<span class="hk">9</span><span class="hl">地圖</span></div>
+
+    <!-- 中央分隔 -->
+    <div class="hotbar-div"></div>
+
+    <!-- 道具格 1~9（空格留白，不強塞功能） -->
+    <div id="hotbar-items">
+      <div class="item-slot" data-slot="1" onclick="hotbarUse(1)" title="[1] 道具格 1"><span class="item-key">1</span></div>
+      <div class="item-slot" data-slot="2" onclick="hotbarUse(2)" title="[2] 道具格 2"><span class="item-key">2</span></div>
+      <div class="item-slot" data-slot="3" onclick="hotbarUse(3)" title="[3] 道具格 3"><span class="item-key">3</span></div>
+      <div class="item-slot" data-slot="4" onclick="hotbarUse(4)" title="[4] 道具格 4"><span class="item-key">4</span></div>
+      <div class="item-slot" data-slot="5" onclick="hotbarUse(5)" title="[5] 道具格 5"><span class="item-key">5</span></div>
+      <div class="item-slot" data-slot="6" onclick="hotbarUse(6)" title="[6] 道具格 6"><span class="item-key">6</span></div>
+      <div class="item-slot" data-slot="7" onclick="hotbarUse(7)" title="[7] 道具格 7"><span class="item-key">7</span></div>
+      <div class="item-slot" data-slot="8" onclick="hotbarUse(8)" title="[8] 道具格 8"><span class="item-key">8</span></div>
+      <div class="item-slot" data-slot="9" onclick="hotbarUse(9)" title="[9] 道具格 9"><span class="item-key">9</span></div>
     </div>
   </div>
 
-  <!-- 6. 右下角：微型系統選單與靈石框 (Micro Menu & Currency) -->
-  <div id="mmo-sys-menu">
-    <div style="font-size:11px;color:var(--gold);font-weight:700;background:rgba(4,8,18,.92);padding:4px 12px;border:1px solid var(--gold);border-radius:4px;box-shadow:0 0 8px var(--gold-d);">💎 靈石: <span id="ui-st" style="color:var(--text)">0</span></div>
-    <div style="display:flex;gap:4px;">
-      <div class="icon-btn" onclick="openAlchemy()" title="九轉煉丹" style="width:28px;height:28px;font-size:14px;">🧪</div>
-      <div class="icon-btn" onclick="openForge()" title="神兵煉器" style="width:28px;height:28px;font-size:14px;">🔨</div>
-      <div class="icon-btn" onclick="openHelp()" title="操作對照" style="width:28px;height:28px;font-size:14px;">❓</div>
-      <div class="icon-btn" onclick="openCfg()" title="設定" style="width:28px;height:28px;font-size:14px;">⚙</div>
+  <!-- ④ 右上角：圓形羅盤小地圖 -->
+  <div id="hud-minimap">
+    <canvas id="mm-canvas" width="90" height="90"></canvas>
+    <div id="mm-lbl">宗門大殿</div>
+  </div>
+
+  <!-- ⑤ 右下角：靈石 + 系統按鈕 -->
+  <div id="hud-sys">
+    <div id="hud-stones">💎 <span id="ui-st">0</span></div>
+    <div id="hud-btns">
+      <button class="sys-btn" onclick="openAlchemy()" title="九轉煉丹 (A)">🧪</button>
+      <button class="sys-btn" onclick="openForge()" title="神兵煉器 (F)">🔨</button>
+      <button class="sys-btn" onclick="openInv()" title="儲物袋 (I)">🎒</button>
+      <button class="sys-btn" onclick="openChar()" title="人物面板 (C)">📋</button>
+      <button class="sys-btn" onclick="openMap()" title="地圖 (M)">🗺</button>
+      <button class="sys-btn" onclick="openHelp()" title="說明 (?)">❓</button>
     </div>
   </div>
 
-  <!-- 破境按鈕 -->
-  <button id="btn-bt">⚡ 靈氣滿溢 ─ 發起破境！</button>
+  <!-- ⑥ Boss 血條（戰鬥時才出現） -->
+  <div id="boss-hud" style="display:none;">
+    <div id="boss-name">👑 赤焰魔狼皇</div>
+    <div class="boss-bar-track">
+      <div id="boss-hp-bar" class="boss-bar-fill"></div>
+    </div>
+    <div id="boss-hp-val">600 / 600</div>
+  </div>
 
-  <!-- 對話框 -->
-  <div id="dlg-box" class="panel">
+  <!-- ⑦ 破境提示按鈕 -->
+  <button id="btn-bt" style="display:none;" onclick="attemptBreakthrough()">⚡ 靈氣滿溢 ─ 發起破境！</button>
+
+  <!-- ⑧ 對話框 -->
+  <div id="dlg-box">
     <div id="dlg-port"></div>
     <div id="dlg-name"></div>
     <div id="dlg-txt"></div>
-    <div id="dlg-nxt" onclick="advanceDlg()">▶ 繼續 (F / 點擊)</div>
+    <div id="dlg-nxt" onclick="advanceDlg()">▶ 繼續 (F)</div>
     <div style="clear:both"></div>
   </div>
 
-  <!-- 通知 -->
+  <!-- ⑨ 通知 -->
   <div id="notif"></div>
+
+  <!-- ⑩ 主線引導（可隱藏） -->
+  <div id="hud-quest">
+    📜 <span id="quest-text">參悟青雲仙道 ➔ 與藥師兄及長老對話</span>
+  </div>
 
 </div>
 
-<!-- ══════════ 彈窗 Modal 定義 ══════════ -->
-
-<!-- 說明 Modal -->
+<!-- 彈窗 Modals -->
 <div class="overlay" id="help-overlay">
   <div class="modal" style="width:400px;">
-    <div class="modal-hdr"><div class="modal-title">❓ 操作與快捷鍵對照</div><button class="close-x" onclick="closeHelp()">✕</button></div>
+    <div class="modal-hdr"><div class="modal-title">❓ 操作對照表</div><button class="close-x" onclick="closeHelp()">✕</button></div>
     <div style="padding:14px 18px;">
       <div class="kb-grid">
-        <div class="kb-r"><span class="kb-a">移動角色</span><span class="kb-k">WASD / 方向鍵</span></div>
-        <div class="kb-r"><span class="kb-a">招式/揮劍</span><span class="kb-k">J / 空白 (按住蓄力)</span></div>
-        <div class="kb-r"><span class="kb-a">切換武器/法術</span><span class="kb-k">數字 1 ~ 3</span></div>
-        <div class="kb-r"><span class="kb-a">使用丹藥</span><span class="kb-k">數字 4 ~ 6</span></div>
-        <div class="kb-r"><span class="kb-a">開啟功能面板</span><span class="kb-k">數字 7 ~ 9</span></div>
+        <div class="kb-r"><span class="kb-a">移動</span><span class="kb-k">WASD / 方向鍵</span></div>
+        <div class="kb-r"><span class="kb-a">攻擊 / 蓄力</span><span class="kb-k">J / 空白鍵</span></div>
+        <div class="kb-r"><span class="kb-a">切換功法</span><span class="kb-k">Q / E</span></div>
+        <div class="kb-r"><span class="kb-a">道具快捷</span><span class="kb-k">1 ~ 9</span></div>
+        <div class="kb-r"><span class="kb-a">儲物袋</span><span class="kb-k">I</span></div>
+        <div class="kb-r"><span class="kb-a">人物面板</span><span class="kb-k">C</span></div>
+        <div class="kb-r"><span class="kb-a">地圖</span><span class="kb-k">M</span></div>
         <div class="kb-r"><span class="kb-a">打坐吐納</span><span class="kb-k">K</span></div>
-        <div class="kb-r"><span class="kb-a">御劍閃避</span><span class="kb-k">L / Shift</span></div>
-        <div class="kb-r"><span class="kb-a">NPC 對話</span><span class="kb-k">F (連續按推進)</span></div>
+        <div class="kb-r"><span class="kb-a">御劍衝刺</span><span class="kb-k">Shift / L</span></div>
+        <div class="kb-r"><span class="kb-a">NPC 對話</span><span class="kb-k">F</span></div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- 儲物袋 Modal -->
 <div class="overlay" id="inv-overlay">
   <div class="modal" id="inv-modal">
     <div class="modal-hdr"><div class="modal-title">⚗ 儲物袋</div><button class="close-x" onclick="closeInv()">✕</button></div>
     <div class="inv-body">
       <div class="inv-grid" id="inv-grid"></div>
-      <div class="inv-tip">💡 點擊物品使用 · 持有 10 格</div>
+      <div class="inv-tip">💡 點擊物品使用 · 右鍵放入快捷欄</div>
     </div>
   </div>
 </div>
 
-<!-- 人物資訊 Modal -->
 <div class="overlay" id="char-overlay">
   <div class="modal" id="char-modal">
-    <div class="modal-hdr"><div class="modal-title">📋 人物資訊 (HD 狀態)</div><button class="close-x" onclick="closeChar()">✕</button></div>
+    <div class="modal-hdr"><div class="modal-title">📋 人物資訊</div><button class="close-x" onclick="closeChar()">✕</button></div>
     <div class="char-body">
       <div class="char-sprite-box">
         <canvas class="char-canvas" id="char-canvas" width="96" height="120"></canvas>
@@ -169,29 +181,26 @@
   </div>
 </div>
 
-<!-- 九轉煉丹房 Modal -->
 <div class="overlay" id="alchemy-overlay">
   <div class="modal" style="width:480px;">
     <div class="modal-hdr"><div class="modal-title">🧪 九轉煉丹房</div><button class="close-x" onclick="closeAlchemy()">✕</button></div>
     <div style="padding:14px 18px;">
-      <div style="font-size:11px;color:var(--gold);margin-bottom:8px;font-weight:700;">🔥 當前丹爐：凡品草木爐 (開爐加成 +20%)</div>
-      <div id="alchemy-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:260px;overflow-y:auto;padding-right:4px;"></div>
+      <div style="font-size:11px;color:var(--gold);margin-bottom:8px;">🔥 當前丹爐：凡品草木爐</div>
+      <div id="alchemy-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:260px;overflow-y:auto;"></div>
     </div>
   </div>
 </div>
 
-<!-- 神兵煉器坊 Modal -->
 <div class="overlay" id="forge-overlay">
   <div class="modal" style="width:480px;">
     <div class="modal-hdr"><div class="modal-title">🔨 神兵煉器坊</div><button class="close-x" onclick="closeForge()">✕</button></div>
     <div style="padding:14px 18px;">
-      <div style="font-size:11px;color:var(--gold);margin-bottom:8px;font-weight:700;">⚔ 已裝備神兵：<span id="equipped-weapon-name" style="color:var(--text)">精鋼長劍 (+15 攻擊)</span></div>
-      <div id="forge-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:260px;overflow-y:auto;padding-right:4px;"></div>
+      <div style="font-size:11px;color:var(--gold);margin-bottom:8px;">⚔ 已裝備：<span id="equipped-weapon-name">精鋼長劍</span></div>
+      <div id="forge-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:260px;overflow-y:auto;"></div>
     </div>
   </div>
 </div>
 
-<!-- 世界地圖 Modal -->
 <div class="overlay" id="map-overlay">
   <div class="modal" id="map-modal">
     <div class="modal-hdr"><div class="modal-title">🗺 界域全圖</div><button class="close-x" onclick="closeMap()">✕</button></div>
@@ -201,13 +210,24 @@
   </div>
 </div>
 
-<!-- 依序引入模組化 JavaScript 檔案 -->
 <script src="web/js/config.js"></script>
 <script src="web/js/sprites.js"></script>
+<script src="web/js/background.js"></script>
+<script src="web/js/player_renderer.js"></script>
 <script src="web/js/state.js"></script>
 <script src="web/js/ui.js"></script>
 <script src="web/js/ai.js"></script>
 <script src="web/js/engine.js"></script>
-
+<script>
+// 道具快捷欄使用
+function hotbarUse(slot) {
+  const items = ['pill_hp','pill_qi','pill_break'];
+  if (slot <= items.length) quickPill(items[slot-1]);
+}
+// 更新快捷欄顯示
+function updateHotbar() {
+  // 待日後道具系統完善後擴充
+}
+</script>
 </body>
 </html>

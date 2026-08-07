@@ -26,21 +26,11 @@ function $(id) { return document.getElementById(id); }
 
 function notify(msg) {
   const n = $('notif');
-  if (n) {
-    n.textContent = msg; n.style.display = 'block';
-    clearTimeout(nTO);
-    nTO = setTimeout(() => n.style.display = 'none', 2800);
-  }
-  // MMORPG 戰鬥與系統日誌同步
-  const log = $('mmo-chat-log');
-  if (log) {
-    const d = document.createElement('div');
-    d.style.cssText = 'line-height:1.35;font-size:9px;margin:1px 0;';
-    d.textContent = msg;
-    log.appendChild(d);
-    if (log.children.length > 30) log.removeChild(log.firstChild);
-    log.scrollTop = log.scrollHeight;
-  }
+  if (!n) return;
+  n.textContent = msg;
+  n.style.opacity = '1';
+  clearTimeout(nTO);
+  nTO = setTimeout(() => { n.style.opacity = '0'; }, 2800);
 }
 
 function updateHUD() {

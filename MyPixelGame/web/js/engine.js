@@ -162,179 +162,6 @@ window.addEventListener('keyup', e => {
 });
 
 // 渲染與主迴圈
-function drawBg() {
-  const area = getCurArea ? getCurArea() : { bg: '#0c0a1a', terrain: 'sect' };
-  const terr = area.terrain || 'sect';
-
-  if (terr === 'sect') {
-    // 🏛️ 青雲宗大殿：白玉青石地磚、金紋柱子與宗門大旗
-    ctx.fillStyle = '#0f172a';
-    ctx.fillRect(0, 0, 480, 270);
-
-    // 地磚格線
-    ctx.strokeStyle = 'rgba(51, 65, 85, 0.4)';
-    ctx.lineWidth = 1;
-    for (let x = 0; x < 480; x += 32) {
-      for (let y = 0; y < 270; y += 32) {
-        ctx.strokeRect(x, y, 32, 32);
-      }
-    }
-
-    // 兩側朱紅大柱
-    ctx.fillStyle = '#881337';
-    ctx.fillRect(20, 0, 16, 270);
-    ctx.fillRect(444, 0, 16, 270);
-    ctx.fillStyle = '#fbbf24';
-    ctx.fillRect(24, 0, 8, 270);
-    ctx.fillRect(448, 0, 8, 270);
-
-    // 中央宗門聖徽
-    ctx.strokeStyle = 'rgba(245, 158, 11, 0.25)';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(240, 135, 70, 0, Math.PI * 2);
-    ctx.stroke();
-
-  } else if (terr === 'mountain') {
-    // 🌲 外門靈山：青翠草地、山石台階與古松
-    ctx.fillStyle = '#064e3b';
-    ctx.fillRect(0, 0, 480, 270);
-
-    // 草皮斑駁紋理
-    ctx.fillStyle = '#047857';
-    for (let x = 0; x < 480; x += 40) {
-      for (let y = 0; y < 270; y += 40) {
-        if ((x + y) % 80 === 0) ctx.fillRect(x, y, 20, 20);
-      }
-    }
-
-    // 石路小徑
-    ctx.fillStyle = '#334155';
-    ctx.fillRect(200, 0, 80, 270);
-    ctx.fillStyle = '#475569';
-    for (let y = 10; y < 270; y += 24) {
-      ctx.fillRect(210, y, 60, 12);
-    }
-
-    // 古松裝飾 (四周樹叢)
-    ctx.fillStyle = '#022c22';
-    ctx.beginPath(); ctx.arc(40, 40, 35, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(440, 50, 40, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(30, 230, 35, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(450, 220, 38, 0, Math.PI * 2); ctx.fill();
-
-  } else if (terr === 'cave') {
-    // 🌌 玄陰洞府：幽暗岩石與螢光水晶脈
-    ctx.fillStyle = '#090d16';
-    ctx.fillRect(0, 0, 480, 270);
-
-    // 洞穴基岩石紋
-    ctx.strokeStyle = 'rgba(30, 41, 59, 0.6)';
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 480; i += 60) {
-      ctx.beginPath();
-      ctx.moveTo(i, 0); ctx.lineTo(i + 30, 270);
-      ctx.stroke();
-    }
-
-    // 螢光水晶簇 (發光亮藍點)
-    const crystals = [
-      { x: 50, y: 40, c: '#38bdf8' }, { x: 420, y: 60, c: '#818cf8' },
-      { x: 80, y: 220, c: '#38bdf8' }, { x: 400, y: 210, c: '#c084fc' }
-    ];
-    crystals.forEach(cr => {
-      ctx.fillStyle = cr.c;
-      ctx.beginPath(); ctx.arc(cr.x, cr.y, 6, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = 'rgba(56, 189, 248, 0.2)';
-      ctx.beginPath(); ctx.arc(cr.x, cr.y, 16, 0, Math.PI * 2); ctx.fill();
-    });
-
-  } else if (terr === 'ruins') {
-    // 🌋 古修遺跡萬魔窟：焦黑熾熱大地與赤紅熔岩裂隙
-    ctx.fillStyle = '#18040a';
-    ctx.fillRect(0, 0, 480, 270);
-
-    // 熔岩裂痕
-    ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(0, 80); ctx.lineTo(180, 140); ctx.lineTo(320, 100); ctx.lineTo(480, 190);
-    ctx.stroke();
-
-    ctx.strokeStyle = 'rgba(245, 158, 11, 0.3)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(100, 0); ctx.lineTo(220, 270);
-    ctx.stroke();
-
-    // 斷壁殘垣柱基
-    ctx.fillStyle = '#290814';
-    ctx.fillRect(60, 30, 30, 30);
-    ctx.fillRect(390, 30, 30, 30);
-    ctx.fillRect(60, 200, 30, 30);
-    ctx.fillRect(390, 200, 30, 30);
-  }
-}
-
-function drawPlayer() {
-  if (P.hurtFlash > 0 && P.hurtFlash % 2 === 0) return;
-  const hov = P.state === 'MOVE' ? Math.sin(T * 12) * 1.5 : 0;
-  if (hdPlayerLoaded) {
-    // 依狀態決定 Spritesheet 幀
-    let fKey = 'IDLE';
-    if (P.state === 'MOVE') {
-      const wi = Math.floor(T * 8) % 3;
-      fKey = ['WALK1', 'WALK2', 'WALK3'][wi];
-    } else if (P.state === 'ATTACK') {
-      const ai = Math.floor(T * 12) % 2;
-      fKey = ['ATK1', 'ATK2'][ai];
-    } else if (P.state === 'MEDITATE') {
-      fKey = 'IDLE1';
-    }
-    const fr = PLAYER_FRAMES[fKey] || PLAYER_FRAMES.IDLE;
-    const flipX = P.facing.x < 0;
-    // 玩家顯示尺寸：72×96（放大高清）
-    drawHDFrame(hdPlayerImg, fr.col, fr.row, PLAYER_SHEET_COLS, PLAYER_SHEET_ROWS,
-      P.x - 36, P.y - 56 + hov, 72, 96, flipX);
-  } else {
-    drawSprite(IDLE0, P.x - 14, P.y - 20 + hov, 2, P.facing.x < 0);
-  }
-}
-
-function drawEnemies() {
-  const list = getEnemies ? getEnemies() : [];
-  list.forEach(e => {
-    if (!e.alive) return;
-    const flash = e.hflash > 0 && e.hflash % 2 === 0;
-    if (flash) return;
-    if (e.isBoss) {
-      // 決定 BOSS 動作
-      let animKey = 'IDLE';
-      if (e.atkCd > 0.8) animKey = 'ATTACK';
-      else if (e._p2Rage && e.specialCd > 0) animKey = 'ROAR';
-      const drawn = drawBossHD(e, animKey, T);
-      if (!drawn) {
-        // Fallback 像素陣列
-        const sc = e.hflash > 0 ? '#ff4444' : null;
-        drawSprite(ES[e.sprite] || ES.wolf, e.x - 8, e.y - 10, 3, e.facingLeft, sc);
-      }
-    } else {
-      // 一般敵人：像素陣列
-      const sc = e.hflash > 0 ? '#ff4444' : null;
-      drawSprite(ES[e.sprite] || ES.wolf, e.x - 6, e.y - 8, 2, e.facingLeft, sc);
-    }
-  });
-}
-
-function drawMM() {
-  const mc = document.getElementById('mm-canvas');
-  if (!mc) return;
-  const mctx = mc.getContext('2d');
-  mctx.clearRect(0, 0, 96, 96);
-  mctx.fillStyle = '#040814'; mctx.fillRect(0, 0, 96, 96);
-  mctx.fillStyle = 'var(--gold)'; mctx.beginPath(); mctx.arc(P.x / 5, P.y / 3, 3, 0, Math.PI * 2); mctx.fill();
-}
-
 function render() {
   if (!ctx) return;
   ctx.save();
@@ -342,9 +169,22 @@ function render() {
     screenShake--;
     ctx.translate((Math.random() - .5) * screenShake, (Math.random() - .5) * screenShake);
   }
-  drawBg();
+  
+  // 1. 獨立背景渲染器 (100% 模組化隔離)
+  const curArea = getCurArea ? getCurArea() : null;
+  if (window.BackgroundRenderer) {
+    BackgroundRenderer.draw(ctx, curArea);
+  }
+
+  // 2. 敵人繪製
   drawEnemies();
-  drawPlayer();
+
+  // 3. 獨立玩家渲染器 (100% 模組化隔離)
+  if (window.PlayerRenderer) {
+    PlayerRenderer.draw(ctx, P, T);
+  }
+
+  // 4. 右上角羅盤小地圖
   drawMM();
   ctx.restore();
 }

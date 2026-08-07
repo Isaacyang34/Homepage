@@ -1,172 +1,326 @@
 :root{
-  --gold:#d4a843;--gold-d:rgba(212,168,67,.7);
-  --jade:#52c8a0;--blue:#00cfff;
-  --red:#e84040;--panel:rgba(6,10,24,.92);
-  --border:#2a3860;--text:#dde4f0;--dim:#6b7a9a;
-}
-html,body{height:100%;margin:0;padding:0;overflow:hidden;background:#030509;}
-body{
-  font-family:'Noto Serif TC',serif;
-  user-select:none;
+  --gold:#c8a84b; --gold-d:rgba(200,168,75,.6);
+  --jade:#4dbf96; --blue:#3ab8d4;
+  --red:#c44040;  --panel:rgba(4,6,16,.88);
+  --border:rgba(180,150,70,.25); --text:#d8dfe8; --dim:#6b7a90;
+  --ink:#08050f;
 }
 
-/* ───── 遊戲滿板容器 (100vw × 100vh) ─────────────────── */
+html,body{height:100%;margin:0;padding:0;overflow:hidden;background:#08050f;}
+body{ font-family:'Noto Serif TC',serif; user-select:none; }
+
+/* ───── 遊戲畫面容器（等比滿板） ─────── */
 #game-viewport{
-  position:fixed;inset:0;width:100vw;height:100vh;
+  position:fixed;inset:0;
   display:flex;align-items:center;justify-content:center;
-  background:#030509;
-  overflow:hidden;
+  background:#08050f;
 }
 #gc{
-  /* 等比放大至填滿螢幕，維持 16:9 比例 */
-  width:100%;
-  height:100%;
-  object-fit:fill;
   image-rendering:pixelated;
   image-rendering:crisp-edges;
   display:block;
 }
 
-/* ───── MMORPG HUD 原生螢幕比例圖層 ─────────────────── */
-#mmo-hud{
-  position:fixed;inset:0;width:100vw;height:100vh;
-  pointer-events:none;z-index:20;
+/* ───── HUD 全螢幕覆蓋層 ─────────────── */
+#hud{
+  position:fixed;inset:0;
+  pointer-events:none;
+  z-index:20;
 }
-#mmo-hud .panel, #mmo-hud .icon-btn, #mmo-hud .hslot, #mmo-hud button{
-  pointer-events:auto;
+#hud > * { pointer-events:auto; }
+
+/* ① 左上角：境界面板（水墨邊框風） */
+#hud-realm{
+  position:absolute; top:14px; left:14px;
+  display:flex; align-items:center; gap:10px;
+  background:rgba(4,6,14,.75);
+  border:1px solid var(--border);
+  border-left:3px solid var(--gold);
+  padding:8px 14px 8px 10px;
+  border-radius:0 6px 6px 0;
+  backdrop-filter:blur(4px);
+}
+#hud-realm-icon{
+  width:34px; height:34px;
+  border:1.5px solid var(--gold);
+  border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:16px;
+  color:var(--gold);
+  background:rgba(0,0,0,.4);
+  box-shadow:0 0 8px var(--gold-d);
+  flex-shrink:0;
+}
+.realm-name{font-size:12px;color:var(--gold);font-weight:700;letter-spacing:1px;}
+.realm-loc{font-size:9px;color:var(--dim);margin-top:2px;}
+
+/* ② 左下角：HP/MP/EXP 狀態條（燕雲細長風格） */
+#hud-bars{
+  position:absolute; bottom:80px; left:14px;
+  display:flex; flex-direction:column; gap:5px;
+  background:rgba(4,6,14,.72);
+  border:1px solid var(--border);
+  padding:10px 14px;
+  border-radius:6px;
+  backdrop-filter:blur(4px);
+  min-width:220px;
+}
+.bar-row{display:flex;align-items:center;gap:7px;}
+.bar-ico{font-size:10px;color:var(--dim);width:14px;text-align:center;}
+.bar-track{
+  flex:1; height:6px;
+  background:rgba(20,25,40,.8);
+  border-radius:4px;
+  overflow:hidden;
+  border:1px solid rgba(60,70,100,.3);
+}
+.bar-fill{height:100%;border-radius:4px;transition:width .15s;}
+.bar-hp{ background:linear-gradient(90deg,#7a1515,#d44040); }
+.bar-mp{ background:linear-gradient(90deg,#0a3a5a,#3ab8d4); }
+.bar-exp{background:linear-gradient(90deg,#3a1060,#a060e0); }
+.bar-val{font-size:9px;color:var(--dim);min-width:54px;text-align:right;white-space:nowrap;}
+
+/* ③ 底部中央：快捷欄（燕雲風，功法+道具分離） */
+#hud-hotbar{
+  position:absolute; bottom:14px; left:50%; transform:translateX(-50%);
+  display:flex; align-items:center; gap:6px;
 }
 
-/* 通用面板 */
-.panel{background:var(--panel);border:1.5px solid var(--border);border-radius:6px;backdrop-filter:blur(6px);}
-.panel::before{content:'';position:absolute;inset:0;border-radius:inherit;
-  background:linear-gradient(135deg,rgba(255,255,255,.04),transparent 60%);pointer-events:none;}
-
-/* 左上角：目標與主線任務 */
-#mmo-target-bar{position:absolute;top:16px;left:16px;padding:8px 14px;display:flex;align-items:center;gap:12px;}
-#mmo-quest-banner{position:absolute;top:70px;left:16px;padding:6px 14px;font-size:11px;color:var(--gold);border-left:3.5px solid var(--gold);}
-
-/* 右上角：圓形羅盤小地圖 */
-#mmo-minimap-wrap{position:absolute;top:16px;right:16px;display:flex;flex-direction:column;align-items:center;}
-#mm-canvas{width:110px;height:110px;border-radius:50%;border:2px solid var(--gold);box-shadow:0 0 16px var(--gold-d);background:#040814;}
-
-/* 右側：任務追蹤清單 */
-#mmo-duty-list{position:absolute;top:165px;right:16px;width:180px;padding:10px 12px;font-size:11px;}
-
-/* 左下角：戰鬥與系統日誌 */
-#mmo-log-window{position:absolute;bottom:16px;left:16px;width:240px;height:130px;padding:8px 10px;font-size:11px;}
-
-/* 底部中央：資源條 + 技能熱鍵 (Flex 垂直排列，絕不重疊) */
-#mmo-center-hud{
-  position:absolute;bottom:16px;left:50%;transform:translateX(-50%);
-  display:flex;flex-direction:column;align-items:center;gap:8px;
+/* 功法/姿態切換（左側3格） */
+#hotbar-stance{display:flex;gap:4px;}
+.stance-btn{
+  width:46px; height:46px;
+  background:rgba(6,8,18,.85);
+  border:1px solid rgba(100,120,180,.3);
+  border-radius:5px;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  cursor:pointer;
+  transition:border-color .2s, box-shadow .2s;
+  font-size:0;
 }
-#bottom-resource-panel{width:460px;padding:6px 14px;}
-.br{display:flex;align-items:center;gap:6px;margin:2px 0;font-size:10px;}
-.bl{width:32px;text-align:right;font-weight:700;}
-.bt{flex:1;height:9px;background:#0a0e1a;border:1px solid #1e2840;border-radius:8px;overflow:hidden;position:relative;}
-.bf{height:100%;border-radius:8px;transition:width .1s;}
-.bh{background:linear-gradient(90deg,#8b1a1a,#e84040);}
-.bq{background:linear-gradient(90deg,#0a4a8a,#00cfff);}
-.be{background:linear-gradient(90deg,#4a1a8a,#b86fff);}
-.bv{font-size:10px;color:var(--dim);min-width:48px;text-align:right;white-space:nowrap;}
-
-#hotbar{display:flex;align-items:center;gap:5px;}
-.hslot{width:44px;height:44px;background:#060a18;border:1px solid var(--border);
-  border-radius:5px;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;font-size:18px;position:relative;cursor:pointer;
-  transition:border-color .2s,box-shadow .2s,transform .1s;}
-.hslot:hover{border-color:var(--gold);transform:translateY(-2px);}
-.hslot .hk{position:absolute;bottom:2px;right:4px;font-size:8px;color:var(--jade);font-weight:700;}
-.hslot .hl{font-size:9px;color:var(--dim);margin-top:2px;}
-.hslot.active-slot{border-color:var(--blue);box-shadow:0 0 10px rgba(0,207,255,.6);}
-.hsep{width:1px;height:38px;background:var(--border);}
-
-/* 右下角：微型選單與靈石 */
-#mmo-sys-menu{position:absolute;bottom:16px;right:16px;display:flex;flex-direction:column;align-items:flex-end;gap:6px;}
-
-/* 頂部 Boss 血條 */
-#boss-hud{position:absolute;top:16px;left:50%;transform:translateX(-50%);width:420px;padding:8px 16px;background:rgba(20,4,4,.95);border:1.5px solid #e84040;border-radius:6px;box-shadow:0 0 24px rgba(232,64,64,.5);text-align:center;}
-
-/* 圖示按鈕 */
-.icon-btn{
-  width:32px;height:32px;background:rgba(6,9,26,.9);
-  border:1px solid var(--border);border-radius:50%;
-  display:flex;align-items:center;justify-content:center;
-  cursor:pointer;font-size:14px;color:var(--dim);
-  transition:border-color .2s,color .2s,transform .4s;
+.stance-btn:hover{border-color:var(--gold);}
+.stance-btn.active-stance{
+  border-color:var(--blue);
+  box-shadow:0 0 10px rgba(58,184,212,.5);
+  background:rgba(10,30,50,.9);
 }
-.icon-btn:hover{border-color:var(--gold);color:var(--gold);}
-.icon-btn.spin{transform:rotate(90deg);border-color:var(--gold);color:var(--gold);}
+.stance-ico{font-size:17px;display:block;}
+.stance-lbl{font-size:8px;color:var(--dim);margin-top:1px;display:block;}
+.stance-btn.active-stance .stance-lbl{color:var(--blue);}
 
-/* ───── 對話框 ─────────────────────── */
-#dlg-box{position:absolute;bottom:90px;left:50%;transform:translateX(-50%);
-  width:480px;padding:14px 18px;display:none;pointer-events:auto;z-index:30;}
-#dlg-port{width:44px;height:44px;border:1px solid var(--gold);border-radius:4px;
-  display:flex;align-items:center;justify-content:center;
-  font-size:28px;background:#06091a;margin-right:12px;float:left;}
-#dlg-name{color:var(--gold);font-size:12px;font-weight:700;margin-bottom:4px;}
-#dlg-txt{color:var(--text);font-size:13px;line-height:1.5;}
-#dlg-nxt{color:var(--dim);font-size:10px;float:right;margin-top:8px;cursor:pointer;}
+/* 分隔線 */
+.hotbar-div{width:1px;height:40px;background:rgba(100,120,180,.2);}
 
-/* ───── 破境按鈕 ─────────────────────── */
-#btn-bt{position:absolute;bottom:125px;left:50%;transform:translateX(-50%);
-  display:none;padding:10px 28px;
-  background:linear-gradient(135deg,#906000,#d4880a,#906000);
-  border:2px solid var(--gold);color:#fff8e0;font-family:'Noto Serif TC',serif;
-  font-size:13px;font-weight:700;border-radius:20px;cursor:pointer;letter-spacing:2px;
-  box-shadow:0 0 24px var(--gold-d);pointer-events:auto;z-index:25;
-  animation:btp 1.3s ease-in-out infinite alternate;}
-@keyframes btp{from{box-shadow:0 0 18px var(--gold-d);}to{box-shadow:0 0 36px rgba(212,168,67,.9);}}
+/* 道具格 1~9 */
+#hotbar-items{display:flex;gap:4px;}
+.item-slot{
+  width:46px; height:46px;
+  background:rgba(6,8,18,.8);
+  border:1px solid rgba(60,75,110,.35);
+  border-radius:5px;
+  display:flex; align-items:center; justify-content:center;
+  position:relative;
+  cursor:pointer;
+  transition:border-color .2s;
+  font-size:18px;
+}
+.item-slot:hover{border-color:rgba(180,150,70,.5);}
+.item-slot:empty::after{ content:''; }
+.item-key{
+  position:absolute; bottom:2px; right:4px;
+  font-size:8px; color:rgba(90,110,150,.6); font-weight:700;
+}
+.item-slot .item-icon{ font-size:20px; }
+.item-slot .item-count{
+  position:absolute; bottom:2px; right:3px;
+  font-size:9px; color:var(--gold); font-weight:700;
+}
 
-/* ───── 浮層彈窗 ─────────────────────── */
-.overlay{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.75);
-  backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;}
+/* ④ 右上角：羅盤小地圖 */
+#hud-minimap{
+  position:absolute; top:14px; right:14px;
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+  pointer-events:none;
+}
+#mm-canvas{
+  width:90px; height:90px;
+  border-radius:50%;
+  border:2px solid var(--gold);
+  box-shadow:0 0 14px var(--gold-d);
+  background:#040810;
+}
+#mm-lbl{
+  font-size:9px; color:var(--gold); letter-spacing:1px;
+  text-shadow:0 0 6px var(--gold-d);
+}
+
+/* ⑤ 右下角：靈石 + 系統按鈕 */
+#hud-sys{
+  position:absolute; bottom:14px; right:14px;
+  display:flex; flex-direction:column; align-items:flex-end; gap:6px;
+}
+#hud-stones{
+  font-size:11px; color:var(--gold); font-weight:700;
+  background:rgba(4,8,18,.85);
+  padding:4px 10px;
+  border:1px solid var(--border);
+  border-radius:4px;
+  letter-spacing:1px;
+}
+#hud-btns{display:flex;gap:5px;}
+.sys-btn{
+  width:30px; height:30px;
+  background:rgba(6,9,22,.85);
+  border:1px solid rgba(100,120,160,.3);
+  border-radius:50%;
+  cursor:pointer; font-size:13px;
+  display:flex; align-items:center; justify-content:center;
+  transition:border-color .2s, transform .2s;
+  color:var(--dim);
+}
+.sys-btn:hover{border-color:var(--gold);transform:scale(1.12);}
+
+/* ⑥ Boss 血條（居上方中央） */
+#boss-hud{
+  position:absolute; top:14px; left:50%; transform:translateX(-50%);
+  width:380px;
+  background:rgba(16,4,4,.92);
+  border:1px solid rgba(200,50,50,.5);
+  border-radius:6px;
+  padding:8px 16px;
+  text-align:center;
+  box-shadow:0 0 20px rgba(200,50,50,.3);
+}
+#boss-name{font-size:11px;color:#ff7777;font-weight:700;letter-spacing:2px;margin-bottom:5px;}
+.boss-bar-track{height:8px;background:#1a0808;border-radius:5px;overflow:hidden;border:1px solid #3a1010;}
+.boss-bar-fill{width:100%;height:100%;background:linear-gradient(90deg,#880000,#dd3333);transition:width .2s;}
+#boss-hp-val{font-size:9px;color:#ffaaaa;margin-top:3px;}
+
+/* ⑦ 破境按鈕 */
+#btn-bt{
+  position:absolute; bottom:80px; left:50%; transform:translateX(-50%);
+  padding:9px 26px;
+  background:linear-gradient(135deg,#7a5000,#c8880a);
+  border:1.5px solid var(--gold);
+  color:#fff8e0; font-family:'Noto Serif TC',serif;
+  font-size:12px; font-weight:700;
+  border-radius:20px; cursor:pointer;
+  letter-spacing:2px;
+  box-shadow:0 0 20px var(--gold-d);
+  pointer-events:auto; z-index:25;
+  animation:btp 1.4s ease-in-out infinite alternate;
+}
+@keyframes btp{from{box-shadow:0 0 14px var(--gold-d);}to{box-shadow:0 0 30px rgba(200,168,75,.8);}}
+
+/* ⑧ 對話框 */
+#dlg-box{
+  position:absolute; bottom:80px; left:50%; transform:translateX(-50%);
+  width:500px;
+  background:rgba(4,6,14,.92);
+  border:1px solid var(--border);
+  border-left:3px solid var(--gold);
+  border-radius:0 8px 8px 0;
+  padding:12px 16px;
+  display:none;
+  backdrop-filter:blur(6px);
+}
+#dlg-port{
+  width:42px; height:42px;
+  border:1px solid var(--gold);
+  border-radius:4px; background:#040810;
+  display:flex; align-items:center; justify-content:center;
+  font-size:24px; float:left; margin-right:12px;
+}
+#dlg-name{color:var(--gold);font-size:11px;font-weight:700;margin-bottom:4px;}
+#dlg-txt{color:var(--text);font-size:12px;line-height:1.6;}
+#dlg-nxt{color:var(--dim);font-size:9px;float:right;margin-top:6px;cursor:pointer;letter-spacing:1px;}
+
+/* ⑨ 通知訊息 */
+#notif{
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  font-size:13px; color:var(--gold); font-weight:700;
+  text-shadow:0 0 10px var(--gold-d);
+  pointer-events:none;
+  opacity:0; transition:opacity .3s;
+  letter-spacing:1px;
+  text-align:center;
+  max-width:400px;
+}
+
+/* ⑩ 主線引導（頂部，細字） */
+#hud-quest{
+  position:absolute; top:14px; left:50%; transform:translateX(-50%);
+  font-size:10px; color:rgba(180,150,70,.7);
+  pointer-events:none;
+  white-space:nowrap;
+  letter-spacing:1px;
+}
+
+/* ──── 彈窗通用 ──── */
+.overlay{
+  position:fixed;inset:0;z-index:90;
+  background:rgba(0,0,0,.72);
+  backdrop-filter:blur(6px);
+  display:none;align-items:center;justify-content:center;
+}
 .overlay.show{display:flex;}
-.modal{background:#080c1e;border:1.5px solid var(--border);border-radius:10px;
-  overflow:hidden;animation:mdin .2s ease;max-width:95vw;}
-@keyframes mdin{from{opacity:0;transform:scale(.94);}to{opacity:1;transform:none;}}
-.modal-hdr{display:flex;align-items:center;justify-content:space-between;
-  padding:14px 18px 10px;border-bottom:1px solid var(--border);}
-.modal-title{color:var(--gold);font-size:16px;font-weight:700;letter-spacing:3px;
-  text-shadow:0 0 10px var(--gold-d);}
-.close-x{background:none;border:none;color:var(--dim);font-size:20px;cursor:pointer;
-  transition:color .2s;padding:2px 6px;}
+.modal{
+  background:#060910;
+  border:1px solid var(--border);
+  border-radius:8px;
+  overflow:hidden;
+  animation:mdin .2s ease;
+  max-width:95vw;
+}
+@keyframes mdin{from{opacity:0;transform:scale(.95);}to{opacity:1;transform:none;}}
+.modal-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 18px 10px;
+  border-bottom:1px solid var(--border);
+  background:rgba(0,0,0,.3);
+}
+.modal-title{color:var(--gold);font-size:14px;font-weight:700;letter-spacing:2px;}
+.close-x{background:none;border:none;color:var(--dim);font-size:18px;cursor:pointer;padding:2px 6px;transition:color .2s;}
 .close-x:hover{color:var(--red);}
 
 /* 儲物袋 */
-#inv-modal{width:420px;}
-.inv-body{padding:16px 18px;}
-.inv-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px;}
-.islot{background:#06091a;border:1px solid #1e2840;border-radius:4px;
-  height:60px;display:flex;flex-direction:column;align-items:center;
+#inv-modal{width:400px;}
+.inv-body{padding:14px 16px;}
+.inv-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:8px;}
+.islot{
+  background:#040810;border:1px solid rgba(60,75,120,.4);border-radius:4px;
+  height:58px;display:flex;flex-direction:column;align-items:center;
   justify-content:center;cursor:pointer;position:relative;
-  transition:border-color .2s,background .2s;font-size:22px;}
-.islot:hover{border-color:var(--gold);background:#0e1830;}
-.islot .inm{font-size:9px;color:var(--dim);margin-top:2px;}
-.islot .iqt{position:absolute;bottom:3px;right:5px;font-size:9px;color:var(--gold);font-weight:700;}
-.islot.empty{opacity:.2;cursor:default;}
+  transition:border-color .2s;font-size:20px;
+}
+.islot:hover{border-color:var(--gold);}
+.islot .inm{font-size:8px;color:var(--dim);margin-top:2px;}
+.islot .iqt{position:absolute;bottom:2px;right:4px;font-size:8px;color:var(--gold);font-weight:700;}
+.islot.empty{opacity:.15;cursor:default;}
+.inv-tip{font-size:9px;color:var(--dim);text-align:center;}
 
 /* 角色面板 */
-#char-modal{width:500px;}
-.char-body{display:flex;gap:18px;padding:16px 20px;}
-.char-sprite-box{width:110px;flex-shrink:0;display:flex;flex-direction:column;
-  align-items:center;gap:8px;}
-.char-canvas{border:1px solid var(--border);border-radius:4px;background:#06091a;
-  image-rendering:pixelated;}
+#char-modal{width:480px;}
+.char-body{display:flex;gap:16px;padding:14px 18px;}
+.char-sprite-box{width:100px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:6px;}
+.char-canvas{border:1px solid var(--border);border-radius:4px;background:#040810;image-rendering:pixelated;}
 .char-stats{flex:1;}
-.cs-row{display:flex;justify-content:space-between;align-items:center;
-  padding:6px 0;border-bottom:1px solid rgba(42,56,96,.4);font-size:13px;}
-.cs-lbl{color:var(--dim);font-size:13px;}
-.cs-val{color:var(--text);font-weight:700;font-size:13px;}
+.cs-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(60,75,100,.3);font-size:12px;}
+.cs-lbl{color:var(--dim);}
+.cs-val{color:var(--text);font-weight:700;}
 
-/* 說明與設定 */
-.kb-grid{display:flex;flex-direction:column;gap:6px;}
-.kb-r{display:flex;justify-content:space-between;align-items:center;
-  padding:4px 0;border-bottom:1px solid rgba(42,56,96,.4);font-size:11px;}
+/* 說明 */
+.kb-grid{display:flex;flex-direction:column;gap:5px;}
+.kb-r{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(60,75,100,.3);font-size:11px;}
 .kb-a{color:var(--dim);}
-.kb-k{background:#0a0e1a;border:1px solid #3a4870;border-radius:3px;padding:1px 6px;
-  color:var(--jade);font-size:10px;font-weight:700;box-shadow:0 2px 0 #111;}
-.cbtn{padding:6px 14px;background:#0e1830;border:1px solid var(--border);
-  border-radius:4px;color:var(--text);font-size:11px;cursor:pointer;
-  transition:background .2s,border-color .2s;}
+.kb-k{background:#040810;border:1px solid rgba(60,75,120,.4);border-radius:3px;padding:1px 5px;color:var(--jade);font-size:9px;font-weight:700;}
+
+/* 煉丹/鍛造按鈕 */
+.cbtn{padding:5px 12px;background:#040a18;border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:10px;cursor:pointer;transition:border-color .2s;}
 .cbtn:hover{border-color:var(--gold);color:var(--gold);}
+
+/* 地圖 */
+#map-modal{width:640px;}
+.wmap-body{padding:0;}
+#wmap-canvas{display:block;}
