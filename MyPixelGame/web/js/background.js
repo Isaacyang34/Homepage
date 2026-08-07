@@ -8,11 +8,16 @@ window.BackgroundRenderer = {
   loaded: {},
 
   init() {
+    // 同時載入：1. 四邊有門原圖 (bg_<theme>.png)  2. 四邊無門實心石牆原圖 (bg_<theme>_closed.png)
     const maps = {
       sect: 'assets/backgrounds/bg_sect.png',
+      sect_closed: 'assets/backgrounds/bg_sect_closed.png',
       mountain: 'assets/backgrounds/bg_mountain.png',
+      mountain_closed: 'assets/backgrounds/bg_mountain_closed.png',
       cave: 'assets/backgrounds/bg_cave.png',
-      ruins: 'assets/backgrounds/bg_ruins.png'
+      cave_closed: 'assets/backgrounds/bg_cave_closed.png',
+      ruins: 'assets/backgrounds/bg_ruins.png',
+      ruins_closed: 'assets/backgrounds/bg_ruins_closed.png'
     };
     for (let key in maps) {
       const img = new Image();
@@ -26,22 +31,19 @@ window.BackgroundRenderer = {
     if (!ctx) return;
     const terr = (area && area.terrain) ? area.terrain : 'sect';
 
-    // 1. 繪製 45度正俯視 Top-Down HD 背景圖
+    // 1. 繪製 45度正俯視 Top-Down HD 背景圖 (預設畫四門底圖)
     if (this.images[terr] && this.loaded[terr]) {
       ctx.drawImage(this.images[terr], 0, 0, 1280, 720);
     } else {
       this.drawFallbackTopDownFloor(ctx, terr);
     }
 
-    // 2. 直接以背景原圖地板作為邊界，不額外疊加人工方格網格線
-    // (已依據使用者要求完全取消畫面中的人工方格網格)
-
-    // 3. 若為宗門特定功能房間，繪製專屬造景 (丹爐/鍛造台/靈泉池/蒲團)
+    // 2. 若為宗門特定功能房間，繪製專屬造景 (丹爐/鍛造台/靈泉池/蒲團)
     if (area && area.id) {
       this.drawSectRoomScenery(ctx, area.id);
     }
 
-    // 4. 繪製 Moonlighter 經典 N / S / W / E 石砌拱門
+    // 3. 繪製門通道與無門實心封牆覆蓋
     this.drawDoors(ctx, area);
   },
 
@@ -94,22 +96,21 @@ window.BackgroundRenderer = {
     const doors = (area && area.doors) ? area.doors : ['N', 'S', 'E', 'W'];
     const terr = (area && area.terrain) ? area.terrain : 'sect';
     const isBossRoom = area && area.isBossRoom;
-    const hasImg = this.images[terr] && this.loaded[terr];
+
+    const closedKey = terr + '_closed';
+    const hasClosedImg = this.images[closedKey] && this.loaded[closedKey];
 
     ctx.save();
 
     // ── 1. 北通道 (North: 560~720, Y: 0~112) ──
     if (doors.includes('N')) {
-      // 有通道：柔和仙家靈氣法陣光暈（完全取消生硬藍色外框與粗暴漸層）
       this.drawOpenPortalEffect(ctx, 640, 55, 55, isBossRoom ? 'rgba(239,68,68,0.35)' : 'rgba(212,168,67,0.35)');
     } else {
-      // 無通道：直接採樣背景原圖的實體壁磚紋理進行無縫封密覆蓋
-      if (hasImg) {
-        // 從背景原圖的左側牆面 (320~480, 0~112) 採樣高畫質壁磚紋理，遮擋北部門洞
-        ctx.drawImage(this.images[terr], 320, 0, 160, 112, 560, 0, 160, 112);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.12)'; ctx.fillRect(560, 0, 160, 112);
+      // 無通道：直接從【四邊無門原圖 bg_<theme>_closed.png】精準採樣相同座標的實體壁磚進行覆蓋
+      if (hasClosedImg) {
+        ctx.drawImage(this.images[closedKey], 550, 0, 180, 115, 550, 0, 180, 115);
       } else {
-        this.drawFallbackClosedWall(ctx, 560, 0, 160, 112, terr);
+        this.drawFallbackClosedWall(ctx, 550, 0, 180, 115, terr);
       }
     }
 
@@ -117,11 +118,10 @@ window.BackgroundRenderer = {
     if (doors.includes('S')) {
       this.drawOpenPortalEffect(ctx, 640, 665, 55, isBossRoom ? 'rgba(239,68,68,0.35)' : 'rgba(212,168,67,0.35)');
     } else {
-      if (hasImg) {
-        ctx.drawImage(this.images[terr], 320, 608, 160, 112, 560, 608, 160, 112);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.12)'; ctx.fillRect(560, 608, 160, 112);
+      if (hasClosedImg) {
+        ctx.drawImage(this.images[closedKey], 550, 605, 180, 115, 550, 605, 180, 115);
       } else {
-        this.drawFallbackClosedWall(ctx, 560, 608, 160, 112, terr);
+        this.drawFallbackClosedWall(ctx, 550, 605, 180, 115, terr);
       }
     }
 
@@ -129,11 +129,10 @@ window.BackgroundRenderer = {
     if (doors.includes('W')) {
       this.drawOpenPortalEffect(ctx, 90, 360, 55, isBossRoom ? 'rgba(239,68,68,0.35)' : 'rgba(212,168,67,0.35)');
     } else {
-      if (hasImg) {
-        ctx.drawImage(this.images[terr], 0, 112, 182, 160, 0, 280, 182, 160);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.12)'; ctx.fillRect(0, 280, 182, 160);
+      if (hasClosedImg) {
+        ctx.drawImage(this.images[closedKey], 0, 270, 185, 180, 0, 270, 185, 180);
       } else {
-        this.drawFallbackClosedWall(ctx, 0, 280, 182, 160, terr);
+        this.drawFallbackClosedWall(ctx, 0, 270, 185, 180, terr);
       }
     }
 
@@ -141,11 +140,10 @@ window.BackgroundRenderer = {
     if (doors.includes('E')) {
       this.drawOpenPortalEffect(ctx, 1190, 360, 55, isBossRoom ? 'rgba(239,68,68,0.35)' : 'rgba(212,168,67,0.35)');
     } else {
-      if (hasImg) {
-        ctx.drawImage(this.images[terr], 1098, 112, 182, 160, 1098, 280, 182, 160);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.12)'; ctx.fillRect(1098, 280, 182, 160);
+      if (hasClosedImg) {
+        ctx.drawImage(this.images[closedKey], 1095, 270, 185, 180, 1095, 270, 185, 180);
       } else {
-        this.drawFallbackClosedWall(ctx, 1098, 280, 182, 160, terr);
+        this.drawFallbackClosedWall(ctx, 1095, 270, 185, 180, terr);
       }
     }
 
