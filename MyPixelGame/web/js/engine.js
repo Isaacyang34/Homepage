@@ -21,18 +21,19 @@ let onPeakAction = null;
 
 // 根據當前房間門洞動態計算可行走邊界
 function getPlayerBounds() {
-  const area = (typeof SECT_ROOMS !== 'undefined' && SECT_ROOMS[curAreaId])
-    ? SECT_ROOMS[curAreaId]
-    : (activeDungeonRooms && activeDungeonRooms[currentRoomId])
+  const cid = (typeof curAreaId !== 'undefined') ? curAreaId : (window.curAreaId || 'sect_main');
+  const area = (typeof SECT_ROOMS !== 'undefined' && SECT_ROOMS[cid])
+    ? SECT_ROOMS[cid]
+    : (typeof activeDungeonRooms !== 'undefined' && activeDungeonRooms && activeDungeonRooms[currentRoomId])
       ? activeDungeonRooms[currentRoomId]
       : null;
   const doors = area ? (area.doors || []) : [];
 
   return {
-    minY: (doors.includes('N') && Math.abs(P.x - DOOR_CX) <= DOOR_GAP) ? 0   : WALL_N,
-    maxY: (doors.includes('S') && Math.abs(P.x - DOOR_CX) <= DOOR_GAP) ? 720 : WALL_S,
-    minX: (doors.includes('W') && Math.abs(P.y - DOOR_CY) <= DOOR_GAP) ? 0   : WALL_W,
-    maxX: (doors.includes('E') && Math.abs(P.y - DOOR_CY) <= DOOR_GAP) ? 1280 : WALL_E,
+    minY: (doors.includes('N') && Math.abs(P.x - DOOR_CX) <= DOOR_GAP) ? 10   : WALL_N,
+    maxY: (doors.includes('S') && Math.abs(P.x - DOOR_CX) <= DOOR_GAP) ? 710  : WALL_S,
+    minX: (doors.includes('W') && Math.abs(P.y - DOOR_CY) <= DOOR_GAP) ? 10   : WALL_W,
+    maxX: (doors.includes('E') && Math.abs(P.y - DOOR_CY) <= DOOR_GAP) ? 1270 : WALL_E,
   };
 }
 
@@ -250,36 +251,36 @@ function checkDoorTriggers() {
   // 1. 宗門內部固定房間切換
   if (typeof SECT_ROOMS !== 'undefined' && SECT_ROOMS[curAreaId]) {
     let nextSect = null;
-    let targetX = 640, targetY = 480;
+    let targetX = 640, targetY = 360;
 
     if (curAreaId === 'sect_main') {
-      if (P.x >= 1238 && Math.abs(P.y - 360) <= 80) { nextSect = 'sect_alchemy'; targetX = 100; targetY = 360; }
-      else if (P.x <= 42 && Math.abs(P.y - 360) <= 80) { nextSect = 'sect_forge'; targetX = 1180; targetY = 360; }
-      else if (P.y >= 678 && Math.abs(P.x - 640) <= 90) { nextSect = 'sect_gate'; targetX = 640; targetY = 90; }
-      else if (P.y <= 42 && Math.abs(P.x - 640) <= 90) { nextSect = 'sect_market'; targetX = 640; targetY = 630; }
-    } else if (curAreaId === 'sect_market' && P.y >= 678) {
-      nextSect = 'sect_main'; targetX = 640; targetY = 90;
-    } else if (curAreaId === 'sect_alchemy' && P.x <= 42) {
-      nextSect = 'sect_main'; targetX = 1180; targetY = 360;
-    } else if (curAreaId === 'sect_forge' && P.x >= 1238) {
-      nextSect = 'sect_main'; targetX = 100; targetY = 360;
+      if (P.x >= 1180 && Math.abs(P.y - 360) <= 70) { nextSect = 'sect_alchemy'; targetX = 230; targetY = 360; }
+      else if (P.x <= 100 && Math.abs(P.y - 360) <= 70) { nextSect = 'sect_forge'; targetX = 1050; targetY = 360; }
+      else if (P.y >= 650 && Math.abs(P.x - 640) <= 70) { nextSect = 'sect_gate'; targetX = 640; targetY = 150; }
+      else if (P.y <= 70 && Math.abs(P.x - 640) <= 70) { nextSect = 'sect_market'; targetX = 640; targetY = 570; }
+    } else if (curAreaId === 'sect_market' && P.y >= 650) {
+      nextSect = 'sect_main'; targetX = 640; targetY = 150;
+    } else if (curAreaId === 'sect_alchemy' && P.x <= 100) {
+      nextSect = 'sect_main'; targetX = 1050; targetY = 360;
+    } else if (curAreaId === 'sect_forge' && P.x >= 1180) {
+      nextSect = 'sect_main'; targetX = 230; targetY = 360;
     } else if (curAreaId === 'sect_gate') {
-      if (P.y <= 42 && Math.abs(P.x - 640) <= 90) { nextSect = 'sect_main'; targetX = 640; targetY = 630; }
-      else if (P.x <= 42) { nextSect = 'sect_meditate'; targetX = 1180; targetY = 360; }
-      else if (P.x >= 1238) { nextSect = 'sect_spring'; targetX = 100; targetY = 360; }
-      else if (P.y >= 678 && Math.abs(P.x - 640) <= 90) {
+      if (P.y <= 70 && Math.abs(P.x - 640) <= 70) { nextSect = 'sect_main'; targetX = 640; targetY = 570; }
+      else if (P.x <= 100) { nextSect = 'sect_meditate'; targetX = 1050; targetY = 360; }
+      else if (P.x >= 1180) { nextSect = 'sect_spring'; targetX = 230; targetY = 360; }
+      else if (P.y >= 650 && Math.abs(P.x - 640) <= 70) {
         // 踏出山門 -> 平滑黑幕過場進入 5 層生成式地牢
         triggerRoomTransition(() => {
           const firstRoom = generateFloorDungeon(P.worldIdx, P.currentFloor);
           curAreaId = firstRoom.id;
-          P.x = 640; P.y = 100;
+          P.x = 640; P.y = 150;
           doorCooldown = 50;
           const bh = document.getElementById('boss-hud'); if (bh) bh.style.display = 'none';
           notify(`⛩️ 踏出山門！進入【${DUNGEON_WORLDS[P.worldIdx].name} · 第 ${P.currentFloor} 階】！`);
         });
         return;
       }
-    } else if ((curAreaId === 'sect_meditate' && P.x >= 1238) || (curAreaId === 'sect_spring' && P.x <= 42)) {
+    } else if ((curAreaId === 'sect_meditate' && P.x >= 1180) || (curAreaId === 'sect_spring' && P.x <= 100)) {
       nextSect = 'sect_gate'; targetX = 640; targetY = 360;
     }
 
@@ -301,17 +302,17 @@ function checkDoorTriggers() {
     const doors = curRoom.doors || ['N', 'S', 'E', 'W'];
 
     let enteredDir = null;
-    if (doors.includes('N') && P.y <= 42 && Math.abs(P.x - 640) <= 90) enteredDir = 'N';
-    else if (doors.includes('S') && P.y >= 678 && Math.abs(P.x - 640) <= 90) enteredDir = 'S';
-    else if (doors.includes('W') && P.x <= 42 && Math.abs(P.y - 360) <= 80) enteredDir = 'W';
-    else if (doors.includes('E') && P.x >= 1238 && Math.abs(P.y - 360) <= 80) enteredDir = 'E';
+    if (doors.includes('N') && P.y <= 70 && Math.abs(P.x - 640) <= 70) enteredDir = 'N';
+    else if (doors.includes('S') && P.y >= 650 && Math.abs(P.x - 640) <= 70) enteredDir = 'S';
+    else if (doors.includes('W') && P.x <= 100 && Math.abs(P.y - 360) <= 70) enteredDir = 'W';
+    else if (doors.includes('E') && P.x >= 1180 && Math.abs(P.y - 360) <= 70) enteredDir = 'E';
 
     if (enteredDir) {
       triggerRoomTransition(() => {
         doorCooldown = 45;
         if (curRoom.isEntranceRoom && enteredDir === 'S') {
           curAreaId = 'sect_gate';
-          P.x = 640; P.y = 630;
+          P.x = 640; P.y = 570;
           notify('⛩️ 返回【青雲宗 · 宗門山門】');
           return;
         }
@@ -322,10 +323,10 @@ function checkDoorTriggers() {
         const nextRoom = activeDungeonRooms[currentRoomId];
         curAreaId = nextRoom.id;
 
-        if (enteredDir === 'N') { P.x = 640; P.y = 630; }
-        else if (enteredDir === 'S') { P.x = 640; P.y = 90; }
-        else if (enteredDir === 'W') { P.x = 1180; P.y = 360; }
-        else if (enteredDir === 'E') { P.x = 100; P.y = 360; }
+        if (enteredDir === 'N') { P.x = 640; P.y = 570; }
+        else if (enteredDir === 'S') { P.x = 640; P.y = 150; }
+        else if (enteredDir === 'W') { P.x = 1050; P.y = 360; }
+        else if (enteredDir === 'E') { P.x = 230; P.y = 360; }
 
         if (typeof resetEnemies === 'function') resetEnemies(curAreaId);
         if (typeof updateHUD === 'function') updateHUD();

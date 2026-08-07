@@ -109,9 +109,13 @@ function updEnemies() {
       e.y += e.patrolDy;
     }
 
-    // 嚴格限制怪物移動範圍只能在中間方格池 (MIN_X: 64, MAX_X: 1216, MIN_Y: 64, MAX_Y: 656)
-    e.x = Math.max(64, Math.min(1216, e.x));
-    e.y = Math.max(64, Math.min(656, e.y));
+    // 嚴格限制怪物移動範圍只能在房間紅框地板內 (WALL_W: 180, WALL_E: 1100, WALL_N: 110, WALL_S: 610)
+    const minX = (typeof WALL_W !== 'undefined' ? WALL_W : 180);
+    const maxX = (typeof WALL_E !== 'undefined' ? WALL_E : 1100);
+    const minY = (typeof WALL_N !== 'undefined' ? WALL_N : 110);
+    const maxY = (typeof WALL_S !== 'undefined' ? WALL_S : 610);
+    e.x = Math.max(minX, Math.min(maxX, e.x));
+    e.y = Math.max(minY, Math.min(maxY, e.y));
   });
 
   // 🛡️ 碰撞解析：怪物 vs 場景物件 + 怪物互相不重疊

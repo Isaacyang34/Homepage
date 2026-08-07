@@ -92,33 +92,101 @@ window.BackgroundRenderer = {
   drawDoors(ctx, area) {
     if (!ctx) return;
     const doors = (area && area.doors) ? area.doors : ['N', 'S', 'E', 'W'];
-    const glowCol = (area && area.terrain === 'ruins') ? '#ef4444' : (area && area.terrain === 'cave') ? '#38bdf8' : '#f59e0b';
+    const terr = (area && area.terrain) ? area.terrain : 'sect';
+    const isBossRoom = area && area.isBossRoom;
+
+    // 通道靈光與石牆材質色彩
+    const portalGlow = isBossRoom ? '#ef4444' : (terr === 'ruins') ? '#ef4444' : (terr === 'cave') ? '#38bdf8' : '#00cfff';
+    const wallColor = (terr === 'ruins') ? '#1e141a' : (terr === 'cave') ? '#0d192e' : '#111827';
+    const wallBorder = (terr === 'ruins') ? '#451a24' : (terr === 'cave') ? '#1d3354' : '#26344d';
 
     ctx.save();
+
+    // ── 1. 北通道 (North Corridor: X: 570~710, Y: 0~110) ──
     if (doors.includes('N')) {
-      ctx.fillStyle = '#0f172a'; ctx.fillRect(570, 0, 140, 28);
-      ctx.strokeStyle = glowCol; ctx.lineWidth = 3; ctx.strokeRect(575, 2, 130, 24);
-      ctx.fillStyle = glowCol; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText('🚪 北門 (N)', 640, 18);
+      const glow = ctx.createLinearGradient(640, 0, 640, 110);
+      glow.addColorStop(0, portalGlow);
+      glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(570, 0, 140, 110);
+      ctx.strokeStyle = portalGlow; ctx.lineWidth = 2.5;
+      ctx.strokeRect(570, 0, 140, 110);
+    } else {
+      // 封密石牆：覆蓋無門區域，形態完美融入周圍牆壁
+      ctx.fillStyle = wallColor;
+      ctx.fillRect(560, 0, 160, 112);
+      ctx.strokeStyle = wallBorder; ctx.lineWidth = 3.5;
+      ctx.strokeRect(560, 0, 160, 112);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(560, 40); ctx.lineTo(720, 40);
+      ctx.moveTo(560, 80); ctx.lineTo(720, 80);
+      ctx.stroke();
     }
+
+    // ── 2. 南通道 (South Corridor: X: 570~710, Y: 610~720) ──
     if (doors.includes('S')) {
-      ctx.fillStyle = '#0f172a'; ctx.fillRect(570, 692, 140, 28);
-      ctx.strokeStyle = glowCol; ctx.lineWidth = 3; ctx.strokeRect(575, 694, 130, 24);
-      ctx.fillStyle = glowCol; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText('🚪 南門 (S)', 640, 710);
+      const glow = ctx.createLinearGradient(640, 720, 640, 610);
+      glow.addColorStop(0, portalGlow);
+      glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(570, 610, 140, 110);
+      ctx.strokeStyle = portalGlow; ctx.lineWidth = 2.5;
+      ctx.strokeRect(570, 610, 140, 110);
+    } else {
+      ctx.fillStyle = wallColor;
+      ctx.fillRect(560, 608, 160, 112);
+      ctx.strokeStyle = wallBorder; ctx.lineWidth = 3.5;
+      ctx.strokeRect(560, 608, 160, 112);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(560, 648); ctx.lineTo(720, 648);
+      ctx.moveTo(560, 688); ctx.lineTo(720, 688);
+      ctx.stroke();
     }
+
+    // ── 3. 西通道 (West Corridor: X: 0~180, Y: 290~430) ──
     if (doors.includes('W')) {
-      ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 300, 28, 120);
-      ctx.strokeStyle = glowCol; ctx.lineWidth = 3; ctx.strokeRect(2, 305, 24, 110);
-      ctx.fillStyle = glowCol; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText('西門', 14, 365);
+      const glow = ctx.createLinearGradient(0, 360, 180, 360);
+      glow.addColorStop(0, portalGlow);
+      glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 290, 180, 140);
+      ctx.strokeStyle = portalGlow; ctx.lineWidth = 2.5;
+      ctx.strokeRect(0, 290, 180, 140);
+    } else {
+      ctx.fillStyle = wallColor;
+      ctx.fillRect(0, 280, 182, 160);
+      ctx.strokeStyle = wallBorder; ctx.lineWidth = 3.5;
+      ctx.strokeRect(0, 280, 182, 160);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(60, 280); ctx.lineTo(60, 440);
+      ctx.moveTo(120, 280); ctx.lineTo(120, 440);
+      ctx.stroke();
     }
+
+    // ── 4. 東通道 (East Corridor: X: 1100~1280, Y: 290~430) ──
     if (doors.includes('E')) {
-      ctx.fillStyle = '#0f172a'; ctx.fillRect(1252, 300, 28, 120);
-      ctx.strokeStyle = glowCol; ctx.lineWidth = 3; ctx.strokeRect(1254, 305, 24, 110);
-      ctx.fillStyle = glowCol; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText('東門', 1266, 365);
+      const glow = ctx.createLinearGradient(1280, 360, 1100, 360);
+      glow.addColorStop(0, portalGlow);
+      glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(1100, 290, 180, 140);
+      ctx.strokeStyle = portalGlow; ctx.lineWidth = 2.5;
+      ctx.strokeRect(1100, 290, 180, 140);
+    } else {
+      ctx.fillStyle = wallColor;
+      ctx.fillRect(1098, 280, 182, 160);
+      ctx.strokeStyle = wallBorder; ctx.lineWidth = 3.5;
+      ctx.strokeRect(1098, 280, 182, 160);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(1160, 280); ctx.lineTo(1160, 440);
+      ctx.moveTo(1220, 280); ctx.lineTo(1220, 440);
+      ctx.stroke();
     }
+
     ctx.restore();
   },
 

@@ -16,20 +16,21 @@
   style.textContent = `
     #game-log-panel {
       position: fixed;
-      right: 14px;
-      bottom: 170px;
-      width: 240px;
-      max-height: 220px;
-      background: rgba(4,6,16,0.88);
-      border: 1px solid rgba(180,150,70,0.25);
-      border-left: 3px solid rgba(180,150,70,0.5);
-      border-radius: 6px 0 0 6px;
+      right: 64px;
+      bottom: 18px;
+      width: 250px;
+      max-height: 190px;
+      background: rgba(4,6,16,0.92);
+      border: 1px solid rgba(180,150,70,0.3);
+      border-left: 3px solid rgba(200,168,75,0.7);
+      border-radius: 6px;
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      z-index: 21;
+      z-index: 98;
       pointer-events: auto;
-      backdrop-filter: blur(5px);
+      backdrop-filter: blur(6px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.6);
     }
     #game-log-hdr {
       padding: 5px 10px;
@@ -415,11 +416,14 @@ function applyUIRelayout() {
     const roStatus = document.getElementById('ro-status-panel');
     if (roStatus) roStatus.remove();
 
-    // 2. 道具快捷欄只留 1 ~ 8 格 (移除第 9 格)
+    // 2. 道具快捷欄只留 1 ~ 6 格 (縮減至 6 格)
     const hotbarItems = document.getElementById('hotbar-items');
     if (hotbarItems) {
-      const slot9 = hotbarItems.querySelector('[data-slot="9"]');
-      if (slot9) slot9.remove();
+      const slots = hotbarItems.querySelectorAll('.item-slot');
+      slots.forEach(slot => {
+        const sNum = parseInt(slot.getAttribute('data-slot'));
+        if (sNum > 6) slot.remove();
+      });
     }
 
     const hotbarContainer = document.getElementById('hud-hotbar');
@@ -427,10 +431,10 @@ function applyUIRelayout() {
       hotbarContainer.style.cssText = 'position:fixed; left:50%; transform:translateX(-50%); bottom:18px; top:auto; z-index:100; pointer-events:auto; margin:0;';
     }
 
-    // 3. 左側氣血/靈力/經驗條靠左下緣對齊 (Bottom-Left Aligned)
+    // 3. 左側氣血/靈力/經驗條靠左下緣對齊 (離底 85px 避開 hotbar)
     const hudBars = document.querySelector('.hud-bars') || document.getElementById('hud-bars');
     if (hudBars) {
-      hudBars.style.cssText = 'position:fixed; left:18px; bottom:18px; top:auto; display:flex; flex-direction:column; align-items:flex-start; gap:5px; z-index:100; pointer-events:auto; margin:0;';
+      hudBars.style.cssText = 'position:fixed; left:18px; bottom:85px; top:auto; width:210px; display:flex; flex-direction:column; gap:6px; z-index:100; pointer-events:auto; margin:0; padding:8px 12px; background:rgba(4,6,14,0.88); border:1px solid rgba(180,150,70,0.3); border-left:3px solid var(--gold); border-radius:0 6px 6px 0; backdrop-filter:blur(4px);';
     }
 
     // 4. 右上角羅盤小地圖與靈石

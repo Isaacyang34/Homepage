@@ -189,15 +189,15 @@ window.FIVE_ELEMENT_SYNERGY = FIVE_ELEMENT_SYNERGY;
 window.WEAPON_TYPES = WEAPON_TYPES;
 window.FORGE_RECIPES_V2 = FORGE_RECIPES_V2;
 
-// ════ 全域牆壁與門洞常數 (直接貼合原圖地板邊緣) ════
-// 畫布 1280x720，依據背景原圖地板邊界精準對齊邊界
-const WALL_N = 48;    // 北牆 (頂部) 地板視覺內緣 Y 最小值
-const WALL_S = 672;   // 南牆 (底部) 地板視覺內緣 Y 最大值
-const WALL_W = 48;    // 西牆 (左側) 地板視覺內緣 X 最小值
-const WALL_E = 1232;  // 東牆 (右側) 地板視覺內緣 X 最大值
-const DOOR_GAP = 90;  // 門洞半寬
-const DOOR_CX  = 640; // 北南門中心 X
-const DOOR_CY  = 360; // 東西門中心 Y
+// ════ 全域牆壁與門洞通道常數 (依據範例圖紅線與紅色通道精準對齊) ════
+// 畫布 1280x720，紅框內緣為可行走區域，紅色實心為通道感應區
+const WALL_N = 110;   // 北牆內緣 (紅線頂部) Y 最小值
+const WALL_S = 610;   // 南牆內緣 (紅線底部) Y 最大值
+const WALL_W = 180;   // 西牆內緣 (紅線左側) X 最小值
+const WALL_E = 1100;  // 東牆內緣 (紅線右側) X 最大值
+const DOOR_GAP = 70;  // 通道感應區半寬 (570 ~ 710px / 290 ~ 430px)
+const DOOR_CX  = 640; // 北南通道中心 X
+const DOOR_CY  = 360; // 東西通道中心 Y
 
 window.WALL_N = WALL_N; window.WALL_S = WALL_S;
 window.WALL_W = WALL_W; window.WALL_E = WALL_E;

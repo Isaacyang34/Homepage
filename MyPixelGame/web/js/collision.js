@@ -233,9 +233,12 @@ function resolveAllPlayerCollisions() {
   // 9c. 玩家與怪物碰撞（地牢房間）
   resolvePlayerEnemyCollision();
 
-  // 9d. 最終邊界 clamp（防止碰撞推出地圖外）
-  P.x = Math.max(64, Math.min(1216, P.x));
-  P.y = Math.max(64, Math.min(656, P.y));
+  // 9d. 最終動態邊界 clamp（依據是否有門通道開放決定是否能延伸至通道內部）
+  const bounds = (typeof getPlayerBounds === 'function')
+    ? getPlayerBounds()
+    : { minX: (typeof WALL_W !== 'undefined' ? WALL_W : 180), maxX: (typeof WALL_E !== 'undefined' ? WALL_E : 1100), minY: (typeof WALL_N !== 'undefined' ? WALL_N : 110), maxY: (typeof WALL_S !== 'undefined' ? WALL_S : 610) };
+  P.x = Math.max(bounds.minX, Math.min(bounds.maxX, P.x));
+  P.y = Math.max(bounds.minY, Math.min(bounds.maxY, P.y));
 }
 
 // ──────────────────────────────────────────────
