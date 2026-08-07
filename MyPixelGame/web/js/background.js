@@ -97,55 +97,106 @@ window.BackgroundRenderer = {
     const terr = (area && area.terrain) ? area.terrain : 'sect';
     const isBossRoom = area && area.isBossRoom;
 
-    const closedKey = terr + '_closed';
-    const hasClosedImg = this.images[closedKey] && this.loaded[closedKey];
-
     ctx.save();
 
-    // ── 1. 北通道 (North: 560~720, Y: 0~112) ──
+    // ── 1. 北通道 (North) ──
     if (doors.includes('N')) {
       this.drawOpenPortalEffect(ctx, 640, 55, 55, isBossRoom ? 'rgba(239,68,68,0.35)' : 'rgba(212,168,67,0.35)');
     } else {
-      // 無通道：直接從【四邊無門原圖 bg_<theme>_closed.png】精準採樣相同座標的實體壁磚進行覆蓋
-      if (hasClosedImg) {
-        ctx.drawImage(this.images[closedKey], 550, 0, 180, 115, 550, 0, 180, 115);
-      } else {
-        this.drawFallbackClosedWall(ctx, 550, 0, 180, 115, terr);
-      }
+      // 無通道：採用使用者指定之【九宮格單牆旋轉貼圖機制】
+      this.drawRotatedClosedWallPatch(ctx, 'N', terr);
     }
 
-    // ── 2. 南通道 (South: 560~720, Y: 608~720) ──
+    // ── 2. 南通道 (South) ──
     if (doors.includes('S')) {
       this.drawOpenPortalEffect(ctx, 640, 665, 55, isBossRoom ? 'rgba(239,68,68,0.35)' : 'rgba(212,168,67,0.35)');
     } else {
-      if (hasClosedImg) {
-        ctx.drawImage(this.images[closedKey], 550, 605, 180, 115, 550, 605, 180, 115);
-      } else {
-        this.drawFallbackClosedWall(ctx, 550, 605, 180, 115, terr);
-      }
+      this.drawRotatedClosedWallPatch(ctx, 'S', terr);
     }
 
-    // ── 3. 西通道 (West: 0~182, Y: 280~440) ──
+    // ── 3. 西通道 (West) ──
     if (doors.includes('W')) {
       this.drawOpenPortalEffect(ctx, 90, 360, 55, isBossRoom ? 'rgba(239,68,68,0.35)' : 'rgba(212,168,67,0.35)');
     } else {
-      if (hasClosedImg) {
-        ctx.drawImage(this.images[closedKey], 0, 270, 185, 180, 0, 270, 185, 180);
-      } else {
-        this.drawFallbackClosedWall(ctx, 0, 270, 185, 180, terr);
-      }
+      this.drawRotatedClosedWallPatch(ctx, 'W', terr);
     }
 
-    // ── 4. 東通道 (East: 1098~1280, Y: 280~440) ──
+    // ── 4. 東通道 (East) ──
     if (doors.includes('E')) {
       this.drawOpenPortalEffect(ctx, 1190, 360, 55, isBossRoom ? 'rgba(239,68,68,0.35)' : 'rgba(212,168,67,0.35)');
     } else {
-      if (hasClosedImg) {
-        ctx.drawImage(this.images[closedKey], 1095, 270, 185, 180, 1095, 270, 185, 180);
-      } else {
-        this.drawFallbackClosedWall(ctx, 1095, 270, 185, 180, terr);
-      }
+      this.drawRotatedClosedWallPatch(ctx, 'E', terr);
     }
+
+    ctx.restore();
+  },
+
+  // 🧩 使用者指定之「九宮格單牆旋轉貼圖機制」
+  // 從【上方無門母圖】採樣北牆實心石牆切片 (Y:0~110, X:180~1100)
+  // 根據無門方向，將該切片進行 0度、90度、180度、-90度 旋轉貼上，保證四邊封牆100%同質無縫
+  drawRotatedClosedWallPatch(ctx, dir, terr) {
+    const closedKey = terr + '_closed';
+    const closedImg = this.images[closedKey] || this.images['sect_closed'];
+    if (!closedImg || !this.loaded[closedKey]) {
+      this.drawSealedDoorGate(ctx, dir === 'N' || dir === 'S' ? 570 : (dir === 'W' ? 0 : 1100), dir === 'N' ? 0 : (dir === 'S' ? 610 : 290), dir === 'N' || dir === 'S' ? 140 : 180, dir === 'N' || dir === 'S' ? 110 : 140, dir, terr);
+      return;
+    }
+
+    ctx.save();
+    // 北牆無門切片區域: X:180~1100, Y:0~110 (寬 920, 高 110)
+    const sx = 180, sy = 0, sw = 920, sh = 110;
+
+    if (dir === 'N') {
+      // 北牆 (直接原位貼上)
+      ctx.drawImage(closedImg, sx, sy, sw, sh, 180, 0, 920, 110);
+    } else if (dir === 'S') {
+      // 南牆 (上下旋轉 180 度)
+      ctx.translate(640, 665);
+      ctx.rotate(Math.PI);
+      ctx.drawImage(closedImg, sx, sy, sw, sh, -460, -55, 920, 110);
+    } else if (dir === 'W') {
+      // 西牆 (逆時針旋轉 90 度，貼於左側 X:0~180, Y:110~610)
+      ctx.translate(90, 360);
+      ctx.rotate(-Math.PI / 2);
+      ctx.drawImage(closedImg, sx, sy, sw, sh, -250, -90, 500, 180);
+    } else if (dir === 'E') {
+      // 東牆 (順時針旋轉 90 度，貼於右側 X:1100~1280, Y:110~610)
+      ctx.translate(1190, 360);
+      ctx.rotate(Math.PI / 2);
+      ctx.drawImage(closedImg, sx, sy, sw, sh, -250, -90, 500, 180);
+    }
+    ctx.restore();
+  },
+
+  // 🚪 繪製拱門內側封印石門/重門（精準契合門洞尺寸，無任何貼圖錯位）
+  drawSealedDoorGate(ctx, x, y, w, h, dir, terr) {
+    ctx.save();
+    const gateCol = (terr === 'ruins') ? '#2a1a24' : (terr === 'cave') ? '#0f1e33' : '#141d2e';
+    const borderCol = (terr === 'ruins') ? '#542634' : (terr === 'cave') ? '#25446e' : '#334766';
+
+    // 1. 門洞內部暗色底石
+    ctx.fillStyle = gateCol;
+    ctx.fillRect(x, y, w, h);
+
+    // 2. 石雕雙扇大門縫隙與框線
+    ctx.strokeStyle = borderCol;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x + 2, y + 2, w - 4, h - 4);
+
+    // 3. 中央對開門縫
+    ctx.beginPath();
+    if (dir === 'N' || dir === 'S') {
+      ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w / 2, y + h);
+    } else {
+      ctx.moveTo(x, y + h / 2); ctx.lineTo(x + w, y + h / 2);
+    }
+    ctx.stroke();
+
+    // 4. 門環與古樸符文裝飾
+    ctx.fillStyle = 'rgba(200, 168, 75, 0.4)';
+    const cx = x + w / 2, cy = y + h / 2;
+    ctx.beginPath(); ctx.arc(cx - 10, cy, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + 10, cy, 4, 0, Math.PI * 2); ctx.fill();
 
     ctx.restore();
   },
