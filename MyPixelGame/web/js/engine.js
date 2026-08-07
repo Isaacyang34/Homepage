@@ -16,15 +16,8 @@ let roomTransitionPhase = 'IDLE'; // 'FADE_OUT' | 'FADE_IN' | 'IDLE'
 let onPeakAction = null;
 
 // ════ 牆壁碰撞常數 ════
-// 畫布 1280x720，四周牆壁厚度 24px，內緣安全留一個 Tile(64px) 確保人物不卡入牆中
-const WALL_N = 64;    // 北牆 (頂部) 內緣 Y 最小值
-const WALL_S = 656;   // 南牆 (底部) 內緣 Y 最大值
-const WALL_W = 64;    // 西牆 (左側) 內緣 X 最小值
-const WALL_E = 1216;  // 東牆 (右側) 內緣 X 最大值
-// 門洞開放區域：人物可穿越門洞觸發換房間
-const DOOR_GAP = 90;  // 門洞半寬 (以畫布中央為基準)
-const DOOR_CX = 640;  // 門洞中央 X (水平門)
-const DOOR_CY = 360;  // 門洞中央 Y (垂直門)
+// WALL_N/S/W/E, DOOR_GAP/CX/CY 已定義在 config.js 並掛載至 window
+// 此處直接引用全域變數，不重複宣告
 
 // 根據當前房間門洞動態計算可行走邊界
 function getPlayerBounds() {
@@ -36,13 +29,13 @@ function getPlayerBounds() {
   const doors = area ? (area.doors || []) : [];
 
   return {
-    // 有北門且玩家 X 在門洞範圍內，才允許繼續北行（觸發 checkDoorTriggers）
-    minY: (doors.includes('N') && Math.abs(P.x - DOOR_CX) <= DOOR_GAP) ? 0  : WALL_N,
+    minY: (doors.includes('N') && Math.abs(P.x - DOOR_CX) <= DOOR_GAP) ? 0   : WALL_N,
     maxY: (doors.includes('S') && Math.abs(P.x - DOOR_CX) <= DOOR_GAP) ? 720 : WALL_S,
-    minX: (doors.includes('W') && Math.abs(P.y - DOOR_CY) <= DOOR_GAP) ? 0  : WALL_W,
+    minX: (doors.includes('W') && Math.abs(P.y - DOOR_CY) <= DOOR_GAP) ? 0   : WALL_W,
     maxX: (doors.includes('E') && Math.abs(P.y - DOOR_CY) <= DOOR_GAP) ? 1280 : WALL_E,
   };
 }
+
 
 function triggerRoomTransition(onPeakCallback) {
   if (isRoomTransitioning) return;

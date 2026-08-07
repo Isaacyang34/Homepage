@@ -271,6 +271,11 @@ window.CollisionSystem = {
   resolveAllEnemyCollisions,
 };
 
+// 直接掛載常用對象至 window 供跨模組引用
+window.COLL_R = COLL_R;
+window.STATIC_COLLIDERS = STATIC_COLLIDERS;
+window.CIRCLE_STATIC_COLLIDERS = CIRCLE_STATIC_COLLIDERS;
+
 // 快捷函數供外部直接呼叫
 window.resolveAllPlayerCollisions = resolveAllPlayerCollisions;
 window.resolveAllEnemyCollisions  = resolveAllEnemyCollisions;
