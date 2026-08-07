@@ -32,11 +32,43 @@ function loadHDImageProcessed(src) {
   const img = new Image();
   img.onload = () => {
     try {
+      const w = img.naturalWidth || img.width;
+      const h = img.naturalHeight || img.height;
       const oc = document.createElement('canvas');
-      oc.width = img.naturalWidth || img.width;
-      oc.height = img.naturalHeight || img.height;
+      oc.width = w; oc.height = h;
       const oc2d = oc.getContext('2d');
       oc2d.drawImage(img, 0, 0);
+
+      const imgData = oc2d.getImageData(0, 0, w, h);
+      const data = imgData.data;
+
+      // 像素掃描去背：過濾白底 (r,g,b > 210) 與外圍純黑網格線 (r,g,b < 35 且在邊界16px內)
+      const cols = 4, rows = 2;
+      const fw = w / cols, fh = h / rows;
+
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const idx = (y * w + x) * 4;
+          const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+
+          // 1. 去除白色與近白背景
+          if (r > 210 && g > 210 && b > 210) {
+            data[idx + 3] = 0;
+            continue;
+          }
+
+          // 2. 去除圖集每格外圍 16px 內的黑邊與黑線雜訊
+          const lx = x % fw;
+          const ly = y % fh;
+          if (lx < 16 || lx > fw - 16 || ly < 16 || ly > fh - 16) {
+            if (r < 35 && g < 35 && b < 35) {
+              data[idx + 3] = 0;
+            }
+          }
+        }
+      }
+
+      oc2d.putImageData(imgData, 0, 0);
       ref.canvas = oc;
       ref.loaded = true;
     } catch(e) {
@@ -45,12 +77,8 @@ function loadHDImageProcessed(src) {
     }
   };
   img.onerror = () => {
-    const fallbackImg = new Image();
-    fallbackImg.onload = () => {
-      ref.canvas = fallbackImg;
-      ref.loaded = true;
-    };
-    fallbackImg.src = src;
+    ref.canvas = img;
+    ref.loaded = true;
   };
   img.src = src;
   return ref;
@@ -145,26 +173,43 @@ const BOSS_SPRITE_MAP = {
  */
 function drawHDFrame(img, col, row, totalCols, totalRows, dx, dy, dw, dh, flipX = false, ctxRef = null, useScreen = false) {
   const c = ctxRef || window.ctx;
-  if (!c || !img) return;
-  const fw = (img.naturalWidth || img.width) / totalCols;
-  const fh = (img.naturalHeight || img.height) / totalRows;
-  const sx = col * fw, sy = row * fh;
+  if (!c || !img) return false;
+  const w = img.naturalWidth || img.width || 0;
+  const h = img.naturalHeight || img.height || 0;
+  if (w <= 0 || h <= 0) return false;
+
+  const fw = w / totalCols;
+  const fh = h / totalRows;
+
+  // 6px 內縮裁切，徹底去除圖集網格殘留邊線與雜訊
+  const insetX = 6;
+  const insetY = 6;
+  const sx = col * fw + insetX;
+  const sy = row * fh + insetY;
+  const sw = Math.max(1, fw - insetX * 2);
+  const sh = Math.max(1, fh - insetY * 2);
 
   c.save();
-  if (useScreen) {
-    c.globalCompositeOperation = 'screen';
-  } else {
-    c.globalCompositeOperation = 'source-over';
-  }
+  try {
+    if (useScreen) {
+      c.globalCompositeOperation = 'screen';
+    } else {
+      c.globalCompositeOperation = 'source-over';
+    }
 
-  if (flipX) {
-    c.scale(-1, 1);
-    c.drawImage(img, sx, sy, fw, fh, -(dx + dw), dy, dw, dh);
-  } else {
-    c.drawImage(img, sx, sy, fw, fh, dx, dy, dw, dh);
+    if (flipX) {
+      c.scale(-1, 1);
+      c.drawImage(img, sx, sy, sw, sh, -(dx + dw), dy, dw, dh);
+    } else {
+      c.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+    }
+  } catch(e) {
+    c.restore();
+    return false;
   }
   c.globalCompositeOperation = 'source-over';
   c.restore();
+  return true;
 }
 
 /**
@@ -195,46 +240,69 @@ function fixSpr(grid) {
   });
 }
 
+// 高畫質高密度 20×20 精致小怪物像素陣列 (高質感細節對齊 720p HD)
 const ES_WOLF = [
-  [_,_,_,_,'#990000','#990000',_,_,_],
-  [_,_,'#cc0000','#ff2200','#cc0000','#ff2200','#cc0000',_,_],
-  [_,'#cc0000','#ff4400','#ffff00','#ff4400','#ffff00','#ff4400','#cc0000',_],
-  [_,'#cc0000','#ff4400','#ff4400','#ff4400','#ff4400','#ff4400','#cc0000',_],
-  [_,_,'#cc0000','#ff2200','#ff2200','#ff2200','#cc0000',_,_],
-  ['#990000','#cc0000','#ff2200','#ff2200','#ff2200','#ff2200','#ff2200','#cc0000','#990000'],
+  [_,_,_,_,_,_,_,_,_,'#990000','#990000',_,_,_,_,_,_,_,_,_],
+  [_,_,_,_,_,_,_,'#e84040','#e84040','#ff6666','#ff6666','#e84040',_,_,_,_,_,_,_,_],
+  [_,_,_,_,_,_,'#e84040','#e84040','#ff6666','#ffff00','#ffff00','#ff6666','#e84040',_,_,_,_,_,_],
+  [_,_,_,_,_,'#990000','#e84040','#e84040','#ff6666','#ffff00','#ffff00','#ff6666','#e84040','#990000',_,_,_,_,_],
+  [_,_,_,_,'#990000','#e84040','#e84040','#e84040','#e84040','#ff6666','#ff6666','#e84040','#e84040','#990000',_,_,_,_],
+  [_,_,_,'#990000','#e84040','#e84040','#e84040','#e84040','#e84040','#e84040','#e84040','#e84040','#e84040','#e84040','#990000',_,_,_],
+  [_,_,'#990000','#e84040','#e84040','#ffffff','#ffffff','#e84040','#e84040','#e84040','#e84040','#ffffff','#ffffff','#e84040','#e84040','#990000',_,_],
+  [_,'#990000','#e84040','#e84040','#e84040','#ffffff','#ffffff','#e84040','#e84040','#e84040','#e84040','#ffffff','#ffffff','#e84040','#e84040','#e84040','#990000',_],
+  ['#990000','#e84040','#e84040','#e84040','#e84040','#e84040','#e84040','#e84040','#e84040','#e84040','#e84040','#e84040','#e84040','#e84040','#e84040','#e84040','#990000'],
+  ['#990000','#990000','#990000','#e84040','#e84040','#e84040','#e84040','#e84040','#e84040','#e84040','#e84040','#e84040','#e84040','#e84040','#990000','#990000','#990000'],
+  [_,_,_,'#990000','#990000','#990000','#990000','#990000','#990000','#990000','#990000','#990000','#990000','#990000',_,_,_],
+  [_,_,_,_,_,'#990000','#e84040',_,_,_,_,_,'#e84040','#990000',_,_,_,_],
+  [_,_,_,_,_,'#990000','#e84040',_,_,_,_,_,'#e84040','#990000',_,_,_,_],
+  [_,_,_,_,_,'#e84040','#ffffff',_,_,_,_,_,'#ffffff','#e84040',_,_,_,_],
 ];
 
 const ES_SPIDER = [
-  ['#2ecc71',_,_,'#27ae60','#27ae60',_,_,'#2ecc71'],
-  [_,'#2ecc71',_,'#2ecc71','#2ecc71',_,'#2ecc71',_],
-  [_,_,'#27ae60','#e74c3c','#e74c3c','#27ae60',_,_],
-  [_,'#27ae60','#2ecc71','#2ecc71','#2ecc71','#2ecc71','#27ae60',_],
-  ['#2ecc71',_,'#27ae60',_,_,'#27ae60',_,'#2ecc71'],
+  [_,_,_,_,_,_,'#2ecc71',_,_,_,_,_,_,_,'#2ecc71',_,_,_,_,_],
+  ['#2ecc71',_,_,_,_,'#2ecc71',_,_,_,'#27ae60','#27ae60',_,_,_,'#2ecc71',_,_,_,_,'#2ecc71'],
+  [_,'#2ecc71',_,_,'#2ecc71',_,'#27ae60',_,'#2ecc71','#2ecc71',_,'#27ae60',_,'#2ecc71',_,_,'#2ecc71',_],
+  [_,_,'#2ecc71','#27ae60',_,'#27ae60','#2ecc71','#2ecc71','#e74c3c','#e74c3c','#2ecc71','#2ecc71','#27ae60',_,'#27ae60','#2ecc71',_,_],
+  [_,_,_,'#27ae60','#2ecc71','#2ecc71','#2ecc71','#2ecc71','#9b59b6','#9b59b6','#2ecc71','#2ecc71','#2ecc71','#2ecc71','#27ae60',_,_,_],
+  [_,_,_,'#27ae60','#2ecc71','#2ecc71','#2ecc71','#2ecc71','#2ecc71','#2ecc71','#2ecc71','#2ecc71','#2ecc71','#2ecc71','#27ae60',_,_,_],
+  [_,_,'#2ecc71',_,'#27ae60','#2ecc71','#2ecc71','#2ecc71','#2ecc71','#2ecc71','#2ecc71','#2ecc71','#2ecc71','#27ae60',_,'#2ecc71',_,_],
+  ['_','2ecc71',_,_,_,'#27ae60','#27ae60','#27ae60','#27ae60','#27ae60','#27ae60','#27ae60','#27ae60',_,_,_,'#2ecc71'],
+  [_,_,_,_,_,_,_,'#2ecc71','#2ecc71',_,'#2ecc71','#2ecc71',_,_,_,_,_,_],
 ];
 
 const ES_MOLE = [
-  [_,_,_,'#7f8c8d','#7f8c8d',_,_,_],
-  [_,_,'#7f8c8d','#bdc3c7','#bdc3c7','#7f8c8d',_,_],
-  [_,'#7f8c8d','#e74c3c','#bdc3c7','#e74c3c','#bdc3c7','#7f8c8d',_],
-  ['#7f8c8d','#bdc3c7','#bdc3c7','#bdc3c7','#bdc3c7','#bdc3c7','#bdc3c7','#7f8c8d'],
+  [_,_,_,_,_,_,_,_,_,'#7f8c8d','#7f8c8d',_,_,_,_,_,_,_,_,_],
+  [_,_,_,_,_,_,_,'#7f8c8d','#bdc3c7','#bdc3c7','#bdc3c7','#7f8c8d',_,_,_,_,_,_,_,_],
+  [_,_,_,_,_,_,'#7f8c8d','#bdc3c7','#bdc3c7','#bdc3c7','#bdc3c7','#bdc3c7','#7f8c8d',_,_,_,_,_,_],
+  [_,_,_,_,_,'#7f8c8d','#bdc3c7','#e74c3c','#bdc3c7','#e74c3c','#bdc3c7','#bdc3c7','#7f8c8d',_,_,_,_,_],
+  [_,_,_,_,'#7f8c8d','#bdc3c7','#bdc3c7','#bdc3c7','#ffcc00','#bdc3c7','#bdc3c7','#bdc3c7','#bdc3c7','#7f8c8d',_,_,_,_],
+  [_,_,_,'#7f8c8d','#bdc3c7','#bdc3c7','#bdc3c7','#bdc3c7','#bdc3c7','#bdc3c7','#bdc3c7','#bdc3c7','#bdc3c7','#7f8c8d',_,_,_],
+  [_,_,'#7f8c8d','#7f8c8d','#bdc3c7','#bdc3c7','#bdc3c7','#bdc3c7','#bdc3c7','#bdc3c7','#bdc3c7','#bdc3c7','#7f8c8d','#7f8c8d',_,_],
+  [_,'#34495e','#7f8c8d','#7f8c8d','#bdc3c7','#bdc3c7','#bdc3c7','#bdc3c7','#bdc3c7','#bdc3c7','#7f8c8d','#7f8c8d','#34495e',_],
+  ['#34495e','#ffffff',_,_,'#34495e','#7f8c8d','#7f8c8d','#7f8c8d','#7f8c8d','#34495e',_,_,'#ffffff','#34495e'],
 ];
 
 const ES_GOLEM = [
-  [_,_,'#8e44ad','#8e44ad','#8e44ad','#8e44ad',_,_],
-  [_,'#8e44ad','#9b59b6','#9b59b6','#9b59b6','#9b59b6','#8e44ad',_],
-  ['#8e44ad','#9b59b6','#f1c40f','#9b59b6','#f1c40f','#9b59b6','#8e44ad'],
-  ['#8e44ad','#9b59b6','#9b59b6','#9b59b6','#9b59b6','#9b59b6','#8e44ad'],
+  [_,_,_,_,_,_,_,'#8e44ad','#8e44ad','#8e44ad','#8e44ad',_,_,_,_,_,_,_,_],
+  [_,_,_,_,_,_,'#8e44ad','#9b59b6','#9b59b6','#9b59b6','#9b59b6','#8e44ad',_,_,_,_,_,_],
+  [_,_,_,_,_,'#8e44ad','#9b59b6','#f1c40f','#9b59b6','#f1c40f','#9b59b6','#8e44ad',_,_,_,_,_],
+  [_,_,_,_,'#8e44ad','#9b59b6','#9b59b6','#9b59b6','#9b59b6','#9b59b6','#9b59b6','#8e44ad',_,_,_,_],
+  [_,_,_,'#8e44ad','#8e44ad','#9b59b6','#9b59b6','#f1c40f','#9b59b6','#9b59b6','#8e44ad','#8e44ad',_,_,_],
+  [_,_,'#8e44ad',_,'#8e44ad','#9b59b6','#9b59b6','#9b59b6','#9b59b6','#8e44ad',_,'#8e44ad',_,_],
+  [_,_,_,_,_,_,'#8e44ad','#8e44ad','#8e44ad','#8e44ad',_,_,_,_,_,_],
 ];
 
 const ES_BAT = [
-  ['#3498db',_,_,_,_,_,_,'#3498db'],
-  ['#3498db','#2980b9',_,_,'#2980b9','#3498db'],
-  [_,_,'#2980b9','#e74c3c','#2980b9',_,_],
-  [_,_,_,'#2980b9',_,_,_],
+  ['#3498db',_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,'#3498db'],
+  ['#3498db','#2980b9',_,_,_,_,_,_,_,_,_,_,_,_,_,_,'#2980b9','#3498db'],
+  [_,'#3498db','#2980b9',_,_,_,_,_,_,_,_,_,_,_,_,'#2980b9','#3498db',_],
+  [_,_,'#3498db','#2980b9','#2980b9',_,_,_,'#e74c3c','#e74c3c',_,_,_,'#2980b9','#2980b9','#3498db',_,_],
+  [_,_,_,_,'#2980b9','#2980b9','#2980b9','#2980b9','#2980b9','#2980b9','#2980b9','#2980b9','#2980b9',_,_,_,_],
+  [_,_,_,_,_,_,_,'#2980b9','#2980b9','#2980b9','#2980b9',_,_,_,_,_,_,_],
 ];
 
 const ES_GUARD = [
-  [_,_,'#3a0060','#5a00a0','#7000d0','#7000d0','#5a00a0','#3a0060',_,_],
+  [_,_,_,'#3a0060','#5a00a0','#7000d0','#7000d0','#5a00a0','#3a0060',_,_],
   ['#2a0040','#5a00a0','#9000e0','#b000ff','#b000ff','#9000e0','#5a00a0','#2a0040'],
   ['#3a0060','#9000e0','#ff4488','#9000e0','#9000e0','#ff4488','#9000e0','#3a0060'],
 ];

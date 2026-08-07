@@ -1,116 +1,164 @@
 // ═══════════════════════════════════════════════════════════
 //  背景地質與場景獨立渲染器 (Background Renderer Module)
-//  【架構隔離】背景邏輯與人物/UI完全解耦，修改人物絕不動到本檔案
+//  【Moonlighter 經典 45度正俯視 + 宗門功能房間與地牢地貌】
 // ═══════════════════════════════════════════════════════════
 
-const BackgroundRenderer = {
+window.BackgroundRenderer = {
+  images: {},
+  loaded: {},
+
+  init() {
+    const maps = {
+      sect: 'assets/backgrounds/bg_sect.png',
+      mountain: 'assets/backgrounds/bg_mountain.png',
+      cave: 'assets/backgrounds/bg_cave.png',
+      ruins: 'assets/backgrounds/bg_ruins.png'
+    };
+    for (let key in maps) {
+      const img = new Image();
+      img.onload = () => { this.loaded[key] = true; };
+      img.src = maps[key];
+      this.images[key] = img;
+    }
+  },
+
   draw(ctx, area) {
     if (!ctx) return;
     const terr = (area && area.terrain) ? area.terrain : 'sect';
 
-    if (terr === 'sect') {
-      // 🏛️ 青雲宗大殿：深藍青石地板 + 金紋聖徽與四角細花紋
-      ctx.fillStyle = '#080e1f';
-      ctx.fillRect(0, 0, 480, 270);
-
-      // 地磚正方格（細膩低調）
-      ctx.strokeStyle = 'rgba(80, 100, 160, 0.18)';
-      ctx.lineWidth = 1;
-      for (let x = 0; x < 480; x += 40) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 270); ctx.stroke();
-      }
-      for (let y = 0; y < 270; y += 40) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(480, y); ctx.stroke();
-      }
-
-      // 中央圓形宗門聖徽
-      ctx.strokeStyle = 'rgba(212, 168, 67, 0.12)';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(240, 135, 100, 0, Math.PI * 2); ctx.stroke();
-      ctx.beginPath(); ctx.arc(240, 135, 60, 0, Math.PI * 2); ctx.stroke();
-
-      // 四角淡金邊框標記
-      const corners = [[0,0], [480,0], [0,270], [480,270]];
-      ctx.strokeStyle = 'rgba(212, 168, 67, 0.15)';
-      ctx.lineWidth = 1;
-      corners.forEach(([cx, cy]) => {
-        const sx = cx === 0 ? 1 : -1, sy = cy === 0 ? 1 : -1;
-        ctx.beginPath(); ctx.moveTo(cx, cy + sy*30); ctx.lineTo(cx, cy); ctx.lineTo(cx + sx*30, cy); ctx.stroke();
-      });
-
-    } else if (terr === 'mountain') {
-      // 🌲 外門靈山：水墨遠山 + 深綠草地
-      ctx.fillStyle = '#061a0e';
-      ctx.fillRect(0, 0, 480, 270);
-
-      // 遠山層次
-      ctx.fillStyle = 'rgba(10, 40, 20, 0.6)';
-      ctx.beginPath(); ctx.moveTo(0, 120); ctx.lineTo(80, 80); ctx.lineTo(160, 100); ctx.lineTo(240, 60); ctx.lineTo(320, 90); ctx.lineTo(400, 70); ctx.lineTo(480, 100); ctx.lineTo(480, 270); ctx.lineTo(0, 270); ctx.fill();
-
-      // 草地地面
-      ctx.fillStyle = '#0a2e15';
-      ctx.fillRect(0, 150, 480, 120);
-
-      // 草地細紋
-      ctx.strokeStyle = 'rgba(30, 80, 40, 0.4)';
-      ctx.lineWidth = 1;
-      for (let x = 0; x < 480; x += 20) {
-        ctx.beginPath(); ctx.moveTo(x, 150); ctx.lineTo(x + 5, 270); ctx.stroke();
-      }
-
-    } else if (terr === 'cave') {
-      // 🌌 玄陰洞府：幽暗石窟 + 螢光水晶
-      ctx.fillStyle = '#05080f';
-      ctx.fillRect(0, 0, 480, 270);
-
-      // 石窟頂部輪廓
-      ctx.fillStyle = '#0a0f1a';
-      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(60, 40); ctx.lineTo(120, 15); ctx.lineTo(200, 50); ctx.lineTo(280, 20); ctx.lineTo(360, 45); ctx.lineTo(480, 25); ctx.lineTo(480, 0); ctx.fill();
-
-      // 石地板紋理線
-      ctx.strokeStyle = 'rgba(30, 41, 59, 0.5)';
-      ctx.lineWidth = 1;
-      for (let y = 160; y < 270; y += 18) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(480, y + 5); ctx.stroke();
-      }
-
-      // 螢光水晶簇
-      [
-        { x: 25, y: 70, c: '#38bdf8', r: 5 },
-        { x: 455, y: 55, c: '#818cf8', r: 4 },
-        { x: 18, y: 190, c: '#22d3ee', r: 4 },
-        { x: 462, y: 200, c: '#c084fc', r: 5 }
-      ].forEach(cr => {
-        ctx.fillStyle = cr.c + '33';
-        ctx.beginPath(); ctx.arc(cr.x, cr.y, cr.r * 3, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = cr.c;
-        ctx.beginPath(); ctx.arc(cr.x, cr.y, cr.r, 0, Math.PI * 2); ctx.fill();
-      });
-
-    } else if (terr === 'ruins') {
-      // 🌋 古修遺跡：熔岩地隙與火焰天空
-      ctx.fillStyle = '#0e0205';
-      ctx.fillRect(0, 0, 480, 270);
-
-      ctx.fillStyle = '#1a0408';
-      ctx.fillRect(0, 160, 480, 110);
-
-      ctx.strokeStyle = 'rgba(239, 68, 68, 0.35)';
-      ctx.lineWidth = 2;
-      [[0,190,200,170,480,195],[100,160,250,180,400,160]].forEach(pts => {
-        ctx.beginPath(); ctx.moveTo(pts[0], pts[1]); ctx.lineTo(pts[2], pts[3]); ctx.lineTo(pts[4], pts[5]); ctx.stroke();
-      });
-
-      const skyGrad = ctx.createLinearGradient(0, 0, 0, 160);
-      skyGrad.addColorStop(0, '#1a0408');
-      skyGrad.addColorStop(1, '#2d0610');
-      ctx.fillStyle = skyGrad;
-      ctx.fillRect(0, 0, 480, 160);
-
-      ctx.fillStyle = '#1e0508';
-      [[10, 60, 14, 100], [456, 55, 14, 105], [10, 180, 14, 90], [456, 175, 14, 95]].forEach(([x, y, w, h]) => {
-        ctx.fillRect(x, y, w, h);
-      });
+    // 1. 繪製 45度正俯視 Top-Down HD 背景圖
+    if (this.images[terr] && this.loaded[terr]) {
+      ctx.drawImage(this.images[terr], 0, 0, 1280, 720);
+    } else {
+      this.drawFallbackTopDownFloor(ctx, terr);
     }
+
+    // 2. 疊加 64x64 方格網格
+    this.drawTopDownGridOverlay(ctx, terr);
+
+    // 3. 若為宗門特定功能房間，繪製專屬造景 (丹爐/鍛造台/靈泉池/蒲團)
+    if (area && area.id) {
+      this.drawSectRoomScenery(ctx, area.id);
+    }
+
+    // 4. 繪製 Moonlighter 經典 N / S / W / E 石砌拱門
+    this.drawDoors(ctx, area);
+  },
+
+  // 宗門特定房間特化造景
+  drawSectRoomScenery(ctx, roomId) {
+    ctx.save();
+    if (roomId === 'sect_alchemy') {
+      // 煉丹房：中央九轉八卦巨型煉丹鼎與紫焰
+      ctx.fillStyle = '#1e1b4b';
+      ctx.beginPath(); ctx.arc(640, 220, 50, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 4; ctx.stroke();
+      ctx.fillStyle = '#c084fc';
+      ctx.beginPath(); ctx.arc(640, 220, 20, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(168, 85, 247, 0.35)';
+      ctx.beginPath(); ctx.arc(640, 220, 80, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#d4a843'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('🔥 九轉八卦煉丹鼎', 640, 150);
+    } else if (roomId === 'sect_forge') {
+      // 煉器房：地火熾熱熔爐與鐵砧
+      ctx.fillStyle = '#450a0a';
+      ctx.fillRect(575, 160, 130, 110);
+      ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 3.5; ctx.strokeRect(575, 160, 130, 110);
+      ctx.fillStyle = '#f59e0b';
+      ctx.beginPath(); ctx.arc(640, 215, 28, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffd700'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('🔨 地火神兵鐵砧', 640, 140);
+    } else if (roomId === 'sect_market') {
+      // 仙緣集市：商鋪櫃檯與靈草招牌
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(520, 180, 240, 60);
+      ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 3; ctx.strokeRect(520, 180, 240, 60);
+      ctx.fillStyle = '#00cfff'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('🏪 仙緣集市 · 靈草靈礦櫃檯', 640, 160);
+    } else if (roomId === 'sect_spring') {
+      // 靈泉池：中央碧波水池
+      ctx.fillStyle = 'rgba(14, 165, 233, 0.4)';
+      ctx.beginPath(); ctx.arc(640, 360, 180, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 3; ctx.stroke();
+    } else if (roomId === 'sect_meditate') {
+      // 修煉房：靜心打坐八卦蒲團
+      ctx.fillStyle = '#334155';
+      ctx.beginPath(); ctx.arc(640, 360, 60, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2; ctx.stroke();
+    }
+    ctx.restore();
+  },
+
+  drawDoors(ctx, area) {
+    if (!ctx) return;
+    const doors = (area && area.doors) ? area.doors : ['N', 'S', 'E', 'W'];
+    const glowCol = (area && area.terrain === 'ruins') ? '#ef4444' : (area && area.terrain === 'cave') ? '#38bdf8' : '#f59e0b';
+
+    ctx.save();
+    if (doors.includes('N')) {
+      ctx.fillStyle = '#0f172a'; ctx.fillRect(570, 0, 140, 28);
+      ctx.strokeStyle = glowCol; ctx.lineWidth = 3; ctx.strokeRect(575, 2, 130, 24);
+      ctx.fillStyle = glowCol; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('🚪 北門 (N)', 640, 18);
+    }
+    if (doors.includes('S')) {
+      ctx.fillStyle = '#0f172a'; ctx.fillRect(570, 692, 140, 28);
+      ctx.strokeStyle = glowCol; ctx.lineWidth = 3; ctx.strokeRect(575, 694, 130, 24);
+      ctx.fillStyle = glowCol; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('🚪 南門 (S)', 640, 710);
+    }
+    if (doors.includes('W')) {
+      ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 300, 28, 120);
+      ctx.strokeStyle = glowCol; ctx.lineWidth = 3; ctx.strokeRect(2, 305, 24, 110);
+      ctx.fillStyle = glowCol; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('西門', 14, 365);
+    }
+    if (doors.includes('E')) {
+      ctx.fillStyle = '#0f172a'; ctx.fillRect(1252, 300, 28, 120);
+      ctx.strokeStyle = glowCol; ctx.lineWidth = 3; ctx.strokeRect(1254, 305, 24, 110);
+      ctx.fillStyle = glowCol; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('東門', 1266, 365);
+    }
+    ctx.restore();
+  },
+
+  drawFallbackTopDownFloor(ctx, terr) {
+    const tileSize = 64;
+    const cols = 1280 / tileSize;
+    const rows = 720 / tileSize;
+    let tileA = '#131c2e', tileB = '#19263e';
+    if (terr === 'mountain') { tileA = '#0e291c'; tileB = '#153626'; }
+    else if (terr === 'cave') { tileA = '#0d182b'; tileB = '#13223d'; }
+    else if (terr === 'ruins') { tileA = '#210e14'; tileB = '#2c141c'; }
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        ctx.fillStyle = (r + c) % 2 === 0 ? tileA : tileB;
+        ctx.fillRect(c * tileSize, r * tileSize, tileSize, tileSize);
+      }
+    }
+  },
+
+  drawTopDownGridOverlay(ctx, terr) {
+    ctx.save();
+    const tileSize = 64;
+    const lineCol = terr === 'ruins' ? 'rgba(239, 68, 68, 0.2)' : terr === 'cave' ? 'rgba(56, 189, 248, 0.18)' : 'rgba(212, 168, 67, 0.18)';
+
+    ctx.strokeStyle = lineCol; ctx.lineWidth = 1.2;
+    for (let c = 0; c <= 1280; c += tileSize) {
+      ctx.beginPath(); ctx.moveTo(c, 0); ctx.lineTo(c, 720); ctx.stroke();
+    }
+    for (let r = 0; r <= 720; r += tileSize) {
+      ctx.beginPath(); ctx.moveTo(0, r); ctx.lineTo(1280, r); ctx.stroke();
+    }
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    ctx.fillRect(0, 0, 1280, 24);
+    ctx.fillRect(0, 696, 1280, 24);
+    ctx.fillRect(0, 0, 24, 720);
+    ctx.fillRect(1256, 0, 24, 720);
+    ctx.restore();
   }
 };
+
+window.BackgroundRenderer.init();

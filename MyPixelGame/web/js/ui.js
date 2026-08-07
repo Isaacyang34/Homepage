@@ -1,9 +1,23 @@
 // ═══════════════════════════════════════════════════════════
 //  UI 彈窗與選單互動模組 (UI & Modals)
+//  【地圖未探索隱藏、1~8號道具欄、徹底刪除煉丹煉器進度與右下角對應按鈕】
 // ═══════════════════════════════════════════════════════════
 
 function openInv() { renderInv(); $('inv-overlay').classList.add('show'); }
 function closeInv() { $('inv-overlay').classList.remove('show'); }
+
+// ⌨️ 一鍵關閉所有 Modal 彈窗 (按下 ESC 鍵觸發)
+function closeAllModals() {
+  closeInv();
+  closeChar();
+  closeHelp();
+  closeCfg();
+  closeAlchemy();
+  closeForge();
+  closeMap();
+  if (typeof closeMarketUI === 'function') closeMarketUI();
+}
+window.closeAllModals = closeAllModals;
 
 function openChar() {
   const r = REALMS[P.realmIdx];
@@ -26,19 +40,21 @@ function openChar() {
   const st = $('char-stats');
   if (st && r) {
     st.innerHTML = '';
-    const curArea = WORLD_AREAS.find(a => a.id === curAreaId);
+    const syn = getSynergyBonus();
     const rows = [
       ['境界', r.name],
       ['氣血', `${Math.ceil(P.hp)} / ${P.maxHp}`],
       ['靈力', `${Math.ceil(P.qi)} / ${P.maxQi}`],
       ['悟道', `${Math.ceil(P.exp)} / ${r.expNext}`],
-      ['攻擊力', P.atk], ['防禦力', P.def],
-      ['靈石', P.stones], ['擊殺', P.kills],
-      ['當前地圖', curArea ? (curArea.name.split('·')[1]?.trim() || curArea.name) : '未知'],
+      ['攻擊力', `${P.atk} (基礎:${r.atk} + 裝備:${P.weapon ? P.weapon.atk : 10} + 相生:${syn.atkBonus})`],
+      ['防禦力', `${P.def} (基礎:${r.def} + 相生:${syn.defBonus})`],
+      ['當前裝備武器', `${P.weapon ? P.weapon.name : '精鋼短劍'} [${WEAPON_TYPES[P.weapon.type].name}]`],
+      ['五行相生狀態', syn.activeSynergyName],
+      ['靈石', P.stones], ['擊殺數', P.kills],
     ];
     rows.forEach(([l, v]) => {
       const d = document.createElement('div'); d.className = 'cs-row';
-      d.innerHTML = `<span class="cs-lbl">${l}</span><span class="cs-val">${v}</span>`;
+      d.innerHTML = `<span class="cs-lbl">${l}</span><span class="cs-val" style="font-size:11px;">${v}</span>`;
       st.appendChild(d);
     });
   }
@@ -46,13 +62,96 @@ function openChar() {
 }
 function closeChar() { $('char-overlay').classList.remove('show'); }
 
-// ─── 說明 Modal ───
+// ─── 說明與設定 Modal ───
 function openHelp() { $('help-overlay').classList.add('show'); if ($('btn-help')) $('btn-help').classList.add('spin'); }
 function closeHelp() { $('help-overlay').classList.remove('show'); if ($('btn-help')) $('btn-help').classList.remove('spin'); }
-
-// ─── 設定 Modal ───
 function openCfg() { $('cfg-overlay').classList.add('show'); if ($('btn-cfg')) $('btn-cfg').classList.add('spin'); }
 function closeCfg() { $('cfg-overlay').classList.remove('show'); if ($('btn-cfg')) $('btn-cfg').classList.remove('spin'); }
+
+// 🛍️ 仙緣集市材料與靈草買賣系統
+const MARKET_ITEMS = [
+  { id: 'mat_lingzhi', name: '千年靈芝', icon: '🍄', buyCost: 60, sellReward: 30, desc: '頂級煉丹靈草，增加 +150 悟道經驗' },
+  { id: 'mat_chiyan', name: '赤炎花', icon: '🌺', buyCost: 50, sellReward: 25, desc: '火屬靈草，提升突破成功率' },
+  { id: 'mat_xuantie', name: '玄鐵精石', icon: '🪨', buyCost: 80, sellReward: 40, desc: '堅硬煉器礦石，可用於鍛造神兵' },
+  { id: 'mat_zitong', name: '紫銅金沙', icon: '✨', buyCost: 100, sellReward: 50, desc: '稀有五行金屬，提升武器附加威力' },
+];
+
+function openMarketUI() {
+  let mOverlay = document.getElementById('market-overlay');
+  if (!mOverlay) {
+    mOverlay = document.createElement('div');
+    mOverlay.id = 'market-overlay';
+    mOverlay.className = 'overlay';
+    document.body.appendChild(mOverlay);
+  }
+
+  mOverlay.innerHTML = `
+    <div class="modal" style="width:480px;">
+      <div class="modal-hdr"><div class="modal-title">🏪 仙緣集市 · 材料買賣舖</div><button class="close-x" onclick="closeMarketUI()">✕</button></div>
+      <div style="padding:14px 18px;">
+        <div style="font-size:12px;color:var(--gold);margin-bottom:10px;">💎 當前靈石: <span id="mkt-stones">${P.stones}</span></div>
+        <div id="market-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:280px;overflow-y:auto;"></div>
+      </div>
+    </div>
+  `;
+
+  const g = document.getElementById('market-grid');
+  if (g) {
+    MARKET_ITEMS.forEach(item => {
+      const card = document.createElement('div');
+      card.style.cssText = 'background:#06091a;border:1px solid var(--border);border-radius:5px;padding:8px;display:flex;flex-direction:column;justify-content:space-between;gap:4px;';
+      card.innerHTML = `
+        <div style="font-size:12px;color:var(--gold);font-weight:700;">${item.icon} ${item.name}</div>
+        <div style="font-size:9px;color:var(--dim);">${item.desc}</div>
+        <div style="font-size:9px;color:var(--jade);margin-top:2px;">買價: 💎${item.buyCost} | 賣價: 💎${item.sellReward}</div>
+        <div style="display:flex;gap:4px;margin-top:4px;">
+          <button class="cbtn" style="flex:1;padding:3px;font-size:10px;" onclick="buyMarketItem('${item.id}')">購買</button>
+          <button class="cbtn" style="flex:1;padding:3px;font-size:10px;background:#334155;" onclick="sellMarketItem('${item.id}')">出售</button>
+        </div>
+      `;
+      g.appendChild(card);
+    });
+  }
+
+  mOverlay.classList.add('show');
+}
+
+function closeMarketUI() {
+  const mOverlay = document.getElementById('market-overlay');
+  if (mOverlay) mOverlay.classList.remove('show');
+}
+
+function buyMarketItem(id) {
+  const item = MARKET_ITEMS.find(x => x.id === id);
+  if (!item) return;
+  if (P.stones < item.buyCost) { notify('❌ 靈石不足，無法購買！'); return; }
+  P.stones -= item.buyCost;
+  P.exp += 150;
+  if (typeof updateHUD === 'function') updateHUD();
+  const stEl = document.getElementById('mkt-stones'); if (stEl) stEl.textContent = P.stones;
+  notify(`🛍️ 成功購買【${item.name}】！修為增長 +150！`);
+}
+
+function sellMarketItem(id) {
+  const item = MARKET_ITEMS.find(x => x.id === id);
+  if (!item) return;
+  P.stones += item.sellReward;
+  if (typeof updateHUD === 'function') updateHUD();
+  const stEl = document.getElementById('mkt-stones'); if (stEl) stEl.textContent = P.stones;
+  notify(`💰 成功出售【${item.name}】！獲得靈石 +${item.sellReward}！`);
+}
+
+window.openMarketUI = openMarketUI;
+window.closeMarketUI = closeMarketUI;
+window.buyMarketItem = buyMarketItem;
+window.sellMarketItem = sellMarketItem;
+
+// 📜 功法修煉與五行相生 UI 彈窗
+function openSutraUI() {
+  const syn = getSynergyBonus();
+  notify(`📜 功法修煉：【${syn.activeSynergyName}】！${syn.activeSynergyDesc}`);
+  openChar();
+}
 
 // ─── 九轉煉丹房 ───
 const ALCHEMY_RECIPES = [
@@ -85,56 +184,63 @@ function startAlchemy(id) {
   setTimeout(() => { r.action(); }, 1500);
 }
 
-// ─── 神兵煉器坊 ───
-const FORGE_RECIPES = [
-  { id: 'forge_sword', name: '🗡️ 精鋼長劍', cost: 150, atk: 15, desc: '基礎攻擊力 +15 (近身型態)', action: () => { P.atk += 15; notify('🔨 鍛造成功！裝備【精鋼長劍】，攻擊力+15！'); updateHUD(); } },
-  { id: 'forge_robe', name: '🥋 青雲道袍', cost: 200, hp: 80, def: 8, desc: '最大氣血 +80，防禦力 +8', action: () => { P.maxHp += 80; P.hp += 80; P.def += 8; notify('🔨 鍛造成功！穿上【青雲道袍】，氣血+80，防禦+8！'); updateHUD(); } },
-  { id: 'forge_talisman', name: '⚡ 紫電神木法杖', cost: 350, atk: 25, unlock: 'TALISMAN', desc: '解鎖【五行雷符】功法！攻擊力 +25', action: () => {
-    P.atk += 25;
-    if (!P.unlockedStances.includes('TALISMAN')) {
-      P.unlockedStances.push('TALISMAN');
-      if ($('lbl-talisman')) $('lbl-talisman').textContent = '雷符';
-      notify('⚡ 鍛造神兵！成功解鎖功法【五行雷符】！');
-    } else notify('🔨 鍛造成功！【紫電神木法杖】攻擊力+25！');
-    updateHUD();
-  }},
-  { id: 'forge_frost', name: '❄️ 玄冰法珠', cost: 350, atk: 25, unlock: 'FROST', desc: '解鎖【寒冰法訣】功法！攻擊力 +25', action: () => {
-    P.atk += 25;
-    if (!P.unlockedStances.includes('FROST')) {
-      P.unlockedStances.push('FROST');
-      if ($('lbl-frost')) $('lbl-frost').textContent = '冰法';
-      notify('❄️ 鍛造神兵！成功解鎖功法【寒冰法訣】！');
-    } else notify('🔨 鍛造成功！【玄冰法珠】攻擊力+25！');
-    updateHUD();
-  }},
-];
-
+// 🔨 神兵煉器坊 (五行神兵與三類武器)
 function openForge() {
   const g = $('forge-grid');
   if (!g) return;
   g.innerHTML = '';
-  FORGE_RECIPES.forEach(r => {
+  FORGE_RECIPES_V2.forEach(r => {
+    const wInfo = WEAPON_TYPES[r.type];
     const card = document.createElement('div');
     card.style.cssText = 'background:#06091a;border:1px solid var(--border);border-radius:5px;padding:8px;display:flex;align-items:center;justify-content:space-between;';
-    card.innerHTML = `<div><div style="font-size:12px;color:var(--gold);font-weight:700;">${r.name}</div><div style="font-size:9px;color:var(--dim);margin-top:2px;">${r.desc}</div><div style="font-size:9px;color:var(--jade);margin-top:2px;">所需靈石: 💎${r.cost}</div></div><button class="cbtn" style="padding:4px 10px;" onclick="startForging('${r.id}')">鍛造</button>`;
+    card.innerHTML = `<div><div style="font-size:12px;color:var(--gold);font-weight:700;">${r.name} [${wInfo.name}]</div><div style="font-size:9px;color:var(--dim);margin-top:2px;">${r.desc}</div><div style="font-size:9px;color:var(--jade);margin-top:2px;">所需靈石: 💎${r.cost}</div></div><button class="cbtn" style="padding:4px 10px;" onclick="startForging('${r.id}')">打造裝備</button>`;
     g.appendChild(card);
   });
   $('forge-overlay').classList.add('show');
 }
 function closeForge() { $('forge-overlay').classList.remove('show'); }
 function startForging(id) {
-  const r = FORGE_RECIPES.find(x => x.id === id);
+  const r = FORGE_RECIPES_V2.find(x => x.id === id);
   if (!r) return;
   if (P.stones < r.cost) { notify('❌ 靈石不足，無法鍛造神兵！'); return; }
-  P.stones -= r.cost; updateHUD();
+  P.stones -= r.cost;
+  P.weapon = { name: r.name, type: r.type, elem: r.elem, atk: r.atk, desc: r.desc };
+  updateHUD();
   closeForge();
-  notify(`🔨 鐵鎚揮舞，開始打磨【${r.name}】…`);
-  setTimeout(() => { r.action(); }, 1500);
+  notify(`🔨 打造完成！成功裝備【${r.name}】！攻擊範圍擴展至 ${WEAPON_TYPES[r.type].name}！`);
 }
 
-// ─── 世界地圖選單 ───
+// ─── 世界地圖選單 (未探索區域隱藏迷霧機制) ───
 let selectedAreaId = null;
+
+function initMapEvents() {
+  const wc = $('wmap-canvas');
+  if (!wc || wc._bound) return;
+  wc._bound = true;
+  wc.addEventListener('click', (e) => {
+    const rect = wc.getBoundingClientRect();
+    const scaleX = wc.width / rect.width;
+    const scaleY = wc.height / rect.height;
+    const cx = (e.clientX - rect.left) * scaleX;
+    const cy = (e.clientY - rect.top) * scaleY;
+
+    // 只有已解鎖/已探索地區能被點擊傳送
+    const unlockedWorlds = DUNGEON_WORLDS.filter((a, idx) => idx <= P.worldIdx);
+    const clickedArea = unlockedWorlds.find((a, idx) => Math.hypot(cx - (120 + idx * 110), cy - 170) <= 40);
+    if (!clickedArea) return;
+
+    P.worldIdx = DUNGEON_WORLDS.indexOf(clickedArea);
+    P.currentFloor = 1;
+    curAreaId = 'sect_gate';
+    P.x = 640; P.y = 480;
+    closeMap();
+    updateHUD();
+    notify('🌀 御劍傳送！已選擇秘境目標【' + clickedArea.name + '】！');
+  });
+}
+
 function openMap() {
+  initMapEvents();
   drawWorldMap();
   $('map-overlay').classList.add('show');
 }
@@ -150,26 +256,21 @@ function drawWorldMap() {
   for (let x = 0; x < 600; x += 30) { wctx.beginPath(); wctx.moveTo(x, 0); wctx.lineTo(x, 340); wctx.stroke(); }
   for (let y = 0; y < 340; y += 30) { wctx.beginPath(); wctx.moveTo(0, y); wctx.lineTo(600, y); wctx.stroke(); }
 
-  const PATHS = [[0, 1], [0, 2], [0, 3], [1, 2]];
-  PATHS.forEach(([a, b]) => {
-    const A = WORLD_AREAS[a], B = WORLD_AREAS[b];
-    const grad = wctx.createLinearGradient(A.x, A.y, B.x, B.y);
-    grad.addColorStop(0, 'rgba(212,168,67,.4)'); grad.addColorStop(1, 'rgba(82,200,160,.4)');
-    wctx.strokeStyle = grad; wctx.lineWidth = 2; wctx.setLineDash([4, 4]);
-    wctx.beginPath(); wctx.moveTo(A.x, A.y); wctx.lineTo(B.x, B.y); wctx.stroke();
-    wctx.setLineDash([]);
-  });
+  // 僅繪製已探索/解鎖的秘境地圖節點
+  DUNGEON_WORLDS.forEach((area, idx) => {
+    const ax = 120 + idx * 110, ay = 170;
+    const isUnlocked = idx <= P.worldIdx;
 
-  WORLD_AREAS.forEach((area) => {
-    const isCur = area.id === curAreaId;
-    const isSel = area.id === selectedAreaId;
-    wctx.fillStyle = isCur ? 'rgba(0,207,255,.25)' : isSel ? 'rgba(212,168,67,.25)' : 'rgba(20,30,50,.7)';
-    wctx.strokeStyle = isCur ? 'var(--blue)' : isSel ? 'var(--gold)' : '#3a4870';
-    wctx.lineWidth = isCur || isSel ? 2 : 1;
-    wctx.beginPath(); wctx.arc(area.x, area.y, 22, 0, Math.PI * 2); wctx.fill(); wctx.stroke();
-    wctx.fillStyle = isCur ? '#00cfff' : isSel ? '#ffd700' : '#a0b0d0';
-    wctx.font = 'bold 11px sans-serif'; wctx.textAlign = 'center'; wctx.textBaseline = 'middle';
-    wctx.fillText(area.mapLabel, area.x, area.y);
+    if (isUnlocked) {
+      const isCur = idx === P.worldIdx;
+      wctx.fillStyle = isCur ? 'rgba(0,207,255,.25)' : 'rgba(20,30,50,.7)';
+      wctx.strokeStyle = isCur ? 'var(--blue)' : '#3a4870';
+      wctx.lineWidth = isCur ? 2 : 1;
+      wctx.beginPath(); wctx.arc(ax, ay, 22, 0, Math.PI * 2); wctx.fill(); wctx.stroke();
+      wctx.fillStyle = isCur ? '#00cfff' : '#a0b0d0';
+      wctx.font = 'bold 11px sans-serif'; wctx.textAlign = 'center'; wctx.textBaseline = 'middle';
+      wctx.fillText(area.name.split('·')[1]?.trim() || area.name, ax, ay);
+    }
   });
 }
 
@@ -192,4 +293,70 @@ function advanceDlg() {
     $('dlg-box').style.display = 'none';
     if (oldNpc.onEnd) oldNpc.onEnd();
   } else typeDlg(dlgNpc.dlg[dlgIdx]);
+}
+
+// 🎨 動態 UI 排版重組 (徹底刪除煉丹煉器進度文字與右下角對應按鈕)
+function applyUIRelayout() {
+  try {
+    // 1. 徹底刪除右上角煉丹與煉器進度文字面板
+    const roStatus = document.getElementById('ro-status-panel');
+    if (roStatus) roStatus.remove();
+
+    // 2. 道具快捷欄只留 1 ~ 8 格 (移除第 9 格)
+    const hotbarItems = document.getElementById('hotbar-items');
+    if (hotbarItems) {
+      const slot9 = hotbarItems.querySelector('[data-slot="9"]');
+      if (slot9) slot9.remove();
+    }
+
+    const hotbarContainer = document.getElementById('hud-hotbar');
+    if (hotbarContainer) {
+      hotbarContainer.style.cssText = 'position:fixed; left:50%; transform:translateX(-50%); bottom:18px; top:auto; z-index:100; pointer-events:auto; margin:0;';
+    }
+
+    // 3. 左側氣血/靈力/經驗條靠左下緣對齊 (Bottom-Left Aligned)
+    const hudBars = document.querySelector('.hud-bars') || document.getElementById('hud-bars');
+    if (hudBars) {
+      hudBars.style.cssText = 'position:fixed; left:18px; bottom:18px; top:auto; display:flex; flex-direction:column; align-items:flex-start; gap:5px; z-index:100; pointer-events:auto; margin:0;';
+    }
+
+    // 4. 右上角羅盤小地圖與靈石
+    const minimap = document.getElementById('hud-minimap');
+    if (minimap) {
+      minimap.style.cssText = 'position:fixed; right:18px; top:18px; z-index:99; margin:0;';
+    }
+
+    const hudStones = document.getElementById('hud-stones');
+    if (hudStones) {
+      hudStones.style.cssText = 'position:fixed; right:18px; top:118px; background:rgba(6,9,26,0.85); border:1px solid rgba(212,168,67,0.4); border-radius:12px; padding:4px 10px; font-size:12px; color:#ffd700; z-index:99; margin:0;';
+    }
+
+    // 5. 徹底刪除右下角的煉丹 (🧪) 與 煉器 (🔨) 按鈕，只保留剩餘按鈕 (🎒 儲物袋, 📋 人物, 🗺 地圖, ❓ 說明)
+    const btnBox = document.querySelector('.hud-btns') || document.getElementById('hud-btns');
+    if (btnBox) {
+      const btns = btnBox.querySelectorAll('button, .hud-btn, .sys-btn');
+      btns.forEach(b => {
+        const txt = b.textContent || b.title || '';
+        const onclickAttr = b.getAttribute('onclick') || '';
+        if (txt.includes('🧪') || txt.includes('🔨') || onclickAttr.includes('openAlchemy') || onclickAttr.includes('openForge')) {
+          b.remove();
+        } else {
+          b.style.cssText = 'width:36px; height:36px; min-width:36px; min-height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; padding:0; font-size:15px; background:#0c1424; border:1.5px solid var(--border); box-shadow:0 3px 8px rgba(0,0,0,0.6); cursor:pointer; margin:0;';
+        }
+      });
+      btnBox.style.cssText = 'position:fixed; right:18px; bottom:18px; top:auto; display:flex; flex-direction:column-reverse; gap:6px; align-items:center; z-index:101; pointer-events:auto; margin:0; padding:0;';
+    }
+
+    // 6. 清理原父層系統容器干擾
+    const hudSys = document.getElementById('hud-sys');
+    if (hudSys) {
+      hudSys.style.cssText = 'position:static; background:none; border:none; padding:0; margin:0;';
+    }
+  } catch(e) {}
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', applyUIRelayout);
+} else {
+  applyUIRelayout();
 }

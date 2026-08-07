@@ -1,43 +1,58 @@
 // ═══════════════════════════════════════════════════════════
 //  敵人與 Boss 行為 AI (Enemy & Boss State Machine)
+//  【Moonlighter 戰鬥AI：主動尋路、巡邏漫步與格層方格移動限制】
 // ═══════════════════════════════════════════════════════════
 
 const spawnedE = {};
 const EPROJ = [];
 
 function getCurArea() {
-  return WORLD_AREAS.find(a => a.id === curAreaId) || WORLD_AREAS[0];
+  if (typeof SECT_ROOMS !== 'undefined' && SECT_ROOMS[curAreaId]) {
+    return SECT_ROOMS[curAreaId];
+  }
+  if (typeof activeDungeonRooms !== 'undefined' && activeDungeonRooms && activeDungeonRooms[currentRoomId]) {
+    return activeDungeonRooms[currentRoomId];
+  }
+  if (typeof DUNGEON_WORLDS !== 'undefined' && DUNGEON_WORLDS[0]) {
+    return DUNGEON_WORLDS[0];
+  }
+  return { id: 'sect_main', terrain: 'sect', doors: ['N','S','E','W'], enemies: [] };
+}
+
+function resetEnemies(areaId) {
+  delete spawnedE[areaId];
 }
 
 function getEnemies() {
   if (!spawnedE[curAreaId]) {
     const area = getCurArea();
-    spawnedE[curAreaId] = area.enemies.map(e => ({
+    const enemyList = (area && area.enemies) ? area.enemies : [];
+    spawnedE[curAreaId] = enemyList.map(e => ({
       ...e,
-      ox: e.x, oy: e.y,
+      ox: e.x || 640, oy: e.y || 360,
       aiSt: 'PATROL',
-      aiTimer: 0,
-      patrolAngle: Math.random() * Math.PI * 2,
-      patrolSpeed: 0.8 + Math.random() * 0.4,
+      patrolTimer: Math.random() * 60,
+      patrolDx: (Math.random() - 0.5) * 1.5,
+      patrolDy: (Math.random() - 0.5) * 1.5,
       atkCd: 0, specialCd: 0, frozenTimer: 0, hflash: 0,
       facingLeft: false, alive: true,
     }));
-    // 綁定 AI 屬性
     spawnedE[curAreaId].forEach(e => initEnemyAI(e));
   }
-  return spawnedE[curAreaId];
+  return spawnedE[curAreaId] || [];
 }
 
 function initEnemyAI(e) {
+  if (!e) return;
   e.facingLeft = false;
   switch (e.aiType) {
-    case 'boss':   e.aggroR = 220; e.atkRange = 28; e.canCharge = true; e.canShoot = true; e.canSlam = true; break;
-    case 'wolf':   e.aggroR = 120; e.atkRange = 16; e.chargeSpd = 4.5; e.canCharge = true; break;
-    case 'spider': e.aggroR = 150; e.atkRange = 80; e.keepDist = 70; e.canShoot = true; break;
-    case 'mole':   e.aggroR = 100; e.atkRange = 22; e.canBurrow = true; break;
-    case 'golem':  e.aggroR = 110; e.atkRange = 24; e.canSlam = true; break;
-    case 'bat':    e.aggroR = 160; e.atkRange = 18; e.spd = 1.2; break;
-    default:       e.aggroR = 100; e.atkRange = 18; break;
+    case 'boss':   e.aggroR = 600; e.atkRange = 50; e.spd = 2.8; break;
+    case 'wolf':   e.aggroR = 480; e.atkRange = 35; e.spd = 3.2; break;
+    case 'spider': e.aggroR = 450; e.atkRange = 32; e.spd = 2.8; break;
+    case 'mole':   e.aggroR = 420; e.atkRange = 30; e.spd = 2.5; break;
+    case 'golem':  e.aggroR = 400; e.atkRange = 40; e.spd = 2.2; break;
+    case 'bat':    e.aggroR = 500; e.atkRange = 30; e.spd = 3.6; break;
+    default:       e.aggroR = 450; e.atkRange = 30; e.spd = 2.6; break;
   }
 }
 
@@ -45,7 +60,7 @@ function updEnemies() {
   const dt = 0.016;
   const list = getEnemies();
   list.forEach(e => {
-    if (!e.alive) return;
+    if (!e || !e.alive) return;
     if (e.frozenTimer > 0) { e.frozenTimer -= dt; return; }
     if (e.hflash > 0) e.hflash--;
 
@@ -55,24 +70,26 @@ function updEnemies() {
     e.facingLeft = dx < 0;
 
     if (e.atkCd > 0) e.atkCd -= dt;
-    if (e.specialCd > 0) e.specialCd -= dt;
 
     if (e.isBoss) {
       const pct = e.hp / e.maxHp;
-      const bossHud = $('boss-hud');
+      const bossHud = document.getElementById('boss-hud');
       if (bossHud) {
         bossHud.style.display = 'block';
-        if ($('boss-name')) $('boss-name').textContent = `👑 ${e.name} (${pct > .5 ? 'Phase 1' : pct > .2 ? 'Phase 2 (狂暴!)' : 'Phase 3 (毀滅狂暴!)'})`;
-        if ($('boss-hp-bar')) $('boss-hp-bar').style.width = (pct * 100) + '%';
-        if ($('boss-hp-val')) $('boss-hp-val').textContent = `${Math.ceil(e.hp)} / ${e.maxHp}`;
+        if (document.getElementById('boss-name')) document.getElementById('boss-name').textContent = `👑 ${e.name} (${pct > .5 ? 'Phase 1' : pct > .2 ? 'Phase 2 (狂暴!)' : 'Phase 3 (毀滅狂暴!)'})`;
+        if (document.getElementById('boss-hp-bar')) document.getElementById('boss-hp-bar').style.width = (pct * 100) + '%';
+        if (document.getElementById('boss-hp-val')) document.getElementById('boss-hp-val').textContent = `${Math.ceil(e.hp)} / ${e.maxHp}`;
       }
       if (pct <= .5 && !e._p2Rage) { e._p2Rage = true; e.spd *= 1.45; }
     }
 
-    if (dist < e.aggroR && e.atkCd <= 0) {
+    // 1. 發現玩家 -> 追逐攻擊
+    if (dist < e.aggroR) {
       e.x += ndx * e.spd;
       e.y += ndy * e.spd;
-      if (dist <= e.atkRange && !P.invincible) {
+
+      // 觸及玩家攻擊判定
+      if (dist <= e.atkRange && !P.invincible && e.atkCd <= 0) {
         const dmg = Math.max(1, e.atk - P.def);
         P.hp = Math.max(0, P.hp - dmg);
         P.hurtFlash = 12; P.invincible = true;
@@ -80,6 +97,26 @@ function updEnemies() {
         setTimeout(() => { P.invincible = false; }, 400);
         updateHUD();
       }
+    } else {
+      // 2. 巡邏漫步
+      e.patrolTimer--;
+      if (e.patrolTimer <= 0) {
+        e.patrolTimer = 60 + Math.random() * 90;
+        e.patrolDx = (Math.random() - 0.5) * 1.5;
+        e.patrolDy = (Math.random() - 0.5) * 1.5;
+      }
+      e.x += e.patrolDx;
+      e.y += e.patrolDy;
     }
+
+    // 嚴格限制怪物移動範圍只能在中間方格池 (MIN_X: 64, MAX_X: 1216, MIN_Y: 64, MAX_Y: 656)
+    e.x = Math.max(64, Math.min(1216, e.x));
+    e.y = Math.max(64, Math.min(656, e.y));
   });
 }
+
+// 綁定全域 window 物件
+window.updEnemies = updEnemies;
+window.getCurArea = getCurArea;
+window.getEnemies = getEnemies;
+window.resetEnemies = resetEnemies;

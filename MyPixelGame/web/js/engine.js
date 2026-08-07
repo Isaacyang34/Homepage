@@ -1,25 +1,61 @@
 // ═══════════════════════════════════════════════════════════
-//  遊戲核心引擎、渲染器與動態全螢幕滿板自適應 (Engine & Full-Viewport Scaler)
+//  遊戲核心引擎、生成式 5層地牢與三類武器戰鬥系統 (Engine & Combat)
 // ═══════════════════════════════════════════════════════════
 
 let canvas, ctx;
 let lastT = 0, T = 0;
 let SQS = [], PARTS = [], FLOATS = [], LGHTS = [];
+let doorCooldown = 0;
+let activeDungeonRooms = null; // 當前生成式地牢地圖樹
+let currentRoomId = 'room_0';   // 當前所在房間 ID
 
-// 動態滿板縮放計算 (Auto-Scale to fill screen nicely)
+// 🌀 房間過場黑幕轉場系統 (Fade Transition System)
+let isRoomTransitioning = false;
+let roomTransitionAlpha = 0;
+let roomTransitionPhase = 'IDLE'; // 'FADE_OUT' | 'FADE_IN' | 'IDLE'
+let onPeakAction = null;
+
+function triggerRoomTransition(onPeakCallback) {
+  if (isRoomTransitioning) return;
+  isRoomTransitioning = true;
+  roomTransitionPhase = 'FADE_OUT';
+  roomTransitionAlpha = 0;
+  onPeakAction = onPeakCallback;
+}
+
+function updRoomTransition() {
+  if (!isRoomTransitioning) return;
+  if (roomTransitionPhase === 'FADE_OUT') {
+    roomTransitionAlpha += 0.1;
+    if (roomTransitionAlpha >= 1.0) {
+      roomTransitionAlpha = 1.0;
+      if (typeof onPeakAction === 'function') {
+        try { onPeakAction(); } catch(e) {}
+      }
+      roomTransitionPhase = 'FADE_IN';
+    }
+  } else if (roomTransitionPhase === 'FADE_IN') {
+    roomTransitionAlpha -= 0.1;
+    if (roomTransitionAlpha <= 0) {
+      roomTransitionAlpha = 0;
+      roomTransitionPhase = 'IDLE';
+      isRoomTransitioning = false;
+    }
+  }
+}
+
+// 動態滿板縮放計算 (原生 1280x720 720p HD 高畫質畫布)
 function autoScaleViewport() {
   const viewport = document.getElementById('game-viewport');
   const gc = document.getElementById('gc');
   if (!viewport || !gc) return;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  // 保持 480x270 的 16:9 比例，等比放大至填滿螢幕
-  const scaleX = vw / 480;
-  const scaleY = vh / 270;
-  // 取較小的陷位保持比例
+  const scaleX = vw / 1280;
+  const scaleY = vh / 720;
   const scale = Math.min(scaleX, scaleY);
-  const displayW = Math.round(480 * scale);
-  const displayH = Math.round(270 * scale);
+  const displayW = Math.round(1280 * scale);
+  const displayH = Math.round(720 * scale);
   gc.style.width = displayW + 'px';
   gc.style.height = displayH + 'px';
 }
@@ -28,12 +64,16 @@ window.addEventListener('resize', autoScaleViewport);
 
 function initEngine() {
   canvas = document.getElementById('gc');
-  if (canvas) ctx = canvas.getContext('2d');
+  if (canvas) {
+    canvas.width = 1280;
+    canvas.height = 720;
+    ctx = canvas.getContext('2d');
+  }
   window.ctx = ctx;
   autoScaleViewport();
 }
 
-// ───── 招式與特效物理 ─────
+// ───── 特效物理 ─────
 function spark(x, y, col = '#00cfff', num = 6, spd = 2, maxLife = 20, sz = 2) {
   for (let i = 0; i < num; i++) {
     const a = Math.random() * Math.PI * 2;
@@ -46,64 +86,59 @@ function floatTxt(x, y, txt, col = '#fff') {
   FLOATS.push({ x, y, txt, col, life: 40, vy: -0.7 });
 }
 
-function spiralQi(x, y) {
-  for (let i = 0; i < 2; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const r = Math.random() * 26 + 10;
-    PARTS.push({ x: x + Math.cos(a) * r, y: y + Math.sin(a) * r, tx: x, ty: y, qi: true, col: i % 2 ? '#00cfff' : '#b86fff', life: 25, ml: 25, sz: 2 });
-  }
-}
-
-function setStance(st) {
-  if (!P.unlockedStances.includes(st)) {
-    const msg = st === 'TALISMAN' ? '🔒 【五行雷符】未解鎖！需要晉升【練氣二重】或鍛造【紫電神木法杖】' : '🔒 【寒冰法訣】未解鎖！需要晉升【練氣三重】或鍛造【玄冰法珠】';
-    notify(msg);
-    return;
-  }
-  P.stance = st;
-  document.querySelectorAll('#hotbar .hslot').forEach(s => s.classList.remove('active-slot'));
-  const m = { SWORD: ['st-sword', '🗡️ 近身短劍 (劍氣與萬劍歸宗)'], TALISMAN: ['st-talisman', '⚡ 五行雷符 (神雷與九天雷陣)'], FROST: ['st-frost', '❄️ 寒冰法訣 (冰錐與冰封萬里)'] };
-  if (m[st]) {
-    const el = document.getElementById(m[st][0]);
-    if (el) el.classList.add('active-slot');
-    notify(m[st][1]);
-  }
-}
-
 function quickPill(type = 'pill_hp') {
   useItem(type);
 }
 
+// ⚔️ 武器種類（劍、槍、鏢）與五行相生揮砍/發射邏輯
 function triggerAttack(chargeLevel) {
-  if (P.state === 'DIE') return;
+  if (P.state === 'DIE' || isRoomTransitioning) return;
   if (P.state === 'MEDITATE') P.state = 'IDLE';
   const fx = P.facing.x || (P.facing.y === 0 ? 1 : 0), fy = P.facing.y;
   P.state = 'ATTACK';
-  setTimeout(() => { if (P.state === 'ATTACK') P.state = 'IDLE'; }, 280);
+  setTimeout(() => { if (P.state === 'ATTACK') P.state = 'IDLE'; }, 220);
 
-  if (P.stance === 'SWORD') {
-    if (chargeLevel === 0) {
-      SQS.push({ x: P.x + fx * 14, y: P.y + fy * 14, dx: fx, dy: fy, life: 65, type: 'sword', dmgMult: 1 });
-      spark(P.x + fx * 14, P.y + fy * 14, '#00cfff', 5, 3, 18);
-    } else if (chargeLevel === 1) {
-      SQS.push({ x: P.x + fx * 16, y: P.y + fy * 16, dx: fx, dy: fy, life: 80, type: 'mega_sword', dmgMult: 2.5, sz: 16 });
-      spark(P.x + fx * 16, P.y + fy * 16, '#00ffff', 15, 4, 30, 4);
-      notify('⚔ 強化斬！巨型劍芒！');
-    } else {
-      screenShake = 12;
-      notify('⚡⚡ 萬劍歸宗 ⚡⚡');
-      const enemies = getEnemies().filter(e => e.alive);
-      for (let i = 0; i < 8; i++) {
-        setTimeout(() => {
-          const a = i * Math.PI * 2 / 8;
-          const sx = P.x + Math.cos(a) * 40, sy = P.y + Math.sin(a) * 40;
-          const target = enemies[i % enemies.length] || { x: P.x + fx * 100, y: P.y + fy * 100 };
-          const tdx = target.x - sx, tdy = target.y - sy, tl = Math.hypot(tdx, tdy) || 1;
-          SQS.push({ x: sx, y: sy, dx: tdx / tl, dy: tdy / tl, life: 90, type: 'homing_sword', dmgMult: 3.5, sz: 12 });
-          spark(sx, sy, '#00e5ff', 10, 3.5, 25, 3);
-        }, i * 70);
-      }
-    }
+  const wType = (P.weapon && P.weapon.type) ? P.weapon.type : 'SWORD';
+  const wElem = (P.weapon && P.weapon.elem) ? P.weapon.elem : 'GOLD';
+
+  // 提升當前裝備功法熟練度
+  if (P.equippedSutraIds) {
+    P.equippedSutraIds.forEach(sId => {
+      if (typeof trainSutraMastery === 'function') trainSutraMastery(sId, 12);
+    });
+  }
+
+  // 1. 🗡️ 劍 (Sword) - 近戰 1 格 (~55px Hitbox)
+  if (wType === 'SWORD') {
+    const slashX = P.x + fx * 38;
+    const slashY = P.y + fy * 38;
+    SQS.push({
+      x: slashX, y: slashY, dx: 0, dy: 0, speed: 0, life: 10,
+      type: 'sword', elem: wElem, dmgMult: chargeLevel > 0 ? 2.2 : 1.0, sz: chargeLevel > 0 ? 95 : 65
+    });
+    spark(slashX, slashY, chargeLevel > 0 ? '#00ffff' : '#00cfff', chargeLevel > 0 ? 14 : 8, 3.5, 12, 3);
+  }
+  // 2. 🔱 槍 (Spear) - 直線貫穿 3 格 (~150px Hitbox)
+  else if (wType === 'SPEAR') {
+    const spearX = P.x + fx * 85;
+    const spearY = P.y + fy * 85;
+    SQS.push({
+      x: spearX, y: spearY, dx: 0, dy: 0, speed: 0, life: 12,
+      type: 'spear', elem: wElem, dmgMult: chargeLevel > 0 ? 2.8 : 1.4, sz: chargeLevel > 0 ? 180 : 130
+    });
+    spark(spearX, spearY, '#f59e0b', 12, 4.5, 14, 3);
+    notify('🔱 長槍出洞！直線貫穿 3 格！');
+  }
+  // 3. 🎯 鏢 (Dart) - 遠程暗器 10 格 (~500px 飛行發射)
+  else if (wType === 'DART') {
+    const startX = P.x + fx * 25;
+    const startY = P.y + fy * 25;
+    SQS.push({
+      x: startX, y: startY, dx: fx, dy: fy, speed: 12, life: 42,
+      type: 'dart', elem: wElem, dmgMult: chargeLevel > 0 ? 2.0 : 1.1, sz: 32
+    });
+    spark(startX, startY, '#38bdf8', 6, 2.5, 10, 2);
+    notify('🎯 甩射寒冰飛鏢！破空射擊 10 格！');
   }
 }
 
@@ -113,17 +148,482 @@ function toggleMed() {
 }
 
 function doDash() {
-  if (P.state === 'DASH' || P.state === 'DIE') return;
+  if (P.state === 'DASH' || P.state === 'DIE' || isRoomTransitioning) return;
   if (P.state === 'MEDITATE') P.state = 'IDLE';
   P.state = 'DASH'; P.invincible = true;
   const ox = P.x, oy = P.y;
-  P.x = Math.max(10, Math.min(470, P.x + P.facing.x * 32));
-  P.y = Math.max(10, Math.min(260, P.y + P.facing.y * 32));
+  P.x = Math.max(64, Math.min(1216, P.x + P.facing.x * 75));
+  P.y = Math.max(64, Math.min(656, P.y + P.facing.y * 75));
   for (let i = 0; i < 6; i++) PARTS.push({ x: ox + (P.x - ox) * i / 6, y: oy + (P.y - oy) * i / 6, vx: 0, vy: 0, col: '#4a8ad8', life: 18, ml: 18, sz: 3 });
   setTimeout(() => { P.invincible = false; if (P.state === 'DASH') P.state = 'IDLE'; }, 240);
 }
 
-// 按鍵監聽
+// 🏰 5 層生成式地牢拓撲生成器 (最多 10 個房間，邊角為 BOSS 房)
+function generateFloorDungeon(worldIdx, floor) {
+  const world = (typeof DUNGEON_WORLDS !== 'undefined') ? (DUNGEON_WORLDS[worldIdx] || DUNGEON_WORLDS[0]) : { name: '秘境', mobs: [], boss: {} };
+  const roomCount = Math.floor(Math.random() * 3) + 7;
+  const rooms = {};
+
+  for (let i = 0; i < roomCount; i++) {
+    const id = `room_${i}`;
+    const isEntrance = (i === 0);
+    const isBoss = (i === roomCount - 1);
+
+    let doors = ['N', 'S', 'E', 'W'];
+    if (isBoss) doors = ['S'];
+    else if (isEntrance) doors = ['S', 'N', 'E'];
+
+    const multHp = 1 + (floor - 1) * 0.35;
+    const multAtk = 1 + (floor - 1) * 0.3;
+    const multRw = 1 + (floor - 1) * 0.45;
+
+    let enemies = [];
+    if (isBoss && world.boss) {
+      const b = world.boss;
+      enemies = [{
+        ...b,
+        hp: Math.ceil((b.hp || 300) * multHp), maxHp: Math.ceil((b.hp || 300) * multHp),
+        atk: Math.ceil((b.atk || 20) * multAtk),
+        reward: { stones: Math.ceil((b.reward?.stones || 200) * multRw), exp: Math.ceil((b.reward?.exp || 300) * multRw) }
+      }];
+    } else if (!isEntrance && world.mobs && world.mobs.length > 0) {
+      const mobCount = Math.floor(Math.random() * 3) + 2;
+      for (let m = 0; m < mobCount; m++) {
+        const mobTemplate = world.mobs[m % world.mobs.length];
+        enemies.push({
+          id: m,
+          x: 200 + Math.random() * 880,
+          y: 150 + Math.random() * 420,
+          ...mobTemplate,
+          hp: Math.ceil((mobTemplate.hp || 40) * multHp), maxHp: Math.ceil((mobTemplate.hp || 40) * multHp),
+          atk: Math.ceil((mobTemplate.atk || 8) * multAtk),
+          reward: { stones: Math.ceil((mobTemplate.reward?.stones || 10) * multRw), exp: Math.ceil((mobTemplate.reward?.exp || 15) * multRw) }
+        });
+      }
+    }
+
+    rooms[id] = {
+      id,
+      name: isBoss ? `👑 ${world.name} · 第 ${floor} 階【首領戰】` : isEntrance ? `🚪 ${world.name} · 第 ${floor} 階【入口】` : `⚔️ ${world.name} · 第 ${floor} 階 (房間 ${i})`,
+      terrain: world.terrain || 'mountain',
+      doors,
+      enemies,
+      isBossRoom: isBoss,
+      isEntranceRoom: isEntrance,
+      cleared: false
+    };
+  }
+
+  activeDungeonRooms = rooms;
+  currentRoomId = 'room_0';
+  return rooms['room_0'];
+}
+
+// 門樓與地圖傳送觸發 (帶平滑黑幕淡出過場動畫)
+function checkDoorTriggers() {
+  if (doorCooldown > 0 || isRoomTransitioning) { if (doorCooldown > 0) doorCooldown--; return; }
+
+  // 1. 宗門內部固定房間切換
+  if (typeof SECT_ROOMS !== 'undefined' && SECT_ROOMS[curAreaId]) {
+    let nextSect = null;
+    let targetX = 640, targetY = 480;
+
+    if (curAreaId === 'sect_main') {
+      if (P.x >= 1238 && Math.abs(P.y - 360) <= 80) { nextSect = 'sect_alchemy'; targetX = 100; targetY = 360; }
+      else if (P.x <= 42 && Math.abs(P.y - 360) <= 80) { nextSect = 'sect_forge'; targetX = 1180; targetY = 360; }
+      else if (P.y >= 678 && Math.abs(P.x - 640) <= 90) { nextSect = 'sect_gate'; targetX = 640; targetY = 90; }
+      else if (P.y <= 42 && Math.abs(P.x - 640) <= 90) { nextSect = 'sect_market'; targetX = 640; targetY = 630; }
+    } else if (curAreaId === 'sect_market' && P.y >= 678) {
+      nextSect = 'sect_main'; targetX = 640; targetY = 90;
+    } else if (curAreaId === 'sect_alchemy' && P.x <= 42) {
+      nextSect = 'sect_main'; targetX = 1180; targetY = 360;
+    } else if (curAreaId === 'sect_forge' && P.x >= 1238) {
+      nextSect = 'sect_main'; targetX = 100; targetY = 360;
+    } else if (curAreaId === 'sect_gate') {
+      if (P.y <= 42 && Math.abs(P.x - 640) <= 90) { nextSect = 'sect_main'; targetX = 640; targetY = 630; }
+      else if (P.x <= 42) { nextSect = 'sect_meditate'; targetX = 1180; targetY = 360; }
+      else if (P.x >= 1238) { nextSect = 'sect_spring'; targetX = 100; targetY = 360; }
+      else if (P.y >= 678 && Math.abs(P.x - 640) <= 90) {
+        // 踏出山門 -> 平滑黑幕過場進入 5 層生成式地牢
+        triggerRoomTransition(() => {
+          const firstRoom = generateFloorDungeon(P.worldIdx, P.currentFloor);
+          curAreaId = firstRoom.id;
+          P.x = 640; P.y = 100;
+          doorCooldown = 50;
+          const bh = document.getElementById('boss-hud'); if (bh) bh.style.display = 'none';
+          notify(`⛩️ 踏出山門！進入【${DUNGEON_WORLDS[P.worldIdx].name} · 第 ${P.currentFloor} 階】！`);
+        });
+        return;
+      }
+    } else if ((curAreaId === 'sect_meditate' && P.x >= 1238) || (curAreaId === 'sect_spring' && P.x <= 42)) {
+      nextSect = 'sect_gate'; targetX = 640; targetY = 360;
+    }
+
+    if (nextSect) {
+      triggerRoomTransition(() => {
+        curAreaId = nextSect;
+        P.x = targetX; P.y = targetY;
+        doorCooldown = 35;
+        const bh = document.getElementById('boss-hud'); if (bh) bh.style.display = 'none';
+        notify(`🚪 進入【${SECT_ROOMS[nextSect].name}】`);
+      });
+    }
+    return;
+  }
+
+  // 2. 生成式秘境地牢房間切換
+  if (activeDungeonRooms && activeDungeonRooms[currentRoomId]) {
+    const curRoom = activeDungeonRooms[currentRoomId];
+    const doors = curRoom.doors || ['N', 'S', 'E', 'W'];
+
+    let enteredDir = null;
+    if (doors.includes('N') && P.y <= 42 && Math.abs(P.x - 640) <= 90) enteredDir = 'N';
+    else if (doors.includes('S') && P.y >= 678 && Math.abs(P.x - 640) <= 90) enteredDir = 'S';
+    else if (doors.includes('W') && P.x <= 42 && Math.abs(P.y - 360) <= 80) enteredDir = 'W';
+    else if (doors.includes('E') && P.x >= 1238 && Math.abs(P.y - 360) <= 80) enteredDir = 'E';
+
+    if (enteredDir) {
+      triggerRoomTransition(() => {
+        doorCooldown = 45;
+        if (curRoom.isEntranceRoom && enteredDir === 'S') {
+          curAreaId = 'sect_gate';
+          P.x = 640; P.y = 630;
+          notify('⛩️ 返回【青雲宗 · 宗門山門】');
+          return;
+        }
+
+        const roomKeys = Object.keys(activeDungeonRooms);
+        const nextKey = roomKeys[Math.floor(Math.random() * roomKeys.length)];
+        currentRoomId = nextKey;
+        const nextRoom = activeDungeonRooms[currentRoomId];
+        curAreaId = nextRoom.id;
+
+        if (enteredDir === 'N') { P.x = 640; P.y = 630; }
+        else if (enteredDir === 'S') { P.x = 640; P.y = 90; }
+        else if (enteredDir === 'W') { P.x = 1180; P.y = 360; }
+        else if (enteredDir === 'E') { P.x = 100; P.y = 360; }
+
+        if (typeof resetEnemies === 'function') resetEnemies(curAreaId);
+        if (typeof updateHUD === 'function') updateHUD();
+        notify(`🚪 進入【${nextRoom.name}】`);
+      });
+    }
+  }
+}
+
+// 招式與粒子物理更新
+function updAttacks() {
+  for (let i = SQS.length - 1; i >= 0; i--) {
+    const s = SQS[i];
+    s.x += (s.dx || 0) * (s.speed || 0);
+    s.y += (s.dy || 0) * (s.speed || 0);
+    s.life--;
+
+    const enemies = (typeof getEnemies === 'function') ? getEnemies() : [];
+    enemies.forEach(e => {
+      if (!e || !e.alive) return;
+      const hitDist = Math.hypot(s.x - e.x, s.y - e.y);
+      const hitRadius = (s.sz || 40) + (e.isBoss ? 35 : 24);
+
+      if (hitDist <= hitRadius) {
+        const dmg = Math.max(1, Math.ceil(P.atk * (s.dmgMult || 1.0) - (e.def || 0)));
+        e.hp -= dmg;
+        e.hflash = 8;
+        floatTxt(e.x, e.y - 14, '-' + dmg, '#ffea00');
+        spark(e.x, e.y, '#00ffff', 8, 4);
+
+        if (e.hp <= 0) {
+          e.alive = false;
+          P.kills++;
+          const rw = e.reward || { stones: 15, exp: 20 };
+          P.stones += rw.stones;
+          P.exp += rw.exp;
+
+          if (e.isBoss && typeof FIVE_ELEMENT_SUTRAS !== 'undefined') {
+            const unlearned = FIVE_ELEMENT_SUTRAS.filter(st => !P.learnedSutras.some(ls => ls.id === st.id));
+            if (unlearned.length > 0) {
+              const dropped = unlearned[Math.floor(Math.random() * unlearned.length)];
+              P.learnedSutras.push({ id: dropped.id, level: 1, masteryExp: 0, maxMastery: 100 });
+              notify(`👑 震撼擊敗首領【${e.name}】！領悟絕世功法【${dropped.name}】！`);
+            } else {
+              notify(`👑 震撼擊敗首領【${e.name}】！獲得鉅額靈石 +${rw.stones}！`);
+            }
+
+            if (P.currentFloor < 5) {
+              P.currentFloor++;
+              setTimeout(() => {
+                triggerRoomTransition(() => {
+                  notify(`🌟 成功突破第 ${P.currentFloor - 1} 階！自動進入【第 ${P.currentFloor} 階關卡】！`);
+                  generateFloorDungeon(P.worldIdx, P.currentFloor);
+                  P.x = 640; P.y = 480;
+                });
+              }, 1800);
+            } else {
+              if (typeof DUNGEON_WORLDS !== 'undefined' && P.worldIdx < DUNGEON_WORLDS.length - 1) {
+                P.worldIdx++;
+                P.currentFloor = 1;
+                setTimeout(() => {
+                  triggerRoomTransition(() => {
+                    notify(`🎉 震撼通關 5 階關卡！成功解鎖全新秘境【${DUNGEON_WORLDS[P.worldIdx].name}】！`);
+                    curAreaId = 'sect_gate';
+                    P.x = 640; P.y = 480;
+                  });
+                }, 2200);
+              }
+            }
+          } else {
+            notify(`⚔ 擊殺【${e.name}】！靈石 +${rw.stones}、經驗 +${rw.exp}`);
+          }
+          if (typeof updateHUD === 'function') updateHUD();
+        }
+        if (s.speed > 0) s.life = 0;
+      }
+    });
+
+    if (s.life <= 0) SQS.splice(i, 1);
+  }
+
+  for (let i = PARTS.length - 1; i >= 0; i--) {
+    const p = PARTS[i]; p.x += (p.vx || 0); p.y += (p.vy || 0); p.life--;
+    if (p.life <= 0) PARTS.splice(i, 1);
+  }
+  for (let i = FLOATS.length - 1; i >= 0; i--) {
+    const f = FLOATS[i]; f.y += f.vy; f.life--;
+    if (f.life <= 0) FLOATS.splice(i, 1);
+  }
+}
+
+// 招式與特效繪製
+function drawAttacks() {
+  if (!ctx) return;
+  SQS.forEach(s => {
+    ctx.save();
+    ctx.fillStyle = s.col || '#00cfff';
+    ctx.shadowColor = s.col || '#00cfff';
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.sz ? s.sz / 2 : 16, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
+  PARTS.forEach(p => {
+    ctx.fillStyle = p.col || '#00cfff';
+    ctx.fillRect(p.x, p.y, p.sz || 2, p.sz || 2);
+  });
+  FLOATS.forEach(f => {
+    ctx.fillStyle = f.col || '#ffea00';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(f.txt, f.x, f.y);
+  });
+}
+
+// 🧑 NPC 繪製與近距離互動提示
+function drawNPCs() {
+  if (!ctx) return;
+  const areaObj = (typeof SECT_ROOMS !== 'undefined') ? SECT_ROOMS[curAreaId] : null;
+  if (!areaObj || !areaObj.npcs) return;
+
+  areaObj.npcs.forEach(npc => {
+    const nx = npc.x || 640, ny = npc.y || 350;
+    ctx.save();
+
+    // 1. 橢圓陰影與腳下護體金光
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.beginPath(); ctx.ellipse(nx, ny + 10, 32, 12, 0, 0, Math.PI * 2); ctx.fill();
+
+    const glow = ctx.createRadialGradient(nx, ny, 4, nx, ny, 42);
+    glow.addColorStop(0, 'rgba(255, 215, 0, 0.35)');
+    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(nx, ny, 42, 0, Math.PI * 2); ctx.fill();
+
+    // 2. 繪製 NPC 圖標與亮麗造型
+    ctx.font = '36px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(npc.icon || '🧑', nx, ny - 15);
+
+    // 3. NPC 稱號名字
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillStyle = '#ffd700';
+    ctx.shadowColor = '#000000'; ctx.shadowBlur = 6;
+    ctx.fillText(npc.name, nx, ny - 48);
+
+    // 4. 靠近時顯示互動按鈕提示 `▶ 按 [F] 鍵對話`
+    const dist = Math.hypot(P.x - nx, P.y - ny);
+    if (dist <= 75) {
+      ctx.fillStyle = '#00ffff';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillText('▶ 按 [F] 鍵對話', nx, ny - 66);
+
+      // 按下 F 鍵觸發NPC對話
+      if (keys['f']) {
+        keys['f'] = false;
+        if (typeof startDlg === 'function') startDlg(npc);
+      }
+    }
+
+    ctx.restore();
+  });
+}
+
+// 👾 怪物與首領繪製
+function drawEnemies() {
+  if (!ctx) return;
+  const list = (typeof getEnemies === 'function') ? getEnemies() : [];
+  if (!list || list.length === 0) return;
+
+  list.forEach(e => {
+    if (!e || !e.alive) return;
+    ctx.save();
+    const ex = e.x, ey = e.y;
+
+    // 1. 怪物腳下陰影
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.beginPath();
+    ctx.ellipse(ex, ey + 12, e.isBoss ? 55 : 28, e.isBoss ? 20 : 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 2. 受傷受擊閃爍
+    if (e.hflash > 0) ctx.globalAlpha = 0.65;
+
+    // 3. 嘗試精靈圖繪製，若無則降級向量極光怪物
+    let sprDrawn = false;
+    const sprMat = (typeof ES !== 'undefined' && ES[e.sprite]) ? ES[e.sprite] : null;
+    if (sprMat && typeof drawSprite === 'function') {
+      drawSprite(sprMat, ex - 40, ey - 45, e.isBoss ? 6.5 : 4.5, e.facingLeft, null, ctx);
+      sprDrawn = true;
+    }
+
+    if (!sprDrawn) {
+      ctx.fillStyle = e.color || '#e84040';
+      ctx.beginPath(); ctx.arc(ex, ey - 15, e.isBoss ? 36 : 20, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // 4. 怪物頭頂血條與名稱
+    const hpPct = Math.max(0, Math.min(1, e.hp / e.maxHp));
+    const barW = e.isBoss ? 90 : 46;
+    const barY = ey - (e.isBoss ? 75 : 45);
+
+    // 血條底色與紅條
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(ex - barW / 2, barY, barW, 6);
+    ctx.fillStyle = e.isBoss ? '#ff0055' : '#ef4444';
+    ctx.fillRect(ex - barW / 2, barY, barW * hpPct, 6);
+
+    // 怪物名稱與稱號
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillStyle = e.isBoss ? '#ff2200' : '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+    ctx.fillText(e.name, ex, barY - 6);
+
+    ctx.restore();
+  });
+}
+
+function render() {
+  if (!ctx) return;
+  ctx.save();
+
+  const shake = typeof screenShake !== 'undefined' ? screenShake : (window.screenShake || 0);
+  if (shake > 0) {
+    if (typeof screenShake !== 'undefined') screenShake--;
+    if (typeof window.screenShake !== 'undefined') window.screenShake--;
+    ctx.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
+  }
+
+  // 1. 獨立背景渲染器
+  const areaId = typeof curAreaId !== 'undefined' ? curAreaId : (window.curAreaId || 'sect_main');
+  let curAreaObj = (typeof SECT_ROOMS !== 'undefined') ? SECT_ROOMS[areaId] : null;
+  if (!curAreaObj && typeof activeDungeonRooms !== 'undefined' && activeDungeonRooms) curAreaObj = activeDungeonRooms[typeof currentRoomId !== 'undefined' ? currentRoomId : 'room_0'];
+  if (!curAreaObj) curAreaObj = { terrain: 'sect', doors: ['N','S','E','W'] };
+
+  if (typeof BackgroundRenderer !== 'undefined' && BackgroundRenderer.draw) {
+    try { BackgroundRenderer.draw(ctx, curAreaObj); } catch(e) {}
+  }
+
+  // 2. 招式與特效
+  try { drawAttacks(); } catch(e) {}
+
+  // 3. NPC 繪製 (宗主、藥師兄、藏劍長老、傳功長老、靈泉守衛、守山長老)
+  try { drawNPCs(); } catch(e) {}
+
+  // 4. 敵人與 Boss 繪製
+  try { drawEnemies(); } catch(e) {}
+
+  // 5. 獨立玩家渲染器 (100% 絕對保證執行，畫出角色)
+  const pState = typeof P !== 'undefined' ? P : window.P;
+  if (typeof PlayerRenderer !== 'undefined' && PlayerRenderer.draw) {
+    try { PlayerRenderer.draw(ctx, pState, T); } catch(e) { console.error('PlayerRenderer.draw error:', e); }
+  }
+
+  // 6. 羅盤小地圖
+  try { drawMM(); } catch(e) {}
+
+  // 7. 🌀 房間切換平滑黑幕過場 (Fade Transition)
+  if (roomTransitionAlpha > 0) {
+    ctx.fillStyle = `rgba(0, 0, 0, ${roomTransitionAlpha.toFixed(2)})`;
+    ctx.fillRect(0, 0, 1280, 720);
+    if (roomTransitionAlpha > 0.35) {
+      ctx.fillStyle = `rgba(0, 207, 255, ${Math.min(1, roomTransitionAlpha * 1.2).toFixed(2)})`;
+      ctx.font = 'bold 18px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = '#00cfff';
+      ctx.shadowBlur = 8;
+      ctx.fillText('🌀 踏入傳送陣，切換房間中…', 640, 360);
+    }
+  }
+
+  ctx.restore();
+}
+
+function drawMM() {
+  const mc = document.getElementById('mm-canvas');
+  if (!mc) return;
+  const mctx = mc.getContext('2d');
+  mctx.clearRect(0, 0, 90, 90);
+  mctx.fillStyle = '#040814'; mctx.fillRect(0, 0, 90, 90);
+  mctx.fillStyle = '#c8a84b'; mctx.beginPath(); mctx.arc(P.x / 14.2, P.y / 8, 3, 0, Math.PI * 2); mctx.fill();
+}
+
+function gameLoop(ts) {
+  try {
+    const dt = Math.min((ts - lastT) / 1000, .05); lastT = ts; T += dt;
+    if (!isRoomTransitioning) {
+      if (keys['w']) { P.y = Math.max(15, P.y - P.speed); P.facing.y = -1; P.facing.x = 0; }
+      if (keys['s']) { P.y = Math.min(705, P.y + P.speed); P.facing.y = 1; P.facing.x = 0; }
+      if (keys['a']) { P.x = Math.max(15, P.x - P.speed); P.facing.x = -1; P.facing.y = 0; }
+      if (keys['d']) { P.x = Math.min(1265, P.x + P.speed); P.facing.x = 1; P.facing.y = 0; }
+    }
+
+    updRoomTransition();
+
+    try { if (typeof updEnemies === 'function') updEnemies(); else if (window.updEnemies) window.updEnemies(); } catch(e) {}
+    try { if (typeof updAttacks === 'function') updAttacks(); else if (window.updAttacks) window.updAttacks(); } catch(e) {}
+    try { if (typeof checkDoorTriggers === 'function') checkDoorTriggers(); else if (window.checkDoorTriggers) window.checkDoorTriggers(); } catch(e) {}
+
+    render();
+  } catch (err) {
+    console.error('Safe Game Loop caught error:', err);
+  }
+  requestAnimationFrame(gameLoop);
+}
+
+// 顯式掛載至 window 全域物件
+window.render = render;
+window.gameLoop = gameLoop;
+window.triggerAttack = triggerAttack;
+window.quickPill = quickPill;
+window.doDash = doDash;
+window.toggleMed = toggleMed;
+window.triggerRoomTransition = triggerRoomTransition;
+window.updRoomTransition = updRoomTransition;
+window.drawNPCs = drawNPCs;
+window.drawEnemies = drawEnemies;
+
+// 鍵盤監聽 (支援 ESC 鍵關閉所有 Modal 彈窗)
 const keys = {};
 window.addEventListener('keydown', e => {
   const k = e.key === 'ArrowUp' ? 'w' : e.key === 'ArrowDown' ? 's' : e.key === 'ArrowLeft' ? 'a' : e.key === 'ArrowRight' ? 'd' : e.key.toLowerCase();
@@ -131,15 +631,23 @@ window.addEventListener('keydown', e => {
   if (e.code === 'Space') keys['j'] = true;
   if (e.key === 'Shift') keys['l'] = true;
 
-  if (e.key === '1') setStance('SWORD');
-  if (e.key === '2') setStance('TALISMAN');
-  if (e.key === '3') setStance('FROST');
+  // ESC 鍵關閉所有彈窗
+  if (e.key === 'Escape' || e.code === 'Escape') {
+    if (typeof closeAllModals === 'function') closeAllModals();
+    else if (window.closeAllModals) window.closeAllModals();
+  }
+
+  if (e.key === '1') { P.weapon = { name: '精鋼長劍', type: 'SWORD', elem: 'GOLD', atk: 15 }; notify('🗡️ 裝備快捷1：切換【精鋼長劍】 (近戰 1 格)'); updateHUD(); }
+  if (e.key === '2') { P.weapon = { name: '赤焰長槍', type: 'SPEAR', elem: 'FIRE', atk: 40 }; notify('🔱 裝備快捷2：切換【赤焰長槍】 (貫穿 3 格)'); updateHUD(); }
+  if (e.key === '3') { P.weapon = { name: '寒冰飛鏢', type: 'DART', elem: 'WATER', atk: 35 }; notify('🎯 裝備快捷3：切換【寒冰飛鏢】 (遠程 10 格)'); updateHUD(); }
   if (e.key === '4') quickPill('pill_hp');
   if (e.key === '5') quickPill('pill_qi');
   if (e.key === '6') quickPill('pill_break');
-  if (e.key === '7' || e.key === 'i') openInv();
-  if (e.key === '8' || e.key === 'c') openChar();
+  if (e.key === '7' || e.key === 'i' || e.key === 'b') openInv();
+  if (e.key === '8' || e.key === 'c' || e.key === 'u') openSutraUI();
   if (e.key === '9' || e.key === 'm') openMap();
+  if (e.key === 'f' || e.key === 'g') openForge();
+  if (e.key === 'e' || e.key === 'v') openAlchemy();
   if (e.key === '?') openHelp();
 
   if ((k === 'j' || e.code === 'Space') && !P.charging && P.state !== 'DIE') {
@@ -161,54 +669,14 @@ window.addEventListener('keyup', e => {
   }
 });
 
-// 渲染與主迴圈
-function render() {
-  if (!ctx) return;
-  ctx.save();
-  if (screenShake > 0) {
-    screenShake--;
-    ctx.translate((Math.random() - .5) * screenShake, (Math.random() - .5) * screenShake);
-  }
-  
-  // 1. 獨立背景渲染器 (100% 模組化隔離)
-  const curArea = getCurArea ? getCurArea() : null;
-  if (window.BackgroundRenderer) {
-    BackgroundRenderer.draw(ctx, curArea);
-  }
-
-  // 2. 敵人繪製
-  drawEnemies();
-
-  // 3. 獨立玩家渲染器 (100% 模組化隔離)
-  if (window.PlayerRenderer) {
-    PlayerRenderer.draw(ctx, P, T);
-  }
-
-  // 4. 右上角羅盤小地圖
-  drawMM();
-  ctx.restore();
-}
-
-function gameLoop(ts) {
-  try {
-    const dt = Math.min((ts - lastT) / 1000, .05); lastT = ts; T += dt;
-    // 更新與渲染
-    if (keys['w']) P.y = Math.max(12, P.y - P.speed);
-    if (keys['s']) P.y = Math.min(258, P.y + P.speed);
-    if (keys['a']) { P.x = Math.max(12, P.x - P.speed); P.facing.x = -1; }
-    if (keys['d']) { P.x = Math.min(468, P.x + P.speed); P.facing.x = 1; }
-
-    updEnemies();
-    render();
-  } catch (err) {
-    console.error('Safe Game Loop caught error:', err);
-  }
-  requestAnimationFrame(gameLoop);
-}
-
-// 啟動遊戲
-window.addEventListener('DOMContentLoaded', () => {
+function bootEngine() {
   initEngine();
-  updateHUD();
+  if (typeof updateHUD === 'function') updateHUD();
   requestAnimationFrame(gameLoop);
-});
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', bootEngine);
+} else {
+  bootEngine();
+}
