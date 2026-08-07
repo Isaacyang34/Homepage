@@ -113,6 +113,11 @@ function updEnemies() {
     e.x = Math.max(64, Math.min(1216, e.x));
     e.y = Math.max(64, Math.min(656, e.y));
   });
+
+  // 🛡️ 碰撞解析：怪物 vs 場景物件 + 怪物互相不重疊
+  try {
+    if (typeof resolveAllEnemyCollisions === 'function') resolveAllEnemyCollisions();
+  } catch(e) {}
 }
 
 // 綁定全域 window 物件

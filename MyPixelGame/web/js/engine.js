@@ -810,6 +810,11 @@ function gameLoop(ts) {
 
       // 充能計時器
       if (P.charging) P.chargeTime += dt;
+
+      // 🛡️ 碰撞解析：玩家 vs 場景物件 / NPC / 怪物（移動後立即修正位置）
+      try {
+        if (typeof resolveAllPlayerCollisions === 'function') resolveAllPlayerCollisions();
+      } catch(e) {}
     }
 
     updRoomTransition();
@@ -863,9 +868,17 @@ window.addEventListener('keydown', e => {
   if (e.key === '7' || e.key === 'i' || e.key === 'b') openInv();
   if (e.key === '8' || e.key === 'c' || e.key === 'u') openSutraUI();
   if (e.key === '9' || e.key === 'm') openMap();
-  if (e.key === 'f' || e.key === 'g') openForge();
-  if (e.key === 'e' || e.key === 'v') openAlchemy();
+  if (e.key === 'g' || e.key === 'G') openForge();
+  if (e.key === 'v' || e.key === 'V') openAlchemy();
   if (e.key === '?') openHelp();
+
+  // 🗣️ F 鍵專用：當對話框開啟時，按下 F 鍵推進對話
+  if (e.key === 'f' || e.key === 'F') {
+    const dlgBox = document.getElementById('dlg-box');
+    if (dlgBox && dlgBox.style.display === 'block') {
+      if (typeof advanceDlg === 'function') advanceDlg();
+    }
+  }
 
   if ((k === 'j' || e.code === 'Space') && !P.charging && P.state !== 'DIE') {
     P.charging = true; P.chargeTime = 0;

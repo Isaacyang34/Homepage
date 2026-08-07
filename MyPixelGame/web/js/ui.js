@@ -124,6 +124,11 @@ function closeAllModals() {
   closeForge();
   closeMap();
   if (typeof closeMarketUI === 'function') closeMarketUI();
+
+  // 關閉對話框
+  const dlgBox = document.getElementById('dlg-box');
+  if (dlgBox) dlgBox.style.display = 'none';
+  dlgActive = false;
 }
 window.closeAllModals = closeAllModals;
 

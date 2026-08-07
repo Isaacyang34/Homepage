@@ -97,8 +97,8 @@
   <div id="hud-sys">
     <div id="hud-stones">💎 <span id="ui-st">0</span></div>
     <div id="hud-btns">
-      <button class="sys-btn" onclick="openAlchemy()" title="九轉煉丹 (A)">🧪</button>
-      <button class="sys-btn" onclick="openForge()" title="神兵煉器 (F)">🔨</button>
+      <button class="sys-btn" onclick="openAlchemy()" title="九轉煉丹 (V)">🧪</button>
+      <button class="sys-btn" onclick="openForge()" title="神兵煉器 (G)">🔨</button>
       <button class="sys-btn" onclick="openInv()" title="儲物袋 (I)">🎒</button>
       <button class="sys-btn" onclick="openChar()" title="人物面板 (C)">📋</button>
       <button class="sys-btn" onclick="openMap()" title="地圖 (M)">🗺</button>
@@ -145,14 +145,16 @@
       <div class="kb-grid">
         <div class="kb-r"><span class="kb-a">移動</span><span class="kb-k">WASD / 方向鍵</span></div>
         <div class="kb-r"><span class="kb-a">攻擊 / 蓄力</span><span class="kb-k">J / 空白鍵</span></div>
-        <div class="kb-r"><span class="kb-a">切換功法</span><span class="kb-k">Q / E</span></div>
-        <div class="kb-r"><span class="kb-a">道具快捷</span><span class="kb-k">1 ~ 9</span></div>
+        <div class="kb-r"><span class="kb-a">NPC 對話 / 互動</span><span class="kb-k">F (專用)</span></div>
+        <div class="kb-r"><span class="kb-a">神兵煉器</span><span class="kb-k">G</span></div>
+        <div class="kb-r"><span class="kb-a">九轉煉丹</span><span class="kb-k">V</span></div>
+        <div class="kb-r"><span class="kb-a">道具快捷</span><span class="kb-k">1 ~ 6</span></div>
         <div class="kb-r"><span class="kb-a">儲物袋</span><span class="kb-k">I</span></div>
         <div class="kb-r"><span class="kb-a">人物面板</span><span class="kb-k">C</span></div>
         <div class="kb-r"><span class="kb-a">地圖</span><span class="kb-k">M</span></div>
         <div class="kb-r"><span class="kb-a">打坐吐納</span><span class="kb-k">K</span></div>
         <div class="kb-r"><span class="kb-a">御劍衝刺</span><span class="kb-k">Shift / L</span></div>
-        <div class="kb-r"><span class="kb-a">NPC 對話</span><span class="kb-k">F</span></div>
+        <div class="kb-r"><span class="kb-a">退出所有彈窗</span><span class="kb-k">ESC</span></div>
       </div>
     </div>
   </div>
@@ -208,7 +210,9 @@
       <canvas id="wmap-canvas" width="600" height="340"></canvas>
     </div>
   </div>
+</div>
 <script src="web/js/config.js"></script>
+<script src="web/js/controls.js"></script>
 <script src="web/js/sprites.js"></script>
 <script src="web/js/background.js"></script>
 <script src="web/js/player_renderer.js"></script>

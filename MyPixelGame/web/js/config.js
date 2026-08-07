@@ -189,12 +189,12 @@ window.FIVE_ELEMENT_SYNERGY = FIVE_ELEMENT_SYNERGY;
 window.WEAPON_TYPES = WEAPON_TYPES;
 window.FORGE_RECIPES_V2 = FORGE_RECIPES_V2;
 
-// ════ 全域牆壁與門洞常數 (共用於 collision.js 與 engine.js) ════
-// 畫布 1280x720，四周牆壁厚24px，內緣限制在一個 Tile(64px)
-const WALL_N = 64;    // 北牆 (頂部) 內緣 Y 最小值
-const WALL_S = 656;   // 南牆 (底部) 內緣 Y 最大值
-const WALL_W = 64;    // 西牆 (左側) 內緣 X 最小值
-const WALL_E = 1216;  // 東牆 (右側) 內緣 X 最大值
+// ════ 全域牆壁與門洞常數 (直接貼合原圖地板邊緣) ════
+// 畫布 1280x720，依據背景原圖地板邊界精準對齊邊界
+const WALL_N = 48;    // 北牆 (頂部) 地板視覺內緣 Y 最小值
+const WALL_S = 672;   // 南牆 (底部) 地板視覺內緣 Y 最大值
+const WALL_W = 48;    // 西牆 (左側) 地板視覺內緣 X 最小值
+const WALL_E = 1232;  // 東牆 (右側) 地板視覺內緣 X 最大值
 const DOOR_GAP = 90;  // 門洞半寬
 const DOOR_CX  = 640; // 北南門中心 X
 const DOOR_CY  = 360; // 東西門中心 Y

@@ -33,8 +33,8 @@ window.BackgroundRenderer = {
       this.drawFallbackTopDownFloor(ctx, terr);
     }
 
-    // 2. 疊加 64x64 方格網格
-    this.drawTopDownGridOverlay(ctx, terr);
+    // 2. 直接以背景原圖地板作為邊界，不額外疊加人工方格網格線
+    // (已依據使用者要求完全取消畫面中的人工方格網格)
 
     // 3. 若為宗門特定功能房間，繪製專屬造景 (丹爐/鍛造台/靈泉池/蒲團)
     if (area && area.id) {
