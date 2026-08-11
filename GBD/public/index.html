@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GBD 溫度資料閱讀器 (Server API 軍規安全版)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#070b16;--bg2:#0d1426;--bg3:#111827;
+  --surface:rgba(255,255,255,0.04);--surface2:rgba(255,255,255,0.07);
+  --border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.13);
+  --accent:#6366f1;--accent2:#8b5cf6;--accentG:linear-gradient(135deg,#6366f1,#8b5cf6);
+  --text:#e2e8f0;--text-muted:#64748b;--text-dim:#94a3b8;
+  --green:#10b981;--yellow:#f59e0b;--red:#ef4444;--blue:#38bdf8;
+  --r:8px;
+}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-size:13px;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+
+/* HEADER */
+#app-header{display:flex;align-items:center;padding:0 18px;height:50px;background:var(--bg2);border-bottom:1px solid var(--border);gap:10px;flex-shrink:0;backdrop-filter:blur(12px)}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-badge{width:30px;height:30px;background:var(--accentG);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 0 20px rgba(99,102,241,.4)}
+.logo-text{font-weight:700;font-size:14px;background:var(--accentG);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+#header-sub{margin-left:auto;color:var(--text-muted);font-size:11px;font-family:'JetBrains Mono',monospace}
+
+/* LAYOUT */
+#main{flex:1;display:flex;overflow:hidden;min-height:0}
+#left-panel{flex:1;display:flex;flex-direction:column;min-width:0}
+
+/* Info section */
+#info-sec{padding:10px 14px;background:var(--bg2);border-bottom:1px solid var(--border);display:none;flex-shrink:0}
+#info-panel{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px}
+.ir{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 9px;display:flex;flex-direction:column;gap:2px}
+.ir-l{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em}
+.ir-v{font-size:11px;font-weight:600;color:var(--text);font-family:'JetBrains Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Channel section */
+#ch-sec{padding:8px 14px;background:var(--bg3);border-bottom:1px solid var(--border);display:none;flex-shrink:0}
+.sec-lbl{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between}
+#ch-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:4px;max-height:85px;overflow-y:auto}
+.chi{display:flex;align-items:center;gap:6px;padding:3px 7px;border-radius:5px;background:var(--surface);border:1px solid var(--border);cursor:pointer;user-select:none;transition:all .12s;font-size:11px}
+.chi:hover{background:var(--surface2)}
+.chi.off{opacity:.35;filter:grayscale(60%)}
+.chi-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.chi-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Buttons */
+.btn{padding:5px 11px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text);transition:all .15s;display:inline-flex;align-items:center;gap:5px;text-decoration:none;user-select:none}
+.btn:hover{background:var(--surface2);border-color:var(--border2)}
+.btn-p{background:var(--accentG);border:none;color:#fff;box-shadow:0 2px 12px rgba(99,102,241,.3)}
+.btn-p:hover{box-shadow:0 4px 18px rgba(99,102,241,.5);opacity:.95}
+.btn-g{background:rgba(16,185,129,.15);border-color:rgba(16,185,129,.3);color:var(--green)}
+.btn-g:hover{background:rgba(16,185,129,.25)}
+.btn-y{background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.3);color:var(--yellow)}
+.btn-y:hover{background:rgba(245,158,11,.25)}
+.btn-xs{padding:3px 7px;font-size:10px}
+
+/* Status bar */
+#status{height:26px;background:var(--bg2);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:14px;font-size:11px;color:var(--text-muted);flex-shrink:0}
+#st-msg{color:var(--text)}
+
+/* Toast */
+#toast{position:fixed;bottom:36px;left:50%;transform:translateX(-50%) translateY(12px);
+  background:rgba(13,20,38,.97);border:1px solid var(--border);border-radius:8px;
+  padding:9px 18px;font-size:12px;opacity:0;transition:all .25s;pointer-events:none;
+  white-space:nowrap;backdrop-filter:blur(16px);z-index:999}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.ok{border-color:var(--green);color:var(--green)}
+#toast.err{border-color:var(--red);color:var(--red)}
+#toast.info{border-color:var(--accent);color:#a5b4fc}
+
+/* Loading */
+#loading{display:none;position:fixed;inset:0;background:rgba(7,11,22,.75);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+#loading.show{display:flex}
+.spin{width:38px;height:38px;border:3px solid rgba(99,102,241,.2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Toolbar */
+#toolbar{display:flex;align-items:center;gap:8px;padding:7px 14px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+#range-txt{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text-muted)}
+.tbar-sep{width:1px;height:18px;background:var(--border);margin:0 2px}
+
+/* Chart */
+#chart-wrap{flex:1;position:relative;min-height:0;padding:12px 16px 8px}
+#chart-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--text-muted);pointer-events:none}
+#chart-empty .e-icon{font-size:52px;opacity:.2}
+#chart-empty .e-title{font-size:16px;font-weight:600;opacity:.5}
+canvas#myChart{display:none;width:100%!important;height:100%!important}
+
+/* Edit Panel */
+#edit-panel{background:var(--bg2);border-top:1px solid var(--border);flex-shrink:0;display:none}
+.tabs-row{display:flex;border-bottom:1px solid var(--border)}
+.tb{padding:9px 18px;font-size:12px;font-weight:500;color:var(--text-muted);cursor:pointer;background:none;border:none;border-bottom:2px solid transparent;transition:all .15s;font-family:'Inter',sans-serif}
+.tb:hover{color:var(--text)}
+.tb.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tc{display:none;padding:10px 16px;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.tc.on{display:flex}
+
+.fg{display:flex;flex-direction:column;gap:4px}
+.fl{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em}
+input[type=text],input[type=number],input[type=password],select{
+  background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:6px;
+  color:var(--text);padding:5px 9px;font-size:12px;font-family:'Inter',sans-serif;
+  outline:none;transition:border-color .15s;min-width:80px
+}
+input:focus,select:focus{border-color:var(--accent)}
+select option{background:#1e293b}
+
+.ch-tags{display:flex;flex-wrap:wrap;gap:3px;max-width:400px}
+.ct{padding:2px 8px;border-radius:4px;border:1px solid var(--border);cursor:pointer;font-size:11px;
+    transition:all .12s;color:var(--text-muted);background:transparent;white-space:nowrap}
+.ct.on{background:rgba(99,102,241,.18);border-color:var(--accent);color:var(--text)}
+
+/* Stats & Right panel */
+#stats-bar{display:flex;gap:16px;padding:2px 12px 6px;flex-wrap:wrap}
+.stat-chip{display:flex;align-items:center;gap:5px;font-size:10px}
+.stat-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.stat-vals{color:var(--text-muted)}
+.stat-vals b{color:var(--text);font-weight:500}
+
+.pick-btn{padding:3px 7px;font-size:13px;line-height:1;transition:all .15s}
+.pick-btn.active{background:rgba(99,102,241,.35)!important;border-color:var(--accent)!important;color:#fff!important;box-shadow:0 0 12px rgba(99,102,241,.5);animation:pulse-pick .8s infinite}
+@keyframes pulse-pick{0%,100%{box-shadow:0 0 8px rgba(99,102,241,.4)}50%{box-shadow:0 0 18px rgba(99,102,241,.8)}}
+#pick-banner{display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(99,102,241,.2);border:1px solid var(--accent);border-radius:20px;padding:4px 16px;font-size:11px;color:#a5b4fc;pointer-events:none;z-index:10;backdrop-filter:blur(8px);white-space:nowrap}
+#pick-banner.show{display:block}
+
+#right-panel{width:330px;min-width:330px;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.ab-card{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:6px;padding:8px 12px;display:flex;flex-direction:column;gap:4px;min-width:170px}
+.ab-title{font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px}
+.ab-badge-a{background:rgba(239,68,68,0.2);color:#f87171;border:1px solid rgba(239,68,68,0.4);border-radius:4px;padding:1px 5px;font-size:10px}
+.ab-badge-b{background:rgba(6,182,212,0.2);color:#22d3ee;border:1px solid rgba(6,182,212,0.4);border-radius:4px;padding:1px 5px;font-size:10px}
+.ab-val-row{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text-dim)}
+.ab-table{width:100%;border-collapse:collapse;font-size:11px;text-align:left}
+.ab-table th{padding:7px 8px;background:rgba(255,255,255,0.04);color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border);position:sticky;top:0;backdrop-filter:blur(8px)}
+.ab-table td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.03);font-family:'JetBrains Mono',monospace}
+.ab-table tr:hover{background:var(--surface2)}
+.ab-table .ch-cell{font-family:'Inter',sans-serif;font-weight:500;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:115px}
+.ab-table .val-num{text-align:right}
+.ab-table .val-num.pos{color:var(--red);font-weight:600}
+.ab-table .val-num.neg{color:var(--blue);font-weight:600}
+.ab-table .val-num.zero{color:var(--text-muted)}
+.ab-table .val-unit{color:var(--text-muted);font-size:10px;text-align:center}
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spin"></div></div>
+<div id="toast"></div>
+
+<!-- Password Auth Modal -->
+<div id="pwd-modal" style="display:none;position:fixed;inset:0;background:rgba(7,11,22,0.85);z-index:900;align-items:center;justify-content:center;backdrop-filter:blur(6px)">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:24px 28px;width:360px;display:flex;flex-direction:column;gap:14px;box-shadow:0 10px 40px rgba(0,0,0,0.5)">
+    <div style="font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px">
+      <span>🔐</span> <span>請輸入解鎖密碼</span>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);line-height:1.4">
+      目前為資料閱讀模式。驗證成功後由 <b style="color:var(--accent)">後端 API 伺服器</b> 安全解鎖進階編輯功能。
+    </div>
+    <div class="fg">
+      <div style="display:flex;gap:6px;align-items:center;width:100%">
+        <div style="position:relative;flex:1;display:flex;align-items:center">
+          <input type="password" id="pwd-input" placeholder="請輸入解鎖密碼" style="width:100%;padding-right:32px;font-size:13px;font-family:'JetBrains Mono',monospace;letter-spacing:1px" onkeydown="if(event.key==='Enter')verifyPasswordServer()">
+          <button type="button" onclick="togglePwdVisibility()" style="position:absolute;right:8px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px" title="顯示/隱藏密碼">👁️</button>
+        </div>
+        <button class="btn btn-p" onclick="verifyPasswordServer()" style="flex-shrink:0;padding:6px 14px;font-size:12px">確認</button>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px">
+      <span id="pwd-err" style="color:var(--red);font-size:11px;font-weight:600;display:none">❌ 密碼不正確</span>
+      <button class="btn btn-xs btn-g" style="margin-left:auto" onclick="closePwdModal()">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div id="app-header">
+  <div class="logo">
+    <div class="logo-badge">📊</div>
+    <div class="logo-text">GBD 資料閱讀器</div>
+    <span style="font-size:10px;background:rgba(16,185,129,0.15);color:var(--green);border:1px solid rgba(16,185,129,0.3);border-radius:4px;padding:1px 6px">Server API 軍規版</span>
+  </div>
+  <div id="header-sub">載入 .GBD 檔案以開始</div>
+</div>
+
+<!-- LAYOUT -->
+<div id="main">
+  <div id="left-panel">
+    <!-- Info -->
+    <div id="info-sec"><div id="info-panel"></div></div>
+
+    <!-- Toolbar -->
+    <div id="toolbar" style="display:none">
+      <label class="btn btn-p"><input type="file" id="fi" accept=".GBD,.gbd" style="display:none" onchange="handleInput(this)">📂 開啟檔案</label>
+      <button class="btn btn-g" onclick="doExport()">💾 匯出 GBD</button>
+      <div class="tbar-sep"></div>
+
+      <button class="btn btn-y" onclick="undo()" id="undo-btn" disabled>↩ 復原</button>
+      <button class="btn" onclick="toggleRaw()" id="raw-btn">Raw 顯示</button>
+      <div class="tbar-sep"></div>
+
+      <button class="btn" onclick="resetZoom()">🔍 重置縮放</button>
+      <button class="btn" onclick="toggleRightPanel()" id="ab-panel-btn">🚩 AB點數據對比</button>
+      <div class="tbar-sep"></div>
+
+      <button class="btn btn-p" id="unlock-btn" onclick="toggleUnlock()" style="margin-left:auto">🔓 解鎖進階功能</button>
+      <div id="range-txt"></div>
+    </div>
+
+    <!-- Channels -->
+    <div id="ch-sec">
+      <div class="sec-lbl">
+        <span>顯示通道 (CH1 ~ CH15)</span>
+        <span>
+          <button class="btn btn-xs" onclick="selAllCh(true)">全選</button>
+          <button class="btn btn-xs" onclick="selAllCh(false)">全不選</button>
+        </span>
+      </div>
+      <div id="ch-list"></div>
+    </div>
+
+    <!-- Chart -->
+    <div id="chart-wrap">
+      <div id="pick-banner">點擊圖表設定標記... <button class="btn btn-xs btn-g" onclick="exitPickMode()" style="margin-left:8px">取消</button></div>
+      <div id="chart-empty">
+        <div class="e-icon">📈</div>
+        <div class="e-title">請選擇或拖曳 .GBD 檔案至此</div>
+      </div>
+      <canvas id="myChart"></canvas>
+    </div>
+
+    <!-- Stats Bar -->
+    <div id="stats-bar"></div>
+
+    <!-- Edit Panel -->
+    <div id="edit-panel">
+      <div class="tabs-row">
+        <button class="tb on" onclick="setTab('trunc',this)">✂️ 雙點保留截斷</button>
+        <button class="tb" onclick="setTab('off',this)">⊕ 數值偏移</button>
+        <button class="tb" onclick="setTab('ext',this)">📐 曲線延伸</button>
+        <button class="tb" onclick="setTab('dt',this)">🗓️ 起始時間修改</button>
+      </div>
+
+      <!-- TAB 0: TRUNCATE -->
+      <div id="tc-trunc" class="tc on">
+        <div class="fg">
+          <div class="fl">選擇保留起點</div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <input type="text" id="trunc-t0" placeholder="HH:mm:ss (開頭)" style="width:95px" oninput="syncMarker('tr0',this.value)">
+            <button class="btn btn-xs pick-btn" id="pbtn-tr0" onclick="startPickMode('tr0')" title="在圖表上點選起點">📍 選點</button>
+          </div>
+        </div>
+        <div class="fg">
+          <div class="fl">選擇保留終點</div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <input type="text" id="trunc-t1" placeholder="HH:mm:ss (結尾)" style="width:95px" oninput="syncMarker('tr1',this.value)">
+            <button class="btn btn-xs pick-btn" id="pbtn-tr1" onclick="startPickMode('tr1')" title="在圖表上點選終點">📍 選點</button>
+          </div>
+        </div>
+        <div class="fg" style="align-self:flex-end">
+          <button class="btn btn-y" onclick="applyTrunc()">✂️ 執行雙點保留裁切</button>
+        </div>
+      </div>
+
+      <!-- TAB 1: OFFSET -->
+      <div id="tc-off" class="tc">
+        <div class="fg">
+          <div class="fl">選擇目標通道</div>
+          <div id="off-chs" class="ch-tags"></div>
+        </div>
+        <div class="fg">
+          <div class="fl">溫度偏移量 (°C)</div>
+          <input type="number" id="off-val" placeholder="-5.0" step="0.1" style="width:90px">
+        </div>
+        <div class="fg">
+          <div class="fl">作用範圍</div>
+          <select id="off-rng" onchange="toggleOffRange()">
+            <option value="all">全檔案數據</option>
+            <option value="custom">自訂時間範圍</option>
+          </select>
+        </div>
+        <div id="off-rng-cust" class="fg" style="display:none">
+          <div class="fl">時間範圍 (開頭 / 結尾)</div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <input type="text" id="off-t0" placeholder="HH:mm:ss" style="width:82px">
+            <span style="color:var(--text-muted)">~</span>
+            <input type="text" id="off-t1" placeholder="HH:mm:ss" style="width:82px">
+          </div>
+        </div>
+        <div class="fg" style="align-self:flex-end">
+          <button class="btn btn-p" onclick="applyOffsetServer()">套用偏移 (Server API)</button>
+        </div>
+      </div>
+
+      <!-- TAB 2: EXTEND -->
+      <div id="tc-ext" class="tc">
+        <div class="fg">
+          <div class="fl">T0 起始標記</div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <input type="text" id="ext-t0" placeholder="HH:mm:ss" style="width:82px" oninput="syncMarker('t0',this.value)">
+            <button class="btn btn-xs pick-btn" id="pbtn-t0" onclick="startPickMode('t0')">📍</button>
+          </div>
+        </div>
+        <div class="fg">
+          <div class="fl">T1 原結束標記</div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <input type="text" id="ext-t1" placeholder="HH:mm:ss" style="width:82px" oninput="syncMarker('t1',this.value)">
+            <button class="btn btn-xs pick-btn" id="pbtn-t1" onclick="startPickMode('t1')">📍</button>
+          </div>
+        </div>
+        <div class="fg">
+          <div class="fl">T2 新延伸結束標記</div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <input type="text" id="ext-t2" placeholder="HH:mm:ss" style="width:82px" oninput="syncMarker('t2',this.value)">
+            <button class="btn btn-xs pick-btn" id="pbtn-t2" onclick="startPickMode('t2')">📍</button>
+          </div>
+        </div>
+        <div class="fg">
+          <div class="fl">延伸曲線類型</div>
+          <select id="ext-curve">
+            <option value="stretch">均勻拉伸 (Stretch)</option>
+            <option value="cycle">週期循環重複 (Cycle)</option>
+            <option value="linear">線性平滑 transition</option>
+            <option value="quad">二次方飽和 (Quad)</option>
+            <option value="cubic">三次方飽和 (Cubic)</option>
+            <option value="sqrt">根號快充型 (Sqrt)</option>
+          </select>
+        </div>
+        <div class="fg" style="align-self:flex-end">
+          <label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer">
+            <input type="checkbox" id="ext-append-tail" checked style="accent-color:var(--accent);width:14px;height:14px;cursor:pointer">
+            拼接 T1 後原始尾段
+          </label>
+        </div>
+        <div class="fg" style="align-self:flex-end">
+          <button class="btn btn-p" onclick="applyExtendServer()">套用延伸 (Server API)</button>
+        </div>
+      </div>
+
+      <!-- TAB 3: DATE TIME -->
+      <div id="tc-dt" class="tc">
+        <div class="fg">
+          <div class="fl">起始日期時間 (YYYY-MM-DD HH:mm:ss)</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="text" id="dt-start-input" placeholder="2026-07-08 10:52:52" style="width:170px" oninput="previewCalcStop()">
+          </div>
+        </div>
+        <div class="fg">
+          <div class="fl">推算新結束時間</div>
+          <div id="dt-calc-stop" style="font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--accent);padding:5px 0">—</div>
+        </div>
+        <div class="fg" style="align-self:flex-end">
+          <button class="btn btn-p" onclick="applyDateTimeServer()">更新起始時間 (Server API)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL: AB Measurement Dashboard -->
+  <div id="right-panel">
+    <div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg3)">
+      <div style="font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px">
+        <span>🚩 AB 點雙點數據對比</span>
+      </div>
+      <button class="btn btn-xs" onclick="clearABMarkers()">重置選點</button>
+    </div>
+
+    <div style="padding:10px 14px;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;gap:8px;align-items:center">
+        <!-- Card A -->
+        <div class="ab-card" style="flex:1">
+          <div class="ab-title">
+            <span class="ab-badge-a">🚩 A點</span>
+            <button class="btn btn-xs pick-btn" id="pbtn-ptA" onclick="startPickMode('ptA')">📍</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <input type="text" id="ab-ta" placeholder="HH:mm:ss" style="width:72px;font-size:11px" oninput="syncMarker('ptA',this.value);calcABDelta()">
+          </div>
+          <div id="mptA" class="mtime">未設定</div>
+        </div>
+
+        <button class="btn btn-xs" onclick="swapAB()" style="height:32px;padding:0 6px" title="A/B 點時間對調">⇄</button>
+
+        <!-- Card B -->
+        <div class="ab-card" style="flex:1">
+          <div class="ab-title">
+            <span class="ab-badge-b">🚩 B點</span>
+            <button class="btn btn-xs pick-btn" id="pbtn-ptB" onclick="startPickMode('ptB')">📍</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <input type="text" id="ab-tb" placeholder="HH:mm:ss" style="width:72px;font-size:11px" oninput="syncMarker('ptB',this.value);calcABDelta()">
+          </div>
+          <div id="mptB" class="mtime">未設定</div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:6px;padding:6px 10px;font-size:11px">
+        <span style="color:var(--text-muted)">時間差 (Δt):</span>
+        <span id="ab-dt-txt" style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--accent)">—</span>
+      </div>
+    </div>
+
+    <!-- AB Table -->
+    <div style="flex:1;overflow-y:auto;padding:0">
+      <table class="ab-table">
+        <thead>
+          <tr>
+            <th>通道 (CH)</th>
+            <th style="text-align:right">A點</th>
+            <th style="text-align:right">B點</th>
+            <th style="text-align:right">差值 (Δ)</th>
+            <th style="text-align:center">單位</th>
+          </tr>
+        </thead>
+        <tbody id="ab-table-body">
+          <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px 0">請點擊 📍 設定 A 點與 B 點</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div id="status">
+  <span id="st-msg">尚未載入檔案</span>
+  <span class="vsep">|</span>
+  <span id="st-counts"></span>
+  <span style="margin-left:auto" id="st-hover"></span>
+</div>
+
+<script>
+'use strict';
+const HEADER_SIZE   = 12288;
+const BYTES_PER_REC = 36;
+const NUM_CH_ALL    = 18;
+const NUM_CH_DISP   = 15;
+
+const CH_COLORS = [
+  '#f87171','#60a5fa','#4ade80','#facc15','#c084fc',
+  '#38bdf8','#fb923c','#f472b6','#34d399','#818cf8',
+  '#a78bfa','#fbbf24','#2dd4bf','#86efac','#94a3b8'
+];
+
+let gbd = null;
+let rawArrayBuffer = null;
+let chart = null;
+let showRaw = false;
+let visCh = new Set([0,4,7,9]);
+let undoSnap = null;
+let isUnlocked = false;
+let authToken = null;
+let pickMode = null;
+let hovRecIdx = 0;
+const extMk = { t0: null, t1: null, t2: null, ptA: null, ptB: null, tr0: null, tr1: null };
+
+// Vertical Marker Plugin
+const vMarkPlugin = {
+  id: 'vmark',
+  afterDraw(c) {
+    if (!gbd) return;
+    const { ctx, chartArea: ca, scales: { x } } = c;
+    const total = gbd.counts;
+    const step  = Math.max(1, Math.floor(total / 2500));
+
+    if (extMk.ptA != null && extMk.ptB != null) {
+      const pxA = x.getPixelForValue(Math.round(extMk.ptA / step));
+      const pxB = x.getPixelForValue(Math.round(extMk.ptB / step));
+      ctx.save();
+      ctx.fillStyle = 'rgba(99, 102, 241, 0.08)';
+      ctx.fillRect(Math.min(pxA, pxB), ca.top, Math.abs(pxB - pxA), ca.bottom - ca.top);
+      ctx.restore();
+    }
+    if (extMk.tr0 != null && extMk.tr1 != null) {
+      const pxA = x.getPixelForValue(Math.round(extMk.tr0 / step));
+      const pxB = x.getPixelForValue(Math.round(extMk.tr1 / step));
+      ctx.save();
+      ctx.fillStyle = 'rgba(245, 158, 11, 0.12)';
+      ctx.fillRect(Math.min(pxA, pxB), ca.top, Math.abs(pxB - pxA), ca.bottom - ca.top);
+      ctx.restore();
+    }
+
+    const defs = [
+      { key:'t0', color:'#6366f1', label:'T0' },
+      { key:'t1', color:'#10b981', label:'T1' },
+      { key:'t2', color:'#f59e0b', label:'T2' },
+      { key:'ptA', color:'#ef4444', label:'🚩 A' },
+      { key:'ptB', color:'#06b6d4', label:'🚩 B' },
+      { key:'tr0', color:'#f59e0b', label:'✂️ 保留起點' },
+      { key:'tr1', color:'#f59e0b', label:'✂️ 保留終點' },
+    ];
+    defs.forEach(({ key, color, label }) => {
+      const rec = extMk[key];
+      if (rec == null) return;
+      const px = x.getPixelForValue(Math.round(rec / step));
+      ctx.save();
+      ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.setLineDash([5, 3]); ctx.globalAlpha = 0.85;
+      ctx.beginPath(); ctx.moveTo(px, ca.top); ctx.lineTo(px, ca.bottom); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.fillStyle = color; ctx.font = 'bold 10px Inter';
+      let tagText = label;
+      if (key.startsWith('pt')) tagText = `${label} (${getRecValStr(rec, 1)})`;
+      ctx.fillText(tagText, px + 3, ca.top + (key.startsWith('pt') ? 26 : 13));
+      ctx.restore();
+    });
+  }
+};
+
+// GBD PARSER
+function parseGBD(buf) {
+  const u8   = new Uint8Array(buf);
+  const view = new DataView(buf);
+  const hdr  = new TextDecoder('ascii').decode(u8.slice(0, HEADER_SIZE)).replace(/\0/g,'');
+
+  const numM  = hdr.match(/Counts\s*=\s*(\d+)/);
+  const stM   = hdr.match(/Start\s*=\s*([\d-]+),([\d:]+)/);
+  const enM   = hdr.match(/Stop\s*=\s*([\d-]+),([\d:]+)/);
+  const samM  = hdr.match(/Sample\s*=\s*(\d+)s/);
+  const venM  = hdr.match(/Vendor\s*=\s*"([^"]+)"/);
+  const modM  = hdr.match(/Model\s*=\s*"([^"]+)"/);
+
+  const counts   = parseInt(numM?.[1] || '0');
+  const startT   = stM ? new Date(`${stM[1]}T${stM[2]}`) : new Date();
+  const stopT    = enM ? new Date(`${enM[1]}T${enM[2]}`) : new Date();
+  const sample   = samM ? parseInt(samM[1]) : 1;
+
+  const ann = new Array(NUM_CH_DISP).fill('');
+  const as  = hdr.match(/\$Annotation([\s\S]*?)(?=\$[A-Z]|\$End|$)/);
+  if (as) {
+    let m, re = /CH(\d+)\s*=\s*"([^"]+)"/g;
+    while ((m = re.exec(as[1])) !== null) {
+      const i = parseInt(m[1]) - 1;
+      if (i >= 0 && i < NUM_CH_DISP) ann[i] = m[2];
+    }
+  }
+
+  const records = [];
+  for (let i = 0; i < counts; i++) {
+    const base = HEADER_SIZE + i * BYTES_PER_REC;
+    const rec  = new Array(NUM_CH_ALL);
+    for (let c = 0; c < NUM_CH_ALL; c++) rec[c] = view.getInt16(base + c * 2, false);
+    records.push(rec);
+  }
+
+  return { hdr, counts, startT, stopT, sample, vendor: venM?.[1]||'', model: modM?.[1]||'', ann, records, filename: '' };
+}
+
+function handleInput(inp) { if (inp.files[0]) loadFile(inp.files[0]); }
+function loadFile(file) {
+  showLoad(true);
+  const fr = new FileReader();
+  fr.onload = e => {
+    try {
+      rawArrayBuffer = e.target.result;
+      gbd = parseGBD(rawArrayBuffer);
+      gbd.filename = file.name;
+      onLoaded();
+      toast('載入成功：' + file.name, 'ok');
+    } catch(ex) { toast('解析失敗：' + ex.message, 'err'); }
+    showLoad(false);
+  };
+  fr.readAsArrayBuffer(file);
+}
+
+function onLoaded() {
+  buildInfo(); buildChList(); buildOffsetChTags(); initDateTimeInputs(); renderChart();
+  document.getElementById('info-sec').style.display    = 'block';
+  document.getElementById('ch-sec').style.display      = 'block';
+  document.getElementById('toolbar').style.display     = 'flex';
+  document.getElementById('edit-panel').style.display  = 'block';
+  document.getElementById('right-panel').style.display = 'flex';
+  document.getElementById('chart-empty').style.display = 'none';
+  document.getElementById('myChart').style.display     = 'block';
+  document.getElementById('header-sub').textContent    = `${gbd.filename}  ·  ${gbd.model}  ·  ${gbd.counts} 筆`;
+  setStatus('已載入：' + gbd.filename);
+  updStatusCounts(); updRange();
+}
+
+function buildInfo() {
+  const ts = t => t.toLocaleString('zh-TW',{hour12:false}).replace(/\//g,'-');
+  document.getElementById('info-panel').innerHTML = `
+    <div class="ir"><span class="ir-l">裝置</span><span class="ir-v">${gbd.model}</span></div>
+    <div class="ir"><span class="ir-l">總筆數</span><span class="ir-v">${gbd.counts.toLocaleString()} 筆</span></div>
+    <div class="ir"><span class="ir-l">取樣間隔</span><span class="ir-v">${gbd.sample} 秒/筆</span></div>
+    <div class="ir"><span class="ir-l">起始時間</span><span class="ir-v">${ts(gbd.startT)}</span></div>
+    <div class="ir"><span class="ir-l">結束時間</span><span class="ir-v">${ts(gbd.stopT)}</span></div>
+  `;
+}
+
+function buildChList() {
+  const el = document.getElementById('ch-list');
+  el.innerHTML = '';
+  for (let c = 0; c < NUM_CH_DISP; c++) {
+    const name = gbd.ann[c] || `CH${c+1}`;
+    const on   = visCh.has(c);
+    const div  = document.createElement('div');
+    div.className = 'chi' + (on ? '' : ' off');
+    div.innerHTML = `
+      <input type="checkbox" class="chi-cb" ${on?'checked':''} data-c="${c}" onclick="cbClick(event,${c})">
+      <span class="chi-dot" style="background:${CH_COLORS[c]}"></span>
+      <span class="chi-name">CH${c+1} ${name}</span>
+    `;
+    div.onclick = e => { if(e.target.tagName !== 'INPUT') toggleCh(c); };
+    el.appendChild(div);
+  }
+}
+
+function cbClick(e, c) { e.stopPropagation(); toggleCh(c); }
+function toggleCh(c) {
+  if (visCh.has(c)) visCh.delete(c); else visCh.add(c);
+  buildChList(); updDatasets();
+}
+function selAllCh(all) {
+  visCh = all ? new Set(Array.from({length:NUM_CH_DISP},(_,i)=>i)) : new Set();
+  buildChList(); updDatasets();
+}
+
+function renderChart() {
+  const ctx = document.getElementById('myChart').getContext('2d');
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: [], datasets: buildDatasets() },
+    plugins: [vMarkPlugin],
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      elements: { point: { radius: 0, hoverRadius: 4 }, line: { borderWidth: 1.5, tension: 0.1 } },
+      scales: {
+        x: { type: 'linear', display: true, ticks: { color: '#64748b', font: { size: 10 }, callback: v => fmtTime(v) }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: '#64748b', font: { size: 10 }, callback: v => v + (showRaw?'':'°C') }, grid: { color: 'rgba(255,255,255,0.04)' } }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(13,20,38,0.95)', titleColor: '#e2e8f0', bodyColor: '#94a3b8',
+          borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, padding: 10,
+          callbacks: { title: items => fmtTime(items[0].raw.x) }
+        },
+        zoom: { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' }, pan: { enabled: true, mode: 'x' } }
+      },
+      onClick: handleChartClick,
+      onHover: handleChartHover
+    }
+  });
+}
+
+function buildDatasets() {
+  if (!gbd) return [];
+  const total = gbd.counts;
+  const step  = Math.max(1, Math.floor(total / 2500));
+  const res   = [];
+  visCh.forEach(c => {
+    const data = [];
+    for (let i = 0; i < total; i += step) {
+      const val = gbd.records[i][c];
+      data.push({ x: Math.round(i / step), y: showRaw ? val : val / 10 });
+    }
+    res.push({ label: gbd.ann[c] || `CH${c+1}`, data, borderColor: CH_COLORS[c], backgroundColor: CH_COLORS[c], pointHoverBackgroundColor: CH_COLORS[c] });
+  });
+  return res;
+}
+
+function updDatasets() {
+  if (!chart) return;
+  chart.data.datasets = buildDatasets();
+  chart.update('none');
+  calcABDelta();
+}
+
+function fmtTime(recIdx) {
+  if (!gbd || recIdx < 0 || recIdx >= gbd.counts) return '';
+  const ms = gbd.startT.getTime() + recIdx * gbd.sample * 1000;
+  const d  = new Date(ms);
+  const p  = n => String(n).padStart(2,'0');
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+function timeStrToRec(str) {
+  if (!gbd) return 0;
+  str = str.trim();
+  const m = str.match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
+  if (!m) throw new Error('時間格式不正確，請用 HH:mm:ss');
+  const [_, h, min, sec] = m.map(Number);
+  const targetMs = (h*3600 + min*60 + sec)*1000;
+  const s = gbd.startT;
+  const startMs = (s.getHours()*3600 + s.getMinutes()*60 + s.getSeconds())*1000;
+  let diffSec = Math.round((targetMs - startMs)/1000);
+  if (diffSec < 0) diffSec += 86400;
+  return Math.round(diffSec / gbd.sample);
+}
+
+function handleChartHover(e, el) {
+  if (!gbd || !chart) return;
+  const x = chart.scales.x.getValueForPixel(e.x);
+  if (x == null) return;
+  const step = Math.max(1, Math.floor(gbd.counts / 2500));
+  hovRecIdx = clamp(Math.round(x * step), 0, gbd.counts - 1);
+  const timeStr = fmtTime(hovRecIdx);
+  let html = `<b>${timeStr}</b> (筆數 ${hovRecIdx+1}/${gbd.counts}) &nbsp;&nbsp;`;
+  visCh.forEach(c => {
+    const val = gbd.records[hovRecIdx][c];
+    const valStr = showRaw ? val : (val / 10).toFixed(1) + '°C';
+    html += `<span style="color:${CH_COLORS[c]}">${gbd.ann[c]||'CH'+(c+1)}: ${valStr}</span> &nbsp;`;
+  });
+  document.getElementById('st-hover').innerHTML = html;
+}
+
+function handleChartClick(e) {
+  if (!pickMode || !gbd) return;
+  const step = Math.max(1, Math.floor(gbd.counts / 2500));
+  const xVal = chart.scales.x.getValueForPixel(e.x);
+  if (xVal == null) return;
+  const rec  = clamp(Math.round(xVal * step), 0, gbd.counts - 1);
+  setPickVal(pickMode, rec);
+  exitPickMode();
+}
+
+function startPickMode(key) {
+  pickMode = key;
+  document.querySelectorAll('.pick-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('pbtn-' + key)?.classList.add('active');
+  document.getElementById('pick-banner').classList.add('show');
+}
+
+function exitPickMode() {
+  pickMode = null;
+  document.querySelectorAll('.pick-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('pick-banner').classList.remove('show');
+}
+
+function setPickVal(key, rec) {
+  extMk[key] = rec;
+  const tStr = fmtTime(rec);
+  const elMap = { t0:'ext-t0', t1:'ext-t1', t2:'ext-t2', ptA:'ab-ta', ptB:'ab-tb', tr0:'trunc-t0', tr1:'trunc-t1' };
+  if (elMap[key]) document.getElementById(elMap[key]).value = tStr;
+
+  if (key === 'ptA') document.getElementById('mptA').textContent = `${tStr} (${getRecValStr(rec,1)})`;
+  if (key === 'ptB') document.getElementById('mptB').textContent = `${tStr} (${getRecValStr(rec,1)})`;
+
+  if (key.startsWith('pt')) calcABDelta();
+  chart.update('none');
+  toast(`✓ 標記 ${key.toUpperCase()} 設定為: ${tStr}`, 'ok');
+}
+
+function syncMarker(key, str) {
+  try { extMk[key] = str ? clamp(timeStrToRec(str), 0, gbd.counts - 1) : null; } catch(_) {}
+  chart?.update('none');
+}
+
+function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+function saveSnap() {
+  if (!gbd) return;
+  undoSnap = JSON.parse(JSON.stringify(gbd));
+  undoSnap.startT = new Date(gbd.startT);
+  undoSnap.stopT  = new Date(gbd.stopT);
+  document.getElementById('undo-btn').disabled = false;
+}
+
+function undo() {
+  if (!undoSnap) return;
+  gbd = undoSnap; undoSnap = null;
+  document.getElementById('undo-btn').disabled = true;
+  onLoaded(); toast('已復原上一步', 'ok');
+}
+
+// ══════════════════════════════════════════════════
+// SERVER API CALLS (100% Secure Server-Side Operations)
+// ══════════════════════════════════════════════════
+
+// Convert ArrayBuffer to Base64
+function bufferToBase64(buf) {
+  let binary = '';
+  const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  return window.btoa(binary);
+}
+
+// Convert Base64 to ArrayBuffer
+function base64ToBuffer(base64) {
+  const binary = window.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+async function verifyPasswordServer() {
+  const pwd = document.getElementById('pwd-input').value.trim();
+  if (!pwd) return toast('請輸入密碼', 'err');
+
+  showLoad(true);
+  try {
+    const res = await fetch('/api/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pwd })
+    });
+    const data = await res.json();
+    showLoad(false);
+
+    if (res.ok && data.success) {
+      authToken = data.token;
+      closePwdModal();
+      setUnlockState(true);
+      toast(data.message, 'ok');
+    } else {
+      if (res.status === 429) {
+        alert(data.error);
+      }
+      const err = document.getElementById('pwd-err');
+      if (err) {
+        err.textContent = data.error || '❌ 密碼不正確';
+        err.style.display = 'block';
+      }
+      toast(data.error || '❌ 驗證失敗', 'err');
+    }
+  } catch(e) {
+    showLoad(false);
+    toast('伺服器連線失敗：' + e.message, 'err');
+  }
+}
+
+async function applyOffsetServer() {
+  if (!gbd) return toast('請先載入檔案', 'err');
+  if (!isUnlocked || !authToken) return openPwdModal();
+
+  const chs = [...document.querySelectorAll('#off-chs .ct.on')].map(t=>+t.dataset.c);
+  if (!chs.length) return toast('請選擇通道', 'err');
+  const deg = parseFloat(document.getElementById('off-val').value);
+  if (isNaN(deg)) return toast('請輸入偏移量 (°C)', 'err');
+
+  let r0=0, r1=gbd.counts-1;
+  const rng = document.getElementById('off-rng').value;
+  if (rng === 'custom') {
+    try {
+      const s0 = document.getElementById('off-t0').value;
+      const s1 = document.getElementById('off-t1').value;
+      if (s0) r0 = clamp(timeStrToRec(s0), 0, gbd.counts-1);
+      if (s1) r1 = clamp(timeStrToRec(s1), 0, gbd.counts-1);
+    } catch(e) { return toast(e.message, 'err'); }
+  }
+
+  saveSnap();
+  showLoad(true);
+  try {
+    const res = await fetch('/api/edit/offset', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({ gbdBase64: bufferToBase64(rawArrayBuffer), chs, deg, rng, r0, r1 })
+    });
+    const data = await res.json();
+    showLoad(false);
+
+    if (res.ok && data.success) {
+      rawArrayBuffer = base64ToBuffer(data.gbdBase64);
+      gbd = parseGBD(rawArrayBuffer);
+      onLoaded();
+      toast(data.message, 'ok');
+    } else {
+      toast(data.error || '伺服器運算失敗', 'err');
+    }
+  } catch(e) {
+    showLoad(false);
+    toast('伺服器連線失敗：' + e.message, 'err');
+  }
+}
+
+async function applyExtendServer() {
+  if (!gbd) return toast('請先載入檔案', 'err');
+  if (!isUnlocked || !authToken) return openPwdModal();
+
+  let r0, r1, r2;
+  try {
+    r0 = timeStrToRec(document.getElementById('ext-t0').value);
+    r1 = timeStrToRec(document.getElementById('ext-t1').value);
+    r2 = timeStrToRec(document.getElementById('ext-t2').value);
+  } catch(e) { return toast(e.message, 'err'); }
+
+  const type = document.getElementById('ext-curve').value;
+  const appendTail = document.getElementById('ext-append-tail').checked;
+
+  saveSnap();
+  showLoad(true);
+  try {
+    const res = await fetch('/api/edit/extend', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({ gbdBase64: bufferToBase64(rawArrayBuffer), r0, r1, r2, type, appendTail })
+    });
+    const data = await res.json();
+    showLoad(false);
+
+    if (res.ok && data.success) {
+      rawArrayBuffer = base64ToBuffer(data.gbdBase64);
+      gbd = parseGBD(rawArrayBuffer);
+      onLoaded();
+      toast(data.message, 'ok');
+    } else {
+      toast(data.error || '伺服器延伸運算失敗', 'err');
+    }
+  } catch(e) {
+    showLoad(false);
+    toast('伺服器連線失敗：' + e.message, 'err');
+  }
+}
+
+async function applyDateTimeServer() {
+  if (!gbd) return toast('請先載入檔案', 'err');
+  if (!isUnlocked || !authToken) return openPwdModal();
+
+  const str = document.getElementById('dt-start-input').value.trim();
+
+  saveSnap();
+  showLoad(true);
+  try {
+    const res = await fetch('/api/edit/datetime', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({ gbdBase64: bufferToBase64(rawArrayBuffer), newStartStr: str })
+    });
+    const data = await res.json();
+    showLoad(false);
+
+    if (res.ok && data.success) {
+      rawArrayBuffer = base64ToBuffer(data.gbdBase64);
+      gbd = parseGBD(rawArrayBuffer);
+      onLoaded();
+      toast(data.message, 'ok');
+    } else {
+      toast(data.error || '伺服器時間修改失敗', 'err');
+    }
+  } catch(e) {
+    showLoad(false);
+    toast('伺服器連線失敗：' + e.message, 'err');
+  }
+}
+
+// Truncate (local slice)
+function applyTrunc() {
+  if (!gbd) return toast('請先載入檔案', 'err');
+  let r0, r1;
+  try {
+    r0 = timeStrToRec(document.getElementById('trunc-t0').value);
+    r1 = timeStrToRec(document.getElementById('trunc-t1').value);
+  } catch(e) { return toast(e.message, 'err'); }
+
+  if (r0 < 0 || r1 <= r0) return toast('保留時間區間不正確 (需 保留起點 < 保留終點)', 'err');
+
+  const oldCounts = gbd.counts;
+  const r0c = clamp(r0, 0, oldCounts - 1);
+  const r1c = clamp(r1, 0, oldCounts - 1);
+  const newCount = r1c - r0c + 1;
+
+  saveSnap();
+  gbd.records = gbd.records.slice(r0c, r1c + 1);
+  gbd.counts  = newCount;
+  gbd.startT = new Date(gbd.startT.getTime() + r0c * gbd.sample * 1000);
+  gbd.stopT  = new Date(gbd.startT.getTime() + (newCount - 1) * gbd.sample * 1000);
+
+  extMk.tr0 = null; extMk.tr1 = null;
+  buildInfo(); initDateTimeInputs(); updDatasets(); updRange(); updStatusCounts();
+  toast(`✓ 裁切完成：保留 ${newCount} 筆數據 (移除 ${oldCounts - newCount} 筆)`, 'ok');
+}
+
+function doExport() {
+  if (!gbd) return toast('請先載入檔案','err');
+  const cnt  = gbd.counts;
+  const size = HEADER_SIZE + cnt * BYTES_PER_REC;
+  const buf  = new ArrayBuffer(size);
+  const view = new DataView(buf);
+  const u8   = new Uint8Array(buf);
+
+  let hdr = gbd.hdr;
+  hdr = hdr.replace(/Counts\s*=\s*\d+/, `Counts    =      ${String(cnt).padStart(6)}`);
+  hdr = hdr.replace(/Start\s*=\s*[\d-]+,[\d:]+/, `Start     = ${fmtGBDDate(gbd.startT)}`);
+  hdr = hdr.replace(/Stop\s*=\s*[\d-]+,[\d:]+/, `Stop      = ${fmtGBDDate(gbd.stopT)}`);
+  const enc = new TextEncoder().encode(hdr);
+  const hbuf = new Uint8Array(HEADER_SIZE);
+  hbuf.set(enc.slice(0, Math.min(enc.length, HEADER_SIZE)));
+  u8.set(hbuf, 0);
+
+  for (let i=0; i<cnt; i++) {
+    const base = HEADER_SIZE + i * BYTES_PER_REC;
+    for (let c=0; c<NUM_CH_ALL; c++) view.setInt16(base + c*2, gbd.records[i][c], false);
+  }
+
+  const blob = new Blob([buf], { type:'application/octet-stream' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = fmtExportFilename(gbd.startT, gbd.filename); a.click();
+  URL.revokeObjectURL(url);
+  toast('✓ GBD 檔案成功匯出', 'ok');
+}
+
+function fmtGBDDate(d) {
+  const p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())},${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+function fmtExportFilename(startT, origName) {
+  const p = n => String(n).padStart(2,'0');
+  const yy = String(startT.getFullYear()).slice(-2);
+  const mm = p(startT.getMonth()+1);
+  const dd = p(startT.getDate());
+  const hh = p(startT.getHours());
+  const mi = p(startT.getMinutes());
+  const ss = p(startT.getSeconds());
+  let suffix = 'UG';
+  if (origName) {
+    const m = origName.match(/_([A-Za-z0-9]+)\.GBD$/i);
+    if (m) suffix = m[1];
+  }
+  return `${yy}${mm}${dd}-${hh}${mi}${ss}_${suffix}.GBD`;
+}
+
+function setTab(name, btn) {
+  document.querySelectorAll('.tb').forEach(b => b.classList.remove('on'));
+  document.querySelectorAll('.tc').forEach(c => c.classList.remove('on'));
+  btn.classList.add('on');
+  document.getElementById('tc-' + name)?.classList.add('on');
+}
+
+function setStatus(msg) { document.getElementById('st-msg').textContent = msg; }
+function updStatusCounts() { if (gbd) document.getElementById('st-counts').textContent = `${gbd.counts.toLocaleString()} 筆紀錄 (${gbd.sample}s/筆)`; }
+function updRange() { if (gbd) document.getElementById('range-txt').textContent = `${fmtTime(0)} ~ ${fmtTime(gbd.counts-1)}`; }
+function showLoad(show) { document.getElementById('loading').classList.toggle('show', show); }
+
+function toast(msg, type='info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = `show ${type}`;
+  clearTimeout(el._t); el._t = setTimeout(() => el.className = '', 3000);
+}
+
+function buildOffsetChTags() {
+  const el = document.getElementById('off-chs');
+  if (!el) return;
+  el.innerHTML = '';
+  for (let c = 0; c < NUM_CH_DISP; c++) {
+    const name = gbd?.ann[c]||`CH${c+1}`;
+    const tag  = document.createElement('div');
+    tag.className = 'ct' + (c===4?' on':'');
+    tag.dataset.c = c;
+    tag.style.borderLeftColor = CH_COLORS[c];
+    tag.textContent = name||`CH${c+1}`;
+    tag.onclick = () => tag.classList.toggle('on');
+    el.appendChild(tag);
+  }
+}
+
+function toggleOffRange() {
+  document.getElementById('off-rng-cust').style.display =
+    document.getElementById('off-rng').value === 'custom' ? 'block' : 'none';
+}
+
+function initDateTimeInputs() {
+  if (!gbd) return;
+  const p = n => String(n).padStart(2,'0');
+  const d = gbd.startT;
+  document.getElementById('dt-start-input').value = `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  previewCalcStop();
+}
+
+function previewCalcStop() {
+  if (!gbd) return;
+  const str = document.getElementById('dt-start-input').value.trim();
+  try {
+    const d = new Date(str.replace(' ', 'T'));
+    if (isNaN(d.getTime())) throw new Error();
+    const stopD = new Date(d.getTime() + (gbd.counts - 1) * gbd.sample * 1000);
+    const p = n => String(n).padStart(2,'0');
+    document.getElementById('dt-calc-stop').textContent = `${stopD.getFullYear()}-${p(stopD.getMonth()+1)}-${p(stopD.getDate())} ${p(stopD.getHours())}:${p(stopD.getMinutes())}:${p(stopD.getSeconds())}`;
+  } catch(_) {
+    document.getElementById('dt-calc-stop').textContent = '無效日期格式';
+  }
+}
+
+function calcABDelta() {
+  if (!gbd) return;
+  const rA = extMk.ptA; const rB = extMk.ptB;
+  const tbody = document.getElementById('ab-table-body');
+  const dtEl  = document.getElementById('ab-dt-txt');
+
+  if (rA == null || rB == null) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px 0">請點擊 📍 設定 A 點與 B 點</td></tr>';
+    if (dtEl) dtEl.textContent = '—';
+    return;
+  }
+
+  const dtSec = (rB - rA) * gbd.sample;
+  const absSec = Math.abs(dtSec);
+  const sign = dtSec >= 0 ? '+' : '-';
+  const hh = String(Math.floor(absSec / 3600)).padStart(2,'0');
+  const mm = String(Math.floor((absSec % 3600) / 60)).padStart(2,'0');
+  const ss = String(absSec % 60).padStart(2,'0');
+  if (dtEl) dtEl.textContent = `${sign} ${hh}:${mm}:${ss} (${dtSec > 0 ? '+' : ''}${dtSec}s)`;
+
+  let rows = '';
+  const unitStr = showRaw ? 'Raw' : '°C';
+  visCh.forEach(c => {
+    const name  = gbd.ann[c] || `CH${c+1}`;
+    const valA  = gbd.records[rA][c];
+    const valB  = gbd.records[rB][c];
+    const diffRaw = valB - valA;
+    const vAStr = showRaw ? valA : (valA / 10).toFixed(1);
+    const vBStr = showRaw ? valB : (valB / 10).toFixed(1);
+    const dVal  = showRaw ? diffRaw : (diffRaw / 10).toFixed(1);
+    const dStr  = diffRaw > 0 ? '+' + dVal : dVal;
+    const cls   = diffRaw > 0 ? 'pos' : (diffRaw < 0 ? 'neg' : 'zero');
+    rows += `
+      <tr>
+        <td><div class="ch-cell"><span class="stat-dot" style="background:${CH_COLORS[c]}"></span><span title="CH${c+1} ${name}">CH${c+1} ${name}</span></div></td>
+        <td class="val-num">${vAStr}</td>
+        <td class="val-num">${vBStr}</td>
+        <td class="val-num ${cls}">${dStr}</td>
+        <td class="val-unit">${unitStr}</td>
+      </tr>
+    `;
+  });
+  if (tbody) tbody.innerHTML = rows;
+}
+
+function swapAB() {
+  if (!gbd) return;
+  const tempRec = extMk.ptA; extMk.ptA = extMk.ptB; extMk.ptB = tempRec;
+  const inputA = document.getElementById('ab-ta');
+  const inputB = document.getElementById('ab-tb');
+  const tempVal = inputA.value; inputA.value = inputB.value; inputB.value = tempVal;
+
+  const tAStr = extMk.ptA != null ? fmtTime(extMk.ptA) : '';
+  const tBStr = extMk.ptB != null ? fmtTime(extMk.ptB) : '';
+  const badgeA = document.getElementById('mptA');
+  const badgeB = document.getElementById('mptB');
+  if (badgeA) badgeA.textContent = extMk.ptA != null ? `${tAStr} (${getRecValStr(extMk.ptA, 1)})` : '未設定';
+  if (badgeB) badgeB.textContent = extMk.ptB != null ? `${tBStr} (${getRecValStr(extMk.ptB, 1)})` : '未設定';
+
+  calcABDelta(); chart?.update('none'); toast('✓ A 點與 B 點已對調', 'ok');
+}
+
+function getRecValStr(rec, maxCh = 3) {
+  if (!gbd || rec == null || rec < 0 || rec >= gbd.counts) return '';
+  const parts = [];
+  const recData = gbd.records[rec];
+  visCh.forEach(c => {
+    if (parts.length >= maxCh) return;
+    const name = gbd.ann[c] || `CH${c+1}`;
+    const v = recData[c];
+    parts.push(`${name}: ${showRaw ? v : (v / 10).toFixed(1) + '°C'}`);
+  });
+  return parts.join(' | ');
+}
+
+function clearABMarkers() {
+  extMk.ptA = null; extMk.ptB = null;
+  document.getElementById('ab-ta').value = '';
+  document.getElementById('ab-tb').value = '';
+  document.getElementById('mptA').textContent = '未設定';
+  document.getElementById('mptB').textContent = '未設定';
+  calcABDelta(); chart?.update('none'); toast('已重置 AB 測量點', 'info');
+}
+
+function toggleRightPanel() {
+  const panel = document.getElementById('right-panel');
+  if (!panel) return;
+  const isVis = panel.style.display !== 'none';
+  panel.style.display = isVis ? 'none' : 'flex';
+  document.getElementById('ab-panel-btn')?.classList.toggle('btn-p', !isVis);
+}
+
+function toggleUnlock() {
+  if (isUnlocked) { setUnlockState(false); toast('🔒 已重置為資料閱讀模式', 'info'); }
+  else openPwdModal();
+}
+
+function openPwdModal() {
+  const modal = document.getElementById('pwd-modal');
+  const input = document.getElementById('pwd-input');
+  const err   = document.getElementById('pwd-err');
+  if (err) err.style.display = 'none';
+  if (input) input.value = '';
+  if (modal) modal.style.display = 'flex';
+  setTimeout(() => input?.focus(), 100);
+}
+
+function closePwdModal() {
+  const modal = document.getElementById('pwd-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function togglePwdVisibility() {
+  const inp = document.getElementById('pwd-input');
+  if (!inp) return;
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+function setUnlockState(state) {
+  isUnlocked = state;
+  if (!state) authToken = null;
+  document.getElementById('unlock-btn').textContent = state ? '🔒 鎖定閱讀模式' : '🔓 解鎖進階功能';
+  document.getElementById('unlock-btn').classList.toggle('btn-g', state);
+  document.getElementById('unlock-btn').classList.toggle('btn-p', !state);
+}
+
+// Drag & drop file support
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => {
+  e.preventDefault();
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+</script>
+</body>
+</html>
