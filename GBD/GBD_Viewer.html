@@ -611,7 +611,13 @@ const vMarkPlugin = {
 function parseGBD(buf) {
   const u8   = new Uint8Array(buf);
   const view = new DataView(buf);
-  const hdr  = new TextDecoder('ascii').decode(u8.slice(0, HEADER_SIZE)).replace(/\0/g,'');
+
+  // Dynamic HeaderSiz detection (e.g., 8192 for GL240/10CH, 12288 for GL820/20CH)
+  const headSnippet = new TextDecoder('utf-8').decode(u8.slice(0, Math.min(u8.length, 16384))).replace(/\0/g, '');
+  const hsM = headSnippet.match(/HeaderSiz\s*=\s*(\d+)/);
+  const headerSize = hsM ? parseInt(hsM[1]) : 8192;
+
+  const hdr  = new TextDecoder('utf-8').decode(u8.slice(0, headerSize)).replace(/\0/g,'');
 
   const numM  = hdr.match(/Counts\s*=\s*(\d+)/);
   const stM   = hdr.match(/Start\s*=\s*([\d-]+),([\d:]+)/);
@@ -639,7 +645,8 @@ function parseGBD(buf) {
   // Binary records
   const records = [];
   for (let i = 0; i < counts; i++) {
-    const base = HEADER_SIZE + i * BYTES_PER_REC;
+    const base = headerSize + i * BYTES_PER_REC;
+    if (base + BYTES_PER_REC > buf.byteLength) break;
     const rec  = new Array(NUM_CH_ALL);
     for (let c = 0; c < NUM_CH_ALL; c++) {
       rec[c] = view.getInt16(base + c * 2, false);
@@ -647,7 +654,7 @@ function parseGBD(buf) {
     records.push(rec);
   }
 
-  return { hdr, counts, startT, stopT, sample,
+  return { hdr, headerSize, counts: records.length, startT, stopT, sample,
            vendor: venM?.[1]||'', model: modM?.[1]||'',
            ann, records, filename: '' };
 }
@@ -815,7 +822,7 @@ function renderChart() {
       plugins: {
         legend: { display:false },
         tooltip: {
-          enabled: () => !pickMode,
+          enabled: !pickMode,
           backgroundColor:'rgba(7,11,22,.96)',
           borderColor:'rgba(255,255,255,.1)', borderWidth:1,
           titleColor:'#94a3b8', bodyColor:'#e2e8f0', padding:10,
@@ -826,7 +833,7 @@ function renderChart() {
         },
         zoom: {
           zoom:{ wheel:{enabled:true}, pinch:{enabled:true}, mode:'x' },
-          pan: { enabled:() => !pickMode, mode:'x' }
+          pan: { enabled: !pickMode, mode:'x' }
         }
       },
       scales: {
@@ -1098,23 +1105,24 @@ function applyTrunc() {
 function doExport() {
   if (!gbd) return toast('請先載入檔案','err');
 
-  const cnt  = gbd.counts;
-  const size = HEADER_SIZE + cnt * BYTES_PER_REC;
-  const buf  = new ArrayBuffer(size);
-  const view = new DataView(buf);
-  const u8   = new Uint8Array(buf);
+  const cnt   = gbd.counts;
+  const hSize = gbd.headerSize || 8192;
+  const size  = hSize + cnt * BYTES_PER_REC;
+  const buf   = new ArrayBuffer(size);
+  const view  = new DataView(buf);
+  const u8    = new Uint8Array(buf);
 
   let hdr = gbd.hdr;
   hdr = hdr.replace(/Counts\s*=\s*\d+/, `Counts    =      ${String(cnt).padStart(6)}`);
   hdr = hdr.replace(/Start\s*=\s*[\d-]+,[\d:]+/, `Start     = ${fmtGBDDate(gbd.startT)}`);
   hdr = hdr.replace(/Stop\s*=\s*[\d-]+,[\d:]+/, `Stop      = ${fmtGBDDate(gbd.stopT)}`);
   const enc = new TextEncoder().encode(hdr);
-  const hbuf = new Uint8Array(HEADER_SIZE);
-  hbuf.set(enc.slice(0, Math.min(enc.length, HEADER_SIZE)));
+  const hbuf = new Uint8Array(hSize);
+  hbuf.set(enc.slice(0, Math.min(enc.length, hSize)));
   u8.set(hbuf, 0);
 
   for (let i=0; i<cnt; i++) {
-    const base = HEADER_SIZE + i * BYTES_PER_REC;
+    const base = hSize + i * BYTES_PER_REC;
     for (let c=0; c<NUM_CH_ALL; c++)
       view.setInt16(base + c*2, gbd.records[i][c], false);
   }
