@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>GBD 溫度資料閱讀器 (Viewer)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -508,6 +511,15 @@ select option{background:#1e293b}
 
 <script>
 'use strict';
+// Auto-register Chartjs Zoom Plugin if loaded via CDN
+if (typeof Chart !== 'undefined') {
+  if (typeof ChartZoom !== 'undefined') {
+    try { Chart.register(ChartZoom); } catch(_) {}
+  } else if (typeof window['chartjs-plugin-zoom'] !== 'undefined') {
+    try { Chart.register(window['chartjs-plugin-zoom']); } catch(_) {}
+  }
+}
+
 // ══════════════════════════════════════════════════
 // CONSTANTS
 // ══════════════════════════════════════════════════
