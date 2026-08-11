@@ -13,3 +13,4 @@ Rufus/
 
 # 歷史備份
 backups/
+!GBD/backups/
