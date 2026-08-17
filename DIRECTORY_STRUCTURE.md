@@ -33,7 +33,7 @@ X13/
 │   ├── led_studio/                # LED 螢幕設計界面 (V2.0, V1.1.bak, LED_SPECS)
 │   ├── motor_calculator/          # 馬達計算與等效電路繪製工具
 │   ├── display_hardware/          # OLED 版面設計與 3D 顯示 UI 工具
-│   └── kavas_blower_control/      # KAVAS 鼓風機 ESP32 Wi-Fi 雲端 3通道資料記錄器專案 (KAVAS手冊.pdf, KAVAS_ESP32_DataLogger_Design.md, BOM_List.md, 3d_view.html, kavas_esp32_logger.ino, google_script.js, index.html, simulator.html)
+│   └── kavas_blower_control/      # KAVAS 鼓風機 ESP32 Wi-Fi 雲端 3通道資料記錄器專案 (KAVAS手冊.pdf, KAVAS_ESP32_DataLogger_Design.md, PROJECT_BRIEFING_FOR_NOTEBOOKLM.md, BOM_List.md, 3d_view.html, kavas_esp32_logger.ino, google_script.js, index.html, simulator.html)
 │
 ├── 💻 system_tools/               # 系統工具、軟體安裝檔與大容量 ISO
 │   ├── ubuntu-24.04.4-desktop-amd64.iso # Ubuntu 24.04 Desktop ISO (6.6GB)
