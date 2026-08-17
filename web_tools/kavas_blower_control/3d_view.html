@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KAVAS ESP32 數據採集控制箱 - 3D 實體元件互動展示 (Three.js 爆炸分解圖)</title>
+    <!-- Google Fonts & Font Awesome Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0a0e17;
+            --panel-bg: rgba(16, 23, 38, 0.85);
+            --panel-border: rgba(56, 189, 248, 0.2);
+            --primary: #38bdf8;
+            --primary-glow: rgba(56, 189, 248, 0.4);
+            --accent: #10b981;
+            --warning: #f59e0b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* 3D Canvas Container */
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* UI Panel Overlay */
+        .ui-header {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            padding: 16px 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+
+        .ui-header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .ui-header p {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* Top Right Navigation Buttons */
+        .ui-nav {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--panel-border);
+            color: var(--text-main);
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            background: rgba(56, 189, 248, 0.2);
+            border-color: var(--primary);
+            color: var(--primary);
+            transform: translateY(-2px);
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: #0f172a;
+            border: none;
+        }
+
+        .btn-primary:hover {
+            background: #7dd3fc;
+            color: #0f172a;
+        }
+
+        /* Floating Controls Panel Bottom Left */
+        .ui-controls {
+            position: absolute;
+            bottom: 25px;
+            left: 20px;
+            z-index: 10;
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            padding: 18px 24px;
+            width: 340px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+
+        .control-group {
+            margin-bottom: 16px;
+        }
+
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .control-value {
+            color: var(--primary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: #1e293b;
+            border-radius: 3px;
+            outline: none;
+            accent-color: var(--primary);
+        }
+
+        .btn-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        /* Part Detail Card Right Floating */
+        .part-card {
+            position: absolute;
+            top: 90px;
+            right: 20px;
+            z-index: 10;
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--primary);
+            border-radius: 14px;
+            padding: 20px;
+            width: 320px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 20px var(--primary-glow);
+            transform: translateX(380px);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .part-card.active {
+            transform: translateX(0);
+        }
+
+        .part-card h3 {
+            font-size: 16px;
+            color: var(--primary);
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .part-card .tag {
+            font-size: 11px;
+            background: rgba(56, 189, 248, 0.15);
+            color: var(--primary);
+            padding: 2px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--primary-glow);
+        }
+
+        .part-card p {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+
+        .part-spec {
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 12px;
+            margin-bottom: 14px;
+        }
+
+        .spec-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .spec-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .spec-item span:first-child {
+            color: var(--text-muted);
+        }
+
+        .spec-item span:last-child {
+            color: var(--text-main);
+            font-weight: 600;
+        }
+
+        /* Loading Screen overlay */
+        #loader {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-dark);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.5s ease;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(56, 189, 248, 0.1);
+            border-left-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        #loader p {
+            margin-top: 16px;
+            font-size: 14px;
+            color: var(--primary);
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loader">
+        <div class="spinner"></div>
+        <p>載入 KAVAS 3D 工業控制箱實體模型中...</p>
+    </div>
+
+    <!-- UI Overlay Header -->
+    <div class="ui-header">
+        <h1><i class="fa-solid => fa-cube"></i> KAVAS ESP32 數據採集控制箱 3D 模型</h1>
+        <p>IP68 工業級防護控制盒 + 明緯電源 + MAX485 + DHT22 實體元件展示</p>
+    </div>
+
+    <!-- Top Right Action Buttons -->
+    <div class="ui-nav">
+        <a href="index.html" class="btn"><i class="fa-solid fa-chart-line"></i> 返回即時儀表板</a>
+        <a href="BOM_List.md" target="_blank" class="btn btn-primary"><i class="fa-solid fa-file-lines"></i> 開啟 BOM 採購清單</a>
+    </div>
+
+    <!-- Controls Panel Bottom Left -->
+    <div class="ui-controls">
+        <div class="control-group">
+            <div class="control-label">
+                <span><i class="fa-solid fa-expand"></i> 爆炸分解圖拆解度</span>
+                <span class="control-value" id="explode-val">0%</span>
+            </div>
+            <input type="range" id="explode-slider" min="0" max="100" value="0">
+        </div>
+
+        <div class="control-group">
+            <div class="control-label">
+                <span><i class="fa-solid fa-eye"></i> 外殼透光隱藏度</span>
+                <span class="control-value" id="opacity-val">40%</span>
+            </div>
+            <input type="range" id="opacity-slider" min="0" max="100" value="40">
+        </div>
+
+        <div class="btn-grid">
+            <button class="btn" id="btn-reset"><i class="fa-solid fa-rotate-left"></i> 重置全覽視角</button>
+            <button class="btn" id="btn-animate"><i class="fa-solid fa-play"></i> 自動展示旋轉</button>
+        </div>
+    </div>
+
+    <!-- Part Detail Card -->
+    <div class="part-card" id="part-card">
+        <h3 id="card-title">元件名稱 <span class="tag" id="card-tag">TAG</span></h3>
+        <p id="card-desc">請點擊 3D 模型中的任何實體元件以查看技術規格與採購連結。</p>
+        <div class="part-spec">
+            <div class="spec-item"><span>工作電壓：</span><span id="spec-voltage">--</span></div>
+            <div class="spec-item"><span>專案用途：</span><span id="spec-usage">--</span></div>
+            <div class="spec-item"><span>預估單價：</span><span id="spec-price">--</span></div>
+        </div>
+        <a href="#" target="_blank" id="card-link" class="btn btn-primary" style="justify-content: center; width: 100%;">
+            <i class="fa-solid fa-cart-shopping"></i> 前往廣華電子商城採購
+        </a>
+    </div>
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
+
+    <script>
+        // -------------------------------------------------------------
+        // 1. Three.js 基礎場景設定 (Scene, Camera, Renderer, Controls)
+        // -------------------------------------------------------------
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0e17);
+        scene.fog = new THREE.FogExp2(0x0a0e17, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(22, 18, 25);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 2 + 0.1;
+
+        // -------------------------------------------------------------
+        // 2. 光源系統 (Lighting)
+        // -------------------------------------------------------------
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0x38bdf8, 1.2);
+        dirLight.position.set(20, 40, 20);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        scene.add(dirLight);
+
+        const pointLight = new THREE.PointLight(0x10b981, 1, 30);
+        pointLight.position.set(-10, 10, -10);
+        scene.add(pointLight);
+
+        // 底座網格 Floor Grid
+        const gridHelper = new THREE.GridHelper(60, 60, 0x38bdf8, 0x1e293b);
+        gridHelper.position.y = -6;
+        scene.add(gridHelper);
+
+        // -------------------------------------------------------------
+        // 3. 實體 3D 元件模型建立 (Component Models)
+        // -------------------------------------------------------------
+        const components = [];
+        const mainGroup = new THREE.Group();
+        scene.add(mainGroup);
+
+        // 材質定義
+        const matPlasticTransparent = new THREE.MeshPhysicalMaterial({
+            color: 0x94a3b8,
+            transparent: true,
+            opacity: 0.4,
+            roughness: 0.2,
+            transmission: 0.6,
+            thickness: 1.2
+        });
+
+        const matPlasticBoxBase = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5 });
+        const matPcbGreen = new THREE.MeshStandardMaterial({ color: 0x065f46, roughness: 0.3 });
+        const matPcbBlack = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.2 });
+        const matBrass = new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.8, roughness: 0.2 });
+        const matChip = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.1 });
+        const matPowerBlack = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4 });
+        const matDhtWhite = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 });
+
+        // 元件數據資料庫
+        const partData = {
+            caseCover: {
+                name: 'IP68 防水盒透明上蓋',
+                tag: '工規外殼',
+                desc: '採用高強度 PC 防爆高透光材質，內建高彈性橡膠密封圈，具備 IP68 防水防塵防腐蝕能力。',
+                voltage: '不適用',
+                usage: '隔離機房水氣、油霧與粉塵',
+                price: '約 $150 ~ $320',
+                link: 'https://shop.cpu.com.tw/cPath/2112'
+            },
+            caseBase: {
+                name: 'IP65/IP68 防水盒工程底座',
+                tag: '工規外殼',
+                desc: '底座預留 M3 銅柱固定孔與側邊 PG7/PG9 電纜防水接頭打孔位。',
+                voltage: '不適用',
+                usage: '固定內部主板與電源防護',
+                price: '隨外殼附贈',
+                link: 'https://shop.cpu.com.tw/cPath/2112'
+            },
+            esp32: {
+                name: 'ESP32 雙核 Wi-Fi 開發板',
+                tag: '主控 MCU',
+                desc: '搭載 Xtensa 32-bit LX6 雙核心處理器，內建 2.4GHz Wi-Fi 與藍牙，負責 Modbus 採集與雲端 Sheets POST 上傳。',
+                voltage: 'DC 5V (USB/VIN)',
+                usage: '全系統邏輯主控與雲端連線',
+                price: '約 $180 ~ $350',
+                link: 'https://shop.cpu.com.tw/Search/advanced/4553503332/page/1/'
+            },
+            powerModule: {
+                name: '明緯 IRM-05-05 電源模組',
+                tag: '電源轉換',
+                desc: '全電壓 AC 85~264V 轉 DC 5V 1A 5W 密封型降壓電源模組，具備短路/過載保護。',
+                voltage: 'AC 110V/220V 輸入 $\\rightarrow$ DC 5V',
+                usage: '直接引進市電降壓為控制箱供電',
+                price: '約 $120 ~ $180',
+                link: 'https://shop.cpu.com.tw/Search/advanced/49524d2d30352d3035/page/1/'
+            },
+            max485: {
+                name: 'ZY-MAX485 通訊模組',
+                tag: 'RS485 介面',
+                desc: 'TTL 轉 RS485 晶片通訊模組，負責與鼓風機驅動器 Modbus RTU 長距離差動信號通訊。',
+                voltage: 'DC 3.3V ~ 5V',
+                usage: '採集轉速(0~24000RPM)/頻率/電壓/電流',
+                price: '約 $30 ~ $89',
+                link: 'https://shop.cpu.com.tw/Search/advanced/4d4158343835/page/1/'
+            },
+            dht22: {
+                name: 'ADIO-DHT22 溫溼度傳感器',
+                tag: '環境監測',
+                desc: '高精度單總線數字溫濕度感測器 (AM2302)，測溫 -40~80℃ (±0.5℃)，測濕 0~100%RH (±2%)。',
+                voltage: 'DC 3.3V ~ 5.5V',
+                usage: '即時監測鼓風機周圍環境溫濕度',
+                price: '約 $295',
+                link: 'https://shop.cpu.com.tw/Search/advanced/4448543232/page/1/'
+            },
+            cableGland: {
+                name: 'PG7/PG9 電纜防水固定接頭',
+                tag: '防水穿線',
+                desc: '尼龍防水螺帽與橡膠爪圈，鎖緊引出的 AC 市電線及 RS485 雙絞線。',
+                voltage: '不適用',
+                usage: '出線口防拉扯與 IP68 防水鎖緊',
+                price: '約 $15 ~ $30 /個',
+                link: 'https://shop.cpu.com.tw/Search/advanced/504737/page/1/'
+            }
+        };
+
+        // --- A. IP68 防水外殼底座 ---
+        const caseBaseGeo = new THREE.BoxGeometry(16, 4, 12);
+        const caseBaseMesh = new THREE.Mesh(caseBaseGeo, matPlasticBoxBase);
+        caseBaseMesh.position.y = -2;
+        caseBaseMesh.castShadow = true;
+        caseBaseMesh.receiveShadow = true;
+        caseBaseMesh.userData = { partKey: 'caseBase', defaultY: -2, explodeFactor: { x: 0, y: -4, z: 0 } };
+        mainGroup.add(caseBaseMesh);
+        components.push(caseBaseMesh);
+
+        // --- B. IP68 防水外殼透明上蓋 ---
+        const caseCoverGeo = new THREE.BoxGeometry(16.4, 2.5, 12.4);
+        const caseCoverMesh = new THREE.Mesh(caseCoverGeo, matPlasticTransparent);
+        caseCoverMesh.position.y = 3.5;
+        caseCoverMesh.userData = { partKey: 'caseCover', defaultY: 3.5, explodeFactor: { x: 0, y: 8, z: 0 } };
+        mainGroup.add(caseCoverMesh);
+        components.push(caseCoverMesh);
+
+        // --- C. PCB 萬用底板 ---
+        const pcbGeo = new THREE.BoxGeometry(14, 0.4, 10);
+        const pcbMesh = new THREE.Mesh(pcbGeo, matPcbGreen);
+        pcbMesh.position.y = 0;
+        pcbMesh.userData = { partKey: 'caseBase', defaultY: 0, explodeFactor: { x: 0, y: 0, z: 0 } };
+        mainGroup.add(pcbMesh);
+
+        // M3 銅柱 (4角)
+        const brassGeo = new THREE.CylinderGeometry(0.2, 0.2, 1, 8);
+        [[-6, -4], [6, -4], [-6, 4], [6, 4]].forEach(pos => {
+            const brass = new THREE.Mesh(brassGeo, matBrass);
+            brass.position.set(pos[0], -0.7, pos[1]);
+            brass.userData = { partKey: 'caseBase', defaultY: -0.7, explodeFactor: { x: 0, y: -1, z: 0 } };
+            mainGroup.add(brass);
+        });
+
+        // --- D. ESP32 主控開發板 ---
+        const espGroup = new THREE.Group();
+        const espBoard = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.2, 6), matPcbBlack);
+        const espChip = new THREE.Mesh(new THREE.BoxGeometry(2, 0.3, 2.5), matChip);
+        espChip.position.set(0, 0.2, 0.5);
+        espGroup.add(espBoard);
+        espGroup.add(espChip);
+        espGroup.position.set(-3.5, 0.5, 0);
+        espGroup.userData = { partKey: 'esp32', defaultY: 0.5, explodeFactor: { x: -3, y: 3, z: 0 } };
+        mainGroup.add(espGroup);
+        components.push(espGroup);
+
+        // --- E. 明緯 IRM-05-05 電源模組 ---
+        const powerMesh = new THREE.Mesh(new THREE.BoxGeometry(4.5, 2, 3), matPowerBlack);
+        powerMesh.position.set(3.5, 1.2, -2.5);
+        powerMesh.userData = { partKey: 'powerModule', defaultY: 1.2, explodeFactor: { x: 4, y: 4, z: -2 } };
+        mainGroup.add(powerMesh);
+        components.push(powerMesh);
+
+        // --- F. ZY-MAX485 通訊模組 ---
+        const maxMesh = new THREE.Mesh(new THREE.BoxGeometry(3, 0.8, 2.5), matPcbGreen);
+        maxMesh.position.set(3.5, 0.6, 2.5);
+        maxMesh.userData = { partKey: 'max485', defaultY: 0.6, explodeFactor: { x: 4, y: 3, z: 3 } };
+        mainGroup.add(maxMesh);
+        components.push(maxMesh);
+
+        // --- G. ADIO-DHT22 溫濕度傳感器 ---
+        const dhtMesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2.5, 1), matDhtWhite);
+        dhtMesh.position.set(-6, 2, -4);
+        dhtMesh.userData = { partKey: 'dht22', defaultY: 2, explodeFactor: { x: -5, y: 5, z: -4 } };
+        mainGroup.add(dhtMesh);
+        components.push(dhtMesh);
+
+        // --- H. PG7/PG9 電纜防水接頭 ---
+        const glandGeo = new THREE.CylinderGeometry(0.6, 0.6, 1.8, 12);
+        [-3, 0, 3].forEach((zPos, idx) => {
+            const gland = new THREE.Mesh(glandGeo, matPlasticBoxBase);
+            gland.rotation.z = Math.PI / 2;
+            gland.position.set(8.8, -1.5, zPos);
+            gland.userData = { partKey: 'cableGland', defaultY: -1.5, explodeFactor: { x: 5, y: 0, z: zPos * 0.5 } };
+            mainGroup.add(gland);
+            components.push(gland);
+        });
+
+        // 隱藏 Loader
+        setTimeout(() => {
+            document.getElementById('loader').style.opacity = 0;
+            setTimeout(() => document.getElementById('loader').style.display = 'none', 500);
+        }, 600);
+
+        // -------------------------------------------------------------
+        // 4. 爆炸拆解與互動事件 (Interactivity & Explosion)
+        // -------------------------------------------------------------
+        const explodeSlider = document.getElementById('explode-slider');
+        const explodeVal = document.getElementById('explode-val');
+        const opacitySlider = document.getElementById('opacity-slider');
+        const opacityVal = document.getElementById('opacity-val');
+
+        explodeSlider.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value) / 100;
+            explodeVal.innerText = `${e.target.value}%`;
+
+            mainGroup.children.forEach(child => {
+                if (child.userData && child.userData.explodeFactor) {
+                    const factor = child.userData.explodeFactor;
+                    const defY = child.userData.defaultY || 0;
+                    child.position.y = defY + factor.y * val;
+                    if (factor.x) child.position.x = (child.userData.origX || child.position.x) + factor.x * val;
+                    if (factor.z) child.position.z = (child.userData.origZ || child.position.z) + factor.z * val;
+                }
+            });
+        });
+
+        opacitySlider.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value) / 100;
+            opacityVal.innerText = `${e.target.value}%`;
+            matPlasticTransparent.opacity = val;
+        });
+
+        // 儲存原始 X/Z
+        mainGroup.children.forEach(c => {
+            if (c.userData) {
+                c.userData.origX = c.position.x;
+                c.userData.origZ = c.position.z;
+            }
+        });
+
+        // 點擊 Raycaster 元件聚焦
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const partCard = document.getElementById('part-card');
+
+        window.addEventListener('click', (event) => {
+            // 排除 UI 點擊
+            if (event.target.closest('.ui-header') || event.target.closest('.ui-controls') || event.target.closest('.ui-nav') || event.target.closest('.part-card')) return;
+
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(mainGroup.children, true);
+
+            if (intersects.length > 0) {
+                let hitObj = intersects[0].object;
+                while (hitObj.parent && hitObj.parent !== mainGroup && !hitObj.userData.partKey) {
+                    hitObj = hitObj.parent;
+                }
+
+                const key = hitObj.userData ? hitObj.userData.partKey : null;
+                if (key && partData[key]) {
+                    showPartInfo(partData[key]);
+                }
+            }
+        });
+
+        function showPartInfo(info) {
+            document.getElementById('card-title').childNodes[0].nodeValue = info.name + ' ';
+            document.getElementById('card-tag').innerText = info.tag;
+            document.getElementById('card-desc').innerText = info.desc;
+            document.getElementById('spec-voltage').innerText = info.voltage;
+            document.getElementById('spec-usage').innerText = info.usage;
+            document.getElementById('spec-price').innerText = info.price;
+            document.getElementById('card-link').href = info.link;
+            partCard.classList.add('active');
+        }
+
+        // 按鈕控制
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            controls.reset();
+            camera.position.set(22, 18, 25);
+            explodeSlider.value = 0;
+            explodeSlider.dispatchEvent(new Event('input'));
+            partCard.classList.remove('active');
+        });
+
+        let isAnimating = false;
+        document.getElementById('btn-animate').addEventListener('click', (e) => {
+            isAnimating = !isAnimating;
+            controls.autoRotate = isAnimating;
+            controls.autoRotateSpeed = 2.0;
+            e.target.style.background = isAnimating ? 'var(--primary)' : '';
+            e.target.style.color = isAnimating ? '#0f172a' : '';
+        });
+
+        // -------------------------------------------------------------
+        // 5. 動畫循環 (Animation Loop)
+        // -------------------------------------------------------------
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // 視窗 Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
