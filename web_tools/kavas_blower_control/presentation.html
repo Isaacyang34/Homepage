@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KAVAS 鼓風機 3 通道 ESP32 雲端監控與實體控制箱 - 專案簡報投影片</title>
+    <!-- Google Fonts & Font Awesome Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-dark: #070a12;
+            --slide-bg: rgba(15, 23, 42, 0.95);
+            --slide-border: rgba(56, 189, 248, 0.25);
+            --primary: #38bdf8;
+            --primary-glow: rgba(56, 189, 248, 0.4);
+            --accent: #10b981;
+            --warning: #f59e0b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Slide Container */
+        .deck-container {
+            width: 90vw;
+            max-width: 1200px;
+            height: 85vh;
+            max-height: 720px;
+            position: relative;
+        }
+
+        .slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--slide-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--slide-border);
+            border-radius: 20px;
+            padding: 45px 60px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 30px rgba(56, 189, 248, 0.1);
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(0.96) translateX(40px);
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .slide.active {
+            opacity: 1;
+            pointer-events: auto;
+            transform: scale(1) translateX(0);
+        }
+
+        /* Slide Header */
+        .slide-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 20px;
+        }
+
+        .slide-title {
+            font-size: 26px;
+            font-weight: 700;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .slide-num {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            color: var(--text-muted);
+            background: rgba(255, 255, 255, 0.05);
+            padding: 4px 12px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Slide Body */
+        .slide-body {
+            flex: 1;
+            margin-top: 25px;
+            margin-bottom: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .slide-body p, .slide-body li {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #cbd5e1;
+        }
+
+        .highlight {
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .accent-text {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        /* Feature Cards Grid */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .card {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .card h4 {
+            font-size: 16px;
+            color: var(--primary);
+            margin-bottom: 8px;
+        }
+
+        /* Table Design */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            margin-top: 10px;
+        }
+
+        th, td {
+            padding: 10px 14px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        th {
+            background: rgba(56, 189, 248, 0.1);
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        tr:hover { background: rgba(255, 255, 255, 0.02); }
+
+        /* Slide Footer & Navigation controls */
+        .slide-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 16px;
+        }
+
+        .nav-controls {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-nav {
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid var(--slide-border);
+            color: var(--text-main);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-nav:hover {
+            background: var(--primary);
+            color: #0f172a;
+        }
+
+        .link-btn {
+            color: var(--primary);
+            text-decoration: none;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .link-btn:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+    <div class="deck-container">
+        <!-- Slide 1: Cover & Executive Summary -->
+        <div class="slide active" id="slide-1">
+            <div class="slide-header">
+                <div class="slide-title"><i class="fa-solid fa-microchip"></i> KAVAS 鼓風機 3 通道 ESP32 雲端監控控制箱</div>
+                <div class="slide-num">SLIDE 01 / 06</div>
+            </div>
+            <div class="slide-body">
+                <div style="margin-top: 20px; text-align: center;">
+                    <h2 style="font-size: 32px; color: var(--primary); margin-bottom: 12px;">實體數據採集與雲端監控專案報告</h2>
+                    <p style="font-size: 18px; color: var(--text-muted);">針對廠房 3 台高速鼓風機 ($0 \sim 24,000\text{ RPM}$) 建立全自動 Modbus RTU 資料採集與 LINE 告警系統</p>
+                </div>
+                <div class="grid-3" style="margin-top: 30px;">
+                    <div class="card">
+                        <h4><i class="fa-solid fa-server"></i> 端側主控架構</h4>
+                        <p>ESP32 雙核 MCU，硬體 3 UART 獨立連結 3 塊 MAX485 模組對接鼓風機驅動器。</p>
+                    </div>
+                    <div class="card">
+                        <h4><i class="fa-solid fa-cloud-arrow-up"></i> 雲端數據管道</h4>
+                        <p>Google Apps Script API + 1個月全量試算表歷史數據庫 + LINE 秒級故障告警。</p>
+                    </div>
+                    <div class="card">
+                        <h4><i class="fa-solid fa-box"></i> 工業級 IP68 外殼</h4>
+                        <p>防塵防水密封控制盒、AC 110/220V 明緯電供進線與 3 條 RS485 雙絞屏蔽電纜。</p>
+                    </div>
+                </div>
+            </div>
+            <div class="slide-footer">
+                <a href="index.html" target="_blank" class="link-btn"><i class="fa-solid fa-chart-line"></i> 開啟即時儀表板 ↗</a>
+                <div class="nav-controls">
+                    <button class="btn-nav" onclick="prevSlide()"><i class="fa-solid fa-chevron-left"></i> 上一張</button>
+                    <button class="btn-nav" onclick="nextSlide()">下一張 <i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 2: Motor Physics -->
+        <div class="slide" id="slide-2">
+            <div class="slide-header">
+                <div class="slide-title"><i class="fa-solid fa-bolt"></i> 4 極馬達物理與弱磁區域控制模型</div>
+                <div class="slide-num">SLIDE 02 / 06</div>
+            </div>
+            <div class="slide-body">
+                <div class="grid-2">
+                    <div class="card">
+                        <h4><i class="fa-solid fa-calculator"></i> 頻率轉速物理公式</h4>
+                        <p>極數 $p = 2$ (4 極馬達)，同步轉速公式：</p>
+                        <p class="highlight" style="font-size: 20px; font-family: 'JetBrains Mono'; margin: 10px 0;">N = (120 × f) / 4 = 30 × f</p>
+                        <p>運轉頻率在 $0 \sim 800.0\text{ Hz}$ 之間精準對應 $0 \sim 24,000\text{ RPM}$。</p>
+                    </div>
+                    <div class="card">
+                        <h4><i class="fa-solid fa-wave-square"></i> 基頻與弱磁雙區物理特性</h4>
+                        <ul style="padding-left: 20px;">
+                            <li><strong class="highlight">基頻常轉矩區 ($0 \sim 5,000\text{ RPM}$)</strong>：頻率 $0 \sim 166.7\text{ Hz}$，電壓隨頻率正比上升至 $380\text{ V}$ ($V/f$ 定值)。</li>
+                            <li style="margin-top: 8px;"><strong class="accent-text">弱磁高速區 ($5,000 \sim 24,000\text{ RPM}$)</strong>：頻率 $166.7 \sim 800.0\text{ Hz}$，電壓飽和封頂於 $380\text{ V}$，磁通隨頻率增加而衰減。</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="slide-footer">
+                <span style="font-size: 12px; color: var(--text-muted);">V/f Curve & Field Weakening Region</span>
+                <div class="nav-controls">
+                    <button class="btn-nav" onclick="prevSlide()"><i class="fa-solid fa-chevron-left"></i> 上一張</button>
+                    <button class="btn-nav" onclick="nextSlide()">下一張 <i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 3: BOM Table -->
+        <div class="slide" id="slide-3">
+            <div class="slide-header">
+                <div class="slide-title"><i class="fa-solid fa-list-check"></i> 實體控制箱硬體 BOM 採購清單 (廣華電子)</div>
+                <div class="slide-num">SLIDE 03 / 06</div>
+            </div>
+            <div class="slide-body">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>項次</th>
+                            <th>零件名稱</th>
+                            <th>詳細規格描述</th>
+                            <th>數量</th>
+                            <th>預估單價</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>1</td><td>ESP32 開發板</td><td>雙核 Wi-Fi/藍牙 MCU (4M Flash)</td><td>1 板</td><td>$180 ~$350</td></tr>
+                        <tr><td>2</td><td>明緯 IRM-05-05</td><td>AC 85~264V 轉 DC 5V 1A 密封電供</td><td>1 個</td><td>$120 ~$180</td></tr>
+                        <tr><td>3</td><td>MAX485 通訊模組</td><td>3 塊獨立模組對接 3 台鼓風機變頻器</td><td>3 個</td><td>$30 ~$89 /個</td></tr>
+                        <tr><td>4</td><td>DHT11 傳感器模組</td><td>機房環境溫濕度感測器 (0~50℃)</td><td>1 組</td><td>$40 ~$70</td></tr>
+                        <tr><td>5</td><td>IP68 塑膠防水外殼</td><td>工規密封萬用盒，隔絕水氣油霧粉塵</td><td>1 盒</td><td>$150 ~$320</td></tr>
+                        <tr><td>6</td><td>PG7/PG9 防水頭</td><td>1個 PG7 (AC進線) + 3個 PG9 (485出線)</td><td>4 個</td><td>$15 ~$30 /個</td></tr>
+                        <tr><td>7</td><td>RS485 雙絞屏蔽電纜</td><td>24AWG 雙隔離抗干擾電纜線 (8米佈線)</td><td>15~20米</td><td>$15 ~$25 /米</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="slide-footer">
+                <a href="BOM_List.md" target="_blank" class="link-btn"><i class="fa-solid fa-file-lines"></i> 查看完整 BOM 表與連結 ↗</a>
+                <div class="nav-controls">
+                    <button class="btn-nav" onclick="prevSlide()"><i class="fa-solid fa-chevron-left"></i> 上一張</button>
+                    <button class="btn-nav" onclick="nextSlide()">下一張 <i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 4: Wiring Logic -->
+        <div class="slide" id="slide-4">
+            <div class="slide-header">
+                <div class="slide-title"><i class="fa-solid fa-plug"></i> 實體控制箱工業配線邏輯</div>
+                <div class="slide-num">SLIDE 04 / 06</div>
+            </div>
+            <div class="slide-body">
+                <div class="card">
+                    <h4><i class="fa-solid fa-circle-nodes"></i> 電源與 3 通道 Modbus 配線流向</h4>
+                    <pre style="font-family: 'JetBrains Mono'; font-size: 12px; color: var(--primary); background: rgba(0,0,0,0.4); padding: 14px; border-radius: 8px; overflow-x: auto;">
+[左側 PG7 防水頭] ── AC 110V/220V 紅白線 ──► (保險絲 1A) ──► 明緯 IRM-05-05 (AC-IN)
+                                                                 │
+                                                       DC 5V/GND │ (紅黑線供電)
+                                                                 ▼
+                                                       ┌──────────────────┐
+                                                       │ ESP32 主控開發板 │
+                                                       └────────┬─────────┘
+                                                                │ HW UART 1, 2, 3
+    ┌───────────────────────────────────────────────────────────┼───────────────────────────────────────────────────────────┐
+    ▼                                                           ▼                                                           ▼
+┌──────────────────┐                                       ┌──────────────────┐                                       ┌──────────────────┐
+│ MAX485 模組 (CH1)│                                       │ MAX485 模組 (CH2)│                                       │ MAX485 模組 (CH3)│
+└────────┬─────────┘                                       └────────┬─────────┘                                       └────────┬─────────┘
+         │ 雙絞線 1                                                 │ 雙絞線 2                                                 │ 雙絞線 3 (120Ω 電阻)
+         ▼                                                           ▼                                                           ▼
+[右側 PG9 防水頭 1]                                      [右側 PG9 防水頭 2]                                      [右側 PG9 防水頭 3]
+         │                                                           │                                                           │
+   鼓風機 1 號 (CH1)                                          鼓風機 2 號 (CH2)                                          鼓風機 3 號 (CH3 - 8米處)
+                    </pre>
+                </div>
+            </div>
+            <div class="slide-footer">
+                <span style="font-size: 12px; color: var(--text-muted);">Industrial Daisy Chain & Isolation Wiring</span>
+                <div class="nav-controls">
+                    <button class="btn-nav" onclick="prevSlide()"><i class="fa-solid fa-chevron-left"></i> 上一張</button>
+                    <button class="btn-nav" onclick="nextSlide()">下一張 <i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 5: Cloud & GBD Zoom -->
+        <div class="slide" id="slide-5">
+            <div class="slide-header">
+                <div class="slide-title"><i class="fa-solid fa-chart-line"></i> 雲端管道、LINE 告警與 GBD 波形檢視</div>
+                <div class="slide-num">SLIDE 05 / 06</div>
+            </div>
+            <div class="slide-body">
+                <div class="grid-2">
+                    <div class="card">
+                        <h4><i class="fa-solid fa-bell"></i> LINE 秒級告警機制</h4>
+                        <p>ESP32 每秒上傳轉速、頻率、電壓、電流與故障碼，當 `fault_code != 0` 時，Google Apps Script 自動秒發 LINE Notify 推送告警訊息給工程團隊。</p>
+                    </div>
+                    <div class="card">
+                        <h4><i class="fa-solid fa-magnifying-glass-plus"></i> GBD 樣式 X 軸全量滾輪檢視</h4>
+                        <p>整合 `chartjs-plugin-zoom`，滾輪向後拉遠可完整瀏覽從 10:38 開始迄今的所有時間點；Y 軸由系統根據數據動態 Auto-Scale 最佳範圍。</p>
+                    </div>
+                </div>
+            </div>
+            <div class="slide-footer">
+                <a href="index.html" target="_blank" class="link-btn"><i class="fa-solid fa-eye"></i> 前往儀表板體驗 GBD 滾輪操作 ↗</a>
+                <div class="nav-controls">
+                    <button class="btn-nav" onclick="prevSlide()"><i class="fa-solid fa-chevron-left"></i> 上一張</button>
+                    <button class="btn-nav" onclick="nextSlide()">下一張 <i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 6: 3D Interactive Demo -->
+        <div class="slide" id="slide-6">
+            <div class="slide-header">
+                <div class="slide-title"><i class="fa-solid fa-cube"></i> Three.js 3D 實體模型與 0%~100% 爆炸拆解</div>
+                <div class="slide-num">SLIDE 06 / 06</div>
+            </div>
+            <div class="slide-body">
+                <div class="grid-2">
+                    <div class="card">
+                        <h4><i class="fa-solid fa-expand"></i> 0% ~ 100% 爆炸拆解滑桿</h4>
+                        <p>拖動滑桿可將 IP68 防水蓋、底座、ESP32 主板、明緯電源與 3 塊 MAX485 模組向四周平滑張開拆解，展示內部組裝細節。</p>
+                    </div>
+                    <div class="card">
+                        <h4><i class="fa-solid fa-crosshairs"></i> 一鍵零件視角特寫</h4>
+                        <p>提供 `[ESP32主板]`、`[3路MAX485]`、`[明緯電源]`、`[DHT11]` 按鈕一鍵 Fly-To 聚焦特寫，並跳出廣華電子採購連結。</p>
+                    </div>
+                </div>
+            </div>
+            <div class="slide-footer">
+                <a href="3d_view.html" target="_blank" class="link-btn"><i class="fa-solid fa-cube"></i> 開啟 3D 實體互動展示頁面 ↗</a>
+                <div class="nav-controls">
+                    <button class="btn-nav" onclick="prevSlide()"><i class="fa-solid fa-chevron-left"></i> 上一張</button>
+                    <button class="btn-nav" onclick="nextSlide()" disabled style="opacity: 0.5;">已達最後一張</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentSlide = 1;
+        const totalSlides = 6;
+
+        function showSlide(idx) {
+            if (idx < 1 || idx > totalSlides) return;
+            document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+            document.getElementById(`slide-${idx}`).classList.add('active');
+            currentSlide = idx;
+        }
+
+        function nextSlide() { showSlide(currentSlide + 1); }
+        function prevSlide() { showSlide(currentSlide - 1); }
+
+        // 鍵盤左右方向鍵切換 Slide
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
+                nextSlide();
+            } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+                prevSlide();
+            }
+        });
+    </script>
+</body>
+</html>
