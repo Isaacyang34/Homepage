@@ -135,6 +135,36 @@
             color: var(--accent-cyan);
         }
 
+        .connection-info-box {
+            background: rgba(0, 240, 255, 0.05);
+            border: 1px solid rgba(0, 240, 255, 0.2);
+            border-radius: 10px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+        }
+
+        .conn-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            overflow-x: auto;
+        }
+
+        .conn-lbl {
+            color: var(--accent-green);
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .conn-val {
+            color: #fff;
+            word-break: break-all;
+        }
+
         .sim-controls-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -367,7 +397,7 @@
             <div class="header-actions">
                 <button class="btn btn-sim" onclick="toggleSimDrawer()">🕹️ 切換全參數模擬控制面板</button>
                 <a href="https://docs.google.com/spreadsheets/d/1O9GVEoctgy7VPjhCc4AdKl-52pJIusu16HltltZJ/edit" target="_blank" style="text-decoration:none;" id="sheetsBtnLink">
-                    <button class="btn btn-sheet">📊 開啟 Google Sheets 試算表 ↗</button>
+                    <button class="btn btn-sheet">📊 開啟已建立之 Google 試算表 ↗</button>
                 </a>
             </div>
         </header>
@@ -375,8 +405,19 @@
         <!-- ESP32 全參數模擬控制面板 (Simulator Drawer) -->
         <div class="sim-drawer" id="simDrawer">
             <div class="sim-drawer-header">
-                <span class="sim-drawer-title">🎛️ ESP32 全參數手動模擬面板 (所有顯示數值皆可自由微調或隨 4極馬達弱磁控制曲線自動連動)</span>
-                <span style="font-size:11px; color:var(--text-secondary);">目標 URL: Google Apps Script Web App API</span>
+                <span class="sim-drawer-title">🎛️ ESP32 全參數手動模擬面板 (包含當前專屬雲端試算表與 API 連線位址)</span>
+            </div>
+
+            <!-- 當前實體連線位置動態顯示區 -->
+            <div class="connection-info-box">
+                <div class="conn-row">
+                    <span class="conn-lbl">🟢 雲端試算表 (Google Sheet):</span>
+                    <a href="https://docs.google.com/spreadsheets/d/1O9GVEoctgy7VPjhCc4AdKl-52pJIusu16HltltZJ/edit" target="_blank" style="color:var(--accent-cyan); text-decoration:underline;" id="displaySheetUrl">https://docs.google.com/spreadsheets/d/1O9GVEoctgy7VPjhCc4AdKl-52pJIusu16HltltZJ/edit</a>
+                </div>
+                <div class="conn-row">
+                    <span class="conn-lbl">📡 雲端 API 接口 (Apps Script URL):</span>
+                    <span class="conn-val" id="displayApiUrl">https://script.google.com/macros/s/AKfycbyXYi3PKoTi25CTPQ5flG1rACBjuktIa-Hb3SLM8NzfM6hTyYUvWKL-avCu5wr0E9Hg/exec</span>
+                </div>
             </div>
 
             <div class="sim-controls-grid">
@@ -502,15 +543,6 @@
                 </div>
             </div>
 
-            <!-- 設定個人試算表網址 -->
-            <div class="sim-ctrl-card" style="margin-top:6px;">
-                <div class="sim-ctrl-title">🔗 個人 Google 試算表連結設定 (可自訂為您自己的試算表網址)</div>
-                <div style="display:flex; gap:10px; align-items:center;">
-                    <input type="text" id="customSheetUrl" placeholder="貼上您的 Google 試算表網址 (https://docs.google.com/spreadsheets/d/...)" style="flex:1; background:rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:6px 10px; color:#fff; font-size:12px;">
-                    <button class="btn btn-sheet" onclick="saveCustomSheetUrl()">儲存網址</button>
-                </div>
-            </div>
-
             <div class="sim-action-btns">
                 <button class="btn btn-sim" id="autoSimBtn" onclick="toggleAutoSim()">▶ 啟動 ESP32 5秒連續自動上傳</button>
                 <button class="btn btn-sheet" onclick="sendSimData('MANUAL_TEST')">⚡ 發送 1 筆測試數據至 Google Sheets</button>
@@ -617,28 +649,6 @@
 
         let isSimRunning = false;
         let simTimerId = null;
-
-        // 載入自訂 Google Sheet 連結
-        window.addEventListener('DOMContentLoaded', () => {
-            const savedUrl = localStorage.getItem('kavas_custom_sheet_url');
-            if (savedUrl) {
-                document.getElementById('sheetsBtnLink').href = savedUrl;
-                document.getElementById('customSheetUrl').value = savedUrl;
-            }
-        });
-
-        function saveCustomSheetUrl() {
-            const url = document.getElementById('customSheetUrl').value.trim();
-            if (url) {
-                localStorage.setItem('kavas_custom_sheet_url', url);
-                document.getElementById('sheetsBtnLink').href = url;
-                alert('已儲存您的個人 Google 試算表網址！點擊右上角按鈕將直接開啟該試算表。');
-            } else {
-                localStorage.removeItem('kavas_custom_sheet_url');
-                document.getElementById('sheetsBtnLink').href = 'https://sheets.google.com/';
-                alert('已恢復預設 Google 試算表首頁網址。');
-            }
-        }
 
         // Chart.js 初始化
         const ctx = document.getElementById('liveChart').getContext('2d');
