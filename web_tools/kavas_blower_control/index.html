@@ -322,8 +322,8 @@
         <!-- Header -->
         <header>
             <div class="brand">
-                <h1>🌀 KAVAS 鼓風機 3通道雲端實時監控儀表板</h1>
-                <p>ESP32 實時採樣 • Google Sheets 雲端儲存 • 嵌入式模擬控制面板</p>
+                <h1>🌀 KAVAS 鼓風機 3通道雲端即時監控儀表板</h1>
+                <p>ESP32 高速馬達監控 (0 ~ 24,000 RPM) • Google Sheets 雲端儲存 • 模擬控制面板</p>
             </div>
             <div class="header-actions">
                 <button class="btn btn-sim" onclick="toggleSimDrawer()">🕹️ 切換 ESP32 模擬控制面板</button>
@@ -336,25 +336,25 @@
         <!-- ESP32 模擬控制面板 (Simulator Drawer) -->
         <div class="sim-drawer" id="simDrawer">
             <div class="sim-drawer-header">
-                <span class="sim-drawer-title">🕹️ ESP32 模擬發送控制面板 (點擊下方按鈕可模擬 ESP32 傳送數據至 Google Sheets)</span>
+                <span class="sim-drawer-title">🕹️ ESP32 模擬發送控制面板 (支援高速轉速控制 0 ~ 24,000 RPM)</span>
                 <span style="font-size:11px; color:var(--text-secondary);">目標 URL: Google Apps Script Web App API</span>
             </div>
 
             <div class="sim-controls-grid">
                 <!-- 模擬風機 1 -->
                 <div class="sim-ctrl-card">
-                    <label>風機 1 號頻率: <strong id="simFreq1Text">50 Hz</strong></label>
-                    <input type="range" min="0" max="60" value="50" oninput="updateSimFreq(1, this.value)">
+                    <label>風機 1 轉速控制: <strong id="simRpm1Text">24,000 RPM</strong></label>
+                    <input type="range" min="0" max="24000" step="200" value="24000" oninput="updateSimRpm(1, this.value)">
                 </div>
                 <!-- 模擬風機 2 -->
                 <div class="sim-ctrl-card">
-                    <label>風機 2 號頻率: <strong id="simFreq2Text">45 Hz</strong></label>
-                    <input type="range" min="0" max="60" value="45" oninput="updateSimFreq(2, this.value)">
+                    <label>風機 2 轉速控制: <strong id="simRpm2Text">18,000 RPM</strong></label>
+                    <input type="range" min="0" max="24000" step="200" value="18000" oninput="updateSimRpm(2, this.value)">
                 </div>
                 <!-- 模擬風機 3 -->
                 <div class="sim-ctrl-card">
-                    <label>風機 3 號頻率: <strong id="simFreq3Text">0 Hz</strong></label>
-                    <input type="range" min="0" max="60" value="0" oninput="updateSimFreq(3, this.value)">
+                    <label>風機 3 轉速控制: <strong id="simRpm3Text">0 RPM</strong></label>
+                    <input type="range" min="0" max="24000" step="200" value="0" oninput="updateSimRpm(3, this.value)">
                 </div>
             </div>
 
@@ -436,7 +436,7 @@
             </div>
 
             <div class="chart-card">
-                <h3 style="font-size:14px; font-family:var(--font-heading); margin-bottom:12px; color:var(--accent-cyan);">📈 鼓風機轉速實時動態波形 (RPM)</h3>
+                <h3 style="font-size:14px; font-family:var(--font-heading); margin-bottom:12px; color:var(--accent-cyan);">📈 鼓風機轉速實時動態波形 (0 ~ 24,000 RPM)</h3>
                 <div class="chart-wrapper">
                     <canvas id="liveChart"></canvas>
                 </div>
@@ -454,11 +454,11 @@
         // 目標 Google Apps Script URL (已部署完成)
         const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzF3aEyYz0trE_WnLoe3iz4lSliBXgu2LATLWFhq37VF7Zlce5QzEBxIN7-QNZ3G3Lo3Q/exec";
 
-        // 全域鼓風機與環境狀態
+        // 全域鼓風機與環境狀態 (最高轉速支援至 24,000 RPM)
         const blowerState = {
-            1: { freq: 50, rpm: 3000, volt: 220, curr: 10.5, mTemp: 48, fault: 0 },
-            2: { freq: 45, rpm: 2700, volt: 218, curr: 9.2,  mTemp: 45, fault: 0 },
-            3: { freq: 0,  rpm: 0,    volt: 0,   curr: 0.0,  mTemp: 28, fault: 0 },
+            1: { freq: 400.0, rpm: 24000, volt: 220, curr: 12.0, mTemp: 55, fault: 0 },
+            2: { freq: 300.0, rpm: 18000, volt: 218, curr: 9.5,  mTemp: 48, fault: 0 },
+            3: { freq: 0.0,   rpm: 0,     volt: 0,   curr: 0.0,  mTemp: 28, fault: 0 },
             envTemp: 26.5,
             envHumi: 62.4
         };
@@ -466,16 +466,16 @@
         let isSimRunning = false;
         let simTimerId = null;
 
-        // 初始化 Chart.js
+        // 初始化 Chart.js (Y軸全刻度調至 24,000 RPM)
         const ctx = document.getElementById('liveChart').getContext('2d');
         const liveChart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: Array(15).fill(''),
                 datasets: [
-                    { label: '風機 1 轉速', data: Array(15).fill(0), borderColor: '#00f0ff', borderWidth: 2, tension: 0.3 },
-                    { label: '風機 2 轉速', data: Array(15).fill(0), borderColor: '#00ff88', borderWidth: 2, tension: 0.3 },
-                    { label: '風機 3 轉速', data: Array(15).fill(0), borderColor: '#9d4edd', borderWidth: 2, tension: 0.3 }
+                    { label: '風機 1 轉速 (RPM)', data: Array(15).fill(0), borderColor: '#00f0ff', borderWidth: 2, tension: 0.3 },
+                    { label: '風機 2 轉速 (RPM)', data: Array(15).fill(0), borderColor: '#00ff88', borderWidth: 2, tension: 0.3 },
+                    { label: '風機 3 轉速 (RPM)', data: Array(15).fill(0), borderColor: '#9d4edd', borderWidth: 2, tension: 0.3 }
                 ]
             },
             options: {
@@ -484,7 +484,7 @@
                 animation: false,
                 scales: {
                     x: { display: false },
-                    y: { min: 0, max: 3600, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8892b0' } }
+                    y: { min: 0, max: 24000, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8892b0' } }
                 },
                 plugins: { legend: { labels: { color: '#8892b0' } } }
             }
@@ -496,17 +496,18 @@
             drawer.classList.toggle('active');
         }
 
-        function updateSimFreq(id, val) {
-            const freq = parseInt(val);
-            const rpm = Math.round((freq / 60) * 3600);
+        // 修改為 0 ~ 24,000 RPM 轉速控制
+        function updateSimRpm(id, val) {
+            const rpm = parseInt(val);
+            const freq = Number(((rpm / 24000) * 400.0).toFixed(1)); // 滿載 24,000 RPM 對應高頻驅動器
             const b = blowerState[id];
-            b.freq = freq;
             b.rpm = rpm;
-            b.volt = freq > 0 ? 220 : 0;
-            b.curr = Number(((freq / 60) * 12.0).toFixed(1));
-            b.mTemp = freq > 0 ? 30 + Math.round(freq * 0.4) : 28;
+            b.freq = freq;
+            b.volt = rpm > 0 ? 220 : 0;
+            b.curr = Number(((rpm / 24000) * 12.0).toFixed(1));
+            b.mTemp = rpm > 0 ? 30 + Math.round((rpm / 24000) * 30) : 28;
 
-            document.getElementById(`simFreq${id}Text`).innerText = `${freq} Hz`;
+            document.getElementById(`simRpm${id}Text`).innerText = `${rpm.toLocaleString()} RPM`;
             renderDashboardUI();
         }
 
@@ -514,7 +515,7 @@
         function renderDashboardUI() {
             for (let id = 1; id <= 3; id++) {
                 const b = blowerState[id];
-                document.getElementById(`b${id}Rpm`).innerText = `${b.rpm} RPM`;
+                document.getElementById(`b${id}Rpm`).innerText = `${b.rpm.toLocaleString()} RPM`;
                 document.getElementById(`b${id}Freq`).innerText = `${b.freq.toFixed(1)} Hz`;
                 document.getElementById(`b${id}Volt`).innerText = `${b.volt} V`;
                 document.getElementById(`b${id}Curr`).innerText = `${b.curr.toFixed(1)} A`;
@@ -531,7 +532,7 @@
                     badge.className = 'status-badge fault';
                     card.className = 'blower-card fault-card';
                     faultEl.className = 'm-val danger';
-                } else if (b.freq > 0) {
+                } else if (b.rpm > 0) {
                     badge.innerText = 'RUNNING';
                     badge.className = 'status-badge online';
                     card.className = 'blower-card active-card';
@@ -577,7 +578,7 @@
                 const payload = {
                     timestamp: timeStr,
                     blower_id: id,
-                    status: b.freq > 0 ? 'ONLINE' : 'STOP',
+                    status: b.rpm > 0 ? 'ONLINE' : 'STOP',
                     rpm: b.rpm,
                     freq: b.freq,
                     voltage: b.volt,
