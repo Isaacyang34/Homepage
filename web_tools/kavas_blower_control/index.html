@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KAVAS 鼓風機 3通道雲端即時監控儀表板 & ESP32 模擬器</title>
+    <title>KAVAS 鼓風機 3通道雲端即時監控儀表板 & ESP32 全參數模擬器</title>
     <!-- Google Fonts & Chart.js -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,6 +18,7 @@
             --accent-green: #00ff88;
             --accent-red: #ff3366;
             --accent-orange: #ff9900;
+            --accent-purple: #9d4edd;
             --text-primary: #e6f1ff;
             --text-secondary: #8892b0;
             --font-heading: 'Orbitron', sans-serif;
@@ -37,7 +38,7 @@
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1440px;
             margin: 0 auto;
             display: flex;
             flex-direction: column;
@@ -108,7 +109,7 @@
             padding: 18px;
             display: none; /* 點擊按鈕切換顯示 */
             flex-direction: column;
-            gap: 14px;
+            gap: 16px;
             box-shadow: 0 0 25px rgba(0, 240, 255, 0.2);
             animation: fadeIn 0.3s ease;
         }
@@ -149,11 +150,43 @@
             padding: 12px;
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 10px;
         }
 
-        .sim-ctrl-card label { font-size: 12px; color: var(--text-secondary); display: flex; justify-content: space-between; }
-        .sim-ctrl-card label strong { color: var(--accent-cyan); font-family: var(--font-mono); }
+        .sim-ctrl-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            padding-bottom: 4px;
+        }
+
+        .param-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .param-row span strong {
+            font-family: var(--font-mono);
+            color: #fff;
+        }
+
+        .param-input-inline {
+            width: 70px;
+            background: rgba(0,0,0,0.6);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 4px;
+            color: var(--accent-cyan);
+            font-family: var(--font-mono);
+            font-size: 11px;
+            padding: 2px 6px;
+            text-align: right;
+        }
+
+        input[type="range"] { accent-color: var(--accent-cyan); width: 100%; }
 
         .sim-action-btns {
             display: flex;
@@ -229,6 +262,12 @@
             border-color: var(--accent-cyan);
         }
 
+        .status-badge.fw-mode {
+            background: rgba(157, 78, 221, 0.2);
+            color: var(--accent-purple);
+            border-color: var(--accent-purple);
+        }
+
         .status-badge.fault {
             background: rgba(255, 51, 102, 0.2);
             color: var(--accent-red);
@@ -272,7 +311,7 @@
             display: flex;
             flex-direction: column;
             justify-content: center;
-            gap: 20px;
+            gap: 16px;
         }
 
         .env-item {
@@ -280,15 +319,15 @@
             align-items: center;
             gap: 16px;
             background: rgba(0,0,0,0.3);
-            padding: 14px;
+            padding: 12px 14px;
             border-radius: 12px;
             border: 1px solid rgba(255,255,255,0.05);
         }
 
-        .env-icon { font-size: 32px; }
+        .env-icon { font-size: 30px; }
         .env-data { display: flex; flex-direction: column; }
-        .env-label { font-size: 12px; color: var(--text-secondary); }
-        .env-value { font-family: var(--font-mono); font-size: 24px; font-weight: 800; color: var(--accent-green); }
+        .env-label { font-size: 11px; color: var(--text-secondary); }
+        .env-value { font-family: var(--font-mono); font-size: 22px; font-weight: 800; color: var(--accent-green); }
 
         .chart-card {
             background: var(--card-bg);
@@ -303,7 +342,7 @@
             width: 100%;
         }
 
-        /* 雲端傳播 Log 控制台 */
+        /* 傳輸 Log 狀態條 */
         .log-bar {
             font-family: var(--font-mono);
             font-size: 11px;
@@ -323,44 +362,149 @@
         <header>
             <div class="brand">
                 <h1>🌀 KAVAS 鼓風機 3通道雲端即時監控儀表板</h1>
-                <p>ESP32 高速馬達監控 (0 ~ 24,000 RPM) • Google Sheets 雲端儲存 • 模擬控制面板</p>
+                <p>4極高速馬達物理模型 (0~5000RPM: 0~380V 恆轉矩 • >5000RPM 弱磁控制 380V 飽和) • 全參數自由模擬</p>
             </div>
             <div class="header-actions">
-                <button class="btn btn-sim" onclick="toggleSimDrawer()">🕹️ 切換 ESP32 模擬控制面板</button>
+                <button class="btn btn-sim" onclick="toggleSimDrawer()">🕹️ 切換全參數模擬控制面板</button>
                 <a href="https://docs.google.com/spreadsheets/d/1Lrb1uWOInBbPmEYJIuNfNUag9OO6Fjau8dvnLqRQ1f57mK8g3R-A/edit" target="_blank" style="text-decoration:none;">
                     <button class="btn btn-sheet">📊 開啟 Google Sheets 試算表 ↗</button>
                 </a>
             </div>
         </header>
 
-        <!-- ESP32 模擬控制面板 (Simulator Drawer) -->
+        <!-- ESP32 全參數模擬控制面板 (Simulator Drawer) -->
         <div class="sim-drawer" id="simDrawer">
             <div class="sim-drawer-header">
-                <span class="sim-drawer-title">🕹️ ESP32 模擬發送控制面板 (支援高速轉速控制 0 ~ 24,000 RPM)</span>
+                <span class="sim-drawer-title">🎛️ ESP32 全參數手動模擬面板 (所有顯示數值皆可自由微調或隨 4極馬達弱磁控制曲線自動連動)</span>
                 <span style="font-size:11px; color:var(--text-secondary);">目標 URL: Google Apps Script Web App API</span>
             </div>
 
             <div class="sim-controls-grid">
                 <!-- 模擬風機 1 -->
                 <div class="sim-ctrl-card">
-                    <label>風機 1 轉速控制: <strong id="simRpm1Text">24,000 RPM</strong></label>
-                    <input type="range" min="0" max="24000" step="200" value="24000" oninput="updateSimRpm(1, this.value)">
+                    <div class="sim-ctrl-title">風機 1 號 (Blower 1) 參數設定</div>
+                    <div class="param-row">
+                        <span>馬達轉速 (RPM):</span>
+                        <strong id="simRpm1Text">24,000 RPM</strong>
+                    </div>
+                    <input type="range" id="simRpmSlider1" min="0" max="24000" step="200" value="24000" oninput="onRpmSliderChange(1, this.value)">
+                    
+                    <div class="param-row">
+                        <span>運轉頻率 (4極 120f/p):</span>
+                        <input type="number" class="param-input-inline" id="simFreqIn1" value="800.0" onchange="onManualParamChange(1)"> Hz
+                    </div>
+                    <div class="param-row">
+                        <span>輸出電壓 (0~380V/弱磁):</span>
+                        <input type="number" class="param-input-inline" id="simVoltIn1" value="380" onchange="onManualParamChange(1)"> V
+                    </div>
+                    <div class="param-row">
+                        <span>輸出電流 (A):</span>
+                        <input type="number" class="param-input-inline" id="simCurrIn1" value="12.0" step="0.1" onchange="onManualParamChange(1)"> A
+                    </div>
+                    <div class="param-row">
+                        <span>馬達溫度 (°C):</span>
+                        <input type="number" class="param-input-inline" id="simMTempIn1" value="55" onchange="onManualParamChange(1)"> °C
+                    </div>
+                    <div class="param-row">
+                        <span>故障碼 (Hex):</span>
+                        <select class="param-input-inline" id="simFaultIn1" style="width:90px;" onchange="onManualParamChange(1)">
+                            <option value="0">0x0000 (正常)</option>
+                            <option value="35">0x0023 (過載)</option>
+                            <option value="20">0x0014 (過熱)</option>
+                            <option value="10">0x000A (過壓)</option>
+                        </select>
+                    </div>
                 </div>
+
                 <!-- 模擬風機 2 -->
                 <div class="sim-ctrl-card">
-                    <label>風機 2 轉速控制: <strong id="simRpm2Text">18,000 RPM</strong></label>
-                    <input type="range" min="0" max="24000" step="200" value="18000" oninput="updateSimRpm(2, this.value)">
+                    <div class="sim-ctrl-title">風機 2 號 (Blower 2) 參數設定</div>
+                    <div class="param-row">
+                        <span>馬達轉速 (RPM):</span>
+                        <strong id="simRpm2Text">5,000 RPM</strong>
+                    </div>
+                    <input type="range" id="simRpmSlider2" min="0" max="24000" step="200" value="5000" oninput="onRpmSliderChange(2, this.value)">
+                    
+                    <div class="param-row">
+                        <span>運轉頻率 (4極 120f/p):</span>
+                        <input type="number" class="param-input-inline" id="simFreqIn2" value="166.7" onchange="onManualParamChange(2)"> Hz
+                    </div>
+                    <div class="param-row">
+                        <span>輸出電壓 (0~380V/弱磁):</span>
+                        <input type="number" class="param-input-inline" id="simVoltIn2" value="380" onchange="onManualParamChange(2)"> V
+                    </div>
+                    <div class="param-row">
+                        <span>輸出電流 (A):</span>
+                        <input type="number" class="param-input-inline" id="simCurrIn2" value="8.5" step="0.1" onchange="onManualParamChange(2)"> A
+                    </div>
+                    <div class="param-row">
+                        <span>馬達溫度 (°C):</span>
+                        <input type="number" class="param-input-inline" id="simMTempIn2" value="42" onchange="onManualParamChange(2)"> °C
+                    </div>
+                    <div class="param-row">
+                        <span>故障碼 (Hex):</span>
+                        <select class="param-input-inline" id="simFaultIn2" style="width:90px;" onchange="onManualParamChange(2)">
+                            <option value="0">0x0000 (正常)</option>
+                            <option value="35">0x0023 (過載)</option>
+                            <option value="20">0x0014 (過熱)</option>
+                        </select>
+                    </div>
                 </div>
+
                 <!-- 模擬風機 3 -->
                 <div class="sim-ctrl-card">
-                    <label>風機 3 轉速控制: <strong id="simRpm3Text">0 RPM</strong></label>
-                    <input type="range" min="0" max="24000" step="200" value="0" oninput="updateSimRpm(3, this.value)">
+                    <div class="sim-ctrl-title">風機 3 號 (Blower 3) 參數設定</div>
+                    <div class="param-row">
+                        <span>馬達轉速 (RPM):</span>
+                        <strong id="simRpm3Text">0 RPM</strong>
+                    </div>
+                    <input type="range" id="simRpmSlider3" min="0" max="24000" step="200" value="0" oninput="onRpmSliderChange(3, this.value)">
+                    
+                    <div class="param-row">
+                        <span>運轉頻率 (4極 120f/p):</span>
+                        <input type="number" class="param-input-inline" id="simFreqIn3" value="0.0" onchange="onManualParamChange(3)"> Hz
+                    </div>
+                    <div class="param-row">
+                        <span>輸出電壓 (0~380V/弱磁):</span>
+                        <input type="number" class="param-input-inline" id="simVoltIn3" value="0" onchange="onManualParamChange(3)"> V
+                    </div>
+                    <div class="param-row">
+                        <span>輸出電流 (A):</span>
+                        <input type="number" class="param-input-inline" id="simCurrIn3" value="0.0" step="0.1" onchange="onManualParamChange(3)"> A
+                    </div>
+                    <div class="param-row">
+                        <span>馬達溫度 (°C):</span>
+                        <input type="number" class="param-input-inline" id="simMTempIn3" value="28" onchange="onManualParamChange(3)"> °C
+                    </div>
+                    <div class="param-row">
+                        <span>故障碼 (Hex):</span>
+                        <select class="param-input-inline" id="simFaultIn3" style="width:90px;" onchange="onManualParamChange(3)">
+                            <option value="0">0x0000 (正常)</option>
+                            <option value="35">0x0023 (過載)</option>
+                            <option value="20">0x0014 (過熱)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 環境溫濕度手動模擬區 -->
+            <div class="sim-ctrl-card" style="margin-top:6px;">
+                <div class="sim-ctrl-title">🌡️ 模擬環境溫濕度 (DHT22) 數據設定</div>
+                <div style="display:flex; gap:20px; flex-wrap:wrap; font-size:12px;">
+                    <div>
+                        <span>環境溫度 (°C): </span>
+                        <input type="number" class="param-input-inline" id="simEnvTempIn" value="26.5" step="0.1" onchange="renderDashboardUI()"> °C
+                    </div>
+                    <div>
+                        <span>環境相對濕度 (%RH): </span>
+                        <input type="number" class="param-input-inline" id="simEnvHumiIn" value="62.4" step="0.1" onchange="renderDashboardUI()"> %
+                    </div>
                 </div>
             </div>
 
             <div class="sim-action-btns">
                 <button class="btn btn-sim" id="autoSimBtn" onclick="toggleAutoSim()">▶ 啟動 ESP32 5秒連續自動上傳</button>
-                <button class="btn btn-sheet" onclick="sendSimData('MANUAL_TEST')">⚡ 發送 1 筆測試數據</button>
+                <button class="btn btn-sheet" onclick="sendSimData('MANUAL_TEST')">⚡ 發送 1 筆測試數據至 Google Sheets</button>
                 <button class="btn btn-warn" onclick="sendSimFault()">⚠️ 模擬【風機 1 號過載故障 0x0023】發送</button>
             </div>
         </div>
@@ -375,9 +519,9 @@
                 </div>
                 <div class="metrics-list">
                     <div class="m-box"><span class="m-lbl">馬達轉速</span><span class="m-val highlight" id="b1Rpm">0 RPM</span></div>
-                    <div class="m-box"><span class="m-lbl">運轉頻率</span><span class="m-val" id="b1Freq">0.0 Hz</span></div>
-                    <div class="m-box"><span class="m-lbl">輸出電壓</span><span class="m-val" id="b1Volt">0 V</span></div>
-                    <div class="m-box"><span class="m-lbl">輸出電流</span><span class="m-val" id="b1Curr">0.0 A</span></div>
+                    <div class="m-box"><span class="m-lbl">運轉頻率 (f)</span><span class="m-val" id="b1Freq">0.0 Hz</span></div>
+                    <div class="m-box"><span class="m-lbl">輸出電壓 (V)</span><span class="m-val" id="b1Volt">0 V</span></div>
+                    <div class="m-box"><span class="m-lbl">輸出電流 (A)</span><span class="m-val" id="b1Curr">0.0 A</span></div>
                     <div class="m-box"><span class="m-lbl">馬達溫度</span><span class="m-val" id="b1MTemp">0 °C</span></div>
                     <div class="m-box"><span class="m-lbl">故障碼</span><span class="m-val" id="b1Fault">0x0000</span></div>
                 </div>
@@ -391,9 +535,9 @@
                 </div>
                 <div class="metrics-list">
                     <div class="m-box"><span class="m-lbl">馬達轉速</span><span class="m-val highlight" id="b2Rpm">0 RPM</span></div>
-                    <div class="m-box"><span class="m-lbl">運轉頻率</span><span class="m-val" id="b2Freq">0.0 Hz</span></div>
-                    <div class="m-box"><span class="m-lbl">輸出電壓</span><span class="m-val" id="b2Volt">0 V</span></div>
-                    <div class="m-box"><span class="m-lbl">輸出電流</span><span class="m-val" id="b2Curr">0.0 A</span></div>
+                    <div class="m-box"><span class="m-lbl">運轉頻率 (f)</span><span class="m-val" id="b2Freq">0.0 Hz</span></div>
+                    <div class="m-box"><span class="m-lbl">輸出電壓 (V)</span><span class="m-val" id="b2Volt">0 V</span></div>
+                    <div class="m-box"><span class="m-lbl">輸出電流 (A)</span><span class="m-val" id="b2Curr">0.0 A</span></div>
                     <div class="m-box"><span class="m-lbl">馬達溫度</span><span class="m-val" id="b2MTemp">0 °C</span></div>
                     <div class="m-box"><span class="m-lbl">故障碼</span><span class="m-val" id="b2Fault">0x0000</span></div>
                 </div>
@@ -407,16 +551,16 @@
                 </div>
                 <div class="metrics-list">
                     <div class="m-box"><span class="m-lbl">馬達轉速</span><span class="m-val highlight" id="b3Rpm">0 RPM</span></div>
-                    <div class="m-box"><span class="m-lbl">運轉頻率</span><span class="m-val" id="b3Freq">0.0 Hz</span></div>
-                    <div class="m-box"><span class="m-lbl">輸出電壓</span><span class="m-val" id="b3Volt">0 V</span></div>
-                    <div class="m-box"><span class="m-lbl">輸出電流</span><span class="m-val" id="b3Curr">0.0 A</span></div>
+                    <div class="m-box"><span class="m-lbl">運轉頻率 (f)</span><span class="m-val" id="b3Freq">0.0 Hz</span></div>
+                    <div class="m-box"><span class="m-lbl">輸出電壓 (V)</span><span class="m-val" id="b3Volt">0 V</span></div>
+                    <div class="m-box"><span class="m-lbl">輸出電流 (A)</span><span class="m-val" id="b3Curr">0.0 A</span></div>
                     <div class="m-box"><span class="m-lbl">馬達溫度</span><span class="m-val" id="b3MTemp">0 °C</span></div>
                     <div class="m-box"><span class="m-lbl">故障碼</span><span class="m-val" id="b3Fault">0x0000</span></div>
                 </div>
             </div>
         </div>
 
-        <!-- 底部環境溫濕度與歷史波形 -->
+        <!-- 底部環境溫濕度與歷史圖表 -->
         <div class="bottom-section">
             <div class="env-card">
                 <div class="env-item">
@@ -446,19 +590,18 @@
         <!-- 傳輸 Log 狀態條 -->
         <div class="log-bar">
             <span id="logTime">最後更新: --:--:--</span>
-            <span id="logMsg" style="color:var(--accent-cyan);">系統待命中，可點擊右上角【🕹️ 切換 ESP32 模擬控制面板】測試傳送資料。</span>
+            <span id="logMsg" style="color:var(--accent-cyan);">系統待命中，可點擊右上角【🕹️ 切換全參數模擬控制面板】測試傳送資料與模擬。</span>
         </div>
     </div>
 
     <script>
-        // 目標 Google Apps Script URL (已部署完成)
         const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzF3aEyYz0trE_WnLoe3iz4lSliBXgu2LATLWFhq37VF7Zlce5QzEBxIN7-QNZ3G3Lo3Q/exec";
 
-        // 全域鼓風機與環境狀態 (最高轉速支援至 24,000 RPM)
+        // 全域鼓風機與環境狀態
         const blowerState = {
-            1: { freq: 400.0, rpm: 24000, volt: 220, curr: 12.0, mTemp: 55, fault: 0 },
-            2: { freq: 300.0, rpm: 18000, volt: 218, curr: 9.5,  mTemp: 48, fault: 0 },
-            3: { freq: 0.0,   rpm: 0,     volt: 0,   curr: 0.0,  mTemp: 28, fault: 0 },
+            1: { rpm: 24000, freq: 800.0, volt: 380, curr: 12.0, mTemp: 55, fault: 0 },
+            2: { rpm: 5000,  freq: 166.7, volt: 380, curr: 8.5,  mTemp: 42, fault: 0 },
+            3: { rpm: 0,     freq: 0.0,   volt: 0,   curr: 0.0,  mTemp: 28, fault: 0 },
             envTemp: 26.5,
             envHumi: 62.4
         };
@@ -466,7 +609,7 @@
         let isSimRunning = false;
         let simTimerId = null;
 
-        // 初始化 Chart.js (Y軸全刻度調至 24,000 RPM)
+        // Chart.js 初始化
         const ctx = document.getElementById('liveChart').getContext('2d');
         const liveChart = new Chart(ctx, {
             type: 'line',
@@ -490,29 +633,59 @@
             }
         });
 
-        // 展開/收起 模擬器控制 Drawer
         function toggleSimDrawer() {
-            const drawer = document.getElementById('simDrawer');
-            drawer.classList.toggle('active');
+            document.getElementById('simDrawer').classList.toggle('active');
         }
 
-        // 修改為 0 ~ 24,000 RPM 轉速控制
-        function updateSimRpm(id, val) {
+        // 🧠 4 極馬達與弱磁控制物理模型 (4 Poles: f = RPM / 30; 0~5000RPM -> 0~380V; >5000RPM -> 380V 鎖定弱磁控制)
+        function onRpmSliderChange(id, val) {
             const rpm = parseInt(val);
-            const freq = Number(((rpm / 24000) * 400.0).toFixed(1)); // 滿載 24,000 RPM 對應高頻驅動器
             const b = blowerState[id];
             b.rpm = rpm;
-            b.freq = freq;
-            b.volt = rpm > 0 ? 220 : 0;
-            b.curr = Number(((rpm / 24000) * 12.0).toFixed(1));
-            b.mTemp = rpm > 0 ? 30 + Math.round((rpm / 24000) * 30) : 28;
 
+            // 1. 4極馬達頻率：f = N / 30
+            b.freq = Number((rpm / 30.0).toFixed(1));
+
+            // 2. 0~5000RPM 對應 0~380V 電壓；>5000RPM 進入弱磁區，電壓鎖定 380V
+            if (rpm === 0) {
+                b.volt = 0;
+            } else if (rpm <= 5000) {
+                b.volt = Math.round((rpm / 5000.0) * 380.0);
+            } else {
+                b.volt = 380; // 弱磁控制區
+            }
+
+            // 3. 電流與溫度輔助計算
+            b.curr = Number(((rpm / 24000.0) * 12.0).toFixed(1));
+            b.mTemp = rpm > 0 ? 30 + Math.round((rpm / 24000.0) * 30) : 28;
+
+            // 同步更新 Drawer 內輸入框 DOM
             document.getElementById(`simRpm${id}Text`).innerText = `${rpm.toLocaleString()} RPM`;
+            document.getElementById(`simFreqIn${id}`).value = b.freq;
+            document.getElementById(`simVoltIn${id}`).value = b.volt;
+            document.getElementById(`simCurrIn${id}`).value = b.curr;
+            document.getElementById(`simMTempIn${id}`).value = b.mTemp;
+
             renderDashboardUI();
         }
 
-        // 即時渲染儀表板 DOM 與 Chart
+        // 手動修改 Drawer 內任何特定欄位
+        function onManualParamChange(id) {
+            const b = blowerState[id];
+            b.freq = parseFloat(document.getElementById(`simFreqIn${id}`).value) || 0;
+            b.volt = parseInt(document.getElementById(`simVoltIn${id}`).value) || 0;
+            b.curr = parseFloat(document.getElementById(`simCurrIn${id}`).value) || 0;
+            b.mTemp = parseInt(document.getElementById(`simMTempIn${id}`).value) || 0;
+            b.fault = parseInt(document.getElementById(`simFaultIn${id}`).value) || 0;
+
+            renderDashboardUI();
+        }
+
         function renderDashboardUI() {
+            // 手動輸入的環境溫濕度
+            blowerState.envTemp = parseFloat(document.getElementById('simEnvTempIn').value) || 26.5;
+            blowerState.envHumi = parseFloat(document.getElementById('simEnvHumiIn').value) || 62.4;
+
             for (let id = 1; id <= 3; id++) {
                 const b = blowerState[id];
                 document.getElementById(`b${id}Rpm`).innerText = `${b.rpm.toLocaleString()} RPM`;
@@ -532,8 +705,13 @@
                     badge.className = 'status-badge fault';
                     card.className = 'blower-card fault-card';
                     faultEl.className = 'm-val danger';
+                } else if (b.rpm > 5000) {
+                    badge.innerText = 'WEAK FIELD (弱磁區)';
+                    badge.className = 'status-badge fw-mode';
+                    card.className = 'blower-card active-card';
+                    faultEl.className = 'm-val';
                 } else if (b.rpm > 0) {
-                    badge.innerText = 'RUNNING';
+                    badge.innerText = 'RUNNING (恆轉矩)';
                     badge.className = 'status-badge online';
                     card.className = 'blower-card active-card';
                     faultEl.className = 'm-val';
@@ -565,11 +743,7 @@
             liveChart.update();
         }
 
-        // 觸發上傳資料到 Google Sheets
         async function sendSimData(reason) {
-            blowerState.envTemp = Number((26.5 + (Math.random() * 0.4 - 0.2)).toFixed(1));
-            blowerState.envHumi = Number((62.0 + (Math.random() * 1.0 - 0.5)).toFixed(1));
-
             const timeStr = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
             renderDashboardUI();
 
@@ -578,13 +752,13 @@
                 const payload = {
                     timestamp: timeStr,
                     blower_id: id,
-                    status: b.rpm > 0 ? 'ONLINE' : 'STOP',
+                    status: b.rpm > 0 ? (b.rpm > 5000 ? 'FIELD_WEAKENING' : 'CONSTANT_TORQUE') : 'STOP',
                     rpm: b.rpm,
                     freq: b.freq,
                     voltage: b.volt,
                     current: b.curr,
                     motor_temp: b.mTemp,
-                    driver_temp: b.mTemp - 10,
+                    driver_temp: Math.max(25, b.mTemp - 10),
                     fault_code: b.fault,
                     env_temp: blowerState.envTemp,
                     env_humi: blowerState.envHumi,
@@ -623,16 +797,20 @@
 
         async function sendSimFault() {
             blowerState[1].fault = 0x0023; // 風機 1 號過載錯誤
+            document.getElementById('simFaultIn1').value = "35";
             renderDashboardUI();
             await sendSimData('FAULT_EVENT_SIMULATION');
             setTimeout(() => {
                 blowerState[1].fault = 0; // 復歸
+                document.getElementById('simFaultIn1').value = "0";
                 renderDashboardUI();
             }, 3000);
         }
 
-        // 頁面初始化
-        renderDashboardUI();
+        // 初始化
+        onRpmSliderChange(1, 24000);
+        onRpmSliderChange(2, 5000);
+        onRpmSliderChange(3, 0);
     </script>
 </body>
 </html>
