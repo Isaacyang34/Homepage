@@ -438,7 +438,7 @@
         <header>
             <div class="brand">
                 <h1>🌀 KAVAS 鼓風機 3通道雲端即時監控儀表板</h1>
-                <p>4極高速馬達物理模型 • 極速降採樣演算法 (大時間跨度 0 延遲零卡頓)</p>
+                <p>4極高速馬達物理模型 • X軸時間軸觀察跨度自訂 • Y軸全自動動態極速分配</p>
             </div>
             <div class="header-actions">
                 <button class="btn btn-sim" onclick="toggleSimDrawer()">🕹️ 切換全參數模擬控制面板</button>
@@ -668,9 +668,9 @@
 
             <div class="chart-card">
                 <div class="chart-header">
-                    <span class="chart-title">📈 鼓風機轉速動態歷史波形 (極速降採樣 0 延遲)</span>
+                    <span class="chart-title">📈 鼓風機轉速動態歷史波形 (X軸時間跨度自訂)</span>
                     
-                    <!-- ⚙️ 可自訂座標軸與時間軸設定控制區 -->
+                    <!-- 精準 X 軸設定與 Google Sheets 載入列 -->
                     <div class="chart-config-bar">
                         <div class="chart-config-item">
                             <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
@@ -679,7 +679,7 @@
                         </div>
 
                         <div class="chart-config-item">
-                            <span>⏱️ 時間軸觀察跨度:</span>
+                            <span>⏱️ X軸時間觀察跨度:</span>
                             <select id="xCapacitySelect" onchange="updateChartConfig()">
                                 <option value="15" selected>15 點 (即時 1.25 分鐘)</option>
                                 <option value="60">60 點 (5 分鐘)</option>
@@ -689,26 +689,6 @@
                                 <option value="17280">17,280 點 (1 天全量圖)</option>
                                 <option value="120960">120,960 點 (1 週全量概觀)</option>
                                 <option value="518400">518,400 點 (1 個月雲端全量分析)</option>
-                            </select>
-                        </div>
-
-                        <div class="chart-config-item">
-                            <span>📐 Y軸座標間距 (RPM Step):</span>
-                            <select id="yStepSelect" onchange="updateChartConfig()">
-                                <option value="0">自動 Auto</option>
-                                <option value="2000">每 2,000 RPM</option>
-                                <option value="3000">每 3,000 RPM</option>
-                                <option value="4000">每 4,000 RPM</option>
-                                <option value="5000" selected>每 5,000 RPM (預設)</option>
-                            </select>
-                        </div>
-
-                        <div class="chart-config-item">
-                            <span>🏁 Y軸轉速上限 (Y-Max):</span>
-                            <select id="yMaxSelect" onchange="updateChartConfig()">
-                                <option value="24000" selected>24,000 RPM (額定)</option>
-                                <option value="25000">25,000 RPM</option>
-                                <option value="30000">30,000 RPM</option>
                             </select>
                         </div>
 
@@ -748,13 +728,12 @@
         let targetCapacity = 15;
         const RENDER_POINTS_MAX = 300; // 前端 Canvas 渲染顯示上限點數 (徹底解決滑桿拖動與渲染卡頓)
 
-        let rawHistoryData = []; // 儲存全量 raw 歷史資料
         let labelsArr = Array(15).fill('');
         let data1Arr  = Array(15).fill(0);
         let data2Arr  = Array(15).fill(0);
         let data3Arr  = Array(15).fill(0);
 
-        // Chart.js 高效能模式初始化
+        // Chart.js 高效能模式初始化 (Y軸 100% 由 Chart.js 自動分配最佳化)
         const ctx = document.getElementById('liveChart').getContext('2d');
         const liveChart = new Chart(ctx, {
             type: 'line',
@@ -769,8 +748,8 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                animation: false, // 禁用重繪動畫
-                normalized: true, // 數據預先排序優化
+                animation: false,
+                normalized: true,
                 scales: {
                     x: { 
                         display: true,
@@ -778,10 +757,9 @@
                         ticks: { color: '#8892b0', font: { size: 10, family: 'JetBrains Mono' }, maxRotation: 0 }
                     },
                     y: { 
-                        min: 0, 
-                        max: 24000, 
+                        beginAtZero: true,
                         grid: { color: 'rgba(255,255,255,0.05)' }, 
-                        ticks: { color: '#8892b0', stepSize: 5000 } 
+                        ticks: { color: '#8892b0' } 
                     }
                 },
                 plugins: { legend: { labels: { color: '#8892b0' } } }
@@ -831,7 +809,7 @@
                     liveChart.data.datasets[2].data = sampledD3;
                     liveChart.update();
 
-                    document.getElementById('logMsg').innerText = `✅ 成功從 Google Sheets 載入 ${b1Rows.length} 筆全量歷史數據 (已進行極速渲染優化，0 延遲)！`;
+                    document.getElementById('logMsg').innerText = `✅ 成功從 Google Sheets 載入 ${b1Rows.length} 筆全量歷史數據 (Y軸已全自動動態分配)！`;
                 } else {
                     document.getElementById('logMsg').innerText = "ℹ️ Google Sheets 目前尚無歷史數據。";
                 }
@@ -840,12 +818,10 @@
             }
         }
 
-        // ⚙️ 自訂圖表 X軸時間軸與 Y軸座標間距更新函數
+        // ⚙️ 自訂圖表 X 軸時間軸更新函數
         function updateChartConfig() {
             const showXTime = document.getElementById('showXTimeToggle').checked;
             targetCapacity = parseInt(document.getElementById('xCapacitySelect').value);
-            const stepVal = parseInt(document.getElementById('yStepSelect').value);
-            const maxVal = parseInt(document.getElementById('yMaxSelect').value);
 
             // 1. 更新 X 軸時間顯示
             liveChart.options.scales.x.display = showXTime;
@@ -861,14 +837,6 @@
             liveChart.data.datasets[0].data = data1Arr;
             liveChart.data.datasets[1].data = data2Arr;
             liveChart.data.datasets[2].data = data3Arr;
-
-            // 3. 更新 Y 軸最大上限與座標刻度間距
-            liveChart.options.scales.y.max = maxVal;
-            if (stepVal > 0) {
-                liveChart.options.scales.y.ticks.stepSize = stepVal;
-            } else {
-                delete liveChart.options.scales.y.ticks.stepSize;
-            }
 
             liveChart.update();
         }
