@@ -24,7 +24,7 @@
 // ─── 1. Wi-Fi 與 伺服器設定 ───
 const char* WIFI_SSID     = "YOUR_WIFI_SSID";
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
-const char* SERVER_URL    = "https://script.google.com/macros/s/AKfycbzF3aEyYz0trE_WnLoe3iz4lSliBXgu2LATLWFhq37VF7Zlce5QzEBxIN7-QNZ3G3Lo3Q/exec"; 
+const char* SERVER_URL    = "https://script.google.com/macros/s/AKfycbyXYi3PKoTi25CTPQ5flG1rACBjuktIa-Hb3SLM8NzfM6hTyYUvWKL-avCu5wr0E9Hg/exec"; 
 
 // NTP 時間校時設定
 const char* NTP_SERVER       = "pool.ntp.org";
