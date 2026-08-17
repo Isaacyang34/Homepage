@@ -434,7 +434,7 @@
         <header>
             <div class="brand">
                 <h1>🌀 KAVAS 鼓風機 3通道雲端即時監控儀表板</h1>
-                <p>4極高速馬達物理模型 • 🖲️ GBD 風格：支援滑鼠滾輪直接放大/縮小 X 軸 & 拖拽平移</p>
+                <p>4極高速馬達物理模型 • 🖲️ GBD全量歷史快取：滾輪向後拉遠可完整看見從開始迄今的所有時間點</p>
             </div>
             <div class="header-actions">
                 <button class="btn btn-sim" onclick="toggleSimDrawer()">🕹️ 切換全參數模擬控制面板</button>
@@ -664,7 +664,7 @@
 
             <div class="chart-card">
                 <div class="chart-header">
-                    <span class="chart-title">📈 鼓風機轉速動態歷史波形 (🖲️ 支援滑鼠滾輪直接縮放 X 軸 & 平移)</span>
+                    <span class="chart-title">📈 鼓風機轉速動態歷史波形 (全量歷史記錄不彈出 • 滾輪向後拉遠可看全範圍)</span>
                     
                     <!-- 精準 X 軸設定與 GBD 風格滾輪控制 -->
                     <div class="chart-config-bar">
@@ -674,12 +674,12 @@
                             </label>
                         </div>
 
-                        <button class="btn btn-sim" style="padding:4px 10px; font-size:11px;" onclick="resetChartZoom()">🔄 重置波形視角 (Reset Zoom)</button>
-                        <button class="btn btn-sheet" style="padding:4px 10px; font-size:11px;" onclick="loadCloudHistoryData()">📥 載入 Google Sheets 1個月歷史數據</button>
+                        <button class="btn btn-sim" style="padding:4px 10px; font-size:11px;" onclick="resetChartZoom()">🔍 重置全覽視角 (Show All)</button>
+                        <button class="btn btn-sheet" style="padding:4px 10px; font-size:11px;" onclick="loadCloudHistoryData()">📥 載入 Google Sheets 至今所有歷史數據</button>
                     </div>
                 </div>
 
-                <div class="chart-wrapper" title="💡 提示：可直接使用「滑鼠滾輪」放大/縮小 X 軸，或按住「滑鼠左鍵」左右拖拽平移波形！">
+                <div class="chart-wrapper" title="💡 提示：使用「滑鼠滾輪向後滾動」可一直拉遠，看見從頭到尾（包含 10:38 開始）的所有時間歷史數據！">
                     <canvas id="liveChart"></canvas>
                 </div>
             </div>
@@ -688,7 +688,7 @@
         <!-- 傳輸 Log 狀態條 -->
         <div class="log-bar">
             <span id="logTime">最後更新: --:--:--</span>
-            <span id="logMsg" style="color:var(--accent-cyan);">💡 提示：在圖表上直接滑動【滑鼠滾輪】即可自由放大/縮小 X 軸波形，拖拽即可左右平移！</span>
+            <span id="logMsg" style="color:var(--accent-cyan);">💡 提示：滾輪向後滾動即可無限拉遠視角，看見從頭到尾（從 10:38 開始）的所有歷史波形！</span>
         </div>
     </div>
 
@@ -707,23 +707,22 @@
         let isSimRunning = false;
         let simTimerId = null;
 
-        const RENDER_POINTS_MAX = 300; // 高效能渲染點數
+        // 🧠 全量歷史數據快取陣列 (不執行 shift 彈出，完整累積保留從頭到尾所有資料筆數)
+        let fullLabels = [];
+        let fullB1Data = [];
+        let fullB2Data = [];
+        let fullB3Data = [];
 
-        let labelsArr = Array(30).fill('');
-        let data1Arr  = Array(30).fill(0);
-        let data2Arr  = Array(30).fill(0);
-        let data3Arr  = Array(30).fill(0);
-
-        // Chart.js + chartjs-plugin-zoom 初始化 (GBD 風格滾輪 X 軸縮放 + 平移)
+        // Chart.js + chartjs-plugin-zoom 初始化 (GBD 無界限歷史記錄縮放)
         const ctx = document.getElementById('liveChart').getContext('2d');
         const liveChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: labelsArr,
+                labels: fullLabels,
                 datasets: [
-                    { label: '風機 1 轉速 (RPM)', data: data1Arr, borderColor: '#00f0ff', borderWidth: 2, pointRadius: 0, tension: 0.2 },
-                    { label: '風機 2 轉速 (RPM)', data: data2Arr, borderColor: '#00ff88', borderWidth: 2, pointRadius: 0, tension: 0.2 },
-                    { label: '風機 3 轉速 (RPM)', data: data3Arr, borderColor: '#9d4edd', borderWidth: 2, pointRadius: 0, tension: 0.2 }
+                    { label: '風機 1 轉速 (RPM)', data: fullB1Data, borderColor: '#00f0ff', borderWidth: 2, pointRadius: 0, tension: 0.2 },
+                    { label: '風機 2 轉速 (RPM)', data: fullB2Data, borderColor: '#00ff88', borderWidth: 2, pointRadius: 0, tension: 0.2 },
+                    { label: '風機 3 轉速 (RPM)', data: fullB3Data, borderColor: '#9d4edd', borderWidth: 2, pointRadius: 0, tension: 0.2 }
                 ]
             },
             options: {
@@ -745,47 +744,34 @@
                 },
                 plugins: { 
                     legend: { labels: { color: '#8892b0' } },
-                    // 🖲️ GBD 級滑鼠滾輪 X 軸放大縮小 & 平移外掛設定
                     zoom: {
                         pan: {
                             enabled: true,
-                            mode: 'x', // 只平移 X 軸
+                            mode: 'x',
                         },
                         zoom: {
                             wheel: {
-                                enabled: true, // 允許滑鼠滾輪放大縮小
-                                speed: 0.1
+                                enabled: true,
+                                speed: 0.08
                             },
                             pinch: {
-                                enabled: true // 允許平板/筆電觸控板捏合縮放
+                                enabled: true
                             },
-                            mode: 'x' // 專注只放大縮小 X 軸
+                            mode: 'x'
                         }
                     }
                 }
             }
         });
 
-        // 🔄 重置圖表縮放與視角
+        // 🔄 重置圖表縮放與視角，全覽從頭到尾所有數據
         function resetChartZoom() {
             liveChart.resetZoom();
         }
 
-        // 🧠 高效能均勻降採樣演算法 (Equidistant Downsampling)
-        function downsampleData(rawArray, maxPoints) {
-            if (!rawArray || rawArray.length <= maxPoints) return rawArray;
-            const step = rawArray.length / maxPoints;
-            const result = [];
-            for (let i = 0; i < maxPoints; i++) {
-                const idx = Math.floor(i * step);
-                result.push(rawArray[idx]);
-            }
-            return result;
-        }
-
-        // 📥 從 Google Sheets 自動載入歷史大數據畫入圖表
+        // 📥 頁面啟動時 & 點擊按鈕時：自動從 Google Sheets 雲端資料庫載入從頭到尾所有的歷史數據
         async function loadCloudHistoryData() {
-            document.getElementById('logMsg').innerText = "⏳ 正在從 Google Sheets 雲端資料庫載入 1 個月歷史數據中...";
+            document.getElementById('logMsg').innerText = "⏳ 正在從 Google Sheets 載入從 10:38 至今的所有歷史數據...";
             try {
                 const resp = await fetch(GOOGLE_SCRIPT_URL);
                 const result = await resp.json();
@@ -797,26 +783,21 @@
                     const b2Rows = rows.filter(r => String(r.blower_id).includes('2'));
                     const b3Rows = rows.filter(r => String(r.blower_id).includes('3'));
                     
-                    if (b1Rows.length === 0) {
-                        alert("Google Sheets 內目前尚無歷史數據，請先點擊發送幾筆數據測試！");
-                        return;
+                    if (b1Rows.length > 0) {
+                        fullLabels = b1Rows.map(r => r.timestamp ? String(r.timestamp).split(' ')[1] || String(r.timestamp) : '');
+                        fullB1Data = b1Rows.map(r => r.rpm);
+                        fullB2Data = b2Rows.map(r => r.rpm);
+                        fullB3Data = b3Rows.map(r => r.rpm);
+
+                        liveChart.data.labels = fullLabels;
+                        liveChart.data.datasets[0].data = fullB1Data;
+                        liveChart.data.datasets[1].data = fullB2Data;
+                        liveChart.data.datasets[2].data = fullB3Data;
+                        liveChart.resetZoom();
+                        liveChart.update();
+
+                        document.getElementById('logMsg').innerText = `✅ 成功載入共 ${b1Rows.length} 筆完整歷史波形！滾輪向後滾動即可自由放大縮看完全域！`;
                     }
-
-                    const sampledLabels = downsampleData(b1Rows.map(r => r.timestamp ? String(r.timestamp).split(' ')[1] || String(r.timestamp) : ''), RENDER_POINTS_MAX);
-                    const sampledD1     = downsampleData(b1Rows.map(r => r.rpm), RENDER_POINTS_MAX);
-                    const sampledD2     = downsampleData(b2Rows.map(r => r.rpm), RENDER_POINTS_MAX);
-                    const sampledD3     = downsampleData(b3Rows.map(r => r.rpm), RENDER_POINTS_MAX);
-
-                    liveChart.data.labels = sampledLabels;
-                    liveChart.data.datasets[0].data = sampledD1;
-                    liveChart.data.datasets[1].data = sampledD2;
-                    liveChart.data.datasets[2].data = sampledD3;
-                    liveChart.resetZoom();
-                    liveChart.update();
-
-                    document.getElementById('logMsg').innerText = `✅ 成功從 Google Sheets 載入 ${b1Rows.length} 筆全量歷史數據！請直接滾動【滑鼠滾輪】體驗 X 軸放大縮小與平移！`;
-                } else {
-                    document.getElementById('logMsg').innerText = "ℹ️ Google Sheets 目前尚無歷史數據。";
                 }
             } catch (err) {
                 document.getElementById('logMsg').innerText = `⚠️ 載入歷史數據失敗: ${err.message}`;
@@ -917,19 +898,12 @@
             document.getElementById('envTemp').innerText = `${blowerState.envTemp.toFixed(1)} °C`;
             document.getElementById('envHumi').innerText = `${blowerState.envHumi.toFixed(1)} %`;
 
-            // 更新 Chart.js 波形
+            // 🧠 數據追加 (不執行 shift 彈出舊數據，100% 累積保留全時間點)
             const timeNow = new Date().toLocaleTimeString('zh-TW', { hour12: false });
-            liveChart.data.labels.shift();
-            liveChart.data.labels.push(timeNow);
-
-            liveChart.data.datasets[0].data.shift();
-            liveChart.data.datasets[0].data.push(blowerState[1].rpm);
-
-            liveChart.data.datasets[1].data.shift();
-            liveChart.data.datasets[1].data.push(blowerState[2].rpm);
-
-            liveChart.data.datasets[2].data.shift();
-            liveChart.data.datasets[2].data.push(blowerState[3].rpm);
+            fullLabels.push(timeNow);
+            fullB1Data.push(blowerState[1].rpm);
+            fullB2Data.push(blowerState[2].rpm);
+            fullB3Data.push(blowerState[3].rpm);
 
             liveChart.update();
         }
@@ -998,7 +972,8 @@
             }, 3000);
         }
 
-        // 初始化
+        // 🚀 初始化：先載入 10:38 至今的全量雲端歷史紀錄，隨後開啟即時波形！
+        loadCloudHistoryData();
         onRpmSliderChange(1, 24000);
         onRpmSliderChange(2, 5000);
         onRpmSliderChange(3, 0);
