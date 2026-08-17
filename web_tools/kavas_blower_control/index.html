@@ -205,7 +205,7 @@
         }
 
         .param-input-inline {
-            width: 70px;
+            width: 75px;
             background: rgba(0,0,0,0.6);
             border: 1px solid rgba(255,255,255,0.15);
             border-radius: 4px;
@@ -364,11 +364,57 @@
             border: 1px solid var(--card-border);
             border-radius: 16px;
             padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .chart-title {
+            font-size: 14px;
+            font-family: var(--font-heading);
+            color: var(--accent-cyan);
+        }
+
+        .chart-config-bar {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .chart-config-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .chart-config-item select {
+            background: rgba(0,0,0,0.6);
+            border: 1px solid rgba(0,240,255,0.3);
+            border-radius: 4px;
+            color: var(--accent-cyan);
+            font-family: var(--font-mono);
+            font-size: 11px;
+            padding: 2px 6px;
         }
 
         .chart-wrapper {
             position: relative;
-            height: 220px;
+            height: 240px;
             width: 100%;
         }
 
@@ -392,7 +438,7 @@
         <header>
             <div class="brand">
                 <h1>🌀 KAVAS 鼓風機 3通道雲端即時監控儀表板</h1>
-                <p>4極高速馬達物理模型 (0~5000RPM: 0~380V 恆轉矩 • >5000RPM 弱磁控制 380V 飽和) • 全參數自由模擬</p>
+                <p>4極高速馬達物理模型 (0~5000RPM: 0~380V 恆轉矩 • >5000RPM 弱磁控制 380V 飽和) • 可自訂圖表座標軸與時間間距</p>
             </div>
             <div class="header-actions">
                 <button class="btn btn-sim" onclick="toggleSimDrawer()">🕹️ 切換全參數模擬控制面板</button>
@@ -621,7 +667,50 @@
             </div>
 
             <div class="chart-card">
-                <h3 style="font-size:14px; font-family:var(--font-heading); margin-bottom:12px; color:var(--accent-cyan);">📈 鼓風機轉速實時動態波形 (0 ~ 24,000 RPM)</h3>
+                <div class="chart-header">
+                    <span class="chart-title">📈 鼓風機轉速實時動態波形 (0 ~ 24,000 RPM)</span>
+                    
+                    <!-- ⚙️ 可自訂座標軸與時間軸設定控制區 -->
+                    <div class="chart-config-bar">
+                        <div class="chart-config-item">
+                            <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
+                                <input type="checkbox" id="showXTimeToggle" checked onchange="updateChartConfig()"> 顯示 X軸時間戳標籤
+                            </label>
+                        </div>
+
+                        <div class="chart-config-item">
+                            <span>⏱️ 時間軸容量 (歷史點數):</span>
+                            <select id="xCapacitySelect" onchange="updateChartConfig()">
+                                <option value="10">10 點 (極速)</option>
+                                <option value="15" selected>15 點 (預設)</option>
+                                <option value="30">30 點 (2.5 分鐘)</option>
+                                <option value="60">60 點 (5 分鐘)</option>
+                                <option value="120">120 點 (10 分鐘)</option>
+                            </select>
+                        </div>
+
+                        <div class="chart-config-item">
+                            <span>📐 Y軸座標間距 (RPM Step):</span>
+                            <select id="yStepSelect" onchange="updateChartConfig()">
+                                <option value="0">自動 Auto</option>
+                                <option value="2000">每 2,000 RPM</option>
+                                <option value="3000">每 3,000 RPM</option>
+                                <option value="4000">每 4,000 RPM</option>
+                                <option value="5000" selected>每 5,000 RPM (預設)</option>
+                            </select>
+                        </div>
+
+                        <div class="chart-config-item">
+                            <span>🏁 Y軸轉速上限 (Y-Max):</span>
+                            <select id="yMaxSelect" onchange="updateChartConfig()">
+                                <option value="24000" selected>24,000 RPM (額定)</option>
+                                <option value="25000">25,000 RPM</option>
+                                <option value="30000">30,000 RPM</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="chart-wrapper">
                     <canvas id="liveChart"></canvas>
                 </div>
@@ -650,16 +739,23 @@
         let isSimRunning = false;
         let simTimerId = null;
 
+        // 全域動態時間軸資料陣列
+        let chartCapacity = 15;
+        let labelsArr = Array(chartCapacity).fill('');
+        let data1Arr  = Array(chartCapacity).fill(0);
+        let data2Arr  = Array(chartCapacity).fill(0);
+        let data3Arr  = Array(chartCapacity).fill(0);
+
         // Chart.js 初始化
         const ctx = document.getElementById('liveChart').getContext('2d');
         const liveChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: Array(15).fill(''),
+                labels: labelsArr,
                 datasets: [
-                    { label: '風機 1 轉速 (RPM)', data: Array(15).fill(0), borderColor: '#00f0ff', borderWidth: 2, tension: 0.3 },
-                    { label: '風機 2 轉速 (RPM)', data: Array(15).fill(0), borderColor: '#00ff88', borderWidth: 2, tension: 0.3 },
-                    { label: '風機 3 轉速 (RPM)', data: Array(15).fill(0), borderColor: '#9d4edd', borderWidth: 2, tension: 0.3 }
+                    { label: '風機 1 轉速 (RPM)', data: data1Arr, borderColor: '#00f0ff', borderWidth: 2, tension: 0.3 },
+                    { label: '風機 2 轉速 (RPM)', data: data2Arr, borderColor: '#00ff88', borderWidth: 2, tension: 0.3 },
+                    { label: '風機 3 轉速 (RPM)', data: data3Arr, borderColor: '#9d4edd', borderWidth: 2, tension: 0.3 }
                 ]
             },
             options: {
@@ -667,12 +763,56 @@
                 maintainAspectRatio: false,
                 animation: false,
                 scales: {
-                    x: { display: false },
-                    y: { min: 0, max: 24000, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8892b0' } }
+                    x: { 
+                        display: true,
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        ticks: { color: '#8892b0', font: { size: 10, family: 'JetBrains Mono' } }
+                    },
+                    y: { 
+                        min: 0, 
+                        max: 24000, 
+                        grid: { color: 'rgba(255,255,255,0.05)' }, 
+                        ticks: { color: '#8892b0', stepSize: 5000 } 
+                    }
                 },
                 plugins: { legend: { labels: { color: '#8892b0' } } }
             }
         });
+
+        // ⚙️ 自訂圖表 X軸時間軸與 Y軸座標間距更新函數
+        function updateChartConfig() {
+            const showXTime = document.getElementById('showXTimeToggle').checked;
+            const newCap = parseInt(document.getElementById('xCapacitySelect').value);
+            const stepVal = parseInt(document.getElementById('yStepSelect').value);
+            const maxVal = parseInt(document.getElementById('yMaxSelect').value);
+
+            // 1. 更新 X 軸時間顯示
+            liveChart.options.scales.x.display = showXTime;
+
+            // 2. 更新時間軸容量 (容量調整時重置/重新截取陣列長度)
+            if (newCap !== chartCapacity) {
+                chartCapacity = newCap;
+                labelsArr = Array(chartCapacity).fill('');
+                data1Arr  = Array(chartCapacity).fill(blowerState[1].rpm);
+                data2Arr  = Array(chartCapacity).fill(blowerState[2].rpm);
+                data3Arr  = Array(chartCapacity).fill(blowerState[3].rpm);
+
+                liveChart.data.labels = labelsArr;
+                liveChart.data.datasets[0].data = data1Arr;
+                liveChart.data.datasets[1].data = data2Arr;
+                liveChart.data.datasets[2].data = data3Arr;
+            }
+
+            // 3. 更新 Y 軸最大上限與座標刻度間距
+            liveChart.options.scales.y.max = maxVal;
+            if (stepVal > 0) {
+                liveChart.options.scales.y.ticks.stepSize = stepVal;
+            } else {
+                delete liveChart.options.scales.y.ticks.stepSize; // 自動 Auto
+            }
+
+            liveChart.update();
+        }
 
         function toggleSimDrawer() {
             document.getElementById('simDrawer').classList.toggle('active');
@@ -761,18 +901,19 @@
             document.getElementById('envTemp').innerText = `${blowerState.envTemp.toFixed(1)} °C`;
             document.getElementById('envHumi').innerText = `${blowerState.envHumi.toFixed(1)} %`;
 
+            // 更新 Chart.js 波形
             const timeNow = new Date().toLocaleTimeString('zh-TW', { hour12: false });
-            liveChart.data.labels.shift();
-            liveChart.data.labels.push(timeNow);
+            labelsArr.shift();
+            labelsArr.push(timeNow);
 
-            liveChart.data.datasets[0].data.shift();
-            liveChart.data.datasets[0].data.push(blowerState[1].rpm);
+            data1Arr.shift();
+            data1Arr.push(blowerState[1].rpm);
 
-            liveChart.data.datasets[1].data.shift();
-            liveChart.data.datasets[1].data.push(blowerState[2].rpm);
+            data2Arr.shift();
+            data2Arr.push(blowerState[2].rpm);
 
-            liveChart.data.datasets[2].data.shift();
-            liveChart.data.datasets[2].data.push(blowerState[3].rpm);
+            data3Arr.shift();
+            data3Arr.push(blowerState[3].rpm);
 
             liveChart.update();
         }
@@ -841,6 +982,7 @@
             }, 3000);
         }
 
+        // 初始化
         onRpmSliderChange(1, 24000);
         onRpmSliderChange(2, 5000);
         onRpmSliderChange(3, 0);
