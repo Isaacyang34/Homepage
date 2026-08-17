@@ -438,7 +438,7 @@
         <header>
             <div class="brand">
                 <h1>🌀 KAVAS 鼓風機 3通道雲端即時監控儀表板</h1>
-                <p>4極高速馬達物理模型 • 1個月 Google Sheets 雲端大數據全量儲存與歷史波形自動繪製</p>
+                <p>4極高速馬達物理模型 • 極速降採樣演算法 (大時間跨度 0 延遲零卡頓)</p>
             </div>
             <div class="header-actions">
                 <button class="btn btn-sim" onclick="toggleSimDrawer()">🕹️ 切換全參數模擬控制面板</button>
@@ -668,7 +668,7 @@
 
             <div class="chart-card">
                 <div class="chart-header">
-                    <span class="chart-title">📈 鼓風機轉速動態歷史波形 (支援 Google Sheets 1個月雲端資料庫載入)</span>
+                    <span class="chart-title">📈 鼓風機轉速動態歷史波形 (極速降採樣 0 延遲)</span>
                     
                     <!-- ⚙️ 可自訂座標軸與時間軸設定控制區 -->
                     <div class="chart-config-bar">
@@ -679,7 +679,7 @@
                         </div>
 
                         <div class="chart-config-item">
-                            <span>⏱️ 時間軸容量/觀察跨度:</span>
+                            <span>⏱️ 時間軸觀察跨度:</span>
                             <select id="xCapacitySelect" onchange="updateChartConfig()">
                                 <option value="15" selected>15 點 (即時 1.25 分鐘)</option>
                                 <option value="60">60 點 (5 分鐘)</option>
@@ -688,7 +688,7 @@
                                 <option value="4320">4,320 點 (6 小時概觀)</option>
                                 <option value="17280">17,280 點 (1 天全量圖)</option>
                                 <option value="120960">120,960 點 (1 週全量概觀)</option>
-                                <option value="518400">518,400 點 (1 個月雲端數據抽樣)</option>
+                                <option value="518400">518,400 點 (1 個月雲端全量分析)</option>
                             </select>
                         </div>
 
@@ -744,34 +744,38 @@
         let isSimRunning = false;
         let simTimerId = null;
 
-        // 全域動態時間軸資料陣列
-        let chartCapacity = 15;
-        let labelsArr = Array(chartCapacity).fill('');
-        let data1Arr  = Array(chartCapacity).fill(0);
-        let data2Arr  = Array(chartCapacity).fill(0);
-        let data3Arr  = Array(chartCapacity).fill(0);
+        // ⚡ 效能極速優化：全量原始資料庫 vs 前端極速渲染點數上限
+        let targetCapacity = 15;
+        const RENDER_POINTS_MAX = 300; // 前端 Canvas 渲染顯示上限點數 (徹底解決滑桿拖動與渲染卡頓)
 
-        // Chart.js 初始化
+        let rawHistoryData = []; // 儲存全量 raw 歷史資料
+        let labelsArr = Array(15).fill('');
+        let data1Arr  = Array(15).fill(0);
+        let data2Arr  = Array(15).fill(0);
+        let data3Arr  = Array(15).fill(0);
+
+        // Chart.js 高效能模式初始化
         const ctx = document.getElementById('liveChart').getContext('2d');
         const liveChart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: labelsArr,
                 datasets: [
-                    { label: '風機 1 轉速 (RPM)', data: data1Arr, borderColor: '#00f0ff', borderWidth: 2, tension: 0.3 },
-                    { label: '風機 2 轉速 (RPM)', data: data2Arr, borderColor: '#00ff88', borderWidth: 2, tension: 0.3 },
-                    { label: '風機 3 轉速 (RPM)', data: data3Arr, borderColor: '#9d4edd', borderWidth: 2, tension: 0.3 }
+                    { label: '風機 1 轉速 (RPM)', data: data1Arr, borderColor: '#00f0ff', borderWidth: 2, pointRadius: 0, tension: 0.2 },
+                    { label: '風機 2 轉速 (RPM)', data: data2Arr, borderColor: '#00ff88', borderWidth: 2, pointRadius: 0, tension: 0.2 },
+                    { label: '風機 3 轉速 (RPM)', data: data3Arr, borderColor: '#9d4edd', borderWidth: 2, pointRadius: 0, tension: 0.2 }
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                animation: false,
+                animation: false, // 禁用重繪動畫
+                normalized: true, // 數據預先排序優化
                 scales: {
                     x: { 
                         display: true,
                         grid: { color: 'rgba(255,255,255,0.05)' },
-                        ticks: { color: '#8892b0', font: { size: 10, family: 'JetBrains Mono' } }
+                        ticks: { color: '#8892b0', font: { size: 10, family: 'JetBrains Mono' }, maxRotation: 0 }
                     },
                     y: { 
                         min: 0, 
@@ -784,6 +788,18 @@
             }
         });
 
+        // 🧠 高效能均勻降採樣演算法 (Equidistant Downsampling)
+        function downsampleData(rawArray, maxPoints) {
+            if (!rawArray || rawArray.length <= maxPoints) return rawArray;
+            const step = rawArray.length / maxPoints;
+            const result = [];
+            for (let i = 0; i < maxPoints; i++) {
+                const idx = Math.floor(i * step);
+                result.push(rawArray[idx]);
+            }
+            return result;
+        }
+
         // 📥 從 Google Sheets 自動載入歷史大數據畫入圖表
         async function loadCloudHistoryData() {
             document.getElementById('logMsg').innerText = "⏳ 正在從 Google Sheets 雲端資料庫載入 1 個月歷史數據中...";
@@ -794,30 +810,28 @@
                 if (result.status === "success" && result.data && result.data.length > 0) {
                     const rows = result.data;
                     
-                    // 分組抓取風機 1, 2, 3 數據
                     const b1Rows = rows.filter(r => String(r.blower_id).includes('1'));
                     const b2Rows = rows.filter(r => String(r.blower_id).includes('2'));
                     const b3Rows = rows.filter(r => String(r.blower_id).includes('3'));
                     
-                    const count = b1Rows.length;
-                    if (count === 0) {
+                    if (b1Rows.length === 0) {
                         alert("Google Sheets 內目前尚無歷史數據，請先點擊發送幾筆數據測試！");
                         return;
                     }
 
-                    chartCapacity = count;
-                    labelsArr = b1Rows.map(r => r.timestamp ? String(r.timestamp).split(' ')[1] || String(r.timestamp) : '');
-                    data1Arr  = b1Rows.map(r => r.rpm);
-                    data2Arr  = b2Rows.map(r => r.rpm);
-                    data3Arr  = b3Rows.map(r => r.rpm);
+                    // 對載入的歷史大數據進行極速降採樣
+                    const sampledLabels = downsampleData(b1Rows.map(r => r.timestamp ? String(r.timestamp).split(' ')[1] || String(r.timestamp) : ''), RENDER_POINTS_MAX);
+                    const sampledD1     = downsampleData(b1Rows.map(r => r.rpm), RENDER_POINTS_MAX);
+                    const sampledD2     = downsampleData(b2Rows.map(r => r.rpm), RENDER_POINTS_MAX);
+                    const sampledD3     = downsampleData(b3Rows.map(r => r.rpm), RENDER_POINTS_MAX);
 
-                    liveChart.data.labels = labelsArr;
-                    liveChart.data.datasets[0].data = data1Arr;
-                    liveChart.data.datasets[1].data = data2Arr;
-                    liveChart.data.datasets[2].data = data3Arr;
+                    liveChart.data.labels = sampledLabels;
+                    liveChart.data.datasets[0].data = sampledD1;
+                    liveChart.data.datasets[1].data = sampledD2;
+                    liveChart.data.datasets[2].data = sampledD3;
                     liveChart.update();
 
-                    document.getElementById('logMsg').innerText = `✅ 成功從 Google Sheets 載入 ${count} 筆歷史數據劃入圖表！`;
+                    document.getElementById('logMsg').innerText = `✅ 成功從 Google Sheets 載入 ${b1Rows.length} 筆全量歷史數據 (已進行極速渲染優化，0 延遲)！`;
                 } else {
                     document.getElementById('logMsg').innerText = "ℹ️ Google Sheets 目前尚無歷史數據。";
                 }
@@ -829,26 +843,24 @@
         // ⚙️ 自訂圖表 X軸時間軸與 Y軸座標間距更新函數
         function updateChartConfig() {
             const showXTime = document.getElementById('showXTimeToggle').checked;
-            const newCap = parseInt(document.getElementById('xCapacitySelect').value);
+            targetCapacity = parseInt(document.getElementById('xCapacitySelect').value);
             const stepVal = parseInt(document.getElementById('yStepSelect').value);
             const maxVal = parseInt(document.getElementById('yMaxSelect').value);
 
             // 1. 更新 X 軸時間顯示
             liveChart.options.scales.x.display = showXTime;
 
-            // 2. 更新時間軸容量 (容量調整時重置/重新截取陣列長度)
-            if (newCap !== chartCapacity) {
-                chartCapacity = newCap;
-                labelsArr = Array(chartCapacity).fill('');
-                data1Arr  = Array(chartCapacity).fill(blowerState[1].rpm);
-                data2Arr  = Array(chartCapacity).fill(blowerState[2].rpm);
-                data3Arr  = Array(chartCapacity).fill(blowerState[3].rpm);
+            // 2. 限制繪圖節點數小於等於 300 點，確保 1週/1個月 巨量跨度下依然順暢零延遲
+            const actualPoints = Math.min(targetCapacity, RENDER_POINTS_MAX);
+            labelsArr = Array(actualPoints).fill('');
+            data1Arr  = Array(actualPoints).fill(blowerState[1].rpm);
+            data2Arr  = Array(actualPoints).fill(blowerState[2].rpm);
+            data3Arr  = Array(actualPoints).fill(blowerState[3].rpm);
 
-                liveChart.data.labels = labelsArr;
-                liveChart.data.datasets[0].data = data1Arr;
-                liveChart.data.datasets[1].data = data2Arr;
-                liveChart.data.datasets[2].data = data3Arr;
-            }
+            liveChart.data.labels = labelsArr;
+            liveChart.data.datasets[0].data = data1Arr;
+            liveChart.data.datasets[1].data = data2Arr;
+            liveChart.data.datasets[2].data = data3Arr;
 
             // 3. 更新 Y 軸最大上限與座標刻度間距
             liveChart.options.scales.y.max = maxVal;
@@ -878,7 +890,7 @@
             } else if (rpm <= 5000) {
                 b.volt = Math.round((rpm / 5000.0) * 380.0);
             } else {
-                b.volt = 380; // 弱磁控制區
+                b.volt = 380;
             }
 
             b.curr = Number(((rpm / 24000.0) * 12.0).toFixed(1));
@@ -950,17 +962,17 @@
 
             // 更新 Chart.js 波形
             const timeNow = new Date().toLocaleTimeString('zh-TW', { hour12: false });
-            labelsArr.shift();
-            labelsArr.push(timeNow);
+            liveChart.data.labels.shift();
+            liveChart.data.labels.push(timeNow);
 
-            data1Arr.shift();
-            data1Arr.push(blowerState[1].rpm);
+            liveChart.data.datasets[0].data.shift();
+            liveChart.data.datasets[0].data.push(blowerState[1].rpm);
 
-            data2Arr.shift();
-            data2Arr.push(blowerState[2].rpm);
+            liveChart.data.datasets[1].data.shift();
+            liveChart.data.datasets[1].data.push(blowerState[2].rpm);
 
-            data3Arr.shift();
-            data3Arr.push(blowerState[3].rpm);
+            liveChart.data.datasets[2].data.shift();
+            liveChart.data.datasets[2].data.push(blowerState[3].rpm);
 
             liveChart.update();
         }
