@@ -107,7 +107,7 @@
             border: 1px solid var(--accent-cyan);
             border-radius: 14px;
             padding: 18px;
-            display: none; /* 點擊按鈕切換顯示 */
+            display: none;
             flex-direction: column;
             gap: 16px;
             box-shadow: 0 0 25px rgba(0, 240, 255, 0.2);
@@ -366,7 +366,7 @@
             </div>
             <div class="header-actions">
                 <button class="btn btn-sim" onclick="toggleSimDrawer()">🕹️ 切換全參數模擬控制面板</button>
-                <a href="https://docs.google.com/spreadsheets/d/1Lrb1uWOInBbPmEYJIuNfNUag9OO6Fjau8dvnLqRQ1f57mK8g3R-A/edit" target="_blank" style="text-decoration:none;">
+                <a href="https://sheets.google.com/" target="_blank" style="text-decoration:none;" id="sheetsBtnLink">
                     <button class="btn btn-sheet">📊 開啟 Google Sheets 試算表 ↗</button>
                 </a>
             </div>
@@ -502,6 +502,15 @@
                 </div>
             </div>
 
+            <!-- 設定個人試算表網址 -->
+            <div class="sim-ctrl-card" style="margin-top:6px;">
+                <div class="sim-ctrl-title">🔗 個人 Google 試算表連結設定 (可自訂為您自己的試算表網址)</div>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <input type="text" id="customSheetUrl" placeholder="貼上您的 Google 試算表網址 (https://docs.google.com/spreadsheets/d/...)" style="flex:1; background:rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:6px 10px; color:#fff; font-size:12px;">
+                    <button class="btn btn-sheet" onclick="saveCustomSheetUrl()">儲存網址</button>
+                </div>
+            </div>
+
             <div class="sim-action-btns">
                 <button class="btn btn-sim" id="autoSimBtn" onclick="toggleAutoSim()">▶ 啟動 ESP32 5秒連續自動上傳</button>
                 <button class="btn btn-sheet" onclick="sendSimData('MANUAL_TEST')">⚡ 發送 1 筆測試數據至 Google Sheets</button>
@@ -609,6 +618,28 @@
         let isSimRunning = false;
         let simTimerId = null;
 
+        // 載入自訂 Google Sheet 連結
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedUrl = localStorage.getItem('kavas_custom_sheet_url');
+            if (savedUrl) {
+                document.getElementById('sheetsBtnLink').href = savedUrl;
+                document.getElementById('customSheetUrl').value = savedUrl;
+            }
+        });
+
+        function saveCustomSheetUrl() {
+            const url = document.getElementById('customSheetUrl').value.trim();
+            if (url) {
+                localStorage.setItem('kavas_custom_sheet_url', url);
+                document.getElementById('sheetsBtnLink').href = url;
+                alert('已儲存您的個人 Google 試算表網址！點擊右上角按鈕將直接開啟該試算表。');
+            } else {
+                localStorage.removeItem('kavas_custom_sheet_url');
+                document.getElementById('sheetsBtnLink').href = 'https://sheets.google.com/';
+                alert('已恢復預設 Google 試算表首頁網址。');
+            }
+        }
+
         // Chart.js 初始化
         const ctx = document.getElementById('liveChart').getContext('2d');
         const liveChart = new Chart(ctx, {
@@ -637,16 +668,14 @@
             document.getElementById('simDrawer').classList.toggle('active');
         }
 
-        // 🧠 4 極馬達與弱磁控制物理模型 (4 Poles: f = RPM / 30; 0~5000RPM -> 0~380V; >5000RPM -> 380V 鎖定弱磁控制)
+        // 🧠 4 極馬達與弱磁控制物理模型
         function onRpmSliderChange(id, val) {
             const rpm = parseInt(val);
             const b = blowerState[id];
             b.rpm = rpm;
 
-            // 1. 4極馬達頻率：f = N / 30
             b.freq = Number((rpm / 30.0).toFixed(1));
 
-            // 2. 0~5000RPM 對應 0~380V 電壓；>5000RPM 進入弱磁區，電壓鎖定 380V
             if (rpm === 0) {
                 b.volt = 0;
             } else if (rpm <= 5000) {
@@ -655,11 +684,9 @@
                 b.volt = 380; // 弱磁控制區
             }
 
-            // 3. 電流與溫度輔助計算
             b.curr = Number(((rpm / 24000.0) * 12.0).toFixed(1));
             b.mTemp = rpm > 0 ? 30 + Math.round((rpm / 24000.0) * 30) : 28;
 
-            // 同步更新 Drawer 內輸入框 DOM
             document.getElementById(`simRpm${id}Text`).innerText = `${rpm.toLocaleString()} RPM`;
             document.getElementById(`simFreqIn${id}`).value = b.freq;
             document.getElementById(`simVoltIn${id}`).value = b.volt;
@@ -669,7 +696,6 @@
             renderDashboardUI();
         }
 
-        // 手動修改 Drawer 內任何特定欄位
         function onManualParamChange(id) {
             const b = blowerState[id];
             b.freq = parseFloat(document.getElementById(`simFreqIn${id}`).value) || 0;
@@ -682,7 +708,6 @@
         }
 
         function renderDashboardUI() {
-            // 手動輸入的環境溫濕度
             blowerState.envTemp = parseFloat(document.getElementById('simEnvTempIn').value) || 26.5;
             blowerState.envHumi = parseFloat(document.getElementById('simEnvHumiIn').value) || 62.4;
 
@@ -726,7 +751,6 @@
             document.getElementById('envTemp').innerText = `${blowerState.envTemp.toFixed(1)} °C`;
             document.getElementById('envHumi').innerText = `${blowerState.envHumi.toFixed(1)} %`;
 
-            // 更新 Chart.js 波形
             const timeNow = new Date().toLocaleTimeString('zh-TW', { hour12: false });
             liveChart.data.labels.shift();
             liveChart.data.labels.push(timeNow);
@@ -796,18 +820,17 @@
         }
 
         async function sendSimFault() {
-            blowerState[1].fault = 0x0023; // 風機 1 號過載錯誤
+            blowerState[1].fault = 0x0023;
             document.getElementById('simFaultIn1').value = "35";
             renderDashboardUI();
             await sendSimData('FAULT_EVENT_SIMULATION');
             setTimeout(() => {
-                blowerState[1].fault = 0; // 復歸
+                blowerState[1].fault = 0;
                 document.getElementById('simFaultIn1').value = "0";
                 renderDashboardUI();
             }, 3000);
         }
 
-        // 初始化
         onRpmSliderChange(1, 24000);
         onRpmSliderChange(2, 5000);
         onRpmSliderChange(3, 0);
