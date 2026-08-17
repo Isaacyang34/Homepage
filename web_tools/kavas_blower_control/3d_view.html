@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KAVAS ESP32 數據採集控制箱 - 工業級高精細度 3D 擬真模型與互動展示</title>
+    <title>KAVAS ESP32 數據採集控制箱 - 精準 3D 工業配線與 3 通道 MAX485 模型展示</title>
     <!-- Google Fonts & Font Awesome Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -291,12 +291,12 @@
 <body>
     <div id="loader">
         <div class="spinner"></div>
-        <p>載入高精細 3D 工業控制箱實體模型...</p>
+        <p>載入精準配線邏輯 3D 控制箱模型...</p>
     </div>
 
     <div class="ui-header">
-        <h1><i class="fa-solid fa-cube"></i> KAVAS ESP32 高精細度 3D 工業模型</h1>
-        <p>擬真晶片引腳、端子台螺絲、雙絞屏蔽線路與動態訊號脈衝動畫展示</p>
+        <h1><i class="fa-solid fa-cube"></i> KAVAS ESP32 3 通道 MAX485 實體控制箱配線</h1>
+        <p>AC110V/220V 紅白線入明緯電供 • 3 塊獨立 MAX485 出 3 條 RS485 屏蔽線過防水頭</p>
     </div>
 
     <div class="ui-nav">
@@ -326,10 +326,10 @@
         </div>
         <div class="camera-presets">
             <button class="btn btn-sm" onclick="focusComponent('esp32')">ESP32主板</button>
-            <button class="btn btn-sm" onclick="focusComponent('max485')">MAX485模組</button>
-            <button class="btn btn-sm" onclick="focusComponent('powerModule')">明緯電源</button>
+            <button class="btn btn-sm" onclick="focusComponent('max485_1')">3路MAX485</button>
+            <button class="btn btn-sm" onclick="focusComponent('powerModule')">明緯AC電供</button>
             <button class="btn btn-sm" onclick="focusComponent('dht11')">DHT11傳感器</button>
-            <button class="btn btn-sm" onclick="focusComponent('cableGland')">PG9防水頭</button>
+            <button class="btn btn-sm" onclick="focusComponent('cableGland')">PG9/PG7防水頭</button>
             <button class="btn btn-sm" onclick="focusComponent('full')">全景特寫</button>
         </div>
 
@@ -379,10 +379,8 @@
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
 
-        // -------------------------------------------------------------
-        // 2. 光影與環境 (Professional Studio Lighting)
-        // -------------------------------------------------------------
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        // 光源 Light
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
         scene.add(ambientLight);
 
         const mainLight = new THREE.DirectionalLight(0x38bdf8, 1.5);
@@ -390,35 +388,23 @@
         mainLight.castShadow = true;
         mainLight.shadow.mapSize.width = 2048;
         mainLight.shadow.mapSize.height = 2048;
-        mainLight.shadow.camera.near = 0.5;
-        mainLight.shadow.camera.far = 100;
-        mainLight.shadow.camera.left = -20;
-        mainLight.shadow.camera.right = 20;
-        mainLight.shadow.camera.top = 20;
-        mainLight.shadow.camera.bottom = -20;
         scene.add(mainLight);
 
         const fillLight = new THREE.DirectionalLight(0x10b981, 0.6);
         fillLight.position.set(-20, 20, -20);
         scene.add(fillLight);
 
-        const blueSpot = new THREE.PointLight(0x38bdf8, 2, 25);
-        blueSpot.position.set(0, 5, 0);
-        scene.add(blueSpot);
-
-        // 網格地面 Grid
         const gridHelper = new THREE.GridHelper(60, 60, 0x38bdf8, 0x1e293b);
         gridHelper.position.y = -6;
         scene.add(gridHelper);
 
         // -------------------------------------------------------------
-        // 3. 高細節 3D 實體模型組建 (Ultra-Detailed Component Models)
+        // 2. 擬真 3D 材質與元件資料庫
         // -------------------------------------------------------------
         const mainGroup = new THREE.Group();
         scene.add(mainGroup);
         const components = [];
 
-        // 擬真材質庫
         const matBoxBase = new THREE.MeshStandardMaterial({ color: 0x273549, roughness: 0.4, metalness: 0.1 });
         const matCoverTransparent = new THREE.MeshPhysicalMaterial({
             color: 0xc8d6e5, transparent: true, opacity: 0.35, roughness: 0.15, transmission: 0.7, thickness: 1.5
@@ -434,55 +420,73 @@
         const matTerminalGreen = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.4 });
         const matPinMetal = new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.9, roughness: 0.1 });
 
-        // 元件資料庫
+        const matWireRed = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 });
+        const matWireWhite = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 });
+        const matWireCyan = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.3 });
+        const matWireYellow = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.3 });
+
         const partData = {
             caseCover: {
                 name: 'IP68 防水盒高透光上蓋',
                 tag: '工規外殼',
-                desc: '防爆 PC 高透光材質，4 角設有金屬防脫螺絲固定孔，內嵌黑色防水橡膠矽膠圈，防塵防水等級高達 IP68。',
+                desc: '防爆 PC 高透光材質，4 角設有金屬防脫螺絲固定孔，內嵌黑色防水橡膠矽膠圈。',
                 voltage: '不適用', usage: '完全阻隔機房高濕水氣、油霧與粉塵', price: '約 $150 ~ $320',
                 link: 'https://shop.cpu.com.tw/cPath/2112'
             },
             caseBase: {
                 name: 'IP65/IP68 萬用工程底座',
                 tag: '工規外殼',
-                desc: '預留 M3 金色銅柱固定底盤孔與 PG7/PG9 防水電纜頭螺紋出線孔。',
-                voltage: '不適用', usage: '固定內部 PCB 主板與防護', price: '隨外殼附贈',
+                desc: '左側設有 PG7 AC110V/220V 電源線防水穿線口；右側設有 3 個 PG9 RS485 電纜穿線口。',
+                voltage: '不適用', usage: '固定內部元件與 4 埠防水出線防護', price: '隨外殼附贈',
                 link: 'https://shop.cpu.com.tw/cPath/2112'
             },
             esp32: {
                 name: 'ESP32 雙核 Wi-Fi 開發板 (DevKit)',
                 tag: '主控 MCU',
-                desc: '配備金屬 ESP-WROOM-32 鐳雕屏蔽蓋、30Pin 黃金排針、Micro-USB 口與板載發光指示燈，執行 Modbus RS485 讀取與 Wi-Fi POST 上傳。',
-                voltage: 'DC 5V (VIN)', usage: '控制箱邏輯主控與雲端連線', price: '約 $180 ~ $350',
+                desc: '金屬 ESP-WROOM-32 屏蔽蓋、30Pin 排針，引出 3 組 HW UART (RX1/TX1, RX2/TX2, RX3/TX3) 獨立控制 3 塊 MAX485 模組。',
+                voltage: 'DC 5V (從明緯電源 DC-OUT 接引)', usage: '全系統 3 通道邏輯主控與雲端連線', price: '約 $180 ~ $350',
                 link: 'https://shop.cpu.com.tw/Search/advanced/4553503332/page/1/'
             },
             powerModule: {
                 name: '明緯 IRM-05-05 降壓電源模組',
                 tag: 'AC/DC 電源',
-                desc: '明緯 5W 密封型全電壓降壓模組，輸入 AC 85~264V，輸出穩定 DC 5V 1A，抗干擾低紋波。',
-                voltage: 'AC 110/220V $\\rightarrow$ DC 5V 1A', usage: '接引現場市電為整機供電', price: '約 $120 ~ $180',
+                desc: '明緯 5W 降壓電供，左側紅/白線上入 AC 110V/220V 市電，右側輸出 DC 5V 1A 給 ESP32 與 3 塊 MAX485 供電。',
+                voltage: 'AC 110/220V 輸入 $\\rightarrow$ DC 5V 1A 輸出', usage: '接引現場 AC 市電為全控制箱供電', price: '約 $120 ~ $180',
                 link: 'https://shop.cpu.com.tw/Search/advanced/49524d2d30352d3035/page/1/'
             },
-            max485: {
-                name: 'ZY-MAX485 通訊模組',
-                tag: 'RS485 介面',
-                desc: 'SOP-8 貼片晶片，板載綠色 5.08mm 金屬螺絲接線端子台、終端電阻與通訊發光指示燈。',
-                voltage: 'DC 3.3V ~ 5V', usage: '與鼓風機驅動器進行 Modbus RTU 長距離通訊', price: '約 $30 ~ $89',
+            max485_1: {
+                name: 'ZY-MAX485 通訊模組 (鼓風機 1 號通道)',
+                tag: 'RS485 CH1',
+                desc: '第一塊 MAX485 模組，綠色端子台引出 1 號雙絞屏蔽電纜，穿過 PG9 防水頭連向 1 號鼓風機。',
+                voltage: 'DC 5V', usage: '獨立採集 1 號鼓風機轉速(0~24000RPM)/頻率/電壓', price: '約 $30 ~ $89',
+                link: 'https://shop.cpu.com.tw/Search/advanced/4d4158343835/page/1/'
+            },
+            max485_2: {
+                name: 'ZY-MAX485 通訊模組 (鼓風機 2 號通道)',
+                tag: 'RS485 CH2',
+                desc: '第二塊 MAX485 模組，綠色端子台引出 2 號雙絞屏蔽電纜，穿過 PG9 防水頭連向 2 號鼓風機。',
+                voltage: 'DC 5V', usage: '獨立採集 2 號鼓風機轉速(0~24000RPM)/頻率/電壓', price: '約 $30 ~ $89',
+                link: 'https://shop.cpu.com.tw/Search/advanced/4d4158343835/page/1/'
+            },
+            max485_3: {
+                name: 'ZY-MAX485 通訊模組 (鼓風機 3 號通道)',
+                tag: 'RS485 CH3',
+                desc: '第三塊 MAX485 模組，綠色端子台引出 3 號雙絞屏蔽電纜，穿過 PG9 防水頭連向 3 號鼓風機 (8米最遠端並聯 120Ω 電阻)。',
+                voltage: 'DC 5V', usage: '獨立採集 3 號鼓風機轉速(0~24000RPM)/頻率/電壓', price: '約 $30 ~ $89',
                 link: 'https://shop.cpu.com.tw/Search/advanced/4d4158343835/page/1/'
             },
             dht11: {
                 name: 'DHT11 數字溫溼度傳感器模組',
                 tag: '環境感測',
-                desc: '經典藍色柵欄外殼，內建高感度濕度敏元件與 NTC 測溫電阻，輸出單總線數字訊號。',
+                desc: '經典藍色柵欄外殼，單總線 3P 杜邦線連接至 ESP32 GPIO4 腳位。',
                 voltage: 'DC 3.3V ~ 5.5V', usage: '監測控制箱周圍環境溫濕度', price: '約 $40 ~ $70',
                 link: 'https://shop.cpu.com.tw/Search/advanced/4448543131/page/1/'
             },
             cableGland: {
                 name: 'PG7 / PG9 電纜防水固定接頭',
                 tag: '防水出線頭',
-                desc: '尼龍外螺帽、橡膠抓齒夾緊圈與迫緊頭，將 RS485 雙絞線與 AC 市電線完全防水鎖緊。',
-                voltage: '不適用', usage: '防水出線與防拉扯保護', price: '約 $15 ~ $30 /個',
+                desc: '左側 1 個 PG7 (鎖緊 AC 110/220V 電源線)；右側 3 個 PG9 (分別鎖緊 3 條 RS485 雙絞電纜)。',
+                voltage: '不適用', usage: '4 埠完全防水出線與防拉扯保護', price: '約 $15 ~ $30 /個',
                 link: 'https://shop.cpu.com.tw/Search/advanced/504737/page/1/'
             }
         };
@@ -490,7 +494,7 @@
         // -------------------------------------------------------------
         // A. IP68 防水外殼底座 & 密封防水圈
         // -------------------------------------------------------------
-        const caseBaseMesh = new THREE.Mesh(new THREE.BoxGeometry(17, 4.5, 13), matBoxBase);
+        const caseBaseMesh = new THREE.Mesh(new THREE.BoxGeometry(18, 4.5, 14), matBoxBase);
         caseBaseMesh.position.y = -2.25;
         caseBaseMesh.castShadow = true;
         caseBaseMesh.receiveShadow = true;
@@ -499,22 +503,15 @@
         components.push(caseBaseMesh);
 
         // 防水黑色矽膠圈
-        const gasket = new THREE.Mesh(new THREE.BoxGeometry(16.5, 0.4, 12.5), matRubberGasket);
+        const gasket = new THREE.Mesh(new THREE.BoxGeometry(17.5, 0.4, 13.5), matRubberGasket);
         gasket.position.y = 0.1;
         gasket.userData = { partKey: 'caseBase', defaultY: 0.1, explodeFactor: { x: 0, y: 0.5, z: 0 } };
         mainGroup.add(gasket);
 
-        // 4角防脫螺絲柱
-        [[-7.8, -5.8], [7.8, -5.8], [-7.8, 5.8], [7.8, 5.8]].forEach(p => {
-            const screw = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 4.5, 12), matScrewMetal);
-            screw.position.set(p[0], -2.25, p[1]);
-            mainGroup.add(screw);
-        });
-
         // -------------------------------------------------------------
         // B. IP68 防水外殼高透光上蓋
         // -------------------------------------------------------------
-        const caseCoverMesh = new THREE.Mesh(new THREE.BoxGeometry(17.2, 2.8, 13.2), matCoverTransparent);
+        const caseCoverMesh = new THREE.Mesh(new THREE.BoxGeometry(18.2, 2.8, 14.2), matCoverTransparent);
         caseCoverMesh.position.y = 3.8;
         caseCoverMesh.userData = { partKey: 'caseCover', defaultY: 3.8, explodeFactor: { x: 0, y: 9, z: 0 }, focusPos: new THREE.Vector3(0, 5, 0) };
         mainGroup.add(caseCoverMesh);
@@ -523,15 +520,15 @@
         // -------------------------------------------------------------
         // C. PCB 萬用底板 & M3 金色銅柱
         // -------------------------------------------------------------
-        const pcbMesh = new THREE.Mesh(new THREE.BoxGeometry(15, 0.3, 11), matPcbGreen);
+        const pcbMesh = new THREE.Mesh(new THREE.BoxGeometry(16, 0.3, 12), matPcbGreen);
         pcbMesh.position.y = 0.3;
         pcbMesh.castShadow = true;
         pcbMesh.receiveShadow = true;
         pcbMesh.userData = { partKey: 'caseBase', defaultY: 0.3, explodeFactor: { x: 0, y: 0, z: 0 } };
         mainGroup.add(pcbMesh);
 
-        // 4 角 M3 六角金屬銅柱
-        [[-6.5, -4.5], [6.5, -4.5], [-6.5, 4.5], [6.5, 4.5]].forEach(p => {
+        // 4 角 M3 六角銅柱
+        [[-7, -5], [7, -5], [-7, 5], [7, 5]].forEach(p => {
             const brass = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 1.2, 6), matBrass);
             brass.position.set(p[0], -0.45, p[1]);
             brass.userData = { partKey: 'caseBase', defaultY: -0.45, explodeFactor: { x: 0, y: -1, z: 0 } };
@@ -539,20 +536,37 @@
         });
 
         // -------------------------------------------------------------
-        // D. 精細化 ESP32 雙核 Wi-Fi 開發板 (Super Detailed)
+        // D. 明緯 IRM-05-05 電源模組 (靠左側，接收左側 AC110V/220V 電源線)
+        // -------------------------------------------------------------
+        const powerGroup = new THREE.Group();
+        const powerBody = new THREE.Mesh(new THREE.BoxGeometry(4.2, 2.2, 3.2), matPowerCase);
+        powerBody.castShadow = true;
+        powerGroup.add(powerBody);
+
+        const matLabel = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+        const labelMesh = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1.8), matLabel);
+        labelMesh.rotation.x = -Math.PI / 2;
+        labelMesh.position.set(0, 1.11, 0);
+        powerGroup.add(labelMesh);
+
+        powerGroup.position.set(-5, 1.5, -3.5);
+        powerGroup.userData = { partKey: 'powerModule', defaultY: 1.5, explodeFactor: { x: -4, y: 4, z: -3 }, focusPos: new THREE.Vector3(-5, 3, -3.5) };
+        mainGroup.add(powerGroup);
+        components.push(powerGroup);
+
+        // -------------------------------------------------------------
+        // E. ESP32 雙核 Wi-Fi 開發板 (放置於中央)
         // -------------------------------------------------------------
         const espGroup = new THREE.Group();
-        // 黑色 PCB 板
         const espPcb = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.2, 6.2), matPcbBlack);
         espPcb.castShadow = true;
         espGroup.add(espPcb);
 
-        // 金屬 ESP-WROOM-32 屏蔽蓋
         const espShield = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.4, 2.8), matMetalShield);
         espShield.position.set(0, 0.3, 0.8);
         espGroup.add(espShield);
 
-        // 左右排針 30Pins
+        // 30Pins 排針
         for (let i = -2.6; i <= 2.6; i += 0.4) {
             const pinL = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.8, 6), matPinMetal);
             pinL.position.set(-1.6, -0.3, i);
@@ -562,149 +576,128 @@
             espGroup.add(pinR);
         }
 
-        // 板載藍光指示燈 (GPIO2)
-        const ledGeo = new THREE.BoxGeometry(0.3, 0.15, 0.3);
-        const matLedBlue = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-        const ledMesh = new THREE.Mesh(ledGeo, matLedBlue);
-        ledMesh.position.set(-1.2, 0.2, -2.5);
-        espGroup.add(ledMesh);
-
-        espGroup.position.set(-4, 0.8, 0.5);
-        espGroup.userData = { partKey: 'esp32', defaultY: 0.8, explodeFactor: { x: -4, y: 3.5, z: 0 }, focusPos: new THREE.Vector3(-4, 2, 0.5) };
+        espGroup.position.set(-0.5, 0.8, -0.5);
+        espGroup.userData = { partKey: 'esp32', defaultY: 0.8, explodeFactor: { x: 0, y: 3.5, z: 0 }, focusPos: new THREE.Vector3(-0.5, 2.5, -0.5) };
         mainGroup.add(espGroup);
         components.push(espGroup);
 
         // -------------------------------------------------------------
-        // E. 精細化 明緯 IRM-05-05 電源模組 (Detailed)
+        // F. 3 塊獨立 MAX485 通訊模組 (CH1, CH2, CH3 靠右側排列)
         // -------------------------------------------------------------
-        const powerGroup = new THREE.Group();
-        const powerBody = new THREE.Mesh(new THREE.BoxGeometry(4.8, 2.2, 3.2), matPowerCase);
-        powerBody.castShadow = true;
-        powerGroup.add(powerBody);
+        const createMaxModule = (keyName, zOffset, labelText) => {
+            const maxGroup = new THREE.Group();
+            const maxBoard = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.2, 2.4), matPcbGreen);
+            maxBoard.castShadow = true;
+            maxGroup.add(maxBoard);
 
-        // 電源標籤
-        const matLabel = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-        const labelMesh = new THREE.Mesh(new THREE.PlaneGeometry(3.5, 1.8), matLabel);
-        labelMesh.rotation.x = -Math.PI / 2;
-        labelMesh.position.set(0, 1.11, 0);
-        powerGroup.add(labelMesh);
+            const chipSop8 = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.25, 0.7), matPowerCase);
+            chipSop8.position.set(-0.3, 0.2, 0);
+            maxGroup.add(chipSop8);
 
-        // 下方金屬引腳
-        [[-1.8, -1.1], [-1.8, 1.1], [1.8, 0]].forEach(p => {
-            const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.8, 8), matScrewMetal);
-            pin.position.set(p[0], -1.3, p[1]);
-            powerGroup.add(pin);
-        });
+            // 綠色螺絲端子台
+            const termBlock = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.1, 1.8), matTerminalGreen);
+            termBlock.position.set(0.9, 0.65, 0);
+            maxGroup.add(termBlock);
 
-        powerGroup.position.set(4, 1.5, -3.2);
-        powerGroup.userData = { partKey: 'powerModule', defaultY: 1.5, explodeFactor: { x: 5, y: 4, z: -3 }, focusPos: new THREE.Vector3(4, 3, -3.2) };
-        mainGroup.add(powerGroup);
-        components.push(powerGroup);
+            maxGroup.position.set(4.8, 0.8, zOffset);
+            maxGroup.userData = { partKey: keyName, defaultY: 0.8, explodeFactor: { x: 4.5, y: 3.5, z: zOffset * 0.8 }, focusPos: new THREE.Vector3(4.8, 2.5, zOffset) };
+            mainGroup.add(maxGroup);
+            components.push(maxGroup);
+            return maxGroup;
+        };
 
-        // -------------------------------------------------------------
-        // F. 精細化 ZY-MAX485 通訊模組 (帶綠色 5.08mm 螺絲端子台)
-        // -------------------------------------------------------------
-        const maxGroup = new THREE.Group();
-        const maxBoard = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.2, 2.8), matPcbGreen);
-        maxBoard.castShadow = true;
-        maxGroup.add(maxBoard);
-
-        // MAX485 SOP-8 貼片晶片
-        const chipSop8 = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.25, 0.8), matPowerCase);
-        chipSop8.position.set(-0.4, 0.2, 0);
-        maxGroup.add(chipSop8);
-
-        // 綠色螺絲接線端子台 (Terminal Block)
-        const termBlock = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 2.2), matTerminalGreen);
-        termBlock.position.set(1.1, 0.7, 0);
-        maxGroup.add(termBlock);
-
-        // 端子台上 2 個金屬螺絲孔
-        [-0.5, 0.5].forEach(z => {
-            const screw = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.2, 8), matScrewMetal);
-            screw.position.set(1.1, 1.31, z);
-            maxGroup.add(screw);
-        });
-
-        maxGroup.position.set(4, 0.8, 3);
-        maxGroup.userData = { partKey: 'max485', defaultY: 0.8, explodeFactor: { x: 5, y: 3.5, z: 3.5 }, focusPos: new THREE.Vector3(4, 2.5, 3) };
-        mainGroup.add(maxGroup);
-        components.push(maxGroup);
+        const max1 = createMaxModule('max485_1', -3.8, 'CH1');
+        const max2 = createMaxModule('max485_2', 0, 'CH2');
+        const max3 = createMaxModule('max485_3', 3.8, 'CH3');
 
         // -------------------------------------------------------------
-        // G. 精細化 DHT11 溫濕度傳感器 (經典藍色柵欄外殼)
+        // G. DHT11 溫濕度傳感器 (左下角)
         // -------------------------------------------------------------
         const dhtGroup = new THREE.Group();
-        const dhtBody = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.8, 1.2), matDhtBlue);
+        const dhtBody = new THREE.Mesh(new THREE.BoxGeometry(2.0, 2.6, 1.1), matDhtBlue);
         dhtBody.castShadow = true;
         dhtGroup.add(dhtBody);
 
-        // 正面通風網格槽
-        for (let y = -0.8; y <= 0.8; y += 0.4) {
-            const slot = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.15, 0.2), matPowerCase);
-            slot.position.set(0, y, 0.55);
-            dhtGroup.add(slot);
-        }
-
-        // 下方 3P 接腳
-        [-0.4, 0, 0.4].forEach(x => {
-            const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1, 6), matPinMetal);
-            pin.position.set(x, -1.8, 0);
-            dhtGroup.add(pin);
-        });
-
-        dhtGroup.position.set(-6.2, 2.2, -4.2);
-        dhtGroup.userData = { partKey: 'dht11', defaultY: 2.2, explodeFactor: { x: -5.5, y: 4.5, z: -4 }, focusPos: new THREE.Vector3(-6.2, 3.5, -4.2) };
+        dhtGroup.position.set(-6.5, 2.0, 3.5);
+        dhtGroup.userData = { partKey: 'dht11', defaultY: 2.0, explodeFactor: { x: -5, y: 4, z: 3.5 }, focusPos: new THREE.Vector3(-6.5, 3.5, 3.5) };
         mainGroup.add(dhtGroup);
         components.push(dhtGroup);
 
         // -------------------------------------------------------------
-        // H. 精細化 PG7/PG9 電纜防水固定接頭
+        // H. 防水電纜接頭 (左側 1 個 PG7 AC進線；右側 3 個 PG9 485出線)
         // -------------------------------------------------------------
-        [-3.2, 0, 3.2].forEach((zPos, idx) => {
-            const glandGroup = new THREE.Group();
-            // 主體與迫緊帽
-            const body1 = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 1.2, 16), matPowerCase);
-            const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 0.6, 6), matPowerCase);
-            cap.position.x = 0.7;
-            cap.rotation.z = Math.PI / 2;
-            body1.rotation.z = Math.PI / 2;
-            glandGroup.add(body1);
-            glandGroup.add(cap);
+        // 左側 PG7 AC 電源防水接頭
+        const pg7Group = new THREE.Group();
+        const pg7Body = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 1.4, 16), matPowerCase);
+        pg7Body.rotation.z = Math.PI / 2;
+        pg7Group.add(pg7Body);
+        pg7Group.position.set(-9.7, -1.4, -3.5);
+        pg7Group.userData = { partKey: 'cableGland', defaultY: -1.4, explodeFactor: { x: -5, y: 0, z: -3.5 }, focusPos: new THREE.Vector3(-9.7, 0, -3.5) };
+        mainGroup.add(pg7Group);
+        components.push(pg7Group);
 
-            glandGroup.position.set(9.2, -1.4, zPos);
-            glandGroup.userData = { partKey: 'cableGland', defaultY: -1.4, explodeFactor: { x: 5, y: 0, z: zPos * 0.5 }, focusPos: new THREE.Vector3(9.2, 0, zPos) };
-            mainGroup.add(glandGroup);
-            components.push(glandGroup);
+        // 右側 3 個 PG9 RS485 電纜防水接頭
+        [-3.8, 0, 3.8].forEach((zPos, idx) => {
+            const pg9Group = new THREE.Group();
+            const pg9Body = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.75, 1.5, 16), matPowerCase);
+            pg9Body.rotation.z = Math.PI / 2;
+            pg9Group.add(pg9Body);
+            pg9Group.position.set(9.7, -1.4, zPos);
+            pg9Group.userData = { partKey: 'cableGland', defaultY: -1.4, explodeFactor: { x: 5, y: 0, z: zPos }, focusPos: new THREE.Vector3(9.7, 0, zPos) };
+            mainGroup.add(pg9Group);
+            components.push(pg9Group);
         });
 
         // -------------------------------------------------------------
-        // I. 實體 RS485 雙絞屏蔽電纜線路 (3D Twisted Curved Cable Wiring)
+        // I. 準確 3D 配線路徑 (Accurate 3D Curved Wiring Routing)
         // -------------------------------------------------------------
         const wireGroup = new THREE.Group();
-        // 從 MAX485 出線穿過 PG9 防水接頭
-        const curve1 = new THREE.CatmullRomCurve3([
-            new THREE.Vector3(4.8, 1.2, 3),
-            new THREE.Vector3(7, 1.0, 3.2),
-            new THREE.Vector3(9.2, -1.4, 3.2),
-            new THREE.Vector3(14, -1.4, 3.2)
-        ]);
-        const wireGeo1 = new THREE.TubeGeometry(curve1, 30, 0.22, 8, false);
-        const matWireCyan = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.3 });
-        const wireMesh1 = new THREE.Mesh(wireGeo1, matWireCyan);
-        wireGroup.add(wireMesh1);
 
-        // AC110V/220V 電源線引進
-        const curve2 = new THREE.CatmullRomCurve3([
-            new THREE.Vector3(14, -1.4, -3.2),
-            new THREE.Vector3(9.2, -1.4, -3.2),
-            new THREE.Vector3(6.5, 0.8, -3.2),
-            new THREE.Vector3(4, 1.8, -3.2)
+        // 1. AC 110V/220V 紅/白火零線：從左側 PG7 穿入 $\rightarrow$ 連接進入明緯 IRM-05-05 AC-IN
+        const curveAcRed = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(-14, -1.4, -3.7),
+            new THREE.Vector3(-9.7, -1.4, -3.7),
+            new THREE.Vector3(-7.2, 0.6, -3.7),
+            new THREE.Vector3(-6.2, 1.2, -3.7)
         ]);
-        const wireGeo2 = new THREE.TubeGeometry(curve2, 30, 0.25, 8, false);
-        const matWireRed = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 });
-        const wireMesh2 = new THREE.Mesh(wireGeo2, matWireRed);
-        wireGroup.add(wireMesh2);
+        wireGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curveAcRed, 20, 0.12, 8, false), matWireRed));
+
+        const curveAcWhite = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(-14, -1.4, -3.3),
+            new THREE.Vector3(-9.7, -1.4, -3.3),
+            new THREE.Vector3(-7.2, 0.6, -3.3),
+            new THREE.Vector3(-6.2, 1.2, -3.3)
+        ]);
+        wireGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curveAcWhite, 20, 0.12, 8, false), matWireWhite));
+
+        // 2. DC 5V / GND 電源線：從明緯 DC-OUT $\rightarrow$ 連接進入 ESP32 VIN/GND
+        const curveDc5V = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(-3.8, 1.2, -3.5),
+            new THREE.Vector3(-2.5, 0.6, -3.5),
+            new THREE.Vector3(-2.2, 0.8, -2.5)
+        ]);
+        wireGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curveDc5V, 15, 0.1, 8, false), matWireRed));
+
+        // 3. 3 條獨立 RS485 雙絞屏蔽電纜：分別從 3 塊 MAX485 端子台引出 $\rightarrow$ 穿過右側 3 個 PG9 防水接頭引出盒外！
+        [-3.8, 0, 3.8].forEach((zPos, idx) => {
+            // A 線 (青色)
+            const curveA = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(5.7, 1.2, zPos - 0.3),
+                new THREE.Vector3(7.5, 0.5, zPos - 0.3),
+                new THREE.Vector3(9.7, -1.4, zPos - 0.3),
+                new THREE.Vector3(15, -1.4, zPos - 0.3)
+            ]);
+            wireGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curveA, 25, 0.12, 8, false), matWireCyan));
+
+            // B 線 (黃色)
+            const curveB = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(5.7, 1.2, zPos + 0.3),
+                new THREE.Vector3(7.5, 0.5, zPos + 0.3),
+                new THREE.Vector3(9.7, -1.4, zPos + 0.3),
+                new THREE.Vector3(15, -1.4, zPos + 0.3)
+            ]);
+            wireGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curveB, 25, 0.12, 8, false), matWireYellow));
+        });
 
         wireGroup.userData = { partKey: 'cableGland', defaultY: 0, explodeFactor: { x: 2, y: 1, z: 0 } };
         mainGroup.add(wireGroup);
@@ -716,7 +709,7 @@
         }, 600);
 
         // -------------------------------------------------------------
-        // 4. 爆炸拆解、視角聚焦與互動 (Explosion & Focus)
+        // 4. 爆炸拆解、視角聚焦與控制 (Controls)
         // -------------------------------------------------------------
         const explodeSlider = document.getElementById('explode-slider');
         const explodeVal = document.getElementById('explode-val');
@@ -744,7 +737,6 @@
             matCoverTransparent.opacity = val;
         });
 
-        // 儲存原始 X/Z
         mainGroup.children.forEach(c => {
             if (c.userData) {
                 c.userData.origX = c.position.x;
@@ -752,7 +744,6 @@
             }
         });
 
-        // 精細視角特寫
         function focusComponent(key) {
             if (key === 'full') {
                 animateCamera(new THREE.Vector3(22, 18, 25), new THREE.Vector3(0, 0, 0));
@@ -790,7 +781,7 @@
             step();
         }
 
-        // Raycaster 元件點擊
+        // Raycaster 點擊
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
         const partCard = document.getElementById('part-card');
@@ -845,9 +836,6 @@
             e.target.style.color = isAnimating ? '#0f172a' : '';
         });
 
-        // -------------------------------------------------------------
-        // 5. 動畫渲染循環 (Render Loop)
-        // -------------------------------------------------------------
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
