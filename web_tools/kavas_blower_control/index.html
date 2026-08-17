@@ -4,11 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KAVAS 鼓風機 3通道雲端即時監控儀表板 & ESP32 全參數模擬器</title>
-    <!-- Google Fonts & Chart.js -->
+    <!-- Google Fonts & Chart.js + Chart.js Zoom Plugin -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <style>
         :root {
             --bg-main: #0a0d14;
@@ -402,20 +403,15 @@
             gap: 6px;
         }
 
-        .chart-config-item select {
-            background: rgba(0,0,0,0.6);
-            border: 1px solid rgba(0,240,255,0.3);
-            border-radius: 4px;
-            color: var(--accent-cyan);
-            font-family: var(--font-mono);
-            font-size: 11px;
-            padding: 2px 6px;
-        }
-
         .chart-wrapper {
             position: relative;
-            height: 250px;
+            height: 260px;
             width: 100%;
+            cursor: grab;
+        }
+
+        .chart-wrapper:active {
+            cursor: grabbing;
         }
 
         /* 傳輸 Log 狀態條 */
@@ -438,7 +434,7 @@
         <header>
             <div class="brand">
                 <h1>🌀 KAVAS 鼓風機 3通道雲端即時監控儀表板</h1>
-                <p>4極高速馬達物理模型 • X軸時間軸觀察跨度自訂 • Y軸全自動動態極速分配</p>
+                <p>4極高速馬達物理模型 • 🖲️ GBD 風格：支援滑鼠滾輪直接放大/縮小 X 軸 & 拖拽平移</p>
             </div>
             <div class="header-actions">
                 <button class="btn btn-sim" onclick="toggleSimDrawer()">🕹️ 切換全參數模擬控制面板</button>
@@ -668,35 +664,22 @@
 
             <div class="chart-card">
                 <div class="chart-header">
-                    <span class="chart-title">📈 鼓風機轉速動態歷史波形 (X軸時間跨度自訂)</span>
+                    <span class="chart-title">📈 鼓風機轉速動態歷史波形 (🖲️ 支援滑鼠滾輪直接縮放 X 軸 & 平移)</span>
                     
-                    <!-- 精準 X 軸設定與 Google Sheets 載入列 -->
+                    <!-- 精準 X 軸設定與 GBD 風格滾輪控制 -->
                     <div class="chart-config-bar">
                         <div class="chart-config-item">
                             <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
-                                <input type="checkbox" id="showXTimeToggle" checked onchange="updateChartConfig()"> 顯示 X軸時間戳標籤
+                                <input type="checkbox" id="showXTimeToggle" checked onchange="updateChartConfig()"> 顯示 X軸時間標籤
                             </label>
                         </div>
 
-                        <div class="chart-config-item">
-                            <span>⏱️ X軸時間觀察跨度:</span>
-                            <select id="xCapacitySelect" onchange="updateChartConfig()">
-                                <option value="15" selected>15 點 (即時 1.25 分鐘)</option>
-                                <option value="60">60 點 (5 分鐘)</option>
-                                <option value="300">300 點 (25 分鐘)</option>
-                                <option value="720">720 點 (1 小時概觀)</option>
-                                <option value="4320">4,320 點 (6 小時概觀)</option>
-                                <option value="17280">17,280 點 (1 天全量圖)</option>
-                                <option value="120960">120,960 點 (1 週全量概觀)</option>
-                                <option value="518400">518,400 點 (1 個月雲端全量分析)</option>
-                            </select>
-                        </div>
-
+                        <button class="btn btn-sim" style="padding:4px 10px; font-size:11px;" onclick="resetChartZoom()">🔄 重置波形視角 (Reset Zoom)</button>
                         <button class="btn btn-sheet" style="padding:4px 10px; font-size:11px;" onclick="loadCloudHistoryData()">📥 載入 Google Sheets 1個月歷史數據</button>
                     </div>
                 </div>
 
-                <div class="chart-wrapper">
+                <div class="chart-wrapper" title="💡 提示：可直接使用「滑鼠滾輪」放大/縮小 X 軸，或按住「滑鼠左鍵」左右拖拽平移波形！">
                     <canvas id="liveChart"></canvas>
                 </div>
             </div>
@@ -705,7 +688,7 @@
         <!-- 傳輸 Log 狀態條 -->
         <div class="log-bar">
             <span id="logTime">最後更新: --:--:--</span>
-            <span id="logMsg" style="color:var(--accent-cyan);">系統待命中，1個月全量數據正100%持續安全寫入 Google Sheets 中。</span>
+            <span id="logMsg" style="color:var(--accent-cyan);">💡 提示：在圖表上直接滑動【滑鼠滾輪】即可自由放大/縮小 X 軸波形，拖拽即可左右平移！</span>
         </div>
     </div>
 
@@ -724,16 +707,14 @@
         let isSimRunning = false;
         let simTimerId = null;
 
-        // ⚡ 效能極速優化：全量原始資料庫 vs 前端極速渲染點數上限
-        let targetCapacity = 15;
-        const RENDER_POINTS_MAX = 300; // 前端 Canvas 渲染顯示上限點數 (徹底解決滑桿拖動與渲染卡頓)
+        const RENDER_POINTS_MAX = 300; // 高效能渲染點數
 
-        let labelsArr = Array(15).fill('');
-        let data1Arr  = Array(15).fill(0);
-        let data2Arr  = Array(15).fill(0);
-        let data3Arr  = Array(15).fill(0);
+        let labelsArr = Array(30).fill('');
+        let data1Arr  = Array(30).fill(0);
+        let data2Arr  = Array(30).fill(0);
+        let data3Arr  = Array(30).fill(0);
 
-        // Chart.js 高效能模式初始化 (Y軸 100% 由 Chart.js 自動分配最佳化)
+        // Chart.js + chartjs-plugin-zoom 初始化 (GBD 風格滾輪 X 軸縮放 + 平移)
         const ctx = document.getElementById('liveChart').getContext('2d');
         const liveChart = new Chart(ctx, {
             type: 'line',
@@ -762,9 +743,33 @@
                         ticks: { color: '#8892b0' } 
                     }
                 },
-                plugins: { legend: { labels: { color: '#8892b0' } } }
+                plugins: { 
+                    legend: { labels: { color: '#8892b0' } },
+                    // 🖲️ GBD 級滑鼠滾輪 X 軸放大縮小 & 平移外掛設定
+                    zoom: {
+                        pan: {
+                            enabled: true,
+                            mode: 'x', // 只平移 X 軸
+                        },
+                        zoom: {
+                            wheel: {
+                                enabled: true, // 允許滑鼠滾輪放大縮小
+                                speed: 0.1
+                            },
+                            pinch: {
+                                enabled: true // 允許平板/筆電觸控板捏合縮放
+                            },
+                            mode: 'x' // 專注只放大縮小 X 軸
+                        }
+                    }
+                }
             }
         });
+
+        // 🔄 重置圖表縮放與視角
+        function resetChartZoom() {
+            liveChart.resetZoom();
+        }
 
         // 🧠 高效能均勻降採樣演算法 (Equidistant Downsampling)
         function downsampleData(rawArray, maxPoints) {
@@ -797,7 +802,6 @@
                         return;
                     }
 
-                    // 對載入的歷史大數據進行極速降採樣
                     const sampledLabels = downsampleData(b1Rows.map(r => r.timestamp ? String(r.timestamp).split(' ')[1] || String(r.timestamp) : ''), RENDER_POINTS_MAX);
                     const sampledD1     = downsampleData(b1Rows.map(r => r.rpm), RENDER_POINTS_MAX);
                     const sampledD2     = downsampleData(b2Rows.map(r => r.rpm), RENDER_POINTS_MAX);
@@ -807,9 +811,10 @@
                     liveChart.data.datasets[0].data = sampledD1;
                     liveChart.data.datasets[1].data = sampledD2;
                     liveChart.data.datasets[2].data = sampledD3;
+                    liveChart.resetZoom();
                     liveChart.update();
 
-                    document.getElementById('logMsg').innerText = `✅ 成功從 Google Sheets 載入 ${b1Rows.length} 筆全量歷史數據 (Y軸已全自動動態分配)！`;
+                    document.getElementById('logMsg').innerText = `✅ 成功從 Google Sheets 載入 ${b1Rows.length} 筆全量歷史數據！請直接滾動【滑鼠滾輪】體驗 X 軸放大縮小與平移！`;
                 } else {
                     document.getElementById('logMsg').innerText = "ℹ️ Google Sheets 目前尚無歷史數據。";
                 }
@@ -818,26 +823,10 @@
             }
         }
 
-        // ⚙️ 自訂圖表 X 軸時間軸更新函數
+        // ⚙️ 自訂圖表 X 軸時間標籤顯示控制
         function updateChartConfig() {
             const showXTime = document.getElementById('showXTimeToggle').checked;
-            targetCapacity = parseInt(document.getElementById('xCapacitySelect').value);
-
-            // 1. 更新 X 軸時間顯示
             liveChart.options.scales.x.display = showXTime;
-
-            // 2. 限制繪圖節點數小於等於 300 點，確保 1週/1個月 巨量跨度下依然順暢零延遲
-            const actualPoints = Math.min(targetCapacity, RENDER_POINTS_MAX);
-            labelsArr = Array(actualPoints).fill('');
-            data1Arr  = Array(actualPoints).fill(blowerState[1].rpm);
-            data2Arr  = Array(actualPoints).fill(blowerState[2].rpm);
-            data3Arr  = Array(actualPoints).fill(blowerState[3].rpm);
-
-            liveChart.data.labels = labelsArr;
-            liveChart.data.datasets[0].data = data1Arr;
-            liveChart.data.datasets[1].data = data2Arr;
-            liveChart.data.datasets[2].data = data3Arr;
-
             liveChart.update();
         }
 
