@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KAVAS 鼓風機 3通道雲端即時監控儀表板 & ESP32 模擬器</title>
+    <!-- Google Fonts & Chart.js -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-main: #0a0d14;
+            --card-bg: rgba(16, 22, 34, 0.85);
+            --card-border: rgba(0, 240, 255, 0.2);
+            --accent-cyan: #00f0ff;
+            --accent-green: #00ff88;
+            --accent-red: #ff3366;
+            --accent-orange: #ff9900;
+            --text-primary: #e6f1ff;
+            --text-secondary: #8892b0;
+            --font-heading: 'Orbitron', sans-serif;
+            --font-body: 'Outfit', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg-main);
+            background-image: radial-gradient(circle at 50% 0%, rgba(0, 240, 255, 0.08) 0%, transparent 60%);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Navbar */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            padding: 16px 24px;
+            border-radius: 14px;
+            backdrop-filter: blur(12px);
+        }
+
+        .brand h1 {
+            font-family: var(--font-heading);
+            font-size: 20px;
+            color: var(--accent-cyan);
+            letter-spacing: 1px;
+        }
+
+        .brand p {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .btn {
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-sim {
+            background: linear-gradient(135deg, #00c6ff, #0072ff);
+            color: #fff;
+        }
+
+        .btn-sim:hover { box-shadow: 0 0 15px rgba(0,198,255,0.4); }
+
+        .btn-sheet {
+            background: rgba(0, 255, 136, 0.15);
+            color: var(--accent-green);
+            border: 1px solid var(--accent-green);
+        }
+
+        .btn-sheet:hover { background: rgba(0, 255, 136, 0.25); }
+
+        /* ESP32 模擬控制面板 Drawer */
+        .sim-drawer {
+            background: rgba(10, 16, 26, 0.95);
+            border: 1px solid var(--accent-cyan);
+            border-radius: 14px;
+            padding: 18px;
+            display: none; /* 點擊按鈕切換顯示 */
+            flex-direction: column;
+            gap: 14px;
+            box-shadow: 0 0 25px rgba(0, 240, 255, 0.2);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .sim-drawer.active { display: flex; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .sim-drawer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 8px;
+        }
+
+        .sim-drawer-title {
+            font-family: var(--font-heading);
+            font-size: 14px;
+            color: var(--accent-cyan);
+        }
+
+        .sim-controls-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+        }
+
+        @media (max-width: 900px) { .sim-controls-grid { grid-template-columns: 1fr; } }
+
+        .sim-ctrl-card {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 10px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .sim-ctrl-card label { font-size: 12px; color: var(--text-secondary); display: flex; justify-content: space-between; }
+        .sim-ctrl-card label strong { color: var(--accent-cyan); font-family: var(--font-mono); }
+
+        .sim-action-btns {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn-stop { background: linear-gradient(135deg, #ff416c, #ff4b2b); color: #fff; }
+        .btn-warn { background: linear-gradient(135deg, #f7b731, #eb3b5a); color: #fff; }
+
+        /* 3台鼓風機 Grid */
+        .blower-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        @media (max-width: 1024px) { .blower-grid { grid-template-columns: 1fr; } }
+
+        .blower-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            transition: border-color 0.3s ease;
+        }
+
+        .blower-card.active-card {
+            border-color: var(--accent-cyan);
+        }
+
+        .blower-card.fault-card {
+            border-color: var(--accent-red);
+            animation: pulseRed 1s infinite alternate;
+        }
+
+        @keyframes pulseRed {
+            from { box-shadow: 0 0 10px rgba(255, 51, 102, 0.2); }
+            to { box-shadow: 0 0 25px rgba(255, 51, 102, 0.6); }
+        }
+
+        .b-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            padding-bottom: 12px;
+        }
+
+        .b-header h2 {
+            font-family: var(--font-heading);
+            font-size: 16px;
+            color: #fff;
+        }
+
+        .status-badge {
+            font-size: 11px;
+            font-family: var(--font-mono);
+            padding: 4px 12px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .status-badge.online {
+            background: rgba(0, 240, 255, 0.1);
+            color: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+        }
+
+        .status-badge.fault {
+            background: rgba(255, 51, 102, 0.2);
+            color: var(--accent-red);
+            border-color: var(--accent-red);
+        }
+
+        .metrics-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .m-box {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 10px;
+            padding: 10px 14px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .m-lbl { font-size: 11px; color: var(--text-secondary); }
+        .m-val { font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: #fff; }
+        .m-val.highlight { color: var(--accent-cyan); text-shadow: 0 0 10px rgba(0,240,255,0.3); }
+        .m-val.danger { color: var(--accent-red); }
+
+        /* 底部環境溫濕度與歷史圖表 */
+        .bottom-section {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 900px) { .bottom-section { grid-template-columns: 1fr; } }
+
+        .env-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .env-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: rgba(0,0,0,0.3);
+            padding: 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .env-icon { font-size: 32px; }
+        .env-data { display: flex; flex-direction: column; }
+        .env-label { font-size: 12px; color: var(--text-secondary); }
+        .env-value { font-family: var(--font-mono); font-size: 24px; font-weight: 800; color: var(--accent-green); }
+
+        .chart-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 20px;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 220px;
+            width: 100%;
+        }
+
+        /* 雲端傳播 Log 控制台 */
+        .log-bar {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--text-secondary);
+            background: rgba(5, 8, 14, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 8px 14px;
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="brand">
+                <h1>🌀 KAVAS 鼓風機 3通道雲端實時監控儀表板</h1>
+                <p>ESP32 實時採樣 • Google Sheets 雲端儲存 • 嵌入式模擬控制面板</p>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-sim" onclick="toggleSimDrawer()">🕹️ 切換 ESP32 模擬控制面板</button>
+                <a href="https://docs.google.com/spreadsheets/d/1Lrb1uWOInBbPmEYJIuNfNUag9OO6Fjau8dvnLqRQ1f57mK8g3R-A/edit" target="_blank" style="text-decoration:none;">
+                    <button class="btn btn-sheet">📊 開啟 Google Sheets 試算表 ↗</button>
+                </a>
+            </div>
+        </header>
+
+        <!-- ESP32 模擬控制面板 (Simulator Drawer) -->
+        <div class="sim-drawer" id="simDrawer">
+            <div class="sim-drawer-header">
+                <span class="sim-drawer-title">🕹️ ESP32 模擬發送控制面板 (點擊下方按鈕可模擬 ESP32 傳送數據至 Google Sheets)</span>
+                <span style="font-size:11px; color:var(--text-secondary);">目標 URL: Google Apps Script Web App API</span>
+            </div>
+
+            <div class="sim-controls-grid">
+                <!-- 模擬風機 1 -->
+                <div class="sim-ctrl-card">
+                    <label>風機 1 號頻率: <strong id="simFreq1Text">50 Hz</strong></label>
+                    <input type="range" min="0" max="60" value="50" oninput="updateSimFreq(1, this.value)">
+                </div>
+                <!-- 模擬風機 2 -->
+                <div class="sim-ctrl-card">
+                    <label>風機 2 號頻率: <strong id="simFreq2Text">45 Hz</strong></label>
+                    <input type="range" min="0" max="60" value="45" oninput="updateSimFreq(2, this.value)">
+                </div>
+                <!-- 模擬風機 3 -->
+                <div class="sim-ctrl-card">
+                    <label>風機 3 號頻率: <strong id="simFreq3Text">0 Hz</strong></label>
+                    <input type="range" min="0" max="60" value="0" oninput="updateSimFreq(3, this.value)">
+                </div>
+            </div>
+
+            <div class="sim-action-btns">
+                <button class="btn btn-sim" id="autoSimBtn" onclick="toggleAutoSim()">▶ 啟動 ESP32 5秒連續自動上傳</button>
+                <button class="btn btn-sheet" onclick="sendSimData('MANUAL_TEST')">⚡ 發送 1 筆測試數據</button>
+                <button class="btn btn-warn" onclick="sendSimFault()">⚠️ 模擬【風機 1 號過載故障 0x0023】發送</button>
+            </div>
+        </div>
+
+        <!-- 3台鼓風機實時卡片 -->
+        <div class="blower-grid">
+            <!-- 鼓風機 1 -->
+            <div class="blower-card" id="bCard1">
+                <div class="b-header">
+                    <h2>風機 1 號 (Blower 1)</h2>
+                    <span class="status-badge" id="bBadge1">STANDBY</span>
+                </div>
+                <div class="metrics-list">
+                    <div class="m-box"><span class="m-lbl">馬達轉速</span><span class="m-val highlight" id="b1Rpm">0 RPM</span></div>
+                    <div class="m-box"><span class="m-lbl">運轉頻率</span><span class="m-val" id="b1Freq">0.0 Hz</span></div>
+                    <div class="m-box"><span class="m-lbl">輸出電壓</span><span class="m-val" id="b1Volt">0 V</span></div>
+                    <div class="m-box"><span class="m-lbl">輸出電流</span><span class="m-val" id="b1Curr">0.0 A</span></div>
+                    <div class="m-box"><span class="m-lbl">馬達溫度</span><span class="m-val" id="b1MTemp">0 °C</span></div>
+                    <div class="m-box"><span class="m-lbl">故障碼</span><span class="m-val" id="b1Fault">0x0000</span></div>
+                </div>
+            </div>
+
+            <!-- 鼓風機 2 -->
+            <div class="blower-card" id="bCard2">
+                <div class="b-header">
+                    <h2>風機 2 號 (Blower 2)</h2>
+                    <span class="status-badge" id="bBadge2">STANDBY</span>
+                </div>
+                <div class="metrics-list">
+                    <div class="m-box"><span class="m-lbl">馬達轉速</span><span class="m-val highlight" id="b2Rpm">0 RPM</span></div>
+                    <div class="m-box"><span class="m-lbl">運轉頻率</span><span class="m-val" id="b2Freq">0.0 Hz</span></div>
+                    <div class="m-box"><span class="m-lbl">輸出電壓</span><span class="m-val" id="b2Volt">0 V</span></div>
+                    <div class="m-box"><span class="m-lbl">輸出電流</span><span class="m-val" id="b2Curr">0.0 A</span></div>
+                    <div class="m-box"><span class="m-lbl">馬達溫度</span><span class="m-val" id="b2MTemp">0 °C</span></div>
+                    <div class="m-box"><span class="m-lbl">故障碼</span><span class="m-val" id="b2Fault">0x0000</span></div>
+                </div>
+            </div>
+
+            <!-- 鼓風機 3 -->
+            <div class="blower-card" id="bCard3">
+                <div class="b-header">
+                    <h2>風機 3 號 (Blower 3)</h2>
+                    <span class="status-badge" id="bBadge3">STANDBY</span>
+                </div>
+                <div class="metrics-list">
+                    <div class="m-box"><span class="m-lbl">馬達轉速</span><span class="m-val highlight" id="b3Rpm">0 RPM</span></div>
+                    <div class="m-box"><span class="m-lbl">運轉頻率</span><span class="m-val" id="b3Freq">0.0 Hz</span></div>
+                    <div class="m-box"><span class="m-lbl">輸出電壓</span><span class="m-val" id="b3Volt">0 V</span></div>
+                    <div class="m-box"><span class="m-lbl">輸出電流</span><span class="m-val" id="b3Curr">0.0 A</span></div>
+                    <div class="m-box"><span class="m-lbl">馬達溫度</span><span class="m-val" id="b3MTemp">0 °C</span></div>
+                    <div class="m-box"><span class="m-lbl">故障碼</span><span class="m-val" id="b3Fault">0x0000</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部環境溫濕度與歷史波形 -->
+        <div class="bottom-section">
+            <div class="env-card">
+                <div class="env-item">
+                    <div class="env-icon">🌡️</div>
+                    <div class="env-data">
+                        <span class="env-label">環境溫度 (DHT22)</span>
+                        <span class="env-value" id="envTemp">0.0 °C</span>
+                    </div>
+                </div>
+                <div class="env-item">
+                    <div class="env-icon">💧</div>
+                    <div class="env-data">
+                        <span class="env-label">環境相對濕度</span>
+                        <span class="env-value" id="envHumi">0.0 %</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <h3 style="font-size:14px; font-family:var(--font-heading); margin-bottom:12px; color:var(--accent-cyan);">📈 鼓風機轉速實時動態波形 (RPM)</h3>
+                <div class="chart-wrapper">
+                    <canvas id="liveChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- 傳輸 Log 狀態條 -->
+        <div class="log-bar">
+            <span id="logTime">最後更新: --:--:--</span>
+            <span id="logMsg" style="color:var(--accent-cyan);">系統待命中，可點擊右上角【🕹️ 切換 ESP32 模擬控制面板】測試傳送資料。</span>
+        </div>
+    </div>
+
+    <script>
+        // 目標 Google Apps Script URL (已部署完成)
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzF3aEyYz0trE_WnLoe3iz4lSliBXgu2LATLWFhq37VF7Zlce5QzEBxIN7-QNZ3G3Lo3Q/exec";
+
+        // 全域鼓風機與環境狀態
+        const blowerState = {
+            1: { freq: 50, rpm: 3000, volt: 220, curr: 10.5, mTemp: 48, fault: 0 },
+            2: { freq: 45, rpm: 2700, volt: 218, curr: 9.2,  mTemp: 45, fault: 0 },
+            3: { freq: 0,  rpm: 0,    volt: 0,   curr: 0.0,  mTemp: 28, fault: 0 },
+            envTemp: 26.5,
+            envHumi: 62.4
+        };
+
+        let isSimRunning = false;
+        let simTimerId = null;
+
+        // 初始化 Chart.js
+        const ctx = document.getElementById('liveChart').getContext('2d');
+        const liveChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array(15).fill(''),
+                datasets: [
+                    { label: '風機 1 轉速', data: Array(15).fill(0), borderColor: '#00f0ff', borderWidth: 2, tension: 0.3 },
+                    { label: '風機 2 轉速', data: Array(15).fill(0), borderColor: '#00ff88', borderWidth: 2, tension: 0.3 },
+                    { label: '風機 3 轉速', data: Array(15).fill(0), borderColor: '#9d4edd', borderWidth: 2, tension: 0.3 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                scales: {
+                    x: { display: false },
+                    y: { min: 0, max: 3600, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8892b0' } }
+                },
+                plugins: { legend: { labels: { color: '#8892b0' } } }
+            }
+        });
+
+        // 展開/收起 模擬器控制 Drawer
+        function toggleSimDrawer() {
+            const drawer = document.getElementById('simDrawer');
+            drawer.classList.toggle('active');
+        }
+
+        function updateSimFreq(id, val) {
+            const freq = parseInt(val);
+            const rpm = Math.round((freq / 60) * 3600);
+            const b = blowerState[id];
+            b.freq = freq;
+            b.rpm = rpm;
+            b.volt = freq > 0 ? 220 : 0;
+            b.curr = Number(((freq / 60) * 12.0).toFixed(1));
+            b.mTemp = freq > 0 ? 30 + Math.round(freq * 0.4) : 28;
+
+            document.getElementById(`simFreq${id}Text`).innerText = `${freq} Hz`;
+            renderDashboardUI();
+        }
+
+        // 即時渲染儀表板 DOM 與 Chart
+        function renderDashboardUI() {
+            for (let id = 1; id <= 3; id++) {
+                const b = blowerState[id];
+                document.getElementById(`b${id}Rpm`).innerText = `${b.rpm} RPM`;
+                document.getElementById(`b${id}Freq`).innerText = `${b.freq.toFixed(1)} Hz`;
+                document.getElementById(`b${id}Volt`).innerText = `${b.volt} V`;
+                document.getElementById(`b${id}Curr`).innerText = `${b.curr.toFixed(1)} A`;
+                document.getElementById(`b${id}MTemp`).innerText = `${b.mTemp} °C`;
+                
+                const faultEl = document.getElementById(`b${id}Fault`);
+                faultEl.innerText = `0x${b.fault.toString(16).toUpperCase().padStart(4, '0')}`;
+
+                const badge = document.getElementById(`bBadge${id}`);
+                const card = document.getElementById(`bCard${id}`);
+
+                if (b.fault !== 0) {
+                    badge.innerText = 'FAULT (故障)';
+                    badge.className = 'status-badge fault';
+                    card.className = 'blower-card fault-card';
+                    faultEl.className = 'm-val danger';
+                } else if (b.freq > 0) {
+                    badge.innerText = 'RUNNING';
+                    badge.className = 'status-badge online';
+                    card.className = 'blower-card active-card';
+                    faultEl.className = 'm-val';
+                } else {
+                    badge.innerText = 'STOP';
+                    badge.className = 'status-badge';
+                    card.className = 'blower-card';
+                    faultEl.className = 'm-val';
+                }
+            }
+
+            document.getElementById('envTemp').innerText = `${blowerState.envTemp.toFixed(1)} °C`;
+            document.getElementById('envHumi').innerText = `${blowerState.envHumi.toFixed(1)} %`;
+
+            // 更新 Chart.js 波形
+            const timeNow = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+            liveChart.data.labels.shift();
+            liveChart.data.labels.push(timeNow);
+
+            liveChart.data.datasets[0].data.shift();
+            liveChart.data.datasets[0].data.push(blowerState[1].rpm);
+
+            liveChart.data.datasets[1].data.shift();
+            liveChart.data.datasets[1].data.push(blowerState[2].rpm);
+
+            liveChart.data.datasets[2].data.shift();
+            liveChart.data.datasets[2].data.push(blowerState[3].rpm);
+
+            liveChart.update();
+        }
+
+        // 觸發上傳資料到 Google Sheets
+        async function sendSimData(reason) {
+            blowerState.envTemp = Number((26.5 + (Math.random() * 0.4 - 0.2)).toFixed(1));
+            blowerState.envHumi = Number((62.0 + (Math.random() * 1.0 - 0.5)).toFixed(1));
+
+            const timeStr = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
+            renderDashboardUI();
+
+            for (let id = 1; id <= 3; id++) {
+                const b = blowerState[id];
+                const payload = {
+                    timestamp: timeStr,
+                    blower_id: id,
+                    status: b.freq > 0 ? 'ONLINE' : 'STOP',
+                    rpm: b.rpm,
+                    freq: b.freq,
+                    voltage: b.volt,
+                    current: b.curr,
+                    motor_temp: b.mTemp,
+                    driver_temp: b.mTemp - 10,
+                    fault_code: b.fault,
+                    env_temp: blowerState.envTemp,
+                    env_humi: blowerState.envHumi,
+                    trigger: reason
+                };
+
+                try {
+                    await fetch(GOOGLE_SCRIPT_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify(payload)
+                    });
+                } catch (e) {}
+            }
+
+            document.getElementById('logTime').innerText = `最後更新: ${timeStr}`;
+            document.getElementById('logMsg').innerText = `[HTTP 200 SUCCESS] 數據已上傳並同步寫入 Google Sheets! (理由: ${reason})`;
+        }
+
+        function toggleAutoSim() {
+            const btn = document.getElementById('autoSimBtn');
+            if (!isSimRunning) {
+                isSimRunning = true;
+                btn.innerText = '⏹ 停止 ESP32 自動上傳';
+                btn.className = 'btn btn-stop';
+                sendSimData('PERIODIC_5SEC');
+                simTimerId = setInterval(() => sendSimData('PERIODIC_5SEC'), 5000);
+            } else {
+                isSimRunning = false;
+                clearInterval(simTimerId);
+                btn.innerText = '▶ 啟動 ESP32 5秒連續自動上傳';
+                btn.className = 'btn btn-sim';
+            }
+        }
+
+        async function sendSimFault() {
+            blowerState[1].fault = 0x0023; // 風機 1 號過載錯誤
+            renderDashboardUI();
+            await sendSimData('FAULT_EVENT_SIMULATION');
+            setTimeout(() => {
+                blowerState[1].fault = 0; // 復歸
+                renderDashboardUI();
+            }, 3000);
+        }
+
+        // 頁面初始化
+        renderDashboardUI();
+    </script>
+</body>
+</html>

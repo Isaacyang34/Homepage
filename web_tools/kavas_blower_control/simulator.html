@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KAVAS 鼓風機 ESP32 雲端上傳模擬器 (Simulator)</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Outfit:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #0a0d14;
+            --card-bg: rgba(16, 22, 34, 0.85);
+            --card-border: rgba(0, 240, 255, 0.2);
+            --accent-cyan: #00f0ff;
+            --accent-green: #00ff88;
+            --accent-red: #ff3366;
+            --accent-orange: #ff9900;
+            --text-primary: #e6f1ff;
+            --text-secondary: #8892b0;
+            --font-heading: 'Orbitron', sans-serif;
+            --font-body: 'Outfit', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg-main);
+            background-image: radial-gradient(circle at 50% 0%, rgba(0, 240, 255, 0.08) 0%, transparent 60%);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            padding: 24px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        header {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            padding: 20px 24px;
+            border-radius: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            font-family: var(--font-heading);
+            font-size: 20px;
+            color: var(--accent-cyan);
+        }
+
+        .subtitle {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .card-title {
+            font-family: var(--font-heading);
+            font-size: 14px;
+            color: #fff;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            padding-bottom: 8px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        input[type="text"] {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: #fff;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            width: 100%;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary { background: linear-gradient(135deg, #00c6ff, #0072ff); color: #fff; }
+        .btn-primary:hover { box-shadow: 0 0 15px rgba(0,198,255,0.4); }
+
+        .btn-stop { background: linear-gradient(135deg, #ff416c, #ff4b2b); color: #fff; }
+        .btn-warning { background: linear-gradient(135deg, #f7b731, #eb3b5a); color: #fff; }
+        .btn-secondary { background: rgba(255,255,255,0.1); color: #fff; }
+
+        .blower-sim-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        @media (max-width: 900px) { .blower-sim-grid { grid-template-columns: 1fr; } }
+
+        .b-sim-box {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 10px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .b-sim-title { font-size: 13px; font-weight: 700; color: var(--accent-cyan); }
+
+        .slider-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+        }
+
+        input[type="range"] { accent-color: var(--accent-cyan); }
+
+        /* Console Log */
+        .console-box {
+            background: #05080e;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 14px;
+            height: 220px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            overflow-y: auto;
+            color: #a0aec0;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .log-item { display: flex; gap: 8px; }
+        .log-item.success { color: var(--accent-green); }
+        .log-item.error { color: var(--accent-red); }
+        .log-item.warn { color: var(--accent-orange); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div>
+                <h1>🌀 KAVAS 鼓風機 ESP32 雲端上傳模擬器</h1>
+                <p class="subtitle">模擬 ESP32 硬體行為 • 實時上傳數據至 Google Sheets • LINE 告警測試</p>
+            </div>
+            <div id="simStatusTag" style="font-size:12px; font-family:var(--font-mono); padding:6px 14px; border-radius:20px; background:rgba(255,255,255,0.08); color:var(--text-secondary);">
+                STATUS: IDLE (待命)
+            </div>
+        </header>
+
+        <!-- 設定區域 -->
+        <div class="card">
+            <div class="card-title">🔗 雲端目標 URL 設定</div>
+            <div class="input-group">
+                <label>Google Apps Script 部署 URL (與 kavas_esp32_logger.ino 相同):</label>
+                <input type="text" id="serverUrl" value="https://script.google.com/macros/s/AKfycbzF3aEyYz0trE_WnLoe3iz4lSliBXgu2LATLWFhq37VF7Zlce5QzEBxIN7-QNZ3G3Lo3Q/exec">
+            </div>
+
+            <div class="btn-group">
+                <button class="btn btn-primary" id="startBtn" onclick="toggleAutoUpload()">▶ 啟動 ESP32 自動採樣上傳 (每5秒)</button>
+                <button class="btn btn-secondary" onclick="sendSinglePack('MANUAL_TEST')">⚡ 立即發送 1 筆正常數據</button>
+                <button class="btn btn-warning" onclick="sendFaultPack()">⚠️ 模擬發送【鼓風機 1 號過載故障 0x0023】</button>
+                <button class="btn btn-secondary" onclick="clearConsole()">清空 Console 日誌</button>
+            </div>
+        </div>
+
+        <!-- 3台鼓風機與環境模擬控制 -->
+        <div class="card">
+            <div class="card-title">🎛️ 模擬風機運轉狀態與參數設定</div>
+            <div class="blower-sim-grid">
+                <!-- 風機 1 -->
+                <div class="b-sim-box">
+                    <div class="b-sim-title">風機 1 號 (Blower 1)</div>
+                    <div class="slider-row">
+                        <span>設定頻率:</span>
+                        <strong id="b1FreqText">50 Hz</strong>
+                    </div>
+                    <input type="range" min="0" max="60" value="50" oninput="updateBlowerSim(1, this.value)">
+                    <div class="slider-row" style="color:var(--text-secondary); font-size:11px;">
+                        <span>狀態: <strong style="color:var(--accent-green)">RUN</strong></span>
+                        <span>約 <span id="b1RpmText">3000</span> RPM</span>
+                    </div>
+                </div>
+
+                <!-- 風機 2 -->
+                <div class="b-sim-box">
+                    <div class="b-sim-title">風機 2 號 (Blower 2)</div>
+                    <div class="slider-row">
+                        <span>設定頻率:</span>
+                        <strong id="b2FreqText">45 Hz</strong>
+                    </div>
+                    <input type="range" min="0" max="60" value="45" oninput="updateBlowerSim(2, this.value)">
+                    <div class="slider-row" style="color:var(--text-secondary); font-size:11px;">
+                        <span>狀態: <strong style="color:var(--accent-green)">RUN</strong></span>
+                        <span>約 <span id="b2RpmText">2700</span> RPM</span>
+                    </div>
+                </div>
+
+                <!-- 風機 3 -->
+                <div class="b-sim-box">
+                    <div class="b-sim-title">風機 3 號 (Blower 3)</div>
+                    <div class="slider-row">
+                        <span>設定頻率:</span>
+                        <strong id="b3FreqText">0 Hz</strong>
+                    </div>
+                    <input type="range" min="0" max="60" value="0" oninput="updateBlowerSim(3, this.value)">
+                    <div class="slider-row" style="color:var(--text-secondary); font-size:11px;">
+                        <span>狀態: <strong style="color:var(--text-secondary)">STOP</strong></span>
+                        <span>約 <span id="b3RpmText">0</span> RPM</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 輸出 Console Log -->
+        <div class="card">
+            <div class="card-title">📡 ESP32 HTTP POST 傳輸日誌 (Console Log)</div>
+            <div class="console-box" id="consoleBox">
+                <div class="log-item">[00:00:00] KAVAS ESP32 模擬器就緒。點擊「▶ 啟動 ESP32 自動採樣上傳」開始測試數據上傳至 Google Sheets。</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isUploading = false;
+        let timerId = null;
+
+        // 模擬數據
+        const simData = {
+            b1: { freq: 50, rpm: 3000, volt: 220, curr: 10.5, mTemp: 48, dTemp: 38, fault: 0 },
+            b2: { freq: 45, rpm: 2700, volt: 218, curr: 9.2, mTemp: 45, dTemp: 36, fault: 0 },
+            b3: { freq: 0,  rpm: 0,    volt: 0,   curr: 0.0,  mTemp: 28, dTemp: 28, fault: 0 },
+            envTemp: 26.5,
+            envHumi: 62.4
+        };
+
+        function updateBlowerSim(id, freqVal) {
+            const freq = parseInt(freqVal);
+            const rpm = Math.round((freq / 60) * 3600);
+            const b = simData[`b${id}`];
+            b.freq = freq;
+            b.rpm = rpm;
+            b.volt = freq > 0 ? 220 : 0;
+            b.curr = Number(((freq / 60) * 12.0).toFixed(1));
+            b.mTemp = freq > 0 ? 30 + Math.round(freq * 0.4) : 28;
+
+            document.getElementById(`b${id}FreqText`).innerText = `${freq} Hz`;
+            document.getElementById(`b${id}RpmText`).innerText = rpm;
+        }
+
+        function toggleAutoUpload() {
+            const btn = document.getElementById('startBtn');
+            const tag = document.getElementById('simStatusTag');
+
+            if (!isUploading) {
+                isUploading = true;
+                btn.innerText = '⏹ 停止 ESP32 模擬上傳';
+                btn.className = 'btn btn-stop';
+                tag.innerText = 'STATUS: UPLOADING (每5秒上傳中)';
+                tag.style.color = 'var(--accent-green)';
+                logConsole('▶ 已啟動 ESP32 數據採樣定時器 (每 5 秒上傳 3 台風機數據)...', 'warn');
+
+                // 立即發送一次，隨後每 5 秒發送一次
+                sendSinglePack('PERIODIC_5SEC');
+                timerId = setInterval(() => {
+                    sendSinglePack('PERIODIC_5SEC');
+                }, 5000);
+            } else {
+                isUploading = false;
+                clearInterval(timerId);
+                btn.innerText = '▶ 啟動 ESP32 自動採樣上傳 (每5秒)';
+                btn.className = 'btn btn-primary';
+                tag.innerText = 'STATUS: IDLE (已停止)';
+                tag.style.color = 'var(--text-secondary)';
+                logConsole('⏹ 已停止 ESP32 模擬上傳。', 'warn');
+            }
+        }
+
+        async function sendSinglePack(reason) {
+            const url = document.getElementById('serverUrl').value.trim();
+            if (!url) {
+                alert('請輸入有效的 Google Apps Script 部署 URL！');
+                return;
+            }
+
+            // 稍微微調環境溫濕度模擬動態變化
+            simData.envTemp = Number((26.5 + (Math.random() * 0.4 - 0.2)).toFixed(1));
+            simData.envHumi = Number((62.0 + (Math.random() * 1.0 - 0.5)).toFixed(1));
+
+            const timeStr = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
+
+            // 依次發送 3 台鼓風機的封包 (如 ESP32 實際行為)
+            for (let id = 1; id <= 3; id++) {
+                const b = simData[`b${id}`];
+                const payload = {
+                    timestamp: timeStr,
+                    blower_id: id,
+                    status: b.freq > 0 ? 'ONLINE' : 'STOP',
+                    rpm: b.rpm,
+                    freq: b.freq,
+                    voltage: b.volt,
+                    current: b.curr,
+                    motor_temp: b.mTemp,
+                    driver_temp: b.dTemp,
+                    fault_code: b.fault,
+                    env_temp: simData.envTemp,
+                    env_humi: simData.envHumi,
+                    trigger: reason
+                };
+
+                try {
+                    logConsole(`[HTTP POST] 正在上傳 鼓風機 ${id} 數據...`, 'normal');
+                    
+                    // 使用 text/plain 避免 CORS preflight 攔截
+                    const resp = await fetch(url, {
+                        method: 'POST',
+                        mode: 'no-cors', 
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    logConsole(`[HTTP 200 SUCCESS] 鼓風機 ${id} 數據已寫入 Google Sheets! (轉速: ${b.rpm} RPM, 溫度: ${b.mTemp}°C)`, 'success');
+                } catch (err) {
+                    logConsole(`[HTTP ERROR] 鼓風機 ${id} 上傳失敗: ${err.message}`, 'error');
+                }
+            }
+        }
+
+        async function sendFaultPack() {
+            logConsole('⚠️ [故障模擬] 正在發送【風機 1 號過載故障碼 0x0023】...', 'warn');
+            simData.b1.fault = 0x0023; // 過載錯誤碼
+            await sendSinglePack('FAULT_EVENT_SIMULATION');
+            simData.b1.fault = 0; // 發送後復歸
+        }
+
+        function logConsole(msg, type = 'normal') {
+            const box = document.getElementById('consoleBox');
+            const time = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+            const div = document.createElement('div');
+            div.className = `log-item ${type}`;
+            div.innerHTML = `<span>[${time}]</span> <span>${msg}</span>`;
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function clearConsole() {
+            document.getElementById('consoleBox').innerHTML = '';
+        }
+    </script>
+</body>
+</html>
