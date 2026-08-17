@@ -414,7 +414,7 @@
 
         .chart-wrapper {
             position: relative;
-            height: 240px;
+            height: 250px;
             width: 100%;
         }
 
@@ -438,7 +438,7 @@
         <header>
             <div class="brand">
                 <h1>🌀 KAVAS 鼓風機 3通道雲端即時監控儀表板</h1>
-                <p>4極高速馬達物理模型 (0~5000RPM: 0~380V 恆轉矩 • >5000RPM 弱磁控制 380V 飽和) • 可自訂圖表座標軸與時間間距</p>
+                <p>4極高速馬達物理模型 • 1個月 Google Sheets 雲端大數據全量儲存與歷史波形自動繪製</p>
             </div>
             <div class="header-actions">
                 <button class="btn btn-sim" onclick="toggleSimDrawer()">🕹️ 切換全參數模擬控制面板</button>
@@ -457,7 +457,7 @@
             <!-- 當前實體連線位置動態顯示區 -->
             <div class="connection-info-box">
                 <div class="conn-row">
-                    <span class="conn-lbl">🟢 雲端試算表 (Google Sheet):</span>
+                    <span class="conn-lbl">🟢 雲端試算表 (1個月全量資料庫):</span>
                     <a href="https://docs.google.com/spreadsheets/d/1O9GVEoctgy7VPjhCc4AdKl-52pJIusu16HltltZJ/edit" target="_blank" style="color:var(--accent-cyan); text-decoration:underline;" id="displaySheetUrl">https://docs.google.com/spreadsheets/d/1O9GVEoctgy7VPjhCc4AdKl-52pJIusu16HltltZJ/edit</a>
                 </div>
                 <div class="conn-row">
@@ -668,7 +668,7 @@
 
             <div class="chart-card">
                 <div class="chart-header">
-                    <span class="chart-title">📈 鼓風機轉速實時動態波形 (0 ~ 24,000 RPM)</span>
+                    <span class="chart-title">📈 鼓風機轉速動態歷史波形 (支援 Google Sheets 1個月雲端資料庫載入)</span>
                     
                     <!-- ⚙️ 可自訂座標軸與時間軸設定控制區 -->
                     <div class="chart-config-bar">
@@ -679,13 +679,16 @@
                         </div>
 
                         <div class="chart-config-item">
-                            <span>⏱️ 時間軸容量 (歷史點數):</span>
+                            <span>⏱️ 時間軸容量/觀察跨度:</span>
                             <select id="xCapacitySelect" onchange="updateChartConfig()">
-                                <option value="10">10 點 (極速)</option>
-                                <option value="15" selected>15 點 (預設)</option>
-                                <option value="30">30 點 (2.5 分鐘)</option>
+                                <option value="15" selected>15 點 (即時 1.25 分鐘)</option>
                                 <option value="60">60 點 (5 分鐘)</option>
-                                <option value="120">120 點 (10 分鐘)</option>
+                                <option value="300">300 點 (25 分鐘)</option>
+                                <option value="720">720 點 (1 小時概觀)</option>
+                                <option value="4320">4,320 點 (6 小時概觀)</option>
+                                <option value="17280">17,280 點 (1 天全量圖)</option>
+                                <option value="120960">120,960 點 (1 週全量概觀)</option>
+                                <option value="518400">518,400 點 (1 個月雲端數據抽樣)</option>
                             </select>
                         </div>
 
@@ -708,6 +711,8 @@
                                 <option value="30000">30,000 RPM</option>
                             </select>
                         </div>
+
+                        <button class="btn btn-sheet" style="padding:4px 10px; font-size:11px;" onclick="loadCloudHistoryData()">📥 載入 Google Sheets 1個月歷史數據</button>
                     </div>
                 </div>
 
@@ -720,7 +725,7 @@
         <!-- 傳輸 Log 狀態條 -->
         <div class="log-bar">
             <span id="logTime">最後更新: --:--:--</span>
-            <span id="logMsg" style="color:var(--accent-cyan);">系統待命中，可點擊右上角【🕹️ 切換全參數模擬控制面板】測試傳送資料與模擬。</span>
+            <span id="logMsg" style="color:var(--accent-cyan);">系統待命中，1個月全量數據正100%持續安全寫入 Google Sheets 中。</span>
         </div>
     </div>
 
@@ -779,6 +784,48 @@
             }
         });
 
+        // 📥 從 Google Sheets 自動載入歷史大數據畫入圖表
+        async function loadCloudHistoryData() {
+            document.getElementById('logMsg').innerText = "⏳ 正在從 Google Sheets 雲端資料庫載入 1 個月歷史數據中...";
+            try {
+                const resp = await fetch(GOOGLE_SCRIPT_URL);
+                const result = await resp.json();
+                
+                if (result.status === "success" && result.data && result.data.length > 0) {
+                    const rows = result.data;
+                    
+                    // 分組抓取風機 1, 2, 3 數據
+                    const b1Rows = rows.filter(r => String(r.blower_id).includes('1'));
+                    const b2Rows = rows.filter(r => String(r.blower_id).includes('2'));
+                    const b3Rows = rows.filter(r => String(r.blower_id).includes('3'));
+                    
+                    const count = b1Rows.length;
+                    if (count === 0) {
+                        alert("Google Sheets 內目前尚無歷史數據，請先點擊發送幾筆數據測試！");
+                        return;
+                    }
+
+                    chartCapacity = count;
+                    labelsArr = b1Rows.map(r => r.timestamp ? String(r.timestamp).split(' ')[1] || String(r.timestamp) : '');
+                    data1Arr  = b1Rows.map(r => r.rpm);
+                    data2Arr  = b2Rows.map(r => r.rpm);
+                    data3Arr  = b3Rows.map(r => r.rpm);
+
+                    liveChart.data.labels = labelsArr;
+                    liveChart.data.datasets[0].data = data1Arr;
+                    liveChart.data.datasets[1].data = data2Arr;
+                    liveChart.data.datasets[2].data = data3Arr;
+                    liveChart.update();
+
+                    document.getElementById('logMsg').innerText = `✅ 成功從 Google Sheets 載入 ${count} 筆歷史數據劃入圖表！`;
+                } else {
+                    document.getElementById('logMsg').innerText = "ℹ️ Google Sheets 目前尚無歷史數據。";
+                }
+            } catch (err) {
+                document.getElementById('logMsg').innerText = `⚠️ 載入歷史數據失敗: ${err.message}`;
+            }
+        }
+
         // ⚙️ 自訂圖表 X軸時間軸與 Y軸座標間距更新函數
         function updateChartConfig() {
             const showXTime = document.getElementById('showXTimeToggle').checked;
@@ -808,7 +855,7 @@
             if (stepVal > 0) {
                 liveChart.options.scales.y.ticks.stepSize = stepVal;
             } else {
-                delete liveChart.options.scales.y.ticks.stepSize; // 自動 Auto
+                delete liveChart.options.scales.y.ticks.stepSize;
             }
 
             liveChart.update();

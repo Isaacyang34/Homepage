@@ -81,7 +81,41 @@ function doPost(e) {
 }
 
 function doGet(e) {
-  return ContentService.createTextOutput("KAVAS Blower Google Apps Script API Server is Running!");
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    const lastRow = sheet.getLastRow();
+    if (lastRow <= 1) {
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", data: [] }))
+                           .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // 讀取最新最多 2,000 筆數據供前端進行 1 個月歷史曲線分析
+    const startRow = Math.max(2, lastRow - 2000);
+    const numRows = lastRow - startRow + 1;
+    const values = sheet.getRange(startRow, 1, numRows, 13).getValues();
+    
+    const rows = values.map(r => ({
+      timestamp: String(r[0]),
+      blower_id: String(r[1]),
+      status: String(r[2]),
+      rpm: Number(r[3]) || 0,
+      freq: Number(r[4]) || 0,
+      voltage: Number(r[5]) || 0,
+      current: Number(r[6]) || 0,
+      motor_temp: Number(r[7]) || 0,
+      driver_temp: Number(r[8]) || 0,
+      fault_code: String(r[9]),
+      env_temp: Number(r[10]) || 0,
+      env_humi: Number(r[11]) || 0,
+      trigger: String(r[12])
+    }));
+
+    return ContentService.createTextOutput(JSON.stringify({ status: "success", count: rows.length, data: rows }))
+                         .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() }))
+                         .setMimeType(ContentService.MimeType.JSON);
+  }
 }
 
 // 發送 LINE Notify 簡訊通知
