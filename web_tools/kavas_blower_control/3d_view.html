@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KAVAS ESP32 數據採集控制箱 - 3D 工業配線與 SD/Jumper 模組模型</title>
+    <title>KAVAS ESP32 數據採集控制箱 - 超醒目 SD 卡模組與 3D 模型</title>
     <!-- Google Fonts & Font Awesome Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -291,12 +291,12 @@
 <body>
     <div id="loader">
         <div class="spinner"></div>
-        <p>載入包含 SD 卡與 Jumper 開關 3D 控制箱模型...</p>
+        <p>載入高清晰 Micro-SD 模組與 Jumper 開關 3D 控制箱模型...</p>
     </div>
 
     <div class="ui-header">
         <h1><i class="fa-solid fa-cube"></i> KAVAS ESP32 全硬體 3D 工業模型</h1>
-        <p>包含 3 路 MAX485、明緯電供、DHT11、Micro-SD 選配模組與 Jumper 開關</p>
+        <p>高清重構：紅黑 Micro-SD 讀卡模組、黃色 Jumper 跳線帽、3 路 MAX485、明緯電供與 DHT11</p>
     </div>
 
     <div class="ui-nav">
@@ -325,10 +325,10 @@
             <span><i class="fa-solid fa-video"></i> 精細視角特寫 Focus</span>
         </div>
         <div class="camera-presets">
+            <button class="btn btn-sm" onclick="focusComponent('sdModule')" style="background: rgba(16, 185, 129, 0.25); border-color: var(--accent); color: var(--accent);">🔍 SD與Jumper</button>
             <button class="btn btn-sm" onclick="focusComponent('esp32')">ESP32主板</button>
             <button class="btn btn-sm" onclick="focusComponent('max485_1')">3路MAX485</button>
             <button class="btn btn-sm" onclick="focusComponent('powerModule')">明緯AC電供</button>
-            <button class="btn btn-sm" onclick="focusComponent('sdModule')">SD與Jumper</button>
             <button class="btn btn-sm" onclick="focusComponent('dht11')">DHT11傳感器</button>
             <button class="btn btn-sm" onclick="focusComponent('full')">全景特寫</button>
         </div>
@@ -420,12 +420,10 @@
         const matDhtBlue = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.4 });
         const matTerminalGreen = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.4 });
         const matPinMetal = new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.9, roughness: 0.1 });
-        const matJumperBlack = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.5 });
 
-        const matWireRed = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 });
-        const matWireWhite = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 });
-        const matWireCyan = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.3 });
-        const matWireYellow = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.3 });
+        // 超醒目 SD 卡與 Jumper 專用高對比材質
+        const matSdCardRed = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 }); // 亮紅 TF 卡身
+        const matJumperYellow = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.3, metalness: 0.3 }); // 鮮黃 Jumper 跳線帽
 
         const partData = {
             caseCover: {
@@ -445,7 +443,7 @@
             esp32: {
                 name: 'ESP32 雙核 Wi-Fi 開發板 (DevKit)',
                 tag: '主控 MCU',
-                desc: '金屬 ESP-WROOM-32 屏蔽蓋、30Pin 排針，GPIO 15 旁邊設有 Jumper 跳線開關用來控制 SD 卡離線日誌啟用。',
+                desc: '金屬 ESP-WROOM-32 屏蔽蓋、30Pin 排針，GPIO 15 旁邊設有鮮黃色 2P Jumper 跳線帽開關用來控制 SD 卡離線日誌啟用。',
                 voltage: 'DC 5V (從明緯電源 DC-OUT 接引)', usage: '全系統 3 通道邏輯主控與雲端連線', price: '約 $180 ~ $350',
                 link: 'https://shop.cpu.com.tw/Search/advanced/4553503332/page/1/'
             },
@@ -464,9 +462,9 @@
                 link: 'https://shop.cpu.com.tw/Search/advanced/4d4158343835/page/1/'
             },
             sdModule: {
-                name: '【選配】Micro-SD 卡模組 + Jumper 跳線帽',
+                name: '【超醒目選配】Micro-SD 讀卡模組 + Jumper 跳線帽',
                 tag: '離線儲存選配',
-                desc: 'SPI 介面離線大容量讀卡模組。配合 Jumper 跳線帽(GPIO 15)短路可硬體強制啟用 SD 日誌寫入，撥除即切回標準模式。',
+                desc: 'SPI 介面離線大容量讀卡模組 (帶紅黑 Micro-SD 記憶卡)。配合鮮黃色 Jumper 跳線帽(GPIO 15)短路可硬體強制啟用 SD 日誌寫入，拔除即切回標準模式。',
                 voltage: 'DC 5V (SPI 介面)', usage: '長週期斷網日誌與故障黑盒子連續儲存', price: '約 $80 ~ $150 /套',
                 link: 'https://shop.cpu.com.tw/Search/advanced/534420e6a8a1e7b584/page/1/'
             },
@@ -513,7 +511,7 @@
         components.push(caseCoverMesh);
 
         // -------------------------------------------------------------
-        // C. PCB 萬用底板 & M3 金色銅柱
+        // C. PCB 萬用底板
         // -------------------------------------------------------------
         const pcbMesh = new THREE.Mesh(new THREE.BoxGeometry(16, 0.3, 12), matPcbGreen);
         pcbMesh.position.y = 0.3;
@@ -523,7 +521,7 @@
         mainGroup.add(pcbMesh);
 
         // -------------------------------------------------------------
-        // D. 明緯 IRM-05-05 電源模組 (靠左側)
+        // D. 明緯 IRM-05-05 電源模組 (靠左上)
         // -------------------------------------------------------------
         const powerGroup = new THREE.Group();
         const powerBody = new THREE.Mesh(new THREE.BoxGeometry(4.2, 2.2, 3.2), matPowerCase);
@@ -536,13 +534,13 @@
         labelMesh.position.set(0, 1.11, 0);
         powerGroup.add(labelMesh);
 
-        powerGroup.position.set(-5, 1.5, -3.5);
-        powerGroup.userData = { partKey: 'powerModule', defaultY: 1.5, explodeFactor: { x: -4, y: 4, z: -3 }, focusPos: new THREE.Vector3(-5, 3, -3.5) };
+        powerGroup.position.set(-5.2, 1.5, -3.8);
+        powerGroup.userData = { partKey: 'powerModule', defaultY: 1.5, explodeFactor: { x: -4, y: 4, z: -3 }, focusPos: new THREE.Vector3(-5.2, 3, -3.8) };
         mainGroup.add(powerGroup);
         components.push(powerGroup);
 
         // -------------------------------------------------------------
-        // E. ESP32 主控板 & Jumper 跳線帽實體 3D 模型
+        // E. ESP32 主控板 & 鮮黃色 2P Jumper 跳線帽 3D 模型
         // -------------------------------------------------------------
         const espGroup = new THREE.Group();
         const espPcb = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.2, 6.2), matPcbBlack);
@@ -553,9 +551,9 @@
         espShield.position.set(0, 0.3, 0.8);
         espGroup.add(espShield);
 
-        // Jumper 跳線帽實體 (GPIO 15 旁邊)
-        const jumperCap = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.6, 0.5), matJumperBlack);
-        jumperCap.position.set(-1.4, 0.4, 2.2);
+        // 鮮黃色 Jumper 跳線帽實體 (GPIO 15 旁邊，高對比極醒目)
+        const jumperCap = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.7, 0.6), matJumperYellow);
+        jumperCap.position.set(-1.4, 0.5, 2.2);
         espGroup.add(jumperCap);
 
         espGroup.position.set(-0.5, 0.8, -0.5);
@@ -588,25 +586,32 @@
         createMaxModule('max485_1', 3.8);
 
         // -------------------------------------------------------------
-        // G. 【選配】Micro-SD 卡 SPI 介面模組 3D 模型
+        // G. 【超醒目高精細度】Micro-SD 卡 SPI 讀卡模組 3D 模型
         // -------------------------------------------------------------
         const sdGroup = new THREE.Group();
-        const sdBoard = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.2, 3.2), matPcbBlue);
+        // 1. 藍色 SPI 讀卡 PCB 板 (架高顯眼)
+        const sdBoard = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.25, 3.8), matPcbBlue);
         sdBoard.castShadow = true;
         sdGroup.add(sdBoard);
 
-        // 金屬 TF 讀卡插槽
-        const tfSlot = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.3, 1.6), matMetalShield);
-        tfSlot.position.set(-0.2, 0.25, -0.4);
+        // 2. 亮銀色金屬 TF 讀卡插槽
+        const tfSlot = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.4, 2.0), matMetalShield);
+        tfSlot.position.set(-0.2, 0.3, -0.4);
         sdGroup.add(tfSlot);
 
-        // 插入的黑色 Micro-SD 記憶卡
-        const sdCardMesh = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.1, 1.4), matPowerCase);
-        sdCardMesh.position.set(-0.2, 0.3, 0.5);
+        // 3. 鮮紅色 Micro-SD 記憶卡 (半插在金屬卡槽內，超高對比度)
+        const sdCardMesh = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.15, 1.8), matSdCardRed);
+        sdCardMesh.position.set(-0.2, 0.35, 0.8);
         sdGroup.add(sdCardMesh);
 
-        sdGroup.position.set(-5.0, 0.8, 2.5);
-        sdGroup.userData = { partKey: 'sdModule', defaultY: 0.8, explodeFactor: { x: -4.5, y: 3.5, z: 2.5 }, focusPos: new THREE.Vector3(-5.0, 2.5, 2.5) };
+        // 4. 金色觸點
+        const goldPins = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.05, 0.3), matPinMetal);
+        goldPins.position.set(-0.2, 0.43, 1.4);
+        sdGroup.add(goldPins);
+
+        // 放置於 PCB 左前側顯眼處 (Y = 1.0)
+        sdGroup.position.set(-5.2, 1.0, 2.8);
+        sdGroup.userData = { partKey: 'sdModule', defaultY: 1.0, explodeFactor: { x: -4.5, y: 3.5, z: 2.8 }, focusPos: new THREE.Vector3(-5.2, 2.5, 2.8) };
         mainGroup.add(sdGroup);
         components.push(sdGroup);
 
@@ -702,7 +707,7 @@
                 const focusPos = targetObj.userData.focusPos || targetObj.position;
                 const camTargetPos = new THREE.Vector3()
                     .copy(focusPos)
-                    .add(new THREE.Vector3(8, 8, 10));
+                    .add(new THREE.Vector3(6, 6, 8)); // 更加特寫靠近
 
                 animateCamera(camTargetPos, focusPos);
             }
