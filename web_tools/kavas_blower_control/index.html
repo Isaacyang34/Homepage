@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KAVAS 高速鼓風機 3 通道 ESP32 數據採集與雲端監控系統</title>
+    <title>KAVAS 鼓風機監控儀面板</title>
     <!-- Google Fonts & Font Awesome Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -71,8 +71,8 @@
         }
 
         .logo-icon {
-            width: 40px;
-            height: 40px;
+            width: 42px;
+            height: 42px;
             background: rgba(56, 189, 248, 0.15);
             border: 1px solid var(--primary-glow);
             border-radius: 10px;
@@ -85,16 +85,10 @@
         }
 
         h1 {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: 700;
             color: var(--primary);
             letter-spacing: -0.5px;
-        }
-
-        .subtitle {
-            font-size: 11px;
-            color: var(--text-muted);
-            margin-top: 2px;
         }
 
         .nav-actions {
@@ -145,12 +139,6 @@
         }
 
         /* Grid Layouts */
-        .grid-4 {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 14px;
-        }
-
         .grid-3 {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -362,6 +350,15 @@
             justify-content: space-between;
         }
 
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: #1e293b;
+            border-radius: 3px;
+            outline: none;
+            accent-color: var(--primary);
+        }
+
         /* 📱 手機 RWD 媒體查詢 (@media max-width: 900px 或強制手機模式) */
         @media screen and (max-width: 900px) {
             header {
@@ -372,7 +369,7 @@
                 width: 100%;
                 justify-content: space-between;
             }
-            .grid-4, .grid-3, .grid-2 {
+            .grid-3, .grid-2 {
                 grid-template-columns: 1fr !important;
             }
             .storage-rings-container {
@@ -392,8 +389,7 @@
             <div class="logo-title">
                 <div class="logo-icon"><i class="fa-solid fa-fan"></i></div>
                 <div>
-                    <h1>KAVAS 鼓風機 3 通道雲端監控儀表板</h1>
-                    <div class="subtitle">ESP32 Modbus RTU 採集 • GBD 全量歷史數據滾輪檢視</div>
+                    <h1>KAVAS 鼓風機監控儀面板</h1>
                 </div>
             </div>
             <div class="nav-actions">
@@ -404,16 +400,24 @@
             </div>
         </header>
 
-        <!-- 頂部系統狀態卡片區 (包含右側微型儲存圓餅圖) -->
-        <div class="grid-4 mb-20" id="statusGrid">
-            <!-- 1. 連線狀態 -->
+        <!-- 頂部系統狀態卡片區 (合併連線與更新時間、環境溫濕度、微型儲存圓餅圖) -->
+        <div class="grid-3 mb-20" id="statusGrid">
+            <!-- 1. 合併狀態欄: 連線狀態 + 最新更新時間 -->
             <div class="card">
                 <div class="card-header">
-                    <span class="card-title"><i class="fa-solid fa-wifi"></i> ESP32 連線狀態</span>
+                    <span class="card-title"><i class="fa-solid fa-wifi"></i> 系統連線與更新狀態</span>
                     <div class="pulse-indicator"></div>
                 </div>
-                <div style="font-size: 20px; font-weight: 700; color: var(--primary);" id="esp-status">ONLINE</div>
-                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;" id="esp-ip">IP: 192.168.1.105</div>
+                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 2px;">
+                    <div>
+                        <div style="font-size: 20px; font-weight: 700; color: var(--primary);" id="esp-status">ONLINE</div>
+                        <div style="font-size: 10.5px; color: var(--text-muted);" id="esp-ip">IP: 192.168.1.105</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 16px; font-weight: 700; color: var(--accent);" id="last-update">--:--:--</div>
+                        <div style="font-size: 10px; color: var(--text-muted);">Modbus 1Hz 輪詢</div>
+                    </div>
+                </div>
             </div>
 
             <!-- 2. 環境溫濕度 -->
@@ -434,16 +438,7 @@
                 </div>
             </div>
 
-            <!-- 3. 更新時間 -->
-            <div class="card">
-                <div class="card-header">
-                    <span class="card-title"><i class="fa-solid fa-clock-rotate-left"></i> 最新資料更新</span>
-                </div>
-                <div style="font-size: 18px; font-weight: 700; color: var(--accent);" id="last-update">--:--:--</div>
-                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Modbus 1Hz 輪詢中</div>
-            </div>
-
-            <!-- 4. 【右側微型儲存圓餅圖 (Doughnut Ring)】 -->
+            <!-- 3. 微型儲存圓餅圖 (Doughnut Ring) -->
             <div class="card">
                 <div class="card-header" style="margin-bottom: 2px;">
                     <span class="card-title"><i class="fa-solid fa-hard-drive"></i> 離線儲存空間健康度</span>
@@ -646,13 +641,12 @@
                 appContainer.classList.add('mobile-mode');
                 toggleViewBtn.classList.add('btn-active');
                 toggleViewBtn.innerHTML = '<i class="fa-solid fa-desktop"></i> 💻 切換電腦模式';
-                // 調整網格為單欄
-                document.querySelectorAll('.grid-4, .grid-3, .grid-2').forEach(el => el.style.gridTemplateColumns = '1fr');
+                document.querySelectorAll('.grid-3, .grid-2').forEach(el => el.style.gridTemplateColumns = '1fr');
             } else {
                 appContainer.classList.remove('mobile-mode');
                 toggleViewBtn.classList.remove('btn-active');
                 toggleViewBtn.innerHTML = '<i class="fa-solid fa-mobile-screen-button"></i> 📱 切換手機閱讀模式';
-                document.querySelectorAll('.grid-4, .grid-3, .grid-2').forEach(el => el.style.gridTemplateColumns = '');
+                document.querySelectorAll('.grid-3, .grid-2').forEach(el => el.style.gridTemplateColumns = '');
             }
         });
 
