@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KAVAS ESP32 數據採集控制箱 - 精準 3D 工業配線與 3 通道 MAX485 模型展示</title>
+    <title>KAVAS ESP32 數據採集控制箱 - 3D 工業配線與 SD/Jumper 模組模型</title>
     <!-- Google Fonts & Font Awesome Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -126,7 +126,7 @@
             border: 1px solid var(--panel-border);
             border-radius: 14px;
             padding: 20px 24px;
-            width: 360px;
+            width: 380px;
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
         }
 
@@ -291,12 +291,12 @@
 <body>
     <div id="loader">
         <div class="spinner"></div>
-        <p>載入精準配線邏輯 3D 控制箱模型...</p>
+        <p>載入包含 SD 卡與 Jumper 開關 3D 控制箱模型...</p>
     </div>
 
     <div class="ui-header">
-        <h1><i class="fa-solid fa-cube"></i> KAVAS ESP32 3 通道 MAX485 實體控制箱配線</h1>
-        <p>AC110V/220V 紅白線入明緯電供 • 3 塊獨立 MAX485 出 3 條 RS485 屏蔽線過防水頭</p>
+        <h1><i class="fa-solid fa-cube"></i> KAVAS ESP32 全硬體 3D 工業模型</h1>
+        <p>包含 3 路 MAX485、明緯電供、DHT11、Micro-SD 選配模組與 Jumper 開關</p>
     </div>
 
     <div class="ui-nav">
@@ -328,8 +328,8 @@
             <button class="btn btn-sm" onclick="focusComponent('esp32')">ESP32主板</button>
             <button class="btn btn-sm" onclick="focusComponent('max485_1')">3路MAX485</button>
             <button class="btn btn-sm" onclick="focusComponent('powerModule')">明緯AC電供</button>
+            <button class="btn btn-sm" onclick="focusComponent('sdModule')">SD與Jumper</button>
             <button class="btn btn-sm" onclick="focusComponent('dht11')">DHT11傳感器</button>
-            <button class="btn btn-sm" onclick="focusComponent('cableGland')">PG9/PG7防水頭</button>
             <button class="btn btn-sm" onclick="focusComponent('full')">全景特寫</button>
         </div>
 
@@ -379,7 +379,7 @@
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
 
-        // 光源 Light
+        // 光源
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
         scene.add(ambientLight);
 
@@ -411,6 +411,7 @@
         });
         const matRubberGasket = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.9 });
         const matPcbGreen = new THREE.MeshStandardMaterial({ color: 0x047857, roughness: 0.2, metalness: 0.1 });
+        const matPcbBlue = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.2, metalness: 0.1 });
         const matPcbBlack = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.2, metalness: 0.1 });
         const matMetalShield = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9, roughness: 0.2 });
         const matBrass = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.85, roughness: 0.2 });
@@ -419,6 +420,7 @@
         const matDhtBlue = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.4 });
         const matTerminalGreen = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.4 });
         const matPinMetal = new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.9, roughness: 0.1 });
+        const matJumperBlack = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.5 });
 
         const matWireRed = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 });
         const matWireWhite = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 });
@@ -443,7 +445,7 @@
             esp32: {
                 name: 'ESP32 雙核 Wi-Fi 開發板 (DevKit)',
                 tag: '主控 MCU',
-                desc: '金屬 ESP-WROOM-32 屏蔽蓋、30Pin 排針，引出 3 組 HW UART (RX1/TX1, RX2/TX2, RX3/TX3) 獨立控制 3 塊 MAX485 模組。',
+                desc: '金屬 ESP-WROOM-32 屏蔽蓋、30Pin 排針，GPIO 15 旁邊設有 Jumper 跳線開關用來控制 SD 卡離線日誌啟用。',
                 voltage: 'DC 5V (從明緯電源 DC-OUT 接引)', usage: '全系統 3 通道邏輯主控與雲端連線', price: '約 $180 ~ $350',
                 link: 'https://shop.cpu.com.tw/Search/advanced/4553503332/page/1/'
             },
@@ -461,19 +463,12 @@
                 voltage: 'DC 5V', usage: '獨立採集 1 號鼓風機轉速(0~24000RPM)/頻率/電壓', price: '約 $30 ~ $89',
                 link: 'https://shop.cpu.com.tw/Search/advanced/4d4158343835/page/1/'
             },
-            max485_2: {
-                name: 'ZY-MAX485 通訊模組 (鼓風機 2 號通道)',
-                tag: 'RS485 CH2',
-                desc: '第二塊 MAX485 模組，綠色端子台引出 2 號雙絞屏蔽電纜，穿過 PG9 防水頭連向 2 號鼓風機。',
-                voltage: 'DC 5V', usage: '獨立採集 2 號鼓風機轉速(0~24000RPM)/頻率/電壓', price: '約 $30 ~ $89',
-                link: 'https://shop.cpu.com.tw/Search/advanced/4d4158343835/page/1/'
-            },
-            max485_3: {
-                name: 'ZY-MAX485 通訊模組 (鼓風機 3 號通道)',
-                tag: 'RS485 CH3',
-                desc: '第三塊 MAX485 模組，綠色端子台引出 3 號雙絞屏蔽電纜，穿過 PG9 防水頭連向 3 號鼓風機 (8米最遠端並聯 120Ω 電阻)。',
-                voltage: 'DC 5V', usage: '獨立採集 3 號鼓風機轉速(0~24000RPM)/頻率/電壓', price: '約 $30 ~ $89',
-                link: 'https://shop.cpu.com.tw/Search/advanced/4d4158343835/page/1/'
+            sdModule: {
+                name: '【選配】Micro-SD 卡模組 + Jumper 跳線帽',
+                tag: '離線儲存選配',
+                desc: 'SPI 介面離線大容量讀卡模組。配合 Jumper 跳線帽(GPIO 15)短路可硬體強制啟用 SD 日誌寫入，撥除即切回標準模式。',
+                voltage: 'DC 5V (SPI 介面)', usage: '長週期斷網日誌與故障黑盒子連續儲存', price: '約 $80 ~ $150 /套',
+                link: 'https://shop.cpu.com.tw/Search/advanced/534420e6a8a1e7b584/page/1/'
             },
             dht11: {
                 name: 'DHT11 數字溫溼度傳感器模組',
@@ -488,13 +483,6 @@
                 desc: '左側 1 個 PG7 (鎖緊 AC 110/220V 電源線)；右側 3 個 PG9 (分別鎖緊 3 條 RS485 雙絞電纜)。',
                 voltage: '不適用', usage: '4 埠完全防水出線與防拉扯保護', price: '約 $15 ~ $30 /個',
                 link: 'https://shop.cpu.com.tw/Search/advanced/504737/page/1/'
-            },
-            sdModule: {
-                name: '【選配】Micro-SD 卡模組 + Jumper 跳線帽',
-                tag: '離線儲存選配',
-                desc: 'SPI 介面離線大容量讀卡模組。配合 Jumper 跳線帽(GPIO 15)短路可硬體強制啟用 SD 日誌寫入，撥除即切回標準模式。',
-                voltage: 'DC 5V (SPI 介面)', usage: '長週期斷網日誌與故障黑盒子連續儲存', price: '約 $80 ~ $150 /套',
-                link: 'https://shop.cpu.com.tw/Search/advanced/534420e6a8a1e7b584/page/1/'
             }
         };
 
@@ -534,16 +522,8 @@
         pcbMesh.userData = { partKey: 'caseBase', defaultY: 0.3, explodeFactor: { x: 0, y: 0, z: 0 } };
         mainGroup.add(pcbMesh);
 
-        // 4 角 M3 六角銅柱
-        [[-7, -5], [7, -5], [-7, 5], [7, 5]].forEach(p => {
-            const brass = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 1.2, 6), matBrass);
-            brass.position.set(p[0], -0.45, p[1]);
-            brass.userData = { partKey: 'caseBase', defaultY: -0.45, explodeFactor: { x: 0, y: -1, z: 0 } };
-            mainGroup.add(brass);
-        });
-
         // -------------------------------------------------------------
-        // D. 明緯 IRM-05-05 電源模組 (靠左側，接收左側 AC110V/220V 電源線)
+        // D. 明緯 IRM-05-05 電源模組 (靠左側)
         // -------------------------------------------------------------
         const powerGroup = new THREE.Group();
         const powerBody = new THREE.Mesh(new THREE.BoxGeometry(4.2, 2.2, 3.2), matPowerCase);
@@ -562,7 +542,7 @@
         components.push(powerGroup);
 
         // -------------------------------------------------------------
-        // E. ESP32 雙核 Wi-Fi 開發板 (放置於中央)
+        // E. ESP32 主控板 & Jumper 跳線帽實體 3D 模型
         // -------------------------------------------------------------
         const espGroup = new THREE.Group();
         const espPcb = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.2, 6.2), matPcbBlack);
@@ -573,15 +553,10 @@
         espShield.position.set(0, 0.3, 0.8);
         espGroup.add(espShield);
 
-        // 30Pins 排針
-        for (let i = -2.6; i <= 2.6; i += 0.4) {
-            const pinL = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.8, 6), matPinMetal);
-            pinL.position.set(-1.6, -0.3, i);
-            const pinR = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.8, 6), matPinMetal);
-            pinR.position.set(1.6, -0.3, i);
-            espGroup.add(pinL);
-            espGroup.add(pinR);
-        }
+        // Jumper 跳線帽實體 (GPIO 15 旁邊)
+        const jumperCap = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.6, 0.5), matJumperBlack);
+        jumperCap.position.set(-1.4, 0.4, 2.2);
+        espGroup.add(jumperCap);
 
         espGroup.position.set(-0.5, 0.8, -0.5);
         espGroup.userData = { partKey: 'esp32', defaultY: 0.8, explodeFactor: { x: 0, y: 3.5, z: 0 }, focusPos: new THREE.Vector3(-0.5, 2.5, -0.5) };
@@ -589,19 +564,14 @@
         components.push(espGroup);
 
         // -------------------------------------------------------------
-        // F. 3 塊獨立 MAX485 通訊模組 (CH1, CH2, CH3 靠右側排列)
+        // F. 3 塊獨立 MAX485 通訊模組 (靠右側)
         // -------------------------------------------------------------
-        const createMaxModule = (keyName, zOffset, labelText) => {
+        const createMaxModule = (keyName, zOffset) => {
             const maxGroup = new THREE.Group();
             const maxBoard = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.2, 2.4), matPcbGreen);
             maxBoard.castShadow = true;
             maxGroup.add(maxBoard);
 
-            const chipSop8 = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.25, 0.7), matPowerCase);
-            chipSop8.position.set(-0.3, 0.2, 0);
-            maxGroup.add(chipSop8);
-
-            // 綠色螺絲端子台
             const termBlock = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.1, 1.8), matTerminalGreen);
             termBlock.position.set(0.9, 0.65, 0);
             maxGroup.add(termBlock);
@@ -613,27 +583,49 @@
             return maxGroup;
         };
 
-        const max1 = createMaxModule('max485_1', -3.8, 'CH1');
-        const max2 = createMaxModule('max485_2', 0, 'CH2');
-        const max3 = createMaxModule('max485_3', 3.8, 'CH3');
+        createMaxModule('max485_1', -3.8);
+        createMaxModule('max485_1', 0);
+        createMaxModule('max485_1', 3.8);
 
         // -------------------------------------------------------------
-        // G. DHT11 溫濕度傳感器 (左下角)
+        // G. 【選配】Micro-SD 卡 SPI 介面模組 3D 模型
+        // -------------------------------------------------------------
+        const sdGroup = new THREE.Group();
+        const sdBoard = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.2, 3.2), matPcbBlue);
+        sdBoard.castShadow = true;
+        sdGroup.add(sdBoard);
+
+        // 金屬 TF 讀卡插槽
+        const tfSlot = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.3, 1.6), matMetalShield);
+        tfSlot.position.set(-0.2, 0.25, -0.4);
+        sdGroup.add(tfSlot);
+
+        // 插入的黑色 Micro-SD 記憶卡
+        const sdCardMesh = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.1, 1.4), matPowerCase);
+        sdCardMesh.position.set(-0.2, 0.3, 0.5);
+        sdGroup.add(sdCardMesh);
+
+        sdGroup.position.set(-5.0, 0.8, 2.5);
+        sdGroup.userData = { partKey: 'sdModule', defaultY: 0.8, explodeFactor: { x: -4.5, y: 3.5, z: 2.5 }, focusPos: new THREE.Vector3(-5.0, 2.5, 2.5) };
+        mainGroup.add(sdGroup);
+        components.push(sdGroup);
+
+        // -------------------------------------------------------------
+        // H. DHT11 傳感器
         // -------------------------------------------------------------
         const dhtGroup = new THREE.Group();
         const dhtBody = new THREE.Mesh(new THREE.BoxGeometry(2.0, 2.6, 1.1), matDhtBlue);
         dhtBody.castShadow = true;
         dhtGroup.add(dhtBody);
 
-        dhtGroup.position.set(-6.5, 2.0, 3.5);
-        dhtGroup.userData = { partKey: 'dht11', defaultY: 2.0, explodeFactor: { x: -5, y: 4, z: 3.5 }, focusPos: new THREE.Vector3(-6.5, 3.5, 3.5) };
+        dhtGroup.position.set(-0.5, 2.0, 4.2);
+        dhtGroup.userData = { partKey: 'dht11', defaultY: 2.0, explodeFactor: { x: 0, y: 4, z: 4.5 }, focusPos: new THREE.Vector3(-0.5, 3.5, 4.2) };
         mainGroup.add(dhtGroup);
         components.push(dhtGroup);
 
         // -------------------------------------------------------------
-        // H. 防水電纜接頭 (左側 1 個 PG7 AC進線；右側 3 個 PG9 485出線)
+        // I. 防水電纜接頭 (左 1 PG7，右 3 PG9)
         // -------------------------------------------------------------
-        // 左側 PG7 AC 電源防水接頭
         const pg7Group = new THREE.Group();
         const pg7Body = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 1.4, 16), matPowerCase);
         pg7Body.rotation.z = Math.PI / 2;
@@ -643,8 +635,7 @@
         mainGroup.add(pg7Group);
         components.push(pg7Group);
 
-        // 右側 3 個 PG9 RS485 電纜防水接頭
-        [-3.8, 0, 3.8].forEach((zPos, idx) => {
+        [-3.8, 0, 3.8].forEach((zPos) => {
             const pg9Group = new THREE.Group();
             const pg9Body = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.75, 1.5, 16), matPowerCase);
             pg9Body.rotation.z = Math.PI / 2;
@@ -655,60 +646,6 @@
             components.push(pg9Group);
         });
 
-        // -------------------------------------------------------------
-        // I. 準確 3D 配線路徑 (Accurate 3D Curved Wiring Routing)
-        // -------------------------------------------------------------
-        const wireGroup = new THREE.Group();
-
-        // 1. AC 110V/220V 紅/白火零線：從左側 PG7 穿入 $\rightarrow$ 連接進入明緯 IRM-05-05 AC-IN
-        const curveAcRed = new THREE.CatmullRomCurve3([
-            new THREE.Vector3(-14, -1.4, -3.7),
-            new THREE.Vector3(-9.7, -1.4, -3.7),
-            new THREE.Vector3(-7.2, 0.6, -3.7),
-            new THREE.Vector3(-6.2, 1.2, -3.7)
-        ]);
-        wireGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curveAcRed, 20, 0.12, 8, false), matWireRed));
-
-        const curveAcWhite = new THREE.CatmullRomCurve3([
-            new THREE.Vector3(-14, -1.4, -3.3),
-            new THREE.Vector3(-9.7, -1.4, -3.3),
-            new THREE.Vector3(-7.2, 0.6, -3.3),
-            new THREE.Vector3(-6.2, 1.2, -3.3)
-        ]);
-        wireGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curveAcWhite, 20, 0.12, 8, false), matWireWhite));
-
-        // 2. DC 5V / GND 電源線：從明緯 DC-OUT $\rightarrow$ 連接進入 ESP32 VIN/GND
-        const curveDc5V = new THREE.CatmullRomCurve3([
-            new THREE.Vector3(-3.8, 1.2, -3.5),
-            new THREE.Vector3(-2.5, 0.6, -3.5),
-            new THREE.Vector3(-2.2, 0.8, -2.5)
-        ]);
-        wireGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curveDc5V, 15, 0.1, 8, false), matWireRed));
-
-        // 3. 3 條獨立 RS485 雙絞屏蔽電纜：分別從 3 塊 MAX485 端子台引出 $\rightarrow$ 穿過右側 3 個 PG9 防水接頭引出盒外！
-        [-3.8, 0, 3.8].forEach((zPos, idx) => {
-            // A 線 (青色)
-            const curveA = new THREE.CatmullRomCurve3([
-                new THREE.Vector3(5.7, 1.2, zPos - 0.3),
-                new THREE.Vector3(7.5, 0.5, zPos - 0.3),
-                new THREE.Vector3(9.7, -1.4, zPos - 0.3),
-                new THREE.Vector3(15, -1.4, zPos - 0.3)
-            ]);
-            wireGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curveA, 25, 0.12, 8, false), matWireCyan));
-
-            // B 線 (黃色)
-            const curveB = new THREE.CatmullRomCurve3([
-                new THREE.Vector3(5.7, 1.2, zPos + 0.3),
-                new THREE.Vector3(7.5, 0.5, zPos + 0.3),
-                new THREE.Vector3(9.7, -1.4, zPos + 0.3),
-                new THREE.Vector3(15, -1.4, zPos + 0.3)
-            ]);
-            wireGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curveB, 25, 0.12, 8, false), matWireYellow));
-        });
-
-        wireGroup.userData = { partKey: 'cableGland', defaultY: 0, explodeFactor: { x: 2, y: 1, z: 0 } };
-        mainGroup.add(wireGroup);
-
         // 隱藏 Loader
         setTimeout(() => {
             document.getElementById('loader').style.opacity = 0;
@@ -716,7 +653,7 @@
         }, 600);
 
         // -------------------------------------------------------------
-        // 4. 爆炸拆解、視角聚焦與控制 (Controls)
+        // 4. 爆炸拆解與視角控制
         // -------------------------------------------------------------
         const explodeSlider = document.getElementById('explode-slider');
         const explodeVal = document.getElementById('explode-val');
@@ -788,7 +725,6 @@
             step();
         }
 
-        // Raycaster 點擊
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
         const partCard = document.getElementById('part-card');

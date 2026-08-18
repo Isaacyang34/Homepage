@@ -102,6 +102,57 @@
 
         .btn-sheet:hover { background: rgba(0, 255, 136, 0.25); }
 
+        /* 儲存空間健康度監控卡片 */
+        .storage-card {
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .storage-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .storage-percent {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .progress-bar-bg {
+            width: 100%;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            border-radius: 5px;
+            transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1), background 0.4s;
+        }
+
+        .storage-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .badge-success { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
+        .badge-normal  { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
+        .badge-warning { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
+        .badge-danger  { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+
         /* ESP32 模擬控制面板 Drawer */
         .sim-drawer {
             background: rgba(10, 16, 26, 0.95);
@@ -446,6 +497,39 @@
                 </a>
             </div>
         </header>
+
+        <!-- 儲存容量監控與 Jumper 狀態區 -->
+        <div class="storage-section grid-2" style="margin-bottom: 24px;">
+            <!-- 內部 LittleFS 記憶體 -->
+            <div class="card storage-card">
+                <div class="storage-header">
+                    <span><i class="fa-solid fa-microchip"></i> 內部 LittleFS 快閃記憶體</span>
+                    <span class="storage-percent" id="fs-percent">28%</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="fs-bar" style="width: 28%; background: var(--primary);"></div>
+                </div>
+                <div class="storage-footer">
+                    <span id="fs-used-text">已用: 0.42 MB / 1.50 MB</span>
+                    <span class="badge badge-normal" id="fs-status-badge">正常</span>
+                </div>
+            </div>
+
+            <!-- 外接 Micro-SD 卡 (選配) -->
+            <div class="card storage-card">
+                <div class="storage-header">
+                    <span><i class="fa-solid fa-sd-card"></i> 外接 Micro-SD 卡 (選配)</span>
+                    <span class="storage-percent" id="sd-percent">15%</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="sd-bar" style="width: 15%; background: var(--accent);"></div>
+                </div>
+                <div class="storage-footer">
+                    <span id="sd-used-text">已用: 1.20 GB / 8.00 GB</span>
+                    <span class="badge badge-success" id="sd-jumper-badge"><i class="fa-solid fa-toggle-on"></i> Jumper 已啟用</span>
+                </div>
+            </div>
+        </div>
 
         <!-- ESP32 全參數模擬控制面板 (Simulator Drawer) -->
         <div class="sim-drawer" id="simDrawer">
