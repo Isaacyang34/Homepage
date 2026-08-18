@@ -3,1067 +3,757 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KAVAS 鼓風機 3通道雲端即時監控儀表板 & ESP32 全參數模擬器</title>
-    <!-- Google Fonts & Chart.js + Chart.js Zoom Plugin -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>KAVAS 高速鼓風機 3 通道 ESP32 數據採集與雲端監控系統</title>
+    <!-- Google Fonts & Font Awesome Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js & Zoom Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <style>
         :root {
-            --bg-main: #0a0d14;
-            --card-bg: rgba(16, 22, 34, 0.85);
-            --card-border: rgba(0, 240, 255, 0.2);
-            --accent-cyan: #00f0ff;
-            --accent-green: #00ff88;
-            --accent-red: #ff3366;
-            --accent-orange: #ff9900;
-            --accent-purple: #9d4edd;
-            --text-primary: #e6f1ff;
-            --text-secondary: #8892b0;
-            --font-heading: 'Orbitron', sans-serif;
-            --font-body: 'Outfit', sans-serif;
-            --font-mono: 'JetBrains Mono', monospace;
+            --bg-dark: #070a12;
+            --panel-bg: rgba(13, 19, 33, 0.88);
+            --panel-border: rgba(56, 189, 248, 0.22);
+            --primary: #38bdf8;
+            --primary-glow: rgba(56, 189, 248, 0.4);
+            --accent: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
-            background-color: var(--bg-main);
-            background-image: radial-gradient(circle at 50% 0%, rgba(0, 240, 255, 0.08) 0%, transparent 60%);
-            color: var(--text-primary);
-            font-family: var(--font-body);
-            padding: 20px;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
             min-height: 100vh;
+            padding: 20px;
+            overflow-x: hidden;
         }
 
         .container {
             max-width: 1440px;
             margin: 0 auto;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
         }
 
-        /* Navbar */
+        /* Header Layout */
         header {
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--panel-border);
+            border-radius: 16px;
+            padding: 16px 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            padding: 16px 24px;
-            border-radius: 14px;
-            backdrop-filter: blur(12px);
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
         }
 
-        .brand h1 {
-            font-family: var(--font-heading);
+        .logo-title {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .logo-icon {
+            width: 44px;
+            height: 44px;
+            background: rgba(56, 189, 248, 0.15);
+            border: 1px solid var(--primary-glow);
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 22px;
+            color: var(--primary);
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        h1 {
             font-size: 20px;
-            color: var(--accent-cyan);
-            letter-spacing: 1px;
+            font-weight: 700;
+            color: var(--primary);
+            letter-spacing: -0.5px;
         }
 
-        .brand p {
+        .subtitle {
             font-size: 12px;
-            color: var(--text-secondary);
+            color: var(--text-muted);
             margin-top: 2px;
         }
 
-        .header-actions {
+        .nav-actions {
             display: flex;
-            gap: 12px;
-            align-items: center;
-        }
-
-        .btn {
-            border: none;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-weight: 700;
-            font-size: 12px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .btn-sim {
-            background: linear-gradient(135deg, #00c6ff, #0072ff);
-            color: #fff;
-        }
-
-        .btn-sim:hover { box-shadow: 0 0 15px rgba(0,198,255,0.4); }
-
-        .btn-sheet {
-            background: rgba(0, 255, 136, 0.15);
-            color: var(--accent-green);
-            border: 1px solid var(--accent-green);
-        }
-
-        .btn-sheet:hover { background: rgba(0, 255, 136, 0.25); }
-
-        /* 儲存空間健康度監控卡片 */
-        .storage-card {
-            padding: 16px 20px;
-            display: flex;
-            flex-direction: column;
             gap: 10px;
         }
 
-        .storage-header {
+        .btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--panel-border);
+            color: var(--text-main);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 12.5px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.25s ease;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            background: rgba(56, 189, 248, 0.2);
+            border-color: var(--primary);
+            color: var(--primary);
+            box-shadow: 0 0 12px var(--primary-glow);
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: #0f172a;
+            border: none;
+        }
+
+        .btn-primary:hover {
+            background: #7dd3fc;
+            color: #0f172a;
+        }
+
+        /* Grid Layouts */
+        .grid-4 {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        .mb-20 { margin-bottom: 20px; }
+
+        /* Card Container Base */
+        .card {
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--panel-border);
+            border-radius: 14px;
+            padding: 16px 20px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            position: relative;
+        }
+
+        .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .card-title {
+            font-size: 13px;
             font-weight: 600;
             color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
-        .storage-percent {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--primary);
-        }
-
-        .progress-bar-bg {
-            width: 100%;
-            height: 10px;
-            background: rgba(255, 255, 255, 0.08);
-            border-radius: 5px;
-            overflow: hidden;
-        }
-
-        .progress-bar-fill {
+        /* 儲存健康度微型圓餅圖 (Doughnut Ring) 樣式 */
+        .storage-rings-container {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
             height: 100%;
-            border-radius: 5px;
-            transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1), background 0.4s;
         }
 
-        .storage-footer {
+        .ring-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .ring-wrapper {
+            position: relative;
+            width: 54px;
+            height: 54px;
+        }
+
+        .ring-center-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .ring-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        .ring-sub {
+            font-size: 10px;
+            color: var(--primary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .pulse-indicator {
+            width: 10px;
+            height: 10px;
+            background: var(--accent);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--accent);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        /* Status Cards Style */
+        .blower-card {
+            border-top: 3px solid var(--primary);
+            transition: transform 0.3s ease;
+        }
+
+        .blower-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .blower-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-size: 12px;
+            margin-bottom: 14px;
+        }
+
+        .blower-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-badge {
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+
+        .badge-running { background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); }
+        .badge-stop    { background: rgba(148, 163, 184, 0.2); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.4); }
+        .badge-fault   { background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .stat-box {
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 8px;
+            padding: 8px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .stat-label {
+            font-size: 11px;
             color: var(--text-muted);
         }
 
-        .badge-success { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
-        .badge-normal  { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
-        .badge-warning { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
-        .badge-danger  { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
-
-        /* ESP32 模擬控制面板 Drawer */
-        .sim-drawer {
-            background: rgba(10, 16, 26, 0.95);
-            border: 1px solid var(--accent-cyan);
-            border-radius: 14px;
-            padding: 18px;
-            display: none;
-            flex-direction: column;
-            gap: 16px;
-            box-shadow: 0 0 25px rgba(0, 240, 255, 0.2);
-            animation: fadeIn 0.3s ease;
+        .stat-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--primary);
+            margin-top: 2px;
         }
 
-        .sim-drawer.active { display: flex; }
+        /* Chart Canvas Container */
+        .chart-box {
+            position: relative;
+            height: 260px;
+            width: 100%;
+        }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-8px); }
-            to { opacity: 1; transform: translateY(0); }
+        /* Drawer for Simulator */
+        .sim-drawer {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 380px;
+            height: 100vh;
+            background: rgba(13, 19, 33, 0.96);
+            backdrop-filter: blur(24px);
+            border-left: 1px solid var(--panel-border);
+            z-index: 100;
+            transform: translateX(100%);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: -10px 0 40px rgba(0, 0, 0, 0.6);
+            padding: 24px;
+            overflow-y: auto;
+        }
+
+        .sim-drawer.open {
+            transform: translateX(0);
         }
 
         .sim-drawer-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            padding-bottom: 8px;
-        }
-
-        .sim-drawer-title {
-            font-family: var(--font-heading);
-            font-size: 14px;
-            color: var(--accent-cyan);
-        }
-
-        .connection-info-box {
-            background: rgba(0, 240, 255, 0.05);
-            border: 1px solid rgba(0, 240, 255, 0.2);
-            border-radius: 10px;
-            padding: 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            font-family: var(--font-mono);
-            font-size: 12px;
-        }
-
-        .conn-row {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            overflow-x: auto;
-        }
-
-        .conn-lbl {
-            color: var(--accent-green);
-            font-weight: bold;
-            white-space: nowrap;
-        }
-
-        .conn-val {
-            color: #fff;
-            word-break: break-all;
-        }
-
-        .sim-controls-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 14px;
-        }
-
-        @media (max-width: 900px) { .sim-controls-grid { grid-template-columns: 1fr; } }
-
-        .sim-ctrl-card {
-            background: rgba(0,0,0,0.4);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 10px;
-            padding: 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .sim-ctrl-title {
-            font-size: 13px;
-            font-weight: 700;
-            color: var(--accent-cyan);
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-            padding-bottom: 4px;
-        }
-
-        .param-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 11px;
-            color: var(--text-secondary);
-        }
-
-        .param-row span strong {
-            font-family: var(--font-mono);
-            color: #fff;
-        }
-
-        .param-input-inline {
-            width: 75px;
-            background: rgba(0,0,0,0.6);
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 4px;
-            color: var(--accent-cyan);
-            font-family: var(--font-mono);
-            font-size: 11px;
-            padding: 2px 6px;
-            text-align: right;
-        }
-
-        input[type="range"] { accent-color: var(--accent-cyan); width: 100%; }
-
-        .sim-action-btns {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .btn-stop { background: linear-gradient(135deg, #ff416c, #ff4b2b); color: #fff; }
-        .btn-warn { background: linear-gradient(135deg, #f7b731, #eb3b5a); color: #fff; }
-
-        /* 3台鼓風機 Grid */
-        .blower-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
-        }
-
-        @media (max-width: 1024px) { .blower-grid { grid-template-columns: 1fr; } }
-
-        .blower-card {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 16px;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-            transition: border-color 0.3s ease;
-        }
-
-        .blower-card.active-card {
-            border-color: var(--accent-cyan);
-        }
-
-        .blower-card.fault-card {
-            border-color: var(--accent-red);
-            animation: pulseRed 1s infinite alternate;
-        }
-
-        @keyframes pulseRed {
-            from { box-shadow: 0 0 10px rgba(255, 51, 102, 0.2); }
-            to { box-shadow: 0 0 25px rgba(255, 51, 102, 0.6); }
-        }
-
-        .b-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid rgba(255,255,255,0.08);
+            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             padding-bottom: 12px;
         }
 
-        .b-header h2 {
-            font-family: var(--font-heading);
-            font-size: 16px;
-            color: #fff;
+        .sim-ctrl-group {
+            margin-bottom: 18px;
         }
 
-        .status-badge {
-            font-size: 11px;
-            font-family: var(--font-mono);
-            padding: 4px 12px;
-            border-radius: 20px;
-            background: rgba(255, 255, 255, 0.06);
-            color: var(--text-secondary);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .status-badge.online {
-            background: rgba(0, 240, 255, 0.1);
-            color: var(--accent-cyan);
-            border-color: var(--accent-cyan);
-        }
-
-        .status-badge.fw-mode {
-            background: rgba(157, 78, 221, 0.2);
-            color: var(--accent-purple);
-            border-color: var(--accent-purple);
-        }
-
-        .status-badge.fault {
-            background: rgba(255, 51, 102, 0.2);
-            color: var(--accent-red);
-            border-color: var(--accent-red);
-        }
-
-        .metrics-list {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-
-        .m-box {
-            background: rgba(0,0,0,0.3);
-            border: 1px solid rgba(255,255,255,0.05);
-            border-radius: 10px;
-            padding: 10px 14px;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .m-lbl { font-size: 11px; color: var(--text-secondary); }
-        .m-val { font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: #fff; }
-        .m-val.highlight { color: var(--accent-cyan); text-shadow: 0 0 10px rgba(0,240,255,0.3); }
-        .m-val.danger { color: var(--accent-red); }
-
-        /* 底部環境溫濕度與歷史圖表 */
-        .bottom-section {
-            display: grid;
-            grid-template-columns: 320px 1fr;
-            gap: 20px;
-        }
-
-        @media (max-width: 900px) { .bottom-section { grid-template-columns: 1fr; } }
-
-        .env-card {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 16px;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            gap: 16px;
-        }
-
-        .env-item {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            background: rgba(0,0,0,0.3);
-            padding: 12px 14px;
-            border-radius: 12px;
-            border: 1px solid rgba(255,255,255,0.05);
-        }
-
-        .env-icon { font-size: 30px; }
-        .env-data { display: flex; flex-direction: column; }
-        .env-label { font-size: 11px; color: var(--text-secondary); }
-        .env-value { font-family: var(--font-mono); font-size: 22px; font-weight: 800; color: var(--accent-green); }
-
-        .chart-card {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 16px;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .chart-header {
+        .sim-ctrl-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
         }
 
-        .chart-title {
-            font-size: 14px;
-            font-family: var(--font-heading);
-            color: var(--accent-cyan);
-        }
-
-        .chart-config-bar {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-            flex-wrap: wrap;
-            background: rgba(0,0,0,0.4);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 8px;
-            padding: 6px 12px;
-            font-size: 11px;
-            color: var(--text-secondary);
-        }
-
-        .chart-config-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .chart-wrapper {
-            position: relative;
-            height: 260px;
+        input[type="range"] {
             width: 100%;
-            cursor: grab;
-        }
-
-        .chart-wrapper:active {
-            cursor: grabbing;
-        }
-
-        /* 傳輸 Log 狀態條 */
-        .log-bar {
-            font-family: var(--font-mono);
-            font-size: 11px;
-            color: var(--text-secondary);
-            background: rgba(5, 8, 14, 0.8);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 8px;
-            padding: 8px 14px;
-            display: flex;
-            justify-content: space-between;
+            height: 6px;
+            background: #1e293b;
+            border-radius: 3px;
+            outline: none;
+            accent-color: var(--primary);
         }
     </style>
 </head>
 <body>
+
     <div class="container">
-        <!-- Header -->
+        <!-- 頂部 Header 導覽列 -->
         <header>
-            <div class="brand">
-                <h1>🌀 KAVAS 鼓風機 3通道雲端即時監控儀表板</h1>
-                <p>4極高速馬達物理模型 • 🖲️ GBD全量歷史快取：滾輪向後拉遠可完整看見從開始迄今的所有時間點</p>
+            <div class="logo-title">
+                <div class="logo-icon"><i class="fa-solid fa-fan"></i></div>
+                <div>
+                    <h1>KAVAS 鼓風機 3 通道雲端監控儀表板</h1>
+                    <div class="subtitle">ESP32 Modbus RTU 採集 • GBD 全量歷史數據滾輪檢視</div>
+                </div>
             </div>
-            <div class="header-actions">
-                <a href="3d_view.html" style="text-decoration:none;">
-                    <button class="btn btn-sim" style="background: linear-gradient(135deg, #10b981, #059669);"><i class="fa-solid fa-cube"></i> 🧊 3D 實體控制箱模型 ↗</button>
-                </a>
-                <button class="btn btn-sim" onclick="toggleSimDrawer()">🕹️ 切換全參數模擬控制面板</button>
-                <a href="https://docs.google.com/spreadsheets/d/1O9GVEoctgy7VPjhCc4AdKl-52pJIusu16HltltZJMek/edit" target="_blank" style="text-decoration:none;" id="sheetsBtnLink">
-                    <button class="btn btn-sheet">📊 開啟已建立之 Google 試算表 ↗</button>
-                </a>
+            <div class="nav-actions">
+                <a href="3d_view.html" class="btn"><i class="fa-solid fa-cube"></i> 3D 控制箱模型 ↗</a>
+                <a href="BOM_List.md" target="_blank" class="btn"><i class="fa-solid fa-file-lines"></i> BOM 採購清單</a>
+                <button class="btn btn-primary" id="openSimBtn"><i class="fa-solid fa-sliders"></i> 調試面板</button>
             </div>
         </header>
 
-        <!-- 儲存容量監控與 Jumper 狀態區 -->
-        <div class="storage-section grid-2" style="margin-bottom: 24px;">
-            <!-- 內部 LittleFS 記憶體 -->
-            <div class="card storage-card">
-                <div class="storage-header">
-                    <span><i class="fa-solid fa-microchip"></i> 內部 LittleFS 快閃記憶體</span>
-                    <span class="storage-percent" id="fs-percent">28%</span>
+        <!-- 頂部系統狀態卡片區 (包含右側微型儲存圓餅圖) -->
+        <div class="grid-4 mb-20">
+            <!-- 1. 連線狀態 -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title"><i class="fa-solid fa-wifi"></i> ESP32 連線狀態</span>
+                    <div class="pulse-indicator"></div>
                 </div>
-                <div class="progress-bar-bg">
-                    <div class="progress-bar-fill" id="fs-bar" style="width: 28%; background: var(--primary);"></div>
-                </div>
-                <div class="storage-footer">
-                    <span id="fs-used-text">已用: 0.42 MB / 1.50 MB</span>
-                    <span class="badge badge-normal" id="fs-status-badge">正常</span>
-                </div>
+                <div style="font-size: 22px; font-weight: 700; color: var(--primary);" id="esp-status">ONLINE</div>
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;" id="esp-ip">IP: 192.168.1.105</div>
             </div>
 
-            <!-- 外接 Micro-SD 卡 (選配) -->
-            <div class="card storage-card">
-                <div class="storage-header">
-                    <span><i class="fa-solid fa-sd-card"></i> 外接 Micro-SD 卡 (選配)</span>
-                    <span class="storage-percent" id="sd-percent">15%</span>
+            <!-- 2. 環境溫濕度 -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title"><i class="fa-solid fa-temperature-half"></i> 環境溫濕度</span>
                 </div>
-                <div class="progress-bar-bg">
-                    <div class="progress-bar-fill" id="sd-bar" style="width: 15%; background: var(--accent);"></div>
-                </div>
-                <div class="storage-footer">
-                    <span id="sd-used-text">已用: 1.20 GB / 8.00 GB</span>
-                    <span class="badge badge-success" id="sd-jumper-badge"><i class="fa-solid fa-toggle-on"></i> Jumper 已啟用</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- ESP32 全參數模擬控制面板 (Simulator Drawer) -->
-        <div class="sim-drawer" id="simDrawer">
-            <div class="sim-drawer-header">
-                <span class="sim-drawer-title">🎛️ ESP32 全參數手動模擬面板 (包含當前專屬雲端試算表與 API 連線位址)</span>
-            </div>
-
-            <!-- 當前實體連線位置動態顯示區 -->
-            <div class="connection-info-box">
-                <div class="conn-row">
-                    <span class="conn-lbl">🟢 雲端試算表 (1個月全量資料庫):</span>
-                    <a href="https://docs.google.com/spreadsheets/d/1O9GVEoctgy7VPjhCc4AdKl-52pJIusu16HltltZJMek/edit" target="_blank" style="color:var(--accent-cyan); text-decoration:underline;" id="displaySheetUrl">https://docs.google.com/spreadsheets/d/1O9GVEoctgy7VPjhCc4AdKl-52pJIusu16HltltZJMek/edit</a>
-                </div>
-                <div class="conn-row">
-                    <span class="conn-lbl">📡 雲端 API 接口 (Apps Script URL):</span>
-                    <span class="conn-val" id="displayApiUrl">https://script.google.com/macros/s/AKfycbyXYi3PKoTi25CTPQ5flG1rACBjuktIa-Hb3SLM8NzfM6hTyYUvWKL-avCu5wr0E9Hg/exec</span>
-                </div>
-            </div>
-
-            <div class="sim-controls-grid">
-                <!-- 模擬風機 1 -->
-                <div class="sim-ctrl-card">
-                    <div class="sim-ctrl-title">風機 1 號 (Blower 1) 參數設定</div>
-                    <div class="param-row">
-                        <span>馬達轉速 (RPM):</span>
-                        <strong id="simRpm1Text">24,000 RPM</strong>
-                    </div>
-                    <input type="range" id="simRpmSlider1" min="0" max="24000" step="200" value="24000" oninput="onRpmSliderChange(1, this.value)">
-                    
-                    <div class="param-row">
-                        <span>運轉頻率 (4極 120f/p):</span>
-                        <input type="number" class="param-input-inline" id="simFreqIn1" value="800.0" onchange="onManualParamChange(1)"> Hz
-                    </div>
-                    <div class="param-row">
-                        <span>輸出電壓 (0~380V/弱磁):</span>
-                        <input type="number" class="param-input-inline" id="simVoltIn1" value="380" onchange="onManualParamChange(1)"> V
-                    </div>
-                    <div class="param-row">
-                        <span>輸出電流 (A):</span>
-                        <input type="number" class="param-input-inline" id="simCurrIn1" value="12.0" step="0.1" onchange="onManualParamChange(1)"> A
-                    </div>
-                    <div class="param-row">
-                        <span>馬達溫度 (°C):</span>
-                        <input type="number" class="param-input-inline" id="simMTempIn1" value="55" onchange="onManualParamChange(1)"> °C
-                    </div>
-                    <div class="param-row">
-                        <span>故障碼 (Hex):</span>
-                        <select class="param-input-inline" id="simFaultIn1" style="width:90px;" onchange="onManualParamChange(1)">
-                            <option value="0">0x0000 (正常)</option>
-                            <option value="35">0x0023 (過載)</option>
-                            <option value="20">0x0014 (過熱)</option>
-                            <option value="10">0x000A (過壓)</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- 模擬風機 2 -->
-                <div class="sim-ctrl-card">
-                    <div class="sim-ctrl-title">風機 2 號 (Blower 2) 參數設定</div>
-                    <div class="param-row">
-                        <span>馬達轉速 (RPM):</span>
-                        <strong id="simRpm2Text">5,000 RPM</strong>
-                    </div>
-                    <input type="range" id="simRpmSlider2" min="0" max="24000" step="200" value="5000" oninput="onRpmSliderChange(2, this.value)">
-                    
-                    <div class="param-row">
-                        <span>運轉頻率 (4極 120f/p):</span>
-                        <input type="number" class="param-input-inline" id="simFreqIn2" value="166.7" onchange="onManualParamChange(2)"> Hz
-                    </div>
-                    <div class="param-row">
-                        <span>輸出電壓 (0~380V/弱磁):</span>
-                        <input type="number" class="param-input-inline" id="simVoltIn2" value="380" onchange="onManualParamChange(2)"> V
-                    </div>
-                    <div class="param-row">
-                        <span>輸出電流 (A):</span>
-                        <input type="number" class="param-input-inline" id="simCurrIn2" value="8.5" step="0.1" onchange="onManualParamChange(2)"> A
-                    </div>
-                    <div class="param-row">
-                        <span>馬達溫度 (°C):</span>
-                        <input type="number" class="param-input-inline" id="simMTempIn2" value="42" onchange="onManualParamChange(2)"> °C
-                    </div>
-                    <div class="param-row">
-                        <span>故障碼 (Hex):</span>
-                        <select class="param-input-inline" id="simFaultIn2" style="width:90px;" onchange="onManualParamChange(2)">
-                            <option value="0">0x0000 (正常)</option>
-                            <option value="35">0x0023 (過載)</option>
-                            <option value="20">0x0014 (過熱)</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- 模擬風機 3 -->
-                <div class="sim-ctrl-card">
-                    <div class="sim-ctrl-title">風機 3 號 (Blower 3) 參數設定</div>
-                    <div class="param-row">
-                        <span>馬達轉速 (RPM):</span>
-                        <strong id="simRpm3Text">0 RPM</strong>
-                    </div>
-                    <input type="range" id="simRpmSlider3" min="0" max="24000" step="200" value="0" oninput="onRpmSliderChange(3, this.value)">
-                    
-                    <div class="param-row">
-                        <span>運轉頻率 (4極 120f/p):</span>
-                        <input type="number" class="param-input-inline" id="simFreqIn3" value="0.0" onchange="onManualParamChange(3)"> Hz
-                    </div>
-                    <div class="param-row">
-                        <span>輸出電壓 (0~380V/弱磁):</span>
-                        <input type="number" class="param-input-inline" id="simVoltIn3" value="0" onchange="onManualParamChange(3)"> V
-                    </div>
-                    <div class="param-row">
-                        <span>輸出電流 (A):</span>
-                        <input type="number" class="param-input-inline" id="simCurrIn3" value="0.0" step="0.1" onchange="onManualParamChange(3)"> A
-                    </div>
-                    <div class="param-row">
-                        <span>馬達溫度 (°C):</span>
-                        <input type="number" class="param-input-inline" id="simMTempIn3" value="28" onchange="onManualParamChange(3)"> °C
-                    </div>
-                    <div class="param-row">
-                        <span>故障碼 (Hex):</span>
-                        <select class="param-input-inline" id="simFaultIn3" style="width:90px;" onchange="onManualParamChange(3)">
-                            <option value="0">0x0000 (正常)</option>
-                            <option value="35">0x0023 (過載)</option>
-                            <option value="20">0x0014 (過熱)</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 環境溫濕度手動模擬區 -->
-            <div class="sim-ctrl-card" style="margin-top:6px;">
-                <div class="sim-ctrl-title">🌡️ 模擬環境溫濕度 (DHT22) 數據設定</div>
-                <div style="display:flex; gap:20px; flex-wrap:wrap; font-size:12px;">
+                <div style="display: flex; justify-content: space-around; align-items: center; margin-top: 4px;">
                     <div>
-                        <span>環境溫度 (°C): </span>
-                        <input type="number" class="param-input-inline" id="simEnvTempIn" value="26.5" step="0.1" onchange="renderDashboardUI()"> °C
+                        <div style="font-size: 20px; font-weight: 700; color: #f43f5e;" id="env-temp">32.5 ℃</div>
+                        <div style="font-size: 10.5px; color: var(--text-muted);">溫度 (DHT11)</div>
                     </div>
+                    <div style="height: 24px; width: 1px; background: rgba(255,255,255,0.1);"></div>
                     <div>
-                        <span>環境相對濕度 (%RH): </span>
-                        <input type="number" class="param-input-inline" id="simEnvHumiIn" value="62.4" step="0.1" onchange="renderDashboardUI()"> %
+                        <div style="font-size: 20px; font-weight: 700; color: #3b82f6;" id="env-hum">65.0 %</div>
+                        <div style="font-size: 10.5px; color: var(--text-muted);">相對濕度</div>
                     </div>
                 </div>
             </div>
 
-            <div class="sim-action-btns">
-                <button class="btn btn-sim" id="autoSimBtn" onclick="toggleAutoSim()">▶ 啟動 ESP32 5秒連續自動上傳</button>
-                <button class="btn btn-sheet" onclick="sendSimData('MANUAL_TEST')">⚡ 發送 1 筆測試數據至 Google Sheets</button>
-                <button class="btn btn-warn" onclick="sendSimFault()">⚠️ 模擬【風機 1 號過載故障 0x0023】發送</button>
-            </div>
-        </div>
-
-        <!-- 3台鼓風機實時卡片 -->
-        <div class="blower-grid">
-            <!-- 鼓風機 1 -->
-            <div class="blower-card" id="bCard1">
-                <div class="b-header">
-                    <h2>風機 1 號 (Blower 1)</h2>
-                    <span class="status-badge" id="bBadge1">STANDBY</span>
+            <!-- 3. 更新時間 -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title"><i class="fa-solid fa-clock-rotate-left"></i> 最新資料更新</span>
                 </div>
-                <div class="metrics-list">
-                    <div class="m-box"><span class="m-lbl">馬達轉速</span><span class="m-val highlight" id="b1Rpm">0 RPM</span></div>
-                    <div class="m-box"><span class="m-lbl">運轉頻率 (f)</span><span class="m-val" id="b1Freq">0.0 Hz</span></div>
-                    <div class="m-box"><span class="m-lbl">輸出電壓 (V)</span><span class="m-val" id="b1Volt">0 V</span></div>
-                    <div class="m-box"><span class="m-lbl">輸出電流 (A)</span><span class="m-val" id="b1Curr">0.0 A</span></div>
-                    <div class="m-box"><span class="m-lbl">馬達溫度</span><span class="m-val" id="b1MTemp">0 °C</span></div>
-                    <div class="m-box"><span class="m-lbl">故障碼</span><span class="m-val" id="b1Fault">0x0000</span></div>
-                </div>
+                <div style="font-size: 20px; font-weight: 700; color: var(--accent);" id="last-update">--:--:--</div>
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">Modbus 1Hz 輪詢中</div>
             </div>
 
-            <!-- 鼓風機 2 -->
-            <div class="blower-card" id="bCard2">
-                <div class="b-header">
-                    <h2>風機 2 號 (Blower 2)</h2>
-                    <span class="status-badge" id="bBadge2">STANDBY</span>
+            <!-- 4. 【右側微型儲存圓餅圖 (Doughnut Ring)】 -->
+            <div class="card">
+                <div class="card-header" style="margin-bottom: 4px;">
+                    <span class="card-title"><i class="fa-solid fa-hard-drive"></i> 離線儲存空間健康度</span>
                 </div>
-                <div class="metrics-list">
-                    <div class="m-box"><span class="m-lbl">馬達轉速</span><span class="m-val highlight" id="b2Rpm">0 RPM</span></div>
-                    <div class="m-box"><span class="m-lbl">運轉頻率 (f)</span><span class="m-val" id="b2Freq">0.0 Hz</span></div>
-                    <div class="m-box"><span class="m-lbl">輸出電壓 (V)</span><span class="m-val" id="b2Volt">0 V</span></div>
-                    <div class="m-box"><span class="m-lbl">輸出電流 (A)</span><span class="m-val" id="b2Curr">0.0 A</span></div>
-                    <div class="m-box"><span class="m-lbl">馬達溫度</span><span class="m-val" id="b2MTemp">0 °C</span></div>
-                    <div class="m-box"><span class="m-lbl">故障碼</span><span class="m-val" id="b2Fault">0x0000</span></div>
-                </div>
-            </div>
-
-            <!-- 鼓風機 3 -->
-            <div class="blower-card" id="bCard3">
-                <div class="b-header">
-                    <h2>風機 3 號 (Blower 3)</h2>
-                    <span class="status-badge" id="bBadge3">STANDBY</span>
-                </div>
-                <div class="metrics-list">
-                    <div class="m-box"><span class="m-lbl">馬達轉速</span><span class="m-val highlight" id="b3Rpm">0 RPM</span></div>
-                    <div class="m-box"><span class="m-lbl">運轉頻率 (f)</span><span class="m-val" id="b3Freq">0.0 Hz</span></div>
-                    <div class="m-box"><span class="m-lbl">輸出電壓 (V)</span><span class="m-val" id="b3Volt">0 V</span></div>
-                    <div class="m-box"><span class="m-lbl">輸出電流 (A)</span><span class="m-val" id="b3Curr">0.0 A</span></div>
-                    <div class="m-box"><span class="m-lbl">馬達溫度</span><span class="m-val" id="b3MTemp">0 °C</span></div>
-                    <div class="m-box"><span class="m-lbl">故障碼</span><span class="m-val" id="b3Fault">0x0000</span></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 底部環境溫濕度與歷史圖表 -->
-        <div class="bottom-section">
-            <div class="env-card">
-                <div class="env-item">
-                    <div class="env-icon">🌡️</div>
-                    <div class="env-data">
-                        <span class="env-label">環境溫度 (DHT22)</span>
-                        <span class="env-value" id="envTemp">0.0 °C</span>
-                    </div>
-                </div>
-                <div class="env-item">
-                    <div class="env-icon">💧</div>
-                    <div class="env-data">
-                        <span class="env-label">環境相對濕度</span>
-                        <span class="env-value" id="envHumi">0.0 %</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="chart-card">
-                <div class="chart-header">
-                    <span class="chart-title">📈 鼓風機轉速動態歷史波形 (全量歷史記錄不彈出 • 滾輪向後拉遠可看全範圍)</span>
-                    
-                    <!-- 精準 X 軸設定與 GBD 風格滾輪控制 -->
-                    <div class="chart-config-bar">
-                        <div class="chart-config-item">
-                            <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
-                                <input type="checkbox" id="showXTimeToggle" checked onchange="updateChartConfig()"> 顯示 X軸時間標籤
-                            </label>
+                <div class="storage-rings-container">
+                    <!-- LittleFS 圓餅圖 -->
+                    <div class="ring-item">
+                        <div class="ring-wrapper">
+                            <canvas id="ringFsChart"></canvas>
+                            <div class="ring-center-text" id="ring-fs-val">28%</div>
                         </div>
-
-                        <button class="btn btn-sim" style="padding:4px 10px; font-size:11px;" onclick="resetChartZoom()">🔍 重置全覽視角 (Show All)</button>
-                        <button class="btn btn-sheet" style="padding:4px 10px; font-size:11px;" onclick="loadCloudHistoryData()">📥 載入 Google Sheets 至今所有歷史數據</button>
+                        <div class="ring-label">LittleFS</div>
+                        <div class="ring-sub" id="ring-fs-sub">0.42 MB</div>
                     </div>
-                </div>
 
-                <div class="chart-wrapper" title="💡 提示：使用「滑鼠滾輪向後滾動」可一直拉遠，看見從頭到尾（包含 10:38 開始）的所有時間歷史數據！">
-                    <canvas id="liveChart"></canvas>
+                    <div style="height: 32px; width: 1px; background: rgba(255,255,255,0.08);"></div>
+
+                    <!-- SD 卡圓餅圖 -->
+                    <div class="ring-item">
+                        <div class="ring-wrapper">
+                            <canvas id="ringSdChart"></canvas>
+                            <div class="ring-center-text" id="ring-sd-val">15%</div>
+                        </div>
+                        <div class="ring-label">SD卡 (Jumper)</div>
+                        <div class="ring-sub" id="ring-sd-sub" style="color: var(--accent);">1.20 GB</div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- 傳輸 Log 狀態條 -->
-        <div class="log-bar">
-            <span id="logTime">最後更新: --:--:--</span>
-            <span id="logMsg" style="color:var(--accent-cyan);">💡 提示：滾輪向後滾動即可無限拉遠視角，看見從頭到尾（從 10:38 開始）的所有歷史波形！</span>
+        <!-- 3 台鼓風機數據即時卡片 -->
+        <div class="grid-3 mb-20">
+            <!-- 鼓風機 1 號 -->
+            <div class="card blower-card">
+                <div class="blower-header">
+                    <div class="blower-title"><i class="fa-solid fa-wind" style="color: var(--primary);"></i> 鼓風機 1 號 (站號 1)</div>
+                    <span class="status-badge badge-running" id="b1-badge">運轉中</span>
+                </div>
+                <div class="stat-grid">
+                    <div class="stat-box">
+                        <div class="stat-label">轉速 (RPM)</div>
+                        <div class="stat-value" id="b1-rpm">18,500</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">運轉頻率 (Hz)</div>
+                        <div class="stat-value" id="b1-freq">616.7</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">運轉電流 (A)</div>
+                        <div class="stat-value" id="b1-current">12.5</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">故障碼 (Hex)</div>
+                        <div class="stat-value" style="color: var(--accent);" id="b1-fault">0x0000</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 鼓風機 2 號 -->
+            <div class="card blower-card" style="border-top-color: var(--accent);">
+                <div class="blower-header">
+                    <div class="blower-title"><i class="fa-solid fa-wind" style="color: var(--accent);"></i> 鼓風機 2 號 (站號 2)</div>
+                    <span class="status-badge badge-running" id="b2-badge">運轉中</span>
+                </div>
+                <div class="stat-grid">
+                    <div class="stat-box">
+                        <div class="stat-label">轉速 (RPM)</div>
+                        <div class="stat-value" style="color: var(--accent);" id="b2-rpm">15,200</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">運轉頻率 (Hz)</div>
+                        <div class="stat-value" style="color: var(--accent);" id="b2-freq">506.7</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">運轉電流 (A)</div>
+                        <div class="stat-value" style="color: var(--accent);" id="b2-current">10.2</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">故障碼 (Hex)</div>
+                        <div class="stat-value" style="color: var(--accent);" id="b2-fault">0x0000</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 鼓風機 3 號 -->
+            <div class="card blower-card" style="border-top-color: var(--warning);">
+                <div class="blower-header">
+                    <div class="blower-title"><i class="fa-solid fa-wind" style="color: var(--warning);"></i> 鼓風機 3 號 (站號 3 - 最遠端)</div>
+                    <span class="status-badge badge-running" id="b3-badge">運轉中</span>
+                </div>
+                <div class="stat-grid">
+                    <div class="stat-box">
+                        <div class="stat-label">轉速 (RPM)</div>
+                        <div class="stat-value" style="color: var(--warning);" id="b3-rpm">21,000</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">運轉頻率 (Hz)</div>
+                        <div class="stat-value" style="color: var(--warning);" id="b3-freq">700.0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">運轉電流 (A)</div>
+                        <div class="stat-value" style="color: var(--warning);" id="b3-current">14.8</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">故障碼 (Hex)</div>
+                        <div class="stat-value" style="color: var(--accent);" id="b3-fault">0x0000</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 即時動態趨勢圖表區 (帶 GBD 滾輪 Zoom/Pan) -->
+        <div class="grid-2 mb-20">
+            <!-- 轉速圖表 -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title"><i class="fa-solid fa-gauge-high"></i> 3 通道轉速實時趨勢 (RPM)</span>
+                    <span style="font-size: 11px; color: var(--text-muted);"><i class="fa-solid fa-computer-mouse"></i> 滑鼠滾輪縮放時間軸</span>
+                </div>
+                <div class="chart-box">
+                    <canvas id="rpmChart"></canvas>
+                </div>
+            </div>
+
+            <!-- 電流圖表 -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title"><i class="fa-solid fa-bolt"></i> 3 通道運轉電流實時趨勢 (A)</span>
+                    <span style="font-size: 11px; color: var(--text-muted);"><i class="fa-solid fa-computer-mouse"></i> 滑鼠滾輪縮放時間軸</span>
+                </div>
+                <div class="chart-box">
+                    <canvas id="currentChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模擬控制面板 Drawer -->
+    <div class="sim-drawer" id="simDrawer">
+        <div class="sim-drawer-header">
+            <h3 style="color: var(--primary); font-size: 16px;"><i class="fa-solid fa-sliders"></i> ESP32 數據模擬調試</h3>
+            <button class="btn" id="closeSimBtn" style="padding: 4px 8px;">✕</button>
+        </div>
+
+        <div class="sim-ctrl-group">
+            <div class="sim-ctrl-label"><span>鼓風機 1 號轉速 (RPM)</span><span id="sim-rpm1-val">18500</span></div>
+            <input type="range" id="sim-rpm1" min="0" max="24000" value="18500">
+        </div>
+
+        <div class="sim-ctrl-group">
+            <div class="sim-ctrl-label"><span>鼓風機 2 號轉速 (RPM)</span><span id="sim-rpm2-val">15200</span></div>
+            <input type="range" id="sim-rpm2" min="0" max="24000" value="15200">
+        </div>
+
+        <div class="sim-ctrl-group">
+            <div class="sim-ctrl-label"><span>鼓風機 3 號轉速 (RPM)</span><span id="sim-rpm3-val">21000</span></div>
+            <input type="range" id="sim-rpm3" min="0" max="24000" value="21000">
+        </div>
+
+        <div class="sim-ctrl-group" style="margin-top: 20px;">
+            <div class="sim-ctrl-label"><span>LittleFS 內部記憶體使用量 (%)</span><span id="sim-fs-val">28%</span></div>
+            <input type="range" id="sim-fs" min="0" max="100" value="28">
+        </div>
+
+        <div class="sim-ctrl-group">
+            <div class="sim-ctrl-label"><span>Micro-SD 卡使用量 (%)</span><span id="sim-sd-val">15%</span></div>
+            <input type="range" id="sim-sd" min="0" max="100" value="15">
+        </div>
+
+        <div class="sim-ctrl-group">
+            <label style="font-size: 13px; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" id="sim-jumper" checked style="accent-color: var(--accent);">
+                Jumper 跳線帽已插上 (啟用 SD 卡日誌)
+            </label>
         </div>
     </div>
 
     <script>
-        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyXYi3PKoTi25CTPQ5flG1rACBjuktIa-Hb3SLM8NzfM6hTyYUvWKL-avCu5wr0E9Hg/exec";
-
-        // 全域鼓風機與環境狀態
-        const blowerState = {
-            1: { rpm: 24000, freq: 800.0, volt: 380, curr: 12.0, mTemp: 55, fault: 0 },
-            2: { rpm: 5000,  freq: 166.7, volt: 380, curr: 8.5,  mTemp: 42, fault: 0 },
-            3: { rpm: 0,     freq: 0.0,   volt: 0,   curr: 0.0,  mTemp: 28, fault: 0 },
-            envTemp: 26.5,
-            envHumi: 62.4
+        // -------------------------------------------------------------
+        // 1. 初始化右側微型儲存圓餅圖 (Doughnut Ring Charts)
+        // -------------------------------------------------------------
+        const createRingChart = (canvasId, color) => {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            return new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    datasets: [{
+                        data: [28, 72],
+                        backgroundColor: [color, 'rgba(255, 255, 255, 0.08)'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '76%',
+                    plugins: { tooltip: { enabled: false }, legend: { display: false } }
+                }
+            });
         };
 
-        let isSimRunning = false;
-        let simTimerId = null;
+        const ringFsChart = createRingChart('ringFsChart', '#38bdf8');
+        const ringSdChart = createRingChart('ringSdChart', '#10b981');
 
-        // 🧠 全量歷史數據快取陣列 (不執行 shift 彈出，完整累積保留從頭到尾所有資料筆數)
-        let fullLabels = [];
-        let fullB1Data = [];
-        let fullB2Data = [];
-        let fullB3Data = [];
+        function updateStorageRings(fsPct, fsUsedMb, sdPct, sdUsedGb, sdEnabled) {
+            // LittleFS
+            document.getElementById('ring-fs-val').innerText = `${fsPct}%`;
+            document.getElementById('ring-fs-sub').innerText = `${fsUsedMb.toFixed(2)} MB`;
+            ringFsChart.data.datasets[0].data = [fsPct, 100 - fsPct];
+            ringFsChart.data.datasets[0].backgroundColor[0] = fsPct > 90 ? '#ef4444' : (fsPct > 75 ? '#f59e0b' : '#38bdf8');
+            ringFsChart.update();
 
-        // Chart.js + chartjs-plugin-zoom 初始化 (GBD 無界限歷史記錄縮放)
-        const ctx = document.getElementById('liveChart').getContext('2d');
-        const liveChart = new Chart(ctx, {
+            // Micro-SD
+            if (sdEnabled) {
+                document.getElementById('ring-sd-val').innerText = `${sdPct}%`;
+                document.getElementById('ring-sd-sub').innerText = `${sdUsedGb.toFixed(2)} GB`;
+                ringSdChart.data.datasets[0].data = [sdPct, 100 - sdPct];
+                ringSdChart.data.datasets[0].backgroundColor[0] = sdPct > 90 ? '#ef4444' : (sdPct > 75 ? '#f59e0b' : '#10b981');
+            } else {
+                document.getElementById('ring-sd-val').innerText = 'OFF';
+                document.getElementById('ring-sd-sub').innerText = 'Jumper 停用';
+                ringSdChart.data.datasets[0].data = [0, 100];
+            }
+            ringSdChart.update();
+        }
+
+        // -------------------------------------------------------------
+        // 2. 初始化趨勢圖表 Chart.js (帶 GBD 滾輪 Zoom)
+        // -------------------------------------------------------------
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 300 },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                    ticks: { color: '#94a3b8', font: { size: 10 } }
+                },
+                y: {
+                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                    ticks: { color: '#94a3b8', font: { size: 10 } }
+                }
+            },
+            plugins: {
+                legend: { labels: { color: '#f8fafc', font: { size: 11 } } },
+                zoom: {
+                    pan: { enabled: true, mode: 'x' },
+                    zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' }
+                }
+            }
+        };
+
+        const rpmChart = new Chart(document.getElementById('rpmChart'), {
             type: 'line',
             data: {
-                labels: fullLabels,
+                labels: [],
                 datasets: [
-                    { label: '風機 1 轉速 (RPM)', data: fullB1Data, borderColor: '#00f0ff', borderWidth: 2, pointRadius: 0, tension: 0.2 },
-                    { label: '風機 2 轉速 (RPM)', data: fullB2Data, borderColor: '#00ff88', borderWidth: 2, pointRadius: 0, tension: 0.2 },
-                    { label: '風機 3 轉速 (RPM)', data: fullB3Data, borderColor: '#9d4edd', borderWidth: 2, pointRadius: 0, tension: 0.2 }
+                    { label: '鼓風機 1 號 (RPM)', borderColor: '#38bdf8', borderWidth: 2, data: [], pointRadius: 0 },
+                    { label: '鼓風機 2 號 (RPM)', borderColor: '#10b981', borderWidth: 2, data: [], pointRadius: 0 },
+                    { label: '鼓風機 3 號 (RPM)', borderColor: '#f59e0b', borderWidth: 2, data: [], pointRadius: 0 }
                 ]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: false,
-                normalized: true,
-                scales: {
-                    x: { 
-                        display: true,
-                        grid: { color: 'rgba(255,255,255,0.05)' },
-                        ticks: { color: '#8892b0', font: { size: 10, family: 'JetBrains Mono' }, maxRotation: 0 }
-                    },
-                    y: { 
-                        beginAtZero: true,
-                        grid: { color: 'rgba(255,255,255,0.05)' }, 
-                        ticks: { color: '#8892b0' } 
-                    }
-                },
-                plugins: { 
-                    legend: { labels: { color: '#8892b0' } },
-                    zoom: {
-                        pan: {
-                            enabled: true,
-                            mode: 'x',
-                        },
-                        zoom: {
-                            wheel: {
-                                enabled: true,
-                                speed: 0.08
-                            },
-                            pinch: {
-                                enabled: true
-                            },
-                            mode: 'x'
-                        }
-                    }
-                }
-            }
+            options: chartOptions
         });
 
-        // 🔄 重置圖表縮放與視角，全覽從頭到尾所有數據
-        function resetChartZoom() {
-            liveChart.resetZoom();
-        }
+        const currentChart = new Chart(document.getElementById('currentChart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { label: '鼓風機 1 號 (A)', borderColor: '#38bdf8', borderWidth: 2, data: [], pointRadius: 0 },
+                    { label: '鼓風機 2 號 (A)', borderColor: '#10b981', borderWidth: 2, data: [], pointRadius: 0 },
+                    { label: '鼓風機 3 號 (A)', borderColor: '#f59e0b', borderWidth: 2, data: [], pointRadius: 0 }
+                ]
+            },
+            options: chartOptions
+        });
 
-        // 📥 頁面啟動時 & 點擊按鈕時：自動從 Google Sheets 雲端資料庫載入從頭到尾所有的歷史數據
-        async function loadCloudHistoryData() {
-            document.getElementById('logMsg').innerText = "⏳ 正在從 Google Sheets 載入從 10:38 至今的所有歷史數據...";
-            try {
-                const resp = await fetch(GOOGLE_SCRIPT_URL);
-                const result = await resp.json();
-                
-                if (result.status === "success" && result.data && result.data.length > 0) {
-                    const rows = result.data;
-                    
-                    const b1Rows = rows.filter(r => String(r.blower_id).includes('1'));
-                    const b2Rows = rows.filter(r => String(r.blower_id).includes('2'));
-                    const b3Rows = rows.filter(r => String(r.blower_id).includes('3'));
-                    
-                    if (b1Rows.length > 0) {
-                        fullLabels = b1Rows.map(r => r.timestamp ? String(r.timestamp).split(' ')[1] || String(r.timestamp) : '');
-                        fullB1Data = b1Rows.map(r => r.rpm);
-                        fullB2Data = b2Rows.map(r => r.rpm);
-                        fullB3Data = b3Rows.map(r => r.rpm);
+        // 定時模擬推進資料
+        setInterval(() => {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('zh-TW', { hour12: false });
+            document.getElementById('last-update').innerText = timeStr;
 
-                        liveChart.data.labels = fullLabels;
-                        liveChart.data.datasets[0].data = fullB1Data;
-                        liveChart.data.datasets[1].data = fullB2Data;
-                        liveChart.data.datasets[2].data = fullB3Data;
-                        liveChart.resetZoom();
-                        liveChart.update();
+            const r1 = parseInt(document.getElementById('sim-rpm1').value);
+            const r2 = parseInt(document.getElementById('sim-rpm2').value);
+            const r3 = parseInt(document.getElementById('sim-rpm3').value);
 
-                        document.getElementById('logMsg').innerText = `✅ 成功載入共 ${b1Rows.length} 筆完整歷史波形！滾輪向後滾動即可自由放大縮看完全域！`;
-                    }
+            document.getElementById('b1-rpm').innerText = r1.toLocaleString();
+            document.getElementById('b2-rpm').innerText = r2.toLocaleString();
+            document.getElementById('b3-rpm').innerText = r3.toLocaleString();
+
+            document.getElementById('b1-freq').innerText = (r1 / 30).toFixed(1);
+            document.getElementById('b2-freq').innerText = (r2 / 30).toFixed(1);
+            document.getElementById('b3-freq').innerText = (r3 / 30).toFixed(1);
+
+            document.getElementById('b1-current').innerText = (r1 / 1500).toFixed(1);
+            document.getElementById('b2-current').innerText = (r2 / 1500).toFixed(1);
+            document.getElementById('b3-current').innerText = (r3 / 1500).toFixed(1);
+
+            // 推入圖表
+            [rpmChart, currentChart].forEach(c => {
+                if (c.data.labels.length > 25) {
+                    c.data.labels.shift();
+                    c.data.datasets.forEach(d => d.data.shift());
                 }
-            } catch (err) {
-                document.getElementById('logMsg').innerText = `⚠️ 載入歷史數據失敗: ${err.message}`;
-            }
-        }
+                c.data.labels.push(timeStr);
+            });
 
-        // ⚙️ 自訂圖表 X 軸時間標籤顯示控制
-        function updateChartConfig() {
-            const showXTime = document.getElementById('showXTimeToggle').checked;
-            liveChart.options.scales.x.display = showXTime;
-            liveChart.update();
-        }
+            rpmChart.data.datasets[0].data.push(r1);
+            rpmChart.data.datasets[1].data.push(r2);
+            rpmChart.data.datasets[2].data.push(r3);
+            rpmChart.update('none');
 
-        function toggleSimDrawer() {
-            document.getElementById('simDrawer').classList.toggle('active');
-        }
+            currentChart.data.datasets[0].data.push(r1 / 1500);
+            currentChart.data.datasets[1].data.push(r2 / 1500);
+            currentChart.data.datasets[2].data.push(r3 / 1500);
+            currentChart.update('none');
 
-        // 🧠 4 極馬達與弱磁控制物理模型
-        function onRpmSliderChange(id, val) {
-            const rpm = parseInt(val);
-            const b = blowerState[id];
-            b.rpm = rpm;
+            // 更新右側微型儲存圓餅圖
+            const fsPct = parseInt(document.getElementById('sim-fs').value);
+            const sdPct = parseInt(document.getElementById('sim-sd').value);
+            const sdEn  = document.getElementById('sim-jumper').checked;
+            updateStorageRings(fsPct, 1.5 * (fsPct / 100), sdPct, 8.0 * (sdPct / 100), sdEn);
 
-            b.freq = Number((rpm / 30.0).toFixed(1));
+        }, 1000);
 
-            if (rpm === 0) {
-                b.volt = 0;
-            } else if (rpm <= 5000) {
-                b.volt = Math.round((rpm / 5000.0) * 380.0);
-            } else {
-                b.volt = 380;
-            }
+        // Drawer 控制
+        const simDrawer = document.getElementById('simDrawer');
+        document.getElementById('openSimBtn').addEventListener('click', () => simDrawer.classList.add('open'));
+        document.getElementById('closeSimBtn').addEventListener('click', () => simDrawer.classList.remove('open'));
 
-            b.curr = Number(((rpm / 24000.0) * 12.0).toFixed(1));
-            b.mTemp = rpm > 0 ? 30 + Math.round((rpm / 24000.0) * 30) : 28;
-
-            document.getElementById(`simRpm${id}Text`).innerText = `${rpm.toLocaleString()} RPM`;
-            document.getElementById(`simFreqIn${id}`).value = b.freq;
-            document.getElementById(`simVoltIn${id}`).value = b.volt;
-            document.getElementById(`simCurrIn${id}`).value = b.curr;
-            document.getElementById(`simMTempIn${id}`).value = b.mTemp;
-
-            renderDashboardUI();
-        }
-
-        function onManualParamChange(id) {
-            const b = blowerState[id];
-            b.freq = parseFloat(document.getElementById(`simFreqIn${id}`).value) || 0;
-            b.volt = parseInt(document.getElementById(`simVoltIn${id}`).value) || 0;
-            b.curr = parseFloat(document.getElementById(`simCurrIn${id}`).value) || 0;
-            b.mTemp = parseInt(document.getElementById(`simMTempIn${id}`).value) || 0;
-            b.fault = parseInt(document.getElementById(`simFaultIn${id}`).value) || 0;
-
-            renderDashboardUI();
-        }
-
-        function renderDashboardUI() {
-            blowerState.envTemp = parseFloat(document.getElementById('simEnvTempIn').value) || 26.5;
-            blowerState.envHumi = parseFloat(document.getElementById('simEnvHumiIn').value) || 62.4;
-
-            for (let id = 1; id <= 3; id++) {
-                const b = blowerState[id];
-                document.getElementById(`b${id}Rpm`).innerText = `${b.rpm.toLocaleString()} RPM`;
-                document.getElementById(`b${id}Freq`).innerText = `${b.freq.toFixed(1)} Hz`;
-                document.getElementById(`b${id}Volt`).innerText = `${b.volt} V`;
-                document.getElementById(`b${id}Curr`).innerText = `${b.curr.toFixed(1)} A`;
-                document.getElementById(`b${id}MTemp`).innerText = `${b.mTemp} °C`;
-                
-                const faultEl = document.getElementById(`b${id}Fault`);
-                faultEl.innerText = `0x${b.fault.toString(16).toUpperCase().padStart(4, '0')}`;
-
-                const badge = document.getElementById(`bBadge${id}`);
-                const card = document.getElementById(`bCard${id}`);
-
-                if (b.fault !== 0) {
-                    badge.innerText = 'FAULT (故障)';
-                    badge.className = 'status-badge fault';
-                    card.className = 'blower-card fault-card';
-                    faultEl.className = 'm-val danger';
-                } else if (b.rpm > 5000) {
-                    badge.innerText = 'WEAK FIELD (弱磁區)';
-                    badge.className = 'status-badge fw-mode';
-                    card.className = 'blower-card active-card';
-                    faultEl.className = 'm-val';
-                } else if (b.rpm > 0) {
-                    badge.innerText = 'RUNNING (恆轉矩)';
-                    badge.className = 'status-badge online';
-                    card.className = 'blower-card active-card';
-                    faultEl.className = 'm-val';
-                } else {
-                    badge.innerText = 'STOP';
-                    badge.className = 'status-badge';
-                    card.className = 'blower-card';
-                    faultEl.className = 'm-val';
-                }
-            }
-
-            document.getElementById('envTemp').innerText = `${blowerState.envTemp.toFixed(1)} °C`;
-            document.getElementById('envHumi').innerText = `${blowerState.envHumi.toFixed(1)} %`;
-
-            // 🧠 數據追加 (不執行 shift 彈出舊數據，100% 累積保留全時間點)
-            const timeNow = new Date().toLocaleTimeString('zh-TW', { hour12: false });
-            fullLabels.push(timeNow);
-            fullB1Data.push(blowerState[1].rpm);
-            fullB2Data.push(blowerState[2].rpm);
-            fullB3Data.push(blowerState[3].rpm);
-
-            liveChart.update();
-        }
-
-        async function sendSimData(reason) {
-            const timeStr = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
-            renderDashboardUI();
-
-            for (let id = 1; id <= 3; id++) {
-                const b = blowerState[id];
-                const payload = {
-                    timestamp: timeStr,
-                    blower_id: id,
-                    status: b.rpm > 0 ? (b.rpm > 5000 ? 'FIELD_WEAKENING' : 'CONSTANT_TORQUE') : 'STOP',
-                    rpm: b.rpm,
-                    freq: b.freq,
-                    voltage: b.volt,
-                    current: b.curr,
-                    motor_temp: b.mTemp,
-                    driver_temp: Math.max(25, b.mTemp - 10),
-                    fault_code: b.fault,
-                    env_temp: blowerState.envTemp,
-                    env_humi: blowerState.envHumi,
-                    trigger: reason
-                };
-
-                try {
-                    await fetch(GOOGLE_SCRIPT_URL, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        headers: { 'Content-Type': 'text/plain' },
-                        body: JSON.stringify(payload)
-                    });
-                } catch (e) {}
-            }
-
-            document.getElementById('logTime').innerText = `最後更新: ${timeStr}`;
-            document.getElementById('logMsg').innerText = `[HTTP 200 SUCCESS] 數據已上傳並同步寫入 Google Sheets! (理由: ${reason})`;
-        }
-
-        function toggleAutoSim() {
-            const btn = document.getElementById('autoSimBtn');
-            if (!isSimRunning) {
-                isSimRunning = true;
-                btn.innerText = '⏹ 停止 ESP32 自動上傳';
-                btn.className = 'btn btn-stop';
-                sendSimData('PERIODIC_5SEC');
-                simTimerId = setInterval(() => sendSimData('PERIODIC_5SEC'), 5000);
-            } else {
-                isSimRunning = false;
-                clearInterval(simTimerId);
-                btn.innerText = '▶ 啟動 ESP32 5秒連續自動上傳';
-                btn.className = 'btn btn-sim';
-            }
-        }
-
-        async function sendSimFault() {
-            blowerState[1].fault = 0x0023;
-            document.getElementById('simFaultIn1').value = "35";
-            renderDashboardUI();
-            await sendSimData('FAULT_EVENT_SIMULATION');
-            setTimeout(() => {
-                blowerState[1].fault = 0;
-                document.getElementById('simFaultIn1').value = "0";
-                renderDashboardUI();
-            }, 3000);
-        }
-
-        // 🚀 初始化：先載入 10:38 至今的全量雲端歷史紀錄，隨後開啟即時波形！
-        loadCloudHistoryData();
-        onRpmSliderChange(1, 24000);
-        onRpmSliderChange(2, 5000);
-        onRpmSliderChange(3, 0);
+        ['sim-rpm1', 'sim-rpm2', 'sim-rpm3', 'sim-fs', 'sim-sd'].forEach(id => {
+            const el = document.getElementById(id);
+            el.addEventListener('input', () => {
+                document.getElementById(`${id}-val`).innerText = id.includes('fs') || id.includes('sd') ? `${el.value}%` : el.value;
+            });
+        });
     </script>
 </body>
 </html>
