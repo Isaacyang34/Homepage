@@ -17,6 +17,10 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <time.h>
+#include <ArduinoJson.h>
+#include <FS.h>
+#include <SD.h>
+#include <SPI.h>
 #include <LittleFS.h>
 #include <ModbusMaster.h>
 #include <DHT.h>
@@ -30,6 +34,11 @@ const char* SERVER_URL    = "https://script.google.com/macros/s/AKfycbyXYi3PKoTi
 const char* NTP_SERVER       = "pool.ntp.org";
 const long  GMT_OFFSET_SEC    = 8 * 3600; // 台灣時區 UTC+8
 const int   DAYLIGHT_OFFSET_SEC = 0;
+
+// 硬體 Jumper 跳線開關與 SD 卡 PIN 腳
+#define SD_JUMPER_PIN 15  // 接腳拉低至 GND 代表啟用 SD 卡
+#define SD_CS_PIN     5   // SPI Chip Select
+bool isSdCardEnabled = false;
 
 // ─── 2. 溫濕度感測器設定 ───
 #define DHTPIN       14
