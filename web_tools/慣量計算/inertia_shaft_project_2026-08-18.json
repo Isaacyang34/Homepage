@@ -1,0 +1,51 @@
+{
+  "version": "4.0",
+  "timestamp": "2026-08-18T04:31:41.648Z",
+  "driveParams": {
+    "rpm": "1500",
+    "accTime": "0.5",
+    "efficiency": "90"
+  },
+  "segments": [
+    {
+      "matKey": "7.85",
+      "density": "7.85",
+      "outDia": "195",
+      "inDia": "100",
+      "length": "10",
+      "overlap": "0"
+    },
+    {
+      "matKey": "7.85",
+      "density": "7.85",
+      "outDia": "215",
+      "inDia": "100",
+      "length": "8",
+      "overlap": "0"
+    },
+    {
+      "matKey": "7.85",
+      "density": "7.85",
+      "outDia": "120",
+      "inDia": "90",
+      "length": "37.5",
+      "overlap": "0"
+    },
+    {
+      "matKey": "7.85",
+      "density": "7.85",
+      "outDia": "95",
+      "inDia": "65",
+      "length": "66",
+      "overlap": "0"
+    },
+    {
+      "matKey": "7.93",
+      "density": "7.93",
+      "outDia": "105",
+      "inDia": "95",
+      "length": "66",
+      "overlap": "66"
+    }
+  ]
+}
