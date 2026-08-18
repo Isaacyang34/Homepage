@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>KAVAS 高速鼓風機 3 通道 ESP32 數據採集與雲端監控系統</title>
     <!-- Google Fonts & Font Awesome Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -32,13 +32,20 @@
             background-color: var(--bg-dark);
             color: var(--text-main);
             min-height: 100vh;
-            padding: 20px;
+            padding: 16px;
             overflow-x: hidden;
         }
 
         .container {
             max-width: 1440px;
             margin: 0 auto;
+            transition: max-width 0.4s ease;
+        }
+
+        /* 手動切換手機預覽框 (Mobile Viewport Class) */
+        .container.mobile-mode {
+            max-width: 420px !important;
+            padding: 0 8px;
         }
 
         /* Header Layout */
@@ -47,59 +54,62 @@
             backdrop-filter: blur(16px);
             border: 1px solid var(--panel-border);
             border-radius: 16px;
-            padding: 16px 24px;
+            padding: 16px 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            flex-wrap: wrap;
+            gap: 12px;
         }
 
         .logo-title {
             display: flex;
             align-items: center;
-            gap: 14px;
+            gap: 12px;
         }
 
         .logo-icon {
-            width: 44px;
-            height: 44px;
+            width: 40px;
+            height: 40px;
             background: rgba(56, 189, 248, 0.15);
             border: 1px solid var(--primary-glow);
-            border-radius: 12px;
+            border-radius: 10px;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 22px;
+            font-size: 20px;
             color: var(--primary);
             box-shadow: 0 0 15px var(--primary-glow);
         }
 
         h1 {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: 700;
             color: var(--primary);
             letter-spacing: -0.5px;
         }
 
         .subtitle {
-            font-size: 12px;
+            font-size: 11px;
             color: var(--text-muted);
             margin-top: 2px;
         }
 
         .nav-actions {
             display: flex;
-            gap: 10px;
+            gap: 8px;
+            flex-wrap: wrap;
         }
 
         .btn {
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid var(--panel-border);
             color: var(--text-main);
-            padding: 8px 16px;
+            padding: 7px 14px;
             border-radius: 8px;
-            font-size: 12.5px;
+            font-size: 12px;
             font-weight: 600;
             cursor: pointer;
             display: flex;
@@ -107,6 +117,7 @@
             gap: 6px;
             transition: all 0.25s ease;
             text-decoration: none;
+            white-space: nowrap;
         }
 
         .btn:hover {
@@ -127,26 +138,32 @@
             color: #0f172a;
         }
 
+        .btn-active {
+            background: rgba(16, 185, 129, 0.25);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
         /* Grid Layouts */
         .grid-4 {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
+            gap: 14px;
         }
 
         .grid-3 {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 16px;
+            gap: 14px;
         }
 
         .grid-2 {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 16px;
+            gap: 14px;
         }
 
-        .mb-20 { margin-bottom: 20px; }
+        .mb-20 { margin-bottom: 16px; }
 
         /* Card Container Base */
         .card {
@@ -154,7 +171,7 @@
             backdrop-filter: blur(16px);
             border: 1px solid var(--panel-border);
             border-radius: 14px;
-            padding: 16px 20px;
+            padding: 14px 16px;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
             position: relative;
         }
@@ -163,11 +180,11 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
 
         .card-title {
-            font-size: 13px;
+            font-size: 12.5px;
             font-weight: 600;
             color: var(--text-muted);
             display: flex;
@@ -187,13 +204,13 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
         }
 
         .ring-wrapper {
             position: relative;
-            width: 54px;
-            height: 54px;
+            width: 48px;
+            height: 48px;
         }
 
         .ring-center-text {
@@ -202,26 +219,26 @@
             left: 50%;
             transform: translate(-50%, -50%);
             font-family: 'JetBrains Mono', monospace;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 700;
             color: var(--text-main);
         }
 
         .ring-label {
-            font-size: 11px;
+            font-size: 10.5px;
             color: var(--text-muted);
             text-align: center;
         }
 
         .ring-sub {
-            font-size: 10px;
+            font-size: 9.5px;
             color: var(--primary);
             font-family: 'JetBrains Mono', monospace;
         }
 
         .pulse-indicator {
-            width: 10px;
-            height: 10px;
+            width: 9px;
+            height: 9px;
             background: var(--accent);
             border-radius: 50%;
             box-shadow: 0 0 10px var(--accent);
@@ -241,18 +258,18 @@
         }
 
         .blower-card:hover {
-            transform: translateY(-4px);
+            transform: translateY(-2px);
         }
 
         .blower-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 14px;
+            margin-bottom: 12px;
         }
 
         .blower-title {
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 700;
             color: var(--text-main);
             display: flex;
@@ -261,37 +278,35 @@
         }
 
         .status-badge {
-            font-size: 11px;
-            padding: 3px 8px;
+            font-size: 10.5px;
+            padding: 2px 7px;
             border-radius: 6px;
             font-weight: 600;
         }
 
         .badge-running { background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); }
-        .badge-stop    { background: rgba(148, 163, 184, 0.2); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.4); }
-        .badge-fault   { background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); }
 
         .stat-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
+            gap: 8px;
         }
 
         .stat-box {
             background: rgba(15, 23, 42, 0.5);
             border-radius: 8px;
-            padding: 8px 12px;
+            padding: 8px 10px;
             border: 1px solid rgba(255, 255, 255, 0.04);
         }
 
         .stat-label {
-            font-size: 11px;
+            font-size: 10.5px;
             color: var(--text-muted);
         }
 
         .stat-value {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 17px;
+            font-size: 15px;
             font-weight: 700;
             color: var(--primary);
             margin-top: 2px;
@@ -300,7 +315,7 @@
         /* Chart Canvas Container (3台鼓風機獨立圖表) */
         .chart-box {
             position: relative;
-            height: 250px;
+            height: 220px;
             width: 100%;
         }
 
@@ -309,7 +324,7 @@
             position: fixed;
             top: 0;
             right: 0;
-            width: 380px;
+            width: 340px;
             height: 100vh;
             background: rgba(13, 19, 33, 0.96);
             backdrop-filter: blur(24px);
@@ -318,7 +333,7 @@
             transform: translateX(100%);
             transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
             box-shadow: -10px 0 40px rgba(0, 0, 0, 0.6);
-            padding: 24px;
+            padding: 20px;
             overflow-y: auto;
         }
 
@@ -330,36 +345,48 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            padding-bottom: 12px;
+            padding-bottom: 10px;
         }
 
         .sim-ctrl-group {
-            margin-bottom: 18px;
+            margin-bottom: 16px;
         }
 
         .sim-ctrl-label {
-            font-size: 12px;
+            font-size: 11.5px;
             color: var(--text-muted);
-            margin-bottom: 6px;
+            margin-bottom: 4px;
             display: flex;
             justify-content: space-between;
         }
 
-        input[type="range"] {
-            width: 100%;
-            height: 6px;
-            background: #1e293b;
-            border-radius: 3px;
-            outline: none;
-            accent-color: var(--primary);
+        /* 📱 手機 RWD 媒體查詢 (@media max-width: 900px 或強制手機模式) */
+        @media screen and (max-width: 900px) {
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .nav-actions {
+                width: 100%;
+                justify-content: space-between;
+            }
+            .grid-4, .grid-3, .grid-2 {
+                grid-template-columns: 1fr !important;
+            }
+            .storage-rings-container {
+                padding: 10px 0;
+            }
+            .chart-box {
+                height: 200px;
+            }
         }
     </style>
 </head>
 <body>
 
-    <div class="container">
+    <div class="container" id="appContainer">
         <!-- 頂部 Header 導覽列 -->
         <header>
             <div class="logo-title">
@@ -370,22 +397,23 @@
                 </div>
             </div>
             <div class="nav-actions">
-                <a href="3d_view.html" class="btn"><i class="fa-solid fa-cube"></i> 3D 控制箱模型 ↗</a>
-                <a href="BOM_List.md" target="_blank" class="btn"><i class="fa-solid fa-file-lines"></i> BOM 採購清單</a>
+                <button class="btn" id="toggleViewBtn"><i class="fa-solid fa-mobile-screen-button"></i> 📱 切換手機閱讀模式</button>
+                <a href="3d_view.html" class="btn"><i class="fa-solid fa-cube"></i> 3D 模型 ↗</a>
+                <a href="BOM_List.md" target="_blank" class="btn"><i class="fa-solid fa-file-lines"></i> BOM 清單</a>
                 <button class="btn btn-primary" id="openSimBtn"><i class="fa-solid fa-sliders"></i> 調試面板</button>
             </div>
         </header>
 
         <!-- 頂部系統狀態卡片區 (包含右側微型儲存圓餅圖) -->
-        <div class="grid-4 mb-20">
+        <div class="grid-4 mb-20" id="statusGrid">
             <!-- 1. 連線狀態 -->
             <div class="card">
                 <div class="card-header">
                     <span class="card-title"><i class="fa-solid fa-wifi"></i> ESP32 連線狀態</span>
                     <div class="pulse-indicator"></div>
                 </div>
-                <div style="font-size: 22px; font-weight: 700; color: var(--primary);" id="esp-status">ONLINE</div>
-                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;" id="esp-ip">IP: 192.168.1.105</div>
+                <div style="font-size: 20px; font-weight: 700; color: var(--primary);" id="esp-status">ONLINE</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;" id="esp-ip">IP: 192.168.1.105</div>
             </div>
 
             <!-- 2. 環境溫濕度 -->
@@ -393,15 +421,15 @@
                 <div class="card-header">
                     <span class="card-title"><i class="fa-solid fa-temperature-half"></i> 環境溫濕度</span>
                 </div>
-                <div style="display: flex; justify-content: space-around; align-items: center; margin-top: 4px;">
+                <div style="display: flex; justify-content: space-around; align-items: center;">
                     <div>
-                        <div style="font-size: 20px; font-weight: 700; color: #f43f5e;" id="env-temp">32.5 ℃</div>
-                        <div style="font-size: 10.5px; color: var(--text-muted);">溫度 (DHT11)</div>
+                        <div style="font-size: 18px; font-weight: 700; color: #f43f5e;" id="env-temp">32.5 ℃</div>
+                        <div style="font-size: 10px; color: var(--text-muted);">溫度 (DHT11)</div>
                     </div>
-                    <div style="height: 24px; width: 1px; background: rgba(255,255,255,0.1);"></div>
+                    <div style="height: 20px; width: 1px; background: rgba(255,255,255,0.1);"></div>
                     <div>
-                        <div style="font-size: 20px; font-weight: 700; color: #3b82f6;" id="env-hum">65.0 %</div>
-                        <div style="font-size: 10.5px; color: var(--text-muted);">相對濕度</div>
+                        <div style="font-size: 18px; font-weight: 700; color: #3b82f6;" id="env-hum">65.0 %</div>
+                        <div style="font-size: 10px; color: var(--text-muted);">相對濕度</div>
                     </div>
                 </div>
             </div>
@@ -411,13 +439,13 @@
                 <div class="card-header">
                     <span class="card-title"><i class="fa-solid fa-clock-rotate-left"></i> 最新資料更新</span>
                 </div>
-                <div style="font-size: 20px; font-weight: 700; color: var(--accent);" id="last-update">--:--:--</div>
-                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">Modbus 1Hz 輪詢中</div>
+                <div style="font-size: 18px; font-weight: 700; color: var(--accent);" id="last-update">--:--:--</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Modbus 1Hz 輪詢中</div>
             </div>
 
             <!-- 4. 【右側微型儲存圓餅圖 (Doughnut Ring)】 -->
             <div class="card">
-                <div class="card-header" style="margin-bottom: 4px;">
+                <div class="card-header" style="margin-bottom: 2px;">
                     <span class="card-title"><i class="fa-solid fa-hard-drive"></i> 離線儲存空間健康度</span>
                 </div>
                 <div class="storage-rings-container">
@@ -431,7 +459,7 @@
                         <div class="ring-sub" id="ring-fs-sub">0.42 MB</div>
                     </div>
 
-                    <div style="height: 32px; width: 1px; background: rgba(255,255,255,0.08);"></div>
+                    <div style="height: 28px; width: 1px; background: rgba(255,255,255,0.08);"></div>
 
                     <!-- SD 卡圓餅圖 -->
                     <div class="ring-item">
@@ -447,7 +475,7 @@
         </div>
 
         <!-- 3 台鼓風機數據即時卡片 -->
-        <div class="grid-3 mb-20">
+        <div class="grid-3 mb-20" id="blowerGrid">
             <!-- 鼓風機 1 號 -->
             <div class="card blower-card">
                 <div class="blower-header">
@@ -527,13 +555,13 @@
             </div>
         </div>
 
-        <!-- 分割成 3 個獨立圖表卡片 (一機一圖: 顯示 轉速/1000, 電流, 溫度) -->
-        <div class="grid-3 mb-20">
+        <!-- 3 個獨立圖表卡片 (一機一圖: 顯示 轉速/1000, 電流, 溫度) -->
+        <div class="grid-3 mb-20" id="chartGrid">
             <!-- 鼓風機 1 號獨立圖表 -->
             <div class="card">
                 <div class="card-header">
                     <span class="card-title"><i class="fa-solid fa-chart-line" style="color: var(--primary);"></i> 鼓風機 1 號趨勢</span>
-                    <span style="font-size: 10.5px; color: var(--text-muted);">轉速(kRPM)/電流(A)/溫度(℃)</span>
+                    <span style="font-size: 10px; color: var(--text-muted);">轉速(kRPM)/電流(A)/溫度(℃)</span>
                 </div>
                 <div class="chart-box">
                     <canvas id="b1Chart"></canvas>
@@ -544,7 +572,7 @@
             <div class="card">
                 <div class="card-header">
                     <span class="card-title"><i class="fa-solid fa-chart-line" style="color: var(--accent);"></i> 鼓風機 2 號趨勢</span>
-                    <span style="font-size: 10.5px; color: var(--text-muted);">轉速(kRPM)/電流(A)/溫度(℃)</span>
+                    <span style="font-size: 10px; color: var(--text-muted);">轉速(kRPM)/電流(A)/溫度(℃)</span>
                 </div>
                 <div class="chart-box">
                     <canvas id="b2Chart"></canvas>
@@ -555,7 +583,7 @@
             <div class="card">
                 <div class="card-header">
                     <span class="card-title"><i class="fa-solid fa-chart-line" style="color: var(--warning);"></i> 鼓風機 3 號趨勢</span>
-                    <span style="font-size: 10.5px; color: var(--text-muted);">轉速(kRPM)/電流(A)/溫度(℃)</span>
+                    <span style="font-size: 10px; color: var(--text-muted);">轉速(kRPM)/電流(A)/溫度(℃)</span>
                 </div>
                 <div class="chart-box">
                     <canvas id="b3Chart"></canvas>
@@ -567,8 +595,8 @@
     <!-- 模擬控制面板 Drawer -->
     <div class="sim-drawer" id="simDrawer">
         <div class="sim-drawer-header">
-            <h3 style="color: var(--primary); font-size: 16px;"><i class="fa-solid fa-sliders"></i> ESP32 數據模擬調試</h3>
-            <button class="btn" id="closeSimBtn" style="padding: 4px 8px;">✕</button>
+            <h3 style="color: var(--primary); font-size: 15px;"><i class="fa-solid fa-sliders"></i> ESP32 數據模擬調試</h3>
+            <button class="btn" id="closeSimBtn" style="padding: 3px 6px;">✕</button>
         </div>
 
         <div class="sim-ctrl-group">
@@ -586,8 +614,8 @@
             <input type="range" id="sim-rpm3" min="0" max="24000" value="21000">
         </div>
 
-        <div class="sim-ctrl-group" style="margin-top: 20px;">
-            <div class="sim-ctrl-label"><span>LittleFS 內部記憶體使用量 (%)</span><span id="sim-fs-val">28%</span></div>
+        <div class="sim-ctrl-group" style="margin-top: 18px;">
+            <div class="sim-ctrl-label"><span>LittleFS 內部記憶體 (%)</span><span id="sim-fs-val">28%</span></div>
             <input type="range" id="sim-fs" min="0" max="100" value="28">
         </div>
 
@@ -597,7 +625,7 @@
         </div>
 
         <div class="sim-ctrl-group">
-            <label style="font-size: 13px; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+            <label style="font-size: 12px; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
                 <input type="checkbox" id="sim-jumper" checked style="accent-color: var(--accent);">
                 Jumper 跳線帽已插上 (啟用 SD 卡日誌)
             </label>
@@ -606,7 +634,30 @@
 
     <script>
         // -------------------------------------------------------------
-        // 1. 初始化右側微型儲存圓餅圖 (Doughnut Ring Charts)
+        // 手動 / 自動切換手機閱讀模式 (Mobile Mode Toggle)
+        // -------------------------------------------------------------
+        const appContainer = document.getElementById('appContainer');
+        const toggleViewBtn = document.getElementById('toggleViewBtn');
+        let isMobileMode = false;
+
+        toggleViewBtn.addEventListener('click', () => {
+            isMobileMode = !isMobileMode;
+            if (isMobileMode) {
+                appContainer.classList.add('mobile-mode');
+                toggleViewBtn.classList.add('btn-active');
+                toggleViewBtn.innerHTML = '<i class="fa-solid fa-desktop"></i> 💻 切換電腦模式';
+                // 調整網格為單欄
+                document.querySelectorAll('.grid-4, .grid-3, .grid-2').forEach(el => el.style.gridTemplateColumns = '1fr');
+            } else {
+                appContainer.classList.remove('mobile-mode');
+                toggleViewBtn.classList.remove('btn-active');
+                toggleViewBtn.innerHTML = '<i class="fa-solid fa-mobile-screen-button"></i> 📱 切換手機閱讀模式';
+                document.querySelectorAll('.grid-4, .grid-3, .grid-2').forEach(el => el.style.gridTemplateColumns = '');
+            }
+        });
+
+        // -------------------------------------------------------------
+        // 初始化微型儲存圓餅圖 (Doughnut Ring Charts)
         // -------------------------------------------------------------
         const createRingChart = (canvasId, color) => {
             const ctx = document.getElementById(canvasId).getContext('2d');
@@ -654,7 +705,7 @@
         }
 
         // -------------------------------------------------------------
-        // 2. 初始化 3 台鼓風機獨立圖表 (轉速/1000, 電流, 溫度)
+        // 初始化 3 台鼓風機獨立圖表
         // -------------------------------------------------------------
         const createBlowerChart = (canvasId, primaryColor) => {
             const ctx = document.getElementById(canvasId).getContext('2d');
@@ -675,15 +726,15 @@
                     scales: {
                         x: {
                             grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                            ticks: { color: '#94a3b8', font: { size: 10 } }
+                            ticks: { color: '#94a3b8', font: { size: 9 } }
                         },
                         y: {
                             grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                            ticks: { color: '#94a3b8', font: { size: 10 } }
+                            ticks: { color: '#94a3b8', font: { size: 9 } }
                         }
                     },
                     plugins: {
-                        legend: { labels: { color: '#f8fafc', font: { size: 10 } } },
+                        legend: { labels: { color: '#f8fafc', font: { size: 9.5 } } },
                         zoom: {
                             pan: { enabled: true, mode: 'x' },
                             zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' }
@@ -697,7 +748,6 @@
         const b2Chart = createBlowerChart('b2Chart', '#10b981');
         const b3Chart = createBlowerChart('b3Chart', '#f59e0b');
 
-        // 定時模擬推進資料
         setInterval(() => {
             const now = new Date();
             const timeStr = now.toLocaleTimeString('zh-TW', { hour12: false });
@@ -723,16 +773,15 @@
             document.getElementById('b2-current').innerText = c2;
             document.getElementById('b3-current').innerText = c3;
 
-            // 推入 3 台獨立圖表 (轉速 / 1000 確保 Y 軸刻度完全合理)
             const pushDataToChart = (chart, rpm, current, temp) => {
                 if (chart.data.labels.length > 20) {
                     chart.data.labels.shift();
                     chart.data.datasets.forEach(d => d.data.shift());
                 }
                 chart.data.labels.push(timeStr);
-                chart.data.datasets[0].data.push(parseFloat((rpm / 1000).toFixed(2))); // 轉速/1000 -> kRPM
-                chart.data.datasets[1].data.push(current);                            // 電流 A
-                chart.data.datasets[2].data.push(temp);                               // 馬達溫度 ℃
+                chart.data.datasets[0].data.push(parseFloat((rpm / 1000).toFixed(2)));
+                chart.data.datasets[1].data.push(current);
+                chart.data.datasets[2].data.push(temp);
                 chart.update('none');
             };
 
@@ -740,7 +789,6 @@
             pushDataToChart(b2Chart, r2, c2, 43 + Math.random() * 2);
             pushDataToChart(b3Chart, r3, c3, 47 + Math.random() * 2);
 
-            // 更新右側微型儲存圓餅圖
             const fsPct = parseInt(document.getElementById('sim-fs').value);
             const sdPct = parseInt(document.getElementById('sim-sd').value);
             const sdEn  = document.getElementById('sim-jumper').checked;
