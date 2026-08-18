@@ -297,10 +297,10 @@
             margin-top: 2px;
         }
 
-        /* Chart Canvas Container */
+        /* Chart Canvas Container (3台鼓風機獨立圖表) */
         .chart-box {
             position: relative;
-            height: 260px;
+            height: 250px;
             width: 100%;
         }
 
@@ -527,27 +527,38 @@
             </div>
         </div>
 
-        <!-- 即時動態趨勢圖表區 (帶 GBD 滾輪 Zoom/Pan) -->
-        <div class="grid-2 mb-20">
-            <!-- 轉速圖表 -->
+        <!-- 分割成 3 個獨立圖表卡片 (一機一圖: 顯示 轉速/1000, 電流, 溫度) -->
+        <div class="grid-3 mb-20">
+            <!-- 鼓風機 1 號獨立圖表 -->
             <div class="card">
                 <div class="card-header">
-                    <span class="card-title"><i class="fa-solid fa-gauge-high"></i> 3 通道轉速實時趨勢 (RPM)</span>
-                    <span style="font-size: 11px; color: var(--text-muted);"><i class="fa-solid fa-computer-mouse"></i> 滑鼠滾輪縮放時間軸</span>
+                    <span class="card-title"><i class="fa-solid fa-chart-line" style="color: var(--primary);"></i> 鼓風機 1 號趨勢</span>
+                    <span style="font-size: 10.5px; color: var(--text-muted);">轉速(kRPM)/電流(A)/溫度(℃)</span>
                 </div>
                 <div class="chart-box">
-                    <canvas id="rpmChart"></canvas>
+                    <canvas id="b1Chart"></canvas>
                 </div>
             </div>
 
-            <!-- 電流圖表 -->
+            <!-- 鼓風機 2 號獨立圖表 -->
             <div class="card">
                 <div class="card-header">
-                    <span class="card-title"><i class="fa-solid fa-bolt"></i> 3 通道運轉電流實時趨勢 (A)</span>
-                    <span style="font-size: 11px; color: var(--text-muted);"><i class="fa-solid fa-computer-mouse"></i> 滑鼠滾輪縮放時間軸</span>
+                    <span class="card-title"><i class="fa-solid fa-chart-line" style="color: var(--accent);"></i> 鼓風機 2 號趨勢</span>
+                    <span style="font-size: 10.5px; color: var(--text-muted);">轉速(kRPM)/電流(A)/溫度(℃)</span>
                 </div>
                 <div class="chart-box">
-                    <canvas id="currentChart"></canvas>
+                    <canvas id="b2Chart"></canvas>
+                </div>
+            </div>
+
+            <!-- 鼓風機 3 號獨立圖表 -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title"><i class="fa-solid fa-chart-line" style="color: var(--warning);"></i> 鼓風機 3 號趨勢</span>
+                    <span style="font-size: 10.5px; color: var(--text-muted);">轉速(kRPM)/電流(A)/溫度(℃)</span>
+                </div>
+                <div class="chart-box">
+                    <canvas id="b3Chart"></canvas>
                 </div>
             </div>
         </div>
@@ -643,56 +654,48 @@
         }
 
         // -------------------------------------------------------------
-        // 2. 初始化趨勢圖表 Chart.js (帶 GBD 滾輪 Zoom)
+        // 2. 初始化 3 台鼓風機獨立圖表 (轉速/1000, 電流, 溫度)
         // -------------------------------------------------------------
-        const chartOptions = {
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: { duration: 300 },
-            scales: {
-                x: {
-                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                    ticks: { color: '#94a3b8', font: { size: 10 } }
+        const createBlowerChart = (canvasId, primaryColor) => {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            return new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: '轉速 (kRPM)', borderColor: primaryColor, borderWidth: 2, data: [], pointRadius: 0 },
+                        { label: '運轉電流 (A)', borderColor: '#f59e0b', borderWidth: 1.5, borderDash: [4, 4], data: [], pointRadius: 0 },
+                        { label: '馬達溫度 (℃)', borderColor: '#ef4444', borderWidth: 1.5, data: [], pointRadius: 0 }
+                    ]
                 },
-                y: {
-                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                    ticks: { color: '#94a3b8', font: { size: 10 } }
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 300 },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94a3b8', font: { size: 10 } }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94a3b8', font: { size: 10 } }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#f8fafc', font: { size: 10 } } },
+                        zoom: {
+                            pan: { enabled: true, mode: 'x' },
+                            zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' }
+                        }
+                    }
                 }
-            },
-            plugins: {
-                legend: { labels: { color: '#f8fafc', font: { size: 11 } } },
-                zoom: {
-                    pan: { enabled: true, mode: 'x' },
-                    zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' }
-                }
-            }
+            });
         };
 
-        const rpmChart = new Chart(document.getElementById('rpmChart'), {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [
-                    { label: '鼓風機 1 號 (RPM)', borderColor: '#38bdf8', borderWidth: 2, data: [], pointRadius: 0 },
-                    { label: '鼓風機 2 號 (RPM)', borderColor: '#10b981', borderWidth: 2, data: [], pointRadius: 0 },
-                    { label: '鼓風機 3 號 (RPM)', borderColor: '#f59e0b', borderWidth: 2, data: [], pointRadius: 0 }
-                ]
-            },
-            options: chartOptions
-        });
-
-        const currentChart = new Chart(document.getElementById('currentChart'), {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [
-                    { label: '鼓風機 1 號 (A)', borderColor: '#38bdf8', borderWidth: 2, data: [], pointRadius: 0 },
-                    { label: '鼓風機 2 號 (A)', borderColor: '#10b981', borderWidth: 2, data: [], pointRadius: 0 },
-                    { label: '鼓風機 3 號 (A)', borderColor: '#f59e0b', borderWidth: 2, data: [], pointRadius: 0 }
-                ]
-            },
-            options: chartOptions
-        });
+        const b1Chart = createBlowerChart('b1Chart', '#38bdf8');
+        const b2Chart = createBlowerChart('b2Chart', '#10b981');
+        const b3Chart = createBlowerChart('b3Chart', '#f59e0b');
 
         // 定時模擬推進資料
         setInterval(() => {
@@ -712,28 +715,30 @@
             document.getElementById('b2-freq').innerText = (r2 / 30).toFixed(1);
             document.getElementById('b3-freq').innerText = (r3 / 30).toFixed(1);
 
-            document.getElementById('b1-current').innerText = (r1 / 1500).toFixed(1);
-            document.getElementById('b2-current').innerText = (r2 / 1500).toFixed(1);
-            document.getElementById('b3-current').innerText = (r3 / 1500).toFixed(1);
+            const c1 = parseFloat((r1 / 1500).toFixed(1));
+            const c2 = parseFloat((r2 / 1500).toFixed(1));
+            const c3 = parseFloat((r3 / 1500).toFixed(1));
 
-            // 推入圖表
-            [rpmChart, currentChart].forEach(c => {
-                if (c.data.labels.length > 25) {
-                    c.data.labels.shift();
-                    c.data.datasets.forEach(d => d.data.shift());
+            document.getElementById('b1-current').innerText = c1;
+            document.getElementById('b2-current').innerText = c2;
+            document.getElementById('b3-current').innerText = c3;
+
+            // 推入 3 台獨立圖表 (轉速 / 1000 確保 Y 軸刻度完全合理)
+            const pushDataToChart = (chart, rpm, current, temp) => {
+                if (chart.data.labels.length > 20) {
+                    chart.data.labels.shift();
+                    chart.data.datasets.forEach(d => d.data.shift());
                 }
-                c.data.labels.push(timeStr);
-            });
+                chart.data.labels.push(timeStr);
+                chart.data.datasets[0].data.push(parseFloat((rpm / 1000).toFixed(2))); // 轉速/1000 -> kRPM
+                chart.data.datasets[1].data.push(current);                            // 電流 A
+                chart.data.datasets[2].data.push(temp);                               // 馬達溫度 ℃
+                chart.update('none');
+            };
 
-            rpmChart.data.datasets[0].data.push(r1);
-            rpmChart.data.datasets[1].data.push(r2);
-            rpmChart.data.datasets[2].data.push(r3);
-            rpmChart.update('none');
-
-            currentChart.data.datasets[0].data.push(r1 / 1500);
-            currentChart.data.datasets[1].data.push(r2 / 1500);
-            currentChart.data.datasets[2].data.push(r3 / 1500);
-            currentChart.update('none');
+            pushDataToChart(b1Chart, r1, c1, 45 + Math.random() * 2);
+            pushDataToChart(b2Chart, r2, c2, 43 + Math.random() * 2);
+            pushDataToChart(b3Chart, r3, c3, 47 + Math.random() * 2);
 
             // 更新右側微型儲存圓餅圖
             const fsPct = parseInt(document.getElementById('sim-fs').value);
