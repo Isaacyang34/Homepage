@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多材質旋轉體轉動慣量與馬達動力學計算器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Three.js 核心與 OrbitControls 滑鼠控制套件 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+        }
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="min-h-screen p-3 md:p-6 flex justify-center items-start">
+
+    <div class="max-w-6xl w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
+        <!-- 頁首與控制列 -->
+        <div class="bg-indigo-700 text-white p-5 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+                <h1 class="text-xl md:text-2xl font-extrabold tracking-tight mb-1">多材質旋轉體轉動慣量與馬達動力學計算器</h1>
+                <p class="text-indigo-100 text-xs md:text-sm">支援多段空心/實心圓柱組合、各區段獨立材質、套疊重疊長度 (Overlap)、總質心 $Z_{cg}$ 及馬達驅動轉矩計算。</p>
+            </div>
+            <div class="flex flex-wrap gap-2 shrink-0">
+                <button onclick="exportProjectJSON()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-medium transition text-xs flex items-center shadow border border-indigo-400">
+                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    下載專案 (JSON)
+                </button>
+                <label class="bg-indigo-800 hover:bg-indigo-900 text-white px-3 py-1.5 rounded-lg font-medium transition text-xs flex items-center cursor-pointer shadow border border-indigo-600">
+                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    匯入專案 (JSON)
+                    <input type="file" id="jsonFileInput" accept=".json" onchange="importProjectJSON(event)" class="hidden">
+                </label>
+            </div>
+        </div>
+
+        <div class="p-4 md:p-6 space-y-6">
+            <!-- 批次快速設定區 -->
+            <div class="bg-slate-50 py-2 px-3 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-sm">
+                <div class="flex items-center text-slate-700 font-semibold text-xs">
+                    <svg class="w-4 h-4 mr-1.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                    批次套用材質：
+                </div>
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <select id="batchMaterialSelect" class="px-2.5 py-1 border border-slate-300 rounded-md text-xs bg-white focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-auto">
+                        <option value="7.85">碳鋼 / 鑄鐵 (7.85 g/cm³)</option>
+                        <option value="7.93">不鏽鋼 304/316 (7.93 g/cm³)</option>
+                        <option value="2.70">鋁合金 (2.70 g/cm³)</option>
+                        <option value="8.96">純銅 (8.96 g/cm³)</option>
+                        <option value="8.50">黃銅 (8.50 g/cm³)</option>
+                        <option value="8.80">青銅 (8.80 g/cm³)</option>
+                        <option value="4.50">鈦合金 (4.50 g/cm³)</option>
+                        <option value="1.74">鎂合金 (1.74 g/cm³)</option>
+                        <option value="1.41">POM 塑鋼 / 工程塑膠 (1.41 g/cm³)</option>
+                    </select>
+                    <button onclick="applyBatchMaterial()" class="px-2.5 py-1 bg-slate-700 hover:bg-slate-800 text-white rounded-md text-xs font-semibold whitespace-nowrap transition">
+                        全面套用
+                    </button>
+                </div>
+            </div>
+
+            <!-- 區段資料輸入區塊 -->
+            <div>
+                <div class="mb-3 flex justify-between items-center">
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center">
+                        <svg class="w-4 h-4 mr-1.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+                        軸系區段資料設定
+                    </h2>
+                    <button onclick="addSegment()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg font-semibold transition text-xs flex items-center shadow-sm">
+                        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                        新增區段
+                    </button>
+                </div>
+
+                <!-- 桌面版高密度 12 欄標頭 -->
+                <div class="hidden lg:grid grid-cols-12 gap-2 mb-1.5 px-3 py-1.5 bg-slate-100 rounded-t-lg text-xs font-bold text-slate-600 border border-slate-200">
+                    <div class="col-span-1 text-center">項次</div>
+                    <div class="col-span-3">材質 / 密度 (g/cm³)</div>
+                    <div class="col-span-2">外徑 Ø (mm)</div>
+                    <div class="col-span-2">內徑 Ø (mm)</div>
+                    <div class="col-span-2">長度 L (mm)</div>
+                    <div class="col-span-1 text-amber-700 text-center font-bold">重疊 (mm)</div>
+                    <div class="col-span-1 text-center">操作</div>
+                </div>
+
+                <div id="segmentsContainer" class="space-y-1.5">
+                    <!-- 動態區段列 -->
+                </div>
+            </div>
+
+            <!-- 3D 幾何預覽 (支援右下角拖曳自由調整高度) -->
+            <div>
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-md font-bold text-slate-800 flex items-center">
+                        <svg class="w-4 h-4 mr-1.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5"></path></svg>
+                        3D 多材質幾何預覽 <span class="text-[11px] font-normal text-slate-500 ml-2 hidden md:inline">(可按右下角拖曳伸縮視窗高度，或滑鼠旋轉縮放)</span>
+                    </h2>
+                    <button id="toggleTransparencyBtn" onclick="toggleTransparency()" class="text-xs bg-slate-700 text-white hover:bg-slate-600 px-2.5 py-1 rounded-md transition shadow-sm flex items-center">
+                        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                        開啟透明 view
+                    </button>
+                </div>
+
+                <!-- 可拖曳調節高度之容器 (resize-y, h-[450px], min-h-[260px], max-h-[850px]) -->
+                <div id="canvas-container" class="w-full h-[450px] min-h-[260px] max-h-[850px] resize-y overflow-auto bg-slate-900 rounded-xl shadow-inner relative border border-slate-300 group">
+                    <div id="canvas-placeholder" class="absolute inset-0 flex items-center justify-center text-slate-400 z-10 pointer-events-none bg-slate-900/80 transition-opacity text-xs">
+                        請輸入有效的區段尺寸以繪製 3D 多材質模型
+                    </div>
+
+                    <!-- 右下角拖曳手桿提示圖示 -->
+                    <div class="absolute bottom-1 right-1 z-20 pointer-events-none text-slate-500 opacity-60 group-hover:opacity-100 transition flex items-center">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2D 工程圖視圖 -->
+            <div>
+                <h2 class="text-md font-bold text-slate-800 flex items-center mb-2">
+                    <svg class="w-4 h-4 mr-1.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    2D 工程圖視圖 <span class="text-[11px] font-normal text-slate-500 ml-2">(自動剖面圖與側視圖)</span>
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div class="md:col-span-2 bg-white border border-slate-300 rounded-xl p-3 shadow-sm relative">
+                        <h3 class="text-[11px] font-bold text-slate-500 mb-1 absolute top-2 left-3">前視剖面圖 (A-A Section)</h3>
+                        <div id="canvas2d-front-wrapper" class="w-full h-40 md:h-52 mt-3 flex items-center justify-center">
+                            <canvas id="canvas2d-front" class="w-full h-full"></canvas>
+                        </div>
+                    </div>
+                    <div class="md:col-span-1 bg-white border border-slate-300 rounded-xl p-3 shadow-sm relative">
+                        <h3 class="text-[11px] font-bold text-slate-500 mb-1 absolute top-2 left-3">端面側視圖 (Side View)</h3>
+                        <div id="canvas2d-end-wrapper" class="w-full h-40 md:h-52 mt-3 flex items-center justify-center">
+                            <canvas id="canvas2d-end" class="w-full h-full"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 計算結果總覽卡片 -->
+            <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-5 shadow-sm">
+                <h2 class="text-lg font-extrabold text-indigo-950 mb-3 flex items-center">
+                    <svg class="w-5 h-5 mr-1.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                    物理特性與質量慣量計算結果
+                </h2>
+                
+                <div class="overflow-x-auto mb-4 bg-white rounded-lg shadow-sm border border-indigo-100">
+                    <table class="w-full text-xs text-left text-slate-600">
+                        <thead class="text-[11px] text-indigo-900 uppercase bg-indigo-100 font-bold">
+                            <tr>
+                                <th scope="col" class="px-3 py-2">區段</th>
+                                <th scope="col" class="px-3 py-2">材質與密度</th>
+                                <th scope="col" class="px-3 py-2">質量 (kg)</th>
+                                <th scope="col" class="px-3 py-2">起點 Z / 質心 Z (mm)</th>
+                                <th scope="col" class="px-3 py-2">轉動慣量 I (kg·mm²)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultsTableBody">
+                            <!-- 計算結果列 -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-2">
+                    <div class="bg-white p-3 rounded-lg shadow-sm border border-indigo-100 flex flex-col justify-between">
+                        <div class="text-[11px] font-semibold text-slate-500">總轉動慣量 ($I_{total}$)</div>
+                        <div class="text-xl font-black text-indigo-600 font-mono mt-0.5" id="totalInertia">0.0</div>
+                        <div class="text-[10px] text-slate-500">kg·mm²</div>
+                    </div>
+                    <div class="bg-white p-3 rounded-lg shadow-sm border border-indigo-100 flex flex-col justify-between">
+                        <div class="text-[11px] font-semibold text-slate-500">總質量 (Total Mass)</div>
+                        <div class="text-xl font-black text-emerald-600 font-mono mt-0.5" id="totalMass">0.0000</div>
+                        <div class="text-[10px] text-slate-500">kg</div>
+                    </div>
+                    <div class="bg-white p-3 rounded-lg shadow-sm border border-indigo-100 flex flex-col justify-between">
+                        <div class="text-[11px] font-semibold text-slate-500">總質心位置 ($Z_{cg}$)</div>
+                        <div class="text-xl font-black text-amber-600 font-mono mt-0.5" id="totalZcg">0.0</div>
+                        <div class="text-[10px] text-slate-500">mm (從首段起算)</div>
+                    </div>
+                    <div class="bg-white p-3 rounded-lg shadow-sm border border-indigo-100 flex flex-col justify-between">
+                        <div class="text-[11px] font-semibold text-slate-500">軸系總涵蓋長度</div>
+                        <div class="text-xl font-black text-sky-600 font-mono mt-0.5" id="totalLength">0.0</div>
+                        <div class="text-[10px] text-slate-500">mm</div>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap justify-end gap-4 text-xs text-slate-600 font-medium">
+                    <div>常用單位: <span id="totalInertiaCm" class="font-bold text-slate-800 font-mono">0.0</span> kg·cm²</div>
+                    <div>國際單位: <span id="totalInertiaSI" class="font-bold text-slate-800 font-mono">0.0</span> kg·m²</div>
+                </div>
+            </div>
+
+            <!-- 馬達動力學與選型試算區塊 -->
+            <div class="bg-slate-900 text-white rounded-xl p-5 shadow-lg border border-slate-800">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-bold flex items-center text-indigo-300">
+                        <svg class="w-5 h-5 mr-1.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        馬達動力學與選型轉矩試算 (Drive Dynamics)
+                    </h2>
+                    <span class="text-[11px] text-slate-400 bg-slate-800 px-2.5 py-0.5 rounded-full">即時試算</span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-0.5 font-medium">目標工作轉速 $N$ (RPM):</label>
+                        <input type="number" id="rpmInput" value="1500" step="10" oninput="calculateDriveDynamics()" 
+                            class="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-md text-white font-mono text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-0.5 font-medium">預期加速時間 $t$ (秒):</label>
+                        <input type="number" id="accTimeInput" value="0.5" step="0.05" min="0.01" oninput="calculateDriveDynamics()" 
+                            class="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-md text-white font-mono text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-0.5 font-medium">機構傳動效率 $\eta$ (%):</label>
+                        <input type="number" id="efficiencyInput" value="90" step="1" max="100" min="1" oninput="calculateDriveDynamics()" 
+                            class="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-md text-white font-mono text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-800/80 p-3 rounded-lg border border-slate-700/60">
+                    <div>
+                        <div class="text-[11px] text-slate-400">角加速度 ($\alpha$)</div>
+                        <div class="text-lg font-bold font-mono text-indigo-400 mt-0.5" id="dynAlpha">0.0</div>
+                        <div class="text-[9px] text-slate-500">rad/s²</div>
+                    </div>
+                    <div>
+                        <div class="text-[11px] text-slate-400">加速動能 ($E_k$)</div>
+                        <div class="text-lg font-bold font-mono text-amber-400 mt-0.5" id="dynEnergy">0.0</div>
+                        <div class="text-[9px] text-slate-500">J (焦耳)</div>
+                    </div>
+                    <div>
+                        <div class="text-[11px] text-slate-400">需求啟動轉矩 ($\tau$)</div>
+                        <div class="text-lg font-bold font-mono text-emerald-400 mt-0.5" id="dynTorque">0.000</div>
+                        <div class="text-[9px] text-slate-400"><span id="dynTorqueKgf">0.00</span> kgf·cm / N·m</div>
+                    </div>
+                    <div>
+                        <div class="text-[11px] text-slate-400">最小馬達功率 ($P$)</div>
+                        <div class="text-lg font-bold font-mono text-sky-400 mt-0.5" id="dynPower">0.000</div>
+                        <div class="text-[9px] text-slate-500"><span id="dynPowerW">0</span> W / kW</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        let segmentCount = 0;
+        let lastCalculatedTotalInertiaSI = 0;
+        
+        let scene, camera, renderer, controls, modelGroup;
+        let isTransparent = false;
+        let hatchPattern = null;
+
+        const MATERIAL_PRESETS = {
+            "7.85": { name: "碳鋼 / 鑄鐵", density: 7.85, color: 0x475569, metalness: 0.7, roughness: 0.3 },
+            "7.93": { name: "不鏽鋼 304/316", density: 7.93, color: 0x38bdf8, metalness: 0.8, roughness: 0.2 },
+            "2.70": { name: "鋁合金", density: 2.70, color: 0xf8fafc, metalness: 0.5, roughness: 0.4 },
+            "8.96": { name: "純銅", density: 8.96, color: 0xea580c, metalness: 0.7, roughness: 0.3 },
+            "8.50": { name: "黃銅", density: 8.50, color: 0xeab308, metalness: 0.8, roughness: 0.25 },
+            "8.80": { name: "青銅", density: 8.80, color: 0xa16207, metalness: 0.6, roughness: 0.4 },
+            "4.50": { name: "鈦合金", density: 4.50, color: 0x818cf8, metalness: 0.6, roughness: 0.3 },
+            "1.74": { name: "鎂合金", density: 1.74, color: 0x2dd4bf, metalness: 0.4, roughness: 0.4 },
+            "1.41": { name: "POM 塑鋼 / 工程塑膠", density: 1.41, color: 0x1e293b, metalness: 0.1, roughness: 0.6 },
+            "custom": { name: "自訂密度", density: 1.00, color: 0xc084fc, metalness: 0.5, roughness: 0.4 }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            init3D();
+            init2D();
+            addSegment(7.85, 100, 0, 50, 0);
+            calculateAll();
+        });
+
+        function addSegment(presetDensity = 7.85, defaultOutDia = '', defaultInDia = '', defaultLength = '', defaultOverlap = 0) {
+            segmentCount++;
+            const currentId = segmentCount;
+            const container = document.getElementById('segmentsContainer');
+            const segmentDiv = document.createElement('div');
+            segmentDiv.id = `segment-row-${currentId}`;
+            segmentDiv.className = 'segment-item bg-white border border-slate-200 rounded-lg py-1.5 px-2.5 shadow-sm transition hover:border-indigo-300';
+            
+            segmentDiv.innerHTML = `
+                <div class="lg:grid lg:grid-cols-12 lg:gap-2 lg:items-center">
+                    <div class="font-bold text-indigo-600 mb-1 lg:mb-0 col-span-1 flex items-center justify-between lg:justify-center text-xs">
+                        <span><span class="lg:hidden">區段 </span>#<span class="seg-number">${currentId}</span></span>
+                    </div>
+                    
+                    <div class="mb-1.5 lg:mb-0 col-span-3 grid grid-cols-2 gap-1.5">
+                        <select id="matSelect-${currentId}" onchange="handleMaterialChange(${currentId})" class="w-full px-1.5 py-1 bg-slate-50 border border-slate-300 rounded text-xs font-medium text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500">
+                            <option value="7.85" ${presetDensity == 7.85 ? 'selected':''}>碳鋼/鑄鐵 (7.85)</option>
+                            <option value="7.93" ${presetDensity == 7.93 ? 'selected':''}>不鏽鋼 (7.93)</option>
+                            <option value="2.70" ${presetDensity == 2.70 ? 'selected':''}>鋁合金 (2.70)</option>
+                            <option value="8.96" ${presetDensity == 8.96 ? 'selected':''}>純銅 (8.96)</option>
+                            <option value="8.50" ${presetDensity == 8.50 ? 'selected':''}>黃銅 (8.50)</option>
+                            <option value="8.80" ${presetDensity == 8.80 ? 'selected':''}>青銅 (8.80)</option>
+                            <option value="4.50" ${presetDensity == 4.50 ? 'selected':''}>鈦合金 (4.50)</option>
+                            <option value="1.74" ${presetDensity == 1.74 ? 'selected':''}>鎂合金 (1.74)</option>
+                            <option value="1.41" ${presetDensity == 1.41 ? 'selected':''}>POM/塑膠 (1.41)</option>
+                            <option value="custom">自訂密度</option>
+                        </select>
+                        <div class="relative">
+                            <input type="number" id="densityInput-${currentId}" value="${presetDensity}" step="0.01" oninput="handleDensityInput(${currentId})" placeholder="密度"
+                                class="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500">
+                            <span class="absolute right-1.5 top-1 text-[9px] text-slate-400 pointer-events-none">g/cm³</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-1.5 lg:mb-0 col-span-2 relative">
+                        <label class="block text-[10px] text-slate-500 lg:hidden mb-0.5">外徑 Ø (mm)</label>
+                        <input type="number" id="outDia-${currentId}" value="${defaultOutDia}" placeholder="外徑 (mm)" step="0.1" oninput="calculateAll()"
+                            class="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500">
+                    </div>
+                    
+                    <div class="mb-1.5 lg:mb-0 col-span-2 relative">
+                        <label class="block text-[10px] text-slate-500 lg:hidden mb-0.5">內徑 Ø (mm) <span class="text-slate-400 font-normal">(實心填0)</span></label>
+                        <input type="number" id="inDia-${currentId}" value="${defaultInDia}" placeholder="內徑 (實心0)" step="0.1" oninput="calculateAll()"
+                            class="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500">
+                    </div>
+                    
+                    <div class="mb-1.5 lg:mb-0 col-span-2 relative">
+                        <label class="block text-[10px] text-slate-500 lg:hidden mb-0.5">長度 L (mm)</label>
+                        <input type="number" id="length-${currentId}" value="${defaultLength}" placeholder="長度 (mm)" step="0.1" oninput="calculateAll()"
+                            class="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500">
+                    </div>
+
+                    <div class="mb-1.5 lg:mb-0 col-span-1 relative">
+                        <label class="block text-[10px] text-amber-700 lg:hidden mb-0.5 font-bold">與前段重疊 (mm)</label>
+                        <input type="number" id="overlapInput-${currentId}" value="${defaultOverlap}" placeholder="重疊" step="0.1" min="0" oninput="calculateAll()"
+                            class="w-full px-1.5 py-1 bg-amber-50/70 border border-amber-300 rounded text-xs font-mono text-slate-800 outline-none focus:ring-1 focus:ring-amber-500 text-center">
+                    </div>
+                    
+                    <div class="col-span-1 flex items-center justify-end lg:justify-center gap-0.5">
+                        <button onclick="cloneSegment(${currentId})" title="複製此區段" class="p-1 text-slate-600 hover:text-indigo-600 hover:bg-slate-100 rounded transition">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        </button>
+                        <button onclick="moveSegmentUp(${currentId})" title="上移" class="p-1 text-slate-600 hover:text-indigo-600 hover:bg-slate-100 rounded transition">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
+                        </button>
+                        <button onclick="moveSegmentDown(${currentId})" title="下移" class="p-1 text-slate-600 hover:text-indigo-600 hover:bg-slate-100 rounded transition">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        <button onclick="removeSegment(${currentId})" title="刪除" class="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </div>
+                </div>
+            `;
+            container.appendChild(segmentDiv);
+            reindexSegments();
+            calculateAll();
+        }
+
+        function handleMaterialChange(id) {
+            const select = document.getElementById(`matSelect-${id}`);
+            const input = document.getElementById(`densityInput-${id}`);
+            if (select.value !== 'custom') input.value = select.value;
+            calculateAll();
+        }
+
+        function handleDensityInput(id) {
+            const select = document.getElementById(`matSelect-${id}`);
+            const input = document.getElementById(`densityInput-${id}`);
+            const val = input.value;
+            let matched = false;
+            Array.from(select.options).forEach(opt => {
+                if(opt.value === val) { select.value = opt.value; matched = true; }
+            });
+            if(!matched) select.value = 'custom';
+            calculateAll();
+        }
+
+        function cloneSegment(id) {
+            const matVal = document.getElementById(`matSelect-${id}`).value;
+            const densityVal = document.getElementById(`densityInput-${id}`).value;
+            const outDia = document.getElementById(`outDia-${id}`).value;
+            const inDia = document.getElementById(`inDia-${id}`).value;
+            const length = document.getElementById(`length-${id}`).value;
+            const overlap = document.getElementById(`overlapInput-${id}`).value;
+
+            addSegment(parseFloat(densityVal) || 7.85, outDia, inDia, length, overlap);
+            const newSelect = document.getElementById(`matSelect-${segmentCount}`);
+            if(newSelect) newSelect.value = matVal;
+            calculateAll();
+        }
+
+        function moveSegmentUp(id) {
+            const row = document.getElementById(`segment-row-${id}`);
+            if (row && row.previousElementSibling) {
+                row.parentNode.insertBefore(row, row.previousElementSibling);
+                reindexSegments(); calculateAll();
+            }
+        }
+
+        function moveSegmentDown(id) {
+            const row = document.getElementById(`segment-row-${id}`);
+            if (row && row.nextElementSibling) {
+                row.parentNode.insertBefore(row.nextElementSibling, row);
+                reindexSegments(); calculateAll();
+            }
+        }
+
+        function removeSegment(id) {
+            const rows = document.querySelectorAll('.segment-item');
+            if (rows.length <= 1) { alert('至少需保留一個區段！'); return; }
+            const row = document.getElementById(`segment-row-${id}`);
+            if (row) { row.remove(); reindexSegments(); calculateAll(); }
+        }
+
+        function reindexSegments() {
+            const rows = document.querySelectorAll('.segment-item');
+            rows.forEach((row, idx) => {
+                const numSpan = row.querySelector('.seg-number');
+                if (numSpan) numSpan.textContent = idx + 1;
+            });
+        }
+
+        function applyBatchMaterial() {
+            const batchVal = document.getElementById('batchMaterialSelect').value;
+            const rows = document.querySelectorAll('.segment-item');
+            rows.forEach(row => {
+                const id = row.id.replace('segment-row-', '');
+                const select = document.getElementById(`matSelect-${id}`);
+                const input = document.getElementById(`densityInput-${id}`);
+                if (select && input) { select.value = batchVal; input.value = batchVal; }
+            });
+            calculateAll();
+        }
+
+        function calculateAll() {
+            let totalInertia = 0;
+            let totalMass = 0;
+            let weightedZSum = 0;
+            
+            let currentZStart = 0;
+            let maxZBound = 0;
+
+            const tbody = document.getElementById('resultsTableBody');
+            tbody.innerHTML = '';
+
+            const rows = document.querySelectorAll('.segment-item');
+            let validSegmentsData = [];
+
+            rows.forEach((row, idx) => {
+                const id = row.id.replace('segment-row-', '');
+                
+                const matKey = document.getElementById(`matSelect-${id}`).value;
+                const densityVal = parseFloat(document.getElementById(`densityInput-${id}`).value) || 0;
+                const outDia = parseFloat(document.getElementById(`outDia-${id}`).value);
+                const inDia = parseFloat(document.getElementById(`inDia-${id}`).value) || 0;
+                const length = parseFloat(document.getElementById(`length-${id}`).value);
+                const overlap = (idx === 0) ? 0 : (parseFloat(document.getElementById(`overlapInput-${id}`).value) || 0);
+
+                if (!isNaN(outDia) && !isNaN(length) && outDia > 0 && length > 0 && outDia >= inDia && densityVal > 0) {
+                    const densityKey = (MATERIAL_PRESETS[matKey] && matKey !== 'custom') ? matKey : 'custom';
+                    const matInfo = MATERIAL_PRESETS[densityKey] || MATERIAL_PRESETS['custom'];
+                    const matName = matKey === 'custom' ? `自訂 (${densityVal})` : matInfo.name;
+
+                    const densityKgMm3 = densityVal * Math.pow(10, -6);
+                    const rOut = outDia / 2;
+                    const rIn = inDia / 2;
+
+                    if (idx === 0) {
+                        currentZStart = 0;
+                    } else {
+                        const prevSeg = validSegmentsData[validSegmentsData.length - 1];
+                        currentZStart = (prevSeg.zStart + prevSeg.length) - overlap;
+                    }
+
+                    const segZEnd = currentZStart + length;
+                    if (segZEnd > maxZBound) maxZBound = segZEnd;
+
+                    const volume = Math.PI * length * (Math.pow(rOut, 2) - Math.pow(rIn, 2));
+                    const mass = volume * densityKgMm3;
+
+                    const segZcg = currentZStart + (length / 2);
+                    const inertia = 0.5 * mass * (Math.pow(rOut, 2) + Math.pow(rIn, 2));
+
+                    totalInertia += inertia;
+                    totalMass += mass;
+                    weightedZSum += (mass * segZcg);
+
+                    validSegmentsData.push({
+                        outDia, inDia, length, overlap, zStart: currentZStart, zCg: segZcg,
+                        densityVal, matKey: densityKey,
+                        matColor: matInfo.color, matMetalness: matInfo.metalness, matRoughness: matInfo.roughness
+                    });
+
+                    const tr = document.createElement('tr');
+                    tr.className = 'border-b border-indigo-50 last:border-0 hover:bg-indigo-50/50 transition';
+                    tr.innerHTML = `
+                        <td class="px-3 py-1.5 font-bold text-slate-800">段 #${idx + 1}</td>
+                        <td class="px-3 py-1.5 text-xs text-slate-700">${matName} <span class="text-slate-400 font-mono">(${densityVal})</span></td>
+                        <td class="px-3 py-1.5 font-mono text-slate-800">${mass.toFixed(4)}</td>
+                        <td class="px-3 py-1.5 font-mono text-amber-700">起點 ${currentZStart.toFixed(1)} / 質心 ${segZcg.toFixed(1)}</td>
+                        <td class="px-3 py-1.5 text-indigo-700 font-mono font-semibold">${inertia.toLocaleString('en-US', {minimumFractionDigits: 1, maximumFractionDigits: 1})}</td>
+                    `;
+                    tbody.appendChild(tr);
+                }
+            });
+
+            const placeholder = document.getElementById('canvas-placeholder');
+            if (validSegmentsData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-6 text-center text-slate-400 italic">請輸入完整且合理的區段尺寸與密度以計算結果</td></tr>`;
+                if(placeholder) placeholder.style.display = 'flex';
+                if(typeof update3DModel === 'function') update3DModel([]);
+                if(typeof update2DView === 'function') update2DView([]);
+            } else {
+                if(placeholder) placeholder.style.display = 'none';
+                if(typeof update3DModel === 'function') update3DModel(validSegmentsData);
+                if(typeof update2DView === 'function') update2DView(validSegmentsData);
+            }
+
+            document.getElementById('totalInertia').innerText = totalInertia.toLocaleString('en-US', {minimumFractionDigits: 1, maximumFractionDigits: 1});
+            document.getElementById('totalMass').innerText = totalMass.toFixed(4);
+            document.getElementById('totalLength').innerText = maxZBound.toFixed(1);
+
+            const overallZcg = totalMass > 0 ? (weightedZSum / totalMass) : 0;
+            document.getElementById('totalZcg').innerText = overallZcg.toFixed(1);
+
+            const totalInertiaCm = totalInertia * Math.pow(10, -2);
+            document.getElementById('totalInertiaCm').innerText = totalInertiaCm > 0 ? totalInertiaCm.toLocaleString('en-US', {minimumFractionDigits: 3, maximumFractionDigits: 3}) : "0.0";
+
+            const totalInertiaSI = totalInertia * Math.pow(10, -6);
+            lastCalculatedTotalInertiaSI = totalInertiaSI;
+            document.getElementById('totalInertiaSI').innerText = totalInertiaSI > 0 ? (totalInertiaSI < 0.0001 ? totalInertiaSI.toExponential(4) : totalInertiaSI.toFixed(5)) : "0.0";
+
+            calculateDriveDynamics();
+        }
+
+        function calculateDriveDynamics() {
+            const rpm = parseFloat(document.getElementById('rpmInput').value) || 0;
+            const accTime = parseFloat(document.getElementById('accTimeInput').value) || 0.01;
+            const effPercent = parseFloat(document.getElementById('efficiencyInput').value) || 90;
+            const eta = Math.max(0.01, effPercent / 100);
+
+            const I_SI = lastCalculatedTotalInertiaSI;
+            const omega = (2 * Math.PI * rpm) / 60;
+            const alpha = accTime > 0 ? (omega / accTime) : 0;
+            const energy = 0.5 * I_SI * Math.pow(omega, 2);
+            const torqueNm = (I_SI * alpha) / eta;
+            const torqueKgfCm = torqueNm * 10.19716;
+            const powerW = torqueNm * omega;
+            const powerKW = powerW / 1000;
+
+            document.getElementById('dynAlpha').innerText = alpha.toFixed(2);
+            document.getElementById('dynEnergy').innerText = energy.toFixed(2);
+            document.getElementById('dynTorque').innerText = torqueNm.toFixed(3);
+            document.getElementById('dynTorqueKgf').innerText = torqueKgfCm.toFixed(2);
+            document.getElementById('dynPower').innerText = powerKW >= 1 ? powerKW.toFixed(3) : powerW.toFixed(1);
+            document.getElementById('dynPowerW').innerText = powerKW >= 1 ? `${powerKW.toFixed(2)} kW` : `${powerW.toFixed(0)} W`;
+        }
+
+        function toggleTransparency() {
+            isTransparent = !isTransparent;
+            const btn = document.getElementById('toggleTransparencyBtn');
+            btn.innerHTML = isTransparent ? `
+                <svg class="w-3.5 h-3.5 mr-1 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path></svg>
+                關閉透明 view
+            ` : `
+                <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                開啟透明 view
+            `;
+
+            if (modelGroup) {
+                modelGroup.children.forEach(mesh => {
+                    if (mesh.material) {
+                        mesh.material.opacity = isTransparent ? 0.35 : 1.0;
+                        mesh.material.depthWrite = !isTransparent;
+                    }
+                });
+            }
+        }
+
+        // ====== 3D 繪圖 (ResizeObserver 動態極致流暢響應) ======
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0f172a);
+
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 10000);
+            camera.position.set(150, 150, 250);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+
+            const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.9);
+            dirLight1.position.set(150, 250, 180);
+            scene.add(dirLight1);
+
+            const dirLight2 = new THREE.DirectionalLight(0x93c5fd, 0.4);
+            dirLight2.position.set(-150, -100, -180);
+            scene.add(dirLight2);
+
+            modelGroup = new THREE.Group();
+            scene.add(modelGroup);
+
+            // 使用 ResizeObserver 監聽容器尺寸拖曳改變，流暢更新 3D 繪圖
+            const resizeObserver = new ResizeObserver(() => {
+                if (container && camera && renderer) {
+                    const width = container.clientWidth;
+                    const height = container.clientHeight;
+                    if (width > 0 && height > 0) {
+                        camera.aspect = width / height;
+                        camera.updateProjectionMatrix();
+                        renderer.setSize(width, height);
+                    }
+                }
+            });
+            resizeObserver.observe(container);
+
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function update3DModel(segments) {
+            if (!modelGroup) return;
+
+            while(modelGroup.children.length > 0){
+                const child = modelGroup.children[0];
+                if(child.geometry) child.geometry.dispose();
+                if(child.material) child.material.dispose();
+                modelGroup.remove(child);
+            }
+
+            if(segments.length === 0) return;
+
+            let maxRadius = 0;
+            let minZ = 0, maxZ = 0;
+
+            segments.forEach((seg, idx) => {
+                const rOut = seg.outDia / 2;
+                const rIn = seg.inDia / 2;
+                if (rOut > maxRadius) maxRadius = rOut;
+
+                const shape = new THREE.Shape();
+                shape.absarc(0, 0, rOut, 0, Math.PI * 2, false);
+
+                if (rIn > 0) {
+                    const holePath = new THREE.Path();
+                    holePath.absarc(0, 0, rIn, 0, Math.PI * 2, true);
+                    shape.holes.push(holePath);
+                }
+
+                const extrudeSettings = { depth: seg.length, bevelEnabled: false, curveSegments: 64 };
+                const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+
+                const segColor = new THREE.Color(seg.matColor);
+                if (idx % 2 === 1) {
+                    segColor.multiplyScalar(0.85);
+                }
+
+                const mat = new THREE.MeshStandardMaterial({
+                    color: segColor,
+                    metalness: seg.matMetalness,
+                    roughness: seg.matRoughness,
+                    transparent: true,
+                    opacity: isTransparent ? 0.35 : 1.0,
+                    depthWrite: !isTransparent
+                });
+
+                const mesh = new THREE.Mesh(geometry, mat);
+                const edges = new THREE.EdgesGeometry(geometry);
+                const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x334155, linewidth: 1.5 }));
+                mesh.add(line);
+
+                mesh.position.z = seg.zStart;
+                modelGroup.add(mesh);
+
+                if (seg.zStart < minZ) minZ = seg.zStart;
+                if (seg.zStart + seg.length > maxZ) maxZ = seg.zStart + seg.length;
+            });
+
+            const totalSpan = maxZ - minZ;
+            modelGroup.position.z = -(minZ + totalSpan / 2);
+
+            const maxDim = Math.max(maxRadius * 2, totalSpan);
+            camera.position.set(maxDim * 1.3, maxDim * 0.9, maxDim * 1.5);
+            controls.target.set(0, 0, 0);
+            controls.update();
+        }
+
+        // ====== 2D 繪圖 ======
+        function init2D() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 8; canvas.height = 8;
+            const ctx = canvas.getContext('2d');
+            ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(0, 8); ctx.lineTo(8, 0); ctx.stroke();
+
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            hatchPattern = tempCtx.createPattern(canvas, 'repeat');
+
+            window.addEventListener('resize', () => {
+                if (typeof calculateAll === 'function') calculateAll();
+            });
+        }
+
+        function setupCanvas(canvasId, wrapperId) {
+            const canvas = document.getElementById(canvasId);
+            const wrapper = document.getElementById(wrapperId);
+            const dpr = window.devicePixelRatio || 1;
+            const rect = wrapper.getBoundingClientRect();
+            
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+            
+            return { ctx, width: rect.width, height: rect.height };
+        }
+
+        function update2DView(segments) {
+            const frontInfo = setupCanvas('canvas2d-front', 'canvas2d-front-wrapper');
+            const endInfo = setupCanvas('canvas2d-end', 'canvas2d-end-wrapper');
+            
+            const frontCtx = frontInfo.ctx;
+            const endCtx = endInfo.ctx;
+            
+            frontCtx.clearRect(0, 0, frontInfo.width, frontInfo.height);
+            endCtx.clearRect(0, 0, endInfo.width, endInfo.height);
+
+            if (segments.length === 0) {
+                frontCtx.fillStyle = '#94a3b8';
+                frontCtx.font = '14px Inter, sans-serif';
+                frontCtx.textAlign = 'center';
+                frontCtx.fillText('無有效尺寸資料', frontInfo.width / 2, frontInfo.height / 2);
+                
+                endCtx.fillStyle = '#94a3b8';
+                endCtx.font = '14px Inter, sans-serif';
+                endCtx.textAlign = 'center';
+                endCtx.fillText('無有效尺寸', endInfo.width / 2, endInfo.height / 2);
+                return;
+            }
+
+            let maxZBound = Math.max(...segments.map(seg => seg.zStart + seg.length));
+            let maxRadius = Math.max(...segments.map(seg => seg.outDia / 2));
+            
+            const paddingFront = 35;
+            const scaleFront = Math.min(
+                (frontInfo.width - paddingFront * 2) / maxZBound,
+                (frontInfo.height - paddingFront * 2) / (maxRadius * 2)
+            );
+
+            const paddingEnd = 25;
+            const scaleEnd = Math.min(
+                (endInfo.width - paddingEnd * 2) / (maxRadius * 2),
+                (endInfo.height - paddingEnd * 2) / (maxRadius * 2)
+            );
+
+            frontCtx.save();
+            const startX = (frontInfo.width - maxZBound * scaleFront) / 2;
+            frontCtx.translate(startX, frontInfo.height / 2);
+
+            frontCtx.beginPath();
+            frontCtx.strokeStyle = '#ef4444'; 
+            frontCtx.lineWidth = 1;
+            frontCtx.setLineDash([15, 5, 3, 5]);
+            frontCtx.moveTo(-15, 0);
+            frontCtx.lineTo(maxZBound * scaleFront + 15, 0);
+            frontCtx.stroke();
+            frontCtx.setLineDash([]);
+
+            frontCtx.strokeStyle = '#1e293b';
+            frontCtx.lineWidth = 1.5;
+
+            segments.forEach(seg => {
+                const rOut = (seg.outDia / 2) * scaleFront;
+                const rIn = (seg.inDia / 2) * scaleFront;
+                const len = seg.length * scaleFront;
+                const xPos = seg.zStart * scaleFront;
+
+                if (rOut > rIn) {
+                    frontCtx.fillStyle = hatchPattern;
+                    frontCtx.fillRect(xPos, -rOut, len, rOut - rIn);
+                    frontCtx.strokeRect(xPos, -rOut, len, rOut - rIn);
+
+                    frontCtx.fillRect(xPos, rIn, len, rOut - rIn);
+                    frontCtx.strokeRect(xPos, rIn, len, rOut - rIn);
+                }
+            });
+            frontCtx.restore();
+
+            endCtx.save();
+            endCtx.translate(endInfo.width / 2, endInfo.height / 2);
+
+            endCtx.beginPath();
+            endCtx.strokeStyle = '#ef4444';
+            endCtx.lineWidth = 1;
+            endCtx.setLineDash([15, 5, 3, 5]);
+            endCtx.moveTo(-maxRadius * scaleEnd - 15, 0);
+            endCtx.lineTo(maxRadius * scaleEnd + 15, 0);
+            endCtx.moveTo(0, -maxRadius * scaleEnd - 15);
+            endCtx.lineTo(0, maxRadius * scaleEnd + 15);
+            endCtx.stroke();
+            endCtx.setLineDash([]);
+
+            let radii = new Set();
+            segments.forEach(seg => {
+                if(seg.outDia > 0) radii.add(seg.outDia / 2);
+                if(seg.inDia > 0) radii.add(seg.inDia / 2);
+            });
+            
+            let sortedRadii = Array.from(radii).sort((a, b) => b - a);
+
+            endCtx.strokeStyle = '#1e293b';
+            endCtx.lineWidth = 1.5;
+            
+            sortedRadii.forEach((r, index) => {
+                endCtx.beginPath();
+                endCtx.arc(0, 0, r * scaleEnd, 0, Math.PI * 2);
+                
+                if (index === 0) {
+                    endCtx.fillStyle = '#ffffff';
+                    endCtx.fill();
+                    
+                    endCtx.save();
+                    endCtx.strokeStyle = '#ef4444';
+                    endCtx.lineWidth = 1;
+                    endCtx.setLineDash([15, 5, 3, 5]);
+                    endCtx.beginPath();
+                    endCtx.moveTo(-r * scaleEnd, 0); endCtx.lineTo(r * scaleEnd, 0);
+                    endCtx.moveTo(0, -r * scaleEnd); endCtx.lineTo(0, r * scaleEnd);
+                    endCtx.stroke();
+                    endCtx.restore();
+                }
+                
+                endCtx.stroke();
+            });
+            endCtx.restore();
+        }
+
+        // ====== JSON 專案匯出/匯入 ======
+        function exportProjectJSON() {
+            const rows = document.querySelectorAll('.segment-item');
+            const segmentList = [];
+
+            rows.forEach(row => {
+                const id = row.id.replace('segment-row-', '');
+                segmentList.push({
+                    matKey: document.getElementById(`matSelect-${id}`).value,
+                    density: document.getElementById(`densityInput-${id}`).value,
+                    outDia: document.getElementById(`outDia-${id}`).value,
+                    inDia: document.getElementById(`inDia-${id}`).value,
+                    length: document.getElementById(`length-${id}`).value,
+                    overlap: document.getElementById(`overlapInput-${id}`).value
+                });
+            });
+
+            const projectData = {
+                version: "5.0",
+                timestamp: new Date().toISOString(),
+                driveParams: {
+                    rpm: document.getElementById('rpmInput').value,
+                    accTime: document.getElementById('accTimeInput').value,
+                    efficiency: document.getElementById('efficiencyInput').value
+                },
+                segments: segmentList
+            };
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(projectData, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `inertia_shaft_project_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function importProjectJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const projectData = JSON.parse(e.target.result);
+                    if (!projectData.segments || !Array.isArray(projectData.segments)) {
+                        alert('無效的專案 JSON 檔案格式！');
+                        return;
+                    }
+
+                    document.getElementById('segmentsContainer').innerHTML = '';
+                    segmentCount = 0;
+
+                    if (projectData.driveParams) {
+                        if (projectData.driveParams.rpm) document.getElementById('rpmInput').value = projectData.driveParams.rpm;
+                        if (projectData.driveParams.accTime) document.getElementById('accTimeInput').value = projectData.driveParams.accTime;
+                        if (projectData.driveParams.efficiency) document.getElementById('efficiencyInput').value = projectData.driveParams.efficiency;
+                    }
+
+                    projectData.segments.forEach(seg => {
+                        const densityVal = parseFloat(seg.density) || 7.85;
+                        addSegment(densityVal, seg.outDia || '', seg.inDia || '', seg.length || '', seg.overlap || 0);
+                        
+                        const newId = segmentCount;
+                        const matSelect = document.getElementById(`matSelect-${newId}`);
+                        if (matSelect && seg.matKey) {
+                            matSelect.value = seg.matKey;
+                        }
+                    });
+
+                    calculateAll();
+                    alert('成功匯入專案資料！');
+                } catch (err) {
+                    alert('讀取 JSON 檔案失敗: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+    </script>
+</body>
+</html>

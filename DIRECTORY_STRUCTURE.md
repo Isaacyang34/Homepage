@@ -53,6 +53,8 @@ X13/
 │   ├── .agents/                   # AGENTS.md 專案規範與規則
 │   ├── .git/ / .github/           # Git 版本控制目錄
 │   ├── index.html / page.html     # 工作區全站入口網頁
+│   ├── 慣量計算.html / MotorCalculate.html / MotorEquivalentCircuit.html # 根目錄網頁工具單檔
+│   ├── 等效電路計算.html / LED螢幕設計界面規劃V2.0.html / OLED版面設計.html
 │   └── styles.css                 # 入口網頁樣式表
 ```
 
