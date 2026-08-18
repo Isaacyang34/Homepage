@@ -18,11 +18,19 @@
 #include <FS.h>
 #include <SD.h>
 #include <SPI.h>
-#include <LittleFS.h>
-#include <ModbusMaster.h>
-#include <DHT.h>
 
-// ─── 1. 系統與網路設定 ───
+// ─── ESP32 Arduino Core 跨版本 LittleFS / SPIFFS 相容性防護 ───
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && (ESP_ARDUINO_VERSION_MAJOR >= 2)
+  #include <LittleFS.h>
+  #define USE_LITTLEFS 1
+#else
+  // 舊版 ESP32 Core (< 2.0.0) 自動無縫降級至 SPIFFS 防崩潰
+  #include <SPIFFS.h>
+  #define LittleFS SPIFFS
+  #define USE_LITTLEFS 0
+#endif
+
+// WiFi 設定
 const char* WIFI_SSID     = "YOUR_WIFI_SSID";
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 const char* GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec";
@@ -169,10 +177,20 @@ void setup() {
     Serial.println("⚪ [JUMPER OPEN] SD 卡功能停用。使用內部 LittleFS 快取模式。");
   }
 
-  // 2. 初始化 LittleFS
-  if (!LittleFS.begin(true)) {
-    Serial.println("LittleFS Mount Failed");
-  }
+  // 2. 初始化內部檔案系統 (LittleFS / SPIFFS 自動防護)
+  #if USE_LITTLEFS
+    if (!LittleFS.begin(true)) {
+      Serial.println("❌ LittleFS 掛載失敗，正進行自動格式化修復...");
+    } else {
+      Serial.println("✅ LittleFS 記憶體掛載成功！");
+    }
+  #else
+    if (!SPIFFS.begin(true)) {
+      Serial.println("❌ SPIFFS 掛載失敗，正進行自動格式化修復...");
+    } else {
+      Serial.println("✅ 舊版相容模式：SPIFFS 記憶體掛載成功！");
+    }
+  #endif
 
   // 3. 初始化 HW UART & Modbus
   Serial1.begin(9600, SERIAL_8N1, RX1_PIN, TX1_PIN);
