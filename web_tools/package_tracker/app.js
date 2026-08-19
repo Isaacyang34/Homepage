@@ -313,10 +313,10 @@ class RealTrackPulseEngine {
     const pkg = this.packages.find(p => p.id === pkgId);
     if (!pkg) return;
 
-    if (manualTrigger) this.showToast(`重新抓取 [${pkg.trackingNo}] 的官網最新物流狀態...`, 'info');
+    if (manualTrigger) this.showToast(`連線官網即時更新 [${pkg.trackingNo}] 最新狀態...`, 'info');
 
     const apiBase = this.getApiBaseUrl();
-    const requestUrl = `${apiBase}/api/track?no=${encodeURIComponent(pkg.trackingNo)}&carrier=${encodeURIComponent(pkg.carrier)}`;
+    const requestUrl = `${apiBase}/api/track?no=${encodeURIComponent(pkg.trackingNo)}&carrier=${encodeURIComponent(pkg.carrier)}${manualTrigger ? '&force=true' : ''}`;
 
     try {
       let data = null;

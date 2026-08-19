@@ -49,33 +49,56 @@ function fetchUrl(targetUrl, options = {}) {
  * 解析黑貓宅急便 (t-cat.com.tw) 官網 HTML
  */
 function parseTCatHtml(html, trackingNo) {
+  if (!html) return null;
+
+  const timeline = [];
+  // 匹配所有 <tr> 結構
   const trMatches = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi);
   if (!trMatches || trMatches.length === 0) return null;
 
-  const timeline = [];
-
   trMatches.forEach(trHtml => {
-    const statusMatch = trHtml.match(/<td[^>]*class='style1'[^>]*>[\s\S]*?<span class='bl12'>(.*?)<\/span>/i);
-    const timeMatch = trHtml.match(/<div align='center'>[\s\S]*?<span class='bl12'>(.*?)<\/div>/i);
-    const stationMatch = trHtml.match(/<a class='text4'[^>]*>(.*?)<\/a>/i);
+    // 提取該行內的所有 <td> 欄位
+    const tdMatches = trHtml.match(/<td[^>]*>[\s\S]*?<\/td>/gi);
+    if (tdMatches && tdMatches.length >= 3) {
+      // 若包含單號欄位 (4 個 td)，則狀態位於第 2 個 td (索引 1)；否則位於第 1 個 td (索引 0)
+      const statusTdIndex = tdMatches.length >= 4 ? 1 : 0;
+      const timeTdIndex = tdMatches.length >= 4 ? 2 : 1;
+      const stationTdIndex = tdMatches.length >= 4 ? 3 : 2;
 
-    if (statusMatch && timeMatch) {
-      const statusText = statusMatch[1].replace(/<[^>]+>/g, '').trim();
-      const timeText = timeMatch[1].replace(/<br\s*\/?>/gi, ' ').replace(/\s+/g, ' ').replace(/<[^>]+>/g, '').trim();
-      const stationText = stationMatch ? stationMatch[1].replace(/<[^>]+>/g, '').trim() : '黑貓營業所';
+      const rawStatusText = tdMatches[statusTdIndex].replace(/<[^>]+>/g, '').trim();
+      const rawTimeText = tdMatches[timeTdIndex].replace(/<br\s*\/?>/gi, ' ').replace(/\s+/g, ' ').replace(/<[^>]+>/g, '').trim();
+      const rawStationText = tdMatches[stationTdIndex] ? tdMatches[stationTdIndex].replace(/<[^>]+>/g, '').trim() : '黑貓營業所';
 
-      timeline.push({
-        status: mapStatusString(statusText),
-        title: `${statusText} (${stationText})`,
-        desc: `負責營業所: ${stationText} | 狀態內文: ${statusText}`,
-        station: stationText,
-        timestamp: timeText
-      });
+      // 避免抓到表頭
+      if (rawStatusText && !rawStatusText.includes('貨態') && !rawStatusText.includes('時間') && rawTimeText.length >= 8) {
+        const mappedStatus = mapStatusString(rawStatusText);
+        timeline.push({
+          status: mappedStatus,
+          title: `${rawStatusText} (${rawStationText})`,
+          desc: `負責營業所: ${rawStationText} | 官網狀態: ${rawStatusText}`,
+          station: rawStationText,
+          timestamp: rawTimeText
+        });
+      }
     }
   });
 
   if (timeline.length === 0) return null;
 
+  // 對時間進行倒序排序 (最新發生的時間戳記永遠排在最前面 第 0 筆)
+  timeline.sort((a, b) => {
+    const parseTime = (tStr) => {
+      if (!tStr) return 0;
+      const parts = tStr.match(/(\d{4})[\/\.-](\d{1,2})[\/\.-](\d{1,2})\s+(\d{1,2}):(\d{1,2})/);
+      if (parts) {
+        return new Date(parts[1], parts[2] - 1, parts[3], parts[4], parts[5]).getTime();
+      }
+      return 0;
+    };
+    return parseTime(b.timestamp) - parseTime(a.timestamp);
+  });
+
+  // 最新發生的時間節點即為目前包裹最終狀態
   const latest = timeline[0];
 
   return {
@@ -86,7 +109,7 @@ function parseTCatHtml(html, trackingNo) {
     status: latest.status,
     station: latest.station,
     latestTime: latest.timestamp,
-    origin: timeline[timeline.length - 1]?.station || '集貨站點',
+    origin: timeline[timeline.length - 1]?.station || '集貨營業所',
     destination: latest.station || '收件地點',
     timeline: timeline,
     updatedAt: new Date().toLocaleString('zh-TW', { hour12: false })
@@ -95,11 +118,62 @@ function parseTCatHtml(html, trackingNo) {
 
 function mapStatusString(text) {
   if (!text) return 'in_transit';
-  if (text.includes('送達') || text.includes('簽收') || text.includes('Delivered')) return 'delivered';
-  if (text.includes('配送中') || text.includes('派送') || text.includes('Out for delivery')) return 'out_for_delivery';
-  if (text.includes('集貨') || text.includes('攬收') || text.includes('收件') || text.includes('Picked up')) return 'picked_up';
-  if (text.includes('轉運中') || text.includes('運輸')) return 'in_transit';
-  if (text.includes('異常') || text.includes('退回') || text.includes('Exception')) return 'exception';
+  const clean = text.trim();
+
+  // 1. 優先排除非送達的異常情況
+  if (clean.includes('未送達') || clean.includes('無法送達') || clean.includes('退回') || clean.includes('異常') || clean.includes('Exception')) {
+    return 'exception';
+  }
+
+  // 2. 送達/簽收/完配/代收/領取關鍵字
+  if (
+    clean.includes('送達') ||
+    clean.includes('配達') ||
+    clean.includes('完配') ||
+    clean.includes('簽收') ||
+    clean.includes('代收') ||
+    clean.includes('收妥') ||
+    clean.includes('已取貨') ||
+    clean.includes('已領取') ||
+    clean.includes('Delivered') ||
+    clean.includes('delivered')
+  ) {
+    return 'delivered';
+  }
+
+  // 3. 派送中 / 配送中
+  if (
+    clean.includes('配送中') ||
+    clean.includes('派送中') ||
+    clean.includes('派送') ||
+    clean.includes('投遞中') ||
+    clean.includes('Out for delivery')
+  ) {
+    return 'out_for_delivery';
+  }
+
+  // 4. 已攬收 / 已集貨 / 已接單
+  if (
+    clean.includes('集貨') ||
+    clean.includes('攬收') ||
+    clean.includes('收件') ||
+    clean.includes('已收件') ||
+    clean.includes('Picked up')
+  ) {
+    return 'picked_up';
+  }
+
+  // 5. 轉運中 / 運輸中
+  if (
+    clean.includes('轉運') ||
+    clean.includes('運輸') ||
+    clean.includes('發往') ||
+    clean.includes('到達') ||
+    clean.includes('In transit')
+  ) {
+    return 'in_transit';
+  }
+
   return 'in_transit';
 }
 
@@ -113,15 +187,19 @@ const CACHE_TTL_MS = 3 * 60 * 1000; // 3 分鐘快取保護
 /**
  * 真實物流查詢邏輯 (Real Logistics Query Engine)
  */
-async function queryRealLogistics(trackingNo, carrierHint = '') {
+async function queryRealLogistics(trackingNo, carrierHint = '', forceRefresh = false) {
   const cleanNo = trackingNo.trim();
   const upperNo = cleanNo.toUpperCase();
 
-  // 1. 檢查防封鎖快取 (Anti-Block Cache)
-  const cached = LOGISTICS_CACHE.get(cleanNo);
-  if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
-    console.log(`[Cache Hit] Returning anti-blocking cached result for ${cleanNo}`);
-    return cached.data;
+  // 1. 檢查防封鎖快取 (若非強制刷新 forceRefresh，3 分鐘內回傳快取)
+  if (!forceRefresh) {
+    const cached = LOGISTICS_CACHE.get(cleanNo);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+      console.log(`[Cache Hit] Returning anti-blocking cached result for ${cleanNo}`);
+      return cached.data;
+    }
+  } else {
+    console.log(`[Force Sync] Bypassing cache for ${cleanNo} to fetch live status...`);
   }
 
   let realResult = null;
@@ -244,6 +322,7 @@ const server = http.createServer(async (req, res) => {
   if (parsedUrl.pathname === '/api/track') {
     const trackingNo = parsedUrl.query.no;
     const carrier = parsedUrl.query.carrier || 'auto';
+    const forceRefresh = parsedUrl.query.force === 'true' || parsedUrl.query.refresh === '1';
 
     if (!trackingNo) {
       res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -251,7 +330,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     try {
-      const realResult = await queryRealLogistics(trackingNo, carrier);
+      const realResult = await queryRealLogistics(trackingNo, carrier, forceRefresh);
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       return res.end(JSON.stringify(realResult));
     } catch (e) {
