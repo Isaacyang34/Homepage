@@ -19,6 +19,8 @@ class RealTrackPulseEngine {
     this.currentFilter = 'all';
     this.searchQuery = '';
     this.autoPollingTimer = null;
+    this.countdownSeconds = 300;
+    this.countdownTimer = null;
     this.activeDetailPkgId = null;
     this.audioCtx = null;
 
@@ -42,32 +44,10 @@ class RealTrackPulseEngine {
     this.countdownBadge = document.getElementById('countdownBadge');
     this.pollingIntervalSelect = document.getElementById('pollingIntervalSelect');
     this.btnManualSyncAll = document.getElementById('btnManualSyncAll');
-
-    this.autoPollingTimer = null;
-    this.countdownSeconds = 300;
-    this.countdownTimer = null;
-
-    this.initElements();
-    this.bindEvents();
-    this.checkNotificationPermission();
-    this.render();
-  }
-
-  initElements() {
-    this.quickTrackingNoInput = document.getElementById('quickTrackingNoInput');
-    this.btnQuickAdd = document.getElementById('btnQuickAdd');
-
-    this.btnOpenAddModal = document.getElementById('btnOpenAddModal');
-    this.btnEmptyAdd = document.getElementById('btnEmptyAdd');
-    this.btnRequestNotif = document.getElementById('btnRequestNotifPermission');
-    this.btnTestSound = document.getElementById('btnTestNotificationSound');
-    this.toggleAutoPolling = document.getElementById('toggleAutoPolling');
-    this.pollingStatusText = document.getElementById('pollingStatusText');
-    this.livePulseDot = document.getElementById('livePulseDot');
-    this.countdownBadge = document.getElementById('countdownBadge');
-    this.pollingIntervalSelect = document.getElementById('pollingIntervalSelect');
-    this.btnManualSyncAll = document.getElementById('btnManualSyncAll');
     this.btnClearLog = document.getElementById('btnClearLog');
+
+    this.notifDot = document.getElementById('notifDot');
+    this.notifStatusText = document.getElementById('notifStatusText');
 
     this.statTotal = document.getElementById('statTotal');
     this.statInTransit = document.getElementById('statInTransit');
