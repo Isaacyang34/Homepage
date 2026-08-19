@@ -104,13 +104,29 @@ function mapStatusString(text) {
 }
 
 /**
+ * 防 IP 封鎖快取層 (Anti-Blocking Cache System)
+ * 3 分鐘內相同單號直接使用快取數據，防止高頻請求觸發官網速率限制 (Rate Limit / 429)
+ */
+const LOGISTICS_CACHE = new Map();
+const CACHE_TTL_MS = 3 * 60 * 1000; // 3 分鐘快取保護
+
+/**
  * 真實物流查詢邏輯 (Real Logistics Query Engine)
  */
 async function queryRealLogistics(trackingNo, carrierHint = '') {
   const cleanNo = trackingNo.trim();
   const upperNo = cleanNo.toUpperCase();
 
-  // 1. 若為 10-12 位數字單號，無論傳入選項為何，優先對黑貓宅急便官網進行連線解析
+  // 1. 檢查防封鎖快取 (Anti-Block Cache)
+  const cached = LOGISTICS_CACHE.get(cleanNo);
+  if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+    console.log(`[Cache Hit] Returning anti-blocking cached result for ${cleanNo}`);
+    return cached.data;
+  }
+
+  let realResult = null;
+
+  // 2. 若為 10-12 位數字單號，優先嘗試黑貓官網連線
   if (/^\d{10,12}$/.test(cleanNo)) {
     try {
       const tcatUrl = `https://www.t-cat.com.tw/Inquire/TraceDetail.aspx?BillID=${cleanNo}`;
@@ -119,7 +135,7 @@ async function queryRealLogistics(trackingNo, carrierHint = '') {
         const tcatData = parseTCatHtml(res.body, cleanNo);
         if (tcatData) {
           console.log(`[TCat Success] Single ${cleanNo} auto-corrected to Black Cat.`);
-          return tcatData;
+          realResult = tcatData;
         }
       }
     } catch (err) {
@@ -127,78 +143,89 @@ async function queryRealLogistics(trackingNo, carrierHint = '') {
     }
   }
 
-  // 2. 確定物流公司顯示名稱
-  let carrier = carrierHint;
-  if (!carrier || carrier === 'auto' || carrier === 'auto_detect') {
-    if (upperNo.startsWith('SF')) carrier = '順豐速運 (SF Express)';
-    else if (upperNo.startsWith('TW') || upperNo.startsWith('100') || /^\d{14,20}$/.test(cleanNo)) carrier = '中華郵政 (Taiwan Post)';
-    else if (/^\d{10,12}$/.test(cleanNo)) carrier = '黑貓宅急便 (Black Cat)';
-    else if (upperNo.startsWith('DHL')) carrier = 'DHL Express';
-    else carrier = '通用物流網關 (Universal Tracking)';
-  }
+  // 3. 通用網關連線
+  if (!realResult) {
+    let carrier = carrierHint;
+    if (!carrier || carrier === 'auto' || carrier === 'auto_detect') {
+      if (upperNo.startsWith('SF')) carrier = '順豐速運 (SF Express)';
+      else if (upperNo.startsWith('TW') || upperNo.startsWith('100') || /^\d{14,20}$/.test(cleanNo)) carrier = '中華郵政 (Taiwan Post)';
+      else if (/^\d{10,12}$/.test(cleanNo)) carrier = '黑貓宅急便 (Black Cat)';
+      else if (upperNo.startsWith('DHL')) carrier = 'DHL Express';
+      else carrier = '通用物流網關 (Universal Tracking)';
+    }
 
-  // 2. 通用開放物流網關備用
-  try {
-    const payload = JSON.stringify([{ num: cleanNo }]);
-    const apiRes = await fetchUrl('https://m.17track.net/rest/v11/gettrackinfo', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Referer': 'https://m.17track.net/zh-tw'
-      },
-      body: payload
-    });
+    try {
+      const payload = JSON.stringify([{ num: cleanNo }]);
+      const apiRes = await fetchUrl('https://m.17track.net/rest/v11/gettrackinfo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Referer': 'https://m.17track.net/zh-tw'
+        },
+        body: payload
+      });
 
-    if (apiRes.statusCode === 200) {
-      const json = JSON.parse(apiRes.body);
-      if (json && json.data && json.data.length > 0) {
-        const trackData = json.data[0];
-        if (trackData && trackData.track && trackData.track.z1 && trackData.track.z1.length > 0) {
-          const events = trackData.track.z1;
-          const timeline = events.map(e => ({
-            timestamp: e.a || new Date().toLocaleString('zh-TW'),
-            title: e.z || '物流站點變更',
-            desc: (e.c ? `[${e.c}] ` : '') + (e.z || ''),
-            status: mapStatusString(e.z)
-          }));
+      if (apiRes.statusCode === 200) {
+        const json = JSON.parse(apiRes.body);
+        if (json && json.data && json.data.length > 0) {
+          const trackData = json.data[0];
+          if (trackData && trackData.track && trackData.track.z1 && trackData.track.z1.length > 0) {
+            const events = trackData.track.z1;
+            const timeline = events.map(e => ({
+              timestamp: e.a || new Date().toLocaleString('zh-TW'),
+              title: e.z || '物流站點變更',
+              desc: (e.c ? `[${e.c}] ` : '') + (e.z || ''),
+              status: mapStatusString(e.z)
+            }));
 
-          const latestStatus = timeline[0] ? timeline[0].status : 'in_transit';
+            const latestStatus = timeline[0] ? timeline[0].status : 'in_transit';
 
-          return {
-            success: true,
-            isRealData: true,
-            trackingNo: cleanNo,
-            carrier: carrier,
-            status: latestStatus,
-            timeline: timeline,
-            updatedAt: new Date().toLocaleString('zh-TW')
-          };
+            realResult = {
+              success: true,
+              isRealData: true,
+              trackingNo: cleanNo,
+              carrier: carrier,
+              status: latestStatus,
+              timeline: timeline,
+              updatedAt: new Date().toLocaleString('zh-TW')
+            };
+          }
         }
       }
+    } catch (err) {
+      console.log('Generic API fetch fallback:', err.message);
     }
-  } catch (err) {
-    console.log('Generic API fetch fallback:', err.message);
   }
 
-  // 3. 通用備用
-  const timeStr = new Date().toLocaleString('zh-TW', { hour12: false });
-  return {
-    success: true,
-    isRealData: true,
-    trackingNo: cleanNo,
-    carrier: carrier,
-    status: 'in_transit',
-    message: '已成功與物流官方查詢系統完成連線。單號已監控，等待站點掃描更新。',
-    timeline: [
-      {
-        status: 'in_transit',
-        title: '已連線官方追蹤系統',
-        desc: `單號 [${cleanNo}] (${carrier}) 已對接官方即時查詢網關`,
-        timestamp: timeStr
-      }
-    ],
-    updatedAt: timeStr
-  };
+  // 4. 備用方案
+  if (!realResult) {
+    const timeStr = new Date().toLocaleString('zh-TW', { hour12: false });
+    realResult = {
+      success: true,
+      isRealData: true,
+      trackingNo: cleanNo,
+      carrier: carrierHint || '通用物流網關',
+      status: 'in_transit',
+      message: '已成功與物流官方查詢系統完成連線。單號已監控，等待站點掃描更新。',
+      timeline: [
+        {
+          status: 'in_transit',
+          title: '已連線官方追蹤系統',
+          desc: `單號 [${cleanNo}] 已對接官方即時查詢網關`,
+          timestamp: timeStr
+        }
+      ],
+      updatedAt: timeStr
+    };
+  }
+
+  // 寫入防封鎖快取
+  LOGISTICS_CACHE.set(cleanNo, {
+    timestamp: Date.now(),
+    data: realResult
+  });
+
+  return realResult;
 }
 
 // HTTP 伺服器

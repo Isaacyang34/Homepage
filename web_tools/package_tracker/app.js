@@ -37,10 +37,37 @@ class RealTrackPulseEngine {
     this.btnRequestNotif = document.getElementById('btnRequestNotifPermission');
     this.btnTestSound = document.getElementById('btnTestNotificationSound');
     this.toggleAutoPolling = document.getElementById('toggleAutoPolling');
-    this.btnClearLog = document.getElementById('btnClearLog');
+    this.pollingStatusText = document.getElementById('pollingStatusText');
+    this.livePulseDot = document.getElementById('livePulseDot');
+    this.countdownBadge = document.getElementById('countdownBadge');
+    this.pollingIntervalSelect = document.getElementById('pollingIntervalSelect');
+    this.btnManualSyncAll = document.getElementById('btnManualSyncAll');
 
-    this.notifDot = document.getElementById('notifDot');
-    this.notifStatusText = document.getElementById('notifStatusText');
+    this.autoPollingTimer = null;
+    this.countdownSeconds = 300;
+    this.countdownTimer = null;
+
+    this.initElements();
+    this.bindEvents();
+    this.checkNotificationPermission();
+    this.render();
+  }
+
+  initElements() {
+    this.quickTrackingNoInput = document.getElementById('quickTrackingNoInput');
+    this.btnQuickAdd = document.getElementById('btnQuickAdd');
+
+    this.btnOpenAddModal = document.getElementById('btnOpenAddModal');
+    this.btnEmptyAdd = document.getElementById('btnEmptyAdd');
+    this.btnRequestNotif = document.getElementById('btnRequestNotifPermission');
+    this.btnTestSound = document.getElementById('btnTestNotificationSound');
+    this.toggleAutoPolling = document.getElementById('toggleAutoPolling');
+    this.pollingStatusText = document.getElementById('pollingStatusText');
+    this.livePulseDot = document.getElementById('livePulseDot');
+    this.countdownBadge = document.getElementById('countdownBadge');
+    this.pollingIntervalSelect = document.getElementById('pollingIntervalSelect');
+    this.btnManualSyncAll = document.getElementById('btnManualSyncAll');
+    this.btnClearLog = document.getElementById('btnClearLog');
 
     this.statTotal = document.getElementById('statTotal');
     this.statInTransit = document.getElementById('statInTransit');
@@ -101,13 +128,28 @@ class RealTrackPulseEngine {
       });
     }
 
+    if (this.btnManualSyncAll) {
+      this.btnManualSyncAll.addEventListener('click', () => {
+        this.showToast('發起全體包裹官網同步連線...', 'info');
+        this.pollAllRealPackages();
+      });
+    }
+
+    if (this.pollingIntervalSelect) {
+      this.pollingIntervalSelect.addEventListener('change', () => {
+        if (this.toggleAutoPolling.checked) {
+          this.startRealPolling();
+        }
+      });
+    }
+
     this.toggleAutoPolling.addEventListener('change', (e) => {
       if (e.target.checked) {
         this.startRealPolling();
-        this.showToast('真實 API 連線監控已開啟 (自動定時抓取物流官網數據)', 'info');
+        this.showToast('自動官網連線監控已開啟 (倒數結束將自動檢查狀態變更)', 'info');
       } else {
         this.stopRealPolling();
-        this.showToast('真實連線監控已暫停', 'info');
+        this.showToast('自動監控已關閉', 'info');
       }
     });
 
@@ -294,21 +336,57 @@ class RealTrackPulseEngine {
   }
 
   /* ==========================================================================
-     Real Polling (定時向官網 API 發送連線)
+     Real Polling (定時向官網 API 發送連線與視覺倒數面板)
      ========================================================================== */
 
   startRealPolling() {
-    if (this.autoPollingTimer) clearInterval(this.autoPollingTimer);
-    // 每 20 秒抓取一次官網真實 API 數據
-    this.autoPollingTimer = setInterval(() => {
-      this.pollAllRealPackages();
-    }, 20000);
+    this.stopRealPolling();
+
+    const selectedInterval = parseInt(this.pollingIntervalSelect.value, 10) || 300;
+    this.countdownSeconds = selectedInterval;
+
+    this.livePulseDot.className = 'live-pulse-dot active';
+    this.pollingStatusText.textContent = '自動連線監控中';
+    this.countdownBadge.style.display = 'inline-block';
+    this.updateCountdownDisplay();
+
+    // 秒級倒數計時器
+    this.countdownTimer = setInterval(() => {
+      this.countdownSeconds--;
+      if (this.countdownSeconds <= 0) {
+        this.countdownSeconds = selectedInterval;
+        this.triggerRealSyncProcess();
+      }
+      this.updateCountdownDisplay();
+    }, 1000);
   }
 
   stopRealPolling() {
-    if (this.autoPollingTimer) {
-      clearInterval(this.autoPollingTimer);
-      this.autoPollingTimer = null;
+    if (this.countdownTimer) {
+      clearInterval(this.countdownTimer);
+      this.countdownTimer = null;
+    }
+    this.livePulseDot.className = 'live-pulse-dot';
+    this.pollingStatusText.textContent = '自動監控: 已關閉';
+    this.countdownBadge.style.display = 'none';
+  }
+
+  updateCountdownDisplay() {
+    const mins = Math.floor(this.countdownSeconds / 60);
+    const secs = this.countdownSeconds % 60;
+    const formatted = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    this.countdownBadge.textContent = formatted;
+  }
+
+  async triggerRealSyncProcess() {
+    this.livePulseDot.className = 'live-pulse-dot syncing';
+    this.pollingStatusText.textContent = '⚡ 官網同步中...';
+    
+    await this.pollAllRealPackages();
+
+    if (this.toggleAutoPolling.checked) {
+      this.livePulseDot.className = 'live-pulse-dot active';
+      this.pollingStatusText.textContent = '自動連線監控中';
     }
   }
 

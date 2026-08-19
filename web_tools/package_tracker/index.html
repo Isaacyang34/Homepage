@@ -117,18 +117,28 @@
         </div>
 
         <div class="toolbar-actions">
-          <div class="auto-polling-toggle">
+          <div class="polling-control-panel">
             <label class="switch">
               <input type="checkbox" id="toggleAutoPolling">
               <span class="slider round"></span>
             </label>
-            <span class="toggle-label">自動輪詢</span>
+            <div class="polling-info" id="pollingInfo">
+              <span class="live-pulse-dot" id="livePulseDot"></span>
+              <span class="toggle-label" id="pollingStatusText">自動監控: 已關閉</span>
+              <span class="countdown-badge" id="countdownBadge" style="display: none;">10:00</span>
+            </div>
+            <select id="pollingIntervalSelect" class="interval-select" title="安全連線頻率 (設有防 IP 封鎖保護)">
+              <option value="300" selected>5 分鐘 (建議)</option>
+              <option value="600">10 分鐘 (安全)</option>
+              <option value="900">15 分鐘</option>
+              <option value="1800">30 分鐘</option>
+            </select>
           </div>
-          <button class="btn btn-ghost" id="btnTestDemoPackage">
-            新增測試包裹
+          <button class="btn btn-ghost btn-sm" id="btnManualSyncAll">
+            🔄 立即同步全部
           </button>
-          <button class="btn btn-ghost" id="btnTestNotificationSound">
-            測試音效
+          <button class="btn btn-ghost btn-sm" id="btnTestNotificationSound">
+            🔊 測試音效
           </button>
         </div>
       </section>
