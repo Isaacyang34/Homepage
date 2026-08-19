@@ -404,63 +404,89 @@ class RealTrackPulseEngine {
   }
 
   /* ==========================================================================
-     Notification & Audio Synthesizer Engine
+     Notification & Audio Synthesizer Engine (強效雙重相容版)
      ========================================================================== */
 
   checkNotificationPermission() {
     if (!('Notification' in window)) {
       this.notifDot.className = 'status-dot denied';
-      this.notifStatusText.textContent = '此瀏覽器不支援桌面推播';
-      this.btnRequestNotif.disabled = true;
+      this.notifStatusText.textContent = '此瀏覽器環境不支援桌面推播';
+      if (this.btnRequestNotif) this.btnRequestNotif.disabled = true;
       return;
     }
 
-    // 若在 file:// 本地協定開啟，瀏覽器出於安全機制禁止桌面推播
     if (window.location.protocol === 'file:') {
       this.notifDot.className = 'status-dot warning';
-      this.notifStatusText.textContent = '提示: 請透過 http://localhost:8899/ 開啟以啟用桌面推播';
-      this.btnRequestNotif.textContent = '👉 點擊切換至 localhost 啟用通知';
-      this.btnRequestNotif.onclick = () => {
-        window.location.href = 'http://localhost:8899/';
-      };
+      this.notifStatusText.textContent = '提示: file:// 協定受限，請透過 http://localhost:8899/ 開啟';
+      if (this.btnRequestNotif) {
+        this.btnRequestNotif.style.display = 'inline-flex';
+        this.btnRequestNotif.textContent = '👉 切換至 localhost 開啟推播';
+        this.btnRequestNotif.onclick = () => { window.location.href = 'http://localhost:8899/'; };
+      }
       return;
     }
 
-    if (Notification.permission === 'granted') {
+    const currentPermission = Notification.permission;
+    console.log('[Notification Permission Status]:', currentPermission);
+
+    if (currentPermission === 'granted') {
       this.notifDot.className = 'status-dot active';
       this.notifStatusText.textContent = '通知權限：已啟用桌面推播';
-      this.btnRequestNotif.style.display = 'none';
-    } else if (Notification.permission === 'denied') {
+      if (this.btnRequestNotif) this.btnRequestNotif.style.display = 'none';
+    } else if (currentPermission === 'denied') {
       this.notifDot.className = 'status-dot denied';
-      this.notifStatusText.textContent = '通知權限：已被瀏覽器阻擋 (請點選網址旁鎖頭解除)';
-      this.btnRequestNotif.style.display = 'inline-flex';
-      this.btnRequestNotif.textContent = '🔒 如何解除阻擋';
-      this.btnRequestNotif.onclick = () => {
-        alert('請點擊瀏覽器上方網址列左側的「鎖頭 🔒」圖示，將「通知 (Notifications)」權限改為「允許」，然後重新整理頁面。');
-      };
+      this.notifStatusText.textContent = '通知權限：已被阻擋 (點擊查看解鎖步驟)';
+      if (this.btnRequestNotif) {
+        this.btnRequestNotif.style.display = 'inline-flex';
+        this.btnRequestNotif.textContent = '🔒 如何解鎖權限';
+        this.btnRequestNotif.onclick = () => this.showPermissionHelpModal();
+      }
     } else {
       this.notifDot.className = 'status-dot warning';
       this.notifStatusText.textContent = '通知權限：未授權 (點擊啟動)';
-      this.btnRequestNotif.style.display = 'inline-flex';
-      this.btnRequestNotif.textContent = '🔔 啟動桌面通知';
-      this.btnRequestNotif.onclick = () => this.requestNotificationPermission();
+      if (this.btnRequestNotif) {
+        this.btnRequestNotif.style.display = 'inline-flex';
+        this.btnRequestNotif.textContent = '🔔 點擊啟動桌面通知';
+        this.btnRequestNotif.onclick = () => this.requestNotificationPermission();
+      }
     }
   }
 
-  async requestNotificationPermission() {
-    if (!('Notification' in window)) return;
-    try {
-      const permission = await Notification.requestPermission();
-      this.checkNotificationPermission();
-      if (permission === 'granted') {
-        this.sendWebNotification('TrackPulse 貨物追蹤系統', '桌面推播通知已成功啟用！當官網狀態改變時將自動提示。');
-        this.playChimeSound('success');
-      } else if (permission === 'denied') {
-        this.showToast('權限授權被拒絕，請點選網址列左側鎖頭開啟通知', 'error');
-      }
-    } catch (err) {
-      console.error(err);
+  requestNotificationPermission() {
+    if (!('Notification' in window)) {
+      alert('您的瀏覽器不支援桌面通知 API。');
+      return;
     }
+
+    // 雙重相容寫法 (相容舊版 Callback 與新版 Promise)
+    const handlePermissionResult = (permission) => {
+      console.log('[Permission Requested Result]:', permission);
+      this.checkNotificationPermission();
+
+      if (permission === 'granted') {
+        this.sendWebNotification('TrackPulse 貨物追蹤系統', '桌面推播通知已成功授權啟用！');
+        this.playChimeSound('success');
+        this.showToast('桌面推播通知已成功啟用！', 'success');
+      } else if (permission === 'denied') {
+        this.showPermissionHelpModal();
+      }
+    };
+
+    try {
+      const promise = Notification.requestPermission(handlePermissionResult);
+      if (promise && typeof promise.then === 'function') {
+        promise.then(handlePermissionResult).catch(err => {
+          console.warn('Notification promise error:', err);
+        });
+      }
+    } catch (e) {
+      console.error('Request permission error:', e);
+    }
+  }
+
+  showPermissionHelpModal() {
+    const helpMsg = `【桌面通知授權排查指引】\n\n1. 請點擊瀏覽器最頂端網址列左側的「鎖頭 🔒」圖示。\n2. 找到「通知 (Notifications)」權限，將其改為「允許 (Allow)」。\n3. 重新整理頁面 (F5)。\n\n💡 注意：若您開啟了 Windows 10/11 的「專注助手/請勿打擾」，系統彈窗可能會被 Windows 暫時隱藏，但頁面內的音效與即時 Toast 提醒依然 100% 正常運作！`;
+    alert(helpMsg);
   }
 
   sendWebNotification(title, body) {
