@@ -121,6 +121,12 @@ class RealTrackPulseEngine {
     this.packageForm.addEventListener('submit', (e) => this.handlePackageFormSubmit(e));
     this.btnRequestNotif.addEventListener('click', () => this.requestNotificationPermission());
 
+    // 當切換頁面或從設定回來的瞬間，自動動態更新通知權限狀態
+    window.addEventListener('focus', () => this.checkNotificationPermission());
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) this.checkNotificationPermission();
+    });
+
     if (this.btnTestSound) {
       this.btnTestSound.addEventListener('click', () => {
         this.playChimeSound('success');
@@ -404,8 +410,19 @@ class RealTrackPulseEngine {
   checkNotificationPermission() {
     if (!('Notification' in window)) {
       this.notifDot.className = 'status-dot denied';
-      this.notifStatusText.textContent = '不支援桌面推播';
+      this.notifStatusText.textContent = '此瀏覽器不支援桌面推播';
       this.btnRequestNotif.disabled = true;
+      return;
+    }
+
+    // 若在 file:// 本地協定開啟，瀏覽器出於安全機制禁止桌面推播
+    if (window.location.protocol === 'file:') {
+      this.notifDot.className = 'status-dot warning';
+      this.notifStatusText.textContent = '提示: 請透過 http://localhost:8899/ 開啟以啟用桌面推播';
+      this.btnRequestNotif.textContent = '👉 點擊切換至 localhost 啟用通知';
+      this.btnRequestNotif.onclick = () => {
+        window.location.href = 'http://localhost:8899/';
+      };
       return;
     }
 
@@ -415,10 +432,18 @@ class RealTrackPulseEngine {
       this.btnRequestNotif.style.display = 'none';
     } else if (Notification.permission === 'denied') {
       this.notifDot.className = 'status-dot denied';
-      this.notifStatusText.textContent = '通知權限：已封鎖';
+      this.notifStatusText.textContent = '通知權限：已被瀏覽器阻擋 (請點選網址旁鎖頭解除)';
+      this.btnRequestNotif.style.display = 'inline-flex';
+      this.btnRequestNotif.textContent = '🔒 如何解除阻擋';
+      this.btnRequestNotif.onclick = () => {
+        alert('請點擊瀏覽器上方網址列左側的「鎖頭 🔒」圖示，將「通知 (Notifications)」權限改為「允許」，然後重新整理頁面。');
+      };
     } else {
       this.notifDot.className = 'status-dot warning';
-      this.notifStatusText.textContent = '通知權限：點擊開啟桌面推播';
+      this.notifStatusText.textContent = '通知權限：未授權 (點擊啟動)';
+      this.btnRequestNotif.style.display = 'inline-flex';
+      this.btnRequestNotif.textContent = '🔔 啟動桌面通知';
+      this.btnRequestNotif.onclick = () => this.requestNotificationPermission();
     }
   }
 
@@ -430,6 +455,8 @@ class RealTrackPulseEngine {
       if (permission === 'granted') {
         this.sendWebNotification('TrackPulse 貨物追蹤系統', '桌面推播通知已成功啟用！當官網狀態改變時將自動提示。');
         this.playChimeSound('success');
+      } else if (permission === 'denied') {
+        this.showToast('權限授權被拒絕，請點選網址列左側鎖頭開啟通知', 'error');
       }
     } catch (err) {
       console.error(err);
