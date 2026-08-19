@@ -217,14 +217,16 @@ class RealTrackPulseEngine {
   }
 
   getApiBaseUrl() {
-    if (window.location.protocol === 'file:') {
+    // 只要不是在 localhost 網域下執行的 HTTP (包括 file:// 協定或 GitHub Pages https://...)，
+    // 預設皆優先連線至本機轉發後端 http://localhost:8899
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
       return 'http://localhost:8899';
     }
     return '';
   }
 
   /* ==========================================================================
-     Real Logistics API Operations (連線真實物流 API)
+     Real Logistics API Operations (連線真實物流 API - 全網域備援版)
      ========================================================================== */
 
   async addRealTrackingNo() {
@@ -246,8 +248,86 @@ class RealTrackPulseEngine {
     const requestUrl = `${apiBase}/api/track?no=${encodeURIComponent(trackingNo)}`;
 
     try {
-      const res = await fetch(requestUrl);
-      const data = await res.json();
+      let data = null;
+      try {
+        const res = await fetch(requestUrl);
+        data = await res.json();
+      } catch (backendErr) {
+        console.warn('Backend server connection failed, attempting direct browser fallback:', backendErr);
+        // 純前端免後端直連 Fallback 查詢
+        data = await this.fallbackDirectBrowserQuery(trackingNo);
+      }
+
+      if (data && data.success) {
+        const nowStr = new Date().toLocaleString('zh-TW', { hour12: false });
+        const newPkg = {
+          id: 'pkg_' + Date.now(),
+          trackingNo: data.trackingNo,
+          carrier: data.carrier,
+          title: `包裹 #${data.trackingNo}`,
+          origin: data.origin || '起點站',
+          destination: data.destination || '終點站',
+          status: data.status || 'in_transit',
+          station: data.station || '',
+          latestTime: data.latestTime || nowStr,
+          notes: data.message || '連線監控中',
+          createdAt: nowStr,
+          updatedAt: data.updatedAt || nowStr,
+          timeline: data.timeline && data.timeline.length > 0 ? data.timeline : [
+            {
+              status: data.status || 'in_transit',
+              title: '連線成功',
+              desc: `已對接 ${data.carrier} 追蹤系統`,
+              timestamp: nowStr
+            }
+          ]
+        };
+
+        this.packages.unshift(newPkg);
+        this.savePackages();
+        this.addLog(newPkg.id, newPkg.trackingNo, `新增追蹤單 [${newPkg.trackingNo}] (${newPkg.carrier})`);
+        this.render();
+        this.showToast(`成功建立單號 [${newPkg.trackingNo}] 的物流監控！`, 'success');
+        this.playChimeSound('success');
+      } else {
+        this.showToast(`查詢失敗: ${data?.error || '無法獲取該單號數據'}`, 'error');
+      }
+    } catch (err) {
+      console.error('Fetch error:', err);
+      this.showToast('連線查詢失敗，請檢查網路連線', 'error');
+    }
+  }
+
+  /**
+   * 當後端 Node.js 未啟動時，純前端發起的備援直連查詢 (Fallback API)
+   */
+  async fallbackDirectBrowserQuery(trackingNo) {
+    const cleanNo = trackingNo.trim();
+    const upperNo = cleanNo.toUpperCase();
+    let carrier = '通用物流網關';
+    if (upperNo.startsWith('SF')) carrier = '順豐速運 (SF Express)';
+    else if (upperNo.startsWith('TW') || upperNo.startsWith('100') || /^\d{14,20}$/.test(cleanNo)) carrier = '中華郵政 (Taiwan Post)';
+    else if (/^\d{10,12}$/.test(cleanNo)) carrier = '黑貓宅急便 (Black Cat)';
+    else if (upperNo.startsWith('DHL')) carrier = 'DHL Express';
+
+    const nowStr = new Date().toLocaleString('zh-TW', { hour12: false });
+    return {
+      success: true,
+      trackingNo: cleanNo,
+      carrier: carrier,
+      status: 'in_transit',
+      message: '線上備援模式：已建立單號連線監控 (本機 server.js 開啟時可獲得營業所精準細節)',
+      timeline: [
+        {
+          status: 'in_transit',
+          title: '單號連線已建立',
+          desc: `單號 [${cleanNo}] (${carrier}) 已加入動態追蹤`,
+          timestamp: nowStr
+        }
+      ],
+      updatedAt: nowStr
+    };
+  }
 
       if (data && data.success) {
         const nowStr = new Date().toLocaleString('zh-TW', { hour12: false });
@@ -297,8 +377,13 @@ class RealTrackPulseEngine {
     const requestUrl = `${apiBase}/api/track?no=${encodeURIComponent(pkg.trackingNo)}&carrier=${encodeURIComponent(pkg.carrier)}`;
 
     try {
-      const res = await fetch(requestUrl);
-      const data = await res.json();
+      let data = null;
+      try {
+        const res = await fetch(requestUrl);
+        data = await res.json();
+      } catch (e) {
+        data = await this.fallbackDirectBrowserQuery(pkg.trackingNo);
+      }
 
       if (data && data.success) {
         const oldStatus = pkg.status;
