@@ -329,44 +329,6 @@ class RealTrackPulseEngine {
     };
   }
 
-      if (data && data.success) {
-        const nowStr = new Date().toLocaleString('zh-TW', { hour12: false });
-        const newPkg = {
-          id: 'pkg_' + Date.now(),
-          trackingNo: data.trackingNo,
-          carrier: data.carrier,
-          title: `包裹 #${data.trackingNo}`,
-          origin: '起點轉運站',
-          destination: '目的地站點',
-          status: data.status || 'in_transit',
-          notes: data.message || '真實連線追蹤中',
-          createdAt: nowStr,
-          updatedAt: data.updatedAt || nowStr,
-          timeline: data.timeline && data.timeline.length > 0 ? data.timeline : [
-            {
-              status: data.status || 'in_transit',
-              title: '連線成功',
-              desc: `已連接 ${data.carrier} 追蹤系統`,
-              timestamp: nowStr
-            }
-          ]
-        };
-
-        this.packages.unshift(newPkg);
-        this.savePackages();
-        this.addLog(newPkg.id, newPkg.trackingNo, `新增真實追蹤單 [${newPkg.trackingNo}] (${newPkg.carrier})`);
-        this.render();
-        this.showToast(`成功建立單號 [${newPkg.trackingNo}] 的真實物流監控！`, 'success');
-        this.playChimeSound('success');
-      } else {
-        this.showToast(`查詢失敗: ${data.error || '無法連線到物流服務'}`, 'error');
-      }
-    } catch (err) {
-      console.error('Fetch error:', err);
-      this.showToast('網路連線失敗，請確認服務已啟動', 'error');
-    }
-  }
-
   async fetchPackageRealData(pkgId, manualTrigger = false) {
     const pkg = this.packages.find(p => p.id === pkgId);
     if (!pkg) return;
