@@ -34,6 +34,7 @@ X13/
 │   ├── motor_calculator/          # 馬達計算與等效電路繪製工具
 │   ├── display_hardware/          # OLED 版面設計與 3D 顯示 UI 工具
 │   ├── 慣量計算/                  # 多材質旋轉體轉動慣量與馬達動力學計算器 (慣量計算.html, 專案 JSON)
+│   ├── package_tracker/           # 貨物動態監控與即時通知系統 (index.html, styles.css, app.js)
 │   └── kavas_blower_control/      # KAVAS 鼓風機 ESP32 Wi-Fi 雲端 3通道數據採集與實體控制箱專案 (KAVAS手冊.pdf, KAVAS_ESP32_DataLogger_Design.md, PROJECT_PRESENTATION_BRIEFING.md, PROJECT_BRIEFING_FOR_NOTEBOOKLM.md, BOM_List.md, presentation.html, 3d_view.html, kavas_esp32_logger.ino, google_script.js, index.html, simulator.html)
 │
 ├── 💻 system_tools/               # 系統工具、軟體安裝檔與大容量 ISO

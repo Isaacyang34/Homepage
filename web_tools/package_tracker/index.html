@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>貨物追蹤與狀態通知系統 | Shipment Tracking Hub</title>
+  <meta name="description" content="高品質現代化貨物追蹤系統，具備狀態變更桌面推播、音效提醒與即時監控日誌。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header Navigation -->
+    <header class="top-nav">
+      <div class="brand">
+        <div class="logo-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>TrackPulse</h1>
+          <span class="sub-title">貨物動態監控與即時通知系統</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div class="status-indicator-pill" id="notificationStatusPill">
+          <span class="status-dot warning" id="notifDot"></span>
+          <span id="notifStatusText">通知權限：未授權</span>
+        </div>
+        <a href="../../index.html" class="btn btn-ghost" style="text-decoration: none;">
+          🏠 返回首頁
+        </a>
+        <button class="btn btn-secondary" id="btnRequestNotifPermission">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+          啟動桌面通知
+        </button>
+        <button class="btn btn-primary" id="btnOpenAddModal">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          新增追蹤包裹
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="main-content">
+      <!-- Top Metrics Dashboard -->
+      <section class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-icon total">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
+          </div>
+          <div class="metric-data">
+            <span class="metric-label">追蹤總數</span>
+            <span class="metric-value" id="statTotal">0</span>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon transit">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
+          </div>
+          <div class="metric-data">
+            <span class="metric-label">運輸配送中</span>
+            <span class="metric-value" id="statInTransit">0</span>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon delivered">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+          </div>
+          <div class="metric-data">
+            <span class="metric-label">已順利送達</span>
+            <span class="metric-value" id="statDelivered">0</span>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon exception">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          </div>
+          <div class="metric-data">
+            <span class="metric-label">異常 / 延誤</span>
+            <span class="metric-value" id="statException">0</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Control Toolbar & Quick Add Bar -->
+      <section class="toolbar-section">
+        <!-- Quick Add Tracking Box -->
+        <div class="quick-add-box">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><line x1="12" y1="12" x2="12" y2="22.08"></line></svg>
+          <input type="text" id="quickTrackingNoInput" placeholder="輸入單號直接追蹤 (例如 SF1234567)...">
+          <button class="btn btn-primary btn-sm" id="btnQuickAdd">
+            + 立即追蹤
+          </button>
+        </div>
+
+        <div class="search-box">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="searchInput" placeholder="搜尋單號、公司...">
+        </div>
+
+        <div class="filter-tabs" id="filterTabs">
+          <button class="filter-btn active" data-filter="all">全部 (0)</button>
+          <button class="filter-btn" data-filter="in_transit">運輸中</button>
+          <button class="filter-btn" data-filter="out_for_delivery">派送中</button>
+          <button class="filter-btn" data-filter="delivered">已送達</button>
+          <button class="filter-btn" data-filter="exception">異常</button>
+        </div>
+
+        <div class="toolbar-actions">
+          <div class="auto-polling-toggle">
+            <label class="switch">
+              <input type="checkbox" id="toggleAutoPolling">
+              <span class="slider round"></span>
+            </label>
+            <span class="toggle-label">自動輪詢</span>
+          </div>
+          <button class="btn btn-ghost" id="btnTestDemoPackage">
+            新增測試包裹
+          </button>
+          <button class="btn btn-ghost" id="btnTestNotificationSound">
+            測試音效
+          </button>
+        </div>
+      </section>
+
+      <!-- Main Columns: Package Cards & Activity Feed -->
+      <div class="content-split">
+        <!-- Package Cards Container -->
+        <section class="packages-container">
+          <div class="section-title-row">
+            <h2>包裹即時清單</h2>
+            <span class="sub-count" id="packageCountSub">共 0 筆記錄</span>
+          </div>
+
+          <!-- Empty State View -->
+          <div class="empty-state" id="emptyState">
+            <div class="empty-icon">
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                <line x1="12" y1="22.08" x2="12" y2="12"></line>
+              </svg>
+            </div>
+            <h3>尚無追蹤包裹記錄</h3>
+            <p>點擊上方「新增追蹤包裹」手動建立單號，或點擊「新增測試包裹」體驗自動輪詢與狀態通知功能。</p>
+            <button class="btn btn-primary" id="btnEmptyAdd">
+              + 立即建立第一筆追蹤單
+            </button>
+          </div>
+
+          <!-- Packages Grid -->
+          <div class="package-list" id="packageList"></div>
+        </section>
+
+        <!-- Right Audit Sidebar: Real-time Status Log -->
+        <aside class="audit-sidebar">
+          <div class="sidebar-header">
+            <div class="header-left">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"></path><circle cx="12" cy="12" r="10"></circle></svg>
+              <h3>狀態異動日誌 (Audit Log)</h3>
+            </div>
+            <button class="btn-text-only" id="btnClearLog">清除記錄</button>
+          </div>
+          
+          <div class="log-stream" id="logStream">
+            <div class="empty-log-msg" id="emptyLogMsg">暫無狀態異動歷史紀錄</div>
+          </div>
+
+          <div style="border-top: 1px dashed var(--border-color); padding-top: 12px; margin-top: 10px; font-size: 0.75rem; color: var(--text-dim); display: flex; align-items: center; gap: 6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            <span>🔒 <b>本地端隱私保護</b>：所有追蹤單號與歷史紀錄 100% 僅儲存於您瀏覽器的 LocalStorage，絕不上傳雲端。</span>
+          </div>
+        </aside>
+      </div>
+    </main>
+
+    <!-- Modal: Add / Edit Package -->
+    <div class="modal-backdrop" id="packageModal">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 id="modalTitle">新增包裹追蹤單</h3>
+          <button class="modal-close" id="btnCloseModal">&times;</button>
+        </div>
+        <form id="packageForm">
+          <input type="hidden" id="packageId">
+          <div class="form-group">
+            <label for="inputTrackingNo">物流追蹤單號 (Tracking Number) <span class="required">*</span></label>
+            <input type="text" id="inputTrackingNo" placeholder="例: SF1892304892 或 TW98273412" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group half">
+              <label for="inputCarrier">快遞/物流公司</label>
+              <select id="inputCarrier">
+                <option value="auto" selected>⚡ 自動辨識物流公司 (Auto Detect)</option>
+                <option value="黑貓宅急便 (Black Cat)">黑貓宅急便 (Black Cat)</option>
+                <option value="順豐速運 (SF Express)">順豐速運 (SF Express)</option>
+                <option value="中華郵政 (Taiwan Post)">中華郵政 (Taiwan Post)</option>
+                <option value="DHL Express">DHL Express</option>
+                <option value="FedEx 聯邦快遞">FedEx 聯邦快遞</option>
+                <option value="台灣便利配 (EZShip)">台灣便利配 (EZShip)</option>
+                <option value="自訂物流專車">自訂物流專車</option>
+              </select>
+            </div>
+            <div class="form-group half">
+              <label for="inputTitle">物品說明 / 備註名稱 (選填)</label>
+              <input type="text" id="inputTitle" placeholder="例: 伺服器主板 (空白則自動顯示單號)">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group half">
+              <label for="inputOrigin">寄件地 / 起點</label>
+              <input type="text" id="inputOrigin" placeholder="例: 台北市內湖區">
+            </div>
+            <div class="form-group half">
+              <label for="inputDestination">目的地 / 終點</label>
+              <input type="text" id="inputDestination" placeholder="例: 高雄市前鎮區">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="inputStatus">初始狀態</label>
+            <select id="inputStatus">
+              <option value="created">已建立單號 (Created)</option>
+              <option value="picked_up">已攬收 / 寄件中 (Picked Up)</option>
+              <option value="in_transit" selected>連線運輸中 (In Transit)</option>
+              <option value="out_for_delivery">到達轉運站 / 派送中 (Out for Delivery)</option>
+              <option value="delivered">已送達 (Delivered)</option>
+              <option value="exception">包裹異常 / 退回 (Exception)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="inputNotes">備註說明</label>
+            <textarea id="inputNotes" rows="2" placeholder="注意事項或收件人備註..."></textarea>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="btnCancelModal">取消</button>
+            <button type="submit" class="btn btn-primary" id="btnSubmitModal">儲存並啟動監控</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: Timeline & Details -->
+    <div class="modal-backdrop" id="timelineModal">
+      <div class="modal-card modal-lg">
+        <div class="modal-header">
+          <div>
+            <h3 id="timelineModalTitle">包裹追蹤歷程詳情</h3>
+            <span class="modal-sub-id" id="timelineModalSubId">SF123456789</span>
+          </div>
+          <button class="modal-close" id="btnCloseTimelineModal">&times;</button>
+        </div>
+        
+        <div class="timeline-body">
+          <div class="timeline-summary-card">
+            <div class="summary-col">
+              <span class="label">當前狀態</span>
+              <span class="value-badge" id="modalCurrentStatus">運輸中</span>
+            </div>
+            <div class="summary-col">
+              <span class="label">起訖站點</span>
+              <span class="value" id="modalRouteText">台北 ➔ 高雄</span>
+            </div>
+            <div class="summary-col">
+              <span class="label">物流公司</span>
+              <span class="value" id="modalCarrierText">順豐速運</span>
+            </div>
+            <div class="summary-col">
+              <span class="label">更新時間</span>
+              <span class="value" id="modalEtaText">--</span>
+            </div>
+          </div>
+
+          <!-- Quick Action Buttons for Manual Status Simulation -->
+          <div class="sim-actions-box">
+            <span class="sim-label">⚡ 手動/測試推進狀態 (發送異動通知):</span>
+            <div class="sim-btn-group">
+              <button class="btn btn-sm btn-ghost" onclick="window.advancePackageStatus('picked_up')">➔ 變更為「攬收」</button>
+              <button class="btn btn-sm btn-ghost" onclick="window.advancePackageStatus('in_transit')">➔ 變更為「運輸中」</button>
+              <button class="btn btn-sm btn-ghost" onclick="window.advancePackageStatus('out_for_delivery')">➔ 變更為「派送中」</button>
+              <button class="btn btn-sm btn-success-sm" onclick="window.advancePackageStatus('delivered')">✓ 變更為「已送達」</button>
+              <button class="btn btn-sm btn-danger-sm" onclick="window.advancePackageStatus('exception')">⚠ 標示「異常」</button>
+            </div>
+          </div>
+
+          <h4 class="history-title">狀態異動時間軸歷程</h4>
+          <div class="timeline-stepper" id="modalTimelineStepper">
+            <!-- Dynamic Stepper -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notification Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
