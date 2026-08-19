@@ -417,10 +417,10 @@ class RealTrackPulseEngine {
 
     if (window.location.protocol === 'file:') {
       this.notifDot.className = 'status-dot warning';
-      this.notifStatusText.textContent = '提示: file:// 協定受限，請透過 http://localhost:8899/ 開啟';
+      this.notifStatusText.textContent = '通知權限: 當前為檔案檢視 (ⓘ 檔案)，請點擊右方一鍵切換';
       if (this.btnRequestNotif) {
         this.btnRequestNotif.style.display = 'inline-flex';
-        this.btnRequestNotif.textContent = '👉 切換至 localhost 開啟推播';
+        this.btnRequestNotif.innerHTML = '⚡ 一鍵切換至 localhost 啟用通知';
         this.btnRequestNotif.onclick = () => { window.location.href = 'http://localhost:8899/'; };
       }
       return;
