@@ -1,0 +1,20 @@
+﻿# Python & virtual environment
+__pycache__/
+*.py[cod]
+*.class
+venv/
+env/
+.env
+
+# Temporary / Cached videos
+*.tmp
+*.temp
+temp_downloads/
+static_videos/*
+!static_videos/.gitkeep
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

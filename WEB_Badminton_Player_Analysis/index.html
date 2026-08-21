@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>羽球選手動作生物力學與姿態分析系統 | Badminton Pose AI</title>
+    <meta name="description" content="基於電腦視覺與人體骨架關鍵點的羽球運動員動作姿態分析、關節角度測量、起跳高度與球場移動熱力圖系統。">
+    
+    <!-- Google Fonts: Inter & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js for Kinematic Curves -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Main Style -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Toast Notification Banner -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div class="app-container">
+        <!-- Top Navigation Header -->
+        <header class="app-header">
+            <div class="brand-group">
+                <div class="brand-logo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="5" r="3" />
+                        <path d="M12 8v8M8 12h8M9 16l3 5 3-5" />
+                    </svg>
+                </div>
+                <div class="brand-text">
+                    <h1>BADMINTON <span class="accent-text">VISION AI</span></h1>
+                    <span class="sub-text">運動員動作生物力學與姿態分析系統</span>
+                </div>
+            </div>
+
+            <!-- Current Action Phase Badge -->
+            <div class="action-phase-banner">
+                <span class="phase-label">目前動作階段</span>
+                <div class="phase-badge phase-ready" id="currentPhaseBadge">
+                    <span class="pulse-dot"></span>
+                    <span id="currentPhaseText">準備站位 (READY)</span>
+                </div>
+            </div>
+
+            <!-- Right Controls: Backend Status & Actions -->
+            <div class="header-actions">
+                <button class="btn btn-youtube" id="btnOpenYoutubeModal">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                    </svg>
+                    YouTube 網址分析
+                </button>
+                <button class="btn btn-secondary" id="btnLoadDemo">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    載入示範殺球分析
+                </button>
+                <label class="btn btn-primary" for="videoFileInput">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    上傳本機影片
+                </label>
+                <input type="file" id="videoFileInput" accept="video/mp4,video/webm,video/quicktime" style="display: none;">
+            </div>
+        </header>
+
+        <!-- Main Dashboard Grid -->
+        <main class="dashboard-grid">
+            <!-- Left & Center: Video Stage & Player Overlay -->
+            <section class="video-section card">
+                <div class="card-header">
+                    <div class="header-title">
+                        <span class="icon-indicator"></span>
+                        <h2>即時動作骨架與姿態視圖 (Pose Overlay)</h2>
+                    </div>
+                    <div class="layer-toggles">
+                        <label class="toggle-chip">
+                            <input type="checkbox" id="chkVideoBg" checked>
+                            <span class="chip-text">原始影片重合</span>
+                        </label>
+                        <label class="toggle-chip">
+                            <input type="checkbox" id="chkSkeleton" checked>
+                            <span class="chip-text">17點骨架</span>
+                        </label>
+                        <label class="toggle-chip">
+                            <input type="checkbox" id="chkAngles" checked>
+                            <span class="chip-text">關節角度</span>
+                        </label>
+                        <label class="toggle-chip">
+                            <input type="checkbox" id="chkCoM" checked>
+                            <span class="chip-text">重心軌跡 (CoM)</span>
+                        </label>
+                        <label class="toggle-chip">
+                            <input type="checkbox" id="chkJumpApex" checked>
+                            <span class="chip-text">起跳高度標尺</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Video + Canvas Container -->
+                <div class="video-stage" id="videoStage">
+                    <video id="mainVideo" src="real_match_demo.mp4" playsinline muted loop autoplay></video>
+                    <canvas id="poseCanvas"></canvas>
+                    
+                    <!-- Overlay HUD elements -->
+                    <div class="hud-overlay" id="hudOverlay">
+                        <div class="hud-stat-badge" id="hudSmashSpeed">
+                            <span class="label">手臂角速度</span>
+                            <span class="val" id="hudAngularVel">0.0</span> <span class="unit">°/s</span>
+                        </div>
+                        <div class="hud-stat-badge" id="hudJumpApexBadge">
+                            <span class="label">即時高度</span>
+                            <span class="val" id="hudJumpHeight">0.0</span> <span class="unit">cm</span>
+                        </div>
+                    </div>
+
+                    <!-- Upload & YouTube URL placeholder when no video -->
+                    <div class="video-placeholder" id="videoPlaceholder">
+                        <div class="placeholder-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="m10 8 6 4-6 4V8z"/>
+                            </svg>
+                        </div>
+                        <h3>貼上 YouTube 比賽網址 或 上傳影片</h3>
+                        <p>支援直接貼上 YouTube 影片網址裁剪回合，或拖曳本機 MP4 / MOV 檔案分析</p>
+
+                        <!-- Direct YouTube Input Bar in Placeholder -->
+                        <div class="yt-direct-bar">
+                            <div class="yt-input-wrapper">
+                                <svg class="yt-icon-svg" viewBox="0 0 24 24" fill="#FF385C" width="20" height="20">
+                                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                                </svg>
+                                <input type="text" id="directYtUrlInput" placeholder="在此貼上 YouTube 網址 (例如: https://www.youtube.com/watch?v=...)" />
+                            </div>
+                            <button class="btn btn-youtube" id="btnDirectYtSubmit">
+                                <span>立即抓取分析</span>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                            </button>
+                        </div>
+
+                        <div class="placeholder-actions">
+                            <span class="or-divider">或</span>
+                            <button class="btn btn-secondary" onclick="document.getElementById('videoFileInput').click()">選擇本機影片檔案</button>
+                            <button class="btn btn-secondary" id="btnPlaceholderDemo">載入內建範例</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Playback Control Toolbar -->
+                <div class="playback-toolbar">
+                    <div class="timeline-container">
+                        <span class="time-label" id="currentTimeLabel">00:00.00</span>
+                        <input type="range" id="timelineSlider" min="0" max="100" value="0" step="0.1">
+                        <span class="time-label" id="durationLabel">00:00.00</span>
+                    </div>
+
+                    <div class="controls-row">
+                        <div class="btn-group">
+                            <button class="icon-btn" id="btnStepBack" title="上一幀 (1/30s)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
+                            </button>
+                            <button class="icon-btn play-btn" id="btnPlayPause" title="播放/暫停">
+                                <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                <svg id="pauseIcon" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                            </button>
+                            <button class="icon-btn" id="btnStepForward" title="下一幀 (1/30s)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+                            </button>
+                        </div>
+
+                        <div class="speed-selector">
+                            <span class="speed-label">播放倍率:</span>
+                            <button class="speed-btn active" data-speed="1">1.0x</button>
+                            <button class="speed-btn" data-speed="0.5">0.5x</button>
+                            <button class="speed-btn" data-speed="0.25">0.25x 慢動作</button>
+                        </div>
+
+                        <div class="frame-indicator">
+                            幀數: <span id="currentFrameNum" class="highlight-mono">0</span> / <span id="totalFrameNum" class="highlight-mono">0</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Column: Real-time Biomechanics Gauges -->
+            <aside class="metrics-section">
+                <!-- Gauge 1: Dominant Elbow Extension -->
+                <div class="metric-card card">
+                    <div class="metric-header">
+                        <div class="title-with-desc">
+                            <h3>持拍手肘關節角度 (Elbow Angle)</h3>
+                            <span class="metric-desc">肩-肘-腕夾角 (引拍蓄力 ➔ 擊球伸展)</span>
+                        </div>
+                        <span class="metric-tag" id="elbowStatusTag">準備</span>
+                    </div>
+                    
+                    <div class="gauge-container">
+                        <div class="gauge-visual">
+                            <svg viewBox="0 0 160 90" class="gauge-svg">
+                                <path d="M 20 80 A 60 60 0 0 1 140 80" class="gauge-bg" />
+                                <path d="M 20 80 A 60 60 0 0 1 140 80" class="gauge-fill" id="elbowGaugeFill" stroke-dasharray="188.5" stroke-dashoffset="188.5" />
+                            </svg>
+                            <div class="gauge-value-display">
+                                <span class="gauge-value" id="valElbowAngle">--</span><span class="unit">°</span>
+                            </div>
+                        </div>
+                        <div class="gauge-scale">
+                            <span>0° (極度彎曲)</span>
+                            <span class="target-zone">160°~180° (最佳伸展)</span>
+                            <span>180° (完全打直)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gauge 2: Knee Flexion (Squat & Jump Loading) -->
+                <div class="metric-card card">
+                    <div class="metric-header">
+                        <div class="title-with-desc">
+                            <h3>膝關節下蹲蹬地角度 (Knee Angle)</h3>
+                            <span class="metric-desc">髖-膝-踝夾角 (深蹲蓄力與起跳彈性)</span>
+                        </div>
+                        <span class="metric-tag tag-cyan" id="kneeStatusTag">正常</span>
+                    </div>
+                    <div class="gauge-container">
+                        <div class="gauge-visual">
+                            <svg viewBox="0 0 160 90" class="gauge-svg">
+                                <path d="M 20 80 A 60 60 0 0 1 140 80" class="gauge-bg" />
+                                <path d="M 20 80 A 60 60 0 0 1 140 80" class="gauge-fill gauge-cyan" id="kneeGaugeFill" stroke-dasharray="188.5" stroke-dashoffset="188.5" />
+                            </svg>
+                            <div class="gauge-value-display">
+                                <span class="gauge-value" id="valKneeAngle">--</span><span class="unit">°</span>
+                            </div>
+                        </div>
+                        <div class="gauge-scale">
+                            <span>90° (深蹲蓄力)</span>
+                            <span>140° (準備步法)</span>
+                            <span>180° (伸直)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Vertical Jump & Air Time Card -->
+                <div class="stats-twin-card">
+                    <div class="sub-card card">
+                        <span class="sub-label">垂直起跳高度 (Apex)</span>
+                        <div class="sub-val-group">
+                            <span class="sub-val highlight-gold" id="valJumpHeight">0.0</span>
+                            <span class="sub-unit">cm</span>
+                        </div>
+                        <span class="sub-footnote" id="valMaxJumpRecord">歷史最高: 0.0 cm</span>
+                    </div>
+                    <div class="sub-card card">
+                        <span class="sub-label">軀幹側傾角 (Torso Tilt)</span>
+                        <div class="sub-val-group">
+                            <span class="sub-val" id="valShoulderTilt">0.0</span>
+                            <span class="sub-unit">°</span>
+                        </div>
+                        <span class="sub-footnote">側身蓄力發力幅度</span>
+                    </div>
+                </div>
+
+                <!-- Action Biomechanics Evaluation Feedback -->
+                <div class="coach-card card">
+                    <div class="coach-header">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00F59B" stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                            <polyline points="22 4 12 14.01 9 11.01"/>
+                        </svg>
+                        <h3>AI 生物力學教練診斷 (Coaching Tips)</h3>
+                    </div>
+                    <ul class="feedback-list" id="feedbackList">
+                        <li class="item-loading">請載入示範數據或上傳影片以進行診斷...</li>
+                    </ul>
+                </div>
+            </aside>
+        </main>
+
+        <!-- Bottom Tabbed Analysis Section -->
+        <section class="bottom-analytics-section card">
+            <div class="tab-header">
+                <div class="tab-buttons">
+                    <button class="tab-btn active" data-tab="tabRadar">2D 球場跑動雷達與熱力圖</button>
+                    <button class="tab-btn" data-tab="tabKinematics">時序生物力學曲線圖 (Kinematics)</button>
+                    <button class="tab-btn" data-tab="tabPhaseBreakdown">動作週期時序分佈 (Phase Timeline)</button>
+                </div>
+                <div class="tab-extra-info" id="tabExtraInfo">
+                    跑動覆蓋總面積: <span class="highlight-mono" id="valCourtCoverage">68.5%</span>
+                </div>
+            </div>
+
+            <!-- Tab Content 1: 2D Mini-Court Radar -->
+            <div class="tab-pane active" id="tabRadar">
+                <div class="court-radar-layout">
+                    <div class="court-canvas-wrapper">
+                        <div class="court-view-bar">
+                            <span class="court-view-title">BWF 標準羽球場 (13.40m × 6.10m)</span>
+                            <div class="court-toggle-group">
+                                <button class="court-view-btn active" id="btnCourtVertical" data-orientation="vertical">直立俯視</button>
+                                <button class="court-view-btn" id="btnCourtHorizontal" data-orientation="horizontal">橫向視角</button>
+                            </div>
+                        </div>
+                        <canvas id="courtRadarCanvas" width="340" height="560"></canvas>
+                    </div>
+                    <div class="radar-stats-panel">
+                        <h4>球場站位與落點分佈 (Court Positioning & Heatmap)</h4>
+                        
+                        <div class="court-metrics-grid">
+                            <div class="court-metric-box">
+                                <span class="box-label">後場進攻站位</span>
+                                <span class="box-val highlight-emerald" id="statBackcourt">45%</span>
+                            </div>
+                            <div class="court-metric-box">
+                                <span class="box-label">中場平抽防守</span>
+                                <span class="box-val highlight-cyan" id="statMidcourt">35%</span>
+                            </div>
+                            <div class="court-metric-box">
+                                <span class="box-label">網前撲推站位</span>
+                                <span class="box-val" id="statForecourt">20%</span>
+                            </div>
+                            <div class="court-metric-box">
+                                <span class="box-label">回防中心偏離度</span>
+                                <span class="box-val" id="statCenterDeviation">0.32 m</span>
+                            </div>
+                        </div>
+
+                        <div class="stat-bar-group">
+                            <div class="stat-bar-label">
+                                <span>後場底線進攻區 (Backcourt - 4.72m~6.70m)</span>
+                                <span>45%</span>
+                            </div>
+                            <div class="progress-bar"><div class="bar-fill" id="barBackcourt" style="width: 45%;"></div></div>
+                        </div>
+                        <div class="stat-bar-group">
+                            <div class="stat-bar-label">
+                                <span>中場接殺防守區 (Midcourt - 1.98m~4.72m)</span>
+                                <span>35%</span>
+                            </div>
+                            <div class="progress-bar"><div class="bar-fill" id="barMidcourt" style="width: 35%;"></div></div>
+                        </div>
+                        <div class="stat-bar-group">
+                            <div class="stat-bar-label">
+                                <span>前場網前控制區 (Forecourt - 0.00m~1.98m)</span>
+                                <span>20%</span>
+                            </div>
+                            <div class="progress-bar"><div class="bar-fill" id="barForecourt" style="width: 20%;"></div></div>
+                        </div>
+
+                        <div class="court-spec-info">
+                            <div class="spec-item"><strong>標準全場長度</strong>：13.40 m</div>
+                            <div class="spec-item"><strong>雙打全場寬度</strong>：6.10 m (單打 5.18 m)</div>
+                            <div class="spec-item"><strong>前發球線距離球網</strong>：1.98 m</div>
+                            <div class="spec-item"><strong>雙打後發球線距離底線</strong>：0.76 m</div>
+                        </div>
+
+                        <div class="court-legend">
+                            <span class="legend-dot dot-player"></span> 選手即時位置
+                            <span class="legend-dot dot-trail"></span> 移動步法軌跡
+                            <span class="legend-dot dot-smash"></span> 殺球起跳點
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Content 2: Kinematics Chart.js -->
+            <div class="tab-pane" id="tabKinematics">
+                <div class="chart-container">
+                    <canvas id="kinematicsChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Tab Content 3: Phase Timeline -->
+            <div class="tab-pane" id="tabPhaseBreakdown">
+                <div class="phase-timeline-container" id="phaseTimelineContainer">
+                    <!-- Dynamic timeline bars rendered here -->
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- YouTube Import & Clipping Modal -->
+    <div class="modal-backdrop" id="youtubeModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <div class="modal-icon-badge">
+                        <svg viewBox="0 0 24 24" fill="#FF385C" width="22" height="22">
+                            <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3>YouTube 羽球影片線上抓取與分析</h3>
+                        <span class="modal-sub">自動下載指定高畫質回合 (Rally)，由 YOLO-Pose 進行生物力學運算</span>
+                    </div>
+                </div>
+                <button class="modal-close-btn" id="btnCloseYtModal">&times;</button>
+            </div>
+
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="modalYtUrl">YouTube 影片網址 (URL)</label>
+                    <input type="text" id="modalYtUrl" class="form-input" placeholder="https://www.youtube.com/watch?v=..." />
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="modalYtStart">裁剪起始時間 (選填)</label>
+                        <input type="text" id="modalYtStart" class="form-input" placeholder="00:01:30" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="modalYtEnd">裁剪結束時間 (選填)</label>
+                        <input type="text" id="modalYtEnd" class="form-input" placeholder="00:01:50" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="modalYtQuality">解析度</label>
+                        <select id="modalYtQuality" class="form-input form-select">
+                            <option value="1080">1080p 60fps (最佳)</option>
+                            <option value="720">720p 60fps</option>
+                            <option value="480">480p (最快速)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Quick Presets -->
+                <div class="presets-section">
+                    <span class="presets-title">⚡ 快速測試推薦範例 (真實轉播重合)：</span>
+                    <div class="preset-chips">
+                        <button class="preset-chip" data-player="tai" data-url="https://www.youtube.com/watch?v=demo_tai_trickshot" data-start="00:01:05" data-end="00:01:20">戴資穎 網前假動作滑拍</button>
+                        <button class="preset-chip" data-player="axelsen" data-url="https://www.youtube.com/watch?v=demo_axelsen_smash" data-start="00:00:10" data-end="00:00:25">安賽龍 390km/h 跳殺回合</button>
+                    </div>
+                </div>
+
+                <div class="modal-status-box" id="ytModalStatus" style="display: none;">
+                    <div class="spinner"></div>
+                    <span id="ytModalStatusText">正在下載並提取骨架數據...</span>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="btnCancelYtModal">取消</button>
+                <button class="btn btn-youtube" id="btnSubmitYtModal">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    開始抓取與 AI 分析
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TensorFlow.js & MoveNet Real In-Browser AI Pose Detection -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
+
+    <!-- Application Script -->
+    <script src="demo_sample.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
