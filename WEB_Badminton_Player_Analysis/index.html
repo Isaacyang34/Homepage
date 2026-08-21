@@ -363,8 +363,12 @@
                         <div class="court-view-bar">
                             <span class="court-view-title">BWF 標準羽球場 (13.40m × 6.10m)</span>
                             <div class="court-toggle-group">
-                                <button class="court-view-btn active" id="btnCourtVertical" data-orientation="vertical">直立俯視</button>
-                                <button class="court-view-btn" id="btnCourtHorizontal" data-orientation="horizontal">橫向視角</button>
+                                <button class="court-view-btn active" id="btnModeHeatmap">🔥 熱力圖</button>
+                                <button class="court-view-btn" id="btnModeShots">🎯 落點分佈</button>
+                                <button class="court-view-btn" id="btnModeTrail">📡 步法軌跡</button>
+                                <span class="court-divider-v">|</span>
+                                <button class="court-view-btn" id="btnCourtVertical" data-orientation="vertical">直立</button>
+                                <button class="court-view-btn" id="btnCourtHorizontal" data-orientation="horizontal">橫向</button>
                             </div>
                         </div>
                         <canvas id="courtRadarCanvas" width="340" height="560"></canvas>

@@ -1193,11 +1193,34 @@
         renderShuttlecockTrajectory(ctx, currentFrameIdx, mapX, mapY, box);
     }
 
-    // Court View Orientation State
+    // Court View Orientation and Display Mode State
     let courtOrientation = 'vertical'; // 'vertical' or 'horizontal'
+    let courtDisplayMode = 'heatmap';  // 'heatmap', 'shots', 'trail'
 
     // 2D 球場小地圖 (Mini-Court)
     function initCourtRadar() {
+        // 綁定模式切換按鈕
+        const btnHeatmap = document.getElementById('btnModeHeatmap');
+        const btnShots = document.getElementById('btnModeShots');
+        const btnTrail = document.getElementById('btnModeTrail');
+
+        const modeBtns = [btnHeatmap, btnShots, btnTrail];
+        modeBtns.forEach(btn => {
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    modeBtns.forEach(b => b && b.classList.remove('active'));
+                    btn.classList.add('active');
+                    if (btn === btnHeatmap) courtDisplayMode = 'heatmap';
+                    else if (btn === btnShots) courtDisplayMode = 'shots';
+                    else if (btn === btnTrail) courtDisplayMode = 'trail';
+
+                    if (currentData && currentData.frames[currentFrameIdx]) {
+                        updateCourtRadar(currentData.frames[currentFrameIdx]);
+                    }
+                });
+            }
+        });
+
         // 綁定視角切換按鈕
         const btnV = document.getElementById('btnCourtVertical');
         const btnH = document.getElementById('btnCourtHorizontal');
@@ -1439,19 +1462,138 @@
 
         const { cX, cY, courtW, courtH, orientation } = courtGeom;
 
-        // 繪製歷史跑動軌跡 (Past Footwork Trail)
-        if (currentData) {
+        // =========================================================================
+        // 模式 1: 🔥 多層次高斯熱力圖 (Gaussian Density Heatmap Mode)
+        // =========================================================================
+        if (courtDisplayMode === 'heatmap' && currentData && currentData.frames) {
+            // 累計當前回合的所有步法點並繪製半透明平滑疊加光暈
+            currentData.frames.forEach((f, idx) => {
+                if (idx <= currentFrameIdx) {
+                    let hx = 0.5, hy = 0.75;
+                    if (f.court_position) {
+                        hx = f.court_position.norm_x !== undefined ? f.court_position.norm_x : 0.5;
+                        hy = f.court_position.norm_y !== undefined ? f.court_position.norm_y : 0.75;
+                    } else if (f.metrics && f.metrics.center_of_mass) {
+                        hx = f.metrics.center_of_mass.x / 1280.0;
+                        hy = f.metrics.center_of_mass.y / 720.0;
+                    }
+
+                    let px, py;
+                    if (orientation === 'vertical') {
+                        px = cX + hx * courtW;
+                        py = cY + hy * courtH;
+                    } else {
+                        px = cX + hy * courtW;
+                        py = cY + hx * courtH;
+                    }
+
+                    const isSmashPoint = f.phase && (f.phase.includes('IMPACT') || f.phase.includes('擊球') || (f.jump_height_cm > 20));
+                    const radius = isSmashPoint ? 52 : 38;
+
+                    const grad = courtCtx.createRadialGradient(px, py, 2, px, py, radius);
+                    if (isSmashPoint) {
+                        grad.addColorStop(0, 'rgba(255, 56, 92, 0.45)');
+                        grad.addColorStop(0.4, 'rgba(255, 184, 0, 0.25)');
+                        grad.addColorStop(1, 'rgba(255, 56, 92, 0)');
+                    } else {
+                        grad.addColorStop(0, 'rgba(0, 245, 155, 0.35)');
+                        grad.addColorStop(0.5, 'rgba(0, 210, 255, 0.18)');
+                        grad.addColorStop(1, 'rgba(0, 245, 155, 0)');
+                    }
+                    courtCtx.fillStyle = grad;
+                    courtCtx.beginPath();
+                    courtCtx.arc(px, py, radius, 0, Math.PI * 2);
+                    courtCtx.fill();
+                }
+            });
+
+            // 繪製熱力圖專屬圖例
+            courtCtx.save();
+            courtCtx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+            courtCtx.font = '700 10px "JetBrains Mono", monospace';
+            courtCtx.textAlign = 'center';
+            courtCtx.fillText('🔥 熱區圖層: 🔴 擊球核心  🟢 跑動巡航', cX + courtW / 2, cY + courtH + 18);
+            courtCtx.restore();
+        }
+
+        // =========================================================================
+        // 模式 2: 🎯 落點分佈與球路走向 (Shot Landings & Trajectory Clusters)
+        // =========================================================================
+        if (courtDisplayMode === 'shots' && currentData && currentData.frames) {
+            currentData.frames.forEach((f, idx) => {
+                if (idx <= currentFrameIdx && f.shuttlecock) {
+                    const sc = f.shuttlecock;
+                    const snormX = sc.x / 1280.0;
+                    const snormY = sc.y / 720.0;
+                    let spx = orientation === 'vertical' ? (cX + snormX * courtW) : (cX + snormY * courtW);
+                    let spy = orientation === 'vertical' ? (cY + snormY * courtH) : (cY + snormX * courtH);
+
+                    courtCtx.save();
+                    if (sc.is_hit) {
+                        // 擊球發射點 (紅色八角星光芒)
+                        courtCtx.beginPath();
+                        courtCtx.arc(spx, spy, 9, 0, Math.PI * 2);
+                        courtCtx.fillStyle = '#FF385C';
+                        courtCtx.fill();
+                        courtCtx.strokeStyle = '#FFFFFF';
+                        courtCtx.lineWidth = 1.8;
+                        courtCtx.stroke();
+
+                        courtCtx.fillStyle = '#FF385C';
+                        courtCtx.font = '700 9.5px "JetBrains Mono", monospace';
+                        courtCtx.fillText(`🔥${sc.speed_kmh}k`, spx + 12, spy + 3);
+                    } else if (sc.is_landed) {
+                        // 落點目標靶心 (鷹眼判定)
+                        const col = sc.is_in_court ? '#00F59B' : '#FF385C';
+                        courtCtx.beginPath();
+                        courtCtx.arc(spx, spy, 14, 0, Math.PI * 2);
+                        courtCtx.strokeStyle = col;
+                        courtCtx.lineWidth = 2.5;
+                        courtCtx.stroke();
+
+                        courtCtx.beginPath();
+                        courtCtx.arc(spx, spy, 5, 0, Math.PI * 2);
+                        courtCtx.fillStyle = col;
+                        courtCtx.fill();
+
+                        courtCtx.fillStyle = 'rgba(6, 10, 18, 0.9)';
+                        courtCtx.fillRect(spx - 30, spy - 26, 60, 18);
+                        courtCtx.strokeStyle = col;
+                        courtCtx.lineWidth = 1;
+                        courtCtx.strokeRect(spx - 30, spy - 26, 60, 18);
+
+                        courtCtx.fillStyle = col;
+                        courtCtx.font = '800 10px "JetBrains Mono", monospace';
+                        courtCtx.textAlign = 'center';
+                        courtCtx.fillText(sc.is_in_court ? `IN (${sc.hawkeye_dist_cm || 2.4}cm)` : 'OUT', spx, spy - 13);
+                    }
+                    courtCtx.restore();
+                }
+            });
+        }
+
+        // =========================================================================
+        // 模式 3: 📡 歷史步法軌跡連線 (Footwork Vector Trail)
+        // =========================================================================
+        if (currentData && (courtDisplayMode === 'trail' || courtDisplayMode === 'heatmap')) {
             courtCtx.beginPath();
-            courtCtx.strokeStyle = 'rgba(0, 210, 255, 0.5)';
-            courtCtx.lineWidth = 3;
+            courtCtx.strokeStyle = courtDisplayMode === 'trail' ? '#00D2FF' : 'rgba(0, 210, 255, 0.4)';
+            courtCtx.lineWidth = courtDisplayMode === 'trail' ? 3 : 2;
             courtCtx.lineCap = 'round';
             courtCtx.lineJoin = 'round';
 
+            let firstPoint = true;
             for (let i = 0; i <= currentFrameIdx; i++) {
                 const fd = currentData.frames[i];
-                if (fd && fd.metrics) {
-                    const normX = (fd.metrics.court_x !== undefined) ? fd.metrics.court_x : 0.5;
-                    const normY = (fd.metrics.court_y !== undefined) ? fd.metrics.court_y : 0.75;
+                if (fd) {
+                    let normX = 0.5, normY = 0.75;
+                    if (fd.court_position) {
+                        normX = fd.court_position.norm_x !== undefined ? fd.court_position.norm_x : 0.5;
+                        normY = fd.court_position.norm_y !== undefined ? fd.court_position.norm_y : 0.75;
+                    } else if (fd.metrics && fd.metrics.center_of_mass) {
+                        normX = fd.metrics.center_of_mass.x / 1280.0;
+                        normY = fd.metrics.center_of_mass.y / 720.0;
+                    }
                     
                     let px, py;
                     if (orientation === 'vertical') {
@@ -1462,53 +1604,60 @@
                         py = cY + normX * courtH;
                     }
 
-                    if (i === 0) courtCtx.moveTo(px, py);
-                    else courtCtx.lineTo(px, py);
+                    if (firstPoint) {
+                        courtCtx.moveTo(px, py);
+                        firstPoint = false;
+                    } else {
+                        courtCtx.lineTo(px, py);
+                    }
                 }
             }
             courtCtx.stroke();
         }
 
         // 繪製選手即時位置點 (Current Player Dot)
-        const m = frameData.metrics;
-        const normX = (m.court_x !== undefined) ? m.court_x : 0.5;
-        const normY = (m.court_y !== undefined) ? m.court_y : 0.75;
+        let curNormX = 0.5, curNormY = 0.75;
+        if (frameData.court_position) {
+            curNormX = frameData.court_position.norm_x !== undefined ? frameData.court_position.norm_x : 0.5;
+            curNormY = frameData.court_position.norm_y !== undefined ? frameData.court_position.norm_y : 0.75;
+        } else if (frameData.metrics && frameData.metrics.center_of_mass) {
+            curNormX = frameData.metrics.center_of_mass.x / 1280.0;
+            curNormY = frameData.metrics.center_of_mass.y / 720.0;
+        }
 
         let posX, posY;
         if (orientation === 'vertical') {
-            posX = cX + normX * courtW;
-            posY = cY + normY * courtH;
+            posX = cX + curNormX * courtW;
+            posY = cY + curNormY * courtH;
         } else {
-            posX = cX + normY * courtW;
-            posY = cY + normX * courtH;
+            posX = cX + curNormY * courtW;
+            posY = cY + curNormX * courtH;
         }
 
-        // 判斷是否為殺球瞬間 (若是，繪製紅色殺球高光標記)
-        const isSmashApex = frameData.phase && (frameData.phase.includes('IMPACT') || frameData.phase.includes('擊球'));
+        // 判斷是否為殺球瞬間
+        const isSmashApex = frameData.phase && (frameData.phase.includes('IMPACT') || frameData.phase.includes('擊球') || (frameData.jump_height_cm > 20));
 
         if (isSmashApex) {
-            // 紅色爆發光波
             courtCtx.beginPath();
-            courtCtx.arc(posX, posY, 18, 0, Math.PI * 2);
-            courtCtx.fillStyle = 'rgba(255, 56, 92, 0.4)';
+            courtCtx.arc(posX, posY, 20, 0, Math.PI * 2);
+            courtCtx.fillStyle = 'rgba(255, 56, 92, 0.45)';
             courtCtx.fill();
 
             courtCtx.beginPath();
-            courtCtx.arc(posX, posY, 8, 0, Math.PI * 2);
+            courtCtx.arc(posX, posY, 9, 0, Math.PI * 2);
             courtCtx.fillStyle = '#FF385C';
             courtCtx.fill();
             courtCtx.strokeStyle = '#FFFFFF';
             courtCtx.lineWidth = 2;
             courtCtx.stroke();
         } else {
-            // 綠色站位光波
             courtCtx.beginPath();
-            courtCtx.arc(posX, posY, 14, 0, Math.PI * 2);
-            courtCtx.fillStyle = 'rgba(0, 245, 155, 0.25)';
+            courtCtx.arc(posX, posY, 15, 0, Math.PI * 2);
+            courtCtx.fillStyle = 'rgba(0, 245, 155, 0.3)';
             courtCtx.fill();
 
             courtCtx.beginPath();
-            courtCtx.arc(posX, posY, 7, 0, Math.PI * 2);
+            courtCtx.arc(posX, posY, 7.5, 0, Math.PI * 2);
             courtCtx.fillStyle = '#00F59B';
             courtCtx.fill();
             courtCtx.strokeStyle = '#FFFFFF';
@@ -1517,95 +1666,70 @@
         }
 
         // =========================================================================
-        // 繪製 2D 羽球飛行軌跡與鷹眼落點 (2D Shuttlecock Flight Arc & Hawk-Eye)
+        // 繪製 2D 羽球即時飛行軌跡 (2D Shuttlecock Flight Arc)
         // =========================================================================
         if (frameData.shuttlecock && currentData) {
             const sc = frameData.shuttlecock;
-            
-            // 繪製球場上羽球的 2D 投影軌跡
-            courtCtx.beginPath();
-            courtCtx.strokeStyle = sc.speed_kmh >= 280 ? 'rgba(255, 56, 92, 0.75)' : (sc.speed_kmh >= 180 ? 'rgba(255, 184, 0, 0.75)' : 'rgba(0, 210, 255, 0.75)');
-            courtCtx.lineWidth = 2.5;
-            courtCtx.setLineDash([3, 3]);
-
-            const trailCount = 18;
-            const startF = Math.max(0, currentFrameIdx - trailCount);
-            let firstPt = true;
-
-            for (let i = startF; i <= currentFrameIdx; i++) {
-                const fd = currentData.frames[i];
-                if (fd && fd.shuttlecock && fd.shuttlecock.x > 0) {
-                    const snormX = fd.shuttlecock.x / 1280.0;
-                    const snormY = fd.shuttlecock.y / 720.0;
-                    let spx, spy;
-                    if (orientation === 'vertical') {
-                        spx = cX + snormX * courtW;
-                        spy = cY + snormY * courtH;
-                    } else {
-                        spx = cX + snormY * courtW;
-                        spy = cY + snormX * courtH;
-                    }
-
-                    if (firstPt) {
-                        courtCtx.moveTo(spx, spy);
-                        firstPt = false;
-                    } else {
-                        courtCtx.lineTo(spx, spy);
-                    }
-                }
-            }
-            courtCtx.stroke();
-            courtCtx.setLineDash([]);
-
-            // 羽球當前 2D 投影點
             const snormX = sc.x / 1280.0;
             const snormY = sc.y / 720.0;
-            let curShuttleX, curShuttleY;
-            if (orientation === 'vertical') {
-                curShuttleX = cX + snormX * courtW;
-                curShuttleY = cY + snormY * courtH;
-            } else {
-                curShuttleX = cX + snormY * courtW;
-                curShuttleY = cY + snormX * courtH;
-            }
+            let curShuttleX = orientation === 'vertical' ? (cX + snormX * courtW) : (cX + snormY * courtW);
+            let curShuttleY = orientation === 'vertical' ? (cY + snormY * courtH) : (cY + snormX * courtH);
 
             courtCtx.beginPath();
-            courtCtx.arc(curShuttleX, curShuttleY, 4.5, 0, Math.PI * 2);
+            courtCtx.arc(curShuttleX, curShuttleY, 5, 0, Math.PI * 2);
             courtCtx.fillStyle = '#FFFFFF';
             courtCtx.fill();
             courtCtx.strokeStyle = sc.speed_kmh >= 280 ? '#FF385C' : '#FFB800';
-            courtCtx.lineWidth = 1.5;
+            courtCtx.lineWidth = 1.8;
             courtCtx.stroke();
+        }
 
-            // 鷹眼 2D 落點標記 (Hawk-Eye Landing Target)
-            if (sc.is_landed) {
-                courtCtx.save();
-                const markColor = sc.is_in_court ? '#00F59B' : '#FF385C';
-                
-                courtCtx.beginPath();
-                courtCtx.arc(curShuttleX, curShuttleY, 14, 0, Math.PI * 2);
-                courtCtx.strokeStyle = markColor;
-                courtCtx.lineWidth = 2;
-                courtCtx.stroke();
+        // =========================================================================
+        // 動態計算並更新右側站位熱區百分比 (Live Zone Stats & Progress Bars)
+        // =========================================================================
+        if (currentData && currentData.frames) {
+            let backCount = 0, midCount = 0, foreCount = 0, tracked = 0;
+            let sumDev = 0;
 
-                courtCtx.beginPath();
-                courtCtx.arc(curShuttleX, curShuttleY, 6, 0, Math.PI * 2);
-                courtCtx.fillStyle = markColor;
-                courtCtx.fill();
+            for (let i = 0; i <= currentFrameIdx; i++) {
+                const fd = currentData.frames[i];
+                if (fd) {
+                    let ny = 0.75, nx = 0.5;
+                    if (fd.court_position) {
+                        ny = fd.court_position.norm_y !== undefined ? fd.court_position.norm_y : 0.75;
+                        nx = fd.court_position.norm_x !== undefined ? fd.court_position.norm_x : 0.5;
+                    }
+                    tracked++;
+                    if (ny >= 0.70) backCount++;
+                    else if (ny >= 0.52) midCount++;
+                    else foreCount++;
 
-                // IN / OUT 標籤
-                courtCtx.fillStyle = 'rgba(6, 10, 18, 0.9)';
-                courtCtx.fillRect(curShuttleX - 25, curShuttleY - 26, 50, 18);
-                courtCtx.strokeStyle = markColor;
-                courtCtx.lineWidth = 1;
-                courtCtx.strokeRect(curShuttleX - 25, curShuttleY - 26, 50, 18);
+                    sumDev += Math.abs(nx - 0.5) * 6.10;
+                }
+            }
 
-                courtCtx.fillStyle = markColor;
-                courtCtx.font = '800 10px "JetBrains Mono", monospace';
-                courtCtx.textAlign = 'center';
-                courtCtx.fillText(sc.is_in_court ? 'IN (界內)' : 'OUT', curShuttleX, curShuttleY - 13);
-                courtCtx.textAlign = 'left';
-                courtCtx.restore();
+            if (tracked > 0) {
+                const backPct = Math.round((backCount / tracked) * 100);
+                const midPct = Math.round((midCount / tracked) * 100);
+                const forePct = Math.max(0, 100 - backPct - midPct);
+                const avgDev = (sumDev / tracked).toFixed(2);
+
+                const statBack = document.getElementById('statBackcourt');
+                const statMid = document.getElementById('statMidcourt');
+                const statFore = document.getElementById('statForecourt');
+                const statDev = document.getElementById('statCenterDeviation');
+                const barBack = document.getElementById('barBackcourt');
+                const barMid = document.getElementById('barMidcourt');
+                const barFore = document.getElementById('barForecourt');
+
+                if (statBack) statBack.textContent = `${backPct}%`;
+                if (statMid) statMid.textContent = `${midPct}%`;
+                if (statFore) statFore.textContent = `${forePct}%`;
+                if (statDev) statDev.textContent = `${avgDev} m`;
+
+                if (barBack) barBack.style.width = `${backPct}%`;
+                if (barMid) barMid.style.width = `${midPct}%`;
+                if (barFore) barFore.style.width = `${forePct}%`;
             }
         }
     }
