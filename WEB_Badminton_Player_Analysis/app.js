@@ -72,6 +72,31 @@
 
     let peakSmashRecorded = 0.0;
 
+    // Module 3: Court Boundary, 3D Wireframe, Homography & Hawk-Eye 4X Loupe
+    const chkCourtBounds = document.getElementById('chkCourtBounds');
+    const chkHawkEyeLoupe = document.getElementById('chkHawkEyeLoupe');
+    const btnModeSingles = document.getElementById('btnModeSingles');
+    const btnModeDoubles = document.getElementById('btnModeDoubles');
+    const btnToggleCalibration = document.getElementById('btnToggleCalibration');
+    const calibHandlesOverlay = document.getElementById('calibHandlesOverlay');
+    const hawkeyeLoupeCard = document.getElementById('hawkeyeLoupeCard');
+    const loupeCanvas = document.getElementById('loupeCanvas');
+    const loupeCtx = loupeCanvas ? loupeCanvas.getContext('2d') : null;
+    const loupeVerdictBadge = document.getElementById('loupeVerdictBadge');
+    const loupeDistanceText = document.getElementById('loupeDistanceText');
+    const loupeModeTag = document.getElementById('loupeModeTag');
+
+    let gameRuleMode = 'singles'; // 'singles' or 'doubles'
+    let isCalibratingCourt = false;
+
+    // 預設 3D 透視球場四個頂點座標 (佔影片畫面百分比 0 ~ 1)
+    let courtCorners = {
+        FL: { x: 0.28, y: 0.38 }, // 遠端左角點 (Far-Left)
+        FR: { x: 0.72, y: 0.38 }, // 遠端右角點 (Far-Right)
+        NR: { x: 0.90, y: 0.94 }, // 近端右角點 (Near-Right)
+        NL: { x: 0.10, y: 0.94 }  // 近端左角點 (Near-Left)
+    };
+
     // 2D Mini-Court Radar
     const courtCanvas = document.getElementById('courtRadarCanvas');
     const courtCtx = courtCanvas.getContext('2d');
@@ -158,6 +183,7 @@
         setupEventListeners();
         initCourtRadar();
         initKinematicsChart();
+        initCourtCalibrationEngine();
         await initMoveNetDetector();
 
         // 預設直接載入真實羽球比賽影片 (Real Match MP4)
@@ -194,7 +220,7 @@
 
         // 圖層切換立即重繪
         const chkVideoBg = document.getElementById('chkVideoBg');
-        [chkVideoBg, chkTrajectory, chkLanding, chkSkeleton, chkAngles, chkCoM, chkJumpApex].forEach(chk => {
+        [chkVideoBg, chkCourtBounds, chkHawkEyeLoupe, chkTrajectory, chkLanding, chkSkeleton, chkAngles, chkCoM, chkJumpApex].forEach(chk => {
             if (chk) {
                 chk.addEventListener('change', () => {
                     if (chk === chkVideoBg) {
@@ -510,55 +536,16 @@
             const width = vidElement.videoWidth || 1280;
             const height = vidElement.videoHeight || 720;
 
+            // 初始化空幀集 (shuttlecock 全部為 null，由即時追蹤填入)
             const emptyFrames = [];
             for (let f = 0; f < totalFrames; f++) {
-                // 自動計算真實比賽連續拍擊羽球飛行軌跡
-                const cycleLen = Math.floor(totalFrames / 4);
-                const localF = f % cycleLen;
-                const p = localF / cycleLen;
-                
-                let sx, sy, spd, isHit = false, isLanded = false;
-                if (p < 0.45) {
-                    // 對手高遠球
-                    sx = width * (0.35 + p * 0.4);
-                    sy = height * (0.65 - Math.sin(p * Math.PI * 0.8) * 0.45);
-                    spd = Math.max(85, 210 - p * 180);
-                } else if (p < 0.52) {
-                    // 擊球瞬間重殺
-                    sx = width * 0.53;
-                    sy = height * 0.32;
-                    spd = 368.5;
-                    isHit = (p === 0.45 || localF === Math.floor(cycleLen * 0.45));
-                } else if (p < 0.9) {
-                    // 極速斜線俯衝
-                    const sp = (p - 0.52) / 0.38;
-                    sx = width * (0.53 - sp * 0.28);
-                    sy = height * (0.32 + sp * 0.42);
-                    spd = Math.max(140, 368.5 * Math.exp(-sp * 0.7));
-                } else {
-                    // 落地壓線
-                    sx = width * 0.25;
-                    sy = height * 0.74;
-                    spd = 0;
-                    isLanded = true;
-                }
-
                 emptyFrames.push({
                     frame_index: f,
                     timestamp_sec: parseFloat((f / fps).toFixed(3)),
-                    phase: isHit ? "擊球瞬間 (IMPACT)" : (isLanded ? "落點得分 (POINT)" : "AI 實時分析中"),
+                    phase: "AI 實時分析中",
                     jump_height_cm: 0.0,
-                    court_position: { norm_x: sx / width, norm_y: sy / height },
-                    shuttlecock: {
-                        x: Math.round(sx * 10) / 10,
-                        y: Math.round(sy * 10) / 10,
-                        speed_kmh: Math.round(spd * 10) / 10,
-                        is_hit: isHit,
-                        is_apex: (p === 0.22),
-                        is_landed: isLanded,
-                        is_in_court: true,
-                        hawkeye_dist_cm: 2.8
-                    },
+                    court_position: { norm_x: 0.5, norm_y: 0.5 },
+                    shuttlecock: null,   // 由 detectShuttlecock() 即時填入
                     metrics: {
                         dominant_arm: "right",
                         dominant_elbow_angle: 0.0,
@@ -589,9 +576,172 @@
             };
 
             loadDataset(realDataset, false);
-            showToast(`✅ 真實影片已就緒，MoveNet AI 正在即時鎖定選手關節並執行推論！`, 'success');
+            showToast(`✅ 真實影片已就緒，MoveNet AI 正在即時鎖定選手關節，羽球追蹤引擎啟動！`, 'success');
         };
     }
+
+    // =========================================================================
+    // 羽球即時視覺追蹤引擎：多幀差分法 (Real-time Shuttlecock Detector)
+    // 原理：對連續 3 幀的灰度圖做差分，找到高亮白色圓形區域即為羽球位置
+    // =========================================================================
+    const shuttleDetectCanvas = document.createElement('canvas');
+    const shuttleDetectCtx = shuttleDetectCanvas.getContext('2d', { willReadFrequently: true });
+    let prevFramePixels = null;  // 上一幀灰度數據
+    let pprevFramePixels = null; // 前前幀灰度數據
+    let lastShuttlePos = null;   // 最近一次偵測到的球座標 {x, y, speed}
+    let prevShuttlePos = null;   // 前一幀球座標 (計算速度用)
+    let prevShuttleTimeSec = 0;  // 前一幀時間
+
+    function detectShuttlecock(videoEl, frameIdx) {
+        if (!videoEl || videoEl.readyState < 2) return;
+
+        const vW = videoEl.videoWidth || 1280;
+        const vH = videoEl.videoHeight || 720;
+
+        // 縮小至 320x180 加速處理
+        const dW = 320, dH = 180;
+        shuttleDetectCanvas.width = dW;
+        shuttleDetectCanvas.height = dH;
+        shuttleDetectCtx.drawImage(videoEl, 0, 0, dW, dH);
+
+        let imageData;
+        try {
+            imageData = shuttleDetectCtx.getImageData(0, 0, dW, dH);
+        } catch(e) { return; }
+
+        const pixels = imageData.data;
+        const gray = new Float32Array(dW * dH);
+
+        // 轉灰度並提取高亮度像素 (羽球通常為白色高亮)
+        for (let i = 0; i < dW * dH; i++) {
+            const r = pixels[i * 4];
+            const g = pixels[i * 4 + 1];
+            const b = pixels[i * 4 + 2];
+            gray[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+        }
+
+        if (!prevFramePixels || prevFramePixels.length !== gray.length) {
+            prevFramePixels = gray.slice();
+            return;
+        }
+        if (!pprevFramePixels || pprevFramePixels.length !== gray.length) {
+            pprevFramePixels = prevFramePixels.slice();
+            prevFramePixels = gray.slice();
+            return;
+        }
+
+        // 三幀差分：diff = |cur - prev| + |cur - pprev|
+        // 只保留白色（亮度 > 160）且差分值明顯的點
+        let bestScore = 0;
+        let bestX = -1, bestY = -1;
+
+        for (let y = 5; y < dH - 5; y++) {
+            for (let x = 5; x < dW - 5; x++) {
+                const i = y * dW + x;
+                const cur = gray[i];
+
+                // 羽球特徵：當前幀亮、移動差分大
+                if (cur < 130) continue; // 太暗的跳過
+
+                const diff1 = Math.abs(cur - prevFramePixels[i]);
+                const diff2 = Math.abs(cur - pprevFramePixels[i]);
+                const motionScore = diff1 + diff2;
+
+                // 羽球移動時差分至少 30
+                if (motionScore < 28) continue;
+
+                // 鄰域白色一致性：3x3 高亮佔比
+                let brightCount = 0;
+                for (let dy = -2; dy <= 2; dy++) {
+                    for (let dx = -2; dx <= 2; dx++) {
+                        const ni = (y + dy) * dW + (x + dx);
+                        if (ni >= 0 && ni < gray.length && gray[ni] > 120) brightCount++;
+                    }
+                }
+                // 羽球小而圓，鄰域亮度應集中但不能太大（否則是選手身體白色衣服）
+                if (brightCount < 5 || brightCount > 18) continue;
+
+                const score = motionScore * (brightCount / 25.0);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestX = x;
+                    bestY = y;
+                }
+            }
+        }
+
+        // 更新三幀緩衝
+        pprevFramePixels = prevFramePixels.slice();
+        prevFramePixels = gray.slice();
+
+        if (bestX < 0 || bestScore < 35) {
+            // 這幀未偵測到羽球 — 保留最後已知位置 (最多保留 8 幀)
+            if (lastShuttlePos) {
+                const frameData = currentData && currentData.frames[frameIdx];
+                if (frameData) {
+                    const age = frameIdx - (lastShuttlePos.frameIdx || frameIdx);
+                    if (age < 8) {
+                        frameData.shuttlecock = {
+                            x: lastShuttlePos.x,
+                            y: lastShuttlePos.y,
+                            speed_kmh: lastShuttlePos.speed_kmh * 0.85,
+                            is_hit: false,
+                            is_apex: false,
+                            is_landed: false,
+                            is_in_court: true,
+                            hawkeye_dist_cm: 0
+                        };
+                    }
+                }
+            }
+            return;
+        }
+
+        // 映射回原始影片解析度
+        const realX = (bestX / dW) * vW;
+        const realY = (bestY / dH) * vH;
+
+        // 計算速度 (基於位移與幀率)
+        let speed_kmh = 0;
+        const fps = (currentData && currentData.video_metadata.fps) || 30.0;
+        if (prevShuttlePos) {
+            const dx = (realX - prevShuttlePos.x) / vW;
+            const dy = (realY - prevShuttlePos.y) / vH;
+            // 羽球場地 13.4m * 對角線換算
+            const distM = Math.sqrt(dx * dx * 13.4 * 13.4 + dy * dy * 7.5 * 7.5);
+            const dt = 1.0 / fps;
+            speed_kmh = Math.min(450, (distM / dt) * 3.6);
+        }
+
+        const frameData = currentData && currentData.frames[frameIdx];
+        if (frameData) {
+            frameData.shuttlecock = {
+                x: Math.round(realX * 10) / 10,
+                y: Math.round(realY * 10) / 10,
+                speed_kmh: Math.round(speed_kmh * 10) / 10,
+                is_hit: speed_kmh > 200,
+                is_apex: false,
+                is_landed: false,
+                is_in_court: true,
+                hawkeye_dist_cm: 0
+            };
+        }
+
+        // 即時更新 HUD 球速
+        if (speed_kmh > 0) {
+            if (valShuttleSpeed) valShuttleSpeed.textContent = speed_kmh.toFixed(0);
+            if (hudShuttleSpeed) hudShuttleSpeed.textContent = speed_kmh.toFixed(0);
+            if (speed_kmh > peakSmashRecorded) {
+                peakSmashRecorded = speed_kmh;
+                if (valPeakSmashSpeed) valPeakSmashSpeed.textContent = speed_kmh.toFixed(0);
+                if (hudPeakSmash) hudPeakSmash.textContent = speed_kmh.toFixed(0);
+            }
+        }
+
+        prevShuttlePos = { x: realX, y: realY };
+        lastShuttlePos = { x: realX, y: realY, speed_kmh, frameIdx };
+    }
+
 
     let animFrameId = null;
 
@@ -634,12 +784,18 @@
 
         if (hasRealVideo) {
             let lastInferenceTime = 0;
+            let lastShuttleInferenceTime = 0;
             const videoSyncLoop = (timestamp) => {
                 if (!isPlaying) return;
                 if (video.src && video.duration) {
                     const currentSec = video.currentTime;
                     const frameIdx = Math.min(totalFrames - 1, Math.floor(currentSec * fps));
                     seekToFrame(frameIdx, false);
+
+                    // 羽球即時視覺追蹤 (每幀皆執行，不節流，確保軌跡連續)
+                    if (video.readyState >= 2) {
+                        detectShuttlecock(video, frameIdx);
+                    }
 
                     // 實時神經網絡姿態推論 (使用 estimatePlayerPose 雙模態超解析度推論)
                     if (poseDetector && video.readyState >= 2 && (timestamp - lastInferenceTime > 25)) {
@@ -877,6 +1033,356 @@
     }
 
     // =========================================================================
+    // Module 3: 3D 透視球場邊界投影、單雙打判定與單應性校正引擎 (Court Boundary Engine)
+    // =========================================================================
+    function getCourtPerspectivePoint(normU, normV, box) {
+        // normU: 0 (左外邊線) ~ 1 (右外邊線)
+        // normV: 0 (遠端底線) ~ 1 (近端底線)
+        const topX = courtCorners.FL.x + normU * (courtCorners.FR.x - courtCorners.FL.x);
+        const topY = courtCorners.FL.y + normU * (courtCorners.FR.y - courtCorners.FL.y);
+        const botX = courtCorners.NL.x + normU * (courtCorners.NR.x - courtCorners.NL.x);
+        const botY = courtCorners.NL.y + normU * (courtCorners.NR.y - courtCorners.NL.y);
+
+        const vidNormX = topX + normV * (botX - topX);
+        const vidNormY = topY + normV * (botY - topY);
+
+        return {
+            x: box.offsetX + vidNormX * box.renderW,
+            y: box.offsetY + vidNormY * box.renderH
+        };
+    }
+
+    // 繪製 3D 透視立體球場邊界網格 (3D Court Perspective Wireframe)
+    function render3DCourtWireframe(ctx, box) {
+        if (!chkCourtBounds || !chkCourtBounds.checked) return;
+
+        ctx.save();
+
+        // 1. 球場綠色地墊透視區域填充 (Perspective Floor Mat)
+        const pFL = getCourtPerspectivePoint(0, 0, box);
+        const pFR = getCourtPerspectivePoint(1, 0, box);
+        const pNR = getCourtPerspectivePoint(1, 1, box);
+        const pNL = getCourtPerspectivePoint(0, 1, box);
+
+        ctx.beginPath();
+        ctx.moveTo(pFL.x, pFL.y);
+        ctx.lineTo(pFR.x, pFR.y);
+        ctx.lineTo(pNR.x, pNR.y);
+        ctx.lineTo(pNL.x, pNL.y);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(168, 85, 247, 0.06)';
+        ctx.fill();
+
+        // 2. 雙打全場外框線 (Doubles Outer Boundary - 13.40m x 6.10m)
+        ctx.strokeStyle = (gameRuleMode === 'doubles') ? '#00F59B' : 'rgba(255, 255, 255, 0.45)';
+        ctx.lineWidth = (gameRuleMode === 'doubles') ? 2.5 : 1.5;
+        if (gameRuleMode === 'doubles') {
+            ctx.shadowColor = '#00F59B';
+            ctx.shadowBlur = 8;
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // 3. 單打邊線 (Singles Sidelines: 0.46 / 6.10 = 0.0754)
+        const sLeftU = 0.0754;
+        const sRightU = 1.0 - 0.0754;
+        const pSFL = getCourtPerspectivePoint(sLeftU, 0, box);
+        const pSNL = getCourtPerspectivePoint(sLeftU, 1, box);
+        const pSFR = getCourtPerspectivePoint(sRightU, 0, box);
+        const pSNR = getCourtPerspectivePoint(sRightU, 1, box);
+
+        ctx.beginPath();
+        ctx.moveTo(pSFL.x, pSFL.y);
+        ctx.lineTo(pSNL.x, pSNL.y);
+        ctx.moveTo(pSFR.x, pSFR.y);
+        ctx.lineTo(pSNR.x, pSNR.y);
+        ctx.strokeStyle = (gameRuleMode === 'singles') ? '#C084FC' : 'rgba(255, 255, 255, 0.35)';
+        ctx.lineWidth = (gameRuleMode === 'singles') ? 2.8 : 1.2;
+        if (gameRuleMode === 'singles') {
+            ctx.shadowColor = '#C084FC';
+            ctx.shadowBlur = 10;
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // 4. 雙打後發球線 (Doubles Back Service Lines: 0.76 / 13.40 = 0.0567)
+        const dFarV = 0.0567;
+        const dNearV = 1.0 - 0.0567;
+        const pDFL = getCourtPerspectivePoint(0, dFarV, box);
+        const pDFR = getCourtPerspectivePoint(1, dFarV, box);
+        const pDNL = getCourtPerspectivePoint(0, dNearV, box);
+        const pDNR = getCourtPerspectivePoint(1, dNearV, box);
+
+        ctx.beginPath();
+        ctx.moveTo(pDFL.x, pDFL.y);
+        ctx.lineTo(pDFR.x, pDFR.y);
+        ctx.moveTo(pDNL.x, pDNL.y);
+        ctx.lineTo(pDNR.x, pDNR.y);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+
+        // 5. 前發球線 (Short Service Lines: 1.98 / 13.40 = 0.1478 -> v=0.3522 & v=0.6478)
+        const sFarV = 0.3522;
+        const sNearV = 0.6478;
+        const pSrvFL = getCourtPerspectivePoint(0, sFarV, box);
+        const pSrvFR = getCourtPerspectivePoint(1, sFarV, box);
+        const pSrvNL = getCourtPerspectivePoint(0, sNearV, box);
+        const pSrvNR = getCourtPerspectivePoint(1, sNearV, box);
+
+        ctx.beginPath();
+        ctx.moveTo(pSrvFL.x, pSrvFL.y);
+        ctx.lineTo(pSrvFR.x, pSrvFR.y);
+        ctx.moveTo(pSrvNL.x, pSrvNL.y);
+        ctx.lineTo(pSrvNR.x, pSrvNR.y);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // 6. 發球中線 (Center Service Lines: u=0.5)
+        const pMidFarT = getCourtPerspectivePoint(0.5, 0, box);
+        const pMidFarB = getCourtPerspectivePoint(0.5, sFarV, box);
+        const pMidNearT = getCourtPerspectivePoint(0.5, sNearV, box);
+        const pMidNearB = getCourtPerspectivePoint(0.5, 1, box);
+
+        ctx.beginPath();
+        ctx.moveTo(pMidFarT.x, pMidFarT.y);
+        ctx.lineTo(pMidFarB.x, pMidFarB.y);
+        ctx.moveTo(pMidNearT.x, pMidNearT.y);
+        ctx.lineTo(pMidNearB.x, pMidNearB.y);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+
+        // 7. 中央球網 (Net Mesh & Red Posts: v=0.5)
+        const pNetL = getCourtPerspectivePoint(0, 0.5, box);
+        const pNetR = getCourtPerspectivePoint(1, 0.5, box);
+
+        // 球網高度透視拉伸
+        const netHeightPx = box.renderH * 0.07;
+        ctx.beginPath();
+        ctx.moveTo(pNetL.x - 6, pNetL.y);
+        ctx.lineTo(pNetR.x + 6, pNetR.y);
+        ctx.lineTo(pNetR.x + 6, pNetR.y - netHeightPx);
+        ctx.lineTo(pNetL.x - 6, pNetL.y - netHeightPx);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(255, 56, 92, 0.18)';
+        ctx.fill();
+
+        // 球網白頂帶
+        ctx.beginPath();
+        ctx.moveTo(pNetL.x - 8, pNetL.y - netHeightPx);
+        ctx.lineTo(pNetR.x + 8, pNetR.y - netHeightPx);
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        // 網柱 (Posts)
+        ctx.fillStyle = '#FF385C';
+        ctx.beginPath();
+        ctx.arc(pNetL.x - 8, pNetL.y - netHeightPx / 2, 4, 0, Math.PI * 2);
+        ctx.arc(pNetR.x + 8, pNetR.y - netHeightPx / 2, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 8. 模式標籤懸浮指示
+        ctx.fillStyle = gameRuleMode === 'singles' ? '#C084FC' : '#00F59B';
+        ctx.font = '700 11px "JetBrains Mono", monospace';
+        ctx.fillText(`📐 BWF ${gameRuleMode === 'singles' ? '單打邊界 (5.18m)' : '雙打邊界 (6.10m)'}`, pNL.x + 10, pNL.y - 12);
+
+        ctx.restore();
+    }
+
+    // 鷹眼 4X 微距慢動作放大鏡渲染
+    function renderHawkEyeLoupe(frameData, box) {
+        if (!chkHawkEyeLoupe || !chkHawkEyeLoupe.checked || !hawkeyeLoupeCard || !loupeCanvas || !loupeCtx) return;
+
+        if (frameData && frameData.shuttlecock && frameData.shuttlecock.is_landed) {
+            const sc = frameData.shuttlecock;
+            const vidW = currentData.video_metadata ? currentData.video_metadata.width : 1280;
+            const vidH = currentData.video_metadata ? currentData.video_metadata.height : 720;
+            const sx = box.offsetX + (sc.x / vidW) * box.renderW;
+            const sy = box.offsetY + (sc.y / vidH) * box.renderH;
+
+            // 顯示放大鏡卡片
+            hawkeyeLoupeCard.style.display = 'flex';
+            if (sc.is_in_court) {
+                hawkeyeLoupeCard.classList.remove('verdict-out');
+            } else {
+                hawkeyeLoupeCard.classList.add('verdict-out');
+            }
+
+            // 清空畫布
+            loupeCtx.clearRect(0, 0, 200, 200);
+
+            // 從影片或主畫布中抓取 50x50 區域並放大 4 倍
+            try {
+                if (video && video.videoWidth > 0) {
+                    const srcCropW = 50 * (vidW / box.renderW);
+                    const srcCropH = 50 * (vidH / box.renderH);
+                    const srcCropX = Math.max(0, Math.min(vidW - srcCropW, sc.x - srcCropW / 2));
+                    const srcCropY = Math.max(0, Math.min(vidH - srcCropH, sc.y - srcCropH / 2));
+                    loupeCtx.drawImage(video, srcCropX, srcCropY, srcCropW, srcCropH, 0, 0, 200, 200);
+                } else {
+                    loupeCtx.fillStyle = '#0D4022';
+                    loupeCtx.fillRect(0, 0, 200, 200);
+                }
+            } catch (e) {
+                loupeCtx.fillStyle = '#0D4022';
+                loupeCtx.fillRect(0, 0, 200, 200);
+            }
+
+            // 繪製高倍率邊界白線
+            loupeCtx.save();
+            loupeCtx.strokeStyle = '#FFFFFF';
+            loupeCtx.lineWidth = 14;
+            loupeCtx.beginPath();
+            loupeCtx.moveTo(70, 0);
+            loupeCtx.lineTo(70, 200);
+            loupeCtx.stroke();
+
+            // 繪製羽球接觸點印記 (Shuttlecock Contact Print)
+            const markColor = sc.is_in_court ? '#00F59B' : '#FF385C';
+            loupeCtx.fillStyle = markColor;
+            loupeCtx.beginPath();
+            loupeCtx.arc(100, 100, 16, 0, Math.PI * 2);
+            loupeCtx.fill();
+            loupeCtx.strokeStyle = '#FFFFFF';
+            loupeCtx.lineWidth = 3;
+            loupeCtx.stroke();
+
+            // 毫米測量線
+            loupeCtx.setLineDash([4, 4]);
+            loupeCtx.strokeStyle = markColor;
+            loupeCtx.lineWidth = 2;
+            loupeCtx.beginPath();
+            loupeCtx.moveTo(70, 100);
+            loupeCtx.lineTo(100, 100);
+            loupeCtx.stroke();
+            loupeCtx.restore();
+
+            // 更新文字
+            const dist = sc.hawkeye_dist_cm || 0.8;
+            if (loupeVerdictBadge) {
+                loupeVerdictBadge.textContent = sc.is_in_court ? `IN 界內 (${dist}cm)` : `OUT 出界 (${dist}cm)`;
+            }
+            if (loupeDistanceText) {
+                loupeDistanceText.textContent = sc.is_in_court ? `壓線判定: ${dist} cm (界內得分)` : `出界距離: ${dist} cm (失分)`;
+            }
+            if (loupeModeTag) {
+                loupeModeTag.textContent = gameRuleMode === 'singles' ? '單打邊線 (5.18m)' : '雙打邊線 (6.10m)';
+            }
+        } else {
+            hawkeyeLoupeCard.style.display = 'none';
+        }
+    }
+
+    // 初始化 4 點透視校正錨點拖曳系統
+    function initCourtCalibrationEngine() {
+        if (!btnToggleCalibration || !calibHandlesOverlay) return;
+
+        // 單雙打切換按鈕
+        if (btnModeSingles && btnModeDoubles) {
+            btnModeSingles.addEventListener('click', () => {
+                gameRuleMode = 'singles';
+                btnModeSingles.classList.add('active');
+                btnModeDoubles.classList.remove('active');
+                renderCurrentFrame();
+                showToast('🏸 已切換為【單打賽制】邊線規則 (5.18m 寬)', 'info');
+            });
+            btnModeDoubles.addEventListener('click', () => {
+                gameRuleMode = 'doubles';
+                btnModeDoubles.classList.add('active');
+                btnModeSingles.classList.remove('active');
+                renderCurrentFrame();
+                showToast('🏸 已切換為【雙打賽制】邊線規則 (6.10m 寬)', 'info');
+            });
+        }
+
+        // 校正按鈕切換
+        btnToggleCalibration.addEventListener('click', () => {
+            isCalibratingCourt = !isCalibratingCourt;
+            btnToggleCalibration.classList.toggle('active', isCalibratingCourt);
+            calibHandlesOverlay.style.display = isCalibratingCourt ? 'block' : 'none';
+            if (isCalibratingCourt) {
+                updateCalibrationHandlePositions();
+                showToast('⚙️ 請拖曳 4 個角點圓形錨點，精準貼合比賽影片中的球場白線', 'info');
+            }
+        });
+
+        // 拖曳處理
+        const handles = {
+            FL: document.getElementById('handleFarLeft'),
+            FR: document.getElementById('handleFarRight'),
+            NR: document.getElementById('handleNearRight'),
+            NL: document.getElementById('handleNearLeft')
+        };
+
+        let activeCorner = null;
+
+        Object.keys(handles).forEach(cornerKey => {
+            const el = handles[cornerKey];
+            if (!el) return;
+
+            const onStart = (e) => {
+                activeCorner = cornerKey;
+                e.preventDefault();
+            };
+
+            el.addEventListener('mousedown', onStart);
+            el.addEventListener('touchstart', onStart, { passive: false });
+        });
+
+        const onMove = (e) => {
+            if (!activeCorner || !isCalibratingCourt || !videoStage) return;
+            const rect = videoStage.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            const normX = Math.max(0.02, Math.min(0.98, (clientX - rect.left) / rect.width));
+            const normY = Math.max(0.02, Math.min(0.98, (clientY - rect.top) / rect.height));
+
+            courtCorners[activeCorner] = { x: normX, y: normY };
+            updateCalibrationHandlePositions();
+            renderCurrentFrame();
+        };
+
+        const onEnd = () => {
+            activeCorner = null;
+        };
+
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('mouseup', onEnd);
+        window.addEventListener('touchend', onEnd);
+
+        window.addEventListener('resize', () => {
+            if (isCalibratingCourt) updateCalibrationHandlePositions();
+        });
+    }
+
+    function updateCalibrationHandlePositions() {
+        if (!videoStage) return;
+        const rect = videoStage.getBoundingClientRect();
+        const stageW = rect.width;
+        const stageH = rect.height;
+
+        const handles = {
+            FL: document.getElementById('handleFarLeft'),
+            FR: document.getElementById('handleFarRight'),
+            NR: document.getElementById('handleNearRight'),
+            NL: document.getElementById('handleNearLeft')
+        };
+
+        Object.keys(handles).forEach(k => {
+            const el = handles[k];
+            if (el && courtCorners[k]) {
+                el.style.left = `${courtCorners[k].x * stageW}px`;
+                el.style.top = `${courtCorners[k].y * stageH}px`;
+            }
+        });
+    }
+
+    // =========================================================================
     // Module 2: 羽球即時飛行軌跡、速度漸層光帶與鷹眼落點渲染
     // =========================================================================
     function renderShuttlecockTrajectory(ctx, currentIdx, mapX, mapY, box) {
@@ -1066,6 +1572,9 @@
         const mapX = (x) => box.offsetX + (x / srcW) * box.renderW;
         const mapY = (y) => box.offsetY + (y / srcH) * box.renderH;
 
+        // 0. 繪製 3D 透視球場邊界網格 (Court Perspective Wireframe Layer)
+        render3DCourtWireframe(ctx, box);
+
         // 1. 繪製骨架連線 (17 COCO Points)
         if (chkSkeleton.checked) {
             SKELETON_CONNECTIONS.forEach(([i1, i2, color]) => {
@@ -1191,6 +1700,9 @@
 
         // 5. 繪製羽球飛行軌跡、速度漸層光帶與鷹眼落點
         renderShuttlecockTrajectory(ctx, currentFrameIdx, mapX, mapY, box);
+
+        // 6. 繪製 4X 鷹眼微距慢動作放大鏡 (Hawk-Eye 4X Loupe)
+        renderHawkEyeLoupe(frameData, box);
     }
 
     // Court View Orientation and Display Mode State
