@@ -1395,3 +1395,180 @@ body {
         transform: translateY(0) scale(1);
     }
 }
+
+/* ====================================================================
+   Module 2: Shuttlecock Trajectory, Speed & Hawk-Eye Telemetry Styles
+   ==================================================================== */
+
+.toggle-chip input:checked + .highlight-chip-shuttle {
+    background: rgba(255, 56, 92, 0.15);
+    color: #FF385C;
+    border-color: rgba(255, 56, 92, 0.4);
+    box-shadow: 0 0 10px rgba(255, 56, 92, 0.2);
+}
+
+.toggle-chip input:checked + .highlight-chip-landing {
+    background: rgba(0, 210, 255, 0.15);
+    color: #00D2FF;
+    border-color: rgba(0, 210, 255, 0.4);
+    box-shadow: 0 0 10px rgba(0, 210, 255, 0.2);
+}
+
+/* HUD Badges */
+.hud-shuttle-speed {
+    border-color: rgba(255, 56, 92, 0.4);
+    box-shadow: 0 0 12px rgba(255, 56, 92, 0.2);
+}
+.hud-shuttle-speed .val {
+    color: #FF385C;
+    font-size: 1.15rem;
+}
+
+.hud-peak-smash {
+    border-color: rgba(255, 184, 0, 0.4);
+    box-shadow: 0 0 12px rgba(255, 184, 0, 0.2);
+}
+.hud-peak-smash .val {
+    color: #FFB800;
+}
+
+.hud-hawkeye {
+    border-color: rgba(0, 245, 155, 0.5);
+    box-shadow: 0 0 14px rgba(0, 245, 155, 0.3);
+    animation: pulseHawkEye 1s infinite alternate;
+}
+.hud-hawkeye .val {
+    color: #00F59B;
+    font-weight: 800;
+}
+
+@keyframes pulseHawkEye {
+    from { transform: scale(1); }
+    to { transform: scale(1.05); }
+}
+
+/* Shuttlecock Telemetry Card */
+.shuttle-telemetry-card {
+    background: linear-gradient(145deg, rgba(14, 20, 36, 0.95), rgba(18, 26, 48, 0.9));
+    border: 1px solid rgba(255, 56, 92, 0.25);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 20px rgba(255, 56, 92, 0.08);
+}
+
+.tag-speed {
+    background: rgba(255, 56, 92, 0.15);
+    color: #FF385C;
+    border: 1px solid rgba(255, 56, 92, 0.3);
+    padding: 3px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.shuttle-speed-dashboard {
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.speed-main-gauge {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-md);
+    padding: 14px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.speed-main-gauge::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(to bottom, #FF385C, #FFB800, #00D2FF);
+    box-shadow: 0 0 8px #FF385C;
+}
+
+.speed-main-label {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.speed-main-val {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.val-speed-num {
+    font-family: var(--font-mono);
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: #FF385C;
+    text-shadow: 0 0 16px rgba(255, 56, 92, 0.4);
+    letter-spacing: -0.03em;
+}
+
+.val-speed-unit {
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+.speed-sub-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.speed-sub-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.speed-sub-item .sub-k {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+.speed-sub-item .sub-v {
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.highlight-crimson {
+    color: #FF385C;
+    text-shadow: 0 0 8px rgba(255, 56, 92, 0.3);
+}
+
+.badge-in {
+    color: #00F59B;
+    background: rgba(0, 245, 155, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+    width: fit-content;
+}
+
+.badge-out {
+    color: #FF385C;
+    background: rgba(255, 56, 92, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+    width: fit-content;
+}
+

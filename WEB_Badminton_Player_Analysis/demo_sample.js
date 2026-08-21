@@ -157,6 +157,53 @@
 
             const kpts = generateKeypoints(comX, comY, dominantElbowAngle, kneeAngle, shoulderTilt, jumpHeightCm);
 
+            // =========================================================================
+            // 羽球軌跡與飛行力學 (Shuttlecock Flight Aerodynamics)
+            // =========================================================================
+            let shuttleX = baseCenterX;
+            let shuttleY = 200;
+            let shuttleSpeedKmh = 120.0;
+            let isHit = false;
+            let isApex = false;
+            let isLanded = false;
+            let isInCourt = true;
+            let hawkEyeDistCm = 0.0;
+
+            if (f < 68) {
+                // 1. 對手高遠球飛向安賽龍後場
+                const p = f / 68.0;
+                shuttleX = 460 + p * 235.0;
+                shuttleY = 480 - Math.sin(p * Math.PI * 0.9) * 360.0;
+                shuttleSpeedKmh = Math.max(75.0, 195.0 - p * 115.0);
+                if (f === 28) isApex = true;
+            } else if (f === 68) {
+                // 2. 安賽龍起跳最高點 重殺擊球 (382.4 km/h)
+                shuttleX = kpts[10][0] + 12.0; // 右手腕擊球點
+                shuttleY = kpts[10][1] - 30.0;
+                shuttleSpeedKmh = 382.4;
+                isHit = true;
+            } else if (f < 98) {
+                // 3. 殺球極速俯衝飛行 (陡峭斜下路徑)
+                const p = (f - 68) / 30.0;
+                shuttleX = (kpts[10][0] + 12.0) - p * 380.0;
+                shuttleY = (kpts[10][1] - 30.0) + p * 365.0;
+                shuttleSpeedKmh = Math.max(180.0, 382.4 * Math.exp(-p * 0.72));
+            } else if (f === 98) {
+                // 4. 落點著地 (鷹眼界內判定)
+                shuttleX = 328.0;
+                shuttleY = 535.0;
+                shuttleSpeedKmh = 145.0;
+                isLanded = true;
+                isInCourt = true;
+                hawkEyeDistCm = 3.2; // 壓線界內 3.2 cm
+            } else {
+                // 5. 地面彈跳與得分停頓
+                const p = (f - 98) / 22.0;
+                shuttleX = 328.0 - p * 35.0;
+                shuttleY = 535.0 - Math.sin(p * Math.PI) * 45.0 + p * 10.0;
+                shuttleSpeedKmh = Math.max(0.0, 145.0 - p * 145.0);
+            }
+
             frames.push({
                 frame_index: f,
                 timestamp_sec: Math.round(t * 100) / 100,
@@ -165,6 +212,16 @@
                 court_position: {
                     norm_x: Math.round(courtNormX * 100) / 100,
                     norm_y: Math.round(courtNormY * 100) / 100
+                },
+                shuttlecock: {
+                    x: Math.round(shuttleX * 10) / 10,
+                    y: Math.round(shuttleY * 10) / 10,
+                    speed_kmh: Math.round(shuttleSpeedKmh * 10) / 10,
+                    is_hit: isHit,
+                    is_apex: isApex,
+                    is_landed: isLanded,
+                    is_in_court: isInCourt,
+                    hawkeye_dist_cm: hawkEyeDistCm
                 },
                 metrics: {
                     dominant_elbow_angle: Math.round(dominantElbowAngle * 10) / 10,
@@ -192,6 +249,9 @@
             },
             summary_metrics: {
                 max_jump_height_cm: 46.8,
+                peak_smash_speed_kmh: 382.4,
+                average_rally_speed_kmh: 176.5,
+                landing_verdict: "界內 (IN 3.2cm)",
                 max_elbow_extension_deg: 175.2,
                 min_elbow_loading_deg: 77.0,
                 swing_range_deg: 98.2,
@@ -286,6 +346,52 @@
 
             const kpts = generateKeypoints(comX, comY, dominantElbowAngle, kneeAngle, shoulderTilt, jumpHeightCm);
 
+            // =========================================================================
+            // 羽球軌跡與飛行力學 (戴資穎網前滑拍勾對角)
+            // =========================================================================
+            let shuttleX = baseCenterX;
+            let shuttleY = 200;
+            let shuttleSpeedKmh = 95.0;
+            let isHit = false;
+            let isApex = false;
+            let isLanded = false;
+            let isInCourt = true;
+            let hawkEyeDistCm = 0.0;
+
+            if (f < 70) {
+                // 1. 對手放網球過網翻滾下墜
+                const p = f / 70.0;
+                shuttleX = 540 + p * 155.0;
+                shuttleY = 280 + p * 165.0 - Math.sin(p * Math.PI) * 45.0;
+                shuttleSpeedKmh = Math.max(45.0, 95.0 - p * 50.0);
+            } else if (f === 70) {
+                // 2. 戴資穎網前假動作滑拍變線擊球 (186.5 km/h 突發性推折角)
+                shuttleX = kpts[10][0] + 15.0;
+                shuttleY = kpts[10][1] - 15.0;
+                shuttleSpeedKmh = 186.5;
+                isHit = true;
+            } else if (f < 95) {
+                // 3. 勾對角貼網飛竄 (極限大角度滑行)
+                const p = (f - 70) / 25.0;
+                shuttleX = (kpts[10][0] + 15.0) - p * 340.0;
+                shuttleY = (kpts[10][1] - 15.0) - Math.sin(p * Math.PI * 0.7) * 95.0 + p * 185.0;
+                shuttleSpeedKmh = Math.max(82.0, 186.5 * Math.exp(-p * 0.65));
+                if (f === 78) isApex = true;
+            } else if (f === 95) {
+                // 4. 落入對手網前對角死角 (鷹眼界內判定)
+                shuttleX = 370.0;
+                shuttleY = 460.0;
+                shuttleSpeedKmh = 72.0;
+                isLanded = true;
+                isInCourt = true;
+                hawkEyeDistCm = 1.8; // 壓死角界內 1.8 cm
+            } else {
+                // 5. 滾網落地
+                shuttleX = 370.0;
+                shuttleY = 460.0;
+                shuttleSpeedKmh = 0.0;
+            }
+
             frames.push({
                 frame_index: f,
                 timestamp_sec: Math.round(t * 100) / 100,
@@ -294,6 +400,16 @@
                 court_position: {
                     norm_x: Math.round(courtNormX * 100) / 100,
                     norm_y: Math.round(courtNormY * 100) / 100
+                },
+                shuttlecock: {
+                    x: Math.round(shuttleX * 10) / 10,
+                    y: Math.round(shuttleY * 10) / 10,
+                    speed_kmh: Math.round(shuttleSpeedKmh * 10) / 10,
+                    is_hit: isHit,
+                    is_apex: isApex,
+                    is_landed: isLanded,
+                    is_in_court: isInCourt,
+                    hawkeye_dist_cm: hawkEyeDistCm
                 },
                 metrics: {
                     dominant_elbow_angle: Math.round(dominantElbowAngle * 10) / 10,
@@ -321,6 +437,9 @@
             },
             summary_metrics: {
                 max_jump_height_cm: 22.4,
+                peak_smash_speed_kmh: 186.5,
+                average_rally_speed_kmh: 112.0,
+                landing_verdict: "界內 (IN 1.8cm)",
                 max_elbow_extension_deg: 168.5,
                 min_elbow_loading_deg: 108.0,
                 swing_range_deg: 60.5,

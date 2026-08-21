@@ -87,6 +87,14 @@
                             <span class="chip-text">原始影片重合</span>
                         </label>
                         <label class="toggle-chip">
+                            <input type="checkbox" id="chkTrajectory" checked>
+                            <span class="chip-text highlight-chip-shuttle">🏸 羽球飛行軌跡</span>
+                        </label>
+                        <label class="toggle-chip">
+                            <input type="checkbox" id="chkLanding" checked>
+                            <span class="chip-text highlight-chip-landing">🎯 鷹眼落點判定</span>
+                        </label>
+                        <label class="toggle-chip">
                             <input type="checkbox" id="chkSkeleton" checked>
                             <span class="chip-text">17點骨架</span>
                         </label>
@@ -96,11 +104,11 @@
                         </label>
                         <label class="toggle-chip">
                             <input type="checkbox" id="chkCoM" checked>
-                            <span class="chip-text">重心軌跡 (CoM)</span>
+                            <span class="chip-text">重心軌跡</span>
                         </label>
                         <label class="toggle-chip">
                             <input type="checkbox" id="chkJumpApex" checked>
-                            <span class="chip-text">起跳高度標尺</span>
+                            <span class="chip-text">起跳標尺</span>
                         </label>
                     </div>
                 </div>
@@ -112,6 +120,18 @@
                     
                     <!-- Overlay HUD elements -->
                     <div class="hud-overlay" id="hudOverlay">
+                        <div class="hud-stat-badge hud-shuttle-speed" id="hudShuttleSpeedBadge">
+                            <span class="label">🏸 即時球速</span>
+                            <span class="val" id="hudShuttleSpeed">0</span> <span class="unit">km/h</span>
+                        </div>
+                        <div class="hud-stat-badge hud-peak-smash" id="hudPeakSmashBadge">
+                            <span class="label">🔥 殺球初速</span>
+                            <span class="val" id="hudPeakSmash">0</span> <span class="unit">km/h</span>
+                        </div>
+                        <div class="hud-stat-badge hud-hawkeye" id="hudHawkEyeBadge" style="display:none;">
+                            <span class="label">🎯 鷹眼判定</span>
+                            <span class="val" id="hudHawkEyeText">IN (界內)</span>
+                        </div>
                         <div class="hud-stat-badge" id="hudSmashSpeed">
                             <span class="label">手臂角速度</span>
                             <span class="val" id="hudAngularVel">0.0</span> <span class="unit">°/s</span>
@@ -193,6 +213,45 @@
 
             <!-- Right Column: Real-time Biomechanics Gauges -->
             <aside class="metrics-section">
+                <!-- Shuttlecock Speed & Trajectory Telemetry Card -->
+                <div class="metric-card card shuttle-telemetry-card">
+                    <div class="metric-header">
+                        <div class="title-with-desc">
+                            <h3>羽球飛行力學與球速 (Shuttle Telemetry)</h3>
+                            <span class="metric-desc">物理軌跡換算 (即時球速 / 初速 / 鷹眼落點)</span>
+                        </div>
+                        <span class="metric-tag tag-speed" id="shuttleStatusTag">追蹤中</span>
+                    </div>
+                    
+                    <div class="shuttle-speed-dashboard">
+                        <div class="speed-main-gauge">
+                            <span class="speed-main-label">即時球速 (Velocity)</span>
+                            <div class="speed-main-val">
+                                <span class="val-speed-num" id="valShuttleSpeed">0</span>
+                                <span class="val-speed-unit">km/h</span>
+                            </div>
+                        </div>
+                        <div class="speed-sub-grid">
+                            <div class="speed-sub-item">
+                                <span class="sub-k">🔥 擊球最高初速</span>
+                                <span class="sub-v highlight-crimson" id="valPeakSmashSpeed">0 km/h</span>
+                            </div>
+                            <div class="speed-sub-item">
+                                <span class="sub-k">⏱️ 飛行滯空時間</span>
+                                <span class="sub-v highlight-cyan" id="valFlightTime">0.00 s</span>
+                            </div>
+                            <div class="speed-sub-item">
+                                <span class="sub-k">📐 軌跡弧頂高度</span>
+                                <span class="sub-v highlight-gold" id="valApexHeight">0.00 m</span>
+                            </div>
+                            <div class="speed-sub-item">
+                                <span class="sub-k">🎯 鷹眼落點判定</span>
+                                <span class="sub-v badge-in" id="valHawkEyeVerdict">界內 (IN)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Gauge 1: Dominant Elbow Extension -->
                 <div class="metric-card card">
                     <div class="metric-header">

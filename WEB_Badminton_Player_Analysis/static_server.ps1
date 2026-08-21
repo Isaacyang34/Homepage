@@ -2,11 +2,8 @@ $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add('http://127.0.0.1:8080/')
 $listener.Prefixes.Add('http://localhost:8080/')
 $listener.Start()
-Write-Output 'Badminton Vision AI Server started on http://127.0.0.1:8080/'
-$root = $PSScriptRoot
-if ([string]::IsNullOrEmpty($root)) {
-    $root = 'c:\Users\peter\OneDrive\Desktop\AI_Projects\WEB_Badminton_Player_Analysis'
-}
+Write-Output 'Server started on http://127.0.0.1:8080/'
+$root = 'c:\Users\peter\OneDrive\Desktop\AI_Projects\WEB_Badminton_Player_Analysis'
 
 while ($listener.IsListening) {
     try {
@@ -14,7 +11,6 @@ while ($listener.IsListening) {
         $req = $context.Request
         $res = $context.Response
         
-        # Add CORS headers
         $res.AddHeader('Access-Control-Allow-Origin', '*')
         $res.AddHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         $res.AddHeader('Access-Control-Allow-Headers', '*')
@@ -44,7 +40,5 @@ while ($listener.IsListening) {
             $res.StatusCode = 404
         }
         $res.OutputStream.Close()
-    } catch {
-        # continue listening on transient errors
-    }
+    } catch {}
 }
