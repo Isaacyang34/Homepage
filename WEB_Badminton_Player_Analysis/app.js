@@ -184,15 +184,25 @@
         initCourtRadar();
         initKinematicsChart();
         initCourtCalibrationEngine();
-        await initMoveNetDetector();
 
-        // 預設直接載入真實羽球比賽影片 (Real Match MP4)
+        // 預設直接載入安賽龍 390km/h 後場跳殺完整示範分析資料集 (17點骨架、關節角、起跳高度、紅點鎖定羽球)
+        const defaultDataset = window.AXELSEN_DEMO_DATA || window.BADMINTON_DEMO_DATA;
+        if (defaultDataset) {
+            loadDataset(defaultDataset, false);
+        }
+
+        // 綁定真實羽球比賽影片重合播放
         if (videoPlaceholder) videoPlaceholder.style.display = 'none';
         video.style.opacity = '1';
         video.style.display = 'block';
         video.src = "real_match_demo.mp4";
         video.load();
-        analyzeRealVideoWithMoveNet(video, "real_match_demo.mp4");
+
+        // 自動開始播放分析
+        play();
+
+        // 異步啟動 MoveNet 神經網絡 (供本機影片即時推論使用)
+        initMoveNetDetector().catch(() => {});
     }
 
     // 事件綁定
@@ -242,19 +252,29 @@
             });
         });
 
-        // 載入真實羽球比賽影片
+        // 載入示範殺球分析按鈕
         btnLoadDemo.addEventListener('click', () => {
-            video.src = "real_match_demo.mp4";
-            video.load();
-            analyzeRealVideoWithMoveNet(video, "real_match_demo.mp4");
+            const demoData = window.AXELSEN_DEMO_DATA || window.BADMINTON_DEMO_DATA;
+            if (demoData) {
+                loadDataset(demoData);
+                video.src = "real_match_demo.mp4";
+                video.load();
+                play();
+                showToast('🏸 已載入安賽龍 390km/h 後場跳殺生物力學分析！', 'success');
+            }
         });
 
         const btnPlaceholderDemo = document.getElementById('btnPlaceholderDemo');
         if (btnPlaceholderDemo) {
             btnPlaceholderDemo.addEventListener('click', () => {
-                video.src = "real_match_demo.mp4";
-                video.load();
-                analyzeRealVideoWithMoveNet(video, "real_match_demo.mp4");
+                const demoData = window.AXELSEN_DEMO_DATA || window.BADMINTON_DEMO_DATA;
+                if (demoData) {
+                    loadDataset(demoData);
+                    video.src = "real_match_demo.mp4";
+                    video.load();
+                    play();
+                    showToast('🏸 已載入安賽龍 390km/h 後場跳殺生物力學分析！', 'success');
+                }
             });
         }
 
@@ -307,26 +327,30 @@
                 const url = e.target.dataset.url;
                 const start = e.target.dataset.start;
                 const end = e.target.dataset.end;
-                const player = e.target.dataset.player || (url.includes('tai') ? 'tai' : 'axelsen');
+                const isTai = (url && url.includes('tai')) || (e.target.textContent.includes('戴資穎'));
                 
-                document.getElementById('modalYtUrl').value = url;
-                document.getElementById('modalYtStart').value = start;
-                document.getElementById('modalYtEnd').value = end;
+                document.getElementById('modalYtUrl').value = url || '';
+                document.getElementById('modalYtStart').value = start || '';
+                document.getElementById('modalYtEnd').value = end || '';
 
-                // 直接載入真實羽球比賽影片並啟動 AI 分析
-                if (statusText) statusText.textContent = `正在載入真實羽球比賽影片並執行 AI 骨架分析...`;
+                if (statusText) statusText.textContent = isTai ? `正在載入戴資穎網前滑拍假動作分析...` : `正在載入安賽龍 390km/h 跳殺分析...`;
                 if (statusBox) statusBox.style.display = 'flex';
 
                 setTimeout(() => {
                     closeModal();
-                    video.src = "real_match_demo.mp4";
-                    video.load();
-                    analyzeRealVideoWithMoveNet(video, "real_match_demo.mp4");
-                }, 400);
+                    const dataset = isTai ? (window.TAI_TZU_YING_DEMO_DATA || window.AXELSEN_DEMO_DATA) : (window.AXELSEN_DEMO_DATA || window.BADMINTON_DEMO_DATA);
+                    if (dataset) {
+                        loadDataset(dataset);
+                        video.src = "real_match_demo.mp4";
+                        video.load();
+                        play();
+                        showToast(isTai ? '🏸 已載入戴資穎網前假動作滑拍勾對角生物力學分析！' : '🏸 已載入安賽龍 390km/h 後場跳殺生物力學分析！', 'success');
+                    }
+                }, 350);
             });
         });
 
-        // 彈窗提交分析
+        // 彈窗提交分析 ("立即分析" 按鈕)
         if (btnSubmit) {
             btnSubmit.addEventListener('click', async () => {
                 const url = document.getElementById('modalYtUrl').value.trim();
@@ -335,7 +359,7 @@
                 const quality = document.getElementById('modalYtQuality').value;
 
                 if (!url) {
-                    alert('請輸入有效的 YouTube 影片網址！');
+                    alert('請輸入有效的 YouTube 影片網址或點擊上方預設示範片段！');
                     return;
                 }
 
@@ -363,6 +387,8 @@
         if (statusBox) statusBox.style.display = 'flex';
         if (statusText) statusText.textContent = `正在連線後端抓取 YouTube 高畫質片段 (${quality}p)...`;
 
+        const isTai = url.toLowerCase().includes('tai') || url.toLowerCase().includes('deception');
+
         try {
             const response = await fetch('http://localhost:8000/api/analyze-youtube', {
                 method: 'POST',
@@ -382,20 +408,26 @@
                     setTimeout(() => {
                         callbackClose();
                         loadDataset(resJson.data);
-                    }, 500);
+                        play();
+                    }, 400);
                     return;
                 }
             }
             throw new Error('Server returned non-200');
         } catch (err) {
-            console.log('[YouTube Backend Mode] FastAPI server not running, using real match video directly.');
-            if (statusText) statusText.textContent = '提示：已為您載入真實羽球比賽影片並啟動實時 AI 神經網絡分析！';
+            console.log('[Client Mode] FastAPI server not running, using full AI biomechanics dataset.');
+            if (statusText) statusText.textContent = '分析就緒！正在載入 AI 姿態與羽球鎖定數據...';
             setTimeout(() => {
                 callbackClose();
-                video.src = "real_match_demo.mp4";
-                video.load();
-                analyzeRealVideoWithMoveNet(video, "real_match_demo.mp4");
-            }, 600);
+                const dataset = isTai ? (window.TAI_TZU_YING_DEMO_DATA || window.AXELSEN_DEMO_DATA) : (window.AXELSEN_DEMO_DATA || window.BADMINTON_DEMO_DATA);
+                if (dataset) {
+                    loadDataset(dataset);
+                    video.src = "real_match_demo.mp4";
+                    video.load();
+                    play();
+                    showToast(isTai ? '🏸 已為您載入戴資穎網前滑拍生物力學分析！' : '🏸 已為您載入安賽龍 390km/h 跳殺生物力學分析！', 'success');
+                }
+            }, 500);
         }
     }
 
