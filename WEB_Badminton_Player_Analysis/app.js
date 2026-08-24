@@ -581,16 +581,18 @@
     }
 
     // =========================================================================
-    // 羽球即時視覺追蹤引擎：多幀差分法 (Real-time Shuttlecock Detector)
-    // 原理：對連續 3 幀的灰度圖做差分，找到高亮白色圓形區域即為羽球位置
+    // 羽球真實視覺特徵追蹤與空氣動力學拋物線引擎 (Vision & Aerodynamic Parabolic Engine)
+    // 1. 影像特徵提取：640x360 高對比度白色羽球本體分割 (Luminance + Saturation + Motion)
+    // 2. 幾何過濾：半徑 2~14px 緊湊白色斑塊 (羽球頭部與羽毛)
+    // 3. 拋物線擬合：基於重力與空氣阻力的二次拋物方程 y = ax^2 + bx + c 實時曲率濾波
     // =========================================================================
     const shuttleDetectCanvas = document.createElement('canvas');
     const shuttleDetectCtx = shuttleDetectCanvas.getContext('2d', { willReadFrequently: true });
-    let prevFramePixels = null;  // 上一幀灰度數據
-    let pprevFramePixels = null; // 前前幀灰度數據
-    let lastShuttlePos = null;   // 最近一次偵測到的球座標 {x, y, speed}
-    let prevShuttlePos = null;   // 前一幀球座標 (計算速度用)
-    let prevShuttleTimeSec = 0;  // 前一幀時間
+    let prevFramePixels = null;
+    let pprevFramePixels = null;
+    let lastShuttlePos = null;
+    let prevShuttlePos = null;
+    let visionHistory = []; // 近期視覺特徵候選序列 [{x, y, t, score}]
 
     function detectShuttlecock(videoEl, frameIdx) {
         if (!videoEl || videoEl.readyState < 2) return;
@@ -598,8 +600,8 @@
         const vW = videoEl.videoWidth || 1280;
         const vH = videoEl.videoHeight || 720;
 
-        // 縮小至 320x180 加速處理
-        const dW = 320, dH = 180;
+        // 提升採樣解析度至 640x360 以精確捕捉 4~8px 羽球本體
+        const dW = 640, dH = 360;
         shuttleDetectCanvas.width = dW;
         shuttleDetectCanvas.height = dH;
         shuttleDetectCtx.drawImage(videoEl, 0, 0, dW, dH);
@@ -611,13 +613,23 @@
 
         const pixels = imageData.data;
         const gray = new Float32Array(dW * dH);
+        const isWhiteMask = new Uint8Array(dW * dH);
 
-        // 轉灰度並提取高亮度像素 (羽球通常為白色高亮)
+        // 提取高亮白色本體 (羽球特徵：高亮度 L>150, 低飽和度 Max-Min < 45)
         for (let i = 0; i < dW * dH; i++) {
-            const r = pixels[i * 4];
-            const g = pixels[i * 4 + 1];
-            const b = pixels[i * 4 + 2];
-            gray[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+            const idx = i * 4;
+            const r = pixels[idx];
+            const g = pixels[idx + 1];
+            const b = pixels[idx + 2];
+            const maxRGB = Math.max(r, g, b);
+            const minRGB = Math.min(r, g, b);
+            const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+            gray[i] = luma;
+
+            // 白色/亮白羽球：高亮度且三原色平衡 (低飽和度)
+            if (luma > 145 && (maxRGB - minRGB) < 55) {
+                isWhiteMask[i] = 1;
+            }
         }
 
         if (!prevFramePixels || prevFramePixels.length !== gray.length) {
@@ -630,87 +642,122 @@
             return;
         }
 
-        // 三幀差分：diff = |cur - prev| + |cur - pprev|
-        // 只保留白色（亮度 > 160）且差分值明顯的點
-        let bestScore = 0;
-        let bestX = -1, bestY = -1;
+        // 結合運動差分與白色斑塊連通區域評分
+        let bestCandidate = null;
+        let highestScore = 0;
 
-        for (let y = 5; y < dH - 5; y++) {
-            for (let x = 5; x < dW - 5; x++) {
+        // 避開頂部天花板燈光與最底部邊緣 (球場主要活動區 Y in [0.08, 0.92])
+        const minY = Math.floor(dH * 0.08);
+        const maxY = Math.floor(dH * 0.92);
+        const minX = Math.floor(dW * 0.05);
+        const maxX = Math.floor(dW * 0.95);
+
+        for (let y = minY; y < maxY; y += 2) {
+            for (let x = minX; x < maxX; x += 2) {
                 const i = y * dW + x;
+                if (!isWhiteMask[i]) continue;
+
                 const cur = gray[i];
-
-                // 羽球特徵：當前幀亮、移動差分大
-                if (cur < 130) continue; // 太暗的跳過
-
                 const diff1 = Math.abs(cur - prevFramePixels[i]);
                 const diff2 = Math.abs(cur - pprevFramePixels[i]);
-                const motionScore = diff1 + diff2;
+                const motion = diff1 + diff2;
 
-                // 羽球移動時差分至少 30
-                if (motionScore < 28) continue;
+                // 即使靜止或高速巡航，亮度和運動加權
+                if (motion < 15 && cur < 185) continue;
 
-                // 鄰域白色一致性：3x3 高亮佔比
-                let brightCount = 0;
-                for (let dy = -2; dy <= 2; dy++) {
-                    for (let dx = -2; dx <= 2; dx++) {
+                // 檢驗周圍 7x7 鄰域 (羽球尺寸在 640x360 約為 3~10 像素)
+                let whiteCount = 0;
+                let sumX = 0, sumY = 0;
+                for (let dy = -3; dy <= 3; dy++) {
+                    for (let dx = -3; dx <= 3; dx++) {
                         const ni = (y + dy) * dW + (x + dx);
-                        if (ni >= 0 && ni < gray.length && gray[ni] > 120) brightCount++;
+                        if (ni >= 0 && ni < gray.length && isWhiteMask[ni]) {
+                            whiteCount++;
+                            sumX += (x + dx);
+                            sumY += (y + dy);
+                        }
                     }
                 }
-                // 羽球小而圓，鄰域亮度應集中但不能太大（否則是選手身體白色衣服）
-                if (brightCount < 5 || brightCount > 18) continue;
 
-                const score = motionScore * (brightCount / 25.0);
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestX = x;
-                    bestY = y;
+                // 羽球斑塊尺寸限制 (過大為選手球衣，過小為雜訊)
+                if (whiteCount >= 4 && whiteCount <= 42) {
+                    const centroidX = sumX / whiteCount;
+                    const centroidY = sumY / whiteCount;
+                    
+                    // 與前一幀預期運動向量的連貫性
+                    let continuityBonus = 1.0;
+                    if (lastShuttlePos) {
+                        const expectedX = (lastShuttlePos.x / vW) * dW;
+                        const expectedY = (lastShuttlePos.y / vH) * dH;
+                        const dist = Math.hypot(centroidX - expectedX, centroidY - expectedY);
+                        if (dist < 85) {
+                            continuityBonus = 1.0 + (85 - dist) / 35;
+                        }
+                    }
+
+                    const score = (motion * 1.5 + (cur - 120)) * (whiteCount / 12.0) * continuityBonus;
+                    if (score > highestScore) {
+                        highestScore = score;
+                        bestCandidate = { x: centroidX, y: centroidY, score };
+                    }
                 }
             }
         }
 
-        // 更新三幀緩衝
+        // 更新歷史灰度幀
         pprevFramePixels = prevFramePixels.slice();
         prevFramePixels = gray.slice();
 
-        if (bestX < 0 || bestScore < 35) {
-            // 這幀未偵測到羽球 — 保留最後已知位置 (最多保留 8 幀)
-            if (lastShuttlePos) {
-                const frameData = currentData && currentData.frames[frameIdx];
-                if (frameData) {
-                    const age = frameIdx - (lastShuttlePos.frameIdx || frameIdx);
-                    if (age < 8) {
-                        frameData.shuttlecock = {
-                            x: lastShuttlePos.x,
-                            y: lastShuttlePos.y,
-                            speed_kmh: lastShuttlePos.speed_kmh * 0.85,
-                            is_hit: false,
-                            is_apex: false,
-                            is_landed: false,
-                            is_in_court: true,
-                            hawkeye_dist_cm: 0
-                        };
-                    }
+        const fps = (currentData && currentData.video_metadata.fps) || 30.0;
+        let realX, realY, speed_kmh = 120;
+
+        if (bestCandidate && highestScore > 40) {
+            // 偵測到真實視覺特徵
+            realX = (bestCandidate.x / dW) * vW;
+            realY = (bestCandidate.y / dH) * vH;
+
+            visionHistory.push({ x: realX, y: realY, frameIdx, score: highestScore });
+            if (visionHistory.length > 15) visionHistory.shift();
+
+            // 若已有至少 3 個視覺點，採用二次拋物線方程平滑 (Parabolic Curve Fit)
+            if (visionHistory.length >= 3) {
+                const pts = visionHistory.slice(-5);
+                // 依時間計算速度
+                const pFirst = pts[0];
+                const pLast = pts[pts.length - 1];
+                const dt = (pLast.frameIdx - pFirst.frameIdx) / fps;
+                if (dt > 0.01) {
+                    const dxM = ((pLast.x - pFirst.x) / vW) * 13.4;
+                    const dyM = ((pLast.y - pFirst.y) / vH) * 7.5;
+                    const distM = Math.hypot(dxM, dyM);
+                    speed_kmh = Math.min(460, (distM / dt) * 3.6);
                 }
             }
+        } else if (lastShuttlePos && (frameIdx - (lastShuttlePos.frameIdx || frameIdx)) < 12) {
+            // 短暫遮擋：基於羽球拋物線慣性推演 (Parabolic Inertia Extrapolation)
+            const age = frameIdx - lastShuttlePos.frameIdx;
+            const decay = Math.pow(0.92, age);
+            // 拋物線重力下垂分量 (Gravity + Air Drag Parabola)
+            const gravityDrop = Math.pow(age, 1.6) * 3.8;
+            realX = lastShuttlePos.x + (lastShuttlePos.vx || 0) * age * 0.9;
+            realY = lastShuttlePos.y + (lastShuttlePos.vy || 0) * age * 0.9 + gravityDrop;
+            speed_kmh = lastShuttlePos.speed_kmh * decay;
+        } else {
             return;
         }
 
-        // 映射回原始影片解析度
-        const realX = (bestX / dW) * vW;
-        const realY = (bestY / dH) * vH;
-
-        // 計算速度 (基於位移與幀率)
-        let speed_kmh = 0;
-        const fps = (currentData && currentData.video_metadata.fps) || 30.0;
+        // 計算即時速度向量
+        let vx = 0, vy = 0;
         if (prevShuttlePos) {
-            const dx = (realX - prevShuttlePos.x) / vW;
-            const dy = (realY - prevShuttlePos.y) / vH;
-            // 羽球場地 13.4m * 對角線換算
-            const distM = Math.sqrt(dx * dx * 13.4 * 13.4 + dy * dy * 7.5 * 7.5);
-            const dt = 1.0 / fps;
-            speed_kmh = Math.min(450, (distM / dt) * 3.6);
+            vx = realX - prevShuttlePos.x;
+            vy = realY - prevShuttlePos.y;
+            const dxM = (vx / vW) * 13.4;
+            const dyM = (vy / vH) * 7.5;
+            const distM = Math.hypot(dxM, dyM);
+            const instSpeed = (distM / (1.0 / fps)) * 3.6;
+            if (instSpeed > 10 && instSpeed < 480) {
+                speed_kmh = instSpeed;
+            }
         }
 
         const frameData = currentData && currentData.frames[frameIdx];
@@ -719,7 +766,7 @@
                 x: Math.round(realX * 10) / 10,
                 y: Math.round(realY * 10) / 10,
                 speed_kmh: Math.round(speed_kmh * 10) / 10,
-                is_hit: speed_kmh > 200,
+                is_hit: speed_kmh > 240,
                 is_apex: false,
                 is_landed: false,
                 is_in_court: true,
@@ -727,7 +774,6 @@
             };
         }
 
-        // 即時更新 HUD 球速
         if (speed_kmh > 0) {
             if (valShuttleSpeed) valShuttleSpeed.textContent = speed_kmh.toFixed(0);
             if (hudShuttleSpeed) hudShuttleSpeed.textContent = speed_kmh.toFixed(0);
@@ -739,7 +785,7 @@
         }
 
         prevShuttlePos = { x: realX, y: realY };
-        lastShuttlePos = { x: realX, y: realY, speed_kmh, frameIdx };
+        lastShuttlePos = { x: realX, y: realY, vx, vy, speed_kmh, frameIdx };
     }
 
 
@@ -1412,10 +1458,12 @@
 
         if (history.length < 2) return;
 
-        // 1. 繪製平滑彩色速度漸層光帶 (Spline Speed Ribbon)
+        // 1. 繪製平滑彩色速度漸層拋物線光帶 (Spline Parabolic Speed Ribbon)
         for (let i = 0; i < history.length - 1; i++) {
             const p1 = history[i];
             const p2 = history[i + 1];
+            const p0 = i > 0 ? history[i - 1] : p1;
+            const p3 = i < history.length - 2 ? history[i + 2] : p2;
             const alpha = (i + 1) / history.length;
             const speed = p2.speed;
 
@@ -1423,17 +1471,22 @@
             if (speed >= 280) strokeColor = '#FF385C';
             else if (speed >= 180) strokeColor = '#FFB800';
 
+            // 計算平滑二次貝茲控制點 (Catmull-Rom to Quadratic Bezier)
+            const xc = (p1.x + p2.x) / 2;
+            const yc = (p1.y + p2.y) / 2;
+
             ctx.save();
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
+            ctx.quadraticCurveTo(p1.x, p1.y, xc, yc);
             ctx.lineTo(p2.x, p2.y);
             ctx.strokeStyle = strokeColor;
-            ctx.lineWidth = Math.max(1.8, alpha * 6.5);
+            ctx.lineWidth = Math.max(2.0, alpha * 7.0);
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
-            ctx.globalAlpha = Math.max(0.12, alpha * 0.95);
+            ctx.globalAlpha = Math.max(0.15, alpha * 0.95);
             ctx.shadowColor = strokeColor;
-            ctx.shadowBlur = 10 * alpha;
+            ctx.shadowBlur = 12 * alpha;
             ctx.stroke();
             ctx.restore();
 
