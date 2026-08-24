@@ -87,8 +87,16 @@
                             <span class="chip-text">原始影片重合</span>
                         </label>
                         <label class="toggle-chip">
+                            <input type="checkbox" id="chkCourtBounds" checked>
+                            <span class="chip-text highlight-chip-court">📐 3D 球場網格</span>
+                        </label>
+                        <label class="toggle-chip">
+                            <input type="checkbox" id="chkHawkEyeLoupe" checked>
+                            <span class="chip-text highlight-chip-loupe">🔍 鷹眼微距放大鏡</span>
+                        </label>
+                        <label class="toggle-chip">
                             <input type="checkbox" id="chkTrajectory" checked>
-                            <span class="chip-text highlight-chip-shuttle">🏸 羽球飛行軌跡</span>
+                            <span class="chip-text highlight-chip-shuttle">🎯 紅點鎖定羽球</span>
                         </label>
                         <label class="toggle-chip">
                             <input type="checkbox" id="chkLanding" checked>
@@ -111,12 +119,49 @@
                             <span class="chip-text">起跳標尺</span>
                         </label>
                     </div>
+
+                    <!-- Single / Doubles Switch & Calibration Trigger -->
+                    <div class="boundary-controls">
+                        <div class="game-mode-toggle">
+                            <button class="mode-btn active" id="btnModeSingles" title="單打界線 (5.18m 寬)">單打</button>
+                            <button class="mode-btn" id="btnModeDoubles" title="雙打界線 (6.10m 寬)">雙打</button>
+                        </div>
+                        <button class="btn-tool-calib" id="btnToggleCalibration" title="拖曳調整 4 點邊界錨點">⚙️ 校正邊界</button>
+                    </div>
                 </div>
 
                 <!-- Video + Canvas Container -->
                 <div class="video-stage" id="videoStage">
                     <video id="mainVideo" src="real_match_demo.mp4" playsinline muted loop autoplay></video>
                     <canvas id="poseCanvas"></canvas>
+
+                    <!-- 4-Point Homography Calibration Handles Overlay -->
+                    <div class="calib-handles-overlay" id="calibHandlesOverlay" style="display: none;">
+                        <div class="calib-handle" id="handleFarLeft" data-corner="FL" title="遠端左角點"><span class="handle-tag">遠左</span></div>
+                        <div class="calib-handle" id="handleFarRight" data-corner="FR" title="遠端右角點"><span class="handle-tag">遠右</span></div>
+                        <div class="calib-handle" id="handleNearRight" data-corner="NR" title="近端右角點"><span class="handle-tag">近右</span></div>
+                        <div class="calib-handle" id="handleNearLeft" data-corner="NL" title="近端左角點"><span class="handle-tag">近左</span></div>
+                        <div class="calib-hint-banner">💡 拖曳 4 個角點圓形錨點以精準貼合比賽場地白線</div>
+                    </div>
+
+                    <!-- Hawk-Eye 4X Micro Loupe Magnifier -->
+                    <div class="hawkeye-loupe-card" id="hawkeyeLoupeCard" style="display: none;">
+                        <div class="loupe-header">
+                            <span class="loupe-title">🔍 鷹眼 4X 微距壓線判定</span>
+                            <span class="loupe-badge-verdict" id="loupeVerdictBadge">IN 界內 (0.8cm)</span>
+                        </div>
+                        <div class="loupe-lens-wrapper">
+                            <canvas id="loupeCanvas" width="200" height="200"></canvas>
+                            <div class="loupe-reticle"></div>
+                            <div class="loupe-ruler">
+                                <span>-2cm</span><span>-1cm</span><span class="ruler-line">0</span><span>+1cm</span><span>+2cm</span>
+                            </div>
+                        </div>
+                        <div class="loupe-footer">
+                            <span id="loupeDistanceText">壓線容許量: 0.8 cm (界內)</span>
+                            <span class="loupe-mode-tag" id="loupeModeTag">單打邊線</span>
+                        </div>
+                    </div>
                     
                     <!-- Overlay HUD elements -->
                     <div class="hud-overlay" id="hudOverlay">

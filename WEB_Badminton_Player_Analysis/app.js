@@ -1498,183 +1498,121 @@
     }
 
     // =========================================================================
-    // Module 2: 羽球即時飛行軌跡、速度漸層光帶與鷹眼落點渲染
+    // Module 2: 紅點直接鎖定羽球 (Direct Red Reticle & Centroid Lock)
+    // 不畫歷史連線軌跡，以高對比紅色鎖定準心 + 實心紅點即時追蹤羽球本體
     // =========================================================================
     function renderShuttlecockTrajectory(ctx, currentIdx, mapX, mapY, box) {
         if (!chkTrajectory || !chkTrajectory.checked || !currentData || !currentData.frames) return;
 
-        const frames = currentData.frames;
-        const trailSpan = 24; // 彗星拖尾跨度
-        const startIdx = Math.max(0, currentIdx - trailSpan);
-        const history = [];
+        const frameData = currentData.frames[currentIdx];
+        if (!frameData || !frameData.shuttlecock) return;
 
-        for (let i = startIdx; i <= currentIdx; i++) {
-            const f = frames[i];
-            if (f && f.shuttlecock && f.shuttlecock.x > 0 && f.shuttlecock.y > 0) {
-                history.push({
-                    x: mapX(f.shuttlecock.x),
-                    y: mapY(f.shuttlecock.y),
-                    speed: f.shuttlecock.speed_kmh || 120,
-                    isHit: f.shuttlecock.is_hit,
-                    isApex: f.shuttlecock.is_apex,
-                    isLanded: f.shuttlecock.is_landed,
-                    isInCourt: f.shuttlecock.is_in_court,
-                    distCm: f.shuttlecock.hawkeye_dist_cm,
-                    frameIdx: i
-                });
-            }
-        }
+        const sc = frameData.shuttlecock;
+        if (sc.x <= 0 || sc.y <= 0) return;
 
-        if (history.length < 2) return;
+        const sx = mapX(sc.x);
+        const sy = mapY(sc.y);
+        const speed = sc.speed_kmh || 0;
 
-        // 1. 繪製平滑彩色速度漸層拋物線光帶 (Single Smooth Parabolic Speed Ribbon)
-        for (let i = 0; i < history.length - 1; i++) {
-            const p1 = history[i];
-            const p2 = history[i + 1];
+        ctx.save();
 
-            // 空間連續性檢驗：若兩點距離異常跳躍 (> 110px)，視為不連續幀，不畫連接線
-            const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-            if (dist > 110) continue;
+        // 1. 紅色鎖定準星外圈 (Target Reticle Ring)
+        ctx.strokeStyle = '#FF1744';
+        ctx.lineWidth = 2.0;
+        ctx.shadowColor = 'rgba(255, 23, 68, 0.8)';
+        ctx.shadowBlur = 12;
 
-            const alpha = (i + 1) / history.length;
-            const speed = p2.speed;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 18, 0, Math.PI * 2);
+        ctx.stroke();
 
-            let strokeColor = '#00D2FF';
-            if (speed >= 280) strokeColor = '#FF385C';
-            else if (speed >= 180) strokeColor = '#FFB800';
+        // 2. 準心四向十字瞄準刻度線 (Crosshair Ticks)
+        ctx.lineWidth = 2.0;
+        ctx.beginPath();
+        // 上
+        ctx.moveTo(sx, sy - 24); ctx.lineTo(sx, sy - 18);
+        // 下
+        ctx.moveTo(sx, sy + 18); ctx.lineTo(sx, sy + 24);
+        // 左
+        ctx.moveTo(sx - 24, sy); ctx.lineTo(sx - 18, sy);
+        // 右
+        ctx.moveTo(sx + 18, sy); ctx.lineTo(sx + 24, sy);
+        ctx.stroke();
 
-            // 平滑二次貝茲曲線
-            const xc = (p1.x + p2.x) / 2;
-            const yc = (p1.y + p2.y) / 2;
+        // 3. 核心實心高亮紅點 (Solid Red Tracking Dot)
+        // 外層紅色脈衝光暈
+        const redGrad = ctx.createRadialGradient(sx, sy, 1, sx, sy, 8);
+        redGrad.addColorStop(0, '#FFFFFF');
+        redGrad.addColorStop(0.3, '#FF0033');
+        redGrad.addColorStop(0.8, '#FF1744');
+        redGrad.addColorStop(1, 'rgba(255, 23, 68, 0)');
+        ctx.fillStyle = redGrad;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 8, 0, Math.PI * 2);
+        ctx.fill();
 
+        // 核心鮮紅球心
+        ctx.fillStyle = '#FF0033';
+        ctx.beginPath();
+        ctx.arc(sx, sy, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 4.5, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // 4. 即時懸浮鎖定標籤 (Floating Reticle Badge)
+        const tagText = speed > 0 ? `🎯 鎖定 ${speed.toFixed(0)} km/h` : `🎯 羽球鎖定`;
+        ctx.font = '700 11px "JetBrains Mono", monospace';
+        const textWidth = ctx.measureText(tagText).width;
+        const badgeW = textWidth + 16;
+        const badgeH = 20;
+        const badgeX = sx + 12;
+        const badgeY = sy - 26;
+
+        ctx.fillStyle = 'rgba(10, 14, 24, 0.88)';
+        ctx.strokeStyle = '#FF1744';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#FF4D6D';
+        ctx.fillText(tagText, badgeX + 8, badgeY + 14);
+
+        ctx.restore();
+
+        // 5. 鷹眼落點地面判定 (Hawk-Eye Landing Marker)
+        if (chkLanding && chkLanding.checked && sc.is_landed) {
             ctx.save();
+            const markColor = sc.is_in_court ? '#00F59B' : '#FF385C';
+
+            // 地面橢圓透視光圈
             ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.quadraticCurveTo(p1.x, p1.y, xc, yc);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.strokeStyle = strokeColor;
-            ctx.lineWidth = Math.max(2.2, alpha * 6.5);
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.globalAlpha = Math.max(0.18, alpha * 0.95);
-            ctx.shadowColor = strokeColor;
-            ctx.shadowBlur = 10 * alpha;
+            ctx.ellipse(sx, sy, 28, 12, 0, 0, Math.PI * 2);
+            ctx.strokeStyle = markColor;
+            ctx.lineWidth = 2.5;
+            ctx.shadowColor = markColor;
+            ctx.shadowBlur = 14;
             ctx.stroke();
-            ctx.restore();
-        }
 
-        // 2. 擊球瞬間衝擊波光圈：全場僅允許當前幀為擊球時刻 (±2幀) 時渲染單一光圈
-        const currentFrameData = currentData.frames[currentIdx];
-        if (currentFrameData && currentFrameData.shuttlecock && currentFrameData.shuttlecock.is_hit) {
-            const hitX = mapX(currentFrameData.shuttlecock.x);
-            const hitY = mapY(currentFrameData.shuttlecock.y);
-
-            ctx.save();
             ctx.beginPath();
-            ctx.arc(hitX, hitY, 22, 0, Math.PI * 2);
-            ctx.strokeStyle = '#FF385C';
-            ctx.lineWidth = 3.5;
-            ctx.shadowColor = '#FF385C';
-            ctx.shadowBlur = 20;
-            ctx.stroke();
-
-            // 八方向光芒
-            for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 4) {
-                ctx.beginPath();
-                ctx.moveTo(hitX + Math.cos(angle) * 8, hitY + Math.sin(angle) * 8);
-                ctx.lineTo(hitX + Math.cos(angle) * 26, hitY + Math.sin(angle) * 26);
-                ctx.strokeStyle = '#FFFFFF';
-                ctx.lineWidth = 2.0;
-                ctx.stroke();
-            }
-            ctx.restore();
-        }
-
-        // 3. 繪製羽球當前頭部粒子 (Comet Head & Halo)
-        const head = history[history.length - 1];
-        if (head) {
-            ctx.save();
-            const haloColor = head.speed >= 280 ? '#FF385C' : (head.speed >= 180 ? '#FFB800' : '#00D2FF');
-
-            // 放射狀外層光暈
-            const grad = ctx.createRadialGradient(head.x, head.y, 2, head.x, head.y, 16);
-            grad.addColorStop(0, '#FFFFFF');
-            grad.addColorStop(0.35, haloColor);
-            grad.addColorStop(1, 'transparent');
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            ctx.arc(head.x, head.y, 16, 0, Math.PI * 2);
+            ctx.ellipse(sx, sy, 14, 6, 0, 0, Math.PI * 2);
+            ctx.fillStyle = sc.is_in_court ? 'rgba(0, 245, 155, 0.45)' : 'rgba(255, 56, 92, 0.45)';
             ctx.fill();
 
-            // 核心白色羽球
+            // 落地文字標籤
+            const verdictText = sc.is_in_court ? `鷹眼判定: 界內 (IN ${sc.hawkeye_dist_cm || 2.8}cm)` : `鷹眼判定: 界外 (OUT)`;
+            ctx.font = '700 12px "Noto Sans TC", sans-serif';
             ctx.fillStyle = '#FFFFFF';
-            ctx.beginPath();
-            ctx.arc(head.x, head.y, 5, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.strokeStyle = haloColor;
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
+            ctx.shadowColor = '#000000';
+            ctx.shadowBlur = 4;
+            ctx.fillText(verdictText, sx - 45, sy + 30);
 
-            // 羽球上方即時浮動球速標籤
-            ctx.fillStyle = 'rgba(8, 12, 20, 0.9)';
-            ctx.strokeStyle = haloColor;
-            ctx.lineWidth = 1.2;
-            ctx.beginPath();
-            ctx.roundRect(head.x + 10, head.y - 22, 74, 20, 4);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = haloColor;
-            ctx.font = '700 11px "JetBrains Mono", monospace';
-            ctx.fillText(`⚡${head.speed.toFixed(0)} km/h`, head.x + 14, head.y - 8);
             ctx.restore();
-        }
-
-        // 4. 鷹眼落點 3D 地面同心圓與判定標籤 (Hawk-Eye Landing Marker)
-        if (chkLanding && chkLanding.checked && head && head.isLanded) {
-                ctx.save();
-                const markColor = head.isInCourt ? '#00F59B' : '#FF385C';
-
-                // 地面橢圓透視光圈
-                ctx.beginPath();
-                ctx.ellipse(head.x, head.y, 28, 12, 0, 0, Math.PI * 2);
-                ctx.strokeStyle = markColor;
-                ctx.lineWidth = 2.5;
-                ctx.shadowColor = markColor;
-                ctx.shadowBlur = 14;
-                ctx.stroke();
-
-                ctx.beginPath();
-                ctx.ellipse(head.x, head.y, 14, 6, 0, 0, Math.PI * 2);
-                ctx.fillStyle = head.isInCourt ? 'rgba(0, 245, 155, 0.45)' : 'rgba(255, 56, 92, 0.45)';
-                ctx.fill();
-
-                // 十字瞄準線
-                ctx.beginPath();
-                ctx.moveTo(head.x - 35, head.y);
-                ctx.lineTo(head.x + 35, head.y);
-                ctx.moveTo(head.x, head.y - 18);
-                ctx.lineTo(head.x, head.y + 18);
-                ctx.strokeStyle = markColor;
-                ctx.lineWidth = 1.2;
-                ctx.stroke();
-
-                // 鷹眼判定文字懸浮框
-                ctx.fillStyle = 'rgba(6, 10, 18, 0.95)';
-                ctx.strokeStyle = markColor;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.roundRect(head.x - 60, head.y - 54, 120, 28, 6);
-                ctx.fill();
-                ctx.stroke();
-
-                ctx.fillStyle = markColor;
-                ctx.font = '800 12.5px "JetBrains Mono", monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText(head.isInCourt ? `🎯 IN (${head.distCm || 2.4}cm)` : '❌ OUT (出界)', head.x, head.y - 35);
-                ctx.textAlign = 'left';
-                ctx.restore();
-            }
         }
     }
 
