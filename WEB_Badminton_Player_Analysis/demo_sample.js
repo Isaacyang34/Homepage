@@ -158,10 +158,18 @@
             const kpts = generateKeypoints(comX, comY, dominantElbowAngle, kneeAngle, shoulderTilt, jumpHeightCm);
 
             // =========================================================================
-            // 羽球軌跡與飛行力學 (Shuttlecock Flight Aerodynamics)
+            // 羽球軌跡與飛行力學 (真實物理飛行路徑，獨立於人體骨架)
+            // 擊球點：球場後場中心 (640, 210)，殺球斜線飛向對角前場落點
             // =========================================================================
-            let shuttleX = baseCenterX;
-            let shuttleY = 200;
+            const HIT_X = 640.0;   // 擊球點 X (畫面中心)
+            const HIT_Y = 210.0;   // 擊球點 Y (高處，接近網高模擬起跳最高點)
+            const LAND_X = 328.0;  // 落點 X (對角前場斜線)
+            const LAND_Y = 535.0;  // 落點 Y
+            const SMASH_SPEED = 382.4; // km/h
+            const HIT_FRAME = 68;
+
+            let shuttleX = 460.0;
+            let shuttleY = 480.0;
             let shuttleSpeedKmh = 120.0;
             let isHit = false;
             let isApex = false;
@@ -169,38 +177,45 @@
             let isInCourt = true;
             let hawkEyeDistCm = 0.0;
 
-            if (f < 68) {
-                // 1. 對手高遠球飛向安賽龍後場
-                const p = f / 68.0;
-                shuttleX = 460 + p * 235.0;
-                shuttleY = 480 - Math.sin(p * Math.PI * 0.9) * 360.0;
+            if (f < HIT_FRAME) {
+                // 1. 對手後場高遠球飛向安賽龍後場 (弧形向上飛行)
+                const p = f / HIT_FRAME;
+                shuttleX = 460.0 + p * (HIT_X - 460.0);
+                // 拋物弧線：從低點 480 飛到擊球高點 210，弧頂在中間
+                shuttleY = 480.0 + (HIT_Y - 480.0) * p - Math.sin(p * Math.PI) * 200.0;
                 shuttleSpeedKmh = Math.max(75.0, 195.0 - p * 115.0);
                 if (f === 28) isApex = true;
-            } else if (f === 68) {
-                // 2. 安賽龍起跳最高點 重殺擊球 (382.4 km/h)
-                shuttleX = kpts[10][0] + 12.0; // 右手腕擊球點
-                shuttleY = kpts[10][1] - 30.0;
-                shuttleSpeedKmh = 382.4;
+
+            } else if (f === HIT_FRAME) {
+                // 2. 擊球瞬間：固定在擊球點，速度瞬間升至最高
+                shuttleX = HIT_X;
+                shuttleY = HIT_Y;
+                shuttleSpeedKmh = SMASH_SPEED;
                 isHit = true;
+
             } else if (f < 98) {
-                // 3. 殺球極速俯衝飛行 (陡峭斜下路徑)
-                const p = (f - 68) / 30.0;
-                shuttleX = (kpts[10][0] + 12.0) - p * 380.0;
-                shuttleY = (kpts[10][1] - 30.0) + p * 365.0;
-                shuttleSpeedKmh = Math.max(180.0, 382.4 * Math.exp(-p * 0.72));
+                // 3. 殺球極速俯衝：純物理路徑，從擊球點直飛落點 (不依賴骨架)
+                const p = (f - HIT_FRAME) / (98.0 - HIT_FRAME);
+                // 線性插值位置（殺球幾乎是直線俯衝）+ 微小重力弧
+                shuttleX = HIT_X + p * (LAND_X - HIT_X);
+                shuttleY = HIT_Y + p * (LAND_Y - HIT_Y) - Math.sin(p * Math.PI) * 18.0;
+                // 速度依氣動阻力指數衰減
+                shuttleSpeedKmh = Math.max(145.0, SMASH_SPEED * Math.exp(-p * 0.72));
+
             } else if (f === 98) {
-                // 4. 落點著地 (鷹眼界內判定)
-                shuttleX = 328.0;
-                shuttleY = 535.0;
+                // 4. 落點著地 (鷹眼界內判定 3.2cm 壓線)
+                shuttleX = LAND_X;
+                shuttleY = LAND_Y;
                 shuttleSpeedKmh = 145.0;
                 isLanded = true;
                 isInCourt = true;
-                hawkEyeDistCm = 3.2; // 壓線界內 3.2 cm
+                hawkEyeDistCm = 3.2;
+
             } else {
-                // 5. 地面彈跳與得分停頓
+                // 5. 落地彈跳
                 const p = (f - 98) / 22.0;
-                shuttleX = 328.0 - p * 35.0;
-                shuttleY = 535.0 - Math.sin(p * Math.PI) * 45.0 + p * 10.0;
+                shuttleX = LAND_X - p * 35.0;
+                shuttleY = LAND_Y - Math.sin(p * Math.PI) * 45.0 + p * 10.0;
                 shuttleSpeedKmh = Math.max(0.0, 145.0 - p * 145.0);
             }
 
@@ -347,48 +362,59 @@
             const kpts = generateKeypoints(comX, comY, dominantElbowAngle, kneeAngle, shoulderTilt, jumpHeightCm);
 
             // =========================================================================
-            // 羽球軌跡與飛行力學 (戴資穎網前滑拍勾對角)
+            // 羽球軌跡 - 網前滑拍勾對角 (純物理路徑，獨立於骨架)
+            // 擊球點：網前近網高點 (695, 285)，勾對角飛向對方網前死角
             // =========================================================================
-            let shuttleX = baseCenterX;
-            let shuttleY = 200;
-            let shuttleSpeedKmh = 95.0;
+            const TTY_HIT_X = 695.0;  // 網前擊球點 X
+            const TTY_HIT_Y = 285.0;  // 網前擊球點 Y (近網)
+            const TTY_LAND_X = 370.0; // 勾對角落點 X
+            const TTY_LAND_Y = 460.0; // 勾對角落點 Y (對方網前死角)
+            const TTY_SMASH_SPEED = 186.5;
+            const TTY_HIT_FRAME = 70;
+
+            let shuttleX, shuttleY, shuttleSpeedKmh;
             let isHit = false;
             let isApex = false;
             let isLanded = false;
             let isInCourt = true;
             let hawkEyeDistCm = 0.0;
 
-            if (f < 70) {
-                // 1. 對手放網球過網翻滾下墜
-                const p = f / 70.0;
-                shuttleX = 540 + p * 155.0;
-                shuttleY = 280 + p * 165.0 - Math.sin(p * Math.PI) * 45.0;
+            if (f < TTY_HIT_FRAME) {
+                // 1. 對手放網球：從對方近網低飛向戴資穎
+                const p = f / TTY_HIT_FRAME;
+                shuttleX = 540.0 + p * (TTY_HIT_X - 540.0);
+                shuttleY = 280.0 + p * 165.0 - Math.sin(p * Math.PI) * 45.0;
                 shuttleSpeedKmh = Math.max(45.0, 95.0 - p * 50.0);
-            } else if (f === 70) {
-                // 2. 戴資穎網前假動作滑拍變線擊球 (186.5 km/h 突發性推折角)
-                shuttleX = kpts[10][0] + 15.0;
-                shuttleY = kpts[10][1] - 15.0;
-                shuttleSpeedKmh = 186.5;
+
+            } else if (f === TTY_HIT_FRAME) {
+                // 2. 戴資穎假動作滑拍：固定在預設網前擊球點
+                shuttleX = TTY_HIT_X;
+                shuttleY = TTY_HIT_Y;
+                shuttleSpeedKmh = TTY_SMASH_SPEED;
                 isHit = true;
+
             } else if (f < 95) {
-                // 3. 勾對角貼網飛竄 (極限大角度滑行)
-                const p = (f - 70) / 25.0;
-                shuttleX = (kpts[10][0] + 15.0) - p * 340.0;
-                shuttleY = (kpts[10][1] - 15.0) - Math.sin(p * Math.PI * 0.7) * 95.0 + p * 185.0;
-                shuttleSpeedKmh = Math.max(82.0, 186.5 * Math.exp(-p * 0.65));
+                // 3. 勾對角貼網飛行：純物理弧線，不依賴骨架
+                const p = (f - TTY_HIT_FRAME) / (95.0 - TTY_HIT_FRAME);
+                shuttleX = TTY_HIT_X + p * (TTY_LAND_X - TTY_HIT_X);
+                // 貼網弧線：先微升後墜落（勾球特性）
+                shuttleY = TTY_HIT_Y + p * (TTY_LAND_Y - TTY_HIT_Y) - Math.sin(p * Math.PI * 0.7) * 85.0;
+                shuttleSpeedKmh = Math.max(72.0, TTY_SMASH_SPEED * Math.exp(-p * 0.65));
                 if (f === 78) isApex = true;
+
             } else if (f === 95) {
-                // 4. 落入對手網前對角死角 (鷹眼界內判定)
-                shuttleX = 370.0;
-                shuttleY = 460.0;
+                // 4. 落入對手網前死角
+                shuttleX = TTY_LAND_X;
+                shuttleY = TTY_LAND_Y;
                 shuttleSpeedKmh = 72.0;
                 isLanded = true;
                 isInCourt = true;
-                hawkEyeDistCm = 1.8; // 壓死角界內 1.8 cm
+                hawkEyeDistCm = 1.8;
+
             } else {
                 // 5. 滾網落地
-                shuttleX = 370.0;
-                shuttleY = 460.0;
+                shuttleX = TTY_LAND_X;
+                shuttleY = TTY_LAND_Y;
                 shuttleSpeedKmh = 0.0;
             }
 
