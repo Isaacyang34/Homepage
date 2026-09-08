@@ -453,9 +453,187 @@
             .kpi-val { font-size: 30px; }
             .metrics-table { grid-template-columns: 1fr; }
         }
+
+        /* ====== 授權驗證遮罩 ====== */
+        #auth-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 15, 29, 0.97);
+            backdrop-filter: blur(14px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .auth-card {
+            background: var(--bg-secondary);
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            border-radius: 20px;
+            padding: 40px 36px;
+            width: 90%;
+            max-width: 420px;
+            text-align: center;
+            box-shadow: 0 0 60px rgba(56, 189, 248, 0.12), 0 24px 60px rgba(0,0,0,0.6);
+            animation: fadeInUp 0.4s ease;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .auth-logo {
+            font-size: 40px;
+            margin-bottom: 8px;
+        }
+
+        .auth-card h2 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+
+        .auth-card p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 28px;
+            line-height: 1.6;
+        }
+
+        .auth-input-wrap {
+            position: relative;
+            margin-bottom: 16px;
+        }
+
+        .auth-input-wrap input {
+            width: 100%;
+            padding: 12px 44px 12px 16px;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 10px;
+            color: #fff;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.2s;
+            letter-spacing: 2px;
+        }
+
+        .auth-input-wrap input:focus {
+            border-color: var(--cyan);
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+        }
+
+        .auth-input-wrap input.error {
+            border-color: var(--rose);
+            box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.15);
+            animation: shake 0.35s ease;
+        }
+
+        @keyframes shake {
+            0%,100% { transform: translateX(0); }
+            25%      { transform: translateX(-6px); }
+            75%      { transform: translateX(6px); }
+        }
+
+        .auth-toggle-pw {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 16px;
+            padding: 0;
+        }
+
+        .auth-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, var(--cyan), var(--indigo));
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 15px;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.15s;
+            box-shadow: 0 4px 20px rgba(56, 189, 248, 0.3);
+        }
+
+        .auth-btn:hover:not(:disabled) {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .auth-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .auth-msg {
+            margin-top: 14px;
+            font-size: 13px;
+            color: var(--rose);
+            min-height: 18px;
+        }
+
+        .auth-hint {
+            margin-top: 10px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .auth-attempts-bar {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 14px;
+        }
+
+        .attempt-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.15);
+            transition: background 0.3s;
+        }
+
+        .attempt-dot.used {
+            background: var(--rose);
+            box-shadow: 0 0 6px var(--rose);
+        }
     </style>
 </head>
 <body>
+
+    <!-- ====== 授權驗證遮罩 (零安裝三重防護) ====== -->
+    <div id="auth-overlay">
+        <div class="auth-card">
+            <div class="auth-logo">🔒</div>
+            <h2>動力測試監控中心</h2>
+            <p>此介面為機密測試串流，請輸入授權金鑰以解鎖即時數據串流</p>
+            <div class="auth-input-wrap">
+                <input type="password" id="auth-key-input"
+                    placeholder="輸入存取金鑰"
+                    onkeydown="if(event.key==='Enter') validateAccess()"
+                    autocomplete="off" autocorrect="off" spellcheck="false">
+                <button class="auth-toggle-pw" type="button"
+                    onclick="togglePwVisibility()" title="顯示/隱藏密碼">👁</button>
+            </div>
+            <button class="auth-btn" id="auth-btn" onclick="validateAccess()">解鎖監控中心</button>
+            <div class="auth-msg" id="auth-msg"></div>
+            <div class="auth-attempts-bar">
+                <div class="attempt-dot" id="dot1"></div>
+                <div class="attempt-dot" id="dot2"></div>
+                <div class="attempt-dot" id="dot3"></div>
+            </div>
+            <div class="auth-hint" id="auth-hint">最多允許 3 次錯誤嘗試</div>
+        </div>
+    </div>
 
     <!-- 頂部資訊列 -->
     <header>
@@ -637,10 +815,201 @@
     </footer>
 
     <script>
-        // 直連 Firebase Realtime Database (B對策：放棄無法連通之本機區網，全端透過 Firebase 串流)
-        const SSE_URL = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/live.json";
-        const STATUS_URL = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/live.json";
-        
+        // ================================================================
+        // 安全設定區 (Security Config)
+        // AUTH_HASH = SHA-256(實際密碼) 的 hex 字串
+        // 修改密碼時請用以下指令重新計算並更新此值：
+        // PowerShell: [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes('你的新密碼'))).Replace('-','').ToLower()
+        const AUTH_HASH = "c0d085249ba92c2b04e84a6fbc602c3fc2b4efae6fecc99db713a61b7df575c0";
+        const MAX_ATTEMPTS = 3;          // 最多允許錯誤次數
+        const LOCKOUT_SECONDS = 60;      // 鎖定秒數
+        const SESSION_KEY = "dyn_auth";  // sessionStorage 鍵名
+
+        // Firebase 端點延遲組裝：驗證通過前此變數保持 null，避免 URL 裸露在初始 JS 中
+        // 組裝方式：三段字串拼接，讓靜態掃描工具無法直接提取完整 URL
+        let SSE_URL = null;
+        let STATUS_URL = null;
+
+        function _buildEndpoint() {
+            const p1 = "https://dynamometer-live-";
+            const p2 = "default-rtdb.asia-south";
+            const p3 = "east1.firebasedatabase.app/live.json";
+            return p1 + p2 + p3;
+        }
+
+        // 授權狀態
+        let _isAuthorized = false;
+        let _failCount = 0;
+        let _lockUntil = 0;
+
+        // ────────────────────────────────────────────
+        //  AUTH: SHA-256 雜湊比對 (Web Crypto API，零安裝)
+        // ────────────────────────────────────────────
+        async function sha256hex(str) {
+            const buf = await crypto.subtle.digest(
+                "SHA-256",
+                new TextEncoder().encode(str)
+            );
+            return Array.from(new Uint8Array(buf))
+                .map(b => b.toString(16).padStart(2, "0")).join("");
+        }
+
+        function togglePwVisibility() {
+            const inp = document.getElementById("auth-key-input");
+            inp.type = inp.type === "password" ? "text" : "password";
+        }
+
+        function _updateAttemptDots() {
+            for (let i = 1; i <= 3; i++) {
+                const dot = document.getElementById("dot" + i);
+                if (dot) dot.classList.toggle("used", i <= _failCount);
+            }
+        }
+
+        async function validateAccess() {
+            const btn = document.getElementById("auth-btn");
+            const msgEl = document.getElementById("auth-msg");
+            const hintEl = document.getElementById("auth-hint");
+            const inp = document.getElementById("auth-key-input");
+
+            // 檢查冷卻鎖定
+            const now = Date.now();
+            if (now < _lockUntil) {
+                const remaining = Math.ceil((_lockUntil - now) / 1000);
+                msgEl.textContent = `🔐 鎖定中，請等待 ${remaining} 秒後重試`;
+                return;
+            }
+
+            const inputVal = inp.value.trim();
+            if (!inputVal) {
+                msgEl.textContent = "請輸入存取金鑰";
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = "驗證中...";
+
+            try {
+                const hash = await sha256hex(inputVal);
+                if (hash === AUTH_HASH) {
+                    // ✅ 驗證通過
+                    sessionStorage.setItem(SESSION_KEY, "1");
+                    _isAuthorized = true;
+                    inp.value = "";
+                    document.getElementById("auth-overlay").style.display = "none";
+                    SSE_URL = _buildEndpoint();
+                    STATUS_URL = SSE_URL;
+                    initTempGrid();
+                    connectFirebaseSSE();
+                    pollTimer = setInterval(fetchPollingFallback, 800);
+                } else {
+                    // ❌ 驗證失敗
+                    _failCount++;
+                    _updateAttemptDots();
+                    inp.classList.add("error");
+                    setTimeout(() => inp.classList.remove("error"), 600);
+                    inp.value = "";
+
+                    if (_failCount >= MAX_ATTEMPTS) {
+                        _lockUntil = Date.now() + LOCKOUT_SECONDS * 1000;
+                        btn.disabled = true;
+                        msgEl.textContent = `已達最大嘗試次數，鎖定 ${LOCKOUT_SECONDS} 秒`;
+                        hintEl.textContent = "帳號已暫時鎖定";
+                        // 啟動倒數計時
+                        const timer = setInterval(() => {
+                            const rem = Math.ceil((_lockUntil - Date.now()) / 1000);
+                            if (rem <= 0) {
+                                clearInterval(timer);
+                                _failCount = 0;
+                                _updateAttemptDots();
+                                btn.disabled = false;
+                                btn.textContent = "解鎖監控中心";
+                                msgEl.textContent = "";
+                                hintEl.textContent = "最多允許 3 次錯誤嘗試";
+                            } else {
+                                msgEl.textContent = `🔐 鎖定中，請等待 ${rem} 秒後重試`;
+                                btn.textContent = `等待 ${rem}s`;
+                            }
+                        }, 1000);
+                    } else {
+                        const remaining = MAX_ATTEMPTS - _failCount;
+                        msgEl.textContent = `金鑰不正確，剩餘 ${remaining} 次嘗試機會`;
+                        btn.disabled = false;
+                        btn.textContent = "解鎖監控中心";
+                    }
+                }
+            } catch (err) {
+                msgEl.textContent = "驗證過程發生錯誤，請重整頁面";
+                btn.disabled = false;
+                btn.textContent = "解鎖監控中心";
+            }
+        }
+
+        // ────────────────────────────────────────────
+        //  DevTools 偵測：開啟 F12 後清除 session 並重新鎖定
+        //  原理：console.log 中的 getter 在 DevTools 展開時才觸發
+        //  此機制僅為額外嚇阻，非硬性安全邊界
+        // ────────────────────────────────────────────
+        (function devToolsGuard() {
+            let devopen = false;
+            const threshold = 160;
+            setInterval(() => {
+                const widthDiff = window.outerWidth - window.innerWidth;
+                const heightDiff = window.outerHeight - window.innerHeight;
+                if ((widthDiff > threshold || heightDiff > threshold) && _isAuthorized) {
+                    if (!devopen) {
+                        devopen = true;
+                        sessionStorage.removeItem(SESSION_KEY);
+                        // 5 秒後若仍開著則鎖定
+                        setTimeout(() => {
+                            if (window.outerWidth - window.innerWidth > threshold ||
+                                window.outerHeight - window.innerHeight > threshold) {
+                                location.reload();
+                            }
+                        }, 5000);
+                    }
+                } else {
+                    devopen = false;
+                }
+            }, 1000);
+        })();
+
+        // ────────────────────────────────────────────
+        //  URL Key 自動解鎖 (分享連結時附帶 ?k=雜湊值 即可免輸入)
+        //  注意：URL 中傳遞的是雜湊值本身，而非明文密碼
+        // ────────────────────────────────────────────
+        (async function checkURLKey() {
+            // 支援 session 持久 (同一瀏覽器分頁不需重複輸入)
+            if (sessionStorage.getItem(SESSION_KEY) === "1") {
+                document.getElementById("auth-overlay").style.display = "none";
+                _isAuthorized = true;
+                SSE_URL = _buildEndpoint();
+                STATUS_URL = SSE_URL;
+                initTempGrid();
+                connectFirebaseSSE();
+                pollTimer = setInterval(fetchPollingFallback, 800);
+                return;
+            }
+            // URL 金鑰快速解鎖 (?k=<sha256_hash>)
+            const params = new URLSearchParams(window.location.search);
+            const urlKey = params.get("k");
+            if (urlKey && urlKey === AUTH_HASH) {
+                sessionStorage.setItem(SESSION_KEY, "1");
+                _isAuthorized = true;
+                document.getElementById("auth-overlay").style.display = "none";
+                SSE_URL = _buildEndpoint();
+                STATUS_URL = SSE_URL;
+                initTempGrid();
+                connectFirebaseSSE();
+                pollTimer = setInterval(fetchPollingFallback, 800);
+                // 清除 URL 中的 key 參數，避免留在瀏覽器歷史記錄
+                history.replaceState({}, document.title, window.location.pathname);
+            }
+        })();
+
+        // ────────────────────────────────────────────
+        //  原始業務邏輯區 (驗證通過後才能執行)
+        // ────────────────────────────────────────────
         let lastReceivedTime = 0;
         let packetCount = 0;
         let eventSource = null;
@@ -910,10 +1279,8 @@
 
         window.addEventListener("resize", drawChart);
 
-        // 啟動
-        initTempGrid();
-        connectFirebaseSSE();
-        pollTimer = setInterval(fetchPollingFallback, 800);
+        // 注意：啟動邏輯已移至 checkURLKey() / validateAccess() 內部
+        // 確保在使用者通過驗證前，不會建立任何 Firebase 連線
     </script>
 </body>
 </html>
