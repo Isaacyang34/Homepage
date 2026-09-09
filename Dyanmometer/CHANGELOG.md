@@ -8,7 +8,55 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :---: | :---: | :---: | :--- |
+| V2.58 (beta) | v2.10.18 | 2026-09-09 | 線上更新日誌 Unicode 全面防亂碼、T-N 待測端雙閉迴路自動補轉差 (同步 S1/S2/S6 杜絕 50s 未達標超時)、TN 測試右上即時溫度曲線與通道自選監控：(1)現象與佐證：使用者回報「1.更新日誌又變亂碼；2.剛才TN測試出現50秒未達標，原因應該是沒有補轉差，目前只有控制扭力追隨沒有控制待側端的轉速追隨，請與S1/S2/S6的控制方法一致；3.TN測試右上請放入溫度曲線，同S1介面一樣要能選擇想監控的CH」；(2)致命根因：PowerShell 執行 package_release.ps1 傳遞包含原生中文字元之 manifest JSON 至 Firebase 時受預設 ANSI/CP950 編碼污染；Dynamometer_TestTN.cs 僅在起轉時寫入一次 Sy.52，加載端上載時感應馬達自然轉差導致轉速跌出容許帶 (spdErr > Max(25, targetSpd*0.08))，isSpdValid 永遠為 false 觸發 50 秒逾時；TN 介面右側僅有表格缺乏溫度動態圖與通道自選；(3)精確修復方案：package_release.ps1 全面改採純 7-bit ASCII 之 Unicode 跳脫碼 (\uXXXX) 杜絕亂碼；實作 ApplyTnSpeedTracking 於加載逼近、5秒穩定與30秒擷取階段即時閉迴路補轉差 SY.52；BuildTnTab 右側重構為 splitTnRight 上下分割，右上方置入 tnTempTrend (GbdTemperatureTrendControl)、通道選擇按鈕與 ShowTnChannelSelectDialog() 彈窗；(4)版本升級至 2.5.8，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
 | V2.57 (beta) | v2.10.17 | 2026-09-09 | T-N 曲線多點自訂測試模式實裝、5秒穩定+30秒每秒採樣平均、換項先降載至25%過渡保護與 GBD 零標頭損壞智能修復：(1)現象與佐證：使用者於「功能修改紀錄/Modify.txt」明確指示：「TN曲線多另一個操作模式(類似S1/S2/S6的切換方法)；可以輸入多組(預設2組，可以點擊+號增加組數)轉速以及扭力分別測試，每一個項目測試先達到目標轉速以及扭力後，穩定5秒後開始擷取30秒穩定資料每秒1筆；換到下一個項目記得先將扭力降到原測試扭力的25%後再改變目標轉速」；同時回報先前的 GBD 記錄檔因未按 STOP 拔除導致前 12KB 全為 0x00 無法開啟、Viewer 拋出 TypeError 例外；(2)致命根因：舊版 GBD 產生器預配置 12KB 全零陣列，Viewer 缺乏零標頭自修復與邊界防護；Dynamometer_TestTN.cs 僅支援等間距梯度掃描，缺乏多點自訂轉速扭力表格與換項前降載至 25% 之狀態機控制；(3)精確修復方案：全新實裝 cmbTnMode 雙模式切換、pnlTnStepRamp 與 pnlTnMultiPoint 自適應佈局切換；實作 dgvTnMultiPoints 多點表格與新增/刪除/重置按鈕；建構 RunTnMultiPointTick() 五階段狀態機 (0:提速空載 ➔ 1:平穩加載雙達標2s ➔ 2:穩定5秒等待 ➔ 3:擷取30秒每秒1筆取30s均值 ➔ 4:換項先降扭力至25%確認後再變速)；GBT 產生器即時回寫 12KB 標頭，Viewer 實裝零標頭逆算還原與通道英數限定；(4)編譯並打包發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
+
+---
+
+## [V2.58 beta / v2.10.18] - 2026-09-09
+
+### 🎯 使用者指示與需求背景
+1. **更新日誌編碼修復**：「更新日誌又變亂碼」；
+2. **TN 測試轉速閉迴路自動補轉差**：「剛才TN測試出現50秒未達標，原因應該是沒有補轉差，目前只有控制扭力追隨沒有控制待側端的轉速追隨，請與S1/S2/S6的控制方法一致」；
+3. **TN 測試右上溫度曲線與通道自選**：「TN測試右上請放入溫度曲線，同S1介面一樣要能選擇想監控的CH」。
+
+### 🔍 致命根因 (Root Cause)
+1. **PowerShell CodePage 編碼轉碼污染**：
+   - 在 Windows 環境下執行 `package_release.ps1`，若檔案為 UTF-8 (無 BOM)，PowerShell 在解析字串時會預設採用系統本機 CodePage (如 CP950 / ANSI) 讀取 `$notesText` 中文字串，導致字串在發送到 Firebase RTDB 時已被轉譯為亂碼。
+2. **TN 測試待測端缺乏動態轉速閉迴路補轉差 (引發 50 秒未達標停機)**：
+   - `Dynamometer_TestTN.cs` 在啟轉時僅將目標轉速 1:1 寫入待測端變頻器 SY.52 一次；
+   - 當加載端開始上載時，待測感應馬達受負載轉矩拉扯產生物理轉差 (Slip)，實際轉速 `actAbsSpd` 大幅下降（例如 1800 rpm 帶載後跌至 1650 rpm）；
+   - 程式判定合格標準為 `isSpdValid = (spdErr <= Math.Max(25.0, targetSpd * 0.08))`，當實測轉速因轉差跌破容許門檻時，`isSpdValid` 恆為 `false`；
+   - 導致 `tnTrqSustainedSec` 達標秒數永遠被歸零，加載逼近秒數 `tnConvergeTimeoutSec` 一路累計直至 50 秒，觸發第 861 行「加載逼近超時 50 秒未達標」強制警報停機；
+   - 反觀 S1/S2/S6 (`Dynamometer_TestDuty.cs`)，具備同步閉迴路轉速補差演算法，能依據轉速誤差 `spdErr` 動態步進微調 SY.52 命令值。
+3. **TN 介面右側缺乏即時溫度曲線與通道選取元件**：
+   - TN 分頁下方 `splitTnBottom.Panel2` 原先僅放置單一 `dgvTnPoints` 數據表格，無法像 S1 一樣即時監測馬達溫升趨勢，亦無法自訂欲觀察之 GL820 溫度通道。
+
+### 💡 程式碼精確修復方案
+1. **更新日誌純 ASCII Unicode 跳脫碼防禦 (`package_release.ps1`)**：
+   - 將 Firebase 發布版本更新資訊之 `$notesEscaped` 全面改以純 7-bit ASCII 之 `\uXXXX` Unicode 格式撰寫，徹底消滅 PowerShell 解析與 Windows CodePage 的編碼干擾；
+   - 配合主程式 `Dynamometer_WebServer.cs` 既有之 `DecodeJsonString` 正則反解還原機制，確保本機更新精靈彈窗顯示 100% 正確無瑕之繁體中文更新日誌。
+2. **待測端轉速平滑閉迴路追隨 (同動 S1/S2/S6 補轉差機制) (`Dynamometer_TestTN.cs` & `Dynamometer_HMI_WinForms.cs`)**：
+   - 新增動態追隨變數 `private double tnCurrentSpeedCmd = 0.0;`；
+   - 實裝專屬追隨函式 `ApplyTnSpeedTracking(spdCom, spdBaud, spdNode, spdDrive, targetSpd, actAbsSpd)`：
+     - 完全繼承 S1/S2/S6 標準：門檻判定 `actAbsSpd >= targetSpd * 0.5 && targetSpd > 50.0`；
+     - 死區判斷：`spdDeadband = (trackingSpeedDeadband > 0) ? (double)trackingSpeedDeadband : 3.0;`；
+     - 步長限制：`step = Math.Sign(spdDiff) * Math.Min(Math.Max(1.0, Math.Abs(spdDiff) * 0.5), maxSpdStep * 2.0);`；
+     - 動態輸出：計算 `newSpdCmd` 並以 `KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)Math.Round(tnCurrentSpeedCmd), "TN 速度閉迴路補轉差 (SY52)")` 即時微調 SY.52，同步更新主畫面 UI 數值；
+   - 全面注入至：
+     - `RunTnMultiPointTick()` 之子階段 1 (加載逼近)、子階段 2 (5秒穩定等待) 與子階段 3 (30秒資料擷取)；
+     - `TnTimer_Tick()` (等間距模式) 之階段 0B (轉速鎖定加載中) 與階段 1 (10秒持載倒數期)；
+     - 於點位啟動、換項過渡與階梯升速處同動初始化 `tnCurrentSpeedCmd`，並於停機時安全復歸為 0。
+3. **TN 測試右上專屬溫度動態曲線與通道選取彈窗 (`Dynamometer_TestTN.cs` & `Dynamometer_HMI_WinForms.cs`)**：
+   - 在 `MainForm` 宣告 `public GbdTemperatureTrendControl tnTempTrend;`、`public bool[] tnMonitoredChannels`、`btnTnSelectChannels`、`lblTnSelectedChHint` 與 `lblTnTempRealtimeVal`；
+   - 在 `motorTempTimer.Tick` 背景每秒計時器中加入 `tnTempTrend.IsConnected = isGbdOnline;`、`tnTempTrend.AddSample(DateTime.Now, gbdChTemps)` 以及選定通道實測最高溫動態計算與文字更新；
+   - `BuildTnTab` 將右側重構為 `splitTnRight` (上下水平分割容器，高 260px / 自由拖曳)：
+     - **右上方**：配置 `grpTnTemp` (專屬溫度監控與即時動態曲線)，頂部放置 `pnlTnTempHeader`，內含 `btnTnSelectChannels` (「⚙ 選擇監測通道...」)、`lblTnSelectedChHint` (如「(已選 CH1~4，共 4 通道)」) 與 `lblTnTempRealtimeVal` (「實測最高: CHx xx.x ℃」)，主體滿版填入 `tnTempTrend`；
+     - **右下方**：配置 `dgvTnPoints` 數據表格；
+   - 實裝 `ShowTnChannelSelectDialog()` 獨立彈窗，提供 20 個通道複選清單（含通道名稱與即時溫度）、`⚡ 依實測選取` 自動探測按鈕與 `前4點(CH1~4)` 快捷鍵，確認後即時以 `tnTempTrend.SetChannelVisibility(tnMonitoredChannels)` 更新曲線能見度。
+4. **版本升級與發布驗證**：
+   - 軟體版本號升級至 `APP_VERSION = "2.5.8"`；
+   - 透過 `package_release.ps1 -Version 2.5.0` 完成編譯、打包與自動推送至 GitHub `gh-pages`，並自動更新 Firebase 版本清單。
 | V2.56 (beta) | v2.10.16 | 2026-09-09 | package_release.ps1 整合 Git 自動推送 (Auto Git Push)：(1)使用者指示：「為什麼推送要我自己按，不是可以幫我自動更新上去嗎?」；(2)根本問題：舊流程需人工執行 push_to_github.bat，package_release.ps1 只負責編譯打包但不推送；(3)修復方案：在 package_release.ps1 末段整合 Step 4「Auto Git Push」，自動搜尋系統 Git 路徑、執行 git add Release/ 與 CHANGELOG.md、git commit 並 git push origin gh-pages，全程無需人工介入；(4)CS0136 編譯錯誤修復：Dynamometer_WebServer.cs btnUpdate.Click lambda 內重複宣告 isKeb1PhysicallyOpen / isKeb2PhysicallyOpen (外層 scope 第 2630 行已同名宣告)，改名為 btnKeb1Open / btnKeb2Open / btnAnyKebConnected 消除衝突；(5)已成功自動推送至 GitHub gh-pages (commit 92d4898)。 |
 | V2.55 (beta) | v2.10.15 | 2026-09-09 | 線上熱更新安全互鎖條件動態調適 (KEB 離線允許隨時更新)：(1)使用者明確指示：使用者指示「更新的限制，應該在KEB沒有連線的情況下就可以更新，因為已經沒辦法控制馬達」；(2)原先安全邏輯瓶頸：舊版不論變頻器是否連線，只要 isRunning 或 dutyTimer 有任何軟體旗標觸發，即硬性阻擋更新，造成 KEB 斷開離線時仍可能遭遇更新阻擋；(3)KEB 物理通訊狀態智能互鎖判定：ShowUpdateWizardDialog 更新精靈視窗與按鈕點擊處全面加入 isAnyKebOpen (isHmiKebOpen1 || isHmiKebOpen2) 物理狀態判斷；若 KEB 變頻器未開啟/未連線，因工控機硬體物理上絕無可能對馬達發送運轉指令，故全面解除更新限制，允許隨時安全升級並自動清理軟體殘留測試旗標；(4)連線狀態動態橫幅提示：更新視窗狀態橫幅根據 KEB 連線狀態動態顯示「KEB 變頻器未連線，無法控制馬達，允許隨時安全升級更新」；(5)編譯並打包發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
 | V2.54 (beta) | v2.10.14 | 2026-09-09 | 頂部模擬按鈕與虛擬模擬功能徹底剷除 (Purge Simulation Mode)：(1)使用者核心指示：使用者指示「把上方模擬的按鈕，跟功能都刪除掉。」；(2)按鈕與工具提示拔除：移除頂部標頭列中之「🎮 模擬: 開/關」切換按鈕 (btnSimModeToggle) 與對應 ToolTip；(3)虛擬數值產生器全域剷除：徹底刪除背景每秒產生假正弦波轉速、假扭矩、假電壓電流與假溫升之本地模擬算法 (isSimMode 產生器)；(4)連線狀態與安全互鎖回歸真實物理硬體：移除 isSimMode 連線假象繞道邏輯，扭力計、WT333E、GL820 與 A/B 載台連線狀態 100% 依據實體通訊封包反映，安全就緒燈號杜絕虛擬旁路；(5)編譯並打包發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
