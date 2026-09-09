@@ -8,6 +8,7 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :---: | :---: | :---: | :--- |
+| V2.57 (beta) | v2.10.17 | 2026-09-09 | T-N 曲線多點自訂測試模式實裝、5秒穩定+30秒每秒採樣平均、換項先降載至25%過渡保護與 GBD 零標頭損壞智能修復：(1)現象與佐證：使用者於「功能修改紀錄/Modify.txt」明確指示：「TN曲線多另一個操作模式(類似S1/S2/S6的切換方法)；可以輸入多組(預設2組，可以點擊+號增加組數)轉速以及扭力分別測試，每一個項目測試先達到目標轉速以及扭力後，穩定5秒後開始擷取30秒穩定資料每秒1筆；換到下一個項目記得先將扭力降到原測試扭力的25%後再改變目標轉速」；同時回報先前的 GBD 記錄檔因未按 STOP 拔除導致前 12KB 全為 0x00 無法開啟、Viewer 拋出 TypeError 例外；(2)致命根因：舊版 GBD 產生器預配置 12KB 全零陣列，Viewer 缺乏零標頭自修復與邊界防護；Dynamometer_TestTN.cs 僅支援等間距梯度掃描，缺乏多點自訂轉速扭力表格與換項前降載至 25% 之狀態機控制；(3)精確修復方案：全新實裝 cmbTnMode 雙模式切換、pnlTnStepRamp 與 pnlTnMultiPoint 自適應佈局切換；實作 dgvTnMultiPoints 多點表格與新增/刪除/重置按鈕；建構 RunTnMultiPointTick() 五階段狀態機 (0:提速空載 ➔ 1:平穩加載雙達標2s ➔ 2:穩定5秒等待 ➔ 3:擷取30秒每秒1筆取30s均值 ➔ 4:換項先降扭力至25%確認後再變速)；GBT 產生器即時回寫 12KB 標頭，Viewer 實裝零標頭逆算還原與通道英數限定；(4)編譯並打包發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
 | V2.56 (beta) | v2.10.16 | 2026-09-09 | package_release.ps1 整合 Git 自動推送 (Auto Git Push)：(1)使用者指示：「為什麼推送要我自己按，不是可以幫我自動更新上去嗎?」；(2)根本問題：舊流程需人工執行 push_to_github.bat，package_release.ps1 只負責編譯打包但不推送；(3)修復方案：在 package_release.ps1 末段整合 Step 4「Auto Git Push」，自動搜尋系統 Git 路徑、執行 git add Release/ 與 CHANGELOG.md、git commit 並 git push origin gh-pages，全程無需人工介入；(4)CS0136 編譯錯誤修復：Dynamometer_WebServer.cs btnUpdate.Click lambda 內重複宣告 isKeb1PhysicallyOpen / isKeb2PhysicallyOpen (外層 scope 第 2630 行已同名宣告)，改名為 btnKeb1Open / btnKeb2Open / btnAnyKebConnected 消除衝突；(5)已成功自動推送至 GitHub gh-pages (commit 92d4898)。 |
 | V2.55 (beta) | v2.10.15 | 2026-09-09 | 線上熱更新安全互鎖條件動態調適 (KEB 離線允許隨時更新)：(1)使用者明確指示：使用者指示「更新的限制，應該在KEB沒有連線的情況下就可以更新，因為已經沒辦法控制馬達」；(2)原先安全邏輯瓶頸：舊版不論變頻器是否連線，只要 isRunning 或 dutyTimer 有任何軟體旗標觸發，即硬性阻擋更新，造成 KEB 斷開離線時仍可能遭遇更新阻擋；(3)KEB 物理通訊狀態智能互鎖判定：ShowUpdateWizardDialog 更新精靈視窗與按鈕點擊處全面加入 isAnyKebOpen (isHmiKebOpen1 || isHmiKebOpen2) 物理狀態判斷；若 KEB 變頻器未開啟/未連線，因工控機硬體物理上絕無可能對馬達發送運轉指令，故全面解除更新限制，允許隨時安全升級並自動清理軟體殘留測試旗標；(4)連線狀態動態橫幅提示：更新視窗狀態橫幅根據 KEB 連線狀態動態顯示「KEB 變頻器未連線，無法控制馬達，允許隨時安全升級更新」；(5)編譯並打包發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
 | V2.54 (beta) | v2.10.14 | 2026-09-09 | 頂部模擬按鈕與虛擬模擬功能徹底剷除 (Purge Simulation Mode)：(1)使用者核心指示：使用者指示「把上方模擬的按鈕，跟功能都刪除掉。」；(2)按鈕與工具提示拔除：移除頂部標頭列中之「🎮 模擬: 開/關」切換按鈕 (btnSimModeToggle) 與對應 ToolTip；(3)虛擬數值產生器全域剷除：徹底刪除背景每秒產生假正弦波轉速、假扭矩、假電壓電流與假溫升之本地模擬算法 (isSimMode 產生器)；(4)連線狀態與安全互鎖回歸真實物理硬體：移除 isSimMode 連線假象繞道邏輯，扭力計、WT333E、GL820 與 A/B 載台連線狀態 100% 依據實體通訊封包反映，安全就緒燈號杜絕虛擬旁路；(5)編譯並打包發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
@@ -16,6 +17,57 @@
 | V2.51 (beta) | v2.10.11 | 2026-09-09 | 線上自動熱更新 (Online Auto-Update & In-Place Hot-Swap) 機制實裝：(1)需求與背景：使用者提出「加入線上更新功能」，擺脫隨身碟拷貝程式更新之繁瑣程序，實現工控機連網一鍵升級；(2)Windows XP / .NET 4.0 TLS 1.2 二進位下載器 (DownloadBinaryPayload)：基於 BouncyCastle 加密庫之 TlsClientProtocol 實作二進位串流傳輸引擎，綁定 Wi-Fi 網卡 IP (detectedWifiIp) 穿透儀器專用 LAN，並支援 HTTP 301/302/307 重導向跟隨、Chunked 分塊解碼與逐位元組標頭邊界判讀，保證下載不遺失任何 Byte；(3)PE 檔頭結構完整性驗證 (VerifyPeHeader)：下載後強制校驗檔案大小 (>50KB) 與 MZ (0x4D 0x5A) 檔頭簽章，杜絕損壞或下載到錯誤 HTML 網頁；(4)Windows 核心層執行中熱替換 (In-Place Hot-Swap)：利用 Windows 允許對執行中之 EXE 進行 Move/Rename 的物理特性，將當前運行的 Dynamometer_HMI_Pro.exe 原子命名為 .bak，並將 .new 移動為原主程式檔名，呼叫 Process.Start 重啟後優雅退出；若遭遇檔案鎖定則備有自毀延遲批次檔 (_update_swap.cmd) 雙保險；(5)安全測試保護守門員：在更新觸發前嚴格檢查 isRunning 與 dutyTimer.Enabled 等測試狀態，測試運轉中強制禁止更新，防止設備失控；(6)現代化更新精靈 UI (ShowUpdateWizardDialog)：主畫面頂部新增「🔄 線上更新」按鈕，背景靜默檢查若有新版本自動變色提醒；彈出深色擬態更新精靈視窗，顯示目前版本、雲端版本、發布日期、更新內容說明 (Release Notes) 與即時下載百分比進度條；(7)Firebase 版本清單端點整合 (/update/version.json)；(8)編譯並打包發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
 | V2.50 (beta) | v2.10.10 | 2026-09-09 | 本地日誌與雲端日誌完美共存 (Local & Cloud Coexistence)、全自動雲端推送與生命週期自動清理實裝：(1)需求與痛點：使用者反映目前除錯頻繁依賴 LOG 分析，傳統隨身碟 (USB) 拔插拷貝耗時費力，期望能將實測 LOG 即時上傳雲端由 AI 助理直接連線下載分析，且本機 logs/ 目錄實體 CSV 必須完整保留共存；並明確指示「雲端的日誌也要設定固定時間或筆數清理」；(2)Windows XP / .NET 4.0 TLS 1.2 網卡直推架構：利用現有 BouncyCastle 獨立加密套件 (TlsClientProtocol) 重構通用 REST 請求引擎 SendHttpRequest (支援 GET/PUT/POST/DELETE 與 HTTP 狀態碼解析)，強制綁定 Wi-Fi 網卡 IP (detectedWifiIp) 連線，突破 XP 系統 Schannel.dll 缺乏原生 TLS 1.2 物理障礙；(3)雙重友善操作 UI 與雲端生命週期面板：在主畫面右上角遙控列實裝「☁️ 上傳日誌」按鈕，並於日誌專屬分頁工具列 (CreateLogTab) 實裝「☁️ 上傳日誌至雲端」按鈕、雲端保留設定輸入框 (可設定保留天數 1~90 天、保留筆數 5~500 筆) 以及「🧹 清理雲端」手動維護按鈕；(4)全自動連鎖上傳與歷史節點備份：在自動工作制手動停止 (StopDutyTest)、全自動保護連鎖停機 (ExecuteFullAutoGracefulStop) 與緊急停機 (TriggerGlobalEmergencyStop) 及平滑煞車結束處自動非同步推播最新日誌至 Firebase (/logs/latest.json)，並同步建立帶有時間戳記之歷史鏡像 (/logs/history/{timestamp}.json)；(5)雙重自動清理機制 (時間+筆數雙門檻)：每次上傳後及背景每 30 分鐘自動對雲端歷史進行淺層掃描 (shallow query)，自動計算日期超過保留天數 (預設 7 天) 或歷史總量超過上限筆數 (預設 30 筆) 之節點，執行 DELETE 批次刪除，防止雲端資料庫容量無限膨脹；(6)設定持久化記憶：保留天數與筆數自動透過 INI (SaveLayoutConfig / LoadLayoutConfig) 跨開關機永久持久化；(7)AI 助理免隨身碟分析工作流：AI 助理可直接調用 read_url_content 從雲端獲取最新實測 CSV 遙測數據，達成零實體接觸快速診斷；(8)編譯並打包發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
 | V2.49 (beta) | v2.10.9 | 2026-09-09 | KEB COMBIVERT F5 變頻器 ru.00 狀態機與 ru.43 故障碼體系徹底理清與全域重構、徹底解決自動運轉一啟轉即被誤殺缺陷：(1)使用者提問與現象定位：使用者提問「這個誤判為何手動就不參考? 全面更新ru.00錯誤碼的意義不要再搞錯了」；(2)為何手動模式不受影響深度剖析：手動運轉點擊時直接發送 Sy50=4，沒有自動 Duty 測試的「下達 RUN 後 100ms 檢查 ru.00」代碼，且手動運轉時 dutyTimer.Enabled 為 false，背景 CheckHardwareStStatus 不會觸發停機；且手動模式啟轉前讀取 ru.00>=64 時進一步比對 0x022B (ru.43)，因實體機台無故障 (ru.43=0) 故手動一路順暢運轉至目標轉速；(3)KEB F5 核心暫存器位址與意義徹底釐正：ru.00 (0x0200) 是「運轉狀態機 (Status Word)」，64=FAcc (正轉加速), 65=FdEc (正轉減速), 66=Fcon (正轉定速), 67=rAcc (反轉加速), 68=rdEc (反轉減速), 69=rcon (反轉定速), 70=LS (低速待命), 0=nOP (Control Release斷開)；64~70 全數皆為正常運轉狀態，絕非 FAULT！真實故障代碼位於 ru.43 (0x022B)，0=正常, 1=E.UP, 2=E.OU, 4=E.OC, 6=E.OH, 7=E.OL, 8=E.OL2, 9=E.EF 等；(4)全域解碼與保護重構：全新實裝 DecodeKebFaultCode(code) 解析 ru.43，全面更新 DecodeKebRu00(val) 忠實反映 FAcc/FdEc/Fcon 等狀態；(5)安全守護與自動測試解耦：拔除 CheckHardwareStStatus 內針對 ru00==64 停機邏輯；修改 BtnStartDuty_Click、StartS6DutyAdaptiveAnchor、DutyTimer_Tick 與方案 B 激磁邏輯，全面改以 ru.43 / lastKebFaultCode 進行硬體故障守護；(6)編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
+
+---
+
+## [V2.57 beta / v2.10.17] - 2026-09-09
+
+### 🎯 使用者指示與需求背景
+1. **使用者核心指示 (`Dyanmometer/功能修改紀錄/Modify.txt`)**：
+   - 「TN曲線多另一個操作模式(類似S1/S2/S6的切換方法)」
+   - 「可以輸入多組(預設2組，可以點及+號增加組數)轉速以及扭力分別測試，每一個項目測試先達到目標轉速以及扭力後，穩定5秒後開始擷取30秒穩定資料每秒1筆。」
+   - 「換到下一個項目記得先將扭力降到原測試扭力的25%後再改變目標轉速。」
+2. **GBD 標頭全零損壞修復與通道名稱英數防呆限制**：
+   - 實體機台測試時若未按 STOP 鍵直接拔除隨身碟，導致 GBD 檔案前 12KB（0x0000 ~ 0x2FFF）全為 0x00，Viewer 出現 `TypeError: Cannot read properties of undefined` 於 `records[-1]`；
+   - Graphtec GL820 內部韌體對非英文字元可能引發異常，限制通道名稱僅允許輸入英文字母、數字與基本符號。
+
+### 🔍 致命根因 (Root Cause)
+1. **GBD 產生器全零虛擬標頭與 Viewer 邊界錯誤**：
+   - `Dynamometer_Telemetry.cs` 中的 `StartManualRecordingWithParams` 採用 `byte[] dummyHeader = new byte[12288]` 預先配置，中途異常中斷未寫入真實 ASCII 標頭即永久損壞；
+   - `GBD_Viewer.html` 與 `GBD_Editor.html` 之 `updStats` 未對空記錄或記錄筆數為 0 進行保護，存取 `records[counts - 1]` 觸發致命 `TypeError`；
+2. **TN 測試模組架構單一**：
+   - `Dynamometer_TestTN.cs` 原先僅具備固定單一扭矩之等間距梯度掃描（起始/步階/結束轉速），無法因應多組自訂轉速與扭矩之複合驗證需求；
+   - 缺乏「換項前先降載至 25% 再變速」之過渡保護狀態機，直接跨轉速變換容易引發載台機械衝擊與變頻器過電流跳脫。
+
+### 💡 程式碼精確修復方案
+1. **GBD 產生器標頭即時寫入與定時刷新 (`Dynamometer_Telemetry.cs`)**：
+   - 建立檔案當下立即以 UTF-8 寫入合法標準 GL820 12KB ASCII 標頭，徹底剷除 12KB 0x00 虛擬陣列；
+   - 每次寫入記錄時（首筆及每 5 筆）自動回尋 Seek(0) 同步更新總記錄筆數 `manualRecordCount` 與目前時間戳 `DateTime.Now`，確保即使未按 STOP 拔除隨身碟，檔案依然 100% 具備完整可用標頭；
+   - `BuildGbdHeader` 加入通道名稱正則過濾 `Regex.Replace(cName, @"[^a-zA-Z0-9_\-\.\s]", "")`，強制限定僅能輸入英數符號。
+2. **GBD 閱讀器零標頭智能逆算還原 (`GBD_Viewer.html` & `GBD_Editor.html`)**：
+   - 載入時主動檢查前 12KB，若偵測為全空全零標頭，自動以二進位長度逆算實際總筆數 `calcCounts = Math.floor((buf.byteLength - 12288) / 36)`；
+   - 自動從檔名解析起始時間戳，在記憶體中重構標準 GL820 ASCII 標頭；
+   - 針對 `records[counts - 1]` 加上 `(gbd.counts > 0 && gbd.records && gbd.records[gbd.counts - 1])` 邊界防護，徹底消除 `TypeError`。
+3. **TN 多模式切換 UI 與動態自適應佈局 (`Dynamometer_TestTN.cs`)**：
+   - 新增 `cmbTnMode` 下拉選單：`0: 等間距梯度掃描 (原模式)`、`1: 多點自訂轉速扭力測試`；
+   - 容器化切換：`pnlTnStepRamp` (等間距控制項) 與 `pnlTnMultiPoint` (多點自訂控制項)，搭配 `pnlTnActions` 動作按鈕面板與 `splitTnMain.SplitterDistance` (195px / 325px) 動態垂直自適應調整；
+   - 多點自訂表格 `dgvTnMultiPoints`：
+     - 欄位包含：點位 (No)、目標轉速 (rpm)、目標轉矩 (Nm)、執行狀態、30s均轉速 (rpm)、30s均轉矩 (Nm)、30s均功率 (kW)、30s均效率 (%)；
+     - 預設兩組點位：1500 rpm / 10.0 Nm 與 3000 rpm / 15.0 Nm；
+     - 配備 `➕ 新增測試點`、`➖ 刪除選取點`、`🔄 重置預設點` 快速操作按鈕。
+4. **多點測試 5 階段生命週期狀態機 (`RunTnMultiPointTick()`)**：
+   - **子階段 0 (待測提速空載)**：加載端保持 0 轉矩停機，待測端提速至目標轉速；實測轉速達標後，啟動加載端激磁 (Sy50=4)；
+   - **子階段 1 (平穩加載逼近)**：動態逼近目標扭力，實測轉矩與轉速雙達標且連續 2 秒抗衝擊判定；
+   - **子階段 2 (穩定 5 秒等待)**：達標後鎖定維持，進行 5 秒穩定倒數計時；
+   - **子階段 3 (擷取 30 秒穩定資料每秒 1 筆)**：啟動 1Hz 遙測採樣，連續 30 秒採集轉速、扭力、機械功率、電功率、效率、各相電氣量；30 筆完成後精算 30 秒平均值，更新多點表格、下方總表格與曲線圖點；
+   - **子階段 4 (換項降載 25% 過渡保護 - 核心鐵律)**：
+     - **換項前先將加載端轉矩調降至原測試扭力的 25%** (`tnAdaptedTorquePct * 0.25`)；
+     - 等待實測轉矩確認降至 25% 以下（或 2 秒安全過渡）後，**才將待測端目標轉速變更至下一項目的轉速** (寫入 Sy.52)，徹底杜絕帶載硬轉對沖；
+   - **自動平滑停機**：所有點位測試完畢後，自動呼叫 `StartGradualAutoStop` 先降載再降速，並自動終止 RAW DATA 記錄。
+5. **完整報表匯出 (`BtnExportTn_Click`)**：
+   - 模式 1 匯出時自動產生包含「多點測試 30 秒平均值彙總」與「各點 30 秒每秒 1Hz 秒級原始遙測數據明細」之完整 CSV 報表。
+6. **編譯發布**：
+   - 透過 `package_release.ps1 -Version 2.5.0` 成功編譯為 32-bit x86 原生程式，並自動打包與同步發布至 `Release/Dynamometer_HMI_V2.5.0_Portable/Dynamometer_HMI_Pro.exe`。
 
 ---
 
