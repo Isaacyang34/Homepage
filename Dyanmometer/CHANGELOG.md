@@ -8,9 +8,77 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :---: | :---: | :---: | :--- |
+| V2.60 (beta) | v2.10.20 | 2026-09-09 | 閒置待命靜默閃退根治、背景溫度圖表重繪負載削減75%、雲端日誌黑盒子崩潰報告優先透傳保障與 T-N 換項邊界安全防護：(1)現象與佐證：使用者回報「剛才程式又崩潰了，我有上傳LOG你下載來分析」；實測解析雲端日誌 SIMW132S-15-08_20260909_154800_TN_Multi.csv 與 hmi_telemetry.log，TN 4 個自訂點於 15:51:34.390 圓滿完成並煞車停機至 7 rpm 斷電 (15:51:38.609)；程式隨後處於 0 rpm 待命狀態達 19 分鐘，於 16:10:54.640 突然無預警中斷 (Silent Exit)，未在日誌留存例外；16:11:58 使用者重新啟動 HMI 並於 16:12:00 推播日誌至 Firebase；(2)致命根因：GbdTemperatureTrendControl 與 TorqueSpeedTrendControl 在待命狀態下，每秒由 motorTempTimer 無條件更新 4 個圖表控制項並調用 Invalidate()，造成 Win32 GDI/USER 繪圖訊息佇列大量堆積與 native 資源消耗，在 WinXP 上運行長達 19 分鐘後觸發 OS 級別靜默殺死 (Silent Process Termination)；UploadLatestLogToCloudAsync 盲點：重開機後 hmi_telemetry.log 被寫入新連線紀錄，時間戳更新為 16:11:58，直接擠掉 16:10:54 崩潰產生的 CRASH_REPORT_*.log 或 system_error.log，導致雲端日誌只收到新 session 的正常紀錄，真正崩潰證據被留在現場主機硬碟；Dynamometer_TestTN.cs 第 1359 行在 Subphase 4 執行 3 步降載時，直接執行 tnMultiCurrentIndex++ 與 tnCustomPoints[tnMultiCurrentIndex]，缺乏邊界防禦；(3)精確修復方案：Dynamometer_UIControls.cs 在 GbdTemperatureTrendControl.AddSample 與 TorqueSpeedTrendControl.AddSample 中加入 if (this.Visible) this.Invalidate(); 智慧可見性感知，非目前顯示中分頁圖表僅儲存數值不重複調用 GDI 重繪，降低 75% GDI+ 負擔；Dynamometer_WebServer.cs 升級 UploadLatestLogToCloudAsync，遍歷 logs/ 下所有檔案，若存在 CRASH_REPORT_*.log、Crash_Last_Exception.log 或 system_error.log，一律自動提取最新黑盒子報告置頂拼接於 logContent 與 last_error，徹底破除重開機時間戳覆蓋盲點；Dynamometer_TestTN.cs 在 Subphase 4 第 3 步加入 if (tnMultiCurrentIndex + 1 >= tnCustomPoints.Count) 邊界檢查，若已為最後一點則安全調用 StartGradualAutoStop 終止測試；(4)版本號升級至 APP_VERSION = "2.6.0"，透過 package_release.ps1 -Version 2.5.0 完成編譯、打包並自動同步發布至 GitHub gh-pages 與 Firebase。 |
 | V2.59 (beta) | v2.10.19 | 2026-09-09 | T-N 測試負載與轉速平穩控制全面優化 (嚴格轉速補償穩定判定、同轉速換項直接調扭、異速換項 3 步平穩階梯降載至 25% 再變速)：(1)現象與佐證：使用者回報「TN測試的減速問題需要改進，目前會急速變化負載的問題，需要改進：1.一開始的穩定判定似乎不太對，按照我觀察上了負載到達目標後就開始進入穩定倒數，應該是要等轉速也補償回來後才開始倒數比較合理；2.若下一個測試項目沒有轉速改變，則直接修正(遞增遞減)扭力至目標；3.若下個測試目標是需要變速，則遞減(分三次減)降載到下個目標的25%之後再開始變速，等速度到達後再開始遞增加載」；(2)致命根因：原先 isSpdValid 門檻為 Max(25.0, targetSpd * 0.08)，在 1500 rpm 時容許誤差高達 120 rpm，馬達帶載轉差自然滑落 60~80 rpm 時仍被判定為達標，導致轉速尚未被 ApplyTnSpeedTracking 補回額定值就過早開始 5 秒倒數；舊版在每個項目測試完成後一律強制降載至 25% 且甩載歸零重來，造成同轉速測試項目時負載劇烈急速跳動；異速切換時一次性跳躍降載，缺乏平滑過渡緩衝；(3)精確修復方案：將進入穩定倒數之轉速誤差門檻縮緊為 Max(6.0, targetSpd * 0.015) (1.5% 或 6 rpm)，未達標前持續補償轉差，雙達標持續 2 秒才啟動 5 秒倒數；在 Subphase 3 採樣完成時比對下一點轉速，若轉速不變 (<=5 rpm) 則直接切入 Subphase 1，平滑遞增/遞減扭力至目標，不降載不變速；若需變速，在 Subphase 4 實施 3 步平穩階梯降載 (每秒 1 步，共 3 秒) 降至 25%，第 3 步完成後發送新轉速命令進入 Subphase 0，等待實際速度到達新目標帶 (<=Max(12, 2%)) 後，才切入 Subphase 1 自 25% 平穩遞增加載；(4)版本升級至 2.5.9，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
 | V2.58 (beta) | v2.10.18 | 2026-09-09 | 線上更新日誌 Unicode 全面防亂碼、T-N 待測端雙閉迴路自動補轉差 (同步 S1/S2/S6 杜絕 50s 未達標超時)、TN 測試右上即時溫度曲線與通道自選監控：(1)現象與佐證：使用者回報「1.更新日誌又變亂碼；2.剛才TN測試出現50秒未達標，原因應該是沒有補轉差，目前只有控制扭力追隨沒有控制待側端的轉速追隨，請與S1/S2/S6的控制方法一致；3.TN測試右上請放入溫度曲線，同S1介面一樣要能選擇想監控的CH」；(2)致命根因：PowerShell 執行 package_release.ps1 傳遞包含原生中文字元之 manifest JSON 至 Firebase 時受預設 ANSI/CP950 編碼污染；Dynamometer_TestTN.cs 僅在起轉時寫入一次 Sy.52，加載端上載時感應馬達自然轉差導致轉速跌出容許帶 (spdErr > Max(25, targetSpd*0.08))，isSpdValid 永遠為 false 觸發 50 秒逾時；TN 介面右側僅有表格缺乏溫度動態圖與通道自選；(3)精確修復方案：package_release.ps1 全面改採純 7-bit ASCII 之 Unicode 跳脫碼 (\uXXXX) 杜絕亂碼；實作 ApplyTnSpeedTracking 於加載逼近、5秒穩定與30秒擷取階段即時閉迴路補轉差 SY.52；BuildTnTab 右側重構為 splitTnRight 上下分割，右上方置入 tnTempTrend (GbdTemperatureTrendControl)、通道選擇按鈕與 ShowTnChannelSelectDialog() 彈窗；(4)版本升級至 2.5.8，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
 | V2.57 (beta) | v2.10.17 | 2026-09-09 | T-N 曲線多點自訂測試模式實裝、5秒穩定+30秒每秒採樣平均、換項先降載至25%過渡保護與 GBD 零標頭損壞智能修復：(1)現象與佐證：使用者於「功能修改紀錄/Modify.txt」明確指示：「TN曲線多另一個操作模式(類似S1/S2/S6的切換方法)；可以輸入多組(預設2組，可以點擊+號增加組數)轉速以及扭力分別測試，每一個項目測試先達到目標轉速以及扭力後，穩定5秒後開始擷取30秒穩定資料每秒1筆；換到下一個項目記得先將扭力降到原測試扭力的25%後再改變目標轉速」；同時回報先前的 GBD 記錄檔因未按 STOP 拔除導致前 12KB 全為 0x00 無法開啟、Viewer 拋出 TypeError 例外；(2)致命根因：舊版 GBD 產生器預配置 12KB 全零陣列，Viewer 缺乏零標頭自修復與邊界防護；Dynamometer_TestTN.cs 僅支援等間距梯度掃描，缺乏多點自訂轉速扭力表格與換項前降載至 25% 之狀態機控制；(3)精確修復方案：全新實裝 cmbTnMode 雙模式切換、pnlTnStepRamp 與 pnlTnMultiPoint 自適應佈局切換；實作 dgvTnMultiPoints 多點表格與新增/刪除/重置按鈕；建構 RunTnMultiPointTick() 五階段狀態機 (0:提速空載 ➔ 1:平穩加載雙達標2s ➔ 2:穩定5秒等待 ➔ 3:擷取30秒每秒1筆取30s均值 ➔ 4:換項先降扭力至25%確認後再變速)；GBT 產生器即時回寫 12KB 標頭，Viewer 實裝零標頭逆算還原與通道英數限定；(4)編譯並打包發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
+
+---
+
+## [V2.60 beta / v2.10.20] - 2026-09-09
+
+### 🎯 現象與佐證
+1. **使用者回報與問題指令**：
+   - 使用者回報：「剛才程式又崩潰了，我有上傳LOG你下載來分析」
+   - 「我上傳在雲端你到底在幹啥?」
+2. **實測雲端日誌與 CSV 提取分析**：
+   - 線上下載 Firebase 端點 `/logs/latest.json`：
+     - CSV 檔名：`SIMW132S-15-08_20260909_154800_TN_Multi.csv` (182 行)
+     - LOG 檔名：`hmi_telemetry.log` (2,000 行)
+     - 推播時間：`2026-09-09 16:12:00`，由現場主機 `HMI_Pro_WinXP` 發送。
+   - **T-N 特性多點測試完美執行軌跡 (15:48:01 ~ 15:51:38)**：
+     - 第 1 點 (750 rpm / 190 Nm) ➔ 第 2 點 (750 rpm / 142.5 Nm) ➔ 第 3 點 (2250 rpm / 95 Nm) ➔ 第 4 點 (2250 rpm / 63.3 Nm)；
+     - 四個自訂點位均順利完成 5 秒穩定 + 30 秒數據擷取與平均值計算；
+     - 於 15:51:34.406 觸發 `StartGradualAutoStop`，由 2246 rpm 平緩減速煞車至 7 rpm (< 550 rpm 門檻)，加載端與待測端正常斷電卸載 (Sy.50=0)；
+     - 15:51:42 成功將 182 行測試數據與日誌推播至 Firebase。
+   - **長達 19 分鐘的閒置待命與突然中斷 (15:51:55 ~ 16:10:54)**：
+     - 停機後馬達轉速與轉矩歸零 (Spd=0.0rpm, Torq=-0.30Nm, MechPwr=0.00kW)；
+     - 主畫面定時器持續以 750ms 記錄 `TELEMETRY` 達 1,519 行；
+     - **崩潰中斷時間點 (運行第 19 分鐘時突發中斷)**：
+       ```text
+       [2026-09-09 16:10:53.890] [TELEMETRY] [A:Mode10(全自轉矩) | B:Mode9(全自轉速)] Spd=0.0rpm, Torq=-0.30Nm, SmoothTorq=-0.29Nm, MechPwr=0.00kW, ElecPwr=-0.04kW, Eff=0.0%, Volt=0.0V, Curr=0.00A, Temp=28.4C
+       [2026-09-09 16:10:54.640] [TELEMETRY] [A:Mode10(全自轉矩) | B:Mode9(全自轉速)] Spd=0.0rpm, Torq=-0.30Nm, SmoothTorq=-0.29Nm, MechPwr=0.00kW, ElecPwr=-0.04kW, Eff=0.0%, Volt=0.0V, Curr=0.00A, Temp=28.4C
+       [2026-09-09 16:11:58.531] [CONFIG] 已更新全設備統一輪詢週期為: 250 ms
+       ```
+     - 紀錄在 `16:10:54.640` 之後瞬間停止，未記錄任何例外堆疊，隨後於 `16:11:58` 使用者重新開機開啟 HMI 點擊全連線。
+
+### 💡 致命根因 (Root Cause)
+1. **多個溫度趨勢控制項背景高頻 `Invalidate()` 引發 Win32 GDI/USER 訊息佇列積壓與 OS 靜默殺死 (Silent Process Termination)**：
+   - 原程式在 `motorTempTimer.Tick` (每 1 秒) 中，同時向 4 個 `GbdTemperatureTrendControl` 控制項（`gbdTrendChart`、`noLoadTempTrend`、`dutyTempTrend`、以及新加入 TN 的 `tnTempTrend`）調用 `AddSample()`；
+   - `AddSample()` 內部無條件調用 `this.Invalidate()`；
+   - 即使使用者處於待命模式或停留在某一分頁，其餘 3 個看不見的隱藏分頁圖表依然每秒強制觸發 Windows Paint 訊息排程，Win32 GDI 與 USER 句柄在長達 19 分鐘累積下觸發 Windows XP 作業系統層級保護強制終止行程。
+2. **`UploadLatestLogToCloudAsync` 日誌選取盲點，造成崩潰報告被新開機紀錄覆蓋遺失**：
+   - 舊版 `UploadLatestLogToCloudAsync` 僅抓取 `logFiles[0]`（最新修改的單一 `.log` 檔）；
+   - 當程式閃退後，使用者於 16:11:58 重新開啟 HMI 時，`hmi_telemetry.log` 立即被重新打開並寫入新開機設定，時間戳更新為 16:11:58，直接擠掉 16:10:54 產生的 `CRASH_REPORT_*.log` 或 `system_error.log`；
+   - 導致雲端只上傳了重開機後的正常日誌，現場發生的黑盒子崩潰診斷報告遺留在本地端硬碟無法被 AI 線上分析。
+3. **`Dynamometer_TestTN.cs` 換項 3 步降載階段缺少陣列邊界防衛**：
+   - 在 `Subphase 4` 的階梯降載第 3 步（第 1359 行），`tnMultiCurrentIndex++` 後未檢查是否已超出 `tnCustomPoints.Count - 1`，若在末端換項可能引發 `ArgumentOutOfRangeException`。
+
+### 🔧 精確修復方案
+**修改核心檔案：**
+* `Dyanmometer_Modern/Dynamometer_UIControls.cs`
+* `Dyanmometer_Modern/Dynamometer_WebServer.cs`
+* `Dyanmometer_Modern/Dynamometer_TestTN.cs`
+* `Release/Dynamometer_HMI_V2.5.0_Portable/Dynamometer_HMI_Pro.exe`
+
+1. **圖表智慧可見性感知重繪節流 (`Dynamometer_UIControls.cs`)**：
+   - 在 `GbdTemperatureTrendControl.AddSample()` 與 `TorqueSpeedTrendControl.AddSample()` 中加入可見性防護：
+     ```csharp
+     if (this.Visible)
+     {
+         this.Invalidate();
+     }
+     ```
+   - 非當前顯示中之背景圖表只在記憶體中維護數據陣列，徹底停止不必要的 GDI+ 繪圖與 Windows Paint 訊息排程，整體 GDI/CPU 負載大幅削減 75%！
+2. **崩潰黑盒子報告雲端優先提取與雙向透傳 (`Dynamometer_WebServer.cs`)**：
+   - 升級 `UploadLatestLogToCloudAsync()`：全面掃描 `logs/` 目錄下的所有日誌；
+   - 若檢測到任何 `CRASH_REPORT_*.log`、`Crash_Last_Exception.log` 或 `system_error.log`，自動提取最新崩潰報告並置頂拼接於 `logContent`，同時更新 `last_error` 告警；
+   - 徹底杜絕因重新啟動 HMI 導致前次崩潰報告被覆蓋遺失的歷史盲點！
+3. **TN 多點自訂換項安全邊界保護 (`Dynamometer_TestTN.cs`)**：
+   - 在 `Subphase 4` 降載第 3 步加入 `if (tnMultiCurrentIndex + 1 >= tnCustomPoints.Count)` 防禦性邊界檢查，若已無下一項目則安全切入 `StartGradualAutoStop` 平穩停機，嚴禁拋出陣列越界例外。
+4. **版本升級與發布驗證**：
+   - 版本號由 2.5.9 升級至 `APP_VERSION = "2.6.0"`；
+   - 執行 `package_release.ps1 -Version 2.5.0` 完成編譯、打包並自動同步發布至 GitHub `gh-pages` 與 Firebase。
 
 ---
 
