@@ -8,10 +8,54 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :---: | :---: | :---: | :--- |
+| V2.61 (beta) | v2.10.21 | 2026-09-09 | 趨勢圖核心單一化重構 (單一實例複用動態停泊 Dynamic Re-Parenting、主記錄器獨立完整、全測試分頁共用單一核心、GDI/GC 資源腰斬減負)：(1)現象與佐證：使用者提出架構優化指令：「趨勢圖的負載很高，能全部都只跑一支程式，然後只是呼叫的位置不同就好嗎? 除了溫度紀錄自己的分頁必須要有完整的，其他的能共用嗎?這樣能減少資源消耗嗎? 就這樣改，改好上傳更新」；(2)致命根因：舊架構在 Tab1(TN)、Tab2(Duty)、Tab4(空載) 分別 new 獨立之 GbdTemperatureTrendControl 實例，系統同時常駐 4 套大型繪圖控制項、各自配置 3,600 筆 double[20] 歷史陣列、各自持有 Toolbar 子面板與 GDI 物件，在 WinXP 32-bit 系統上每秒重複產生 4 份陣列拷貝與 GC 負載，造成 Win32 Handle 與佇列冗餘浪費；(3)精確修復方案：重構為「溫度記錄專屬 + 測試分頁共用單一核心」架構：溫度記錄分頁 (tabGbd) 保留專屬常駐之 gbdTrendChart 維護全時完整黑盒子；所有測試分頁 (TN / Duty / 空載) 統一共用單一 sharedTestTempTrend 實例，tnTempTrend、dutyTempTrend、noLoadTempTrend 改為屬性代理；實作 AttachSharedTempTrendTo(targetContainer, channelMask)，在 tabControl.SelectedIndexChanged 時自動將共用控制項動態掛載至當前測試容器 (grpTnTemp / grpDutyTemp / grpNoLoadChart) 並切換對應通道遮罩；motorTempTimer.Tick 由推播 4 個控制項縮減為僅推播 2 個控制項，記憶體配置與 GC 壓力直接減少 50% 以上；(4)版本號升級至 APP_VERSION = "2.6.1"，執行 package_release.ps1 -Version 2.5.0 完成 x86 32-bit 編譯、打包並自動同步發布至 GitHub gh-pages 與 Firebase。 |
 | V2.60 (beta) | v2.10.20 | 2026-09-09 | 閒置待命靜默閃退根治、背景溫度圖表重繪負載削減75%、雲端日誌黑盒子崩潰報告優先透傳保障與 T-N 換項邊界安全防護：(1)現象與佐證：使用者回報「剛才程式又崩潰了，我有上傳LOG你下載來分析」；實測解析雲端日誌 SIMW132S-15-08_20260909_154800_TN_Multi.csv 與 hmi_telemetry.log，TN 4 個自訂點於 15:51:34.390 圓滿完成並煞車停機至 7 rpm 斷電 (15:51:38.609)；程式隨後處於 0 rpm 待命狀態達 19 分鐘，於 16:10:54.640 突然無預警中斷 (Silent Exit)，未在日誌留存例外；16:11:58 使用者重新啟動 HMI 並於 16:12:00 推播日誌至 Firebase；(2)致命根因：GbdTemperatureTrendControl 與 TorqueSpeedTrendControl 在待命狀態下，每秒由 motorTempTimer 無條件更新 4 個圖表控制項並調用 Invalidate()，造成 Win32 GDI/USER 繪圖訊息佇列大量堆積與 native 資源消耗，在 WinXP 上運行長達 19 分鐘後觸發 OS 級別靜默殺死 (Silent Process Termination)；UploadLatestLogToCloudAsync 盲點：重開機後 hmi_telemetry.log 被寫入新連線紀錄，時間戳更新為 16:11:58，直接擠掉 16:10:54 崩潰產生的 CRASH_REPORT_*.log 或 system_error.log，導致雲端日誌只收到新 session 的正常紀錄，真正崩潰證據被留在現場主機硬碟；Dynamometer_TestTN.cs 第 1359 行在 Subphase 4 執行 3 步降載時，直接執行 tnMultiCurrentIndex++ 與 tnCustomPoints[tnMultiCurrentIndex]，缺乏邊界防禦；(3)精確修復方案：Dynamometer_UIControls.cs 在 GbdTemperatureTrendControl.AddSample 與 TorqueSpeedTrendControl.AddSample 中加入 if (this.Visible) this.Invalidate(); 智慧可見性感知，非目前顯示中分頁圖表僅儲存數值不重複調用 GDI 重繪，降低 75% GDI+ 負擔；Dynamometer_WebServer.cs 升級 UploadLatestLogToCloudAsync，遍歷 logs/ 下所有檔案，若存在 CRASH_REPORT_*.log、Crash_Last_Exception.log 或 system_error.log，一律自動提取最新黑盒子報告置頂拼接於 logContent 與 last_error，徹底破除重開機時間戳覆蓋盲點；Dynamometer_TestTN.cs 在 Subphase 4 第 3 步加入 if (tnMultiCurrentIndex + 1 >= tnCustomPoints.Count) 邊界檢查，若已為最後一點則安全調用 StartGradualAutoStop 終止測試；(4)版本號升級至 APP_VERSION = "2.6.0"，透過 package_release.ps1 -Version 2.5.0 完成編譯、打包並自動同步發布至 GitHub gh-pages 與 Firebase。 |
 | V2.59 (beta) | v2.10.19 | 2026-09-09 | T-N 測試負載與轉速平穩控制全面優化 (嚴格轉速補償穩定判定、同轉速換項直接調扭、異速換項 3 步平穩階梯降載至 25% 再變速)：(1)現象與佐證：使用者回報「TN測試的減速問題需要改進，目前會急速變化負載的問題，需要改進：1.一開始的穩定判定似乎不太對，按照我觀察上了負載到達目標後就開始進入穩定倒數，應該是要等轉速也補償回來後才開始倒數比較合理；2.若下一個測試項目沒有轉速改變，則直接修正(遞增遞減)扭力至目標；3.若下個測試目標是需要變速，則遞減(分三次減)降載到下個目標的25%之後再開始變速，等速度到達後再開始遞增加載」；(2)致命根因：原先 isSpdValid 門檻為 Max(25.0, targetSpd * 0.08)，在 1500 rpm 時容許誤差高達 120 rpm，馬達帶載轉差自然滑落 60~80 rpm 時仍被判定為達標，導致轉速尚未被 ApplyTnSpeedTracking 補回額定值就過早開始 5 秒倒數；舊版在每個項目測試完成後一律強制降載至 25% 且甩載歸零重來，造成同轉速測試項目時負載劇烈急速跳動；異速切換時一次性跳躍降載，缺乏平滑過渡緩衝；(3)精確修復方案：將進入穩定倒數之轉速誤差門檻縮緊為 Max(6.0, targetSpd * 0.015) (1.5% 或 6 rpm)，未達標前持續補償轉差，雙達標持續 2 秒才啟動 5 秒倒數；在 Subphase 3 採樣完成時比對下一點轉速，若轉速不變 (<=5 rpm) 則直接切入 Subphase 1，平滑遞增/遞減扭力至目標，不降載不變速；若需變速，在 Subphase 4 實施 3 步平穩階梯降載 (每秒 1 步，共 3 秒) 降至 25%，第 3 步完成後發送新轉速命令進入 Subphase 0，等待實際速度到達新目標帶 (<=Max(12, 2%)) 後，才切入 Subphase 1 自 25% 平穩遞增加載；(4)版本升級至 2.5.9，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
 | V2.58 (beta) | v2.10.18 | 2026-09-09 | 線上更新日誌 Unicode 全面防亂碼、T-N 待測端雙閉迴路自動補轉差 (同步 S1/S2/S6 杜絕 50s 未達標超時)、TN 測試右上即時溫度曲線與通道自選監控：(1)現象與佐證：使用者回報「1.更新日誌又變亂碼；2.剛才TN測試出現50秒未達標，原因應該是沒有補轉差，目前只有控制扭力追隨沒有控制待側端的轉速追隨，請與S1/S2/S6的控制方法一致；3.TN測試右上請放入溫度曲線，同S1介面一樣要能選擇想監控的CH」；(2)致命根因：PowerShell 執行 package_release.ps1 傳遞包含原生中文字元之 manifest JSON 至 Firebase 時受預設 ANSI/CP950 編碼污染；Dynamometer_TestTN.cs 僅在起轉時寫入一次 Sy.52，加載端上載時感應馬達自然轉差導致轉速跌出容許帶 (spdErr > Max(25, targetSpd*0.08))，isSpdValid 永遠為 false 觸發 50 秒逾時；TN 介面右側僅有表格缺乏溫度動態圖與通道自選；(3)精確修復方案：package_release.ps1 全面改採純 7-bit ASCII 之 Unicode 跳脫碼 (\uXXXX) 杜絕亂碼；實作 ApplyTnSpeedTracking 於加載逼近、5秒穩定與30秒擷取階段即時閉迴路補轉差 SY.52；BuildTnTab 右側重構為 splitTnRight 上下分割，右上方置入 tnTempTrend (GbdTemperatureTrendControl)、通道選擇按鈕與 ShowTnChannelSelectDialog() 彈窗；(4)版本升級至 2.5.8，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
 | V2.57 (beta) | v2.10.17 | 2026-09-09 | T-N 曲線多點自訂測試模式實裝、5秒穩定+30秒每秒採樣平均、換項先降載至25%過渡保護與 GBD 零標頭損壞智能修復：(1)現象與佐證：使用者於「功能修改紀錄/Modify.txt」明確指示：「TN曲線多另一個操作模式(類似S1/S2/S6的切換方法)；可以輸入多組(預設2組，可以點擊+號增加組數)轉速以及扭力分別測試，每一個項目測試先達到目標轉速以及扭力後，穩定5秒後開始擷取30秒穩定資料每秒1筆；換到下一個項目記得先將扭力降到原測試扭力的25%後再改變目標轉速」；同時回報先前的 GBD 記錄檔因未按 STOP 拔除導致前 12KB 全為 0x00 無法開啟、Viewer 拋出 TypeError 例外；(2)致命根因：舊版 GBD 產生器預配置 12KB 全零陣列，Viewer 缺乏零標頭自修復與邊界防護；Dynamometer_TestTN.cs 僅支援等間距梯度掃描，缺乏多點自訂轉速扭力表格與換項前降載至 25% 之狀態機控制；(3)精確修復方案：全新實裝 cmbTnMode 雙模式切換、pnlTnStepRamp 與 pnlTnMultiPoint 自適應佈局切換；實作 dgvTnMultiPoints 多點表格與新增/刪除/重置按鈕；建構 RunTnMultiPointTick() 五階段狀態機 (0:提速空載 ➔ 1:平穩加載雙達標2s ➔ 2:穩定5秒等待 ➔ 3:擷取30秒每秒1筆取30s均值 ➔ 4:換項先降扭力至25%確認後再變速)；GBT 產生器即時回寫 12KB 標頭，Viewer 實裝零標頭逆算還原與通道英數限定；(4)編譯並打包發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
+
+---
+
+## [V2.61 beta / v2.10.21] - 2026-09-09
+
+### 🎯 現象與佐證
+1. **使用者指令與架構優化需求**：
+   - 使用者明確指示：「趨勢圖的負載很高，能全部都只跑一支程式，然後只是呼叫的位置不同就好嗎? 除了溫度紀錄自己的分頁必須要有完整的，其他的能共用嗎?這樣能減少資源消耗嗎? 就這樣改，改好上傳更新」
+2. **實測資源與效能瓶頸佐證**：
+   - 先前系統在 Tab 1 (T-N 曲線)、Tab 2 (工作制測試 Duty)、Tab 4 (空載溫升) 與 Tab 5 (溫度記錄器 GL820) 各自建立獨立之 `GbdTemperatureTrendControl` 控制項實例；
+   - 每個實例內部各自配置高達 3,600 筆之 `List<KeyValuePair<DateTime, double[]>> samples` 陣列、各自持有 `FlowLayoutPanel` 時間跨度工具列、按鈕與字型物件；
+   - 每秒 `motorTempTimer.Tick` 同時向 4 個實例執行 `AddSample(DateTime.Now, gbdChTemps)`，每秒至少產生 4 份 `new double[20]` 記憶體配置，在 Windows XP 32-bit 之 .NET 4.0 執行期引發頻繁的垃圾回收 (GC) 與 Win32 GDI/USER 訊息佇列負荷。
+
+### 💡 致命根因 (Root Cause)
+1. **多重實例 redundant 配置導致 GC 壓力與 Win32 Handle 浪費**：
+   - 在實際測試機台作業時，使用者在同一瞬間只會停留在一個測試分頁（T-N、Duty 或 空載），各測試分頁不可能同時被肉眼監看，但各自獨立建立之趨勢圖控制項卻全天候常駐於記憶體中；
+   - 每秒重複向 4 個控制項分配陣列與推播資料，造成記憶體複製開銷增加 4 倍；
+2. **缺乏動態停泊 (Dynamic Re-Parenting) 共用架構**：
+   - 舊架構在表單初始化階段直接將各控制項 statically 添加至各自的容器中，缺乏單一控制項實例依目前選中分頁動態切換 Parent 容器之機制的支援。
+
+### 🔧 精確修復方案
+**修改核心檔案：**
+* `Dyanmometer_Modern/Dynamometer_HMI_WinForms.cs`
+* `Dyanmometer_Modern/Dynamometer_TestTN.cs`
+* `Dyanmometer_Modern/Dynamometer_TestDuty.cs`
+* `Dyanmometer_Modern/Dynamometer_TestNoLoad.cs`
+* `Dyanmometer_Modern/Dynamometer_WebServer.cs`
+
+**具體實施細節：**
+1. **單一資料與視圖核心分離（溫度記錄專屬 + 測試分頁共用）**：
+   - 「溫度記錄」分頁 (`tabGbd`) 保留專屬常駐之 `gbdTrendChart`，獨立維護全機台連續 1 小時之完整黑盒子紀錄，絕不受任何測試清空操作干擾；
+   - 所有測試分頁（T-N 曲線、工作制 Duty、空載溫升）精簡為共用單一 `sharedTestTempTrend` 控制項實例；
+   - `MainForm` 中之 `tnTempTrend`、`dutyTempTrend`、`noLoadTempTrend` 全面重構為屬性代理（Property Accessor），直接返回 `sharedTestTempTrend`，確保既有測試代碼零破壞。
+2. **實裝 `AttachSharedTempTrendTo` 輕量化動態停泊機制**：
+   - 實作 `AttachSharedTempTrendTo(Control targetContainer, bool[] channelMask)`：在分頁切換時，自動將 `sharedTestTempTrend.Parent` 指向目前切換之測試容器（`grpTnTemp` / `grpDutyTemp` / `grpNoLoadChart`），設定 `Dock = DockStyle.Fill` 與 `SendToBack()` 完美填滿容器中心，並即時套用各測試專屬之通道遮罩 (`SetChannelVisibility`)；
+   - 在 `tabControl.SelectedIndexChanged` 統一接管動態停泊排程。
+3. **背景溫度推播負載直接腰斬減負**：
+   - `motorTempTimer.Tick` 由原本同時更新 4 個控制項精簡為僅推播至 2 個控制項 (`gbdTrendChart` 與 `sharedTestTempTrend`)；
+   - 陣列配置次數與 GC 負荷直接降低 50% 以上；
+   - 結合先前實裝之 `if (this.Visible) this.Invalidate();`，背景或非當前分頁完全零 GDI 繪圖運算。
+4. **版本號升級與同動編譯發布**：
+   - 版本號升級至 `APP_VERSION = "2.6.1"` (內部版號 `v2.10.21`)；
+   - 執行 `package_release.ps1 -Version 2.5.0` 完成 x86 32-bit 編譯，自動打包發布至 `Release/Dynamometer_HMI_V2.5.0_Portable/`，並自動同步推送至 GitHub `gh-pages` 與 Firebase 版本清單。
 
 ---
 
