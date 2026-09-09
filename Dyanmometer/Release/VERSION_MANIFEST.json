@@ -1,0 +1,43 @@
+{
+  "project_name": "Dynamometer HMI Pro",
+  "current_version": "2.4.0",
+  "release_date": "2026-08-25",
+  "status": "Production-Ready Stable",
+  "target_platforms": ["Windows 10 (64-bit)", "Windows 11 (64-bit)", "Windows Server", "Linux IPC via Browser"],
+  "distribution_package": "Dynamometer_HMI_V2.4.0_Portable",
+  "entry_points": {
+    "launcher": "Start_Dynamometer_HMI.bat",
+    "web_hmi": "index.html"
+  },
+  "tools": [
+    {
+      "name": "USB Torque Meter Tester",
+      "executable": "tools/Test_USB_TorqueMeter.exe",
+      "script": "tools/test_torque_meter.py",
+      "protocol": "USB Virtual COM / 4503A ASCII"
+    },
+    {
+      "name": "Power Meter Ethernet Tester",
+      "executable": "tools/Test_PowerMeter_Ethernet.exe",
+      "script": "tools/test_power_meter.py",
+      "protocol": "SCPI / Ethernet TCP Socket (Port 10001) / GPIB"
+    },
+    {
+      "name": "Graphtec GBD Logger Tester",
+      "executable": "tools/Test_Graphtec_GBD_Ethernet.exe",
+      "script": "tools/test_gbd_logger.py",
+      "protocol": "Graphtec GL TCP Socket (Port 8023) / CH1~CH20"
+    },
+    {
+      "name": "KEB Drive Tester",
+      "script": "tools/test_keb_drive.py",
+      "protocol": "DIN 66019 / ANSI RS-232"
+    }
+  ],
+  "version_history": [
+    { "version": "2.2.0", "date": "2026-08-24", "summary": "S1/S2/S6 Duty Cycle Tests + GBD Ethernet Logger support + Release Packager" },
+    { "version": "2.1.0", "date": "2026-08-24", "summary": "Safety Guard Rate Limiter + Multi-Step T-N Auto Test + 2D Efficiency Map" },
+    { "version": "2.0.0", "date": "2026-08-24", "summary": "Modern Architecture Rewrite + Zero-Dependency C# Tools" },
+    { "version": "1.06",  "date": "2017-05-16", "summary": "Legacy VB6 Final Version" }
+  ]
+}

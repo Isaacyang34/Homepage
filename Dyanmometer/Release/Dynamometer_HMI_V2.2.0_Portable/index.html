@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamometer HMI Pro - 現代化馬達動力計與自動測試系統</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <!-- Top System Nav -->
+    <header class="top-nav">
+        <div class="brand">
+            <div class="logo-icon">⚡</div>
+            <div class="brand-text">
+                <h1>DYNAMOMETER PRO <span class="version-tag">V2.2-DutyCycle</span></h1>
+                <p class="subtitle">馬達主軸動力特性、閉迴路安全防護、T-N / 效率地圖與 S1/S2/S6 工作制測試系統</p>
+            </div>
+        </div>
+
+        <div class="system-status-bar">
+            <!-- Safety Alert Indicator -->
+            <div class="status-badge alert-badge" id="safetyStatusBadge">
+                <span class="dot safe" id="safetyDot"></span>
+                <span id="safetyStatusText">閉迴路安全防護：正常</span>
+            </div>
+            <div class="status-badge" id="simModeBadge">
+                <span class="dot live"></span>
+                <span>模擬測試 (Simulation)</span>
+            </div>
+            <div class="time-display" id="currentTime">--:--:--</div>
+        </div>
+    </header>
+
+    <!-- Main Navigation Tabs -->
+    <nav class="main-tabs">
+        <button class="tab-btn active" data-tab="tab-manual">🎛️ 手動即時監控 (Manual HMI)</button>
+        <button class="tab-btn" data-tab="tab-tn-auto">📈 多段 T-N 曲線自動測試 (Step T-N Test)</button>
+        <button class="tab-btn" data-tab="tab-eff-map">🗺️ 2D 效率地圖自動掃描 (Efficiency Map)</button>
+        <button class="tab-btn" data-tab="tab-duty-cycle">⏱️ S1/S2/S6 工作制測試 (Duty Cycle)</button>
+    </nav>
+
+    <!-- Safety Warning Banner (Popup when deviation > 10%) -->
+    <div id="safetyWarningBanner" class="safety-banner hidden">
+        <div class="banner-content">
+            <span class="banner-icon">🚨</span>
+            <div class="banner-text">
+                <strong id="bannerTitle">安全警示：轉矩偏差超過 10% 門檻！</strong>
+                <p id="bannerDesc">當前轉矩與確認基準偏差過大，已啟動輸出限幅與防暴衝抑制！</p>
+            </div>
+            <button id="btnDismissWarning" class="btn-sm-warning">關閉提示</button>
+        </div>
+    </div>
+
+    <!-- MAIN VIEW CONTAINER -->
+    <main class="main-layout">
+        
+        <!-- TAB 1: MANUAL REALTIME MONITORING -->
+        <section id="tab-manual" class="tab-content active">
+            <div class="grid-container">
+                <!-- Left Sidebar: Controls & Safety Parameters -->
+                <aside class="control-panel">
+                    <!-- Safety Guard Setting Card -->
+                    <div class="card panel-section safety-guard-card">
+                        <h3>🛡️ 閉迴路轉矩安全防護設定</h3>
+                        <div class="form-group">
+                            <label>當前鎖定基準轉矩 (Baseline)</label>
+                            <div class="input-with-btn">
+                                <input type="number" id="baseTorqueDisp" value="0.0" step="0.1" class="input-dark" readonly>
+                                <button id="btnSetBaseline" class="btn-action-primary" title="記錄當前轉矩為防護基準">📸 確認並記錄基準</button>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>偏差警示門檻 (%)</label>
+                                <input type="number" id="safetyThreshPct" value="10" min="1" max="50" class="input-dark">
+                            </div>
+                            <div class="form-group">
+                                <label>單步最大調量 (Nm)</label>
+                                <input type="number" id="maxDeltaNm" value="2.0" step="0.5" class="input-dark">
+                            </div>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" id="chkAutoClamp" checked>
+                            <label for="chkAutoClamp">啟用閉迴路變化率硬體限幅 (Anti-Runaway)</label>
+                        </div>
+                    </div>
+
+                    <!-- Motor & Test Settings Card -->
+                    <div class="card panel-section">
+                        <h3>⚙️ 運轉控制與加載設定</h3>
+                        <div class="form-group">
+                            <label>測試馬達型號</label>
+                            <input type="text" id="motorModel" value="SVM225XL_1500rpm_TN" class="input-dark">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>額定轉速 (rpm)</label>
+                                <input type="number" id="ratedSpeed" value="1000" class="input-dark">
+                            </div>
+                            <div class="form-group">
+                                <label>額定轉矩 (Nm)</label>
+                                <input type="number" id="ratedTorque" value="1000" class="input-dark">
+                            </div>
+                        </div>
+
+                        <div class="divider"></div>
+
+                        <div class="target-controls">
+                            <div class="form-group">
+                                <label>目標設定轉速: <span id="targetRpmDisp" class="highlight-val">1500</span> rpm</label>
+                                <input type="range" id="sliderSpeed" min="0" max="3000" value="1500" class="range-slider">
+                            </div>
+                            <div class="form-group">
+                                <label>目標加載轉矩: <span id="targetTorqueDisp" class="highlight-val">320</span> Nm</label>
+                                <input type="range" id="sliderTorque" min="0" max="1500" value="320" class="range-slider">
+                            </div>
+                        </div>
+
+                        <div class="btn-group">
+                            <button id="btnStart" class="btn btn-primary">▶ 開始測試 / 採樣</button>
+                            <button id="btnStop" class="btn btn-danger" disabled>⏹ 停止測試</button>
+                            <button id="btnLockTorque" class="btn btn-secondary">🔒 轉矩鎖定 (Lock)</button>
+                            <button id="btnExportCsv" class="btn btn-success">📥 匯出即時 CSV 報表</button>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- Right Content: Gauges & Charts -->
+                <section class="dashboard-content">
+                    <div class="metrics-grid">
+                        <div class="metric-card cyan">
+                            <div class="metric-header">實際轉速 (Actual Speed)</div>
+                            <div class="metric-body"><span class="metric-value" id="valSpeed">0.0</span><span class="metric-unit">rpm</span></div>
+                            <div class="metric-footer">ru07 回授 | 設定: <span id="valSpeedSet">1500</span> rpm</div>
+                        </div>
+                        <div class="metric-card orange">
+                            <div class="metric-header">實測轉矩 (Torque)</div>
+                            <div class="metric-body"><span class="metric-value" id="valTorque">0.0</span><span class="metric-unit">Nm</span></div>
+                            <div class="metric-footer">滑動平均 | 基準: <span id="valBaseTorqueDisp">未設定</span></div>
+                        </div>
+                        <div class="metric-card green">
+                            <div class="metric-header">輸出功率 (Mech. Power)</div>
+                            <div class="metric-body"><span class="metric-value" id="valPower">0.00</span><span class="metric-unit">kW</span></div>
+                            <div class="metric-footer">公式: (T × n) / 9550</div>
+                        </div>
+                        <div class="metric-card purple">
+                            <div class="metric-header">系統效率 (Efficiency)</div>
+                            <div class="metric-body"><span class="metric-value" id="valEfficiency">0.0</span><span class="metric-unit">%</span></div>
+                            <div class="metric-footer">P_mech / Sigma P_elec</div>
+                        </div>
+                        <div class="metric-card yellow">
+                            <div class="metric-header">扭力常數 (Kt Constant)</div>
+                            <div class="metric-body"><span class="metric-value" id="valKt">0.00</span><span class="metric-unit">Nm/A</span></div>
+                            <div class="metric-footer">Torque / Sigma Current</div>
+                        </div>
+                        <div class="metric-card red">
+                            <div class="metric-header">馬達溫度 1 (KTY84)</div>
+                            <div class="metric-body"><span class="metric-value" id="valTemp1">25.0</span><span class="metric-unit">°C</span></div>
+                            <div class="metric-footer">最高測點溫升監控</div>
+                        </div>
+                    </div>
+
+                    <!-- Realtime Charts -->
+                    <div class="charts-grid">
+                        <div class="card chart-card">
+                            <div class="chart-header">
+                                <h4>📈 即時 T-N 特性曲線 (Torque vs Time / Speed)</h4>
+                            </div>
+                            <div class="chart-wrapper"><canvas id="chartTN"></canvas></div>
+                        </div>
+                        <div class="card chart-card">
+                            <div class="chart-header">
+                                <h4>🌡️ 溫升歷程與功率曲線 (KTY84 & Power)</h4>
+                            </div>
+                            <div class="chart-wrapper"><canvas id="chartTemp"></canvas></div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </section>
+
+        <!-- TAB 2: MULTI-STEP T-N CURVE AUTO TEST -->
+        <section id="tab-tn-auto" class="tab-content">
+            <div class="auto-test-layout">
+                <div class="card auto-config-card">
+                    <h3>📈 多段 T-N 曲線自動測試參數配置</h3>
+                    <p class="config-desc">設定轉速步階範圍與固定轉矩，系統將自動逐點加載、等待穩定時間並記錄數據。</p>
+                    
+                    <div class="config-grid">
+                        <div class="form-group">
+                            <label>起始轉速 (Start rpm)</label>
+                            <input type="number" id="tnStartRpm" value="100" step="50" class="input-dark">
+                        </div>
+                        <div class="form-group">
+                            <label>轉速步階 (Step rpm)</label>
+                            <input type="number" id="tnStepRpm" value="100" step="10" class="input-dark">
+                        </div>
+                        <div class="form-group">
+                            <label>結束轉速 (End rpm)</label>
+                            <input type="number" id="tnEndRpm" value="1000" step="50" class="input-dark">
+                        </div>
+                        <div class="form-group">
+                            <label>固定加載轉矩 (Fixed Torque Nm)</label>
+                            <input type="number" id="tnFixedTorque" value="30.0" step="1.0" class="input-dark">
+                        </div>
+                        <div class="form-group">
+                            <label>每點穩定等待時間 (秒)</label>
+                            <input type="number" id="tnDwellTime" value="10" min="1" max="120" class="input-dark">
+                        </div>
+                    </div>
+
+                    <div class="auto-test-actions">
+                        <button id="btnStartTnAuto" class="btn btn-primary">🚀 開始多段 T-N 自動測試</button>
+                        <button id="btnStopTnAuto" class="btn btn-danger" disabled>⏹ 終止測試</button>
+                        <button id="btnExportTnCsv" class="btn btn-success">📥 匯出 T-N 測試報告</button>
+                    </div>
+
+                    <div class="progress-section">
+                        <div class="progress-info">
+                            <span>測試進度: <strong id="tnProgressText">0 / 10 點 (0%)</strong></span>
+                            <span>目前狀態: <strong id="tnStatusText" class="highlight-val">準備中</strong></span>
+                            <span>穩定倒數: <strong id="tnDwellCountdown" class="countdown-text">-- s</strong></span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar-fill" id="tnProgressBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="auto-results-grid">
+                    <div class="card chart-card">
+                        <div class="chart-header">
+                            <h4>📊 T-N 特性曲線圖 (轉矩 30Nm 下 100~1000 rpm 功率與效率分佈)</h4>
+                        </div>
+                        <div class="chart-wrapper"><canvas id="chartTnResult"></canvas></div>
+                    </div>
+
+                    <div class="card table-card">
+                        <div class="chart-header">
+                            <h4>📋 已量測點位數據清單</h4>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="telemetry-table" id="tableTnPoints">
+                                <thead>
+                                    <tr>
+                                        <th>點位</th>
+                                        <th>目標轉速</th>
+                                        <th>實測轉速</th>
+                                        <th>實測轉矩</th>
+                                        <th>輸出功率 (kW)</th>
+                                        <th>效率 (%)</th>
+                                        <th>扭力常數 Kt</th>
+                                        <th>狀態</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 3: 2D EFFICIENCY MAP AUTOMATED SCAN -->
+        <section id="tab-eff-map" class="tab-content">
+            <div class="auto-test-layout">
+                <div class="card auto-config-card">
+                    <h3>🗺️ 2D 效率地圖 (Speed × Torque) 自動網格掃描</h3>
+                    <p class="config-desc">自動掃描轉速（如 100~1000 rpm）與轉矩（如 0~30 Nm 間隔 2Nm，共 160 網格點），生成完整的馬達效率分佈熱圖。</p>
+
+                    <div class="config-grid-6">
+                        <div class="form-group">
+                            <label>轉速範圍 (rpm)</label>
+                            <div class="input-inline">
+                                <input type="number" id="effStartRpm" value="100" class="input-dark"> ~
+                                <input type="number" id="effEndRpm" value="1000" class="input-dark">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>轉速間隔 (Step rpm)</label>
+                            <input type="number" id="effStepRpm" value="100" class="input-dark">
+                        </div>
+                        <div class="form-group">
+                            <label>轉矩範圍 (Nm)</label>
+                            <div class="input-inline">
+                                <input type="number" id="effStartTrq" value="0" class="input-dark"> ~
+                                <input type="number" id="effEndTrq" value="30" class="input-dark">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>轉矩間隔 (Step Nm)</label>
+                            <input type="number" id="effStepTrq" value="2" class="input-dark">
+                        </div>
+                        <div class="form-group">
+                            <label>每點穩定時間 (秒)</label>
+                            <input type="number" id="effDwellTime" value="3" min="1" max="60" class="input-dark">
+                        </div>
+                        <div class="form-group">
+                            <label>總網格點數</label>
+                            <div class="grid-calc-badge" id="totalGridPointsDisp">10 × 16 = 160 點</div>
+                        </div>
+                    </div>
+
+                    <div class="auto-test-actions">
+                        <button id="btnStartEffScan" class="btn btn-primary">🗺️ 開始掃描 2D 效率地圖</button>
+                        <button id="btnStopEffScan" class="btn btn-danger" disabled>⏹ 停止掃描</button>
+                        <button id="btnExportEffCsv" class="btn btn-success">📥 匯出效率地圖矩陣 CSV</button>
+                    </div>
+
+                    <div class="progress-section">
+                        <div class="progress-info">
+                            <span>掃描進度: <strong id="effProgressText">0 / 160 點 (0%)</strong></span>
+                            <span>當前測試點: <strong id="effCurrentPointText" class="highlight-val">--</strong></span>
+                            <span>穩定倒數: <strong id="effDwellCountdown" class="countdown-text">-- s</strong></span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar-fill" id="effProgressBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card map-visualizer-card">
+                    <div class="chart-header">
+                        <h4>🔥 馬達 2D 效率地圖分佈熱力圖 (Motor Efficiency Map % Heatmap)</h4>
+                        <div class="map-legend">
+                            <span>效率色階: </span>
+                            <span class="legend-scale"><span class="grad-bar"></span> < 70% | 80% | 85% | 90% | >94% (高效區)</span>
+                        </div>
+                    </div>
+                    <div class="heatmap-canvas-container">
+                        <canvas id="canvasEfficiencyMap" width="900" height="420"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 4: S1 / S2 / S6 DUTY CYCLE TESTING (IEC 60034-1) -->
+        <section id="tab-duty-cycle" class="tab-content">
+            <div class="auto-test-layout">
+                <!-- Duty Cycle Mode Selector & Configuration -->
+                <div class="card auto-config-card">
+                    <div class="duty-mode-header">
+                        <h3>⏱️ IEC 60034-1 馬達標準工作制測試 (Duty Cycle Test)</h3>
+                        <div class="duty-mode-buttons">
+                            <button class="duty-type-btn active" data-duty="S1">S1 連續運轉 (Continuous)</button>
+                            <button class="duty-type-btn" data-duty="S2">S2 短時運轉 (Short-Time)</button>
+                            <button class="duty-type-btn" data-duty="S6">S6 連續週期 (Periodic ED%)</button>
+                        </div>
+                    </div>
+
+                    <!-- S1 Config Panel -->
+                    <div id="duty-panel-S1" class="duty-panel active">
+                        <p class="config-desc">S1 連續運轉工作制：在恆定額定轉矩下連續運轉，直至馬達達到熱平衡（連續 10 分鐘溫升小於 1°C）。</p>
+                        <div class="config-grid">
+                            <div class="form-group">
+                                <label>目標轉速 (rpm)</label>
+                                <input type="number" id="s1Speed" value="1500" class="input-dark">
+                            </div>
+                            <div class="form-group">
+                                <label>連續加載轉矩 (Nm)</label>
+                                <input type="number" id="s1Torque" value="30.0" class="input-dark">
+                            </div>
+                            <div class="form-group">
+                                <label>測試上限時間 (分鐘)</label>
+                                <input type="number" id="s1DurationMin" value="30" class="input-dark">
+                            </div>
+                            <div class="form-group">
+                                <label>最高容許溫度 (°C)</label>
+                                <input type="number" id="s1MaxTemp" value="130" class="input-dark">
+                            </div>
+                            <div class="form-group">
+                                <label>熱平衡自動判定</label>
+                                <div class="form-check" style="margin-top:8px">
+                                    <input type="checkbox" id="s1AutoEquil" checked>
+                                    <label for="s1AutoEquil">達到熱平衡時自動結束</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- S2 Config Panel -->
+                    <div id="duty-panel-S2" class="duty-panel">
+                        <p class="config-desc">S2 短時運轉工作制：在指定短時負載（如 120%~150% 超載）下運轉固定時間（如 10/15/30 分鐘），隨後停機冷卻。</p>
+                        <div class="config-grid">
+                            <div class="form-group">
+                                <label>目標轉速 (rpm)</label>
+                                <input type="number" id="s2Speed" value="1500" class="input-dark">
+                            </div>
+                            <div class="form-group">
+                                <label>短時過載轉矩 (Nm)</label>
+                                <input type="number" id="s2Torque" value="45.0" class="input-dark">
+                            </div>
+                            <div class="form-group">
+                                <label>短時時長 (分鐘)</label>
+                                <select id="s2DurationMin" class="input-dark">
+                                    <option value="10">10 分鐘 (S2-10min)</option>
+                                    <option value="15">15 分鐘 (S2-15min)</option>
+                                    <option value="30">30 分鐘 (S2-30min)</option>
+                                    <option value="60">60 分鐘 (S2-60min)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>過溫保護閥值 (°C)</label>
+                                <input type="number" id="s2MaxTemp" value="140" class="input-dark">
+                            </div>
+                            <div class="form-group">
+                                <label>短時工作模式</label>
+                                <div class="grid-calc-badge">S2-短時超載</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- S6 Config Panel -->
+                    <div id="duty-panel-S6" class="duty-panel">
+                        <p class="config-desc">S6 連續週期運轉工作制：由週期性「加載運轉期 (t_load)」與「空載運轉期 (t_idle)」組成無休止運轉，計算負載率 ED%。</p>
+                        <div class="config-grid-6">
+                            <div class="form-group">
+                                <label>目標轉速 (rpm)</label>
+                                <input type="number" id="s6Speed" value="1500" class="input-dark">
+                            </div>
+                            <div class="form-group">
+                                <label>負載轉矩 (Nm)</label>
+                                <input type="number" id="s6Torque" value="35.0" class="input-dark">
+                            </div>
+                            <div class="form-group">
+                                <label>負載持續率 ED%</label>
+                                <select id="s6EdPct" class="input-dark">
+                                    <option value="25">S6-25% (2.5min 載 / 7.5min 空)</option>
+                                    <option value="40" selected>S6-40% (4min 載 / 6min 空)</option>
+                                    <option value="60">S6-60% (6min 載 / 4min 空)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>單週期時長 (秒)</label>
+                                <input type="number" id="s6CycleSec" value="60" class="input-dark" title="實測建議 60s 或 600s">
+                            </div>
+                            <div class="form-group">
+                                <label>循環總次數 (Cycles)</label>
+                                <input type="number" id="s6Cycles" value="5" class="input-dark">
+                            </div>
+                            <div class="form-group">
+                                <label>當前週期狀態</label>
+                                <div class="grid-calc-badge" id="s6PhaseBadge">準備中</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="auto-test-actions">
+                        <button id="btnStartDutyTest" class="btn btn-primary">▶ 開始工作制測試</button>
+                        <button id="btnStopDutyTest" class="btn btn-danger" disabled>⏹ 終止測試</button>
+                        <button id="btnExportDutyCsv" class="btn btn-success">📥 匯出工作制測試報告</button>
+                    </div>
+
+                    <!-- Progress & Status Indicator -->
+                    <div class="progress-section">
+                        <div class="progress-info">
+                            <span>測試進度: <strong id="dutyProgressText">0% (0 / 0 秒)</strong></span>
+                            <span>工作制狀態: <strong id="dutyStatusText" class="highlight-val">準備中</strong></span>
+                            <span>熱平衡狀態: <strong id="thermalStatusText" class="countdown-text">未達平衡</strong></span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar-fill" id="dutyProgressBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Duty Cycle Waveform and Temperature Charts -->
+                <div class="auto-results-grid">
+                    <div class="card chart-card">
+                        <div class="chart-header">
+                            <h4>📈 工作制轉矩與轉速加載歷程曲線 (Torque & Speed Waveform)</h4>
+                        </div>
+                        <div class="chart-wrapper"><canvas id="chartDutyWaveform"></canvas></div>
+                    </div>
+
+                    <div class="card chart-card">
+                        <div class="chart-header">
+                            <h4>🌡️ 工作制溫升與熱平衡歷程 (KTY84 CH1 Temperature °C)</h4>
+                        </div>
+                        <div class="chart-wrapper"><canvas id="chartDutyTemp"></canvas></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>

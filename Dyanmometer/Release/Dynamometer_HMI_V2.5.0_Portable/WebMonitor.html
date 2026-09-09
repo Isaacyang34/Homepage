@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>動力計雲端即時監控中心 | Dynamometer Cloud Live Monitor</title>
+    <style>
+        :root {
+            --bg-primary: #0a0f1d;
+            --bg-secondary: #111827;
+            --bg-card: rgba(17, 24, 39, 0.75);
+            --bg-card-hover: rgba(31, 41, 55, 0.85);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-highlight: rgba(56, 189, 248, 0.3);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --cyan: #38bdf8;
+            --emerald: #10b981;
+            --amber: #f59e0b;
+            --rose: #f43f5e;
+            --purple: #a855f7;
+            --indigo: #6366f1;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "微軟正黑體", "Microsoft JhengHei", sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(56, 189, 248, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 85% 85%, rgba(99, 102, 241, 0.08) 0%, transparent 40%);
+            background-attachment: fixed;
+        }
+
+        /* 頂部導航列 */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 12px 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-badge {
+            background: linear-gradient(135deg, #0284c7, #6366f1);
+            color: #fff;
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: bold;
+            box-shadow: 0 0 15px rgba(2, 132, 199, 0.5);
+        }
+
+        .title-text h1 {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .title-text p {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--border);
+            padding: 6px 14px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--emerald);
+            box-shadow: 0 0 10px var(--emerald);
+            transition: all 0.3s ease;
+        }
+
+        .status-dot.offline {
+            background-color: var(--rose);
+            box-shadow: 0 0 10px var(--rose);
+        }
+
+        .status-dot.pulse {
+            animation: pulse-ring 1.5s infinite;
+        }
+
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.3); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+
+        .btn-action {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 6px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        .btn-action:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: var(--cyan);
+        }
+
+        /* 核心指標卡片群 (KPIs) */
+        .grid-kpis {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .card-kpi {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 18px 20px;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .card-kpi:hover {
+            transform: translateY(-2px);
+            border-color: var(--border-highlight);
+        }
+
+        .card-kpi::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+        }
+
+        .kpi-speed::before { background: var(--cyan); }
+        .kpi-torque::before { background: var(--amber); }
+        .kpi-power::before { background: var(--purple); }
+        .kpi-eff::before { background: var(--emerald); }
+
+        .kpi-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .kpi-value-row {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            margin: 8px 0;
+        }
+
+        .kpi-val {
+            font-size: 38px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .kpi-unit {
+            font-size: 14px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .kpi-sub {
+            font-size: 12px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* 測試狀態列 */
+        .card-status {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px 20px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .status-info-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .badge-mode {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: #fff;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            box-shadow: 0 0 12px rgba(37, 99, 235, 0.4);
+        }
+
+        .status-text-main {
+            font-size: 15px;
+            font-weight: 600;
+            color: #f1f5f9;
+        }
+
+        .status-phase-sub {
+            font-size: 13px;
+            color: var(--amber);
+            font-weight: 500;
+            background: rgba(245, 158, 11, 0.1);
+            padding: 4px 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+
+        .progress-box {
+            min-width: 200px;
+            flex: 1;
+            max-width: 320px;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .progress-bar-bg {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--cyan), var(--emerald));
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        /* 儀表與變頻器數據二欄佈局 */
+        .grid-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 16px;
+        }
+
+        .section-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px 20px;
+        }
+
+        .section-header {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .metrics-table {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .metric-item {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 10px 12px;
+        }
+
+        .metric-title {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .metric-data {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-top: 2px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* 即時動態曲線圖 Canvas */
+        .chart-container {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px 20px;
+            position: relative;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .chart-legend {
+            display: flex;
+            gap: 14px;
+            font-size: 12px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        #chartCanvas {
+            width: 100%;
+            height: 180px;
+            display: block;
+        }
+
+        /* GL820 20 通道溫度矩陣 */
+        .temp-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 8px;
+        }
+
+        .temp-cell {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 8px;
+            padding: 8px 6px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .temp-cell.hot {
+            border-color: rgba(244, 63, 94, 0.6);
+            background: rgba(244, 63, 94, 0.15);
+            animation: pulse-ring 2s infinite;
+        }
+
+        .temp-cell.warn {
+            border-color: rgba(245, 158, 11, 0.5);
+            background: rgba(245, 158, 11, 0.12);
+        }
+
+        .temp-ch-name {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .temp-val {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--emerald);
+            margin-top: 2px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .temp-cell.hot .temp-val { color: var(--rose); }
+        .temp-cell.warn .temp-val { color: var(--amber); }
+
+        /* 底部註腳 */
+        footer {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-muted);
+            padding: 8px;
+        }
+
+        @media (max-width: 640px) {
+            body { padding: 10px; gap: 12px; }
+            header { flex-direction: column; align-items: flex-start; gap: 10px; }
+            .header-status { width: 100%; justify-content: space-between; }
+            .card-kpi { padding: 14px 16px; }
+            .kpi-val { font-size: 30px; }
+            .metrics-table { grid-template-columns: 1fr; }
+        }
+
+        /* ====== 授權驗證遮罩 ====== */
+        #auth-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 15, 29, 0.97);
+            backdrop-filter: blur(14px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .auth-card {
+            background: var(--bg-secondary);
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            border-radius: 20px;
+            padding: 40px 36px;
+            width: 90%;
+            max-width: 420px;
+            text-align: center;
+            box-shadow: 0 0 60px rgba(56, 189, 248, 0.12), 0 24px 60px rgba(0,0,0,0.6);
+            animation: fadeInUp 0.4s ease;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .auth-logo {
+            font-size: 40px;
+            margin-bottom: 8px;
+        }
+
+        .auth-card h2 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+
+        .auth-card p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 28px;
+            line-height: 1.6;
+        }
+
+        .auth-input-wrap {
+            position: relative;
+            margin-bottom: 16px;
+        }
+
+        .auth-input-wrap input {
+            width: 100%;
+            padding: 12px 44px 12px 16px;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 10px;
+            color: #fff;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.2s;
+            letter-spacing: 2px;
+        }
+
+        .auth-input-wrap input:focus {
+            border-color: var(--cyan);
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+        }
+
+        .auth-input-wrap input.error {
+            border-color: var(--rose);
+            box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.15);
+            animation: shake 0.35s ease;
+        }
+
+        @keyframes shake {
+            0%,100% { transform: translateX(0); }
+            25%      { transform: translateX(-6px); }
+            75%      { transform: translateX(6px); }
+        }
+
+        .auth-toggle-pw {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 16px;
+            padding: 0;
+        }
+
+        .auth-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, var(--cyan), var(--indigo));
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 15px;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.15s;
+            box-shadow: 0 4px 20px rgba(56, 189, 248, 0.3);
+        }
+
+        .auth-btn:hover:not(:disabled) {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .auth-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .auth-msg {
+            margin-top: 14px;
+            font-size: 13px;
+            color: var(--rose);
+            min-height: 18px;
+        }
+
+        .auth-hint {
+            margin-top: 10px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .auth-attempts-bar {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 14px;
+        }
+
+        .attempt-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.15);
+            transition: background 0.3s;
+        }
+
+        .attempt-dot.used {
+            background: var(--rose);
+            box-shadow: 0 0 6px var(--rose);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ====== 授權驗證遮罩 (零安裝三重防護) ====== -->
+    <div id="auth-overlay">
+        <div class="auth-card">
+            <div class="auth-logo">🔒</div>
+            <h2>動力測試監控中心</h2>
+            <p>此介面為機密測試串流，請輸入授權金鑰以解鎖即時數據串流</p>
+            <div class="auth-input-wrap">
+                <input type="password" id="auth-key-input"
+                    placeholder="輸入存取金鑰"
+                    onkeydown="if(event.key==='Enter') validateAccess()"
+                    autocomplete="off" autocorrect="off" spellcheck="false">
+                <button class="auth-toggle-pw" type="button"
+                    onclick="togglePwVisibility()" title="顯示/隱藏密碼">👁</button>
+            </div>
+            <button class="auth-btn" id="auth-btn" onclick="validateAccess()">解鎖監控中心</button>
+            <div class="auth-msg" id="auth-msg"></div>
+            <div class="auth-attempts-bar">
+                <div class="attempt-dot" id="dot1"></div>
+                <div class="attempt-dot" id="dot2"></div>
+                <div class="attempt-dot" id="dot3"></div>
+            </div>
+            <div class="auth-hint" id="auth-hint">最多允許 3 次錯誤嘗試</div>
+        </div>
+    </div>
+
+    <!-- 頂部資訊列 -->
+    <header>
+        <div class="header-title">
+            <div class="logo-badge">⚡</div>
+            <div class="title-text">
+                <h1>動力計雲端即時監控中心 <span style="font-size: 12px; color: var(--cyan); font-weight: normal;">● CLOUD LIVE</span></h1>
+                <p id="cloudDbLabel">Firebase: dynamometer-live-default-rtdb (asia-southeast1)</p>
+            </div>
+        </div>
+        <div class="header-status">
+            <div class="status-pill">
+                <span id="statusDot" class="status-dot pulse"></span>
+                <span id="statusText">即時串流中 (SSE)</span>
+                <span id="pingText" style="color: var(--cyan); font-size: 11px;">-- ms</span>
+            </div>
+            <button class="btn-action" id="btnLockApp" onclick="manualLock()" style="background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.3); color: #fca5a5;">🔒 鎖定</button>
+            <button class="btn-action" id="btnFullscreen" onclick="toggleFullscreen()">⛶ 全螢幕</button>
+        </div>
+    </header>
+
+    <!-- 致命異常與崩潰緊急警報廣播橫幅 -->
+    <div id="alertBanner" style="display:none; background:rgba(239, 68, 68, 0.25); border:1px solid rgba(239, 68, 68, 0.6); color:#fca5a5; padding:10px 16px; border-radius:12px; font-weight:600; font-size:13px; align-items:center; gap:8px;"></div>
+
+    <!-- 核心動力四大 KPI -->
+    <div class="grid-kpis">
+        <div class="card-kpi kpi-speed">
+            <div class="kpi-label">
+                <span>轉速 SPEED</span>
+                <span style="color: var(--cyan);">● 轉子</span>
+            </div>
+            <div class="kpi-value-row">
+                <span class="kpi-val" id="valSpeed" style="color: var(--cyan);">0.0</span>
+                <span class="kpi-unit">RPM</span>
+            </div>
+            <div class="kpi-sub">
+                <span>目標: <b id="subTargetSpeed">--</b> RPM</span>
+            </div>
+        </div>
+
+        <div class="card-kpi kpi-torque">
+            <div class="kpi-label">
+                <span>扭力 TORQUE</span>
+                <span style="color: var(--amber);">● 傳感器</span>
+            </div>
+            <div class="kpi-value-row">
+                <span class="kpi-val" id="valTorque" style="color: var(--amber);">0.00</span>
+                <span class="kpi-unit">N·m</span>
+            </div>
+            <div class="kpi-sub">
+                <span>轉矩常數 Kt: <b id="valKt">--</b> N·m/A</span>
+            </div>
+        </div>
+
+        <div class="card-kpi kpi-power">
+            <div class="kpi-label">
+                <span>機械功率 MECH POWER</span>
+                <span style="color: var(--purple);">● 輸出</span>
+            </div>
+            <div class="kpi-value-row">
+                <span class="kpi-val" id="valMechPower" style="color: var(--purple);">0.0</span>
+                <span class="kpi-unit">kW</span>
+            </div>
+            <div class="kpi-sub">
+                <span>電功率: <b id="valElecPower">0.0</b> W</span>
+            </div>
+        </div>
+
+        <div class="card-kpi kpi-eff">
+            <div class="kpi-label">
+                <span>馬達效率 EFFICIENCY</span>
+                <span style="color: var(--emerald);">● 系統</span>
+            </div>
+            <div class="kpi-value-row">
+                <span class="kpi-val" id="valEfficiency" style="color: var(--emerald);">0.0</span>
+                <span class="kpi-unit">%</span>
+            </div>
+            <div class="kpi-sub">
+                <span>最高溫: <b id="valTempMax" style="color: var(--rose);">0.0</b> °C</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 測試狀態與進度列 -->
+    <div class="card-status">
+        <div class="status-info-group">
+            <span class="badge-mode" id="badgeMode">IDLE 待機中</span>
+            <span class="status-text-main" id="testStatusMain">系統待命中，等待測試啟動...</span>
+            <span class="status-phase-sub" id="testPhaseSub">--</span>
+        </div>
+        <div class="progress-box" id="progressContainer">
+            <div class="progress-header">
+                <span id="progressLabel">進度</span>
+                <span id="progressPct">0%</span>
+            </div>
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="progressBar"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 電氣量 (WT310) 與 變頻器 (KEB) 數據 -->
+    <div class="grid-details">
+        <!-- WT310 電氣數據 -->
+        <div class="section-card">
+            <div class="section-header">
+                <span>⚡ WT310 功率計實時電氣量</span>
+                <span id="badgePmOnline" style="font-size: 11px; color: var(--emerald);">● 連線正常</span>
+            </div>
+            <div class="metrics-table">
+                <div class="metric-item">
+                    <div class="metric-title">總電壓 U Σ</div>
+                    <div class="metric-data"><span id="valVoltage">0.0</span> <small style="font-size: 12px; color: var(--text-muted);">V</small></div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-title">總電流 I Σ</div>
+                    <div class="metric-data"><span id="valCurrent">0.00</span> <small style="font-size: 12px; color: var(--text-muted);">A</small></div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-title">輸入電功率 P Σ</div>
+                    <div class="metric-data"><span id="valElecPowerGrid">0.0</span> <small style="font-size: 12px; color: var(--text-muted);">W</small></div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-title">功率因數 PF</div>
+                    <div class="metric-data"><span id="valPf">0.000</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- KEB 變頻器數據 -->
+        <div class="section-card">
+            <div class="section-header">
+                <span>🔄 KEB 變頻器輸出狀態</span>
+                <span id="badgeKebOnline" style="font-size: 11px; color: var(--cyan);">● 運轉通訊正常</span>
+            </div>
+            <div class="metrics-table">
+                <div class="metric-item">
+                    <div class="metric-title">變頻器電流 A</div>
+                    <div class="metric-data"><span id="valKebCurA">0.00</span> <small style="font-size: 12px; color: var(--text-muted);">A</small></div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-title">變頻器電流 B</div>
+                    <div class="metric-data"><span id="valKebCurB">0.00</span> <small style="font-size: 12px; color: var(--text-muted);">A</small></div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-title">系統模式</div>
+                    <div class="metric-data" id="valSimMode" style="font-size: 15px; color: var(--emerald);">實體硬體連線</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-title">最後更新時間</div>
+                    <div class="metric-data" id="valLastUpdated" style="font-size: 14px; color: var(--text-secondary);">--:--:--</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 即時動力走勢曲線圖 -->
+    <div class="chart-container">
+        <div class="chart-header">
+            <div class="section-header" style="margin-bottom: 0;">📈 即時動力滾動趨勢 (Live 60s Trend)</div>
+            <div class="chart-legend">
+                <div class="legend-item"><span class="legend-dot" style="background: var(--cyan);"></span> 轉速 (RPM)</div>
+                <div class="legend-item"><span class="legend-dot" style="background: var(--amber);"></span> 扭力 (N·m)</div>
+                <div class="legend-item"><span class="legend-dot" style="background: var(--purple);"></span> 功率 (kW)</div>
+            </div>
+        </div>
+        <canvas id="chartCanvas"></canvas>
+    </div>
+
+    <!-- GL820 20 通道實時溫度熱力矩陣 -->
+    <div class="section-card">
+        <div class="section-header">
+            <span>🌡️ GL820 20 通道實時溫度陣列 (°C)</span>
+            <span id="badgeGbdOnline" style="font-size: 11px; color: var(--emerald);">● 紀錄器連線</span>
+        </div>
+        <div class="temp-grid" id="tempGridContainer">
+            <!-- 由 JS 動態生成 CH1 ~ CH20 -->
+        </div>
+    </div>
+
+    <footer>
+        動力計雲端遠端監控系統 &copy; 2026 | 全端純唯讀架構 | 自動適配手機、平板與桌上型電腦
+    </footer>
+
+    <script>
+        // ================================================================
+        // 安全設定區 (Security Config)
+        // AUTH_HASH = SHA-256(實際密碼) 的 hex 字串
+        // 修改密碼時請用以下指令重新計算並更新此值：
+        // PowerShell: [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes('你的新密碼'))).Replace('-','').ToLower()
+        const AUTH_HASH = "c0d085249ba92c2b04e84a6fbc602c3fc2b4efae6fecc99db713a61b7df575c0";
+        const MAX_ATTEMPTS = 3;          // 最多允許錯誤次數
+        const LOCKOUT_SECONDS = 60;      // 鎖定秒數
+        const SESSION_KEY = "dyn_auth";  // sessionStorage 鍵名
+
+        // Firebase 端點延遲組裝：驗證通過前此變數保持 null，避免 URL 裸露在初始 JS 中
+        // 組裝方式：三段字串拼接，讓靜態掃描工具無法直接提取完整 URL
+        let SSE_URL = null;
+        let STATUS_URL = null;
+
+        function _buildEndpoint() {
+            const p1 = "https://dynamometer-live-";
+            const p2 = "default-rtdb.asia-south";
+            const p3 = "east1.firebasedatabase.app/live.json";
+            return p1 + p2 + p3;
+        }
+
+        // 授權狀態
+        let _isAuthorized = false;
+        let _failCount = 0;
+        let _lockUntil = 0;
+
+        // ────────────────────────────────────────────
+        //  AUTH: SHA-256 雜湊比對 (Web Crypto API，零安裝)
+        // ────────────────────────────────────────────
+        async function sha256hex(str) {
+            const buf = await crypto.subtle.digest(
+                "SHA-256",
+                new TextEncoder().encode(str)
+            );
+            return Array.from(new Uint8Array(buf))
+                .map(b => b.toString(16).padStart(2, "0")).join("");
+        }
+
+        function togglePwVisibility() {
+            const inp = document.getElementById("auth-key-input");
+            inp.type = inp.type === "password" ? "text" : "password";
+        }
+
+        function _updateAttemptDots() {
+            for (let i = 1; i <= 3; i++) {
+                const dot = document.getElementById("dot" + i);
+                if (dot) dot.classList.toggle("used", i <= _failCount);
+            }
+        }
+
+        async function validateAccess() {
+            const btn = document.getElementById("auth-btn");
+            const msgEl = document.getElementById("auth-msg");
+            const hintEl = document.getElementById("auth-hint");
+            const inp = document.getElementById("auth-key-input");
+
+            // 檢查冷卻鎖定
+            const now = Date.now();
+            if (now < _lockUntil) {
+                const remaining = Math.ceil((_lockUntil - now) / 1000);
+                msgEl.textContent = `🔐 鎖定中，請等待 ${remaining} 秒後重試`;
+                return;
+            }
+
+            const inputVal = inp.value.trim();
+            if (!inputVal) {
+                msgEl.textContent = "請輸入存取金鑰";
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = "驗證中...";
+
+            try {
+                const hash = await sha256hex(inputVal);
+                if (hash === AUTH_HASH) {
+                    // ✅ 驗證通過
+                    sessionStorage.setItem(SESSION_KEY, "1");
+                    _isAuthorized = true;
+                    inp.value = "";
+                    document.getElementById("auth-overlay").style.display = "none";
+                    SSE_URL = _buildEndpoint();
+                    STATUS_URL = SSE_URL;
+                    initTempGrid();
+                    connectFirebaseSSE();
+                    pollTimer = setInterval(fetchPollingFallback, 800);
+                } else {
+                    // ❌ 驗證失敗
+                    _failCount++;
+                    _updateAttemptDots();
+                    inp.classList.add("error");
+                    setTimeout(() => inp.classList.remove("error"), 600);
+                    inp.value = "";
+
+                    if (_failCount >= MAX_ATTEMPTS) {
+                        _lockUntil = Date.now() + LOCKOUT_SECONDS * 1000;
+                        btn.disabled = true;
+                        msgEl.textContent = `已達最大嘗試次數，鎖定 ${LOCKOUT_SECONDS} 秒`;
+                        hintEl.textContent = "帳號已暫時鎖定";
+                        // 啟動倒數計時
+                        const timer = setInterval(() => {
+                            const rem = Math.ceil((_lockUntil - Date.now()) / 1000);
+                            if (rem <= 0) {
+                                clearInterval(timer);
+                                _failCount = 0;
+                                _updateAttemptDots();
+                                btn.disabled = false;
+                                btn.textContent = "解鎖監控中心";
+                                msgEl.textContent = "";
+                                hintEl.textContent = "最多允許 3 次錯誤嘗試";
+                            } else {
+                                msgEl.textContent = `🔐 鎖定中，請等待 ${rem} 秒後重試`;
+                                btn.textContent = `等待 ${rem}s`;
+                            }
+                        }, 1000);
+                    } else {
+                        const remaining = MAX_ATTEMPTS - _failCount;
+                        msgEl.textContent = `金鑰不正確，剩餘 ${remaining} 次嘗試機會`;
+                        btn.disabled = false;
+                        btn.textContent = "解鎖監控中心";
+                    }
+                }
+            } catch (err) {
+                msgEl.textContent = "驗證過程發生錯誤，請重整頁面";
+                btn.disabled = false;
+                btn.textContent = "解鎖監控中心";
+            }
+        }
+
+        // ────────────────────────────────────────────
+        //  DevTools 偵測：開啟 F12 後清除 session 並重新鎖定
+        //  原理：console.log 中的 getter 在 DevTools 展開時才觸發
+        //  此機制僅為額外嚇阻，非硬性安全邊界
+        // ────────────────────────────────────────────
+        (function devToolsGuard() {
+            let devopen = false;
+            const threshold = 160;
+            setInterval(() => {
+                const widthDiff = window.outerWidth - window.innerWidth;
+                const heightDiff = window.outerHeight - window.innerHeight;
+                if ((widthDiff > threshold || heightDiff > threshold) && _isAuthorized) {
+                    if (!devopen) {
+                        devopen = true;
+                        sessionStorage.removeItem(SESSION_KEY);
+                        // 5 秒後若仍開著則鎖定
+                        setTimeout(() => {
+                            if (window.outerWidth - window.innerWidth > threshold ||
+                                window.outerHeight - window.innerHeight > threshold) {
+                                location.reload();
+                            }
+                        }, 5000);
+                    }
+                } else {
+                    devopen = false;
+                }
+            }, 1000);
+        })();
+
+        // ────────────────────────────────────────────
+        //  URL Key 自動解鎖 (分享連結時附帶 ?k=雜湊值 即可免輸入)
+        //  注意：URL 中傳遞的是雜湊值本身，而非明文密碼
+        // ────────────────────────────────────────────
+        (async function checkURLKey() {
+            // 支援 session 持久 (同一瀏覽器分頁不需重複輸入)
+            if (sessionStorage.getItem(SESSION_KEY) === "1") {
+                document.getElementById("auth-overlay").style.display = "none";
+                _isAuthorized = true;
+                SSE_URL = _buildEndpoint();
+                STATUS_URL = SSE_URL;
+                initTempGrid();
+                connectFirebaseSSE();
+                pollTimer = setInterval(fetchPollingFallback, 800);
+                return;
+            }
+            // URL 金鑰快速解鎖 (?k=<sha256_hash>)
+            const params = new URLSearchParams(window.location.search);
+            const urlKey = params.get("k");
+            if (urlKey && urlKey === AUTH_HASH) {
+                sessionStorage.setItem(SESSION_KEY, "1");
+                _isAuthorized = true;
+                document.getElementById("auth-overlay").style.display = "none";
+                SSE_URL = _buildEndpoint();
+                STATUS_URL = SSE_URL;
+                initTempGrid();
+                connectFirebaseSSE();
+                pollTimer = setInterval(fetchPollingFallback, 800);
+                // 清除 URL 中的 key 參數，避免留在瀏覽器歷史記錄
+                history.replaceState({}, document.title, window.location.pathname);
+            }
+        })();
+
+        // ────────────────────────────────────────────
+        //  原始業務邏輯區 (驗證通過後才能執行)
+        // ────────────────────────────────────────────
+        let lastReceivedTime = 0;
+        let packetCount = 0;
+        let eventSource = null;
+        let pollTimer = null;
+
+        // 歷史趨勢點 (最大保留 60 筆)
+        const historyPoints = {
+            speed: [],
+            torque: [],
+            power: []
+        };
+        const MAX_POINTS = 60;
+
+        // 初始化溫度格子
+        function initTempGrid() {
+            const container = document.getElementById("tempGridContainer");
+            container.innerHTML = "";
+            for (let i = 1; i <= 20; i++) {
+                const cell = document.createElement("div");
+                cell.className = "temp-cell";
+                cell.id = `tempCell_${i}`;
+                cell.innerHTML = `
+                    <div class="temp-ch-name">CH${i}</div>
+                    <div class="temp-val" id="tempVal_${i}">--</div>
+                `;
+                container.appendChild(cell);
+            }
+        }
+
+        // 渲染遙測數據
+        function renderTelemetry(data) {
+            if (!data) return;
+            const now = Date.now();
+            if (lastReceivedTime > 0) {
+                const ping = now - lastReceivedTime;
+                document.getElementById("pingText").textContent = `${ping} ms`;
+            }
+            lastReceivedTime = now;
+            packetCount++;
+
+            // 狀態指示燈
+            const dot = document.getElementById("statusDot");
+            dot.classList.remove("offline");
+            dot.classList.add("pulse");
+            document.getElementById("statusText").textContent = "雲端串流中 (LIVE)";
+
+            // 異常警報橫幅 (崩潰或保護跳脫)
+            const alertBanner = document.getElementById("alertBanner");
+            if (alertBanner) {
+                if (data.is_crashed) {
+                    alertBanner.style.display = "flex";
+                    alertBanner.style.background = "rgba(239, 68, 68, 0.25)";
+                    alertBanner.style.borderColor = "rgba(239, 68, 68, 0.6)";
+                    alertBanner.style.color = "#fca5a5";
+                    alertBanner.innerHTML = `💥 <strong>【現場 HMI 程式崩潰警報】</strong> 原因: ${data.crash_reason || "非預期例外終止"} (${data.last_alert_time || "剛才"})`;
+                } else if (data.last_alert_msg) {
+                    alertBanner.style.display = "flex";
+                    alertBanner.style.background = "rgba(245, 158, 11, 0.2)";
+                    alertBanner.style.borderColor = "rgba(245, 158, 11, 0.5)";
+                    alertBanner.style.color = "#fcd34d";
+                    alertBanner.innerHTML = `⚠️ <strong>【最新跳脫警報: ${data.last_alert_cat || "ALERT"}】</strong> ${data.last_alert_msg} (${data.last_alert_time || ""})`;
+                } else {
+                    alertBanner.style.display = "none";
+                }
+            }
+
+            // 核心 KPI (測定負數數值一律轉為絕對值顯示)
+            const absSpeed = (data.speed != null) ? Math.abs(Number(data.speed)) : 0.0;
+            const absTorque = (data.torque != null) ? Math.abs(Number(data.torque)) : 0.0;
+            const absMechPower = (data.mech_power != null) ? Math.abs(Number(data.mech_power)) : 0.0;
+            const absEff = (data.efficiency != null) ? Math.abs(Number(data.efficiency)) : 0.0;
+
+            document.getElementById("valSpeed").textContent = absSpeed.toFixed(1);
+            document.getElementById("valTorque").textContent = absTorque.toFixed(2);
+            document.getElementById("valMechPower").textContent = absMechPower.toFixed(1);
+            document.getElementById("valEfficiency").textContent = absEff.toFixed(1);
+            
+            if (data.elec_power != null) {
+                document.getElementById("valElecPower").textContent = Math.abs(Number(data.elec_power)).toFixed(1);
+                document.getElementById("valElecPowerGrid").textContent = Math.abs(Number(data.elec_power)).toFixed(1);
+            }
+            if (data.kt != null) document.getElementById("valKt").textContent = Math.abs(Number(data.kt)).toFixed(3);
+            if (data.temp_max != null) document.getElementById("valTempMax").textContent = Number(data.temp_max).toFixed(1);
+
+            // 測試狀態
+            const mode = data.mode || "IDLE";
+            document.getElementById("badgeMode").textContent = mode;
+            document.getElementById("testStatusMain").textContent = data.status_text || "待機中";
+            document.getElementById("testPhaseSub").textContent = data.phase_text || "--";
+
+            // 進度計算
+            let progressPct = 0;
+            if (mode.includes("TN") && data.tn_total > 0) {
+                progressPct = Math.min(100, Math.round((data.tn_step / data.tn_total) * 100));
+                document.getElementById("progressLabel").textContent = `步階 ${data.tn_step} / ${data.tn_total}`;
+            } else if (mode.includes("DUTY") && data.duty_total_sec > 0) {
+                progressPct = Math.min(100, Math.round((data.duty_elapsed_sec / data.duty_total_sec) * 100));
+                document.getElementById("progressLabel").textContent = `運行 ${data.duty_elapsed_sec}s / ${data.duty_total_sec}s`;
+            } else {
+                document.getElementById("progressLabel").textContent = "進度";
+            }
+            document.getElementById("progressPct").textContent = `${progressPct}%`;
+            document.getElementById("progressBar").style.width = `${progressPct}%`;
+
+            // WT310 電氣量
+            if (data.voltage_sigma != null) document.getElementById("valVoltage").textContent = Number(data.voltage_sigma).toFixed(1);
+            if (data.current_sigma != null) document.getElementById("valCurrent").textContent = Number(data.current_sigma).toFixed(2);
+            if (data.pf != null) document.getElementById("valPf").textContent = Number(data.pf).toFixed(3);
+
+            // KEB 數據
+            if (data.keb_current_a != null) document.getElementById("valKebCurA").textContent = Number(data.keb_current_a).toFixed(2);
+            if (data.keb_current_b != null) document.getElementById("valKebCurB").textContent = Number(data.keb_current_b).toFixed(2);
+            if (data.is_sim != null) {
+                document.getElementById("valSimMode").textContent = data.is_sim ? "模擬器模式 (SIM)" : "實體硬體連線";
+                document.getElementById("valSimMode").style.color = data.is_sim ? "var(--amber)" : "var(--emerald)";
+            }
+
+            if (data.ts) {
+                const parts = data.ts.split("T");
+                document.getElementById("valLastUpdated").textContent = parts[1] || parts[0];
+            }
+
+            // 溫度通道
+            if (Array.isArray(data.temp_ch)) {
+                let maxT = 0;
+                let maxIdx = -1;
+                data.temp_ch.forEach((t, i) => {
+                    const idx = i + 1;
+                    if (idx > 20) return;
+                    const valEl = document.getElementById(`tempVal_${idx}`);
+                    const cellEl = document.getElementById(`tempCell_${idx}`);
+                    if (valEl && cellEl) {
+                        const num = Number(t);
+                        valEl.textContent = (num >= 999 || num < -50) ? "--" : num.toFixed(1);
+                        cellEl.classList.remove("warn", "hot");
+                        if (num >= 80) cellEl.classList.add("hot");
+                        else if (num >= 55) cellEl.classList.add("warn");
+
+                        if (num > maxT && num < 999) { maxT = num; maxIdx = idx; }
+                    }
+                });
+            }
+
+            // 推入歷史圖表 (負數測定值轉為絕對值顯示)
+            pushChartData(absSpeed, absTorque, absMechPower);
+        }
+
+        // 推入圖表數據 (確保負數轉為絕對值)
+        function pushChartData(spd, trq, pwr) {
+            historyPoints.speed.push(Math.abs(spd));
+            historyPoints.torque.push(Math.abs(trq));
+            historyPoints.power.push(Math.abs(pwr));
+
+            if (historyPoints.speed.length > MAX_POINTS) historyPoints.speed.shift();
+            if (historyPoints.torque.length > MAX_POINTS) historyPoints.torque.shift();
+            if (historyPoints.power.length > MAX_POINTS) historyPoints.power.shift();
+
+            drawChart();
+        }
+
+        // 原生 Canvas 趨勢圖繪製 (零外部依賴，離線/弱網 100% 順暢)
+        function drawChart() {
+            const canvas = document.getElementById("chartCanvas");
+            if (!canvas) return;
+            const ctx = canvas.getContext("2d");
+            
+            // 處理 Retina / 高解析度螢幕清晰度
+            const rect = canvas.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+
+            const w = rect.width;
+            const h = rect.height;
+
+            ctx.clearRect(0, 0, w, h);
+
+            // 背景網格線
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
+            ctx.lineWidth = 1;
+            const gridLines = 4;
+            for (let i = 0; i <= gridLines; i++) {
+                const y = (h / gridLines) * i;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+                ctx.stroke();
+            }
+
+            const len = historyPoints.speed.length;
+            if (len < 2) return;
+
+            // 計算最大縮放範圍
+            const maxSpd = Math.max(3000, ...historyPoints.speed);
+            const maxTrq = Math.max(50, ...historyPoints.torque);
+            const maxPwr = Math.max(10, ...historyPoints.power);
+
+            // 繪製單條曲線函數
+            function plotLine(data, maxVal, color) {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                for (let i = 0; i < len; i++) {
+                    const x = (w / (MAX_POINTS - 1)) * (MAX_POINTS - len + i);
+                    const norm = Math.min(1, Math.max(0, data[i] / maxVal));
+                    const y = h - (norm * (h - 20)) - 10;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+
+            plotLine(historyPoints.speed, maxSpd, "#38bdf8"); // 轉速 (Cyan)
+            plotLine(historyPoints.torque, maxTrq, "#f59e0b"); // 扭力 (Amber)
+            plotLine(historyPoints.power, maxPwr, "#a855f7");  // 功率 (Purple)
+        }
+
+        // 連接 SSE 串流 (優先本地 HMI 原生 SSE，免經過外網)
+        function connectFirebaseSSE() {
+            try {
+                if (eventSource) { eventSource.close(); }
+                eventSource = new EventSource(SSE_URL);
+
+                // 處理本地 HMI 原生 SSE (標準 message 事件)
+                eventSource.onmessage = (e) => {
+                    try {
+                        const payload = JSON.parse(e.data);
+                        if (payload) {
+                            renderTelemetry(payload.data || payload);
+                        }
+                    } catch (err) { }
+                };
+
+                // 處理 Firebase SSE (put 事件)
+                eventSource.addEventListener("put", (e) => {
+                    try {
+                        const payload = JSON.parse(e.data);
+                        if (payload && payload.data) {
+                            renderTelemetry(payload.data);
+                        }
+                    } catch (err) { }
+                });
+
+                eventSource.onopen = () => {
+                    const dot = document.getElementById("statusDot");
+                    dot.classList.remove("offline");
+                    dot.classList.add("pulse");
+                    document.getElementById("statusText").textContent = "Firebase 連線正常 (LIVE)";
+                };
+
+                eventSource.onerror = (err) => {
+                    const dot = document.getElementById("statusDot");
+                    dot.classList.add("offline");
+                    dot.classList.remove("pulse");
+                    document.getElementById("statusText").textContent = "Firebase 重試中...";
+                };
+            } catch (ex) {
+                console.warn("SSE 不可用，切換為輪詢模式:", ex);
+            }
+        }
+
+        // 輪詢備援 (Watchdog: 若 SSE 斷線或暫停，每 800ms 自動抓取)
+        async function fetchPollingFallback() {
+            const now = Date.now();
+            if (now - lastReceivedTime > 1500) {
+                try {
+                    const resp = await fetch(STATUS_URL, { cache: "no-store" });
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        if (data) renderTelemetry(data.data || data);
+                    }
+                } catch (e) {
+                    const dot = document.getElementById("statusDot");
+                    dot.classList.add("offline");
+                    dot.classList.remove("pulse");
+                    document.getElementById("statusText").textContent = "等待 Firebase 數據...";
+                }
+            }
+        }
+
+        // 全螢幕切換
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+                document.getElementById("btnFullscreen").textContent = "✕ 退出全螢幕";
+            } else {
+                document.exitFullscreen().catch(() => {});
+                document.getElementById("btnFullscreen").textContent = "⛶ 全螢幕";
+            }
+        }
+
+        // 手動鎖定 (清除 Session 並重新鎖定)
+        function manualLock() {
+            sessionStorage.removeItem(SESSION_KEY);
+            location.reload();
+        }
+
+        // 主機活躍心跳與斷線感知看門狗 (每秒檢查，逾時即切換離線狀態)
+        setInterval(() => {
+            if (!_isAuthorized) return;
+            const now = Date.now();
+            if (lastReceivedTime > 0) {
+                const diff = now - lastReceivedTime;
+                const dot = document.getElementById("statusDot");
+                const text = document.getElementById("statusText");
+                if (diff > 8000) {
+                    if (dot) { dot.classList.add("offline"); dot.classList.remove("pulse"); }
+                    if (text) text.textContent = `🔴 現場主機已離線 (${Math.floor(diff / 1000)}s)`;
+                } else if (diff > 4000) {
+                    if (dot) { dot.classList.add("offline"); dot.classList.remove("pulse"); }
+                    if (text) text.textContent = `🟡 數據停滯 (${Math.floor(diff / 1000)}s)`;
+                }
+            }
+        }, 1000);
+
+        window.addEventListener("resize", drawChart);
+
+        // 注意：啟動邏輯已移至 checkURLKey() / validateAccess() 內部
+        // 確保在使用者通過驗證前，不會建立任何 Firebase 連線
+    </script>
+</body>
+</html>
