@@ -38,7 +38,7 @@ namespace DynamometerHMI
         private bool isCloudUploadRunning = false;
 
         // ── 軟體線上熱更新設定 (Online Auto-Update & In-Place Hot Swap) ──────
-        public const string APP_VERSION = "2.6.8";
+        public const string APP_VERSION = "2.7.1";
         public string cloudUpdateManifestUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/update/version.json";
         public Button btnOnlineUpdate = null;
         private bool? lastCloudUploadSuccess = null;
@@ -318,9 +318,13 @@ namespace DynamometerHMI
                         string browser = Regex.Match(json, "\"browser\"\\s*:\\s*\"([^\"]+)\"").Groups[1].Value;
                         string vcount = Regex.Match(json, "\"visit_count\"\\s*:\\s*([0-9]+)").Groups[1].Value;
 
+                        string isVipStr = Regex.Match(json, "\"is_vip\"\\s*:\\s*(true|false)").Groups[1].Value;
+                        bool isVip = (isVipStr == "true" || json.Contains("\"tier\":\"👑 VIP 白名單\"") || json.Contains("VIP"));
+                        string tierLabel = isVip ? "👑 [VIP白名單]" : "⏱️ [訪客5min]";
+
                         string loc = string.IsNullOrEmpty(city) ? country : (country + " " + city);
-                        string logMsg = string.Format("【遠端監看訪客進入】來自: {0} ({1}) | IP: {2} | 裝置: {3} / {4} | 第 {5} 次訪問",
-                            loc, (string.IsNullOrEmpty(isp) ? "一般線路" : isp), ip, os, browser, (string.IsNullOrEmpty(vcount) ? "1" : vcount));
+                        string logMsg = string.Format("【遠端監看訪客進入 {0}】來自: {1} ({2}) | IP: {3} | 裝置: {4} / {5} | 第 {6} 次訪問",
+                            tierLabel, loc, (string.IsNullOrEmpty(isp) ? "一般線路" : isp), ip, os, browser, (string.IsNullOrEmpty(vcount) ? "1" : vcount));
 
                         WriteHmiLog("WEB_AUDIT", logMsg);
                     }
@@ -1195,6 +1199,89 @@ namespace DynamometerHMI
                 };
                 diagForm.Controls.Add(btnSaveUrl);
 
+                Label lblKeyTitle = new Label()
+                {
+                    Text = "🔑 遠端監看 VIP 白名單通行金鑰 (WebMonitor.html 專用):",
+                    Location = new System.Drawing.Point(20, 104),
+                    Size = new System.Drawing.Size(360, 20),
+                    ForeColor = System.Drawing.Color.FromArgb(148, 163, 184)
+                };
+                diagForm.Controls.Add(lblKeyTitle);
+
+                TextBox txtKey = new TextBox()
+                {
+                    Text = "dyn888",
+                    Location = new System.Drawing.Point(20, 126),
+                    Size = new System.Drawing.Size(260, 26),
+                    BackColor = System.Drawing.Color.FromArgb(30, 41, 59),
+                    ForeColor = System.Drawing.Color.FromArgb(250, 204, 21),
+                    Font = new System.Drawing.Font("Consolas", 10f, System.Drawing.FontStyle.Bold)
+                };
+                diagForm.Controls.Add(txtKey);
+
+                Button btnSyncKey = new Button()
+                {
+                    Text = "☁️ 同步金鑰至雲端",
+                    Location = new System.Drawing.Point(290, 124),
+                    Size = new System.Drawing.Size(150, 28),
+                    BackColor = System.Drawing.Color.FromArgb(234, 179, 8),
+                    ForeColor = System.Drawing.Color.Black,
+                    Font = new System.Drawing.Font("微軟正黑體", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat,
+                    Cursor = Cursors.Hand
+                };
+                btnSyncKey.FlatAppearance.BorderSize = 0;
+                btnSyncKey.Click += (s, e) => {
+                    string newKey = txtKey.Text.Trim();
+                    if (string.IsNullOrEmpty(newKey)) return;
+                    ThreadPool.QueueUserWorkItem(_ => {
+                        try
+                        {
+                            string syncUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/config/whitelist_key.json";
+                            int code;
+                            SendHttpRequest("PUT", syncUrl, "\"" + EscapeJsonString(newKey) + "\"", detectedWifiIp, 5000, out code);
+                            this.BeginInvoke((Action)(() => {
+                                WriteHmiLog("CLOUD", "【白名單金鑰更新】已同步新金鑰至雲端: " + newKey);
+                                MessageBox.Show("已成功同步 VIP 白名單通行金鑰至雲端！\n\n新金鑰: " + newKey + "\n遠端監看網頁 (WebMonitor.html) 讀取後將以此金鑰進行白名單驗證。", "金鑰已更新", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            }));
+                        }
+                        catch (Exception exSync)
+                        {
+                            this.BeginInvoke((Action)(() => {
+                                MessageBox.Show("同步金鑰失敗: " + exSync.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            }));
+                        }
+                    });
+                };
+                diagForm.Controls.Add(btnSyncKey);
+
+                Button btnCopyVipLink = new Button()
+                {
+                    Text = "📋 複製 VIP 連結",
+                    Location = new System.Drawing.Point(448, 124),
+                    Size = new System.Drawing.Size(125, 28),
+                    BackColor = System.Drawing.Color.FromArgb(51, 65, 85),
+                    ForeColor = System.Drawing.Color.White,
+                    Font = new System.Drawing.Font("微軟正黑體", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat,
+                    Cursor = Cursors.Hand
+                };
+                btnCopyVipLink.FlatAppearance.BorderSize = 0;
+                btnCopyVipLink.Click += (s, e) => {
+                    string vKey = txtKey.Text.Trim();
+                    string vipLink = "https://isaacyang34.github.io/Homepage/WebMonitor.html?key=" + Uri.EscapeDataString(vKey);
+                    try
+                    {
+                        Clipboard.SetText(vipLink);
+                        MessageBox.Show("已複製 VIP 專屬快速登入連結至剪貼簿！\n\n" + vipLink + "\n\n可直接透過 LINE、Email 傳送給工程師，點開即享無限時監看！", "已複製連結", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch
+                    {
+                        MessageBox.Show("VIP 專屬快速登入連結：\n" + vipLink, "VIP 連結", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                };
+                diagForm.Controls.Add(btnCopyVipLink);
+
                 Label lblStats = new Label()
                 {
                     Text = string.Format("推播: {0} | 網卡: {1} | 累計: {2} 筆 | 延遲: {3} ms",
@@ -1202,7 +1289,7 @@ namespace DynamometerHMI
                         string.IsNullOrEmpty(detectedWifiIp) ? "未綁定" : detectedWifiIp,
                         cloudUploadCount,
                         lastCloudRttMs),
-                    Location = new System.Drawing.Point(20, 102),
+                    Location = new System.Drawing.Point(20, 160),
                     Size = new System.Drawing.Size(620, 22),
                     Font = new System.Drawing.Font("Consolas", 9.5f, System.Drawing.FontStyle.Bold),
                     ForeColor = (lastCloudUploadSuccess == true) ? System.Drawing.Color.FromArgb(52, 211, 153) : System.Drawing.Color.FromArgb(248, 113, 113)
@@ -1211,8 +1298,8 @@ namespace DynamometerHMI
 
                 TextBox txtDiagLog = new TextBox()
                 {
-                    Location = new System.Drawing.Point(20, 128),
-                    Size = new System.Drawing.Size(620, 250),
+                    Location = new System.Drawing.Point(20, 186),
+                    Size = new System.Drawing.Size(620, 195),
                     Multiline = true,
                     ReadOnly = true,
                     ScrollBars = ScrollBars.Vertical,

@@ -8,6 +8,7 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.70 (beta) | v2.10.30 | 2026-09-10 | 全系統溫度趨勢圖介面統一收斂 (即時總覽工作台升級為標準端點膠囊波形圖、多通道/單通道無縫切換、標配 30秒~1小時時間縮放工具列與動態掛載重定位防裁切) & T-N 特性曲線圖 Y 軸 (Nm) 與 X 軸 (RPM) 智慧自適應刻度 (Auto-Scaling、各水平/垂直網格刻度數字即時繪製、頂部峰值轉矩提示徽章) |
 | V2.69 (beta) | v2.10.29 | 2026-09-10 | 報告管理與雲端多目標上傳引擎 (專屬分頁 Tab7、純 C# .NET 4.0 零相依 PKZip 壓縮、Google Drive GAS Webhook 直通與自動轉發 Email、Firebase 雲端中心即時同步、網頁端 WebMonitor.html 一鍵下載 ZIP 專區、區域網路 NAS / 本機備份) |
 | V2.68 (beta) | v2.10.28 | 2026-09-10 | 全系統加載追隨統一化 (SY52+CS18 雙閉環自適應定錨加速引擎與純 SY52 追隨引擎、前 3 秒 0.1% 階梯特性試探與斜率學習、最大 5% 動態高速大步長衝刺、同動 SY52 補轉差、S1/S2/S6/TN/效率地圖全面收斂消除重複代碼) & 頻率比對診斷引擎 (PowerMeter 與 KEB ru.03 雙軌採樣、[FREQ_COMPARE] 暫存日誌與一鍵開關) |
 | V2.67 (beta) | v2.10.27 | 2026-09-10 | 紀錄檔生成與自動執行短時間自動清理 (錄製未滿 1 分鐘門檻自動銷毀零碎 CSV/GBD 檔案、手動/自動測試全場景攔截、即時秒數/筆數進度回饋、PurgeLocalLogs 廢檔主動修剪) |
@@ -15,6 +16,61 @@
 | V2.65 (beta) | v2.10.25 | 2026-09-10 | 全維度系統健康與資源觀測體系 (Win32 原生 GDI/USER 控制碼監測、託管 GC 堆積與實體 RAM 雙層指標、UI 訊息排程反應抖動、日誌每 60 秒 [HEALTH] 遙測輸出、Firebase 雲端健康串流與 UI 智慧預警膠囊) |
 | V2.64 (beta) | v2.10.24 | 2026-09-10 | CSV 全紀錄檔欄位標準化重排 (導入 KEB ru.03 輸出頻率、對齊時間/轉速/頻率/轉矩/三相電壓/三相電流/輸入功率/輸出功率/功因/效率標準序)、T-N 測試 30 筆穩定數據擷取前後雙向斷行優化 |
 | V2.63 (beta) | v2.10.23 | 2026-09-10 | 本地端日誌生命週期自動清理器 (保留最新 30 筆測試 CSV/GBD 與報表、CRASH 日誌修剪、10MB 日誌自動輪替歸檔、UI 本地保留筆數微調與清理按鈕) |
+
+---
+
+## [V2.70 beta / v2.10.30] - 2026-09-10
+
+### 🎯 現象與佐證
+1. **使用者回報問題現象**：
+   - 「我發現有溫度趨勢圖顯示的介面，有很多種版本，不能統一一下嗎? 時間縮放功能有的有的沒有」
+   - 「-------------------------------------------」
+   - 「TN曲線顯示也有異常Nm的刻度不會自動調整，」
+2. **實測現象與佐證**：
+   - **T-N 特性曲線轉矩 Y 軸刻度寫死不適應**：
+     - 在「多段 T-N 測試」分頁中，轉矩 Y 軸強制固定以 100 Nm 除算，若測試小型感應馬達（如 5~15 Nm），測試點位全被壓縮在畫布最底端 5%~15% 之極狹窄區域，完全無法分辨轉矩隨轉速變化的特性曲線；而若加載超過 100 Nm 則直接衝破畫布頂部被裁切。
+     - 畫布左側的 Y 軸網格完全沒有繪製任何 Nm 刻度數值（僅底部繪有 0），使用者無法一眼讀出目前各格線代表多少轉矩。
+     - 轉速 X 軸亦硬編碼寫死為 4000 rpm，未依待測馬達轉速上限（如 1500 rpm 或 6000 rpm）動態調整。
+   - **溫度趨勢圖介面版本分裂與時間縮放功能落差**：
+     - 「即時綜合監控」工作台右下角之「馬達溫度」使用舊款單通道 `MotorTempTrendControl`（採用紅色 Area 漸層、Consolas 字體、無通道名稱與端點標籤）；而「多段 T-N 測試」、「工作制測試 (Duty)」、「空載測試 (溫升分析)」與「GL820 溫度記錄」則使用 `GbdTemperatureTrendControl`（多通道彩色曲線、端點膠囊標籤、琥珀色提示橫幅與圖例膠囊），視覺體驗與互動設計嚴重割裂。
+     - 在動態換分頁（Re-parenting）或特定視窗尺寸下，共用溫度趨勢圖之「時間縮放工具列（➖ ⏱️ ➕）」因缺乏父容器切換重定位機制，容易出現位置偏位或未即時置頂之異常。
+
+### 💡 致命根因 (Root Cause)
+1. **T-N 曲線映射寫死且缺乏刻度標註**：
+   - `Dynamometer_UIControls.cs` 的 `TnCurveChart.OnPaint()` 第 496 行寫死：
+     `float sx = plotRect.Left + (speedTorquePoints[i].X / 4000f) * plotRect.Width;`
+     `float sy = plotRect.Bottom - (speedTorquePoints[i].Y / 100f) * plotRect.Height;`
+     完全未統計實測點位之最大轉矩 $T_{max}$ 與轉速 $N_{max}$，且 Y 軸迴圈僅調用 `DrawLine` 繪製格線，未調用 `DrawString` 繪製對應之轉矩數值。
+2. **溫度趨勢圖雙重實作與事件重定位缺失**：
+   - 歷史程式碼中存在 `MotorTempTrendControl` 與 `GbdTemperatureTrendControl` 兩套平行控制項，各自維護繪圖邏輯。
+   - `GbdTemperatureTrendControl` 的 `PositionTimeSpanToolbar()` 僅掛接於 `OnResize`，未掛接於 `OnParentChanged`，當主程式以 `sharedTestTempTrend.Parent = targetContainer` 動態停泊時，若新容器寬度與原容器相仿則不會觸發 Resize，導致工具列未強制重定位與置頂。
+
+### 🔧 精確修復方案
+**修改核心檔案：**
+* `Dyanmometer/Dyanmometer_Modern/Dynamometer_UIControls.cs` (`TnCurveChart` 智慧雙軸自適應、`MotorTempTrendControl` 統一重構、`GbdTemperatureTrendControl` 工具列重定位)
+* `Dyanmometer/Dyanmometer_Modern/Dynamometer_HMI_WinForms.cs` (`AttachSharedTempTrendTo` 工具列定位保護、`cmbMotorTempCh` 即時通道連動)
+* `Dyanmometer/CHANGELOG.md` (原子化同動更新)
+
+**具體實施細節：**
+1. **T-N 曲線實裝智慧雙軸自適應演算法 (Auto-Scaling) (`TnCurveChart`)**：
+   - 遍歷所有已記錄點位，動態統計當前實測之最大轉矩 $T_{max}$ 與最大轉速 $N_{max}$。
+   - **轉矩 Y 軸自適應上限 ($Y_{max}$)**：給予約 18% 頂部餘裕（避免點位貼齊上邊框），並自動對齊至友善刻度整數（5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100, 125, 150, 200, 250, 300, 400, 500, 600, 800, 1000, 1500, 2000, 3000 Nm）。
+   - **轉速 X 軸自適應上限 ($X_{max}$)**：給予約 15% 右側餘裕，自動對齊至常用轉速階梯（500, 1000, 1500, 1800, 2000, 2500, 3000, 3600, 4000, 5000, 6000, 8000, 10000 rpm）。
+   - **Y 軸刻度文字繪製**：將 Y 軸分為 5 等分網格，於每條水平網格線左側精準繪製對應之 Nm 數值標籤（如 `0`, `20`, `40`, `60`, `80`, `100` Nm）。
+   - **X 軸刻度文字繪製**：將 X 軸分為 5 等分網格，於每條垂直網格線下方精準繪製對應之 RPM 數值標籤。
+   - **頂部峰值轉矩提示徽章**：於右上角繪製醒目的琥珀色提示框，顯示 `🌟 峰值轉矩: XX.X Nm @ XXXX rpm (共 N 點，刻度自適應 0~XXX Nm)`。
+   - **點位文字標籤**：為畫布上的每個測試點即時標註序號與轉矩數值（如 `P1: 25.3Nm`），搭配雙層圓點標記，讀數一目了然。
+2. **全系統溫度趨勢圖介面統一收斂 (`MotorTempTrendControl` & `GbdTemperatureTrendControl`)**：
+   - **視覺標準統一**：將 `MotorTempTrendControl` 全面重構，對齊 `GbdTemperatureTrendControl` 的白底純淨背景、`#E2E8F0` 細緻網格線、微軟正黑體刻度字體、頂部單一通道高亮提示橫幅、最新端點高對比膠囊徽章標籤 (`CH1 (前軸承): 45.2℃`) 與底部單通道狀態圖例膠囊。
+   - **時間縮放工具列標準化**：所有溫度趨勢圖（即時總覽、T-N、Duty、空載、GL820）一律配備標準「➖ ⏱️ 30秒/1分鐘/2分鐘/5分鐘/10分鐘/30分鐘/1小時 ➕」時間跨度工具列，點擊標籤亦可直接循環切換。
+   - **動態換分頁重定位防裁切保險**：
+     - 在 `GbdTemperatureTrendControl` 與 `MotorTempTrendControl` 中將 `PositionTimeSpanToolbar()` 提升為 `public`，並同時掛接 `OnParentChanged` 與 `OnResize` 事件。
+     - 在 `MainForm.AttachSharedTempTrendTo` 中，於重新設置 Parent 後主動調用 `sharedTestTempTrend.PositionTimeSpanToolbar()`，保證在任何分頁切換時時間縮放工具列 100% 準確置頂於右上角，絕不被遮蔽或裁切。
+   - **即時總覽通道切換即時連動**：在 `cmbMotorTempCh` 之 `SelectedIndexChanged` 事件中，即時同步更新 `motorTempChart` 的 `ChannelIndex` 與 `ChannelName`，並動態調用 `Invalidate()`，實現選取通道顏色、中文名稱與曲線即時無縫對齊！
+3. **編譯打包與發布驗證**：
+   - 執行 `package_release.ps1 -Version 2.5.0`，.NET 4.0 x86 編譯通過 (Exit Code 0)。
+   - 更新發布目錄 `Release/Dynamometer_HMI_V2.5.0_Portable/Dynamometer_HMI_Pro.exe`，自動同步至 GitHub gh-pages。
+   - 依據 Rule 1 自動清空 `logs/*` 臨時目錄。
 
 ---
 
