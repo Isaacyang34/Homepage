@@ -7,7 +7,47 @@
 ## Beta 版本對照索引
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
+| V2.67 (beta) | v2.10.27 | 2026-09-10 | 紀錄檔生成與自動執行短時間自動清理 (錄製未滿 1 分鐘門檻自動銷毀零碎 CSV/GBD 檔案、手動/自動測試全場景攔截、即時秒數/筆數進度回饋、PurgeLocalLogs 廢檔主動修剪)：(1)現象與佐證：使用者提出工程實證與精準指示：「紀錄檔的生成，若時間太短，則直接刪除；自動執行的部分，若時間太短則直接將紀錄檔刪除，避免太多檔案；有紀錄到的時間最少要有1分鐘」；(2)致命根因：過去手動點擊錄製或自動測試 (NoLoad / TN / DutyCycle) 一旦啟動即無條件於磁碟建立 CSV 與 12KB GBD 實體檔案，若測試因操作誤觸、參數設錯、安全防護立即中斷或測試時間僅數秒至幾十秒，便會在 logs/ 產生大量只有標頭或僅數筆數據的無效零碎廢檔，長期累積嚴重干擾資料整理；(3)精確修復方案：Dynamometer_HMI_WinForms.cs 宣告 manualRecordStartTime 錄製起始計時戳記、isAutoTriggeredRecording 與 autoRecordTestTag 追蹤標籤；Dynamometer_Telemetry.cs 於 StartManualRecordingWithParams / StartAutoRawRecordingWithTag 鎖定錄製開始時刻，並於 UI 工具列按鈕即時動態更新 (如 "停止錄製 (25s/25筆)")；StopManualRecording 嚴格計算錄製時長 durationSec，若未滿 60.0 秒 (最低 1 分鐘門檻)，立即安全關閉檔案串流並直接呼叫 File.Delete 銷毀對應之 .csv 與 .gbd 檔案，輸出 [AUTO_RAW]/[RECORDER] 清理日誌並於手動模式跳出友善提示，避免彈窗凍結自動測試；Dynamometer_WebServer.cs 於 PurgeLocalLogs 自動清理前增加 < 500 bytes 零碎/中斷廢檔主動銷毀邏輯；(4)版本號升級至 APP_VERSION = "2.6.7"，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
 | V2.66 (beta) | v2.10.26 | 2026-09-10 | 雲端監控中心取消無效密碼鎖定、導入訪客靜默足跡審計引擎 (全自動提取公網 IP / 縣市地理位置 / 電信網路商 / 裝置指紋 / 來源 Referrer / 在線停留時長，即時推播 Firebase 雲端審計庫，網頁端抽屜彈窗即時查閱，工控機 C# 主程式自動通報新訪客進入)：(1)現象與佐證：使用者提出工程實證與改進指令：「我發現網頁做了加密還是被破解掉了；這邊能座登入者的資訊蒐集嗎? 直接取消登入的密碼功能」；(2)致命根因：GitHub Pages 屬於純靜態前端託管環境，無後端伺服器進行 Session Token 授權，前端密碼驗證邏輯與資料庫網址完全暴露於訪客瀏覽器，透過 F12 開發者工具即可直接繞過遮罩或擷取 Firebase live.json 裸端點，密碼功能形同虛設且造成正常訪問之繁瑣阻礙；(3)精確修復方案：WebMonitor.html 徹底刪除 #auth-overlay 密碼遮罩、密碼比對與冷卻鎖定邏輯，開啟頁面直接無縫秒進 SSE 即時串流；實裝 initVisitorAudit() 靜默審計引擎，無感提取訪客真實公網 IP、縣市位置與電信商 (中華電信/遠傳/台哥大等)、行動裝置/OS/瀏覽器、螢幕解析度、來源 Referrer、回訪次數與停留秒數，推播至 Firebase /audit/visitors/ 與 /audit/latest_visitor.json；頂部導航列實裝「👥 訪客足跡」抽屜彈窗供隨時查閱；Dynamometer_WebServer.cs 實作 CheckRemoteVisitorAudit() 於工控主程式背景輪詢最新訪客，並於主畫面輸出 [WEB_AUDIT] 通報日誌；(4)版本號升級至 APP_VERSION = "2.6.6"，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
+
+## [V2.67 beta / v2.10.27] - 2026-09-10
+
+### 🎯 現象與佐證
+1. **使用者精確指令與現場痛點**：
+   - 使用者提出具體維護與除錯規範：「紀錄檔的生成，若時間太短，則直接刪除；自動執行的部分，若時間太短則直接將紀錄檔刪除，避免太多檔案；有紀錄到的時間最少要有1分鐘」。
+2. **零碎廢檔累積問題**：
+   - 現場在進行手動測試或自動測試（如空載溫升 NoLoad、T-N 曲線測試、工作制 DutyCycle）時，若因人員提早按停止、參數設定錯誤立即中止，或馬達啟動瞬間觸發過電流/偏差過大保護而自動停機，錄製時間常僅數秒至數十秒。
+   - 原機制在 `StartManualRecordingWithParams` 時便立即在磁碟建立 `.csv` 檔案並寫入標頭，同時建立 12,288 bytes 的 `.gbd` 檔案。即使錄製只有 5 秒（僅 5 筆資料甚至 0 筆），停機時依然會將這兩個檔案完整留存在 `logs/` 目錄中，導致工控機硬碟充斥大量「僅數秒」之零碎廢檔，嚴重干擾後續正規報告之篩選與分析。
+
+### 💡 致命根因 (Root Cause)
+1. **缺乏錄製有效時長檢驗機制**：
+   - 過去在 `StopManualRecording` 時，僅單純執行 `Flush`、`Close` 與回填 GBD 標頭，未針對錄製時長（Duration）進行門檻判定，無論錄製 1 秒或 1 小時皆無差別保留。
+2. **自動測試連鎖啟動未防範早夭**：
+   - 各自動測試（NoLoad / TN / Duty）啟動時皆會自動調用 `StartAutoRawRecordingWithTag`。若自動測試在起步階段即中止，未設置回滾（Rollback）銷毀未滿 1 分鐘檔案之保護邏輯。
+
+### 🔧 精確修復方案
+**修改核心檔案：**
+* `Dyanmometer/Dyanmometer_Modern/Dynamometer_HMI_WinForms.cs`
+* `Dyanmometer/Dyanmometer_Modern/Dynamometer_Telemetry.cs`
+* `Dyanmometer/Dyanmometer_Modern/Dynamometer_WebServer.cs`
+
+**具體實施細節：**
+1. **定義最低有效門檻（60.0 秒）**：
+   - 在 `Dynamometer_HMI_WinForms.cs` 增加 `manualRecordStartTime` 記錄真實啟動時間戳記，並新增 `isAutoTriggeredRecording` 與 `autoRecordTestTag` 標記是否為自動測試所觸發。
+2. **實作未滿 1 分鐘自動銷毀機制 (`StopManualRecording`)**：
+   - 停止錄製時，精確計算錄製總時長 `durationSec = (DateTime.Now - manualRecordStartTime).TotalSeconds`。
+   - 若 `durationSec < 60.0`：
+     - 先安全關閉並釋放 `manualRecordWriter`、`manualGbdWriter` 與 `manualGbdStream` 檔案控制代碼；
+     - 主動調用 `File.Delete(manualRecordFilePath)` 與 `File.Delete(manualRecordGbdPath)` 徹底銷毀該次產生的短時間檔案；
+     - 復歸 UI 按鈕狀態至「錄製 RAW DATA」紅色待機態；
+     - 寫入日誌：自動測試寫入 `[AUTO_RAW] 【自動測試紀錄清理】測試標籤 [{tag}] 錄製時間僅 {durationSec:F1} 秒 (未滿 1 分鐘門檻)，已直接刪除紀錄檔 [{file}]，避免產生零碎檔案`；手動測試寫入 `[RECORDER]` 清理日誌；
+     - 若為手動停止（`showPrompt == true`），彈出資訊提示告知使用者「本次錄製時間過短（僅 X 秒，未滿 1 分鐘），系統已自動刪除本次紀錄檔以維持硬碟整潔」；若為自動測試終止（`showPrompt == false`），不彈窗干擾操作。
+3. **錄製按鈕動態秒數與筆數反饋**：
+   - `Dynamometer_Telemetry.cs` 於每秒輪詢更新時，將錄製按鈕文字動態刷新為 `停止錄製 ({elSec}s/{manualRecordCount}筆)`，使操作人員一目了然當前已錄製秒數是否已超過 60 秒安全門檻。
+4. **`PurgeLocalLogs` 主動修剪中斷零碎廢檔**：
+   - 於 `Dynamometer_WebServer.cs` 之本機日誌自動清理流程中，在排序前主動檢測並刪除大小小於 500 bytes 之歷史殘留 CSV 廢檔（及對應 GBD），防範過去中斷的異常空檔案累積。
+5. **版本升級與發布**：
+   - 版本升級至 `APP_VERSION = "2.6.7"`，執行 `package_release.ps1 -Version 2.5.0` 完成編譯、打包並自動同步至 GitHub Pages 與 Firebase 版本清單。
 | V2.65 (beta) | v2.10.25 | 2026-09-10 | 全維度系統健康與資源觀測體系 (Win32 原生 GDI/USER 控制碼監測、託管 GC 堆積與實體 RAM 雙層指標、UI 訊息排程反應抖動、日誌每 60 秒 [HEALTH] 遙測輸出、Firebase 雲端健康串流與 UI 智慧預警膠囊)：(1)現象與佐證：使用者提出工程實證質疑：「關於曲線圖的資源累積問題，LOG應該能看到昨天19:00一直到今天08:00我都開著軟體，並沒有崩潰的狀況，我覺得這並不是溫度曲線的問題。請多給定幾個觀測的標的來判斷不要都用猜的」；經比對實測雲端遙測紀錄，機台於 2026-09-09 18:20 啟動後通宵運行至 2026-09-10 09:10 (逾 13 小時未中斷)，圖表歷經逾 46,000 幀渲染無崩潰，直接以客觀數據推翻「溫度歷史曲線累積洩漏資源致死」之猜想；(2)致命根因：缺乏可量化、可追蹤之系統資源觀測維度，過去面對卡頓或偶發閃退僅能盲目猜測；WinXP x86 核心存在 GDI Handle 10,000 實體上限、2GB 虛擬位址極限，且難以釐清是 C# 託管堆積 (GC) 累積還是第三方原生 C-DLL (tmctl.dll/protKEB.dll) 洩漏；(3)精確修復方案：Dynamometer_HMI_WinForms.cs 透過 Win32 P/Invoke 原生導入 user32.dll!GetGuiResources，即時取得 GDI 與 USER 控制碼；全面監測 WorkingSet64、PrivateMemorySize64 與 GC.GetTotalMemory(false)，拆解託管與原生記憶體邊界；計算 UI 執行緒訊息排程反應延遲 (tickDelta - Interval)；狀態列底部新增 lblSystemHealth 智慧預警標籤 (綠/黃/紅三態)；每 60 秒輸出單一整合日誌 [HEALTH] 結構化紀錄；Dynamometer_Telemetry.cs 追蹤隱蔽例外累計計數；Dynamometer_WebServer.cs 於 GetTelemetryJson() 擴充 health_gdi、health_user、health_mem_mb、health_gc_heap_mb、health_threads、health_ui_lag_ms、health_handled_errs，無縫推播至雲端；(4)版本號升級至 APP_VERSION = "2.6.5"，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
 
 ## [V2.66 beta / v2.10.26] - 2026-09-10
