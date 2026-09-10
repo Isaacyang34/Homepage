@@ -875,6 +875,19 @@ namespace DynamometerHMI
             {
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
                 string dllDir = Path.Combine(baseDir, "DLL");
+                if (!Directory.Exists(dllDir))
+                {
+                    try
+                    {
+                        var parentDir = Directory.GetParent(baseDir.TrimEnd('\\', '/'));
+                        if (parentDir != null)
+                        {
+                            string pDll = Path.Combine(parentDir.FullName, "DLL");
+                            if (Directory.Exists(pDll)) dllDir = pDll;
+                        }
+                    }
+                    catch { }
+                }
                 if (Directory.Exists(dllDir))
                 {
                     SetDllDirectory(dllDir);
@@ -893,7 +906,7 @@ namespace DynamometerHMI
                         string reqDll = new System.Reflection.AssemblyName(resolveArgs.Name).Name + ".dll";
                         string p1 = Path.Combine(baseDir, reqDll);
                         if (File.Exists(p1)) return System.Reflection.Assembly.LoadFrom(p1);
-                        string p2 = Path.Combine(baseDir, "DLL", reqDll);
+                        string p2 = Path.Combine(dllDir, reqDll);
                         if (File.Exists(p2)) return System.Reflection.Assembly.LoadFrom(p2);
                     }
                     catch { }

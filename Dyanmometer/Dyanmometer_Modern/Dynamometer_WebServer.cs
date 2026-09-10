@@ -153,6 +153,17 @@ namespace DynamometerHMI
             ThreadPool.QueueUserWorkItem(_ => {
                 DetectWifiNetworkInterface(msg => WriteHmiLog("NET_INIT", msg));
                 UpdateCloudSyncUI(false, null);
+                try
+                {
+                    string currentExe = Process.GetCurrentProcess().MainModule.FileName;
+                    string appDir = Path.GetDirectoryName(currentExe);
+                    string backupDir = Path.Combine(appDir, "backups");
+                    if (!Directory.Exists(backupDir) || Directory.GetFiles(backupDir, "Dynamometer_HMI_Pro_*.exe").Length == 0)
+                    {
+                        BackupCurrentExecutable(appDir, currentExe);
+                    }
+                }
+                catch { }
             });
 
             cloudUploadThread = new Thread(CloudUploadLoop)
@@ -2830,12 +2841,126 @@ namespace DynamometerHMI
             }
         }
 
+        /// <summary>
+        /// 自動封存當前執行的主程式至 backups/ 目錄，並滾動刪除超過 5 個之最舊備份
+        /// </summary>
+        public static void BackupCurrentExecutable(string appDir, string currentExe)
+        {
+            try
+            {
+                if (!File.Exists(currentExe)) return;
+                string backupDir = Path.Combine(appDir, "backups");
+                if (!Directory.Exists(backupDir)) Directory.CreateDirectory(backupDir);
+
+                string verStr = APP_VERSION;
+                try
+                {
+                    FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(currentExe);
+                    if (!string.IsNullOrEmpty(fvi.ProductVersion)) verStr = fvi.ProductVersion;
+                    else if (!string.IsNullOrEmpty(fvi.FileVersion)) verStr = fvi.FileVersion;
+                }
+                catch { }
+
+                string bakFileName = string.Format("Dynamometer_HMI_Pro_v{0}_{1:yyyyMMdd_HHmmss}.exe", verStr.TrimStart('v', 'V'), DateTime.Now);
+                string bakPath = Path.Combine(backupDir, bakFileName);
+                File.Copy(currentExe, bakPath, true);
+
+                PruneBackupDirectory(backupDir, 5);
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// 修剪備份目錄，依最後寫入時間降冪排序，嚴格保留最新的 maxKeep (預設 5) 個歷史版本
+        /// </summary>
+        public static void PruneBackupDirectory(string backupDir, int maxKeep = 5)
+        {
+            try
+            {
+                if (!Directory.Exists(backupDir)) return;
+                DirectoryInfo di = new DirectoryInfo(backupDir);
+                FileInfo[] files = di.GetFiles("Dynamometer_HMI_Pro_*.exe");
+                if (files != null && files.Length > maxKeep)
+                {
+                    Array.Sort(files, (a, b) => b.LastWriteTimeUtc.CompareTo(a.LastWriteTimeUtc));
+                    for (int i = maxKeep; i < files.Length; i++)
+                    {
+                        try { files[i].Delete(); } catch { }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// 使用者自主退回歷史版本並重啟
+        /// </summary>
+        public static void RollbackToBackupExecutable(string backupExePath)
+        {
+            try
+            {
+                string currentExe = Process.GetCurrentProcess().MainModule.FileName;
+                string appDir = Path.GetDirectoryName(currentExe);
+
+                // 1. 先為目前運行的 EXE 建立備份 (以防萬一)
+                BackupCurrentExecutable(appDir, currentExe);
+
+                // 2. 將選取的備份檔複製為臨時替換檔
+                string tempRollback = Path.Combine(appDir, "Dynamometer_HMI_Pro.rollback");
+                File.Copy(backupExePath, tempRollback, true);
+
+                string bakExe = Path.Combine(appDir, Path.GetFileNameWithoutExtension(currentExe) + ".bak");
+                if (File.Exists(bakExe))
+                {
+                    try { File.Delete(bakExe); } catch { }
+                }
+
+                try
+                {
+                    File.Move(currentExe, bakExe);
+                    File.Move(tempRollback, currentExe);
+
+                    ProcessStartInfo psi = new ProcessStartInfo(currentExe);
+                    psi.WorkingDirectory = appDir;
+                    Process.Start(psi);
+                    Environment.Exit(0);
+                }
+                catch
+                {
+                    LaunchExternalFallbackUpdater(currentExe, tempRollback, bakExe);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("退回版本失敗: " + ex.Message, "退回錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private class BackupItem
+        {
+            public string DisplayText { get; set; }
+            public string FullPath { get; set; }
+            public BackupItem(string disp, string path)
+            {
+                DisplayText = disp;
+                FullPath = path;
+            }
+            public override string ToString()
+            {
+                return DisplayText;
+            }
+        }
+
         public static void ExecuteHotSwapAndRestart(string newExePath)
         {
             try
             {
                 string currentExe = Process.GetCurrentProcess().MainModule.FileName;
                 string appDir = Path.GetDirectoryName(currentExe);
+
+                // ★【本地 5 版滾動備份】：在熱替換前，自動封存當前 EXE 至 backups/ 目錄並修剪
+                BackupCurrentExecutable(appDir, currentExe);
+
                 string bakExe = Path.Combine(appDir, Path.GetFileNameWithoutExtension(currentExe) + ".bak");
 
                 if (File.Exists(bakExe))
@@ -2986,8 +3111,8 @@ namespace DynamometerHMI
             {
                 Form updateForm = new Form()
                 {
-                    Text = "🔄 馬達動力計 HMI 線上自動更新精靈 (Hot-Swap)",
-                    Size = new System.Drawing.Size(640, 520),
+                    Text = "🔄 馬達動力計 HMI 線上自動更新精靈 (Hot-Swap & Rollback)",
+                    Size = new System.Drawing.Size(660, 600),
                     StartPosition = FormStartPosition.CenterParent,
                     FormBorderStyle = FormBorderStyle.FixedDialog,
                     MaximizeBox = false,
@@ -3003,7 +3128,7 @@ namespace DynamometerHMI
                     Text = "馬達動力計測試系統 (Dynamometer HMI Pro)",
                     Font = new System.Drawing.Font("微軟正黑體", 12f, System.Drawing.FontStyle.Bold),
                     ForeColor = System.Drawing.Color.FromArgb(56, 189, 248), // Sky 400
-                    Location = new System.Drawing.Point(20, 16),
+                    Location = new System.Drawing.Point(20, 14),
                     AutoSize = true
                 };
                 updateForm.Controls.Add(lblTitle);
@@ -3018,7 +3143,7 @@ namespace DynamometerHMI
                     Text = verInfo,
                     Font = new System.Drawing.Font("Consolas", 10.5f, System.Drawing.FontStyle.Bold),
                     ForeColor = isNewer ? System.Drawing.Color.FromArgb(52, 211, 153) : System.Drawing.Color.FromArgb(203, 213, 225),
-                    Location = new System.Drawing.Point(20, 48),
+                    Location = new System.Drawing.Point(20, 42),
                     AutoSize = true
                 };
                 updateForm.Controls.Add(lblVer);
@@ -3046,8 +3171,8 @@ namespace DynamometerHMI
                     Text = bannerText,
                     Font = new System.Drawing.Font("微軟正黑體", 9f),
                     ForeColor = isNewer ? System.Drawing.Color.FromArgb(253, 224, 71) : System.Drawing.Color.FromArgb(148, 163, 184),
-                    Location = new System.Drawing.Point(20, 78),
-                    Size = new System.Drawing.Size(590, 36)
+                    Location = new System.Drawing.Point(20, 70),
+                    Size = new System.Drawing.Size(605, 34)
                 };
                 updateForm.Controls.Add(lblBanner);
 
@@ -3057,7 +3182,7 @@ namespace DynamometerHMI
                     Text = "📝 更新日誌與功能說明 (Release Notes):",
                     Font = new System.Drawing.Font("微軟正黑體", 9f, System.Drawing.FontStyle.Bold),
                     ForeColor = System.Drawing.Color.FromArgb(226, 232, 240),
-                    Location = new System.Drawing.Point(20, 120),
+                    Location = new System.Drawing.Point(20, 108),
                     AutoSize = true
                 };
                 updateForm.Controls.Add(lblNotesTitle);
@@ -3068,8 +3193,8 @@ namespace DynamometerHMI
                     Multiline = true,
                     ReadOnly = true,
                     ScrollBars = ScrollBars.Vertical,
-                    Location = new System.Drawing.Point(20, 144),
-                    Size = new System.Drawing.Size(585, 190),
+                    Location = new System.Drawing.Point(20, 130),
+                    Size = new System.Drawing.Size(605, 120),
                     BackColor = System.Drawing.Color.FromArgb(30, 41, 59), // Slate 800
                     ForeColor = System.Drawing.Color.FromArgb(241, 245, 249),
                     Font = new System.Drawing.Font("微軟正黑體", 9f),
@@ -3080,8 +3205,8 @@ namespace DynamometerHMI
                 // Progress Bar
                 ProgressBar pb = new ProgressBar()
                 {
-                    Location = new System.Drawing.Point(20, 345),
-                    Size = new System.Drawing.Size(585, 22),
+                    Location = new System.Drawing.Point(20, 258),
+                    Size = new System.Drawing.Size(605, 20),
                     Minimum = 0,
                     Maximum = 100,
                     Value = 0
@@ -3094,8 +3219,8 @@ namespace DynamometerHMI
                     Text = "準備就緒，點擊下方按鈕開始線上自動更新...",
                     Font = new System.Drawing.Font("微軟正黑體", 8.5f),
                     ForeColor = System.Drawing.Color.FromArgb(148, 163, 184),
-                    Location = new System.Drawing.Point(20, 373),
-                    Size = new System.Drawing.Size(585, 20)
+                    Location = new System.Drawing.Point(20, 282),
+                    Size = new System.Drawing.Size(605, 18)
                 };
                 updateForm.Controls.Add(lblStatus);
 
@@ -3103,11 +3228,11 @@ namespace DynamometerHMI
                 Button btnUpdate = new Button()
                 {
                     Text = isNewer ? "🚀 開始線上更新並重啟" : "🔄 強制重新安裝並重啟",
-                    Location = new System.Drawing.Point(280, 410),
-                    Size = new System.Drawing.Size(200, 38),
+                    Location = new System.Drawing.Point(275, 308),
+                    Size = new System.Drawing.Size(210, 36),
                     BackColor = System.Drawing.Color.FromArgb(16, 185, 129), // Emerald
                     ForeColor = System.Drawing.Color.White,
-                    Font = new System.Drawing.Font("微軟正黑體", 10f, System.Drawing.FontStyle.Bold),
+                    Font = new System.Drawing.Font("微軟正黑體", 9.5f, System.Drawing.FontStyle.Bold),
                     Cursor = Cursors.Hand,
                     FlatStyle = FlatStyle.Flat
                 };
@@ -3117,8 +3242,8 @@ namespace DynamometerHMI
                 Button btnClose = new Button()
                 {
                     Text = "稍後更新",
-                    Location = new System.Drawing.Point(495, 410),
-                    Size = new System.Drawing.Size(110, 38),
+                    Location = new System.Drawing.Point(495, 308),
+                    Size = new System.Drawing.Size(130, 36),
                     BackColor = System.Drawing.Color.FromArgb(71, 85, 105),
                     ForeColor = System.Drawing.Color.White,
                     Font = new System.Drawing.Font("微軟正黑體", 9.5f),
@@ -3128,6 +3253,114 @@ namespace DynamometerHMI
                 btnClose.FlatAppearance.BorderSize = 0;
                 btnClose.Click += (s, e) => updateForm.Close();
                 updateForm.Controls.Add(btnClose);
+
+                // ── 歷史版本備份與自主退回 (Rollback) 區域 ──
+                Panel pnlSep = new Panel()
+                {
+                    Location = new System.Drawing.Point(20, 355),
+                    Size = new System.Drawing.Size(605, 1),
+                    BackColor = System.Drawing.Color.FromArgb(51, 65, 85)
+                };
+                updateForm.Controls.Add(pnlSep);
+
+                Label lblBackupsTitle = new Label()
+                {
+                    Text = "📦 本地歷史版本備份 (自動保留最新 5 版，隨時可自主退回):",
+                    Font = new System.Drawing.Font("微軟正黑體", 9f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.FromArgb(226, 232, 240),
+                    Location = new System.Drawing.Point(20, 366),
+                    AutoSize = true
+                };
+                updateForm.Controls.Add(lblBackupsTitle);
+
+                ListBox lstBackups = new ListBox()
+                {
+                    Location = new System.Drawing.Point(20, 390),
+                    Size = new System.Drawing.Size(430, 145),
+                    BackColor = System.Drawing.Color.FromArgb(30, 41, 59),
+                    ForeColor = System.Drawing.Color.FromArgb(241, 245, 249),
+                    Font = new System.Drawing.Font("Consolas", 9f),
+                    BorderStyle = BorderStyle.FixedSingle
+                };
+                updateForm.Controls.Add(lstBackups);
+
+                Button btnRollback = new Button()
+                {
+                    Text = "⏪ 退回選定版本並重啟",
+                    Location = new System.Drawing.Point(460, 396),
+                    Size = new System.Drawing.Size(165, 42),
+                    BackColor = System.Drawing.Color.FromArgb(217, 119, 6), // Amber 600
+                    ForeColor = System.Drawing.Color.White,
+                    Font = new System.Drawing.Font("微軟正黑體", 9.5f, System.Drawing.FontStyle.Bold),
+                    Cursor = Cursors.Hand,
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnRollback.FlatAppearance.BorderSize = 0;
+                updateForm.Controls.Add(btnRollback);
+
+                Label lblRollbackHint = new Label()
+                {
+                    Text = "💡 說明：若新版本測試異常或功能改壞，可由左側選取先前備份之正常版本，點擊按鈕一鍵還原並重新啟動。",
+                    Font = new System.Drawing.Font("微軟正黑體", 8.5f),
+                    ForeColor = System.Drawing.Color.FromArgb(148, 163, 184),
+                    Location = new System.Drawing.Point(460, 448),
+                    Size = new System.Drawing.Size(165, 85)
+                };
+                updateForm.Controls.Add(lblRollbackHint);
+
+                // 填入本地 backups/ 清單
+                string currentExePath = Process.GetCurrentProcess().MainModule.FileName;
+                string curAppDir = Path.GetDirectoryName(currentExePath);
+                string backupDir = Path.Combine(curAppDir, "backups");
+                if (Directory.Exists(backupDir))
+                {
+                    DirectoryInfo di = new DirectoryInfo(backupDir);
+                    FileInfo[] bakFiles = di.GetFiles("Dynamometer_HMI_Pro_*.exe");
+                    if (bakFiles != null && bakFiles.Length > 0)
+                    {
+                        Array.Sort(bakFiles, (a, b) => b.LastWriteTimeUtc.CompareTo(a.LastWriteTimeUtc));
+                        for (int i = 0; i < Math.Min(5, bakFiles.Length); i++)
+                        {
+                            var bf = bakFiles[i];
+                            string disp = string.Format("{0}  ({1:yyyy-MM-dd HH:mm})",
+                                bf.Name.Replace("Dynamometer_HMI_Pro_", "").Replace(".exe", ""),
+                                bf.LastWriteTime);
+                            lstBackups.Items.Add(new BackupItem(disp, bf.FullName));
+                        }
+                    }
+                }
+
+                if (lstBackups.Items.Count > 0)
+                {
+                    lstBackups.SelectedIndex = 0;
+                }
+                else
+                {
+                    lstBackups.Items.Add("(目前尚無歷史備份，更新時將自動封存)");
+                    btnRollback.Enabled = false;
+                }
+
+                btnRollback.Click += (s, e) =>
+                {
+                    BackupItem bi = lstBackups.SelectedItem as BackupItem;
+                    if (bi != null && File.Exists(bi.FullPath))
+                    {
+                        DialogResult dr = MessageBox.Show(
+                            string.Format("確定要將動力計主程式退回至此版本嗎？\n\n【{0}】\n\n系統將自動備份當前程式、完成替換並重新啟動主程式。", bi.DisplayText),
+                            "確認退回歷史版本",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Question);
+                        if (dr == DialogResult.Yes)
+                        {
+                            updateForm.Close();
+                            RollbackToBackupExecutable(bi.FullPath);
+                        }
+                    }
+                    else
+                    {
+                        MessageBox.Show("請先從左側清單中選擇要退回的備份版本。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                };
 
                 btnUpdate.Click += (s, e) =>
                 {
