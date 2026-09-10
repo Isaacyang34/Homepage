@@ -1261,12 +1261,12 @@ namespace DynamometerHMI
             });
             rootTable.Controls.Add(pnlTop, 0, 0);
 
-            // 核心分頁控制器 (6 大功能分頁 - 1080p 放大)
+            // 核心分頁控制器 (7 大功能分頁 - 1080p 放大)
             tabControl = new TabControl()
             {
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 11f, FontStyle.Bold),
-                ItemSize = new Size(165, 38),
+                ItemSize = new Size(155, 38),
                 SizeMode = TabSizeMode.Fixed,
                 Margin = new Padding(4)
             };
@@ -1299,8 +1299,9 @@ namespace DynamometerHMI
             BuildGbdTab(tabGbd);
             tabControl.TabPages.Add(tabGbd);
 
-            // 系統運轉日誌 (Log) 分頁依使用者需求予以取消，節省 GDI 控鍵與啟動渲染開銷
-            // 系統所有操作與異常仍由頂部【🚨 診斷 LOG】與背景日誌引擎持續安全保存
+            tabReport = new TabPage("📤 報告管理上傳") { BackColor = Color.White };
+            BuildReportTab(tabReport);
+            tabControl.TabPages.Add(tabReport);
 
             rootTable.Controls.Add(tabControl, 0, 1);
             this.Controls.Add(rootTable);
@@ -1326,6 +1327,10 @@ namespace DynamometerHMI
                 {
                     if (cmbDutyMiniMode != null) UpdateDutyModeVisibility(cmbDutyMiniMode.SelectedIndex);
                     if (pnlS6MiniDiagram != null) { pnlS6MiniDiagram.Invalidate(); pnlS6MiniDiagram.Refresh(); }
+                }
+                else if (tabControl.SelectedTab == tabReport) // 切換至 報告管理與雲端上傳分頁
+                {
+                    RefreshReportFileList();
                 }
             };
 
