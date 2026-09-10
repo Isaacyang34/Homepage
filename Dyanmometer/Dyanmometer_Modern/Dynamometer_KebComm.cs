@@ -975,29 +975,37 @@ namespace DynamometerHMI
                 int? r_sy50 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0032);
                 int? r_sy52 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0034);
 
-                int? r_dr00 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0400); // dr.00 額定電流 (0.1 A)
-                int? r_dr01 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0401); // dr.01 額定轉速 (1.0 rpm)
-                int? r_dr02 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0402); // dr.02 額定電壓 (1.0 V)
-                int? r_dr03 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0403); // dr.03 額定功率 (0.01 kW)
-                int? r_dr04 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0404); // dr.04 功率因數 (0.01)
-                int? r_dr05 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0405); // dr.05 額定頻率 (0.1 Hz)
+                int? r_dr00 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0400, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0400, 1); // dr.00 額定電流 (0.1 A)
+                int? r_dr01 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0401, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0401, 1); // dr.01 額定轉速 (1.0 rpm)
+                int? r_dr02 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0402, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0402, 1); // dr.02 額定電壓 (1.0 V)
+                int? r_dr03 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0403, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0403, 1); // dr.03 額定功率 (0.01 kW)
+                int? r_dr04 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0404, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0404, 1); // dr.04 功率因數 (0.01)
+                int? r_dr05 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0405, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0405, 1); // dr.05 額定頻率 (0.1 Hz)
 
-                double drSpeed = r_dr01.HasValue ? (double)r_dr01.Value : 0.0;
-                double drFreq = r_dr05.HasValue ? ((double)r_dr05.Value * 0.1) : 0.0;
+                double drSpeed = (r_dr01.HasValue && r_dr01.Value > 0) ? (double)r_dr01.Value : 0.0;
+                double drFreq = (r_dr05.HasValue && r_dr05.Value > 0) ? ((double)r_dr05.Value * 0.1) : 0.0;
                 int motorPoles = (drSpeed > 0 && drFreq > 0) ? (int)Math.Round(120.0 * drFreq / drSpeed) : 0;
+                if (motorPoles == 0 && !string.IsNullOrEmpty(motorModelName))
+                {
+                    string m = motorModelName.Trim();
+                    if (m.EndsWith("-08") || m.EndsWith("-8") || m.Contains("-08-") || m.Contains("_08")) motorPoles = 8;
+                    else if (m.EndsWith("-04") || m.EndsWith("-4") || m.Contains("-04-") || m.Contains("_04")) motorPoles = 4;
+                    else if (m.EndsWith("-02") || m.EndsWith("-2") || m.Contains("-02-") || m.Contains("_02")) motorPoles = 2;
+                    else if (m.EndsWith("-06") || m.EndsWith("-6") || m.Contains("-06-") || m.Contains("_06")) motorPoles = 6;
+                }
                 if (motorPoles > 0)
                 {
                     if (driveId == 2)
                     {
                         kebMotorPoles2 = motorPoles;
-                        kebDrSpeed2 = drSpeed;
-                        kebDrFreq2 = drFreq;
+                        if (drSpeed > 0) kebDrSpeed2 = drSpeed;
+                        if (drFreq > 0) kebDrFreq2 = drFreq;
                     }
                     else
                     {
                         kebMotorPoles1 = motorPoles;
-                        kebDrSpeed1 = drSpeed;
-                        kebDrFreq1 = drFreq;
+                        if (drSpeed > 0) kebDrSpeed1 = drSpeed;
+                        if (drFreq > 0) kebDrFreq1 = drFreq;
                     }
                 }
 
@@ -2025,17 +2033,25 @@ namespace DynamometerHMI
                     }
                 }
 
-                // 自動從 B 載台硬體讀取 dr 銘牌參數以精確計算極數 (dr.01 額定轉速, dr.05 額定頻率)
+                // 自動從 B 載台硬體讀取 dr 銘牌參數以精確計算極數 (dr.01 額定轉速, dr.05 額定頻率，依序嘗試 Set 0 與 Set 1)
                 if (kebMotorPoles2 <= 0 || kebDrSpeed2 <= 0)
                 {
-                    int? r_dr01 = KebReadParamWithDll(comIdx, baudIdx, addr, 0x0401);
-                    int? r_dr05 = KebReadParamWithDll(comIdx, baudIdx, addr, 0x0405);
+                    int? r_dr01 = KebReadParamWithDll(comIdx, baudIdx, addr, 0x0401, 0) ?? KebReadParamWithDll(comIdx, baudIdx, addr, 0x0401, 1);
+                    int? r_dr05 = KebReadParamWithDll(comIdx, baudIdx, addr, 0x0405, 0) ?? KebReadParamWithDll(comIdx, baudIdx, addr, 0x0405, 1);
                     if (r_dr01.HasValue && r_dr05.HasValue && r_dr01.Value > 0 && r_dr05.Value > 0)
                     {
                         kebDrSpeed2 = (double)r_dr01.Value;
                         kebDrFreq2 = (double)r_dr05.Value * 0.1;
                         kebMotorPoles2 = (int)Math.Round(120.0 * kebDrFreq2 / kebDrSpeed2);
                         WriteHmiLog("KEB_DR", string.Format("【B載台 dr 參數精確反算極數】dr01={0:F0}rpm, dr05={1:F1}Hz -> 極數={2}極", kebDrSpeed2, kebDrFreq2, kebMotorPoles2));
+                    }
+                    else if (!string.IsNullOrEmpty(motorModelName))
+                    {
+                        string m = motorModelName.Trim();
+                        if (m.EndsWith("-08") || m.EndsWith("-8") || m.Contains("-08-") || m.Contains("_08")) kebMotorPoles2 = 8;
+                        else if (m.EndsWith("-04") || m.EndsWith("-4") || m.Contains("-04-") || m.Contains("_04")) kebMotorPoles2 = 4;
+                        else if (m.EndsWith("-02") || m.EndsWith("-2") || m.Contains("-02-") || m.Contains("_02")) kebMotorPoles2 = 2;
+                        else if (m.EndsWith("-06") || m.EndsWith("-6") || m.Contains("-06-") || m.Contains("_06")) kebMotorPoles2 = 6;
                     }
                 }
 
