@@ -417,7 +417,7 @@ namespace DynamometerHMI
     }
 
     // =========================================================================
-    //  自訂 T-N 特性曲線畫布 (TnCurveChart)
+    //  自訂 T-N 特性曲線畫布 (TnCurveChart) - 支援 Nm 與 RPM 雙軸智慧自適應刻度
     // =========================================================================
     public class TnCurveChart : UserControl
     {
@@ -426,6 +426,8 @@ namespace DynamometerHMI
 
         private static readonly Font fLabel9B = new Font("微軟正黑體", 9f, FontStyle.Bold);
         private static readonly Font fHint10B = new Font("微軟正黑體", 10f, FontStyle.Bold);
+        private static readonly Font fScale8 = new Font("微軟正黑體", 8f);
+        private static readonly Font fPointBadge8B = new Font("微軟正黑體", 8f, FontStyle.Bold);
 
         public TnCurveChart()
         {
@@ -454,37 +456,116 @@ namespace DynamometerHMI
             Graphics g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
-            int left = 55;
-            int top = 25;
-            int right = this.Width - 30;
+            int left = 58;
+            int top = 28;
+            int right = this.Width - 25;
             int bottom = this.Height - 40;
 
             if (right <= left || bottom <= top) return;
             Rectangle plotRect = new Rectangle(left, top, right - left, bottom - top);
 
-            // 網格線
-            using (Pen pGrid = new Pen(Color.FromArgb(235, 238, 242), 1f))
+            // 統計目前點位之最大轉矩與最大轉速，以計算智慧自適應刻度上限
+            float maxRecordedTorque = 0f;
+            float maxRecordedSpeed = 0f;
+            float peakTorqueSpeed = 0f;
+            for (int i = 0; i < speedTorquePoints.Count; i++)
             {
-                for (int i = 0; i <= 8; i++)
+                if (speedTorquePoints[i].Y > maxRecordedTorque)
                 {
-                    float x = plotRect.Left + i * (plotRect.Width / 8f);
-                    g.DrawLine(pGrid, x, plotRect.Top, x, plotRect.Bottom);
+                    maxRecordedTorque = speedTorquePoints[i].Y;
+                    peakTorqueSpeed = speedTorquePoints[i].X;
                 }
-                for (int i = 0; i <= 5; i++)
+                if (speedTorquePoints[i].X > maxRecordedSpeed)
                 {
-                    float y = plotRect.Top + i * (plotRect.Height / 5f);
-                    g.DrawLine(pGrid, plotRect.Left, y, plotRect.Right, y);
+                    maxRecordedSpeed = speedTorquePoints[i].X;
                 }
             }
 
-            // 軸線
+            // 轉矩 Y 軸量程上限計算 (給予約 18% 頂部餘裕，階梯整數對齊)
+            float maxTorqueScale = 50f;
+            if (maxRecordedTorque > 0f)
+            {
+                float desiredMax = maxRecordedTorque * 1.18f;
+                float[] trqSteps = new float[] { 5f, 10f, 15f, 20f, 25f, 30f, 40f, 50f, 60f, 75f, 100f, 125f, 150f, 200f, 250f, 300f, 400f, 500f, 600f, 800f, 1000f, 1500f, 2000f, 3000f };
+                maxTorqueScale = desiredMax;
+                for (int s = 0; s < trqSteps.Length; s++)
+                {
+                    if (trqSteps[s] >= desiredMax)
+                    {
+                        maxTorqueScale = trqSteps[s];
+                        break;
+                    }
+                }
+            }
+
+            // 轉速 X 軸量程上限計算 (給予約 15% 右側餘裕)
+            float maxSpeedScale = 3000f;
+            if (maxRecordedSpeed > 0f)
+            {
+                float desiredMax = maxRecordedSpeed * 1.15f;
+                float[] spdSteps = new float[] { 500f, 1000f, 1500f, 1800f, 2000f, 2500f, 3000f, 3600f, 4000f, 4500f, 5000f, 6000f, 8000f, 10000f };
+                maxSpeedScale = desiredMax;
+                for (int s = 0; s < spdSteps.Length; s++)
+                {
+                    if (spdSteps[s] >= desiredMax)
+                    {
+                        maxSpeedScale = spdSteps[s];
+                        break;
+                    }
+                }
+            }
+
+            // 網格線與刻度文字
+            using (Pen pGrid = new Pen(Color.FromArgb(235, 238, 242), 1f))
+            {
+                // Y 軸 5 等分刻度 (轉矩 Nm)
+                int ySteps = 5;
+                for (int i = 0; i <= ySteps; i++)
+                {
+                    float y = plotRect.Top + i * (plotRect.Height / (float)ySteps);
+                    g.DrawLine(pGrid, plotRect.Left, y, plotRect.Right, y);
+                    float trqVal = maxTorqueScale - i * (maxTorqueScale / ySteps);
+                    string trqStr = (maxTorqueScale < 10f) ? string.Format("{0:F1}", trqVal) : string.Format("{0:F0}", trqVal);
+                    SizeF szVal = g.MeasureString(trqStr, fScale8);
+                    g.DrawString(trqStr, fScale8, Brushes.DimGray, plotRect.Left - szVal.Width - 4, y - szVal.Height / 2);
+                }
+
+                // X 軸 5 等分刻度 (轉速 RPM)
+                int xSteps = 5;
+                for (int i = 0; i <= xSteps; i++)
+                {
+                    float x = plotRect.Left + i * (plotRect.Width / (float)xSteps);
+                    g.DrawLine(pGrid, x, plotRect.Top, x, plotRect.Bottom);
+                    float spdVal = i * (maxSpeedScale / xSteps);
+                    string spdStr = string.Format("{0:F0}", spdVal);
+                    SizeF szSpd = g.MeasureString(spdStr, fScale8);
+                    g.DrawString(spdStr, fScale8, Brushes.DimGray, x - szSpd.Width / 2, plotRect.Bottom + 4);
+                }
+            }
+
+            // 外框線
             g.DrawRectangle(Pens.DarkGray, plotRect);
 
-            // 軸刻度標籤
-            g.DrawString("0", this.Font, Brushes.Black, plotRect.Left - 15, plotRect.Bottom - 6);
-            g.DrawString("4000 rpm", this.Font, Brushes.Black, plotRect.Right - 55, plotRect.Bottom + 5);
-            g.DrawString("實測轉速 (RPM)", fLabel9B, Brushes.Black, plotRect.Left + plotRect.Width / 2 - 40, plotRect.Bottom + 18);
-            g.DrawString("轉矩\n(Nm)", fLabel9B, Brushes.DarkOrange, 8, plotRect.Top + 10);
+            // 軸標題
+            g.DrawString("實測轉速 (RPM)", fLabel9B, Brushes.Black, plotRect.Left + (plotRect.Width - g.MeasureString("實測轉速 (RPM)", fLabel9B).Width) / 2, plotRect.Bottom + 20);
+            g.DrawString("轉矩 (Nm)", fLabel9B, Brushes.DarkOrange, plotRect.Left - 8, plotRect.Top - 22);
+
+            // 頂部峰值轉矩提示徽章
+            if (speedTorquePoints.Count > 0 && maxRecordedTorque > 0f)
+            {
+                string peakText = string.Format("🌟 峰值轉矩: {0:F1} Nm @ {1:F0} rpm (共 {2} 點，刻度自適應 0~{3:F0} Nm)",
+                    maxRecordedTorque, peakTorqueSpeed, speedTorquePoints.Count, maxTorqueScale);
+                SizeF szPeak = g.MeasureString(peakText, fLabel9B);
+                RectangleF rectPeak = new RectangleF(plotRect.Right - szPeak.Width - 6, plotRect.Top - 24, szPeak.Width + 6, szPeak.Height + 4);
+                using (SolidBrush bBg = new SolidBrush(Color.FromArgb(245, 254, 243, 199)))
+                using (Pen pBorder = new Pen(Color.FromArgb(245, 158, 11), 1f))
+                using (SolidBrush bTxt = new SolidBrush(Color.FromArgb(180, 83, 9)))
+                {
+                    g.FillRectangle(bBg, rectPeak);
+                    g.DrawRectangle(pBorder, rectPeak.X, rectPeak.Y, rectPeak.Width, rectPeak.Height);
+                    g.DrawString(peakText, fLabel9B, bTxt, rectPeak.X + 3, rectPeak.Y + 2);
+                }
+            }
 
             // 繪製 T-N 實測點位與平滑曲線
             if (speedTorquePoints.Count > 0)
@@ -492,9 +573,9 @@ namespace DynamometerHMI
                 PointF[] screenPts = new PointF[speedTorquePoints.Count];
                 for (int i = 0; i < speedTorquePoints.Count; i++)
                 {
-                    float sx = plotRect.Left + (speedTorquePoints[i].X / 4000f) * plotRect.Width;
-                    float sy = plotRect.Bottom - (speedTorquePoints[i].Y / 100f) * plotRect.Height;
-                    screenPts[i] = new PointF(sx, sy);
+                    float sx = plotRect.Left + (speedTorquePoints[i].X / maxSpeedScale) * plotRect.Width;
+                    float sy = plotRect.Bottom - (speedTorquePoints[i].Y / maxTorqueScale) * plotRect.Height;
+                    screenPts[i] = new PointF(Math.Max(plotRect.Left, Math.Min(plotRect.Right, sx)), Math.Max(plotRect.Top, Math.Min(plotRect.Bottom, sy)));
                 }
 
                 if (screenPts.Length > 1)
@@ -505,16 +586,31 @@ namespace DynamometerHMI
                     }
                 }
 
-                foreach (var pt in screenPts)
+                for (int i = 0; i < screenPts.Length; i++)
                 {
-                    g.FillEllipse(Brushes.Red, pt.X - 4, pt.Y - 4, 8, 8);
-                    g.DrawEllipse(Pens.Black, pt.X - 4, pt.Y - 4, 8, 8);
+                    PointF pt = screenPts[i];
+                    g.FillEllipse(Brushes.Crimson, pt.X - 4.5f, pt.Y - 4.5f, 9, 9);
+                    g.DrawEllipse(Pens.White, pt.X - 4.5f, pt.Y - 4.5f, 9, 9);
+
+                    // 點位文字標籤 (例如 P1: 25.3Nm)
+                    string ptTag = string.Format("P{0}: {1:F1}Nm", i + 1, speedTorquePoints[i].Y);
+                    SizeF szTag = g.MeasureString(ptTag, fPointBadge8B);
+                    float tagX = Math.Min(plotRect.Right - szTag.Width - 4, pt.X + 6);
+                    float tagY = Math.Max(plotRect.Top + 4, pt.Y - 14);
+
+                    using (SolidBrush bBg = new SolidBrush(Color.FromArgb(220, 255, 255, 255)))
+                    using (Pen pTag = new Pen(Color.FromArgb(203, 213, 225), 1f))
+                    {
+                        g.FillRectangle(bBg, tagX, tagY, szTag.Width + 4, szTag.Height + 2);
+                        g.DrawRectangle(pTag, tagX, tagY, szTag.Width + 4, szTag.Height + 2);
+                        g.DrawString(ptTag, fPointBadge8B, Brushes.DarkSlateBlue, tagX + 2, tagY + 1);
+                    }
                 }
             }
             else
             {
                 // 空白提示文字
-                string hint = " T-N 特性曲線即時繪圖區 (開始測試後自動繪製)";
+                string hint = "⚡ T-N 特性曲線即時繪圖區 (開始測試後自動動態自適應繪製)";
                 SizeF sz = g.MeasureString(hint, fHint10B);
                 g.DrawString(hint, fHint10B, Brushes.DarkGray, plotRect.Left + (plotRect.Width - sz.Width) / 2, plotRect.Top + (plotRect.Height - sz.Height) / 2);
             }
@@ -644,13 +740,19 @@ namespace DynamometerHMI
             }
         }
 
-        private void PositionTimeSpanToolbar()
+        public void PositionTimeSpanToolbar()
         {
             if (pnlTimeSpan != null)
             {
                 pnlTimeSpan.Location = new Point(Math.Max(10, this.Width - pnlTimeSpan.PreferredSize.Width - 16), 2);
                 pnlTimeSpan.BringToFront();
             }
+        }
+
+        protected override void OnParentChanged(EventArgs e)
+        {
+            base.OnParentChanged(e);
+            PositionTimeSpanToolbar();
         }
 
         protected override void OnResize(EventArgs e)
@@ -1349,24 +1451,36 @@ namespace DynamometerHMI
     }
 
     // =========================================================================
-    //  馬達溫度 1 秒 (1Sec) 即時動態波形趨勢圖控制項
+    //  馬達溫度 1 秒 (1Sec) 即時動態波形趨勢圖控制項 (與 GL820 統一介面與視覺標準)
     // =========================================================================
     public class MotorTempTrendControl : Control
     {
         private readonly List<KeyValuePair<DateTime, double>> samples = new List<KeyValuePair<DateTime, double>>();
         public bool IsConnected = false;
+        public int ChannelIndex = 0;
+        public string ChannelName = "CH1";
+
+        private readonly Color[] chColors = new Color[]
+        {
+            Color.FromArgb(239, 68, 68),   Color.FromArgb(245, 158, 11),  Color.FromArgb(16, 185, 129),  Color.FromArgb(59, 130, 246),
+            Color.FromArgb(139, 92, 246),  Color.FromArgb(236, 72, 153),  Color.FromArgb(20, 184, 166),  Color.FromArgb(249, 115, 22),
+            Color.FromArgb(99, 102, 241),  Color.FromArgb(34, 197, 94),   Color.FromArgb(217, 70, 239),  Color.FromArgb(14, 165, 233),
+            Color.FromArgb(168, 85, 247),  Color.FromArgb(234, 88, 12),   Color.FromArgb(13, 148, 136),  Color.FromArgb(79, 70, 229),
+            Color.FromArgb(225, 29, 72),   Color.FromArgb(101, 163, 13),  Color.FromArgb(202, 138, 4),   Color.FromArgb(71, 85, 105)
+        };
 
         private FlowLayoutPanel pnlTimeSpan;
         private Button btnTimeMinus;
         private Button btnTimePlus;
         private Label lblTimeSpan;
 
-        private static readonly Font fTime75 = new Font("微軟正黑體", 7.5f);
-        private static readonly Font fWarn115B = new Font("微軟正黑體", 11.5f, FontStyle.Bold);
-        private static readonly Font fSub9 = new Font("微軟正黑體", 9f, FontStyle.Regular);
-        private static readonly Font fFootOffline75B = new Font("微軟正黑體", 7.5f, FontStyle.Bold);
-        private static readonly Font fHint9 = new Font("微軟正黑體", 9f);
-        private static readonly Font fScale8 = new Font("Consolas", 8f);
+        private static readonly Font fontTick8 = new Font("微軟正黑體", 8f);
+        private static readonly Font fontWarn12B = new Font("微軟正黑體", 12f, FontStyle.Bold);
+        private static readonly Font fontSub95 = new Font("微軟正黑體", 9.5f, FontStyle.Regular);
+        private static readonly Font fontTag8B = new Font("微軟正黑體", 8f, FontStyle.Bold);
+        private static readonly Font fontNotice9B = new Font("微軟正黑體", 9f, FontStyle.Bold);
+        private static readonly Font fontNotice95B = new Font("微軟正黑體", 9.5f, FontStyle.Bold);
+        private static readonly Font fontLeg85B = new Font("微軟正黑體", 8.5f, FontStyle.Bold);
 
         private static readonly int[] timeSpanSteps = new int[] { 30, 60, 120, 300, 600, 1800, 3600 };
         private static readonly string[] timeSpanNames = new string[] { "30秒", "1分鐘", "2分鐘", "5分鐘", "10分鐘", "30分鐘", "1小時" };
@@ -1377,6 +1491,7 @@ namespace DynamometerHMI
         {
             this.DoubleBuffered = true;
             this.BackColor = Color.White;
+            this.Font = new Font("微軟正黑體", 8.5f);
             InitTimeSpanToolbar();
         }
 
@@ -1459,13 +1574,19 @@ namespace DynamometerHMI
             }
         }
 
-        private void PositionTimeSpanToolbar()
+        public void PositionTimeSpanToolbar()
         {
             if (pnlTimeSpan != null)
             {
                 pnlTimeSpan.Location = new Point(Math.Max(10, this.Width - pnlTimeSpan.PreferredSize.Width - 16), 2);
                 pnlTimeSpan.BringToFront();
             }
+        }
+
+        protected override void OnParentChanged(EventArgs e)
+        {
+            base.OnParentChanged(e);
+            PositionTimeSpanToolbar();
         }
 
         protected override void OnResize(EventArgs e)
@@ -1478,18 +1599,20 @@ namespace DynamometerHMI
         {
             if (!IsConnected || temp <= 0.0) return;
             samples.Add(new KeyValuePair<DateTime, double>(time, temp));
-            // 長時間運行記憶體防護：批次修剪取代頻繁 RemoveAt(0)
             if (samples.Count > 3600 + 120)
             {
                 samples.RemoveRange(0, 120);
             }
-            this.Invalidate();
+            if (this.Visible)
+            {
+                this.Invalidate();
+            }
         }
 
         public void ClearData()
         {
             samples.Clear();
-            samples.TrimExcess(); // 主動釋放內部陣列容量
+            samples.TrimExcess();
             this.Invalidate();
         }
 
@@ -1501,152 +1624,205 @@ namespace DynamometerHMI
                 Graphics g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
 
-                // 左側留 48px 放溫度刻度，頂部留 24px 放調節列，底部留 34px 放時間標籤與狀態
-                Rectangle plotRect = new Rectangle(48, 24, this.Width - 62, Math.Max(40, this.Height - 58));
+                Rectangle plotRect = new Rectangle(50, 24, this.Width - 70, Math.Max(50, this.Height - 80));
                 if (plotRect.Width <= 10 || plotRect.Height <= 10) return;
 
                 // 背景
                 g.FillRectangle(Brushes.White, plotRect);
 
-            // 找出可見區間內的資料點
-            DateTime now = (samples.Count > 0) ? samples[samples.Count - 1].Key : DateTime.Now;
-            DateTime startTime = now.AddSeconds(-CurrentTimeSpanSeconds);
+                // 找出可見區間內的資料點
+                DateTime now = (samples.Count > 0) ? samples[samples.Count - 1].Key : DateTime.Now;
+                DateTime startTime = now.AddSeconds(-CurrentTimeSpanSeconds);
 
-            List<KeyValuePair<DateTime, double>> visiblePts = new List<KeyValuePair<DateTime, double>>();
-            double minTemp = double.MaxValue;
-            double maxTemp = double.MinValue;
+                List<KeyValuePair<DateTime, double>> visiblePts = new List<KeyValuePair<DateTime, double>>();
+                double minTemp = double.MaxValue;
+                double maxTemp = double.MinValue;
 
-            for (int i = 0; i < samples.Count; i++)
-            {
-                var pt = samples[i];
-                if (pt.Key >= startTime && pt.Value > 0.0)
+                for (int i = 0; i < samples.Count; i++)
                 {
-                    visiblePts.Add(pt);
-                    if (pt.Value < minTemp) minTemp = pt.Value;
-                    if (pt.Value > maxTemp) maxTemp = pt.Value;
-                }
-            }
-
-            // 上下 25% 自適應刻度 (若無數據或溫差微弱則保持預設 20~80℃ 或 min-5 ~ max+5)
-            double plotMinY = 20.0, plotMaxY = 80.0;
-            if (visiblePts.Count > 0 && minTemp != double.MaxValue)
-            {
-                double span = maxTemp - minTemp;
-                if (span < 2.0)
-                {
-                    plotMinY = Math.Max(0.0, minTemp - 5.0);
-                    plotMaxY = maxTemp + 5.0;
-                }
-                else
-                {
-                    double margin = span * 0.25; // 測定值上下各 25% 餘裕自適應
-                    plotMinY = Math.Max(0.0, minTemp - margin);
-                    plotMaxY = maxTemp + margin;
-                }
-            }
-            if (plotMaxY <= plotMinY) plotMaxY = plotMinY + 10.0;
-
-            // 網格與 Y 軸刻度
-            using (Pen pGrid = new Pen(Color.FromArgb(240, 243, 246), 1f))
-            {
-                int gridSteps = 5;
-                for (int i = 0; i <= gridSteps; i++)
-                {
-                    float y = plotRect.Top + i * (plotRect.Height / (float)gridSteps);
-                    g.DrawLine(pGrid, plotRect.Left, y, plotRect.Right, y);
-                    double tempVal = plotMaxY - i * ((plotMaxY - plotMinY) / gridSteps);
-                    string tStr = (plotMaxY - plotMinY < 25.0) ? string.Format("{0:F1}°C", tempVal) : string.Format("{0:F0}°C", tempVal);
-                    g.DrawString(tStr, fScale8, Brushes.Gray, 2, y - 6);
-                }
-                int xSteps = 5;
-                for (int i = 0; i <= xSteps; i++)
-                {
-                    float x = plotRect.Left + i * (plotRect.Width / (float)xSteps);
-                    g.DrawLine(pGrid, x, plotRect.Top, x, plotRect.Bottom);
-                    int secFromNow = (xSteps - i) * (CurrentTimeSpanSeconds / xSteps);
-                    string timeStr = (secFromNow == 0) ? "現在" : (secFromNow >= 60 ? string.Format("-{0}m", secFromNow / 60) : string.Format("-{0}s", secFromNow));
-                    g.DrawString(timeStr, fTime75, Brushes.Gray, x - 10, plotRect.Bottom + 2);
-                }
-            }
-
-            g.DrawRectangle(Pens.LightGray, plotRect);
-
-            if (!IsConnected)
-            {
-                using (SolidBrush bBg = new SolidBrush(Color.FromArgb(248, 250, 252)))
-                {
-                    g.FillRectangle(bBg, plotRect);
-                }
-                string warnText = "⚠️ 設備未連線";
-                string subText = "Graphtec 溫度記錄器離線 (無即時數據)";
-                SizeF sz1 = g.MeasureString(warnText, fWarn115B);
-                SizeF sz2 = g.MeasureString(subText, fSub9);
-                float cy = plotRect.Top + (plotRect.Height - (sz1.Height + sz2.Height + 6)) / 2;
-                g.DrawString(warnText, fWarn115B, Brushes.Crimson, plotRect.Left + (plotRect.Width - sz1.Width) / 2, cy);
-                g.DrawString(subText, fSub9, Brushes.Gray, plotRect.Left + (plotRect.Width - sz2.Width) / 2, cy + sz1.Height + 6);
-                string footerOffline = " 設備狀態: 🔴 設備未連線";
-                g.DrawString(footerOffline, fFootOffline75B, Brushes.Crimson, plotRect.Left, plotRect.Bottom + 16);
-                return;
-            }
-
-            // 繪製動態曲線
-            if (visiblePts.Count > 1)
-            {
-                int step = (visiblePts.Count > plotRect.Width / 2 && plotRect.Width > 0) ? Math.Max(1, visiblePts.Count / Math.Max(100, plotRect.Width / 2)) : 1;
-                List<PointF> pts = new List<PointF>(Math.Min(visiblePts.Count + 2, 500));
-                for (int i = 0; i < visiblePts.Count; i += step)
-                {
-                    var pt = visiblePts[i];
-                    double secOffset = (pt.Key - startTime).TotalSeconds;
-                    float x = plotRect.Left + (float)(Math.Max(0.0, Math.Min(CurrentTimeSpanSeconds, secOffset)) / CurrentTimeSpanSeconds) * plotRect.Width;
-                    float y = plotRect.Bottom - (float)((pt.Value - plotMinY) / (plotMaxY - plotMinY)) * plotRect.Height;
-                    pts.Add(new PointF(x, Math.Max(plotRect.Top, Math.Min(plotRect.Bottom, y))));
-                }
-                // 保證納入最後一個最新端點
-                if ((visiblePts.Count - 1) % step != 0)
-                {
-                    var pt = visiblePts[visiblePts.Count - 1];
-                    double secOffset = (pt.Key - startTime).TotalSeconds;
-                    float x = plotRect.Left + (float)(Math.Max(0.0, Math.Min(CurrentTimeSpanSeconds, secOffset)) / CurrentTimeSpanSeconds) * plotRect.Width;
-                    float y = plotRect.Bottom - (float)((pt.Value - plotMinY) / (plotMaxY - plotMinY)) * plotRect.Height;
-                    pts.Add(new PointF(x, Math.Max(plotRect.Top, Math.Min(plotRect.Bottom, y))));
-                }
-
-                // 漸層填色
-                using (GraphicsPath path = new GraphicsPath())
-                {
-                    path.AddLine(pts[0].X, plotRect.Bottom, pts[0].X, pts[0].Y);
-                    for (int i = 1; i < pts.Count; i++) path.AddLine(pts[i - 1], pts[i]);
-                    path.AddLine(pts[pts.Count - 1].X, pts[pts.Count - 1].Y, pts[pts.Count - 1].X, plotRect.Bottom);
-                    path.CloseFigure();
-                    using (LinearGradientBrush lgb = new LinearGradientBrush(plotRect, Color.FromArgb(45, 239, 68, 68), Color.FromArgb(5, 239, 68, 68), LinearGradientMode.Vertical))
+                    var pt = samples[i];
+                    if (pt.Key >= startTime && pt.Value > 0.0)
                     {
-                        g.FillPath(lgb, path);
+                        visiblePts.Add(pt);
+                        if (pt.Value < minTemp) minTemp = pt.Value;
+                        if (pt.Value > maxTemp) maxTemp = pt.Value;
                     }
                 }
 
-                // 趨勢主線
-                using (Pen pCurve = new Pen(Color.FromArgb(239, 68, 68), 2.2f))
+                // 上下 25% 智慧自適應刻度
+                double plotMinY = 20.0, plotMaxY = 80.0;
+                if (visiblePts.Count > 0 && minTemp != double.MaxValue)
                 {
-                    g.DrawLines(pCurve, pts.ToArray());
+                    double span = maxTemp - minTemp;
+                    if (span < 2.0)
+                    {
+                        plotMinY = Math.Max(0.0, minTemp - 5.0);
+                        plotMaxY = maxTemp + 5.0;
+                    }
+                    else
+                    {
+                        double margin = span * 0.25;
+                        plotMinY = Math.Max(0.0, minTemp - margin);
+                        plotMaxY = maxTemp + margin;
+                    }
+                }
+                if (plotMaxY <= plotMinY) plotMaxY = plotMinY + 10.0;
+
+                // 網格與 Y 軸刻度
+                using (Pen pGrid = new Pen(Color.FromArgb(235, 238, 242), 1f))
+                {
+                    int gridSteps = 5;
+                    for (int i = 0; i <= gridSteps; i++)
+                    {
+                        float y = plotRect.Top + i * (plotRect.Height / (float)gridSteps);
+                        g.DrawLine(pGrid, plotRect.Left, y, plotRect.Right, y);
+                        double tempVal = plotMaxY - i * ((plotMaxY - plotMinY) / gridSteps);
+                        string tStr = (plotMaxY - plotMinY < 25.0) ? string.Format("{0:F1}°C", tempVal) : string.Format("{0:F0}°C", tempVal);
+                        g.DrawString(tStr, this.Font, Brushes.Gray, 5, y - 6);
+                    }
+                    int xSteps = 5;
+                    for (int i = 0; i <= xSteps; i++)
+                    {
+                        float x = plotRect.Left + i * (plotRect.Width / (float)xSteps);
+                        g.DrawLine(pGrid, x, plotRect.Top, x, plotRect.Bottom);
+                        int secFromNow = (xSteps - i) * (CurrentTimeSpanSeconds / xSteps);
+                        string timeStr = (secFromNow == 0) ? "現在" : (secFromNow >= 60 ? string.Format("-{0}m", secFromNow / 60) : string.Format("-{0}s", secFromNow));
+                        g.DrawString(timeStr, fontTick8, Brushes.Gray, x - 12, plotRect.Bottom + 2);
+                    }
                 }
 
-                // 最新溫度點
-                PointF lastPt = pts[pts.Count - 1];
-                g.FillEllipse(Brushes.Red, lastPt.X - 3.5f, lastPt.Y - 3.5f, 7, 7);
-                g.DrawEllipse(Pens.White, lastPt.X - 3.5f, lastPt.Y - 3.5f, 7, 7);
-            }
-            else
-            {
-                string hint = " 馬達溫度即時趨勢圖 (實測上下25%自適應繪製中...)";
-                SizeF sz = g.MeasureString(hint, fHint9);
-                g.DrawString(hint, fHint9, Brushes.DarkGray, plotRect.Left + (plotRect.Width - sz.Width) / 2, plotRect.Top + (plotRect.Height - sz.Height) / 2);
-            }
+                g.DrawRectangle(Pens.DarkGray, plotRect);
 
-            // 底部說明文字
-            string footer = string.Format(" 時間跨度: {0} | 溫度範圍: {1:F1} ~ {2:F1} °C (實測上下25%自適應)", 
-                timeSpanNames[currentTimeSpanIndex], plotMinY, plotMaxY);
-            g.DrawString(footer, fTime75, Brushes.Gray, plotRect.Left, plotRect.Bottom + 16);
+                if (!IsConnected)
+                {
+                    using (SolidBrush bBg = new SolidBrush(Color.FromArgb(248, 250, 252)))
+                    {
+                        g.FillRectangle(bBg, plotRect);
+                    }
+                    string warnText = "⚠️ 設備未連線";
+                    string subText = "Graphtec GL820 溫度記錄器離線 (無即時數據，請檢查乙太網路或IP)";
+                    SizeF sz1 = g.MeasureString(warnText, fontWarn12B);
+                    SizeF sz2 = g.MeasureString(subText, fontSub95);
+                    float cy = plotRect.Top + (plotRect.Height - (sz1.Height + sz2.Height + 6)) / 2;
+                    g.DrawString(warnText, fontWarn12B, Brushes.Crimson, plotRect.Left + (plotRect.Width - sz1.Width) / 2, cy);
+                    g.DrawString(subText, fontSub95, Brushes.Gray, plotRect.Left + (plotRect.Width - sz2.Width) / 2, cy + sz1.Height + 6);
+                    return;
+                }
+
+                Color c = (ChannelIndex >= 0 && ChannelIndex < chColors.Length) ? chColors[ChannelIndex] : Color.FromArgb(239, 68, 68);
+
+                // 繪製動態曲線
+                if (visiblePts.Count > 1)
+                {
+                    int step = (visiblePts.Count > plotRect.Width / 2 && plotRect.Width > 0) ? Math.Max(1, visiblePts.Count / Math.Max(100, plotRect.Width / 2)) : 1;
+                    List<PointF> pts = new List<PointF>(Math.Min(visiblePts.Count + 2, 500));
+                    for (int i = 0; i < visiblePts.Count; i += step)
+                    {
+                        var pt = visiblePts[i];
+                        double secOffset = (pt.Key - startTime).TotalSeconds;
+                        float x = plotRect.Left + (float)(Math.Max(0.0, Math.Min(CurrentTimeSpanSeconds, secOffset)) / CurrentTimeSpanSeconds) * plotRect.Width;
+                        float y = plotRect.Bottom - (float)((pt.Value - plotMinY) / (plotMaxY - plotMinY)) * plotRect.Height;
+                        pts.Add(new PointF(x, Math.Max(plotRect.Top, Math.Min(plotRect.Bottom, y))));
+                    }
+                    // 保證納入最後一個最新端點
+                    if ((visiblePts.Count - 1) % step != 0)
+                    {
+                        var pt = visiblePts[visiblePts.Count - 1];
+                        double secOffset = (pt.Key - startTime).TotalSeconds;
+                        float x = plotRect.Left + (float)(Math.Max(0.0, Math.Min(CurrentTimeSpanSeconds, secOffset)) / CurrentTimeSpanSeconds) * plotRect.Width;
+                        float y = plotRect.Bottom - (float)((pt.Value - plotMinY) / (plotMaxY - plotMinY)) * plotRect.Height;
+                        pts.Add(new PointF(x, Math.Max(plotRect.Top, Math.Min(plotRect.Bottom, y))));
+                    }
+
+                    // 漸層填色
+                    using (GraphicsPath path = new GraphicsPath())
+                    {
+                        path.AddLine(pts[0].X, plotRect.Bottom, pts[0].X, pts[0].Y);
+                        for (int i = 1; i < pts.Count; i++) path.AddLine(pts[i - 1], pts[i]);
+                        path.AddLine(pts[pts.Count - 1].X, pts[pts.Count - 1].Y, pts[pts.Count - 1].X, plotRect.Bottom);
+                        path.CloseFigure();
+                        using (LinearGradientBrush lgb = new LinearGradientBrush(plotRect, Color.FromArgb(40, c), Color.FromArgb(5, c), LinearGradientMode.Vertical))
+                        {
+                            g.FillPath(lgb, path);
+                        }
+                    }
+
+                    // 趨勢主線
+                    using (Pen pCurve = new Pen(c, 2.2f))
+                    {
+                        g.DrawLines(pCurve, pts.ToArray());
+                    }
+
+                    // 最新端點圓點
+                    PointF lastPt = pts[pts.Count - 1];
+                    using (SolidBrush bDot = new SolidBrush(c))
+                    {
+                        g.FillEllipse(bDot, lastPt.X - 4f, lastPt.Y - 4f, 8, 8);
+                        g.DrawEllipse(Pens.White, lastPt.X - 4f, lastPt.Y - 4f, 8, 8);
+                    }
+
+                    // 端點高對比膠囊徽章標籤 (例如 "CH1 (前軸承): 42.5℃")
+                    double latestVal = visiblePts[visiblePts.Count - 1].Value;
+                    string tag = !string.IsNullOrEmpty(ChannelName) && ChannelName != ("CH" + (ChannelIndex + 1))
+                        ? string.Format("CH{0} ({1}) {2:F1}℃", ChannelIndex + 1, ChannelName, latestVal)
+                        : string.Format("CH{0} {1:F1}℃", ChannelIndex + 1, latestVal);
+
+                    SizeF sz = g.MeasureString(tag, fontTag8B);
+                    float tx = Math.Min(plotRect.Right - sz.Width - 8, Math.Max(plotRect.Left + 8, lastPt.X - sz.Width - 8));
+                    float ty = Math.Max(plotRect.Top + 4, Math.Min(plotRect.Bottom - sz.Height - 4, lastPt.Y - sz.Height / 2));
+                    RectangleF badgeRect = new RectangleF(tx, ty, sz.Width + 6, sz.Height + 2);
+
+                    using (Brush bBg = new SolidBrush(Color.FromArgb(235, 255, 255, 255)))
+                    using (Pen pBorder = new Pen(c, 1.5f))
+                    using (Brush bText = new SolidBrush(c))
+                    {
+                        g.FillRectangle(bBg, badgeRect);
+                        g.DrawRectangle(pBorder, badgeRect.X, badgeRect.Y, badgeRect.Width, badgeRect.Height);
+                        g.DrawString(tag, fontTag8B, bText, tx + 3, ty + 1);
+                    }
+
+                    // 單一通道提示橫幅
+                    string singleNotice = string.Format("📌 目前監控通道：CH{0} [{1}] 即時溫度: {2:F1} ℃", ChannelIndex + 1, ChannelName, latestVal);
+                    SizeF szN = g.MeasureString(singleNotice, fontNotice9B);
+                    RectangleF rectN = new RectangleF(plotRect.Left + 8, plotRect.Top + 6, szN.Width + 12, szN.Height + 6);
+                    using (SolidBrush bBgN = new SolidBrush(Color.FromArgb(240, 254, 243, 199)))
+                    using (Pen pBorderN = new Pen(Color.FromArgb(245, 158, 11), 1.2f))
+                    using (SolidBrush bTextN = new SolidBrush(Color.FromArgb(146, 64, 14)))
+                    {
+                        g.FillRectangle(bBgN, rectN);
+                        g.DrawRectangle(pBorderN, rectN.X, rectN.Y, rectN.Width, rectN.Height);
+                        g.DrawString(singleNotice, fontNotice9B, bTextN, rectN.X + 6, rectN.Y + 3);
+                    }
+
+                    // 底部單通道狀態膠囊
+                    int legendY = plotRect.Bottom + 12;
+                    int curX = plotRect.Left;
+                    string tempStr = string.Format("{0:F1}℃", latestVal);
+                    string itemText = string.Format("CH{0} {1}: {2} (時窗: {3})", ChannelIndex + 1, ChannelName, tempStr, timeSpanNames[currentTimeSpanIndex]);
+                    SizeF szItem = g.MeasureString(itemText, fontLeg85B);
+                    float boxWidth = szItem.Width + 24;
+
+                    using (SolidBrush bCapBg = new SolidBrush(Color.FromArgb(245, 248, 250)))
+                    using (Pen pCap = new Pen(c, 1.2f))
+                    {
+                        g.FillRectangle(bCapBg, curX, legendY, boxWidth, 22);
+                        g.DrawRectangle(pCap, curX, legendY, boxWidth, 22);
+                        using (SolidBrush bInd = new SolidBrush(c))
+                        {
+                            g.FillEllipse(bInd, curX + 6, legendY + 6, 9, 9);
+                        }
+                        using (SolidBrush bTxt = new SolidBrush(Color.FromArgb(15, 23, 42)))
+                        {
+                            g.DrawString(itemText, fontLeg85B, bTxt, curX + 20, legendY + 3);
+                        }
+                    }
+                }
+                else
+                {
+                    string hint = " 馬達溫度即時動態趨勢圖 (實測上下25%自適應中...)";
+                    SizeF sz = g.MeasureString(hint, fontNotice95B);
+                    g.DrawString(hint, fontNotice95B, Brushes.DarkGray, plotRect.Left + (plotRect.Width - sz.Width) / 2, plotRect.Top + (plotRect.Height - sz.Height) / 2);
+                }
             }
             catch { }
         }

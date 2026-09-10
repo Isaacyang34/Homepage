@@ -1465,6 +1465,10 @@ namespace DynamometerHMI
                 }
                 if (motorTempChart != null && !motorTempChart.IsDisposed && t > 0.0)
                 {
+                    motorTempChart.ChannelIndex = selCh;
+                    string cName = (gl820ChannelNames != null && selCh >= 0 && selCh < gl820ChannelNames.Length && !string.IsNullOrEmpty(gl820ChannelNames[selCh]))
+                        ? gl820ChannelNames[selCh] : ("CH" + (selCh + 1));
+                    motorTempChart.ChannelName = cName;
                     motorTempChart.AddSample(DateTime.Now, t);
                 }
                 if (gbdTrendChart != null && !gbdTrendChart.IsDisposed)
@@ -1537,6 +1541,7 @@ namespace DynamometerHMI
                 {
                     sharedTestTempTrend.SetChannelVisibility(channelMask);
                 }
+                sharedTestTempTrend.PositionTimeSpanToolbar();
                 if (sharedTestTempTrend.Visible)
                 {
                     sharedTestTempTrend.Invalidate();
@@ -3822,6 +3827,17 @@ namespace DynamometerHMI
             };
             for (int i = 1; i <= 20; i++) cmbMotorTempCh.Items.Add("CH " + i);
             cmbMotorTempCh.SelectedIndex = 0;
+            cmbMotorTempCh.SelectedIndexChanged += (s, e) => {
+                if (motorTempChart != null)
+                {
+                    int ch = cmbMotorTempCh.SelectedIndex;
+                    motorTempChart.ChannelIndex = ch;
+                    string cName = (gl820ChannelNames != null && ch >= 0 && ch < gl820ChannelNames.Length && !string.IsNullOrEmpty(gl820ChannelNames[ch]))
+                        ? gl820ChannelNames[ch] : ("CH" + (ch + 1));
+                    motorTempChart.ChannelName = cName;
+                    motorTempChart.Invalidate();
+                }
+            };
 
             lblMotorTempDisplay = new Label()
             {
