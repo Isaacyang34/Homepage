@@ -7,7 +7,64 @@
 ## Beta 版本對照索引
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
+| V2.64 (beta) | v2.10.24 | 2026-09-10 | CSV 全紀錄檔欄位標準化重排 (導入 KEB ru.03 輸出頻率、對齊時間/轉速/頻率/轉矩/三相電壓/三相電流/輸入功率/輸出功率/功因/效率標準序)、T-N 測試 30 筆穩定數據擷取前後雙向斷行優化：(1)現象與佐證：依據「功能修改紀錄/Modify.txt」之工程規範要求「時間 轉速 頻率(新增源自於KEB[ru.03]) 轉矩 電壓1 電壓2 電壓3 電流1 電流2 電流3 輸入功率 輸出功率 功因 效率 [其他沒列到的放後面再接上溫度]；請更改全部紀錄檔的格式如上；TN測試紀錄檔優化：在確定穩定後抓取30筆數據時給資料一個斷行，結束後也多一個斷行方便識別測試區間」；(2)致命根因：舊版 CSV 與累加器採用早期「Timestamp, Speed, Torque, MechPower, ElecPower, Efficiency...」之排列，未將變頻器輸出頻率 (ru.03, 0x0203) 納入採樣資料鏈；TN 測試在 5 秒穩定後擷取 30 秒數據時與前後過渡狀態數據無縫緊連，在 Excel / 試算表中分析時無法直觀區隔出各測試點的 30 筆黃金採樣區間；(3)精確修復方案：Dynamometer_HMI_WinForms.cs 增加 kebFrequency1, kebFrequency2 與 actFrequency 即時屬性，將 0x0203 納入預設監控清單與佈局加載自動修復；Dynamometer_KebComm.cs 於 DoHmiKebQuery1 與 DoHmiKebQuery2 實裝 0x0203 週期查詢與 0.01Hz / 0.0001Hz 智慧自適應縮放；Dynamometer_UIControls.cs 之 RawDataSampleAccumulator 擴充 frequencies 序列並更新 AddSample 與 BuildAveragedCsvRow；Dynamometer_Telemetry.cs 之 BuildRawCsvHeader 與 BuildRawCsvRow 依 Modify.txt 標準化重組欄位順序；Dynamometer_TestTN.cs 於子階段 2->3 (5s穩定結束進入30s擷取) 與子階段 3 完成時，向 manualRecordWriter 寫入空行斷行，並於 Report_TN_MultiPoints 報表在各測試點 30 筆資料前後插入斷行；(4)版本號升級至 APP_VERSION = "2.6.4"，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
 | V2.63 (beta) | v2.10.23 | 2026-09-10 | 本地端日誌生命週期自動清理器 (保留最新 30 筆測試 CSV/GBD 與報表、CRASH 日誌修剪、10MB 日誌自動輪替歸檔、UI 本地保留筆數微調與清理按鈕)：(1)現象與佐證：使用者提出本地端日誌維護指令：「LOG的部分，本地端LOG也需要清理，保存最後30筆就好」；現場工控電腦 logs/ 目錄原先採取永久無限期寫入，長期運行產出大量測試 CSV、GBD 與系統日誌，累積大量歷史檔案佔用 WinXP 磁碟空間；(2)致命根因：系統原僅實作雲端歷史日誌之 PurgeCloudLogsAsync 自動修剪 (30筆/7天)，本機端 logs/ 目錄缺乏生命週期旋轉與淘汰機制；hmi_telemetry.log 無大小上限持續追加，長時間測試後有磁碟寫滿風險；(3)精確修復方案：Dynamometer_WebServer.cs 實作全自動非同步 PurgeLocalLogs(isManualClick)，依 localLogMaxHistoryCount (預設 30 筆) 自動掃描 logs/ (及自訂 RAW 目錄)，按 LastWriteTime 降序排序並修剪淘汰第 31 筆起之舊測試 CSV 與配對 GBD 檔案，同步修剪過期 CRASH_REPORT_*.log 與歸檔日誌，並排除鎖定中檔案；Dynamometer_Telemetry.cs 加入 hmiLogWriter 達 10MB 自動旋轉歸檔機制；實裝「💾 本地保留: [30] 筆 [🧹 清理本地]」工具列控制項與 AutoScroll 防破版；Dynamometer_HMI_WinForms.cs 實作 LocalLogMaxCount 於 config.ini 之記憶保存與啟動 Shown 自動清除非同步排程；(4)版本號升級至 APP_VERSION = "2.6.3"，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
+
+## [V2.64 beta / v2.10.24] - 2026-09-10
+
+### 🎯 現象與佐證
+1. **使用者指令與問題回報**：
+   - 參照工程修改文件 `功能修改紀錄/Modify.txt`：
+     ```
+     Timestamp Speed_rpm Torque_Nm MechPower_kW ElecPower_kW Efficiency_pct Kt_NmA Voltage_U1_V Current_I1_A Power_P1_kW Voltage_U2_V Current_I2_A Power_P2_kW Voltage_U3_V Current_I3_A Power_P3_kW Voltage_Sigma_V Current_Sigma_A PF
+     以上是目前的csv紀錄檔的資料順序，後面溫度沒有要改就不節錄
+     修改資料順序：
+     時間 轉速 頻率(新增源自於KEB[ru.03]) 轉矩 電壓1 電壓2 電壓3 電流1 電流2 電流3 輸入功率 輸出功率 功因 效率 [其他沒列到的放後面再接上溫度]
+     請更改全部紀錄檔的格式如上
+     --------------------------------------------------------------------
+     TN測試紀錄檔優化
+     在確定穩定後抓取30筆數據時給資料一個斷行
+     結束後也多一個斷行方便識別測試區間
+     ```
+2. **實測日誌現狀**：
+   - 原有所有 CSV 格式（含 `Auto_Raw_Telemetry_*.csv`、手動連續錄製 CSV、快照 CSV 與 T-N 報表）均缺乏 KEB 變頻器實際輸出頻率，且欄位排序未將電壓、電流三相集中；
+   - T-N 多點測試在運行連續錄製時，5 秒穩定逼近與 30 秒穩定採樣以及換項降載資料連續寫入，未有空行區隔，工程人員在圖表分析時無法瞬間界定 30 筆取樣邊界。
+
+### 💡 致命根因 (Root Cause)
+1. **未採集變頻器輸出頻率 (`ru.03`, 0x0203)**：
+   - 系統原僅採集 `ru.07` (實測轉速)、`ru.12` (轉矩)、`ru.15` (電流)、`ru.09` (電壓)，未將 `ru.03` 納入採集管線。
+2. **CSV 欄位排序未對齊新標準**：
+   - `BuildRawCsvHeader` 與 `BuildRawCsvRow` 採用歷史序列，未將頻率置於轉速後，亦未將輸入功率與輸出功率排於電流後。
+3. **連續錄製檔缺乏測試區間斷行標記**：
+   - T-N 測試之 `RunTnMultiPointTick` 在 SubPhase 2 (5s等待) 轉入 SubPhase 3 (30s擷取) 以及 SubPhase 3 結束時，未向 `manualRecordWriter` 輸出空行標記。
+
+### 🔧 精確修復方案
+**修改核心檔案：**
+* `Dyanmometer_Modern/Dynamometer_HMI_WinForms.cs`
+* `Dyanmometer_Modern/Dynamometer_KebComm.cs`
+* `Dyanmometer_Modern/Dynamometer_UIControls.cs`
+* `Dyanmometer_Modern/Dynamometer_Telemetry.cs`
+* `Dyanmometer_Modern/Dynamometer_TestTN.cs`
+* `Dyanmometer_Modern/Dynamometer_WebServer.cs`
+
+**具體實施細節：**
+1. **KEB ru.03 輸出頻率讀取與解析**：
+   - `Dynamometer_HMI_WinForms.cs` 新增 `kebFrequency1`, `kebFrequency2` 與 `actFrequency` 屬性，動態依待測端載台 ID (`spdDrive`) 優先回傳正確之變頻器頻率；
+   - `CreateDefaultKebMonitorList` 與佈局加載自動補全 `輸出頻率 (ru03)` (0x0203, 0.01 Hz)；
+   - `Dynamometer_KebComm.cs` 之 `DoHmiKebQuery1` 與 `DoHmiKebQuery2` 實裝 0x0203 讀取，並支援 `(abs(val) >= 100000 ? val * 0.0001 : val * 0.01)` 自適應小數解析。
+2. **CSV 全紀錄檔欄位標準化重組**：
+   - 標準順序：`Timestamp, Speed_rpm, Frequency_Hz, Torque_Nm, Voltage_U1_V, Voltage_U2_V, Voltage_U3_V, Current_I1_A, Current_I2_A, Current_I3_A, ElecPower_kW, MechPower_kW, PF, Efficiency_pct, Kt_NmA, Power_P1_kW, Power_P2_kW, Power_P3_kW, Voltage_Sigma_V, Current_Sigma_A, MotorTemp_C, [GL820通道...], [KEB ru參數...]`；
+   - 同步重構 `Dynamometer_Telemetry.cs` 之 `BuildRawCsvHeader()` 與 `BuildRawCsvRow()`；
+   - 同步擴充 `Dynamometer_UIControls.cs` 之 `RawDataSampleAccumulator` (加入 `frequencies` 佇列，更新 `AddSample` 與 `BuildAveragedCsvRow`)；
+   - 同步更新主程式每秒背景自動累積與手動錄製累積之調用參數。
+3. **T-N 測試 30 筆數據前後斷行優化**：
+   - `Dynamometer_TestTN.cs` 在 SubPhase 2 倒數歸零轉入 SubPhase 3 (開始 30 秒採樣) 時，立即向 `manualRecordWriter` 寫入一空行斷行；
+   - 在 SubPhase 3 採樣完成 (30 筆完成) 時，再次向 `manualRecordWriter` 寫入一空行斷行；
+   - `curPt.Samples` 擴充為 17 欄位並同步存入 `actFrequency`、三相電壓電流與功率；
+   - `ExportTnDataCsv()` 匯出 `Report_TN_MultiPoints_*.csv` 時，於各點位 30 筆數據寫入前與寫入後均輸出斷行分隔，報表欄位對齊最新標準順序。
+4. **版本號升級與打包**：
+   - 版本號升級至 **`APP_VERSION = "2.6.4"` (內部版號: `v2.10.24`)**，透過 `package_release.ps1 -Version 2.5.0` 完成 x86 32-bit 編譯、便攜打包與遠端同步。
+
 | V2.62 (beta) | v2.10.22 | 2026-09-10 | 空載溫升測試核心設備三在線防呆 (待測端驅動器+WT333E+GL820)、非必要設備 (扭力計/加載端) 零干涉防護、空載無轉速回授訊號友善顯示與堵轉/扭力計斷線保護跳脫豁免：(1)現象與佐證：使用者回報指令「修正LOG所看到的BUG；空載測試基本上只要待側端的驅動器與POWERMETER和溫度紀錄有在線就可以執行，其他儀器連線與否以及數據都可以不用分析。我看到有時測轉速理論上是看不見的，因為空載沒有任何回授訊號」；現場雲端實測日誌 hmi_telemetry.log 顯示 09:15:20 曾發生「【🚨 安全保護跳脫】扭力計斷線或反饋逾時 (超過 1.5 秒無數據)，已強制雙機急停！」，且 09:20~09:31 實測 CSV 中 Speed_rpm 全程 0.0 rpm；(2)致命根因：CheckSafetyProtectionMatrix 中 enableProtTorqueLoss (扭力計逾時) 與 enableProtStall (失速堵轉) 缺乏 isNoLoadRunning 狀態豁免，空載測試無需扭力計且無轉速編碼器回授，因 Kistler 瞬時逾時或 actSpeed=0 誤觸發急停跳脫；StartNoLoadTest 僅防呆 GL820，未校驗待測端驅動器與 WT333E 功率表是否就緒；UI 實測轉速與 DataGridView 硬寫 0 rpm 造成困惑；(3)精確修復方案：Dynamometer_HMI_WinForms.cs 在 CheckSafetyProtectionMatrix 對 enableProtTorqueLoss 與 enableProtStall 增加 && !isNoLoadRunning 雙重豁免，空載測試期間扭力計與轉速不進行安全判定；Dynamometer_TestNoLoad.cs 於 StartNoLoadTest 實裝「待測端驅動器 + WT333E功率表 + GL820溫度記錄器」三項核心在線防呆攔截，其餘設備不阻擋啟動；lblNoLoadActSpdDisp 與 dgvNoLoad 當無回授時優雅顯示「-- rpm (無回授)」；NoLoadTimer_Tick 改用原生無分配二分法取代高頻 LINQ 查詢並全函式包裹 try-catch 防閃退；(4)版本號升級至 APP_VERSION = "2.6.2"，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
 
 ## [V2.63 beta / v2.10.23] - 2026-09-10
