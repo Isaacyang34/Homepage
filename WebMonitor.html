@@ -454,28 +454,30 @@
             .metrics-table { grid-template-columns: 1fr; }
         }
 
-        /* ====== 授權驗證遮罩 ====== */
-        #auth-overlay {
+        /* ====== 訪客足跡審計抽屜 (Visitor Audit Drawer) ====== */
+        #visitorModal {
             position: fixed;
             inset: 0;
-            background: rgba(10, 15, 29, 0.97);
-            backdrop-filter: blur(14px);
-            display: flex;
+            background: rgba(10, 15, 29, 0.85);
+            backdrop-filter: blur(12px);
+            display: none;
             justify-content: center;
             align-items: center;
             z-index: 9999;
         }
 
-        .auth-card {
+        .visitor-card {
             background: var(--bg-secondary);
-            border: 1px solid rgba(56, 189, 248, 0.25);
+            border: 1px solid var(--border-highlight);
             border-radius: 20px;
-            padding: 40px 36px;
-            width: 90%;
-            max-width: 420px;
-            text-align: center;
-            box-shadow: 0 0 60px rgba(56, 189, 248, 0.12), 0 24px 60px rgba(0,0,0,0.6);
-            animation: fadeInUp 0.4s ease;
+            width: 92%;
+            max-width: 680px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 60px rgba(56, 189, 248, 0.15), 0 24px 60px rgba(0,0,0,0.6);
+            overflow: hidden;
+            animation: fadeInUp 0.3s ease;
         }
 
         @keyframes fadeInUp {
@@ -483,155 +485,77 @@
             to   { opacity: 1; transform: translateY(0); }
         }
 
-        .auth-logo {
-            font-size: 40px;
-            margin-bottom: 8px;
-        }
-
-        .auth-card h2 {
-            font-size: 20px;
-            font-weight: 700;
-            color: var(--text-primary);
-            margin-bottom: 6px;
-        }
-
-        .auth-card p {
-            font-size: 13px;
-            color: var(--text-secondary);
-            margin-bottom: 28px;
-            line-height: 1.6;
-        }
-
-        .auth-input-wrap {
-            position: relative;
-            margin-bottom: 16px;
-        }
-
-        .auth-input-wrap input {
-            width: 100%;
-            padding: 12px 44px 12px 16px;
-            background: rgba(15, 23, 42, 0.8);
-            border: 1px solid rgba(255,255,255,0.12);
-            border-radius: 10px;
-            color: #fff;
-            font-size: 15px;
-            outline: none;
-            transition: border-color 0.2s;
-            letter-spacing: 2px;
-        }
-
-        .auth-input-wrap input:focus {
-            border-color: var(--cyan);
-            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
-        }
-
-        .auth-input-wrap input.error {
-            border-color: var(--rose);
-            box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.15);
-            animation: shake 0.35s ease;
-        }
-
-        @keyframes shake {
-            0%,100% { transform: translateX(0); }
-            25%      { transform: translateX(-6px); }
-            75%      { transform: translateX(6px); }
-        }
-
-        .auth-toggle-pw {
-            position: absolute;
-            right: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
-            border: none;
-            color: var(--text-muted);
-            cursor: pointer;
-            font-size: 16px;
-            padding: 0;
-        }
-
-        .auth-btn {
-            width: 100%;
-            padding: 12px;
-            background: linear-gradient(135deg, var(--cyan), var(--indigo));
-            color: #fff;
-            border: none;
-            border-radius: 10px;
-            font-weight: 700;
-            font-size: 15px;
-            cursor: pointer;
-            transition: opacity 0.2s, transform 0.15s;
-            box-shadow: 0 4px 20px rgba(56, 189, 248, 0.3);
-        }
-
-        .auth-btn:hover:not(:disabled) {
-            opacity: 0.9;
-            transform: translateY(-1px);
-        }
-
-        .auth-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .auth-msg {
-            margin-top: 14px;
-            font-size: 13px;
-            color: var(--rose);
-            min-height: 18px;
-        }
-
-        .auth-hint {
-            margin-top: 10px;
-            font-size: 12px;
-            color: var(--text-muted);
-        }
-
-        .auth-attempts-bar {
+        .visitor-item {
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 14px;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             gap: 6px;
-            margin-top: 14px;
+            transition: border-color 0.2s;
         }
-
-        .attempt-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: rgba(255,255,255,0.15);
-            transition: background 0.3s;
+        .visitor-item:hover {
+            border-color: var(--cyan);
         }
-
-        .attempt-dot.used {
-            background: var(--rose);
-            box-shadow: 0 0 6px var(--rose);
+        .visitor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        .visitor-loc {
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .visitor-time {
+            color: var(--text-muted);
+            font-size: 11px;
+        }
+        .visitor-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+        .visitor-tag {
+            background: rgba(255, 255, 255, 0.06);
+            padding: 2px 6px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
         }
     </style>
 </head>
 <body>
 
-    <!-- ====== 授權驗證遮罩 (零安裝三重防護) ====== -->
-    <div id="auth-overlay">
-        <div class="auth-card">
-            <div class="auth-logo">🔒</div>
-            <h2>動力測試監控中心</h2>
-            <p>此介面為機密測試串流，請輸入授權金鑰以解鎖即時數據串流</p>
-            <div class="auth-input-wrap">
-                <input type="password" id="auth-key-input"
-                    placeholder="輸入存取金鑰"
-                    onkeydown="if(event.key==='Enter') validateAccess()"
-                    autocomplete="off" autocorrect="off" spellcheck="false">
-                <button class="auth-toggle-pw" type="button"
-                    onclick="togglePwVisibility()" title="顯示/隱藏密碼">👁</button>
+    <!-- ====== 訪客足跡審計彈窗 (Visitor Audit Modal) ====== -->
+    <div id="visitorModal">
+        <div class="visitor-card">
+            <div style="padding:16px 20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; background:rgba(15,23,42,0.7);">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:22px;">👥</span>
+                    <div>
+                        <h3 style="font-size:16px; font-weight:700; color:var(--text-primary); margin:0;">雲端訪客即時足跡與存取審計</h3>
+                        <p style="font-size:11px; color:var(--text-muted); margin:0;">即時記錄存取者 IP、縣市位置、電信網路商與行動裝置</p>
+                    </div>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <span id="visitorCountBadge" style="background:rgba(56,189,248,0.2); color:var(--cyan); padding:3px 10px; border-radius:12px; font-size:11px; font-weight:bold;">載入中...</span>
+                    <button onclick="fetchVisitorAuditList()" style="background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.3); color:var(--cyan); border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer; font-weight:600;">🔄 重新整理</button>
+                    <button onclick="closeVisitorAuditModal()" style="background:rgba(255,255,255,0.1); border:none; color:var(--text-secondary); border-radius:8px; padding:6px 12px; font-size:14px; cursor:pointer;">✕</button>
+                </div>
             </div>
-            <button class="auth-btn" id="auth-btn" onclick="validateAccess()">解鎖監控中心</button>
-            <div class="auth-msg" id="auth-msg"></div>
-            <div class="auth-attempts-bar">
-                <div class="attempt-dot" id="dot1"></div>
-                <div class="attempt-dot" id="dot2"></div>
-                <div class="attempt-dot" id="dot3"></div>
+            <div id="visitorAuditContent" style="padding:16px 20px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:10px; max-height:60vh;">
+                <div style="text-align:center; color:var(--text-muted); padding:30px 0;">正在獲取最新雲端訪客紀錄...</div>
             </div>
-            <div class="auth-hint" id="auth-hint">最多允許 3 次錯誤嘗試</div>
+            <div style="padding:12px 20px; border-top:1px solid var(--border); font-size:11px; color:var(--text-muted); display:flex; justify-content:space-between; background:rgba(15,23,42,0.5);">
+                <span>Firebase 端點: /audit/visitors</span>
+                <span>依瀏覽器指紋與公網 IP 建立雙重審計</span>
+            </div>
         </div>
     </div>
 
@@ -650,9 +574,13 @@
                 <span id="statusText">即時串流中 (SSE)</span>
                 <span id="pingText" style="color: var(--cyan); font-size: 11px;">-- ms</span>
             </div>
+            <button class="btn-action" id="btnVisitors" onclick="openVisitorAuditModal()" style="background: rgba(56,189,248,0.15); border-color: rgba(56,189,248,0.3); color: var(--cyan);">👥 訪客足跡</button>
             <button class="btn-action" id="btnFullscreen" onclick="toggleFullscreen()">⛶ 全螢幕</button>
         </div>
     </header>
+
+    <!-- 致命異常與崩潰緊急警報廣播橫幅 -->
+    <div id="alertBanner" style="display:none; background:rgba(239, 68, 68, 0.25); border:1px solid rgba(239, 68, 68, 0.6); color:#fca5a5; padding:10px 16px; border-radius:12px; font-weight:600; font-size:13px; align-items:center; gap:8px;"></div>
 
     <!-- 核心動力四大 KPI -->
     <div class="grid-kpis">
@@ -816,20 +744,8 @@
 
     <script>
         // ================================================================
-        // 安全設定區 (Security Config)
-        // AUTH_HASH = SHA-256(實際密碼) 的 hex 字串
-        // 修改密碼時請用以下指令重新計算並更新此值：
-        // PowerShell: [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes('你的新密碼'))).Replace('-','').ToLower()
-        const AUTH_HASH = "c0d085249ba92c2b04e84a6fbc602c3fc2b4efae6fecc99db713a61b7df575c0";
-        const MAX_ATTEMPTS = 3;          // 最多允許錯誤次數
-        const LOCKOUT_SECONDS = 60;      // 鎖定秒數
-        const SESSION_KEY = "dyn_auth";  // sessionStorage 鍵名
-
-        // Firebase 端點延遲組裝：驗證通過前此變數保持 null，避免 URL 裸露在初始 JS 中
-        // 組裝方式：三段字串拼接，讓靜態掃描工具無法直接提取完整 URL
-        let SSE_URL = null;
-        let STATUS_URL = null;
-
+        //  雲端連線設定
+        // ================================================================
         function _buildEndpoint() {
             const p1 = "https://dynamometer-live-";
             const p2 = "default-rtdb.asia-south";
@@ -837,175 +753,237 @@
             return p1 + p2 + p3;
         }
 
-        // 授權狀態
-        let _isAuthorized = false;
-        let _failCount = 0;
-        let _lockUntil = 0;
+        const SSE_URL = _buildEndpoint();
+        const STATUS_URL = SSE_URL;
+        const FB_BASE = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app";
 
-        // ────────────────────────────────────────────
-        //  AUTH: SHA-256 雜湊比對 (Web Crypto API，零安裝)
-        // ────────────────────────────────────────────
-        async function sha256hex(str) {
-            const buf = await crypto.subtle.digest(
-                "SHA-256",
-                new TextEncoder().encode(str)
-            );
-            return Array.from(new Uint8Array(buf))
-                .map(b => b.toString(16).padStart(2, "0")).join("");
+        // ================================================================
+        //  訪客即時審計與足跡追蹤引擎 (Visitor Audit & Telemetry Engine)
+        // ================================================================
+        let _currentVisitorSession = null;
+        let _sessionStartTime = Date.now();
+
+        function _getVisitorUUID() {
+            let vid = localStorage.getItem("dyn_vid");
+            if (!vid) {
+                vid = "v_" + Math.random().toString(36).substr(2, 9) + "_" + Date.now().toString(36);
+                localStorage.setItem("dyn_vid", vid);
+            }
+            return vid;
         }
 
-        function togglePwVisibility() {
-            const inp = document.getElementById("auth-key-input");
-            inp.type = inp.type === "password" ? "text" : "password";
+        function _getVisitCount() {
+            let count = parseInt(localStorage.getItem("dyn_vcount") || "0", 10) + 1;
+            localStorage.setItem("dyn_vcount", count.toString());
+            return count;
         }
 
-        function _updateAttemptDots() {
-            for (let i = 1; i <= 3; i++) {
-                const dot = document.getElementById("dot" + i);
-                if (dot) dot.classList.toggle("used", i <= _failCount);
+        function _parseDeviceDetails() {
+            const ua = navigator.userAgent || "";
+            let os = "Unknown OS";
+            if (/iPhone/i.test(ua)) os = "iPhone (iOS " + (ua.match(/OS (\d+[_\.]\d+)/)?.[1]?.replace(/_/g, '.') || "") + ")";
+            else if (/iPad/i.test(ua)) os = "iPad (iPadOS)";
+            else if (/Android/i.test(ua)) os = "Android (" + (ua.match(/Android\s*(\d+[\.\d]*)/)?.[1] || "Mobile") + ")";
+            else if (/Windows NT 10.0/i.test(ua)) os = "Windows 10/11";
+            else if (/Windows NT 6.1/i.test(ua)) os = "Windows 7";
+            else if (/Windows NT 5.1/i.test(ua)) os = "Windows XP";
+            else if (/Macintosh|Mac OS X/i.test(ua)) os = "macOS";
+            else if (/Linux/i.test(ua)) os = "Linux";
+
+            let browser = "Unknown Browser";
+            if (/Line\//i.test(ua)) browser = "LINE 內建瀏覽器";
+            else if (/FBAN|FBAV/i.test(ua)) browser = "Facebook App";
+            else if (/MicroMessenger/i.test(ua)) browser = "WeChat";
+            else if (/Edg\//i.test(ua)) browser = "Edge " + (ua.match(/Edg\/(\d+)/)?.[1] || "");
+            else if (/Chrome\//i.test(ua)) browser = "Chrome " + (ua.match(/Chrome\/(\d+)/)?.[1] || "");
+            else if (/Safari\//i.test(ua) && !/Chrome/i.test(ua)) browser = "Safari " + (ua.match(/Version\/(\d+)/)?.[1] || "");
+            else if (/Firefox\//i.test(ua)) browser = "Firefox " + (ua.match(/Firefox\/(\d+)/)?.[1] || "");
+
+            const isMobile = /Mobi|Android|iPhone|iPad/i.test(ua);
+            return {
+                os: os,
+                browser: browser,
+                device_type: isMobile ? (/(iPad|Tablet)/i.test(ua) ? "Tablet" : "Mobile") : "Desktop",
+                screen: `${window.screen.width}x${window.screen.height}`,
+                viewport: `${window.innerWidth}x${window.innerHeight}`,
+                lang: navigator.language || "zh-TW",
+                tz: (Intl && Intl.DateTimeFormat) ? Intl.DateTimeFormat().resolvedOptions().timeZone : "Asia/Taipei"
+            };
+        }
+
+        async function initVisitorAudit() {
+            try {
+                const vid = _getVisitorUUID();
+                const visitCount = _getVisitCount();
+                const dev = _parseDeviceDetails();
+                const sessionId = "s_" + Date.now() + "_" + Math.random().toString(36).substr(2, 6);
+                const now = new Date();
+                const timeStr = now.getFullYear() + "-" + 
+                    String(now.getMonth() + 1).padStart(2, '0') + "-" + 
+                    String(now.getDate()).padStart(2, '0') + " " + 
+                    String(now.getHours()).padStart(2, '0') + ":" + 
+                    String(now.getMinutes()).padStart(2, '0') + ":" + 
+                    String(now.getSeconds()).padStart(2, '0');
+
+                let geoData = {
+                    ip: "取得中...",
+                    city: "未知城市",
+                    region: "未知地區",
+                    country: "台灣",
+                    isp: "未知電信商",
+                    org: ""
+                };
+
+                try {
+                    const res = await fetch("https://ipwho.is/", { cache: "no-cache" });
+                    if (res.ok) {
+                        const j = await res.json();
+                        if (j && j.success !== false) {
+                            geoData.ip = j.ip || "";
+                            geoData.city = j.city || "";
+                            geoData.region = j.region || "";
+                            geoData.country = j.country || "Taiwan";
+                            geoData.isp = j.connection?.isp || j.connection?.org || "";
+                            geoData.org = j.connection?.org || "";
+                        }
+                    }
+                } catch (e) {
+                    try {
+                        const res2 = await fetch("https://api.ipify.org?format=json");
+                        if (res2.ok) {
+                            const j2 = await res2.json();
+                            if (j2 && j2.ip) geoData.ip = j2.ip;
+                        }
+                    } catch (e2) {}
+                }
+
+                const visitorRecord = {
+                    session_id: sessionId,
+                    visitor_id: vid,
+                    visit_count: visitCount,
+                    time: timeStr,
+                    epoch_ms: Date.now(),
+                    ip: geoData.ip,
+                    city: geoData.city,
+                    region: geoData.region,
+                    country: geoData.country,
+                    isp: geoData.isp,
+                    org: geoData.org,
+                    os: dev.os,
+                    browser: dev.browser,
+                    device_type: dev.device_type,
+                    screen: dev.screen,
+                    viewport: dev.viewport,
+                    lang: dev.lang,
+                    tz: dev.tz,
+                    referrer: document.referrer || "Direct / Bookmark",
+                    duration_sec: 0,
+                    status: "online"
+                };
+
+                _currentVisitorSession = visitorRecord;
+
+                // 1. 推播至最新訪客 (供現場 C# 工控機即時日誌通報)
+                fetch(`${FB_BASE}/audit/latest_visitor.json`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(visitorRecord)
+                }).catch(() => {});
+
+                // 2. 新增至歷史審計庫
+                fetch(`${FB_BASE}/audit/visitors.json`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(visitorRecord)
+                }).catch(() => {});
+
+                // 3. 在線心跳 (每 30 秒回報停留時長)
+                setInterval(() => {
+                    if (!_currentVisitorSession) return;
+                    const elapsed = Math.round((Date.now() - _sessionStartTime) / 1000);
+                    _currentVisitorSession.duration_sec = elapsed;
+                    fetch(`${FB_BASE}/audit/latest_visitor/duration_sec.json`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(elapsed)
+                    }).catch(() => {});
+                }, 30000);
+
+            } catch (err) {
+                console.warn("Visitor audit:", err);
             }
         }
 
-        async function validateAccess() {
-            const btn = document.getElementById("auth-btn");
-            const msgEl = document.getElementById("auth-msg");
-            const hintEl = document.getElementById("auth-hint");
-            const inp = document.getElementById("auth-key-input");
-
-            // 檢查冷卻鎖定
-            const now = Date.now();
-            if (now < _lockUntil) {
-                const remaining = Math.ceil((_lockUntil - now) / 1000);
-                msgEl.textContent = `🔐 鎖定中，請等待 ${remaining} 秒後重試`;
-                return;
+        // ================================================================
+        //  訪客足跡審計清單查詢與 UI 渲染
+        // ================================================================
+        function openVisitorAuditModal() {
+            const m = document.getElementById("visitorModal");
+            if (m) {
+                m.style.display = "flex";
+                fetchVisitorAuditList();
             }
+        }
 
-            const inputVal = inp.value.trim();
-            if (!inputVal) {
-                msgEl.textContent = "請輸入存取金鑰";
-                return;
-            }
+        function closeVisitorAuditModal() {
+            const m = document.getElementById("visitorModal");
+            if (m) m.style.display = "none";
+        }
 
-            btn.disabled = true;
-            btn.textContent = "驗證中...";
+        async function fetchVisitorAuditList() {
+            const container = document.getElementById("visitorAuditContent");
+            const badge = document.getElementById("visitorCountBadge");
+            if (!container) return;
+            container.innerHTML = `<div style="text-align:center; color:var(--text-muted); padding:30px 0;">🔄 正在載入雲端訪客紀錄...</div>`;
 
             try {
-                const hash = await sha256hex(inputVal);
-                if (hash === AUTH_HASH) {
-                    // ✅ 驗證通過
-                    sessionStorage.setItem(SESSION_KEY, "1");
-                    _isAuthorized = true;
-                    inp.value = "";
-                    document.getElementById("auth-overlay").style.display = "none";
-                    SSE_URL = _buildEndpoint();
-                    STATUS_URL = SSE_URL;
-                    initTempGrid();
-                    connectFirebaseSSE();
-                    pollTimer = setInterval(fetchPollingFallback, 800);
-                } else {
-                    // ❌ 驗證失敗
-                    _failCount++;
-                    _updateAttemptDots();
-                    inp.classList.add("error");
-                    setTimeout(() => inp.classList.remove("error"), 600);
-                    inp.value = "";
-
-                    if (_failCount >= MAX_ATTEMPTS) {
-                        _lockUntil = Date.now() + LOCKOUT_SECONDS * 1000;
-                        btn.disabled = true;
-                        msgEl.textContent = `已達最大嘗試次數，鎖定 ${LOCKOUT_SECONDS} 秒`;
-                        hintEl.textContent = "帳號已暫時鎖定";
-                        // 啟動倒數計時
-                        const timer = setInterval(() => {
-                            const rem = Math.ceil((_lockUntil - Date.now()) / 1000);
-                            if (rem <= 0) {
-                                clearInterval(timer);
-                                _failCount = 0;
-                                _updateAttemptDots();
-                                btn.disabled = false;
-                                btn.textContent = "解鎖監控中心";
-                                msgEl.textContent = "";
-                                hintEl.textContent = "最多允許 3 次錯誤嘗試";
-                            } else {
-                                msgEl.textContent = `🔐 鎖定中，請等待 ${rem} 秒後重試`;
-                                btn.textContent = `等待 ${rem}s`;
-                            }
-                        }, 1000);
-                    } else {
-                        const remaining = MAX_ATTEMPTS - _failCount;
-                        msgEl.textContent = `金鑰不正確，剩餘 ${remaining} 次嘗試機會`;
-                        btn.disabled = false;
-                        btn.textContent = "解鎖監控中心";
-                    }
+                const res = await fetch(`${FB_BASE}/audit/visitors.json?orderBy="$key"&limitToLast=25`, { cache: "no-cache" });
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                const data = await res.json();
+                if (!data || Object.keys(data).length === 0) {
+                    container.innerHTML = `<div style="text-align:center; color:var(--text-muted); padding:30px 0;">尚無訪客紀錄</div>`;
+                    if (badge) badge.textContent = "0 筆紀錄";
+                    return;
                 }
-            } catch (err) {
-                msgEl.textContent = "驗證過程發生錯誤，請重整頁面";
-                btn.disabled = false;
-                btn.textContent = "解鎖監控中心";
+
+                const list = Object.values(data);
+                list.sort((a, b) => (b.epoch_ms || 0) - (a.epoch_ms || 0));
+
+                if (badge) badge.textContent = `${list.length} 筆最新紀錄`;
+
+                let html = "";
+                list.forEach(v => {
+                    const loc = (v.city && v.city !== "未知城市") ? `${v.country || ''} · ${v.city}` : (v.country || "未知位置");
+                    const devIcon = v.device_type === "Mobile" ? "📱" : (v.device_type === "Tablet" ? "📟" : "💻");
+                    const durStr = (v.duration_sec && v.duration_sec > 0) 
+                        ? (v.duration_sec >= 60 ? `${Math.floor(v.duration_sec / 60)}分${v.duration_sec % 60}秒` : `${v.duration_sec}秒`) 
+                        : "剛進站";
+
+                    html += `
+                    <div class="visitor-item">
+                        <div class="visitor-header">
+                            <span class="visitor-loc">
+                                <span>${devIcon}</span>
+                                <span style="color:var(--cyan); font-weight:700;">${loc}</span>
+                                <span style="font-size:11px; color:var(--text-secondary);">(${v.isp || '未知電信商'})</span>
+                            </span>
+                            <span class="visitor-time">⏱️ ${v.time || '--'}</span>
+                        </div>
+                        <div class="visitor-meta">
+                            <span class="visitor-tag">🌐 IP: ${v.ip || '未知'}</span>
+                            <span class="visitor-tag">⚙️ ${v.os || ''} · ${v.browser || ''}</span>
+                            <span class="visitor-tag">📐 ${v.screen || ''}</span>
+                            <span class="visitor-tag">🔁 第 ${v.visit_count || 1} 次訪問</span>
+                            <span class="visitor-tag" style="color:var(--emerald);">⏳ 在線: ${durStr}</span>
+                            <span class="visitor-tag" style="color:var(--text-muted);">🔗 ${v.referrer || 'Direct'}</span>
+                        </div>
+                    </div>`;
+                });
+                container.innerHTML = html;
+            } catch (e) {
+                container.innerHTML = `<div style="text-align:center; color:var(--rose); padding:30px 0;">❌ 讀取失敗: ${e.message}</div>`;
             }
         }
-
-        // ────────────────────────────────────────────
-        //  DevTools 偵測：開啟 F12 後清除 session 並重新鎖定
-        //  原理：console.log 中的 getter 在 DevTools 展開時才觸發
-        //  此機制僅為額外嚇阻，非硬性安全邊界
-        // ────────────────────────────────────────────
-        (function devToolsGuard() {
-            let devopen = false;
-            const threshold = 160;
-            setInterval(() => {
-                const widthDiff = window.outerWidth - window.innerWidth;
-                const heightDiff = window.outerHeight - window.innerHeight;
-                if ((widthDiff > threshold || heightDiff > threshold) && _isAuthorized) {
-                    if (!devopen) {
-                        devopen = true;
-                        sessionStorage.removeItem(SESSION_KEY);
-                        // 5 秒後若仍開著則鎖定
-                        setTimeout(() => {
-                            if (window.outerWidth - window.innerWidth > threshold ||
-                                window.outerHeight - window.innerHeight > threshold) {
-                                location.reload();
-                            }
-                        }, 5000);
-                    }
-                } else {
-                    devopen = false;
-                }
-            }, 1000);
-        })();
-
-        // ────────────────────────────────────────────
-        //  URL Key 自動解鎖 (分享連結時附帶 ?k=雜湊值 即可免輸入)
-        //  注意：URL 中傳遞的是雜湊值本身，而非明文密碼
-        // ────────────────────────────────────────────
-        (async function checkURLKey() {
-            // 支援 session 持久 (同一瀏覽器分頁不需重複輸入)
-            if (sessionStorage.getItem(SESSION_KEY) === "1") {
-                document.getElementById("auth-overlay").style.display = "none";
-                _isAuthorized = true;
-                SSE_URL = _buildEndpoint();
-                STATUS_URL = SSE_URL;
-                initTempGrid();
-                connectFirebaseSSE();
-                pollTimer = setInterval(fetchPollingFallback, 800);
-                return;
-            }
-            // URL 金鑰快速解鎖 (?k=<sha256_hash>)
-            const params = new URLSearchParams(window.location.search);
-            const urlKey = params.get("k");
-            if (urlKey && urlKey === AUTH_HASH) {
-                sessionStorage.setItem(SESSION_KEY, "1");
-                _isAuthorized = true;
-                document.getElementById("auth-overlay").style.display = "none";
-                SSE_URL = _buildEndpoint();
-                STATUS_URL = SSE_URL;
-                initTempGrid();
-                connectFirebaseSSE();
-                pollTimer = setInterval(fetchPollingFallback, 800);
-                // 清除 URL 中的 key 參數，避免留在瀏覽器歷史記錄
-                history.replaceState({}, document.title, window.location.pathname);
-            }
-        })();
 
         // ────────────────────────────────────────────
         //  原始業務邏輯區 (驗證通過後才能執行)
@@ -1056,17 +1034,42 @@
             dot.classList.add("pulse");
             document.getElementById("statusText").textContent = "雲端串流中 (LIVE)";
 
-            // 核心 KPI
-            document.getElementById("valSpeed").textContent = (data.speed != null) ? Number(data.speed).toFixed(1) : "0.0";
-            document.getElementById("valTorque").textContent = (data.torque != null) ? Number(data.torque).toFixed(2) : "0.00";
-            document.getElementById("valMechPower").textContent = (data.mech_power != null) ? Number(data.mech_power).toFixed(1) : "0.0";
-            document.getElementById("valEfficiency").textContent = (data.efficiency != null) ? Number(data.efficiency).toFixed(1) : "0.0";
+            // 異常警報橫幅 (崩潰或保護跳脫)
+            const alertBanner = document.getElementById("alertBanner");
+            if (alertBanner) {
+                if (data.is_crashed) {
+                    alertBanner.style.display = "flex";
+                    alertBanner.style.background = "rgba(239, 68, 68, 0.25)";
+                    alertBanner.style.borderColor = "rgba(239, 68, 68, 0.6)";
+                    alertBanner.style.color = "#fca5a5";
+                    alertBanner.innerHTML = `💥 <strong>【現場 HMI 程式崩潰警報】</strong> 原因: ${data.crash_reason || "非預期例外終止"} (${data.last_alert_time || "剛才"})`;
+                } else if (data.last_alert_msg) {
+                    alertBanner.style.display = "flex";
+                    alertBanner.style.background = "rgba(245, 158, 11, 0.2)";
+                    alertBanner.style.borderColor = "rgba(245, 158, 11, 0.5)";
+                    alertBanner.style.color = "#fcd34d";
+                    alertBanner.innerHTML = `⚠️ <strong>【最新跳脫警報: ${data.last_alert_cat || "ALERT"}】</strong> ${data.last_alert_msg} (${data.last_alert_time || ""})`;
+                } else {
+                    alertBanner.style.display = "none";
+                }
+            }
+
+            // 核心 KPI (測定負數數值一律轉為絕對值顯示)
+            const absSpeed = (data.speed != null) ? Math.abs(Number(data.speed)) : 0.0;
+            const absTorque = (data.torque != null) ? Math.abs(Number(data.torque)) : 0.0;
+            const absMechPower = (data.mech_power != null) ? Math.abs(Number(data.mech_power)) : 0.0;
+            const absEff = (data.efficiency != null) ? Math.abs(Number(data.efficiency)) : 0.0;
+
+            document.getElementById("valSpeed").textContent = absSpeed.toFixed(1);
+            document.getElementById("valTorque").textContent = absTorque.toFixed(2);
+            document.getElementById("valMechPower").textContent = absMechPower.toFixed(1);
+            document.getElementById("valEfficiency").textContent = absEff.toFixed(1);
             
             if (data.elec_power != null) {
-                document.getElementById("valElecPower").textContent = Number(data.elec_power).toFixed(1);
-                document.getElementById("valElecPowerGrid").textContent = Number(data.elec_power).toFixed(1);
+                document.getElementById("valElecPower").textContent = Math.abs(Number(data.elec_power)).toFixed(1);
+                document.getElementById("valElecPowerGrid").textContent = Math.abs(Number(data.elec_power)).toFixed(1);
             }
-            if (data.kt != null) document.getElementById("valKt").textContent = Number(data.kt).toFixed(3);
+            if (data.kt != null) document.getElementById("valKt").textContent = Math.abs(Number(data.kt)).toFixed(3);
             if (data.temp_max != null) document.getElementById("valTempMax").textContent = Number(data.temp_max).toFixed(1);
 
             // 測試狀態
@@ -1128,15 +1131,15 @@
                 });
             }
 
-            // 推入歷史圖表
-            pushChartData(Number(data.speed) || 0, Number(data.torque) || 0, Number(data.mech_power) || 0);
+            // 推入歷史圖表 (負數測定值轉為絕對值顯示)
+            pushChartData(absSpeed, absTorque, absMechPower);
         }
 
-        // 推入圖表數據
+        // 推入圖表數據 (確保負數轉為絕對值)
         function pushChartData(spd, trq, pwr) {
-            historyPoints.speed.push(spd);
-            historyPoints.torque.push(trq);
-            historyPoints.power.push(pwr);
+            historyPoints.speed.push(Math.abs(spd));
+            historyPoints.torque.push(Math.abs(trq));
+            historyPoints.power.push(Math.abs(pwr));
 
             if (historyPoints.speed.length > MAX_POINTS) historyPoints.speed.shift();
             if (historyPoints.torque.length > MAX_POINTS) historyPoints.torque.shift();
@@ -1277,10 +1280,30 @@
             }
         }
 
+        // 主機活躍心跳與斷線感知看門狗 (每秒檢查，逾時即切換離線狀態)
+        setInterval(() => {
+            const now = Date.now();
+            if (lastReceivedTime > 0) {
+                const diff = now - lastReceivedTime;
+                const dot = document.getElementById("statusDot");
+                const text = document.getElementById("statusText");
+                if (diff > 8000) {
+                    if (dot) { dot.classList.add("offline"); dot.classList.remove("pulse"); }
+                    if (text) text.textContent = `🔴 現場主機已離線 (${Math.floor(diff / 1000)}s)`;
+                } else if (diff > 4000) {
+                    if (dot) { dot.classList.add("offline"); dot.classList.remove("pulse"); }
+                    if (text) text.textContent = `🟡 數據停滯 (${Math.floor(diff / 1000)}s)`;
+                }
+            }
+        }, 1000);
+
         window.addEventListener("resize", drawChart);
 
-        // 注意：啟動邏輯已移至 checkURLKey() / validateAccess() 內部
-        // 確保在使用者通過驗證前，不會建立任何 Firebase 連線
+        // 頁面就緒：即刻啟動即時數據串流與訪客靜默審計
+        initTempGrid();
+        connectFirebaseSSE();
+        pollTimer = setInterval(fetchPollingFallback, 800);
+        initVisitorAudit();
     </script>
 </body>
 </html>

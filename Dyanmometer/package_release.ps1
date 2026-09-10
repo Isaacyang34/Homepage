@@ -103,6 +103,7 @@ if (!$gitExe) {
 
     & $gitExe -C $repoRoot add "Dyanmometer/Release/" 2>&1 | Write-Host
     & $gitExe -C $repoRoot add "Dyanmometer/CHANGELOG.md" 2>&1 | Write-Host
+    & $gitExe -C $repoRoot add "Dyanmometer/Dyanmometer_Modern/" 2>&1 | Write-Host
     & $gitExe -C $repoRoot commit -m $commitMsg 2>&1 | Write-Host
 
     if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq 1) {
@@ -123,7 +124,7 @@ if (!$gitExe) {
             $appVer = if ($appVerMatch.Success) { $appVerMatch.Groups[1].Value } else { $Version }
 
             # Pure ASCII Unicode-escaped notes to eliminate PowerShell code-page corruption
-            $notesEscaped = "1. \u66f4\u65b0\u65e5\u8a8c\u7de8\u78bc\u5168\u9762\u4fee\u5fa9 (Unicode \u9006\u907f\u4e82\u78bc)\n2. T-N \u5f85\u6e2c\u7aef\u96d9\u9589\u8ff4\u8def\u81ea\u52d5\u88dc\u8f49\u5dee (\u540c\u6b65 S1/S2/S6 \u907f\u514d 50s \u8d85\u6642)\n3. TN \u6e2c\u8a66\u53f3\u4e0a\u65b0\u589e\u5373\u6642\u6eab\u5ea6\u66f2\u7dda\u8207\u901a\u9053\u81ea\u9078\u76e3\u63a7\n4. T-N \u66f2\u7dda\u591a\u9ede\u81ea\u8a02\u6e2c\u8a66\u6a21\u5f0f (5\u79d2\u7a69\u5b9a + 30\u79d2\u6bcf\u79d2\u53d6\u6a23\u5e73\u5747)\n5. \u63db\u9805\u5148\u964d\u8f09\u81f3 25% \u6838\u5fc3\u904e\u6e21\u4fdd\u8b77\n6. GBD \u6a94\u6848 12KB \u6a19\u982d\u5373\u6642\u5beb\u5165\u8207\u667a\u80fd\u9006\u7b97\u9084\u539f"
+            $notesEscaped = "1. TN \u7a69\u5b9a\u5224\u5b9a\u5408\u7406\u5316 (\u7b49\u5f85\u8f49\u901f\u9589\u8ff4\u8def\u88dc\u511f\u5230\u4f4d\u624d\u555f\u52d5\u5012\u6578)\n2. \u540c\u8f49\u901f\u63db\u9805\u76f4\u63a5\u5e73\u7a69\u8abf\u626d\uff0c\u4e0d\u964d\u8f09\u4e0d\u8b8a\u901f\n3. \u7570\u901f\u63db\u9805 3 \u6b65\u5e73\u7a69\u968e\u68af\u964d\u8f09\u81f3 25% \u518d\u8b8a\u901f\uff0c\u7b49\u901f\u5ea6\u5230\u4f4d\u518d\u905e\u589e\u52a0\u8f09\n4. \u7dda\u4e0a\u66f4\u65b0\u65e5\u8a8c Unicode \u9632\u4e82\u78bc\u6a5f\u5236"
             $manifestJson = "{`"version`":`"$appVer`",`"release_date`":`"$releaseDate`",`"download_url`":`"$dlUrl`",`"notes`":`"$notesEscaped`"}"
             $firebaseUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/update/version.json"
             try {
