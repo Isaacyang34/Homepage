@@ -1027,6 +1027,7 @@ namespace DynamometerHMI
                 tnMultiSubPhase = 1;
                 tnConvergeTimeoutSec = 0;
                 tnTrqSustainedSec = 0;
+                tnLoadTracker.Reset(tnCurrentSpeedCmd, tnAdaptedTorquePct);
                 int curTrqSy50 = (trqDrive == 1) ? lastSy50Cmd1 : lastSy50Cmd2;
                 if (curTrqSy50 != 4)
                 {
@@ -1036,54 +1037,30 @@ namespace DynamometerHMI
                     tnMultiCurrentIndex + 1, actAbsSpd, targetSpd, tnAdaptedTorquePct));
             }
             // =========================================================================
-            // 子階段 1: 加載逼近目標轉矩 (等待轉速補償回來且轉矩達標持續 2 秒)
+            // 子階段 1: 加載逼近目標轉矩 (全系統統一核心引擎 SY52 + CS18 雙閉環自適應加速)
             // =========================================================================
             else if (tnMultiSubPhase == 1)
             {
                 tnConvergeTimeoutSec++;
 
-                // ★【待測端轉速平滑閉迴路追隨 (同動 S1/S2/S6 補轉差機制)】
-                ApplyTnSpeedTracking(spdCom, spdBaud, spdNode, spdDrive, targetSpd, actAbsSpd);
+                string statusDesc;
+                bool isConverged = ExecuteUnifiedDualTrackingStep(
+                    tnLoadTracker, spdDrive, trqDrive,
+                    targetSpd, targetTrq, actAbsSpd, actAbsTrq,
+                    out statusDesc, "TN多點");
 
-                if (isTrqValid && isSpdValid)
-                {
-                    tnTrqSustainedSec++;
-                }
-                else
-                {
-                    tnTrqSustainedSec = 0;
-                }
+                tnAdaptedTorquePct = tnLoadTracker.AdaptedTorquePct;
+                tnCurrentSpeedCmd = tnLoadTracker.CurrentSpeedCmd;
 
-                if (tnTrqSustainedSec < 2)
-                {
-                    double absTrqErr = Math.Abs(trqErr);
-                    double trqStep = (absTrqErr > 8.0) ? 2.0 : ((absTrqErr > 2.0) ? 1.0 : 0.4);
-                    if (trqErr > 0) tnAdaptedTorquePct += trqStep;
-                    else tnAdaptedTorquePct -= trqStep;
-                    tnAdaptedTorquePct = Math.Max(0.0, Math.Min(100.0, tnAdaptedTorquePct));
+                lblTnStatus.Text = string.Format("⌛ [第 {0}/{1} 點] {2}",
+                    tnMultiCurrentIndex + 1, tnCustomPoints.Count, statusDesc);
+                lblTnCountdown.Text = string.Format("加載中 ({0}s)", tnConvergeTimeoutSec);
+                if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
+                if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
+                if (dgvTnMultiPoints.Rows.Count > tnMultiCurrentIndex)
+                    dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = string.Format("加載中 ({0:F1}Nm)", actAbsTrq);
 
-                    int trqRaw = (int)Math.Round(tnAdaptedTorquePct * 10);
-                    KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, trqRaw);
-                    if (trqDrive == 1 && numHmiKebTorque1 != null) numHmiKebTorque1.Value = (decimal)tnAdaptedTorquePct;
-                    else if (trqDrive == 2 && numHmiKebTorque2 != null) numHmiKebTorque2.Value = (decimal)tnAdaptedTorquePct;
-
-                    string spdStatusText = isSpdValid ? "轉速已達標" : string.Format("轉速補償中({0:F0}/{1:F0}rpm)", actAbsSpd, targetSpd);
-                    lblTnStatus.Text = string.Format("⌛ [第 {0}/{1} 點] 扭矩調節中：實測 {2:F1}/{3:F1} Nm (給定 {4:F1}%, {5})",
-                        tnMultiCurrentIndex + 1, tnCustomPoints.Count, actAbsTrq, targetTrq, tnAdaptedTorquePct, spdStatusText);
-                    lblTnCountdown.Text = string.Format("加載中 ({0}s)", tnConvergeTimeoutSec);
-                    if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
-                    if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
-                    if (dgvTnMultiPoints.Rows.Count > tnMultiCurrentIndex)
-                        dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = string.Format("加載中 ({0:F1}Nm)", actAbsTrq);
-
-                    if (tnConvergeTimeoutSec >= 50)
-                    {
-                        StopTnTest();
-                        MessageBox.Show(string.Format("【T-N 多點加載警報】第 {0} 點加載逼近超時 50 秒未達標，已安全停機！", tnMultiCurrentIndex + 1), "加載未達標", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        return;
-                    }
-                }
-                else
+                if (isConverged)
                 {
                     // 雙達標連續 2 秒 (轉矩到位且轉速已完全補償回來)，進入【子階段 2：穩定 5 秒等待】
                     tnMultiSubPhase = 2;
@@ -1097,6 +1074,12 @@ namespace DynamometerHMI
                     if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
                     if (dgvTnMultiPoints.Rows.Count > tnMultiCurrentIndex)
                         dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = "穩定等待 (5s)";
+                }
+                else if (tnConvergeTimeoutSec >= 50)
+                {
+                    StopTnTest();
+                    MessageBox.Show(string.Format("【T-N 多點加載警報】第 {0} 點加載逼近超時 50 秒未達標，已安全停機！", tnMultiCurrentIndex + 1), "加載未達標", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
                 }
             }
             // =========================================================================
@@ -1293,6 +1276,7 @@ namespace DynamometerHMI
                         tnMultiSubPhase = 1; // 直接進入加載逼近新目標轉矩
                         tnConvergeTimeoutSec = 0;
                         tnTrqSustainedSec = 0;
+                        tnLoadTracker.Reset(tnCurrentSpeedCmd, tnAdaptedTorquePct);
 
                         WriteHmiLog("TN_MULTI", string.Format("【同轉速換項】第 {0} 點轉速相同 ({1:F0} rpm)，直接平穩調升/調降轉矩至 {2:F1} Nm (當前負載基準: {3:F1}%)",
                             tnMultiCurrentIndex + 1, nextPt.TargetSpeed, nextPt.TargetTorque, tnAdaptedTorquePct));
@@ -1548,6 +1532,7 @@ namespace DynamometerHMI
                     // 鎖定後絕不再因帶載轉差自然降速而誤把轉矩甩回 0，徹底消滅 0<->26Nm 震盪失控！
                     tnStepSpeedReached = true;
                     tnTrqSustainedSec = 0;
+                    tnLoadTracker.Reset(targetSpd, tnAdaptedTorquePct);
                     int curTrqSy50 = (trqDrive == 1) ? lastSy50Cmd1 : lastSy50Cmd2;
                     if (curTrqSy50 != 4)
                     {
@@ -1556,45 +1541,25 @@ namespace DynamometerHMI
                     }
                 }
 
-                // 【子階段 0B：轉速已鎖定，平穩漸進加載逼近目標轉矩】
-                // ★【待測端轉速平滑閉迴路追隨 (同動 S1/S2/S6 補轉差機制)】
-                ApplyTnSpeedTracking(spdCom, spdBaud, spdNode, spdDrive, targetSpd, actAbsSpd);
+                // 【子階段 0B：轉速已鎖定，以全系統統一核心引擎 SY52 + CS18 雙閉環自適應加速逼近】
+                string statusDesc;
+                bool isConverged = ExecuteUnifiedDualTrackingStep(
+                    tnLoadTracker, spdDrive, trqDrive,
+                    targetSpd, targetTrq, actAbsSpd, actAbsTrq,
+                    out statusDesc, "TN梯度");
 
-                // 達標防假觸發雙重鐵律：
-                // 1. 必須加載百分比已真正開始輸出 (tnAdaptedTorquePct >= 1.0% 或 targetTrq <= 0)，徹底杜絕加速暫態機械慣性轉矩誤判！
-                // 2. 轉矩與轉速雙雙在容許合格範圍內且連續穩定達標 2 秒以上 (tnTrqSustainedSec >= 2)，徹底過濾 1 秒瞬間衝擊！
-                if (isTrqValid && isSpdValid)
+                tnAdaptedTorquePct = tnLoadTracker.AdaptedTorquePct;
+                tnCurrentSpeedCmd = tnLoadTracker.CurrentSpeedCmd;
+
+                lblTnStatus.Text = string.Format("⌛ [TN梯度] {0}", statusDesc);
+                lblTnCountdown.Text = string.Format("加載中 ({0}s)", tnConvergeTimeoutSec);
+                if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
+                if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
+
+                if (!isConverged)
                 {
-                    tnTrqSustainedSec++;
-                }
-                else
-                {
-                    tnTrqSustainedSec = 0;
-                }
-
-                if (tnTrqSustainedSec < 2)
-                {
-                    // ★【加載動態平穩步進】：
-                    // 遠距 (誤差 > 8 Nm) 以 2.0%/秒 平穩爬坡；中距 (2~8 Nm) 以 1.0%/秒 逼近；近距 (< 2 Nm) 以 0.4%/秒 精細收斂！
-                    double absTrqErr = Math.Abs(trqErr);
-                    double trqStep = (absTrqErr > 8.0) ? 2.0 : ((absTrqErr > 2.0) ? 1.0 : 0.4);
-                    if (trqErr > 0) tnAdaptedTorquePct += trqStep;
-                    else tnAdaptedTorquePct -= trqStep;
-                    tnAdaptedTorquePct = Math.Max(0.0, Math.Min(100.0, tnAdaptedTorquePct));
-
-                    int trqRaw = (int)Math.Round(tnAdaptedTorquePct * 10);
-                    KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, trqRaw);
-
-                    if (trqDrive == 1 && numHmiKebTorque1 != null) numHmiKebTorque1.Value = (decimal)tnAdaptedTorquePct;
-                    else if (trqDrive == 2 && numHmiKebTorque2 != null) numHmiKebTorque2.Value = (decimal)tnAdaptedTorquePct;
-
-                    lblTnStatus.Text = string.Format("⌛ 扭矩加載中：實測 {0:F1} Nm / 目標 {1:F1} Nm (給定 {2:F1}%)", actAbsTrq, targetTrq, tnAdaptedTorquePct);
-                    lblTnCountdown.Text = string.Format("加載中 ({0}s)", tnConvergeTimeoutSec);
-                    if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
-                    if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
-
-                    // ★ 超時防呆安全保護：加載逼近超過 45 秒仍未達標時，暫停測試並警告，絕不放任過載！
-                    if (tnConvergeTimeoutSec >= 45)
+                    // ★ 超時防呆安全保護：加載逼近超過 50 秒仍未達標時，暫停測試並警告，絕不放任過載！
+                    if (tnConvergeTimeoutSec >= 50)
                     {
                         StopTnTest();
                         lblTnStatus.Text = "⚠️ 加載未達標，測試已暫停！";
@@ -1606,7 +1571,7 @@ namespace DynamometerHMI
                             "【T-N 測試加載未達標警報】\n\n" +
                             "目標轉速：{0:F0} rpm (實測: {1:F0} rpm)\n" +
                             "目標轉矩：{2:F2} Nm (實測: {3:F2} Nm)\n\n" +
-                            "系統已持續加載逼近 45 秒，但實測扭矩仍無法收斂達標！\n" +
+                            "系統已持續加載逼近 50 秒，但實測扭矩仍無法收斂達標！\n" +
                             "加載端已強制卸載歸零保護。\n\n" +
                             "請確認以下硬體狀態：\n" +
                             "1. 加載端變頻器安全端子 (ST) 是否已閉合導通？\n" +

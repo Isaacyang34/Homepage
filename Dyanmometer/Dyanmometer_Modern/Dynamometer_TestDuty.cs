@@ -1335,6 +1335,7 @@ namespace DynamometerHMI
             if (dutyModeIdx == 0) // S1 連續工作制 (最長可運轉 20 小時，或依溫度 30 分鐘溫差 < 1.0℃ 自動停機)
             {
                 dutyTotalSec = 72000;
+                s1LoadTracker.Reset(targetSpd, 0.0);
                 s6CurrentSpeedCmd = targetSpd;
                 s6AdaptedTorquePct = 0.0;
             }
@@ -1345,11 +1346,12 @@ namespace DynamometerHMI
 
                 if (curSy52 == 0 || curCs18 == 0)
                 {
-                    // 錨點數值為 0 ➔ 執行錨點偵測測試
+                    // 錨點數值為 0 ➔ 執行錨點偵測測試 (採用統一自適應加速定錨引擎)
                     isS2Calibrating = true;
-                    s2CalibStage = 0; // 0: 空載提速, 1: 加載補轉差, 2: 穩定 10 秒倒數
+                    s2CalibStage = 1; // 統一引擎自適應加載階段 (內含自動空載提速與熱備妥激磁)
                     s2CalibTimer = 10;
                     dutyTotalSec = 300; // 最多給予 5 分鐘進行錨點校驗
+                    s2LoadTracker.Reset(targetSpd, 0.0);
                     s6CurrentSpeedCmd = targetSpd;
                     s6AdaptedTorquePct = 0.0;
                 }
@@ -1363,6 +1365,7 @@ namespace DynamometerHMI
                     dutyTotalSec = Math.Max(60, durationMin * 60);
                     s6CurrentSpeedCmd = (double)s2AnchorSy52;
                     s6AdaptedTorquePct = (double)s2AnchorCs18 / 10.0;
+                    s2LoadTracker.Reset(s6CurrentSpeedCmd, s6AdaptedTorquePct);
                 }
             }
             else // S6 週期負載 (套用既有錨點或自適應試運轉定錨)
@@ -1828,13 +1831,6 @@ namespace DynamometerHMI
                             UpdateS6AnchorStatusText();
                             s6TrialStage = 2; // 進入加載與補轉差階段
                             s6TrialStageElapsedSec = 0;
-                            s6ProbeStep = 0;
-                            s6ProbeTorqueBase = actAbsTrq;
-                            s6ProbeTorque1 = 0.0;
-                            s6ProbeTorque2 = 0.0;
-                            s6ProbeTorque3 = 0.0;
-                            s6NmPerPointOnePct = 0.0;
-                            s6Stage2StableCounter = 0;
                             s6AdaptedTorquePct = 0.0;
 
                             if (numS6AnchorLoadedSpd != null && numS6AnchorLoadedSpd.Value > 0)
@@ -1843,117 +1839,34 @@ namespace DynamometerHMI
                                 KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)s6CurrentSpeedCmd, "S6 套用手KEY加載SY52");
                             }
 
+                            s6LoadTracker.Reset(s6CurrentSpeedCmd, 0.0);
                             WriteHmiLog("S6_ANCHOR", string.Format("【空載定錨完成】確立 [空載轉速錨點] = {0:F0} rpm！開始執行 3 步 0.1% 靈敏度試探加載！", s6AnchorNoLoadSpeed));
                         }
                     }
-                    // 子階段 2：三段 0.1% 靈敏度試探 ➔ 自適應比例步長爬坡加載 + 自動補轉差
+                    // 子階段 2：統一自適應加速定錨加載 (前 3 秒 0.1% 試探斜率 -> 依目標差距開出最大 5% 步長狂衝 -> 同動補轉差)
                     else if (s6TrialStage == 2)
                     {
                         currentPhaseName = "加載自適應爬坡";
                         s6TrialStageElapsedSec++;
 
-                        double trqErr = targetTrq - actAbsTrq;
+                        string statusDesc;
+                        bool converged = ExecuteUnifiedDualTrackingStep(
+                            s6LoadTracker,
+                            spdDrive, trqDrive,
+                            targetSpd, targetTrq,
+                            actAbsSpd, actAbsTrq,
+                            out statusDesc,
+                            "S6加載定錨"
+                        );
 
-                        // ── 步驟 A：前 3 秒以 0.1% 階梯試探計算負載靈敏度斜率 (x Nm / 0.1%) ──
-                        if (s6ProbeStep < 3)
-                        {
-                            s6ProbeStep++;
-                            s6AdaptedTorquePct = s6ProbeStep * 0.1; // 0.1%, 0.2%, 0.3%
-                            KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, (int)Math.Round(s6AdaptedTorquePct * 10.0));
+                        s6AdaptedTorquePct = s6LoadTracker.AdaptedTorquePct;
+                        s6CurrentSpeedCmd = s6LoadTracker.CurrentSpeedCmd;
 
-                            if (s6ProbeStep == 1) s6ProbeTorque1 = actAbsTrq;
-                            else if (s6ProbeStep == 2) s6ProbeTorque2 = actAbsTrq;
-                            else if (s6ProbeStep == 3)
-                            {
-                                s6ProbeTorque3 = actAbsTrq;
-                                double deltaTrq = s6ProbeTorque3 - s6ProbeTorqueBase;
-                                if (deltaTrq > 0.05)
-                                {
-                                    s6NmPerPointOnePct = deltaTrq / 3.0; // 0.1% 對應的平均 Nm 增量
-                                }
-                                else
-                                {
-                                    // 機械死區或感測器解析度暫無顯著響應時，給予安全保底靈敏度 (預設 0.5 Nm / 0.1%)
-                                    s6NmPerPointOnePct = 0.5;
-                                }
-                                WriteHmiLog("S6_ANCHOR", string.Format("【S6 靈敏度試探完成】基底={0:F2}Nm, 0.3%時={1:F2}Nm, 估算每 0.1% 增加 {2:F3} Nm (負載斜率)", s6ProbeTorqueBase, s6ProbeTorque3, s6NmPerPointOnePct));
-                            }
+                        lblDutyStatus.Text = statusDesc;
+                        lblDutyPhaseAction.Text = string.Format("S6 定錨加載：命令 {0:F1}% (每0.1%約{1:F2}Nm)，待測端 {2:F0} rpm",
+                            s6AdaptedTorquePct, s6LoadTracker.NmPerPointOnePct, s6CurrentSpeedCmd);
 
-                            string probeText = string.Format("【自適應試運轉】靈敏度探測中 ({0}/3 秒)：給定 {1:F1}% (實測 {2:F1} Nm)", s6ProbeStep, s6AdaptedTorquePct, actAbsTrq);
-                            lblDutyStatus.Text = probeText;
-                            lblDutyPhaseAction.Text = "以 0.1% 階梯探測負載特性與機械響應靈敏度...";
-                        }
-                        else
-                        {
-                            // ── 步驟 B：根據目標轉矩差距動態估算增量 (類似 PID 比例收斂：遠處大步長，近處微步長) ──
-                            double safeSlope = Math.Max(0.05, s6NmPerPointOnePct);
-                            double estRemainingPct = (trqErr / safeSlope) * 0.1;
-
-                            if (trqErr > 0.4) // 尚未達標，需要加載
-                            {
-                                double stepPct = 0.08;
-                                // 依使用者規範：目標越遠增量越大，若預計目標差距大（如 >15% 或差距 >50Nm），上限步長為 5.0%
-                                if (trqErr > 50.0 || estRemainingPct > 15.0)
-                                {
-                                    stepPct = 5.0; // 最大 5% 增量
-                                }
-                                else if (trqErr > 25.0 || estRemainingPct > 8.0)
-                                {
-                                    stepPct = 2.5;
-                                }
-                                else if (trqErr > 10.0 || estRemainingPct > 3.0)
-                                {
-                                    stepPct = 1.0;
-                                }
-                                else if (trqErr > 4.0 || estRemainingPct > 1.0)
-                                {
-                                    stepPct = 0.4;
-                                }
-                                else if (trqErr > 1.5)
-                                {
-                                    stepPct = 0.15;
-                                }
-                                else
-                                {
-                                    stepPct = 0.08;
-                                }
-
-                                s6AdaptedTorquePct = Math.Min(100.0, s6AdaptedTorquePct + stepPct);
-                                KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, (int)Math.Round(s6AdaptedTorquePct * 10.0));
-                            }
-                            else if (trqErr < -0.6) // 超出目標，平穩卸載
-                            {
-                                double stepDec = 0.08;
-                                if (trqErr < -20.0) stepDec = 2.5;
-                                else if (trqErr < -8.0) stepDec = 1.0;
-                                else if (trqErr < -3.0) stepDec = 0.4;
-                                else if (trqErr < -1.2) stepDec = 0.15;
-                                else stepDec = 0.08;
-
-                                s6AdaptedTorquePct = Math.Max(0.0, s6AdaptedTorquePct - stepDec);
-                                KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, (int)Math.Round(s6AdaptedTorquePct * 10.0));
-                            }
-
-                            string rampText = string.Format("【自適應試運轉】加載逼近中：扭矩 {0:F1}/{1:F1} Nm (估算需 {2:F1}%) | 轉速 {3:F0}/{4:F0} rpm", actAbsTrq, targetTrq, Math.Max(0.0, estRemainingPct), actAbsSpd, targetSpd);
-                            lblDutyStatus.Text = rampText;
-                            lblDutyPhaseAction.Text = string.Format("加載命令 {0:F1}% (每0.1%約{1:F2}Nm)，待測端命令 {2:F0} rpm", s6AdaptedTorquePct, s6NmPerPointOnePct, s6CurrentSpeedCmd);
-                        }
-
-                        // ── 步驟 C：自動補轉差：實測轉速若因帶載下降，待測端速度命令遞增補償 ──
-                        double spdSlip = targetSpd - actAbsSpd;
-                        if (spdSlip > 2.0)
-                        {
-                            s6CurrentSpeedCmd += (spdSlip > 10.0 ? 3.0 : 1.0);
-                            s6CurrentSpeedCmd = Math.Min(targetSpd * 1.35, s6CurrentSpeedCmd);
-                            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)s6CurrentSpeedCmd, "S6 補轉差");
-                        }
-                        else if (spdSlip < -3.0)
-                        {
-                            s6CurrentSpeedCmd -= 1.0;
-                            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)s6CurrentSpeedCmd, "S6 微調速度");
-                        }
-
-                        // 即時同步介面上的加載錨點輸入框顯示 (讓使用者看見目前即時動態值)
+                        // 即時同步介面上的加載錨點輸入框顯示
                         if (!isSyncingDutyControls)
                         {
                             isSyncingDutyControls = true;
@@ -1964,34 +1877,15 @@ namespace DynamometerHMI
                             isSyncingDutyControls = false;
                         }
 
-                        // 同步主畫面速度與轉矩框
-                        if (spdDrive == 2 && numHmiKebSpeed2 != null) numHmiKebSpeed2.Value = (decimal)s6CurrentSpeedCmd;
-                        else if (spdDrive == 1 && numHmiKebSpeed1 != null) numHmiKebSpeed1.Value = (decimal)s6CurrentSpeedCmd;
-                        if (trqDrive == 1 && numHmiKebTorque1 != null) numHmiKebTorque1.Value = (decimal)s6AdaptedTorquePct;
-                        else if (trqDrive == 2 && numHmiKebTorque2 != null) numHmiKebTorque2.Value = (decimal)s6AdaptedTorquePct;
-
                         if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
                         if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
 
-                        // ── 步驟 D：進入 Stage 3 達標判定 (★ 必須試探完畢且連續 3 秒轉矩與轉速雙在合格容許帶內) ──
-                        bool isTrqClose = (s6ProbeStep >= 3) && (Math.Abs(trqErr) <= Math.Max(1.5, targetTrq * 0.05));
-                        bool isSpdClose = Math.Abs(spdSlip) <= Math.Max(15.0, targetSpd * 0.05);
-
-                        if (isTrqClose && isSpdClose)
-                        {
-                            s6Stage2StableCounter++;
-                        }
-                        else
-                        {
-                            s6Stage2StableCounter = 0;
-                        }
-
-                        if (s6Stage2StableCounter >= 3)
+                        if (converged)
                         {
                             s6TrialStage = 3;
                             s6TrialTimer = 10;
                             s6TrialStageElapsedSec = 0;
-                            WriteHmiLog("S6_ANCHOR", string.Format("加載轉矩 ({0:F1}/{1:F1} Nm) 與轉速 ({2:F0}/{3:F0} rpm) 連續 3 秒到位，開始 10 秒真達標穩定確認！", actAbsTrq, targetTrq, actAbsSpd, targetSpd));
+                            WriteHmiLog("S6_ANCHOR", string.Format("加載轉矩 ({0:F1}/{1:F1} Nm) 與轉速 ({2:F0}/{3:F0} rpm) 雙達標收斂，開始 10 秒真達標穩定確認！", actAbsTrq, targetTrq, actAbsSpd, targetSpd));
                         }
                         else if (s6TrialStageElapsedSec >= 90)
                         {
@@ -2438,45 +2332,16 @@ namespace DynamometerHMI
                     s1TempHistory.RemoveAll(x => x.Key < expireTime);
                 }
 
-                // 1. 加載端轉矩自適應閉迴路調節 (須待待測端提速至接近目標轉速，且加載端已預激磁後才上載，同動 LOCK 死區設定)
-                double trqDeadband = (trackingDeadband > 0) ? (double)trackingDeadband : 0.4;
-                if (isLoadMotorPreEnergized && actAbsSpd >= targetSpd * 0.7)
-                {
-                    double trqErr = targetTrq - actAbsTrq;
-                    if (Math.Abs(trqErr) > trqDeadband)
-                    {
-                        double maxTrqStep = (trackingMaxDelta > 0) ? (double)trackingMaxDelta : 0.5;
-                        double step = Math.Sign(trqErr) * Math.Min(Math.Max(0.1, Math.Abs(trqErr) * 0.2), maxTrqStep);
-                        s6AdaptedTorquePct = Math.Max(0.0, Math.Min(100.0, s6AdaptedTorquePct + step));
-                        KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, (int)Math.Round(s6AdaptedTorquePct * 10));
-                    }
-                }
-                else
-                {
-                    // 提速過渡階段：加載端保持 0 轉矩熱備妥跟隨
-                    KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0);
-                }
+                // ★【全系統統一核心引擎：SY52 + CS18 雙閉環自適應加速定錨追隨】
+                // 前 3 秒 0.1% 試探斜率 -> 依差距與斜率預估開出大步長 (最高 5.0%) 狂飆衝刺 -> SY52 同步補轉差 -> 雙達標後無縫持續加載
+                string s1TrackStatus;
+                bool s1Converged = ExecuteUnifiedDualTrackingStep(
+                    s1LoadTracker, spdDrive, trqDrive,
+                    targetSpd, targetTrq, actAbsSpd, actAbsTrq,
+                    out s1TrackStatus, "S1");
 
-                // 2. ★【待測端轉速平滑閉迴路追隨 (同動 LOCK 設定)】
-                // 實測轉速因加載轉差偏離目標轉速時，自動即時微調 SY.52 補償轉差，確保標準額定轉速運轉
-                if (actAbsSpd >= targetSpd * 0.5 && targetSpd > 50.0)
-                {
-                    double spdDeadband = (trackingSpeedDeadband > 0) ? (double)trackingSpeedDeadband : 3.0;
-                    double spdErr = targetSpd - actAbsSpd;
-                    if (Math.Abs(spdErr) > spdDeadband)
-                    {
-                        double maxSpdStep = (trackingSpeedMaxDelta > 0) ? (double)trackingSpeedMaxDelta : 2.0;
-                        double step = Math.Sign(spdErr) * Math.Min(Math.Max(1.0, Math.Abs(spdErr) * 0.5), maxSpdStep * 2.0);
-                        double newSpdCmd = Math.Max(0.0, Math.Min(6000.0, s6CurrentSpeedCmd + step));
-                        if (newSpdCmd != s6CurrentSpeedCmd)
-                        {
-                            s6CurrentSpeedCmd = newSpdCmd;
-                            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)Math.Round(s6CurrentSpeedCmd), "S1 速度閉迴路補轉差 (SY52)");
-                            if (spdDrive == 2 && numHmiKebSpeed2 != null) numHmiKebSpeed2.Value = (decimal)s6CurrentSpeedCmd;
-                            else if (spdDrive == 1 && numHmiKebSpeed1 != null) numHmiKebSpeed1.Value = (decimal)s6CurrentSpeedCmd;
-                        }
-                    }
-                }
+                s6AdaptedTorquePct = s1LoadTracker.AdaptedTorquePct;
+                s6CurrentSpeedCmd = s1LoadTracker.CurrentSpeedCmd;
 
                 int elapsedMins = dutyElapsedSec / 60;
                 int elapsedSecs = dutyElapsedSec % 60;
@@ -2636,50 +2501,27 @@ namespace DynamometerHMI
                             ? "待測端加速至設定目標轉速，加載端已激磁零轉矩熱備妥跟隨中..."
                             : "待測端加速中，等待達 60 rpm 加載端激磁預備...";
                     }
-                    // 子階段 1：漸進加載到達目標扭矩 + 自動補轉差維持實測轉速
+                    // 子階段 1：統一自適應定錨加速加載 (前 3 秒試探斜率 -> 依目標差距開出最大 5% 步長狂衝 -> 同動補轉差)
                     else if (s2CalibStage == 1)
                     {
-                        double trqErr = targetTrq - actAbsTrq;
-                        if (trqErr > 0.4)
-                        {
-                            double step = (trqErr > 6.0) ? 0.8 : (trqErr > 2.0 ? 0.4 : 0.2);
-                            s6AdaptedTorquePct = Math.Min(100.0, s6AdaptedTorquePct + step);
-                            KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, (int)Math.Round(s6AdaptedTorquePct * 10));
-                        }
-                        else if (trqErr < -0.6)
-                        {
-                            s6AdaptedTorquePct = Math.Max(0.0, s6AdaptedTorquePct - 0.3);
-                            KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, (int)Math.Round(s6AdaptedTorquePct * 10));
-                        }
+                        string s2TrackStatus;
+                        bool isConverged = ExecuteUnifiedDualTrackingStep(
+                            s2LoadTracker, spdDrive, trqDrive,
+                            targetSpd, targetTrq, actAbsSpd, actAbsTrq,
+                            out s2TrackStatus, "S2校驗");
 
-                        double spdSlip = targetSpd - actAbsSpd;
-                        if (spdSlip > 2.0)
-                        {
-                            s6CurrentSpeedCmd += (spdSlip > 10.0 ? 3.0 : 1.0);
-                            s6CurrentSpeedCmd = Math.Min(targetSpd * 1.35, s6CurrentSpeedCmd);
-                            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)s6CurrentSpeedCmd, "S2 錨點補轉差");
-                        }
-                        else if (spdSlip < -3.0)
-                        {
-                            s6CurrentSpeedCmd -= 1.0;
-                            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)s6CurrentSpeedCmd, "S2 錨點微調速度");
-                        }
+                        s6AdaptedTorquePct = s2LoadTracker.AdaptedTorquePct;
+                        s6CurrentSpeedCmd = s2LoadTracker.CurrentSpeedCmd;
 
-                        // 同步主畫面
-                        if (spdDrive == 2 && numHmiKebSpeed2 != null) numHmiKebSpeed2.Value = (decimal)s6CurrentSpeedCmd;
-                        else if (spdDrive == 1 && numHmiKebSpeed1 != null) numHmiKebSpeed1.Value = (decimal)s6CurrentSpeedCmd;
-                        if (trqDrive == 1 && numHmiKebTorque1 != null) numHmiKebTorque1.Value = (decimal)s6AdaptedTorquePct;
-                        else if (trqDrive == 2 && numHmiKebTorque2 != null) numHmiKebTorque2.Value = (decimal)s6AdaptedTorquePct;
+                        lblDutyStatus.Text = string.Format("【S2 錨點測試】{0}", s2TrackStatus);
+                        lblDutyPhaseAction.Text = string.Format("自適應加載中：給定 {0:F1}%，待測端命令 {1:F0} rpm", s6AdaptedTorquePct, s6CurrentSpeedCmd);
 
-                        lblDutyStatus.Text = string.Format("【S2 錨點測試】調節中：扭矩 {0:F1}/{1:F1} Nm | 轉速 {2:F0}/{3:F0} rpm", actAbsTrq, targetTrq, actAbsSpd, targetSpd);
-                        lblDutyPhaseAction.Text = string.Format("加載給定 {0:F1}%，待測端補差命令 {1:F0} rpm", s6AdaptedTorquePct, s6CurrentSpeedCmd);
-
-                        // 判定是否雙雙到位
-                        if (Math.Abs(trqErr) <= 1.0 && Math.Abs(spdSlip) <= 15.0)
+                        // 雙達標收斂，進入 10 秒穩定確認倒數
+                        if (isConverged)
                         {
                             s2CalibStage = 2;
                             s2CalibTimer = 10;
-                            WriteHmiLog("S2_ANCHOR", string.Format("【S2 錨點測試】轉速與轉矩雙雙到位，開始 10 秒穩定確認倒數！", actAbsTrq, actAbsSpd));
+                            WriteHmiLog("S2_ANCHOR", string.Format("【S2 錨點測試】轉速與轉矩雙雙達標收斂 ({0:F1} Nm / {1:F0} rpm)，開始 10 秒穩定確認倒數！", actAbsTrq, actAbsSpd));
                         }
                     }
                     // 子階段 2：10 秒穩定確認 ➔ 記住錨點並停機
@@ -2772,44 +2614,15 @@ namespace DynamometerHMI
 
                     currentPhaseName = "S2 短時";
 
-                    // 1. 加載端轉矩自適應閉迴路微調 (須待待測端提速至接近目標轉速，且加載端已預激磁後才上載，同動 LOCK 死區設定)
-                    double trqDeadband = (trackingDeadband > 0) ? (double)trackingDeadband : 0.4;
-                    if (isLoadMotorPreEnergized && actAbsSpd >= targetSpd * 0.7)
-                    {
-                        double trqErr = targetTrq - actAbsTrq;
-                        if (Math.Abs(trqErr) > trqDeadband)
-                        {
-                            double maxTrqStep = (trackingMaxDelta > 0) ? (double)trackingMaxDelta : 0.5;
-                            double step = Math.Sign(trqErr) * Math.Min(Math.Max(0.1, Math.Abs(trqErr) * 0.2), maxTrqStep);
-                            s6AdaptedTorquePct = Math.Max(0.0, Math.Min(100.0, s6AdaptedTorquePct + step));
-                            KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, (int)Math.Round(s6AdaptedTorquePct * 10));
-                        }
-                    }
-                    else
-                    {
-                        // 提速過渡階段：加載端保持 0 轉矩熱備妥跟隨
-                        KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0);
-                    }
+                    // ★【全系統統一核心引擎：SY52 + CS18 雙閉環微調維持】
+                    string s2RunTrackStatus;
+                    ExecuteUnifiedDualTrackingStep(
+                        s2LoadTracker, spdDrive, trqDrive,
+                        targetSpd, targetTrq, actAbsSpd, actAbsTrq,
+                        out s2RunTrackStatus, "S2運轉");
 
-                    // 2. ★【待測端轉速平滑閉迴路追隨 (同動 LOCK 設定)】
-                    if (actAbsSpd >= targetSpd * 0.5 && targetSpd > 50.0)
-                    {
-                        double spdDeadband = (trackingSpeedDeadband > 0) ? (double)trackingSpeedDeadband : 3.0;
-                        double spdErr = targetSpd - actAbsSpd;
-                        if (Math.Abs(spdErr) > spdDeadband)
-                        {
-                            double maxSpdStep = (trackingSpeedMaxDelta > 0) ? (double)trackingSpeedMaxDelta : 2.0;
-                            double step = Math.Sign(spdErr) * Math.Min(Math.Max(1.0, Math.Abs(spdErr) * 0.5), maxSpdStep * 2.0);
-                            double newSpdCmd = Math.Max(0.0, Math.Min(6000.0, s6CurrentSpeedCmd + step));
-                            if (newSpdCmd != s6CurrentSpeedCmd)
-                            {
-                                s6CurrentSpeedCmd = newSpdCmd;
-                                KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)Math.Round(s6CurrentSpeedCmd), "S2 速度閉迴路補轉差 (SY52)");
-                                if (spdDrive == 2 && numHmiKebSpeed2 != null) numHmiKebSpeed2.Value = (decimal)s6CurrentSpeedCmd;
-                                else if (spdDrive == 1 && numHmiKebSpeed1 != null) numHmiKebSpeed1.Value = (decimal)s6CurrentSpeedCmd;
-                            }
-                        }
-                    }
+                    s6AdaptedTorquePct = s2LoadTracker.AdaptedTorquePct;
+                    s6CurrentSpeedCmd = s2LoadTracker.CurrentSpeedCmd;
 
                     int s2RemSec = Math.Max(0, dutyTotalSec - dutyElapsedSec);
                     int s2RemMin = s2RemSec / 60;

@@ -504,6 +504,7 @@ namespace DynamometerHMI
                     // 轉速到位！加載端啟動激磁 Sy50=4
                     effStepSpeedReached = true;
                     effTrqSustainedSec = 0;
+                    effMapLoadTracker.Reset(targetSpd, effAdaptedTorquePct);
                     int curTrqSy50 = (trqDrive == 1) ? lastSy50Cmd1 : lastSy50Cmd2;
                     if (curTrqSy50 != 4)
                     {
@@ -511,43 +512,20 @@ namespace DynamometerHMI
                     }
                 }
 
-                // 子階段 0B：轉速已到位，平穩漸進加載逼近目標轉矩
-                if (isTrqValid && isSpdValid)
-                {
-                    effTrqSustainedSec++;
-                }
-                else
-                {
-                    effTrqSustainedSec = 0;
-                }
+                // 子階段 0B：轉速已到位，全系統統一 SY52 + CS18 雙閉環自適應加速逼近
+                string statusDesc;
+                bool isConverged = ExecuteUnifiedDualTrackingStep(
+                    effMapLoadTracker, spdDrive, trqDrive,
+                    targetSpd, targetTrq, actAbsSpd, actAbsTrq,
+                    out statusDesc, "效率地圖");
 
-                if (effTrqSustainedSec < 2)
-                {
-                    double absTrqErr = Math.Abs(trqErr);
-                    double trqStep = (absTrqErr > 8.0) ? 2.0 : ((absTrqErr > 2.0) ? 1.0 : 0.4);
-                    if (trqErr > 0) effAdaptedTorquePct += trqStep;
-                    else effAdaptedTorquePct -= trqStep;
-                    effAdaptedTorquePct = Math.Max(0.0, Math.Min(100.0, effAdaptedTorquePct));
+                effAdaptedTorquePct = effMapLoadTracker.AdaptedTorquePct;
 
-                    int trqRaw = (int)Math.Round(effAdaptedTorquePct * 10);
-                    KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, trqRaw);
+                lblEffMapStatus.Text = string.Format("⌛ 點位 {0}/{1} {2}",
+                    curPt.Index, effPointList.Count, statusDesc);
+                lblEffMapCountdown.Text = string.Format("加載中 ({0}s)", effConvergeTimeoutSec);
 
-                    lblEffMapStatus.Text = string.Format("⌛ 點位 {0}/{1} 加載中：實測 {2:F1} Nm / 目標 {3:F1} Nm (給定 {4:F1}%)",
-                        curPt.Index, effPointList.Count, actAbsTrq, targetTrq, effAdaptedTorquePct);
-                    lblEffMapCountdown.Text = string.Format("加載中 ({0}s)", effConvergeTimeoutSec);
-
-                    // 超時防呆保護 (45秒)
-                    if (effConvergeTimeoutSec >= 45)
-                    {
-                        StopEffMapTest();
-                        lblEffMapStatus.Text = "⚠️ 加載未達標，測試已暫停！";
-                        lblEffMapCountdown.Text = "加載未達標中斷";
-                        MessageBox.Show(string.Format("【效率地圖測試警報】點位 {0} 加載超過 45 秒無法收斂達標，已安全停機！\n目標轉速: {1:F0} rpm, 目標轉矩: {2:F1} Nm, 實測轉矩: {3:F1} Nm",
-                            curPt.Index, targetSpd, targetTrq, actAbsTrq), "加載未達標中斷", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        return;
-                    }
-                }
-                else
+                if (isConverged)
                 {
                     // 連續 2 秒達標！進入 Phase 1
                     effPhase = 1;
@@ -556,6 +534,15 @@ namespace DynamometerHMI
                     lblEffMapStatus.Text = string.Format("✅ 點位 {0}/{1} 達標 ({2:F1} Nm / {3:F0} rpm)，開始持載倒數！",
                         curPt.Index, effPointList.Count, actAbsTrq, actAbsSpd);
                     lblEffMapCountdown.Text = string.Format("持載倒數: {0} s", effDwellRemaining);
+                }
+                else if (effConvergeTimeoutSec >= 50)
+                {
+                    StopEffMapTest();
+                    lblEffMapStatus.Text = "⚠️ 加載未達標，測試已暫停！";
+                    lblEffMapCountdown.Text = "加載未達標中斷";
+                    MessageBox.Show(string.Format("【效率地圖測試警報】點位 {0} 加載超過 50 秒無法收斂達標，已安全停機！\n目標轉速: {1:F0} rpm, 目標轉矩: {2:F1} Nm, 實測轉矩: {3:F1} Nm",
+                        curPt.Index, targetSpd, targetTrq, actAbsTrq), "加載未達標中斷", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
                 }
             }
             // =========================================================================
@@ -674,6 +661,7 @@ namespace DynamometerHMI
                         // 同轉速，換下一個轉矩點：轉速已鎖定，保持激磁，自適應微調逼近新轉矩
                         effStepSpeedReached = true;
                         effTrqSustainedSec = 0;
+                        effMapLoadTracker.Reset(nextPt.TargetSpeed, effAdaptedTorquePct);
                         lblEffMapStatus.Text = string.Format("切換轉矩階：目標 {0:F1} Nm，調節逼近中...", nextPt.TargetTorque);
                         lblEffMapCountdown.Text = "調節逼近中";
                     }
