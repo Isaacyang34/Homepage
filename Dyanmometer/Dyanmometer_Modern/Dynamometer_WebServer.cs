@@ -38,7 +38,7 @@ namespace DynamometerHMI
         private bool isCloudUploadRunning = false;
 
         // ── 軟體線上熱更新設定 (Online Auto-Update & In-Place Hot Swap) ──────
-        public const string APP_VERSION = "2.6.5";
+        public const string APP_VERSION = "2.6.6";
         public string cloudUpdateManifestUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/update/version.json";
         public Button btnOnlineUpdate = null;
         private bool? lastCloudUploadSuccess = null;
@@ -213,6 +213,12 @@ namespace DynamometerHMI
                         lastCloudTimeStr = DateTime.Now.ToString("HH:mm:ss");
                         lastCloudErrorMsg = "";
 
+                        // 週期性檢查雲端最新訪客足跡審計 (約每 12 秒查一次)
+                        if (cloudUploadCount % 15 == 0)
+                        {
+                            CheckRemoteVisitorAudit();
+                        }
+
                         UpdateCloudSyncUI(true, null);
                         if (lastCloudUploadSuccess != true)
                         {
@@ -284,6 +290,43 @@ namespace DynamometerHMI
                     lblCloudSyncStatus.BackColor = System.Drawing.Color.FromArgb(69, 10, 10);
                 }
             }
+        }
+
+        // ── 遠端監看網頁訪客足跡即時通報 (Web Visitor Audit Listener) ──────
+        private static string lastLoggedVisitorSessionId = "";
+        private void CheckRemoteVisitorAudit()
+        {
+            try
+            {
+                string auditUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/audit/latest_visitor.json";
+                int code = 0;
+                string json = SendHttpRequest("GET", auditUrl, null, detectedWifiIp, 3000, out code);
+                if (string.IsNullOrEmpty(json) || json.Trim() == "null" || code != 200) return;
+
+                Match mSession = Regex.Match(json, "\"session_id\"\\s*:\\s*\"([^\"]+)\"");
+                if (mSession.Success)
+                {
+                    string sid = mSession.Groups[1].Value;
+                    if (!string.IsNullOrEmpty(sid) && sid != lastLoggedVisitorSessionId)
+                    {
+                        lastLoggedVisitorSessionId = sid;
+                        string ip = Regex.Match(json, "\"ip\"\\s*:\\s*\"([^\"]+)\"").Groups[1].Value;
+                        string city = Regex.Match(json, "\"city\"\\s*:\\s*\"([^\"]+)\"").Groups[1].Value;
+                        string country = Regex.Match(json, "\"country\"\\s*:\\s*\"([^\"]+)\"").Groups[1].Value;
+                        string isp = Regex.Match(json, "\"isp\"\\s*:\\s*\"([^\"]+)\"").Groups[1].Value;
+                        string os = Regex.Match(json, "\"os\"\\s*:\\s*\"([^\"]+)\"").Groups[1].Value;
+                        string browser = Regex.Match(json, "\"browser\"\\s*:\\s*\"([^\"]+)\"").Groups[1].Value;
+                        string vcount = Regex.Match(json, "\"visit_count\"\\s*:\\s*([0-9]+)").Groups[1].Value;
+
+                        string loc = string.IsNullOrEmpty(city) ? country : (country + " " + city);
+                        string logMsg = string.Format("【遠端監看訪客進入】來自: {0} ({1}) | IP: {2} | 裝置: {3} / {4} | 第 {5} 次訪問",
+                            loc, (string.IsNullOrEmpty(isp) ? "一般線路" : isp), ip, os, browser, (string.IsNullOrEmpty(vcount) ? "1" : vcount));
+
+                        WriteHmiLog("WEB_AUDIT", logMsg);
+                    }
+                }
+            }
+            catch { }
         }
 
         // ── JSON 字串跳脫防護 (確保 .NET 4.0 手工組裝 JSON 格式 100% 合法) ──────
