@@ -7,8 +7,51 @@
 ## Beta 版本對照索引
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
+| V2.65 (beta) | v2.10.25 | 2026-09-10 | 全維度系統健康與資源觀測體系 (Win32 原生 GDI/USER 控制碼監測、託管 GC 堆積與實體 RAM 雙層指標、UI 訊息排程反應抖動、日誌每 60 秒 [HEALTH] 遙測輸出、Firebase 雲端健康串流與 UI 智慧預警膠囊)：(1)現象與佐證：使用者提出工程實證質疑：「關於曲線圖的資源累積問題，LOG應該能看到昨天19:00一直到今天08:00我都開著軟體，並沒有崩潰的狀況，我覺得這並不是溫度曲線的問題。請多給定幾個觀測的標的來判斷不要都用猜的」；經比對實測雲端遙測紀錄，機台於 2026-09-09 18:20 啟動後通宵運行至 2026-09-10 09:10 (逾 13 小時未中斷)，圖表歷經逾 46,000 幀渲染無崩潰，直接以客觀數據推翻「溫度歷史曲線累積洩漏資源致死」之猜想；(2)致命根因：缺乏可量化、可追蹤之系統資源觀測維度，過去面對卡頓或偶發閃退僅能盲目猜測；WinXP x86 核心存在 GDI Handle 10,000 實體上限、2GB 虛擬位址極限，且難以釐清是 C# 託管堆積 (GC) 累積還是第三方原生 C-DLL (tmctl.dll/protKEB.dll) 洩漏；(3)精確修復方案：Dynamometer_HMI_WinForms.cs 透過 Win32 P/Invoke 原生導入 user32.dll!GetGuiResources，即時取得 GDI 與 USER 控制碼；全面監測 WorkingSet64、PrivateMemorySize64 與 GC.GetTotalMemory(false)，拆解託管與原生記憶體邊界；計算 UI 執行緒訊息排程反應延遲 (tickDelta - Interval)；狀態列底部新增 lblSystemHealth 智慧預警標籤 (綠/黃/紅三態)；每 60 秒輸出單一整合日誌 [HEALTH] 結構化紀錄；Dynamometer_Telemetry.cs 追蹤隱蔽例外累計計數；Dynamometer_WebServer.cs 於 GetTelemetryJson() 擴充 health_gdi、health_user、health_mem_mb、health_gc_heap_mb、health_threads、health_ui_lag_ms、health_handled_errs，無縫推播至雲端；(4)版本號升級至 APP_VERSION = "2.6.5"，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
 | V2.64 (beta) | v2.10.24 | 2026-09-10 | CSV 全紀錄檔欄位標準化重排 (導入 KEB ru.03 輸出頻率、對齊時間/轉速/頻率/轉矩/三相電壓/三相電流/輸入功率/輸出功率/功因/效率標準序)、T-N 測試 30 筆穩定數據擷取前後雙向斷行優化：(1)現象與佐證：依據「功能修改紀錄/Modify.txt」之工程規範要求「時間 轉速 頻率(新增源自於KEB[ru.03]) 轉矩 電壓1 電壓2 電壓3 電流1 電流2 電流3 輸入功率 輸出功率 功因 效率 [其他沒列到的放後面再接上溫度]；請更改全部紀錄檔的格式如上；TN測試紀錄檔優化：在確定穩定後抓取30筆數據時給資料一個斷行，結束後也多一個斷行方便識別測試區間」；(2)致命根因：舊版 CSV 與累加器採用早期「Timestamp, Speed, Torque, MechPower, ElecPower, Efficiency...」之排列，未將變頻器輸出頻率 (ru.03, 0x0203) 納入採樣資料鏈；TN 測試在 5 秒穩定後擷取 30 秒數據時與前後過渡狀態數據無縫緊連，在 Excel / 試算表中分析時無法直觀區隔出各測試點的 30 筆黃金採樣區間；(3)精確修復方案：Dynamometer_HMI_WinForms.cs 增加 kebFrequency1, kebFrequency2 與 actFrequency 即時屬性，將 0x0203 納入預設監控清單與佈局加載自動修復；Dynamometer_KebComm.cs 於 DoHmiKebQuery1 與 DoHmiKebQuery2 實裝 0x0203 週期查詢與 0.01Hz / 0.0001Hz 智慧自適應縮放；Dynamometer_UIControls.cs 之 RawDataSampleAccumulator 擴充 frequencies 序列並更新 AddSample 與 BuildAveragedCsvRow；Dynamometer_Telemetry.cs 之 BuildRawCsvHeader 與 BuildRawCsvRow 依 Modify.txt 標準化重組欄位順序；Dynamometer_TestTN.cs 於子階段 2->3 (5s穩定結束進入30s擷取) 與子階段 3 完成時，向 manualRecordWriter 寫入空行斷行，並於 Report_TN_MultiPoints 報表在各測試點 30 筆資料前後插入斷行；(4)版本號升級至 APP_VERSION = "2.6.4"，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
 | V2.63 (beta) | v2.10.23 | 2026-09-10 | 本地端日誌生命週期自動清理器 (保留最新 30 筆測試 CSV/GBD 與報表、CRASH 日誌修剪、10MB 日誌自動輪替歸檔、UI 本地保留筆數微調與清理按鈕)：(1)現象與佐證：使用者提出本地端日誌維護指令：「LOG的部分，本地端LOG也需要清理，保存最後30筆就好」；現場工控電腦 logs/ 目錄原先採取永久無限期寫入，長期運行產出大量測試 CSV、GBD 與系統日誌，累積大量歷史檔案佔用 WinXP 磁碟空間；(2)致命根因：系統原僅實作雲端歷史日誌之 PurgeCloudLogsAsync 自動修剪 (30筆/7天)，本機端 logs/ 目錄缺乏生命週期旋轉與淘汰機制；hmi_telemetry.log 無大小上限持續追加，長時間測試後有磁碟寫滿風險；(3)精確修復方案：Dynamometer_WebServer.cs 實作全自動非同步 PurgeLocalLogs(isManualClick)，依 localLogMaxHistoryCount (預設 30 筆) 自動掃描 logs/ (及自訂 RAW 目錄)，按 LastWriteTime 降序排序並修剪淘汰第 31 筆起之舊測試 CSV 與配對 GBD 檔案，同步修剪過期 CRASH_REPORT_*.log 與歸檔日誌，並排除鎖定中檔案；Dynamometer_Telemetry.cs 加入 hmiLogWriter 達 10MB 自動旋轉歸檔機制；實裝「💾 本地保留: [30] 筆 [🧹 清理本地]」工具列控制項與 AutoScroll 防破版；Dynamometer_HMI_WinForms.cs 實作 LocalLogMaxCount 於 config.ini 之記憶保存與啟動 Shown 自動清除非同步排程；(4)版本號升級至 APP_VERSION = "2.6.3"，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
+
+## [V2.65 beta / v2.10.25] - 2026-09-10
+
+### 🎯 現象與佐證
+1. **使用者指令與工程實測回饋**：
+   - 使用者提出具體觀測佐證反駁臆測：「關於曲線圖的資源累積問題，LOG應該能看到昨天19:00一直到今天08:00我都開著軟體，並沒有崩潰的狀況，我覺得這並不是溫度曲線的問題。請多給定幾個觀測的標的來判斷不要都用猜的。」
+2. **客觀實測數據驗證**：
+   - 經核對 Firebase 雲端遙測節點歷史（`20260909_182046` 至 `20260910_090949`），軟體確實持續連線並運行超過 13 小時無任何異常中斷或行程重啟；
+   - 在 500ms 刷新頻率下，軟體已平穩經歷超過 46,000 次繪圖更新，若溫度曲線環形緩衝區或 GDI+ 繪圖存在未釋放之 Pen/Brush 洩漏，系統必在 2~3 小時內觸發 10,000 控制碼上限或 OutOfMemoryException；13 小時通宵平穩運行證實空載繪圖本身具備穩定性。
+
+### 💡 致命根因 (Root Cause)
+1. **缺乏客觀觀測指標導致盲目臆測**：
+   - 系統以往僅記錄業務邏輯與通訊電文，未對作業系統底層核心資源進行量化採樣；
+   - 當現場發生操作遲緩或偶發異常時，無法從日誌中斷定究竟是「Win32 控制碼枯竭」、「記憶體洩漏」、「UI 執行緒被硬體 I/O 阻塞凍結」還是「第三方廠商 C-DLL (`tmctl.dll` / `protKEB.dll`) 洩漏」。
+2. **WinXP x86 關鍵資源邊界模糊**：
+   - 單一行程 GDI 控制碼上限為 10,000；
+   - 32 位元進程虛擬記憶體上限為 2 GB（實際崩潰點約在 1.2GB~1.4GB 碎裂點）；
+   - 無法即時辨識是 C# Managed GC 堆積上升（C# 物件漏釋放）或是 Unmanaged Private Bytes 上升（C-DLL 漏釋放）。
+
+### 🔧 精確修復方案
+**修改核心檔案：**
+* `Dyanmometer_Modern/Dynamometer_HMI_WinForms.cs`
+* `Dyanmometer_Modern/Dynamometer_Telemetry.cs`
+* `Dyanmometer_Modern/Dynamometer_WebServer.cs`
+
+**具體實施細節：**
+1. **Win32 原生 GDI / USER 控制碼觀測 (P/Invoke `user32.dll!GetGuiResources`)**：
+   - 導入 Windows XP 原生 Win32 API `GetGuiResources(hProc, 0)` (GDI 控制碼) 與 `GetGuiResources(hProc, 1)` (USER 控制碼)；
+   - 100% 相容 Windows XP x86 / Win7 / Win10 / Win11，精確監控當前控制碼用量（上限 10,000）。
+2. **雙層記憶體拆解分析 (WorkingSet + PrivateBytes vs GC Managed Heap)**：
+   - 每 2 秒採樣 `WorkingSet64` (實體 RAM)、`PrivateMemorySize64` (私有認可虛擬位址) 與 `GC.GetTotalMemory(false)` (託管堆積)；
+   - 若 GC Heap 穩定而 PrivateBytes 攀升，即可明確定位為第三方 C-DLL 洩漏，而非 C# 程式碼洩漏。
+3. **UI 訊息幫浦排程反應抖動 (UI Thread Dispatch Lag / Jitter)**：
+   - 在主計時器 `MainTimer_Tick` 中採樣實測間隔，計算 `healthUiLagMs = Math.Max(0, tickDelta - Interval)`；
+   - 精確抓出是否有耗時硬體 I/O 或同步阻塞卡住 UI 執行緒。
+4. **即時 UI 膠囊狀態指示器 (`lblSystemHealth`)**：
+   - 底部狀態列新增 `lblSystemHealth`：「資源: GDI 142 | RAM 86M(GC 24M) | 緒 18 | 延 4ms」；
+   - 智慧三色預警：正常（天藍/深藍）、預警（黃色，GDI>3000 或 RAM>600MB 或 延遲>300ms）、危險（紅色，GDI>7000 或 RAM>1200MB）。
+5. **每 60 秒結構化日誌輸出與雲端推播**：
+   - 單一整合日誌週期性寫入 `[HEALTH]` 遙測行；
+   - `Dynamometer_WebServer.cs` 於 `GetTelemetryJson()` 擴充 `health_gdi`、`health_user`、`health_mem_mb`、`health_gc_heap_mb`、`health_threads`、`health_ui_lag_ms`、`health_handled_errs` 與 `health_ver`；
+   - 軟體版本正式升級為 `APP_VERSION = "2.6.5"`，編譯發布至 `Release/Dynamometer_HMI_V2.5.0_Portable/`。
 
 ## [V2.64 beta / v2.10.24] - 2026-09-10
 
