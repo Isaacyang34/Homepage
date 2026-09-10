@@ -8,8 +8,12 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
-| V2.68 (beta) | v2.10.28 | 2026-09-10 | 全系統加載追隨統一化 (SY52+CS18 雙閉環自適應定錨加速引擎與純 SY52 追隨引擎、前 3 秒 0.1% 階梯特性試探與斜率學習、最大 5% 動態高速大步長衝刺、同動 SY52 補轉差、S1/S2/S6/TN/效率地圖全面收斂消除重複代碼) |
+| V2.68 (beta) | v2.10.28 | 2026-09-10 | 全系統加載追隨統一化 (SY52+CS18 雙閉環自適應定錨加速引擎與純 SY52 追隨引擎、前 3 秒 0.1% 階梯特性試探與斜率學習、最大 5% 動態高速大步長衝刺、同動 SY52 補轉差、S1/S2/S6/TN/效率地圖全面收斂消除重複代碼) & 頻率比對診斷引擎 (PowerMeter 與 KEB ru.03 雙軌採樣、[FREQ_COMPARE] 暫存日誌與一鍵開關) |
 | V2.67 (beta) | v2.10.27 | 2026-09-10 | 紀錄檔生成與自動執行短時間自動清理 (錄製未滿 1 分鐘門檻自動銷毀零碎 CSV/GBD 檔案、手動/自動測試全場景攔截、即時秒數/筆數進度回饋、PurgeLocalLogs 廢檔主動修剪) |
+| V2.66 (beta) | v2.10.26 | 2026-09-10 | 雲端監控中心取消無效密碼鎖定、導入訪客靜默足跡審計引擎 (全自動提取公網 IP / 縣市地理位置 / 電信網路商 / 裝置指紋 / 來源 Referrer / 在線停留時長，即時推播 Firebase 雲端審計庫，網頁端抽屜彈窗即時查閱，工控機 C# 主程式自動通報新訪客進入) |
+| V2.65 (beta) | v2.10.25 | 2026-09-10 | 全維度系統健康與資源觀測體系 (Win32 原生 GDI/USER 控制碼監測、託管 GC 堆積與實體 RAM 雙層指標、UI 訊息排程反應抖動、日誌每 60 秒 [HEALTH] 遙測輸出、Firebase 雲端健康串流與 UI 智慧預警膠囊) |
+| V2.64 (beta) | v2.10.24 | 2026-09-10 | CSV 全紀錄檔欄位標準化重排 (導入 KEB ru.03 輸出頻率、對齊時間/轉速/頻率/轉矩/三相電壓/三相電流/輸入功率/輸出功率/功因/效率標準序)、T-N 測試 30 筆穩定數據擷取前後雙向斷行優化 |
+| V2.63 (beta) | v2.10.23 | 2026-09-10 | 本地端日誌生命週期自動清理器 (保留最新 30 筆測試 CSV/GBD 與報表、CRASH 日誌修剪、10MB 日誌自動輪替歸檔、UI 本地保留筆數微調與清理按鈕) |
 
 ---
 
@@ -21,6 +25,9 @@
 2. **各模式加載速度慢且邏輯重複分散**：
    - 在現場測試中，S1 模式在給定目標負載（如 35% CS18）時，舊邏輯採用每秒固定 0.5% 微步長爬坡，導致加載至 35% 需耗費超過 70 秒，加載極為緩慢。
    - 此外，S1、S2、S6、T-N 測試與效率地圖各自維護一套加載調節邏輯，導致代碼重複且各模式的收斂判定帶寬、步長調節機制不一致。
+3. **報告頻率數值異常與比對觀察需求**：
+   - 使用者進一步提出報告頻率診斷需求：「另外我發現報告內的頻率數值是錯誤的，你可以暫時放到LOG內來觀察等這問題解決後就停止紀錄這個LOG，方法就是你同時撈POWERMETER跟KEB RU參數來比對。」
+   - 實測發現報告與 CSV 中的 `actFrequency` 與變頻器實際輸出存在差異，需要同時撈取 PowerMeter WT333E 實測電氣頻率（電壓頻率 wtFreqU / 電流頻率 wtFreqI）與 KEB 驅動器即時 RU 參數（ru.03 輸出頻率原始碼值與換算值、ru.07 轉速、ru.00 狀態），進行同屏交叉比對並暫存於日誌中，且具備隨時停止記錄之彈性開關。
 
 ### 💡 致命根因 (Root Cause)
 1. **缺乏全系統統一之加載控制引擎**：
@@ -29,6 +36,8 @@
    - 舊邏輯缺乏前 3 秒以 0.1% 階梯探測學習馬達負載斜率之機制，加載控制無法得知馬達當前轉矩響應特性，因此不敢開出大步長，只能以 0.5%~1.0% 小步長保守爬坡。
 3. **未採用動態剩餘量預估衝刺步長**：
    - 舊演算法未根據「轉矩差距 $\div$ 負載斜率」動態計算剩餘百分比，未能適時釋放最高 5.0% 大步長高速狂飆逼近，致使大負載工況耗時過久。
+4. **頻率讀取與換算可能存在解析度與極數歧異**：
+   - KEB COMBIVERT F5 / G6 在不同韌體版本下對 `0x0203` (ru.03) 之 Scale 定義可能存在 0.01 Hz 或 0.0001 Hz 之差異（若韌體傳回 50,000 代表 5.00 Hz，在 100,000 門檻判定下會被誤乘 0.01 變成 500.0 Hz），且過去未同時採集 PowerMeter 端的基波電氣頻率進行對照，導致無法一眼看出是驅動器通訊解析度縮放錯誤還是電氣極數換算問題。
 
 ### 🔧 精確修復方案
 **修改與新增核心檔案：**
@@ -36,6 +45,9 @@
 * `Dyanmometer/Dyanmometer_Modern/Dynamometer_TestDuty.cs`
 * `Dyanmometer/Dyanmometer_Modern/Dynamometer_TestTN.cs`
 * `Dyanmometer/Dyanmometer_Modern/Dynamometer_TestEffMap.cs`
+* `Dyanmometer/Dyanmometer_Modern/Dynamometer_HMI_WinForms.cs`
+* `Dyanmometer/Dyanmometer_Modern/Dynamometer_KebComm.cs`
+* `Dyanmometer/Dyanmometer_Modern/Dynamometer_UIControls.cs`
 * `Dyanmometer/Dyanmometer_Modern/Dynamometer_WebServer.cs`
 
 **具體實施細節：**
@@ -59,12 +71,21 @@
    - 模式 0 (等間距梯度掃描) 與模式 1 (多點自訂測試) 加載期全面接入 `ExecuteUnifiedDualTrackingStep`，同步待測端補轉差與加載端動態大步長逼近。
 6. **效率地圖測試重構 (`Dynamometer_TestEffMap.cs`)**：
    - 多點網格加載逼近全面調用 `ExecuteUnifiedDualTrackingStep`，轉速到位後快速衝刺逼近各點目標轉矩。
-7. **版本升級與打包**：
+7. **雙軌同步頻率比對診斷引擎 (`Dynamometer_HMI_WinForms.cs` & `Dynamometer_KebComm.cs`)**：
+   - 建立 `CheckAndLogFrequencyComparison(tag)` 診斷方法，同屏擷取並格式化以下數值：
+     - **報告採納值**：`actFrequency` (DUT 待測端驅動器目前採納之頻率)
+     - **PowerMeter WT333E**：電壓頻率 `wtFreqU` 與電流頻率 `wtFreqI` (tmctl SCPI 與 Modbus 同步解析)
+     - **KEB A 載台**：`ru03_raw` (原始整數), 換算值 (`Hz`), `ru07_spd` (即時轉速 rpm), `ru00` (運轉狀態)
+     - **KEB B 載台**：`ru03_raw` (原始整數), 換算值 (`Hz`), `ru07_spd` (即時轉速 rpm), `ru00` (運轉狀態)
+     - **理論電頻率基準**：以編碼器實測轉速 `actSpeed` 計算 4 極 ($n/30$) 與 8 極 ($n/15$) 理論頻率供對照
+   - 在背景遙測線程 (`TelemetryWorkerLoop`) 運轉中每 2 秒 (馬達運轉時) / 10 秒 (待機時) 自動輸出 `[FREQ_COMPARE]` 至 `logs/hmi_telemetry.log` 與 UI。
+   - 在 T-N 曲線測試 30 秒採樣階段同步調用 `CheckAndLogFrequencyComparison("TN_SAMPLE")`。
+8. **即時日誌停錄開關與 UI 勾選控制 (`Dynamometer_UIControls.cs`)**：
+   - 定義 `public volatile bool enableFreqCompareLog = true;` 診斷開關。
+   - 在平滑追隨與日誌設定對話框 (`ClosedLoopControlDialog`) 之 `pnlLogGrid` 中新增「🔬 啟用暫時性頻率比對診斷」獨立 CheckBox。
+   - 現場人員或工程師待頻率問題查明修復後，可直接在 UI 取消勾選或一鍵關閉，立即停止 `[FREQ_COMPARE]` 日誌輸出，不留多餘垃圾日誌。
+9. **版本升級與打包**：
    - 升級至 `APP_VERSION = "2.6.8"` (內部版號 `v2.10.28`)，執行 `package_release.ps1 -Version 2.5.0` 完成編譯、打包與同步。
-| V2.66 (beta) | v2.10.26 | 2026-09-10 | 雲端監控中心取消無效密碼鎖定、導入訪客靜默足跡審計引擎 (全自動提取公網 IP / 縣市地理位置 / 電信網路商 / 裝置指紋 / 來源 Referrer / 在線停留時長，即時推播 Firebase 雲端審計庫，網頁端抽屜彈窗即時查閱，工控機 C# 主程式自動通報新訪客進入) |
-| V2.65 (beta) | v2.10.25 | 2026-09-10 | 全維度系統健康與資源觀測體系 (Win32 原生 GDI/USER 控制碼監測、託管 GC 堆積與實體 RAM 雙層指標、UI 訊息排程反應抖動、日誌每 60 秒 [HEALTH] 遙測輸出、Firebase 雲端健康串流與 UI 智慧預警膠囊) |
-| V2.64 (beta) | v2.10.24 | 2026-09-10 | CSV 全紀錄檔欄位標準化重排 (導入 KEB ru.03 輸出頻率、對齊時間/轉速/頻率/轉矩/三相電壓/三相電流/輸入功率/輸出功率/功因/效率標準序)、T-N 測試 30 筆穩定數據擷取前後雙向斷行優化 |
-| V2.63 (beta) | v2.10.23 | 2026-09-10 | 本地端日誌生命週期自動清理器 (保留最新 30 筆測試 CSV/GBD 與報表、CRASH 日誌修剪、10MB 日誌自動輪替歸檔、UI 本地保留筆數微調與清理按鈕) |
 
 ---
 

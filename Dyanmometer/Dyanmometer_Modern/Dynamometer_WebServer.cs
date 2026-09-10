@@ -1715,6 +1715,8 @@ namespace DynamometerHMI
             AppN(sb, "keb_frequency_a",   kebFrequency1.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
             AppN(sb, "keb_frequency_b",   kebFrequency2.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
             AppN(sb, "act_frequency",     actFrequency.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
+            AppN(sb, "wt_freq_u",         wtFreqU.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
+            AppN(sb, "wt_freq_i",         wtFreqI.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
             AppN(sb, "temp_max",          tempMax.ToString("F1", System.Globalization.CultureInfo.InvariantCulture));
             sb.Append("\"temp_ch\":" + sbTemps + ",");
             AppB(sb, "gbd_online",        isGbdOnline);

@@ -2068,7 +2068,7 @@ namespace DynamometerHMI
         {
             this.main = mainForm;
             this.Text = "🎯 主捲平滑追隨、常態日誌與全自動安全防護矩陣設定";
-            this.Size = new Size(720, 1000);
+            this.Size = new Size(720, 1035);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -2087,7 +2087,7 @@ namespace DynamometerHMI
             };
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 32f));  // 頂部說明
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 335f)); // 雙軸閉迴路平滑追隨防護控制 (轉矩 + 轉速)
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 185f)); // 背景常態日誌開關
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 220f)); // 背景常態日誌開關
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 365f)); // 全自動安全防護矩陣 GroupBox
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 45f));  // 底部按鈕
 
@@ -2298,11 +2298,12 @@ namespace DynamometerHMI
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 4,
+                RowCount = 5,
                 Padding = new Padding(12, 6, 12, 6)
             };
             pnlLogGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f)); // 軌道 1
             pnlLogGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f)); // 軌道 2
+            pnlLogGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f)); // 暫時性頻率比對診斷
             pnlLogGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 38f)); // 輪詢與刷新
             pnlLogGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f)); // 開啟目錄按鈕
 
@@ -2334,6 +2335,20 @@ namespace DynamometerHMI
                 main.enableSystemEventLog = chkSysLog.Checked;
                 main.SaveLayoutConfig();
                 MainForm.WriteHmiLog("LOG_CONFIG", string.Format("軌道 2 系統事件日誌檔案儲存已{0}", main.enableSystemEventLog ? "【開啟】" : "【關閉】"));
+            };
+
+            CheckBox chkFreqCompare = new CheckBox()
+            {
+                Text = "🔬 啟用暫時性頻率比對診斷 (同時比對 PowerMeter 與 KEB ru.03，寫入 [FREQ_COMPARE] 記錄)",
+                Checked = main.enableFreqCompareLog,
+                Dock = DockStyle.Fill,
+                Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(109, 40, 217),
+                Cursor = Cursors.Hand
+            };
+            chkFreqCompare.CheckedChanged += (s, e) => {
+                main.enableFreqCompareLog = chkFreqCompare.Checked;
+                MainForm.WriteHmiLog("LOG_CONFIG", string.Format("頻率比對診斷記錄已{0}", main.enableFreqCompareLog ? "【開啟】" : "【關閉】"));
             };
 
             // 輪詢週期與 UI 刷新頻率控制列
@@ -2386,8 +2401,9 @@ namespace DynamometerHMI
 
             pnlLogGrid.Controls.Add(chkAutoCsv, 0, 0);
             pnlLogGrid.Controls.Add(chkSysLog, 0, 1);
-            pnlLogGrid.Controls.Add(flpIntervals, 0, 2);
-            pnlLogGrid.Controls.Add(flpLogAction, 0, 3);
+            pnlLogGrid.Controls.Add(chkFreqCompare, 0, 2);
+            pnlLogGrid.Controls.Add(flpIntervals, 0, 3);
+            pnlLogGrid.Controls.Add(flpLogAction, 0, 4);
 
             grpLogging.Controls.Add(pnlLogGrid);
             root.Controls.Add(grpLogging, 0, 2);
