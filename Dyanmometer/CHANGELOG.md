@@ -8,9 +8,57 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.72 (beta) | v2.10.32 | 2026-09-10 | 馬達動力計規格特性分析儀 (Motor Characteristics Web Viewer - 純前端零依賴、支援拖曳讀取 Dynamometer 各類測試紀錄檔、智慧提取電氣/機械量、自動歸納 CNS 14400 / IEC 60034-2-1 馬達規格特性判定表、四大互動工程圖表與出廠規格書 CSV/PDF 匯出) |
 | V2.71 (beta) | v2.10.31 | 2026-09-10 | 遠端監控「白名單無限時」與「一般訪客 5 分鐘自動斷流」雙軌連線控制機制 (WebMonitor.html 訪客 300 秒動態倒數、超時主動關閉 SSE/輪詢終止流量消耗與磨砂鎖定遮罩、👑 VIP 金鑰/URL 參數快速通關一鍵解鎖無限制長時連線、工控機 HMI 診斷中心動態管理/同步白名單金鑰至 Firebase、訪客足跡審計自動標註 VIP/訪客身分) |
 | V2.70 (beta) | v2.10.30 | 2026-09-10 | 全系統溫度趨勢圖介面統一收斂 (即時總覽工作台升級為標準端點膠囊波形圖、多通道/單通道無縫切換、標配 30秒~1小時時間縮放工具列與動態掛載重定位防裁切) & T-N 特性曲線圖 Y 軸 (Nm) 與 X 軸 (RPM) 智慧自適應刻度 (Auto-Scaling、各水平/垂直網格刻度數字即時繪製、頂部峰值轉矩提示徽章) |
 | V2.69 (beta) | v2.10.29 | 2026-09-10 | 報告管理與雲端多目標上傳引擎 (專屬分頁 Tab7、純 C# .NET 4.0 零相依 PKZip 壓縮、Google Drive GAS Webhook 直通與自動轉發 Email、Firebase 雲端中心即時同步、網頁端 WebMonitor.html 一鍵下載 ZIP 專區、區域網路 NAS / 本機備份) |
+
+---
+
+## [V2.72 beta / v2.10.32] - 2026-09-10
+
+### 🎯 現象與需求背景
+1. **使用者需求**：
+   - 「能做一個讀Dynamometer的紀錄檔顯示馬達的規格特性表的網頁嗎?」
+2. **分析與診斷痛點**：
+   - 動力計系統在進行負載試驗（如 T-N 階梯測試、連續工作制測試、每日全參數高頻遙測）時會產生大量 CSV 日誌檔案（`Auto_Raw_Telemetry_*.csv`、`Report_TN_MultiPoints_*.csv`、`Report_TN_Curve_*.csv`）。
+   - 傳統現場工程師若要查核馬達規格、確認轉差率、計算額定效率或向客戶交付出廠規格特性表，通常需要以 Excel 手動篩選、手動計算功率公式與手動繪製圖表，流程耗時且容易因公式偏差而出錯。
+   - 亟需一套**免安裝、零後端相依、隨開即用且能直接讀取日誌自動歸納馬達規格特性判定表**的專用分析網頁。
+
+### 💡 致命根因 (Root Cause)
+1. **缺乏跨平台輕量離線分析工具**：
+   - 原 HMI 系統雖然具備即時繪圖與 CSV 匯出功能，但未提供針對歷史日誌的獨立多階梯負載規格萃取工具。
+2. **多種日誌格式結構異構**：
+   - `Report_TN_MultiPoints` 包含多段階梯彙總與 30 秒秒級取樣雙區塊；`Auto_Raw_Telemetry` 則為高頻連續時序流，需要智慧剖析引擎自動辨識與分級。
+
+### 🔧 精確修復與實裝方案
+**新增/修改核心檔案：**
+* `Dyanmometer/Dyanmometer_Modern/Motor_Characteristics_Viewer.html` (全新獨立馬達動力計規格特性分析儀網頁)
+* `Dyanmometer/Dyanmometer_Modern/WebMonitor.html` (導航列新增連往分析儀之快捷按鈕)
+* `Dyanmometer/package_release.ps1` (發布封裝腳本同步拷貝至便攜目錄)
+* `Dyanmometer/CHANGELOG.md` (原子化同動更新)
+
+**具體實施細節：**
+1. **純前端零依賴架構 (100% Client-Side)**：
+   - 採用現代 HTML5 + CSS3 (Sleek Dark Mode & Cyber Glass 現代工控質感) + Vanilla JS + Chart.js。
+   - 資料 100% 於瀏覽器本地記憶體解析，無須任何後端伺服器或 Node.js 執行期，確保機密測試數據不外流。
+2. **多日誌格式智慧解析引擎 (Auto-Detection Log Engine)**：
+   - 自動辨識並支援 `Report_TN_MultiPoints_*.csv` (多段彙總 + 30秒秒級)、`Report_TN_Curve_*.csv`、`Auto_Raw_Telemetry_*.csv` 及通用測試 CSV。
+3. **六大關鍵規格 KPI 指標卡**：
+   - 峰值轉矩 $T_{max}$ (Nm)、最高轉速 $N_{max}$ (rpm)、最大機械功率 $P_{mech,max}$ (kW 及 HP 換算)、最高實測效率 $\eta_{max}$ (%)、最大工作電流 $I_{max}$ (A)、最高測試溫升 $T_{max}$ (°C)。
+4. **標準化馬達運轉規格特性判定表 (CNS 14400 / IEC 60034-2-1 結構)**：
+   - 自動分類與計算無載運轉特性 (No-Load)、各負載階梯 (~25%, 50%, 75% 負載)、額定/代表工作點 (Rated 100%)、最大崩潰轉矩點 (Peak Torque) 與最高效率點 (Peak Eff)。
+   - 欄位涵蓋：轉速、轉矩、頻率、電壓、電流、電功率、機械功率、馬力 HP、功因 PF、效率 %、轉矩常數 $K_t$ (Nm/A)、轉差率 Slip (%) 與溫度。
+5. **四大互動工程圖表**：
+   - T-N 轉矩-轉速特性雙 Y 軸曲線圖 (Speed vs Torque & Power)
+   - 綜合負載特性曲線圖 (Load vs Eff, PF*100, Current)
+   - 三相電壓與電流平衡分佈柱狀圖 (3-Phase Balance)
+   - 負載試驗溫升時序曲線圖 (Temperature vs Time)
+6. **示範資料一鍵載入與匯出列印功能**：
+   - 內建「T-N 階梯多點試驗範例」與「全參數即時遙測範例」，隨點即看。
+   - 支援 `@media print` 專用出廠報告列印樣式（自動轉換為高對比白底黑字工程格式，適合作為出廠規格書）與精煉規格 CSV 匯出。
+7. **發布與串接整合**：
+   - 便攜打包腳本同步拷貝至 `Release/`，讓產線同仁離線即可雙擊使用；`WebMonitor.html` 頂部同步整合跳轉入口。
 
 ---
 

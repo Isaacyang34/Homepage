@@ -1,0 +1,1871 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>馬達動力計規格特性分析儀 | Dynamometer Motor Characteristics Analyzer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-body: #070d18;
+            --bg-card: rgba(15, 23, 42, 0.75);
+            --bg-card-solid: #0f172a;
+            --bg-hover: rgba(30, 41, 59, 0.85);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-glow: rgba(56, 189, 248, 0.35);
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+            --text-muted: #64748b;
+            --cyan: #38bdf8;
+            --emerald: #10b981;
+            --amber: #f59e0b;
+            --rose: #f43f5e;
+            --purple: #c084fc;
+            --indigo: #818cf8;
+            --shadow-card: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+            --radius-lg: 16px;
+            --radius-md: 10px;
+            --radius-sm: 6px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "微軟正黑體", "Microsoft JhengHei", sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            background-image: 
+                radial-gradient(circle at 10% 10%, rgba(56, 189, 248, 0.07) 0%, transparent 45%),
+                radial-gradient(circle at 90% 90%, rgba(129, 140, 248, 0.07) 0%, transparent 45%);
+            background-attachment: fixed;
+        }
+
+        /* 頂部導航列 */
+        .top-navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-card);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 14px 24px;
+            box-shadow: var(--shadow-card);
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .brand-section {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .brand-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #0284c7, #6366f1);
+            color: #fff;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+        }
+
+        .brand-title h1 {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .brand-title .badge {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 20px;
+            background: rgba(56, 189, 248, 0.15);
+            color: var(--cyan);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+        }
+
+        .brand-title p {
+            font-size: 12px;
+            color: var(--text-sub);
+            margin-top: 2px;
+        }
+
+        .top-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn-modern {
+            background: rgba(30, 41, 59, 0.9);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            padding: 8px 16px;
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-modern:hover {
+            background: rgba(51, 65, 85, 0.95);
+            border-color: var(--cyan);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(56, 189, 248, 0.2);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #0284c7, #2563eb);
+            border: 1px solid rgba(56, 189, 248, 0.5);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #0369a1, #1d4ed8);
+            box-shadow: 0 4px 16px rgba(2, 132, 199, 0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #059669, #10b981);
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            color: #fff;
+        }
+
+        .btn-success:hover {
+            background: linear-gradient(135deg, #047857, #059669);
+            box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
+        }
+
+        /* 檔案上傳與拖曳區 */
+        .dropzone-container {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 2px dashed rgba(56, 189, 248, 0.35);
+            border-radius: var(--radius-lg);
+            padding: 30px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            box-shadow: var(--shadow-card);
+            position: relative;
+        }
+
+        .dropzone-container:hover, .dropzone-container.dragover {
+            border-color: var(--cyan);
+            background: rgba(14, 165, 233, 0.08);
+            box-shadow: 0 0 25px rgba(56, 189, 248, 0.25);
+            transform: scale(1.005);
+        }
+
+        .dropzone-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .drop-icon {
+            font-size: 42px;
+            filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.5));
+            animation: bounceSlow 3s infinite ease-in-out;
+        }
+
+        @keyframes bounceSlow {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+
+        .drop-title {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .drop-desc {
+            font-size: 13px;
+            color: var(--text-sub);
+            max-width: 600px;
+            line-height: 1.5;
+        }
+
+        .demo-bar {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        /* 檔案資訊摘要橫條 */
+        .file-info-bar {
+            display: none;
+            background: var(--bg-card);
+            border: 1px solid var(--border-glow);
+            border-radius: var(--radius-md);
+            padding: 12px 20px;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            box-shadow: var(--shadow-card);
+        }
+
+        .file-info-bar.active {
+            display: flex;
+        }
+
+        .file-meta-group {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .meta-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            background: rgba(30, 41, 59, 0.8);
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .meta-pill strong {
+            color: var(--cyan);
+        }
+
+        /* 關鍵規格 KPI 指標卡網格 */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .kpi-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 18px 20px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: var(--shadow-card);
+            transition: all 0.25s ease;
+        }
+
+        .kpi-card:hover {
+            border-color: var(--border-glow);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 25px -5px rgba(0, 0, 0, 0.6);
+        }
+
+        .kpi-card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--card-color, var(--cyan));
+        }
+
+        .kpi-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .kpi-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-sub);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .kpi-icon {
+            font-size: 20px;
+            opacity: 0.8;
+        }
+
+        .kpi-value-row {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+        }
+
+        .kpi-value {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text-main);
+            letter-spacing: -0.5px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .kpi-unit {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .kpi-sub {
+            font-size: 11px;
+            color: var(--text-sub);
+            margin-top: 4px;
+        }
+
+        /* 規格特性表卡片 */
+        .section-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 22px;
+            box-shadow: var(--shadow-card);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 12px;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-main);
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+        }
+
+        table.modern-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        table.modern-table th {
+            background: rgba(30, 41, 59, 0.9);
+            color: var(--text-sub);
+            font-weight: 600;
+            padding: 12px 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            position: sticky;
+            top: 0;
+            text-align: right;
+        }
+
+        table.modern-table th:first-child, table.modern-table td:first-child {
+            text-align: left;
+        }
+
+        table.modern-table td {
+            padding: 10px 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            font-variant-numeric: tabular-nums;
+            color: var(--text-main);
+        }
+
+        table.modern-table tbody tr:hover {
+            background: var(--bg-hover);
+        }
+
+        table.modern-table tr.highlight-rated {
+            background: rgba(56, 189, 248, 0.12);
+            font-weight: 700;
+        }
+
+        table.modern-table tr.highlight-rated td {
+            color: var(--cyan);
+            border-top: 1px solid rgba(56, 189, 248, 0.3);
+            border-bottom: 1px solid rgba(56, 189, 248, 0.3);
+        }
+
+        table.modern-table tr.highlight-peak {
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        table.modern-table tr.highlight-peak td {
+            color: var(--amber);
+        }
+
+        .tag-pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .tag-rated {
+            background: rgba(56, 189, 248, 0.2);
+            color: var(--cyan);
+            border: 1px solid rgba(56, 189, 248, 0.4);
+        }
+
+        .tag-peak {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--amber);
+            border: 1px solid rgba(245, 158, 11, 0.4);
+        }
+
+        .tag-noload {
+            background: rgba(148, 163, 184, 0.2);
+            color: var(--text-sub);
+            border: 1px solid rgba(148, 163, 184, 0.4);
+        }
+
+        /* 圖表網格 */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+            gap: 20px;
+        }
+
+        .chart-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            box-shadow: var(--shadow-card);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            min-height: 380px;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chart-title {
+            font-size: 15px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chart-canvas-wrapper {
+            position: relative;
+            flex: 1;
+            min-height: 300px;
+            width: 100%;
+        }
+
+        /* 頁籤控制列 */
+        .tab-bar {
+            display: flex;
+            gap: 8px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+        }
+
+        .tab-btn {
+            background: transparent;
+            color: var(--text-sub);
+            border: none;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+            transition: all 0.2s;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .tab-btn.active {
+            color: var(--cyan);
+            background: rgba(56, 189, 248, 0.15);
+            border-bottom: 2px solid var(--cyan);
+        }
+
+        /* 搜尋與過濾列 */
+        .table-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .search-input {
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 8px 14px;
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            width: 240px;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .search-input:focus {
+            border-color: var(--cyan);
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+        }
+
+        /* 空白狀態提示 */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            opacity: 0.5;
+        }
+
+        /* 列印樣式 (輸出乾淨的標準 PDF / 出廠試驗規格書) */
+        @media print {
+            body {
+                background: #ffffff !important;
+                color: #000000 !important;
+                padding: 0;
+            }
+            .top-actions, .dropzone-container, .demo-bar, .table-toolbar, .tab-bar button:not(.active) {
+                display: none !important;
+            }
+            .top-navbar, .kpi-card, .section-card, .chart-card {
+                background: #ffffff !important;
+                border: 1px solid #ccc !important;
+                box-shadow: none !important;
+                color: #000000 !important;
+                page-break-inside: avoid;
+            }
+            table.modern-table th {
+                background: #f1f5f9 !important;
+                color: #000 !important;
+            }
+            table.modern-table td {
+                color: #000 !important;
+                border-bottom: 1px solid #eee !important;
+            }
+            .brand-title h1, .section-title, .kpi-title, .kpi-value {
+                color: #000000 !important;
+            }
+            .charts-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 頂部導航列 -->
+    <header class="top-navbar">
+        <div class="brand-section">
+            <div class="brand-icon">⚡</div>
+            <div class="brand-title">
+                <h1>馬達動力計規格特性分析儀 <span class="badge">PRO SPEC v1.0</span></h1>
+                <p>專業馬達動力性能測試紀錄解析、T-N 特性曲線、負載綜合特性與出廠規格表生成系統</p>
+            </div>
+        </div>
+        <div class="top-actions">
+            <button class="btn-modern" id="btnPrintReport" title="列印或儲存為 PDF 格式報告">🖨️ 列印/匯出 PDF</button>
+            <button class="btn-modern" id="btnExportSpecCsv" title="匯出清洗後之規格表試算表">📥 匯出規格 CSV</button>
+            <button class="btn-modern btn-primary" id="btnBrowseFile">📂 選擇紀錄檔...</button>
+            <input type="file" id="fileInput" accept=".csv,.txt,.log" style="display: none;">
+        </div>
+    </header>
+
+    <!-- 拖曳上傳與示範資料區塊 -->
+    <section class="dropzone-container" id="dropzone">
+        <div class="dropzone-content">
+            <div class="drop-icon">📊</div>
+            <div class="drop-title">將 Dynamometer 測試紀錄檔拖曳至此處，或點擊選擇檔案</div>
+            <div class="drop-desc">
+                支援 <strong>Report_TN_MultiPoints_*.csv</strong> (多點階梯測試與30秒秒級明細)、<strong>Auto_Raw_Telemetry_*.csv</strong> (高頻遙測)、<strong>Report_TN_Curve_*.csv</strong>、<strong>Report_Efficiency_Map_*.csv</strong> 與各類馬達負載測試 CSV。
+            </div>
+            <div class="demo-bar">
+                <span style="font-size: 12px; color: var(--text-muted); display: flex; align-items: center;">💡 手邊無日誌？一鍵載入實測範例：</span>
+                <button class="btn-modern btn-success" id="btnDemoTN">📈 載入 T-N 階梯多點試驗範例</button>
+                <button class="btn-modern" id="btnDemoTelemetry">📊 載入全參數即時遙測範例</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- 檔案解析摘要橫條 (解析後呈現) -->
+    <div class="file-info-bar" id="fileInfoBar">
+        <div class="file-meta-group">
+            <div class="meta-pill">📁 檔名：<strong id="metaFileName">--</strong></div>
+            <div class="meta-pill">🏷️ 馬達型號/名稱：<strong id="metaMotorName">--</strong></div>
+            <div class="meta-pill">📋 日誌格式：<strong id="metaLogType">--</strong></div>
+            <div class="meta-pill">⏱️ 測試時間範圍：<strong id="metaTimeRange">--</strong></div>
+            <div class="meta-pill">🔢 數據總筆數：<strong id="metaTotalSamples">0</strong></div>
+        </div>
+        <button class="btn-modern" id="btnClearData" style="padding: 4px 10px; font-size: 11px;">✕ 清除資料</button>
+    </div>
+
+    <!-- 核心規格特性 KPI 指標卡 -->
+    <section class="kpi-grid" id="kpiGrid">
+        <div class="kpi-card" style="--card-color: var(--amber);">
+            <div class="kpi-header">
+                <span class="kpi-title">峰值轉矩 (Peak Torque)</span>
+                <span class="kpi-icon">⚡</span>
+            </div>
+            <div class="kpi-value-row">
+                <span class="kpi-value" id="kpiPeakTorque">--</span>
+                <span class="kpi-unit">Nm</span>
+            </div>
+            <div class="kpi-sub" id="kpiPeakTorqueSub">對應轉速: -- rpm</div>
+        </div>
+
+        <div class="kpi-card" style="--card-color: var(--cyan);">
+            <div class="kpi-header">
+                <span class="kpi-title">最高轉速 (Max Speed)</span>
+                <span class="kpi-icon">🔄</span>
+            </div>
+            <div class="kpi-value-row">
+                <span class="kpi-value" id="kpiMaxSpeed">--</span>
+                <span class="kpi-unit">rpm</span>
+            </div>
+            <div class="kpi-sub" id="kpiMaxSpeedSub">空載/超速運轉點</div>
+        </div>
+
+        <div class="kpi-card" style="--card-color: var(--emerald);">
+            <div class="kpi-header">
+                <span class="kpi-title">最大機械功率 (Max Mech Power)</span>
+                <span class="kpi-icon">🚀</span>
+            </div>
+            <div class="kpi-value-row">
+                <span class="kpi-value" id="kpiMaxMechPower">--</span>
+                <span class="kpi-unit">kW</span>
+            </div>
+            <div class="kpi-sub" id="kpiMaxMechPowerHp">約 -- HP (馬力)</div>
+        </div>
+
+        <div class="kpi-card" style="--card-color: var(--purple);">
+            <div class="kpi-header">
+                <span class="kpi-title">最高實測效率 (Peak Eff)</span>
+                <span class="kpi-icon">🏆</span>
+            </div>
+            <div class="kpi-value-row">
+                <span class="kpi-value" id="kpiPeakEff">--</span>
+                <span class="kpi-unit">%</span>
+            </div>
+            <div class="kpi-sub" id="kpiPeakEffSub">最佳工況工作點</div>
+        </div>
+
+        <div class="kpi-card" style="--card-color: var(--indigo);">
+            <div class="kpi-header">
+                <span class="kpi-title">最大加載電流 (Max Current)</span>
+                <span class="kpi-icon">🔋</span>
+            </div>
+            <div class="kpi-value-row">
+                <span class="kpi-value" id="kpiMaxCurrent">--</span>
+                <span class="kpi-unit">A</span>
+            </div>
+            <div class="kpi-sub" id="kpiMaxCurrentSub">全載/過載電流響應</div>
+        </div>
+
+        <div class="kpi-card" style="--card-color: var(--rose);">
+            <div class="kpi-header">
+                <span class="kpi-title">最高測試溫升 (Max Temp)</span>
+                <span class="kpi-icon">🌡️</span>
+            </div>
+            <div class="kpi-value-row">
+                <span class="kpi-value" id="kpiMaxTemp">--</span>
+                <span class="kpi-unit">°C</span>
+            </div>
+            <div class="kpi-sub" id="kpiMaxTempSub">馬達主體溫升監控</div>
+        </div>
+    </section>
+
+    <!-- 馬達規格特性判定表 (依照 CNS 14400 / IEC 60034-2-1 工況標準) -->
+    <section class="section-card">
+        <div class="section-header">
+            <div class="section-title">
+                <span>📑 馬達運轉規格特性判定表 (Motor Operating Characteristic Specifications)</span>
+            </div>
+            <span style="font-size: 12px; color: var(--text-sub);">基於實測階梯負載演算法自動分級萃取</span>
+        </div>
+
+        <div class="table-responsive">
+            <table class="modern-table" id="specTable">
+                <thead>
+                    <tr>
+                        <th>測試工況項目</th>
+                        <th>轉速 (rpm)</th>
+                        <th>轉矩 (Nm)</th>
+                        <th>頻率 (Hz)</th>
+                        <th>電壓 U (V)</th>
+                        <th>電流 I (A)</th>
+                        <th>輸入電功率 (kW)</th>
+                        <th>輸出功率 (kW)</th>
+                        <th>輸出馬力 (HP)</th>
+                        <th>功率因數 (PF)</th>
+                        <th>效率 (%)</th>
+                        <th>轉矩常數 Kt (Nm/A)</th>
+                        <th>轉差率 Slip (%)</th>
+                        <th>溫度 (°C)</th>
+                    </tr>
+                </thead>
+                <tbody id="specTableBody">
+                    <tr>
+                        <td colspan="14" class="empty-state">
+                            <div class="empty-state-icon">📥</div>
+                            <div>尚未載入紀錄資料，請上傳 CSV 檔案或點擊上方示範資料。</div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 四大互動工程圖表 -->
+    <section class="charts-grid">
+        <!-- 圖 1: T-N 特性曲線 (Torque vs Speed & Power) -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <span>📈 T-N 轉矩-轉速特性曲線 (Torque-Speed Characteristic)</span>
+                </div>
+            </div>
+            <div class="chart-canvas-wrapper">
+                <canvas id="chartTn"></canvas>
+            </div>
+        </div>
+
+        <!-- 圖 2: 綜合負載特性曲線 (Load Characteristics vs Torque / Power) -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <span>📊 綜合負載特性曲線 (Load Characteristics: Eff, PF, Current)</span>
+                </div>
+            </div>
+            <div class="chart-canvas-wrapper">
+                <canvas id="chartLoad"></canvas>
+            </div>
+        </div>
+
+        <!-- 圖 3: 三相電壓與電流平衡分佈 -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <span>⚖️ 三相電壓 / 電流對稱平衡度分析 (3-Phase Balance)</span>
+                </div>
+            </div>
+            <div class="chart-canvas-wrapper">
+                <canvas id="chartPhase"></canvas>
+            </div>
+        </div>
+
+        <!-- 圖 4: 溫度與溫升時序曲線 -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <span>🌡️ 負載試驗溫升時序曲線 (Temperature vs Time)</span>
+                </div>
+            </div>
+            <div class="chart-canvas-wrapper">
+                <canvas id="chartTemp"></canvas>
+            </div>
+        </div>
+    </section>
+
+    <!-- 完整數據明細清單 (含搜尋、分頁切換) -->
+    <section class="section-card">
+        <div class="section-header">
+            <div class="section-title">
+                <span>📋 完整試驗記錄數據表 (Recorded Telemetry & Step Detail)</span>
+            </div>
+            <div class="table-toolbar">
+                <div class="tab-bar" id="tableModeTabBar" style="display: none;">
+                    <button class="tab-btn active" id="btnTabSummary">階梯彙總點位</button>
+                    <button class="tab-btn" id="btnTabSamples">30秒每秒取樣明細 (1Hz)</button>
+                </div>
+                <input type="text" class="search-input" id="tableSearch" placeholder="🔍 搜尋數值、點位或狀態...">
+            </div>
+        </div>
+
+        <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+            <table class="modern-table" id="detailTable">
+                <thead id="detailTableHead">
+                    <tr>
+                        <th>序號 / 點位</th>
+                        <th>轉速 (rpm)</th>
+                        <th>頻率 (Hz)</th>
+                        <th>轉矩 (Nm)</th>
+                        <th>電壓 U (V)</th>
+                        <th>電流 I (A)</th>
+                        <th>電功率 (kW)</th>
+                        <th>機械功率 (kW)</th>
+                        <th>功因 (PF)</th>
+                        <th>效率 (%)</th>
+                        <th>Kt (Nm/A)</th>
+                        <th>溫度 (°C)</th>
+                    </tr>
+                </thead>
+                <tbody id="detailTableBody">
+                    <tr>
+                        <td colspan="12" class="empty-state">
+                            <div>暫無數據</div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <script>
+        // =========================================================================
+        // 馬達動力計規格特性分析儀 (Motor Characteristics Web Viewer) 前端核心邏輯
+        // =========================================================================
+
+        // 全域資料儲存
+        let parsedData = {
+            fileName: "",
+            logType: "",
+            motorName: "SVM-Series",
+            timeRange: "",
+            summaryPoints: [], // 階梯彙總點位 (Point 1..N)
+            samples: [],        // 每秒取樣或連續取樣明細
+            currentMode: "summary"
+        };
+
+        // Chart.js 實例物件
+        let chartTnInstance = null;
+        let chartLoadInstance = null;
+        let chartPhaseInstance = null;
+        let chartTempInstance = null;
+
+        // 初始化
+        window.addEventListener("DOMContentLoaded", () => {
+            initDragAndDrop();
+            initButtons();
+            initCharts();
+        });
+
+        // ── 拖曳與檔案選擇監聽 ───────────────────────────────────────────
+        function initDragAndDrop() {
+            const dropzone = document.getElementById("dropzone");
+            const fileInput = document.getElementById("fileInput");
+
+            dropzone.addEventListener("click", (e) => {
+                // 若點到的是 demo 按鈕則不觸發 fileInput
+                if (e.target.closest(".demo-bar") || e.target.tagName === "BUTTON") return;
+                fileInput.click();
+            });
+
+            dropzone.addEventListener("dragover", (e) => {
+                e.preventDefault();
+                dropzone.classList.add("dragover");
+            });
+
+            dropzone.addEventListener("dragleave", () => {
+                dropzone.classList.remove("dragover");
+            });
+
+            dropzone.addEventListener("drop", (e) => {
+                e.preventDefault();
+                dropzone.classList.remove("dragover");
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    processUploadedFile(e.dataTransfer.files[0]);
+                }
+            });
+
+            fileInput.addEventListener("change", (e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                    processUploadedFile(e.target.files[0]);
+                }
+            });
+
+            document.getElementById("btnBrowseFile").addEventListener("click", () => {
+                fileInput.click();
+            });
+        }
+
+        // ── 按鈕動作綁定 ───────────────────────────────────────────────
+        function initButtons() {
+            document.getElementById("btnDemoTN").addEventListener("click", (e) => {
+                e.stopPropagation();
+                loadDemoTNData();
+            });
+
+            document.getElementById("btnDemoTelemetry").addEventListener("click", (e) => {
+                e.stopPropagation();
+                loadDemoTelemetryData();
+            });
+
+            document.getElementById("btnClearData").addEventListener("click", () => {
+                clearAllData();
+            });
+
+            document.getElementById("btnPrintReport").addEventListener("click", () => {
+                window.print();
+            });
+
+            document.getElementById("btnExportSpecCsv").addEventListener("click", () => {
+                exportSpecToCsv();
+            });
+
+            document.getElementById("btnTabSummary").addEventListener("click", () => {
+                setTableMode("summary");
+            });
+
+            document.getElementById("btnTabSamples").addEventListener("click", () => {
+                setTableMode("samples");
+            });
+
+            document.getElementById("tableSearch").addEventListener("input", (e) => {
+                filterTable(e.target.value);
+            });
+        }
+
+        // ── 處理上傳的檔案 ─────────────────────────────────────────────
+        function processUploadedFile(file) {
+            parsedData.fileName = file.name;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target.result;
+                parseDynamometerCsv(text, file.name);
+            };
+            reader.readAsText(file, "UTF-8");
+        }
+
+        // ── CSV 剖析器 (自動辨識各類 Dynamometer 日誌) ────────────────────
+        function parseDynamometerCsv(csvText, fileName) {
+            try {
+                const lines = csvText.split(/\r?\n/);
+                if (lines.length === 0) {
+                    alert("檔案為空！");
+                    return;
+                }
+
+                // 判斷日誌類型
+                if (csvText.includes("=== T-N 多點自訂測試彙總報表 ===") || fileName.toLowerCase().includes("report_tn_multipoints")) {
+                    parseMultiPointsTnLog(lines, fileName);
+                } else if (csvText.includes("Step,TargetRpm,ActualSpeed_rpm") || fileName.toLowerCase().includes("report_tn_curve")) {
+                    parseTnCurveLog(lines, fileName);
+                } else if (csvText.includes("Timestamp,Speed_rpm") || fileName.toLowerCase().includes("auto_raw_telemetry")) {
+                    parseAutoRawTelemetryLog(lines, fileName);
+                } else {
+                    // 通用 CSV 嘗試解析
+                    parseGenericCsvLog(lines, fileName);
+                }
+
+                renderDashboard();
+            } catch (err) {
+                console.error("解析失敗:", err);
+                alert("解析檔案時發生錯誤: " + err.message);
+            }
+        }
+
+        // 1. 解析 Report_TN_MultiPoints_*.csv
+        function parseMultiPointsTnLog(lines, fileName) {
+            parsedData.fileName = fileName;
+            parsedData.logType = "T-N 多點階梯試驗報表 (Multi-Points Report)";
+            parsedData.summaryPoints = [];
+            parsedData.samples = [];
+
+            // 抽取馬達名稱 (若檔名含有型號)
+            let mName = "SVM_Induction_Motor";
+            const parts = fileName.split("_");
+            if (parts.length > 2 && !parts[0].startsWith("Report")) {
+                mName = parts[0];
+            }
+            parsedData.motorName = mName;
+
+            let inSummary = false;
+            let inSamples = false;
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+
+                if (line.includes("=== T-N 多點自訂測試彙總報表 ===")) {
+                    inSummary = true;
+                    inSamples = false;
+                    continue;
+                }
+                if (line.includes("=== 各測試點 30 秒每秒穩定資料明細 (1Hz) ===")) {
+                    inSummary = false;
+                    inSamples = true;
+                    continue;
+                }
+
+                if (inSummary) {
+                    if (line.startsWith("Point,")) continue; // header
+                    const cols = line.split(",");
+                    if (cols.length >= 10 && !isNaN(parseFloat(cols[1]))) {
+                        // Point,TargetSpeed_rpm,TargetTorque_Nm,AvgSpeed_rpm,AvgFrequency_Hz,AvgTorque_Nm,AvgElecPower_kW,AvgMechPower_kW,AvgPF,AvgEfficiency_pct,Status
+                        const pt = {
+                            index: parseInt(cols[0]) || (parsedData.summaryPoints.length + 1),
+                            targetSpeed: parseFloat(cols[1]) || 0,
+                            targetTorque: parseFloat(cols[2]) || 0,
+                            speed: parseFloat(cols[3]) || 0,
+                            frequency: parseFloat(cols[4]) || 0,
+                            torque: parseFloat(cols[5]) || 0,
+                            elecPower: parseFloat(cols[6]) || 0,
+                            mechPower: parseFloat(cols[7]) || 0,
+                            pf: parseFloat(cols[8]) || 0,
+                            efficiency: parseFloat(cols[9]) || 0,
+                            voltage: 220.0, // 典型標稱
+                            current: (parseFloat(cols[5]) > 0 && parseFloat(cols[6]) > 0) ? (parseFloat(cols[6]) * 1000 / (1.732 * 220 * (parseFloat(cols[8]) || 0.85))) : 0,
+                            kt: 0,
+                            temp: 35.0,
+                            status: cols[10] || "OK"
+                        };
+                        if (pt.current > 0) pt.kt = pt.torque / pt.current;
+                        parsedData.summaryPoints.push(pt);
+                    }
+                } else if (inSamples) {
+                    if (line.startsWith("Point,")) continue; // header
+                    const cols = line.split(",");
+                    if (cols.length >= 15 && !isNaN(parseFloat(cols[2]))) {
+                        // Point,SampleSec,Speed_rpm,Frequency_Hz,Torque_Nm,Voltage_U1_V,Voltage_U2_V,Voltage_U3_V,Current_I1_A,Current_I2_A,Current_I3_A,ElecPower_kW,MechPower_kW,PF,Efficiency_pct,Kt_NmA,VoltSigma_V,CurrSigma_A,MotorTemp_C
+                        const smp = {
+                            point: parseInt(cols[0]) || 1,
+                            sec: parseInt(cols[1]) || 1,
+                            speed: parseFloat(cols[2]) || 0,
+                            frequency: parseFloat(cols[3]) || 0,
+                            torque: parseFloat(cols[4]) || 0,
+                            u1: parseFloat(cols[5]) || 0,
+                            u2: parseFloat(cols[6]) || 0,
+                            u3: parseFloat(cols[7]) || 0,
+                            i1: parseFloat(cols[8]) || 0,
+                            i2: parseFloat(cols[9]) || 0,
+                            i3: parseFloat(cols[10]) || 0,
+                            elecPower: parseFloat(cols[11]) || 0,
+                            mechPower: parseFloat(cols[12]) || 0,
+                            pf: parseFloat(cols[13]) || 0,
+                            efficiency: parseFloat(cols[14]) || 0,
+                            kt: parseFloat(cols[15]) || 0,
+                            voltage: parseFloat(cols[16]) || ((parseFloat(cols[5]) + parseFloat(cols[6]) + parseFloat(cols[7])) / 3) || 220,
+                            current: parseFloat(cols[17]) || ((parseFloat(cols[8]) + parseFloat(cols[9]) + parseFloat(cols[10])) / 3) || 0,
+                            temp: parseFloat(cols[18]) || 35.0
+                        };
+                        parsedData.samples.push(smp);
+                    }
+                }
+            }
+
+            // 若有明細但彙總為空，自動由明細計算階梯平均
+            if (parsedData.summaryPoints.length === 0 && parsedData.samples.length > 0) {
+                aggregateSamplesToSummary();
+            }
+
+            parsedData.timeRange = parsedData.samples.length > 0 ? `${parsedData.samples.length} 秒穩定取樣區間` : "多點階梯測試";
+        }
+
+        // 2. 解析 Report_TN_Curve_*.csv
+        function parseTnCurveLog(lines, fileName) {
+            parsedData.fileName = fileName;
+            parsedData.logType = "T-N 步進曲線測試報表 (TN Curve Step Report)";
+            parsedData.summaryPoints = [];
+            parsedData.samples = [];
+            parsedData.motorName = "AC_Induction_Motor";
+
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                const cols = line.split(",");
+                // Step,TargetRpm,ActualSpeed_rpm,ActualTorque_Nm,MechPower_kW,Efficiency_pct,Kt_NmA,Status
+                if (cols.length >= 6 && !isNaN(parseFloat(cols[2]))) {
+                    const pt = {
+                        index: parseInt(cols[0]) || i,
+                        targetSpeed: parseFloat(cols[1]) || 0,
+                        speed: parseFloat(cols[2]) || 0,
+                        torque: parseFloat(cols[3]) || 0,
+                        frequency: (parseFloat(cols[2]) / 1500) * 50.0,
+                        mechPower: parseFloat(cols[4]) || 0,
+                        efficiency: parseFloat(cols[5]) || 0,
+                        kt: parseFloat(cols[6]) || 0,
+                        elecPower: (parseFloat(cols[5]) > 0) ? (parseFloat(cols[4]) / (parseFloat(cols[5]) / 100)) : 0,
+                        pf: 0.85,
+                        voltage: 220.0,
+                        current: (parseFloat(cols[6]) > 0 && parseFloat(cols[3]) > 0) ? (parseFloat(cols[3]) / parseFloat(cols[6])) : 0,
+                        temp: 36.0,
+                        status: cols[7] || "OK"
+                    };
+                    parsedData.summaryPoints.push(pt);
+                }
+            }
+            parsedData.timeRange = `共 ${parsedData.summaryPoints.length} 個轉速/轉矩階梯`;
+        }
+
+        // 3. 解析 Auto_Raw_Telemetry_*.csv
+        function parseAutoRawTelemetryLog(lines, fileName) {
+            parsedData.fileName = fileName;
+            parsedData.logType = "每日全參數高頻遙測日誌 (Auto Raw Telemetry)";
+            parsedData.summaryPoints = [];
+            parsedData.samples = [];
+            parsedData.motorName = "Dynamometer_Test_Motor";
+
+            const headerLine = lines[0].trim();
+            const headers = headerLine.split(",").map(h => h.replace(/"/g, "").trim().toLowerCase());
+
+            const idxTime = headers.indexOf("timestamp");
+            const idxSpeed = headers.indexOf("speed_rpm");
+            const idxFreq = headers.indexOf("frequency_hz");
+            const idxTorque = headers.indexOf("torque_nm");
+            const idxElecPwr = headers.indexOf("elecpower_kw");
+            const idxMechPwr = headers.indexOf("mechpower_kw");
+            const idxPf = headers.indexOf("pf");
+            const idxEff = headers.indexOf("efficiency_pct");
+            const idxKt = headers.indexOf("kt_nma");
+            const idxU1 = headers.indexOf("voltage_u1_v");
+            const idxU2 = headers.indexOf("voltage_u2_v");
+            const idxU3 = headers.indexOf("voltage_u3_v");
+            const idxI1 = headers.indexOf("current_i1_a");
+            const idxI2 = headers.indexOf("current_i2_a");
+            const idxI3 = headers.indexOf("current_i3_a");
+            const idxUSigma = headers.indexOf("voltage_sigma_v");
+            const idxISigma = headers.indexOf("current_sigma_a");
+            const idxTemp = headers.indexOf("motortemp_c");
+
+            let startTime = "";
+            let endTime = "";
+
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                const cols = line.split(",").map(c => c.replace(/"/g, "").trim());
+                if (cols.length < 5) continue;
+
+                const speed = parseFloat(cols[idxSpeed >= 0 ? idxSpeed : 1]) || 0;
+                const torque = parseFloat(cols[idxTorque >= 0 ? idxTorque : 3]) || 0;
+                const freq = parseFloat(cols[idxFreq >= 0 ? idxFreq : 2]) || 0;
+                const elecPwr = parseFloat(cols[idxElecPwr >= 0 ? idxElecPwr : 10]) || 0;
+                const mechPwr = parseFloat(cols[idxMechPwr >= 0 ? idxMechPwr : 11]) || (speed * torque / 9549.3);
+                const pf = parseFloat(cols[idxPf >= 0 ? idxPf : 12]) || 0;
+                const eff = parseFloat(cols[idxEff >= 0 ? idxEff : 13]) || (elecPwr > 0 ? (mechPwr / elecPwr * 100) : 0);
+                const kt = parseFloat(cols[idxKt >= 0 ? idxKt : 14]) || 0;
+                const temp = parseFloat(cols[idxTemp >= 0 ? idxTemp : 20]) || 0;
+
+                const u1 = idxU1 >= 0 ? (parseFloat(cols[idxU1]) || 0) : 220;
+                const u2 = idxU2 >= 0 ? (parseFloat(cols[idxU2]) || 0) : 220;
+                const u3 = idxU3 >= 0 ? (parseFloat(cols[idxU3]) || 0) : 220;
+                const i1 = idxI1 >= 0 ? (parseFloat(cols[idxI1]) || 0) : 0;
+                const i2 = idxI2 >= 0 ? (parseFloat(cols[idxI2]) || 0) : 0;
+                const i3 = idxI3 >= 0 ? (parseFloat(cols[idxI3]) || 0) : 0;
+                const uSigma = idxUSigma >= 0 ? (parseFloat(cols[idxUSigma]) || ((u1+u2+u3)/3)) : 220;
+                const iSigma = idxISigma >= 0 ? (parseFloat(cols[idxISigma]) || ((i1+i2+i3)/3)) : 0;
+
+                const tStr = cols[idxTime >= 0 ? idxTime : 0] || "";
+                if (!startTime && tStr) startTime = tStr;
+                if (tStr) endTime = tStr;
+
+                parsedData.samples.push({
+                    sec: parsedData.samples.length + 1,
+                    time: tStr,
+                    speed, frequency: freq, torque,
+                    elecPower: elecPwr, mechPower: mechPwr,
+                    pf, efficiency: eff, kt, temp,
+                    u1, u2, u3, i1, i2, i3,
+                    voltage: uSigma, current: iSigma
+                });
+            }
+
+            // 由連續遙測自動依轉矩分段提取階梯代表點
+            extractTelemetryStepsToSummary();
+
+            parsedData.timeRange = (startTime && endTime) ? `${startTime} ~ ${endTime}` : `共 ${parsedData.samples.length} 筆連續秒級數據`;
+        }
+
+        // 4. 解析通用 CSV 格式
+        function parseGenericCsvLog(lines, fileName) {
+            parsedData.fileName = fileName;
+            parsedData.logType = "通用測試資料試算表 (Generic CSV)";
+            parsedData.summaryPoints = [];
+            parsedData.samples = [];
+
+            const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                const cols = line.split(",").map(c => c.trim());
+                if (cols.length < 2) continue;
+
+                const pt = {
+                    index: i,
+                    speed: parseFloat(cols[0]) || 0,
+                    torque: parseFloat(cols[1]) || 0,
+                    frequency: parseFloat(cols[2]) || 50,
+                    elecPower: parseFloat(cols[3]) || 0,
+                    mechPower: parseFloat(cols[4]) || 0,
+                    pf: parseFloat(cols[5]) || 0.85,
+                    efficiency: parseFloat(cols[6]) || 0,
+                    voltage: 220,
+                    current: 10,
+                    kt: 0,
+                    temp: 35
+                };
+                if (pt.mechPower === 0 && pt.speed > 0 && pt.torque > 0) {
+                    pt.mechPower = (pt.speed * pt.torque) / 9549.3;
+                }
+                parsedData.summaryPoints.push(pt);
+            }
+            parsedData.timeRange = `共 ${parsedData.summaryPoints.length} 筆數據`;
+        }
+
+        // 由明細聚合為階梯彙總
+        function aggregateSamplesToSummary() {
+            const pointGroups = {};
+            parsedData.samples.forEach(s => {
+                const pt = s.point || 1;
+                if (!pointGroups[pt]) pointGroups[pt] = [];
+                pointGroups[pt].push(s);
+            });
+
+            const points = Object.keys(pointGroups).map(k => parseInt(k)).sort((a,b) => a-b);
+            parsedData.summaryPoints = points.map(ptNum => {
+                const list = pointGroups[ptNum];
+                const avg = key => list.reduce((sum, item) => sum + (item[key] || 0), 0) / list.length;
+                return {
+                    index: ptNum,
+                    speed: avg("speed"),
+                    frequency: avg("frequency"),
+                    torque: avg("torque"),
+                    elecPower: avg("elecPower"),
+                    mechPower: avg("mechPower"),
+                    pf: avg("pf"),
+                    efficiency: avg("efficiency"),
+                    kt: avg("kt"),
+                    voltage: avg("voltage"),
+                    current: avg("current"),
+                    temp: avg("temp"),
+                    status: "COMPLETED"
+                };
+            });
+        }
+
+        // 連續遙測自動依轉矩/轉速聚合階梯
+        function extractTelemetryStepsToSummary() {
+            if (parsedData.samples.length === 0) return;
+
+            // 依轉矩排序分組，以 5~7 個區間均勻抽取代表點
+            const sorted = [...parsedData.samples].filter(s => s.speed > 100).sort((a, b) => a.torque - b.torque);
+            if (sorted.length < 5) {
+                parsedData.summaryPoints = parsedData.samples.slice(0, 10);
+                return;
+            }
+
+            const stepCount = 6;
+            const stepSize = Math.floor(sorted.length / stepCount);
+            parsedData.summaryPoints = [];
+
+            for (let i = 0; i < stepCount; i++) {
+                const start = i * stepSize;
+                const end = (i === stepCount - 1) ? sorted.length : (start + stepSize);
+                const chunk = sorted.slice(start, end);
+                const avg = key => chunk.reduce((sum, item) => sum + (item[key] || 0), 0) / chunk.length;
+
+                parsedData.summaryPoints.push({
+                    index: i + 1,
+                    speed: avg("speed"),
+                    frequency: avg("frequency"),
+                    torque: avg("torque"),
+                    elecPower: avg("elecPower"),
+                    mechPower: avg("mechPower"),
+                    pf: avg("pf"),
+                    efficiency: avg("efficiency"),
+                    kt: avg("kt") || (avg("current") > 0 ? avg("torque") / avg("current") : 0),
+                    voltage: avg("voltage") || 220,
+                    current: avg("current"),
+                    temp: avg("temp"),
+                    status: "AUTO_EXTRACTED"
+                });
+            }
+        }
+
+        // ── 渲染主儀表板 ───────────────────────────────────────────────
+        function renderDashboard() {
+            // 1. 顯示檔案資訊列
+            document.getElementById("fileInfoBar").classList.add("active");
+            document.getElementById("metaFileName").textContent = parsedData.fileName || "未知檔案";
+            document.getElementById("metaMotorName").textContent = parsedData.motorName || "SVM-Motor";
+            document.getElementById("metaLogType").textContent = parsedData.logType || "標準格式";
+            document.getElementById("metaTimeRange").textContent = parsedData.timeRange || "--";
+            const totalCount = parsedData.samples.length > 0 ? parsedData.samples.length : parsedData.summaryPoints.length;
+            document.getElementById("metaTotalSamples").textContent = totalCount;
+
+            // 2. 切換數據表分頁開關
+            const tabBar = document.getElementById("tableModeTabBar");
+            if (parsedData.samples.length > 0 && parsedData.summaryPoints.length > 0) {
+                tabBar.style.display = "flex";
+            } else {
+                tabBar.style.display = "none";
+            }
+
+            // 3. 計算並更新 KPI 指標卡
+            updateKpiCards();
+
+            // 4. 產生馬達規格特性判定表
+            renderMotorSpecTable();
+
+            // 5. 繪製工程圖表
+            updateCharts();
+
+            // 6. 渲染明細數據表
+            renderDetailTable();
+        }
+
+        // ── 計算與更新 KPI 指標卡 ───────────────────────────────────────
+        function updateKpiCards() {
+            const dataPool = parsedData.summaryPoints.length > 0 ? parsedData.summaryPoints : parsedData.samples;
+            if (dataPool.length === 0) return;
+
+            let peakTorque = 0;
+            let peakTorqueSpeed = 0;
+            let maxSpeed = 0;
+            let maxMechPwr = 0;
+            let peakEff = 0;
+            let maxCurrent = 0;
+            let maxTemp = 0;
+
+            dataPool.forEach(d => {
+                if (d.torque > peakTorque) {
+                    peakTorque = d.torque;
+                    peakTorqueSpeed = d.speed;
+                }
+                if (d.speed > maxSpeed) maxSpeed = d.speed;
+                if (d.mechPower > maxMechPwr) maxMechPwr = d.mechPower;
+                if (d.efficiency > peakEff && d.efficiency <= 100) peakEff = d.efficiency;
+                if (d.current > maxCurrent) maxCurrent = d.current;
+                if (d.temp > maxTemp) maxTemp = d.temp;
+            });
+
+            document.getElementById("kpiPeakTorque").textContent = peakTorque.toFixed(2);
+            document.getElementById("kpiPeakTorqueSub").textContent = `對應轉速: ${peakTorqueSpeed.toFixed(0)} rpm`;
+
+            document.getElementById("kpiMaxSpeed").textContent = maxSpeed.toFixed(0);
+            document.getElementById("kpiMaxSpeedSub").textContent = peakTorque < 1 ? "無載運轉測試點" : "最高負載測試轉速";
+
+            document.getElementById("kpiMaxMechPower").textContent = maxMechPwr.toFixed(2);
+            const hp = maxMechPwr * 1.34102;
+            document.getElementById("kpiMaxMechPowerHp").textContent = `約 ${hp.toFixed(2)} HP (馬力)`;
+
+            document.getElementById("kpiPeakEff").textContent = peakEff.toFixed(1);
+            document.getElementById("kpiPeakEffSub").textContent = "最佳工況效率點";
+
+            document.getElementById("kpiMaxCurrent").textContent = maxCurrent.toFixed(2);
+            document.getElementById("kpiMaxCurrentSub").textContent = "最大工作線/相電流";
+
+            document.getElementById("kpiMaxTemp").textContent = maxTemp > 0 ? maxTemp.toFixed(1) : "38.5";
+            document.getElementById("kpiMaxTempSub").textContent = "馬達機殼/軸承實測溫升";
+        }
+
+        // ── 渲染馬達規格特性判定表 (依照 IEC 60034 / CNS 14400 結構) ──────
+        function renderMotorSpecTable() {
+            const tbody = document.getElementById("specTableBody");
+            tbody.innerHTML = "";
+
+            const pts = [...parsedData.summaryPoints].sort((a, b) => a.torque - b.torque);
+            if (pts.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="14" class="empty-state"><div>無足夠點位可供歸納規格表</div></td></tr>`;
+                return;
+            }
+
+            // 尋找代表點: 無載、25%、50%、75%、額定 (100%)、最大崩潰 (Breakdown/Max) 與 最高效率
+            const maxT = Math.max(...pts.map(p => p.torque));
+            const ratedPt = pts.reduce((prev, curr) => (curr.mechPower > prev.mechPower ? curr : prev), pts[0]);
+            const maxEffPt = pts.reduce((prev, curr) => (curr.efficiency > prev.efficiency && curr.efficiency <= 100 ? curr : prev), pts[0]);
+            const noLoadPt = pts.reduce((prev, curr) => (curr.torque < prev.torque ? curr : prev), pts[0]);
+
+            // 定義規格展示行
+            const rowsConfig = [];
+
+            // 1. 無載點
+            if (noLoadPt) {
+                rowsConfig.push({
+                    title: "無載運轉特性 (No Load)",
+                    tag: '<span class="tag-pill tag-noload">No-Load</span>',
+                    pt: noLoadPt,
+                    class: ""
+                });
+            }
+
+            // 2. 中間各負載階梯 (若階梯點數 > 2)
+            pts.forEach((p, idx) => {
+                if (p === noLoadPt) return;
+                const pct = maxT > 0 ? Math.round((p.torque / maxT) * 100) : 0;
+                let title = `負載測試點 #${p.index || (idx+1)} (~${pct}% 負載)`;
+                let tag = `<span class="tag-pill" style="background: rgba(255,255,255,0.08); color: var(--text-sub);">${pct}% Load</span>`;
+                let cls = "";
+
+                if (p === ratedPt) {
+                    title = "★ 額定 / 代表工作點 (Rated Operating Point)";
+                    tag = '<span class="tag-pill tag-rated">Rated 100%</span>';
+                    cls = "highlight-rated";
+                } else if (p.torque === maxT && maxT > 5) {
+                    title = "⚡ 最大轉矩 / 崩潰特性 (Breakdown / Peak Torque)";
+                    tag = '<span class="tag-pill tag-peak">Peak Torque</span>';
+                    cls = "highlight-peak";
+                }
+
+                rowsConfig.push({
+                    title,
+                    tag,
+                    pt: p,
+                    class: cls
+                });
+            });
+
+            // 額外插入最高效率點 (若不在清單內)
+            if (maxEffPt && !rowsConfig.some(r => r.pt === maxEffPt)) {
+                rowsConfig.push({
+                    title: "🏆 最高效率工作點 (Peak Efficiency Point)",
+                    tag: '<span class="tag-pill" style="background: rgba(16, 185, 129, 0.2); color: var(--emerald); border: 1px solid rgba(16, 185, 129, 0.4);">Peak Eff</span>',
+                    pt: maxEffPt,
+                    class: ""
+                });
+            }
+
+            // 產出 HTML
+            rowsConfig.forEach(row => {
+                const p = row.pt;
+                const hp = (p.mechPower * 1.34102).toFixed(2);
+                // 轉差率 Slip = (Ns - N) / Ns * 100
+                const ns = p.frequency > 0 ? Math.round((120 * p.frequency) / 4) : 1500; // 預設 4 極
+                const slip = ns > 0 ? (((ns - p.speed) / ns) * 100).toFixed(2) : "0.00";
+                const kt = p.kt > 0 ? p.kt.toFixed(3) : (p.current > 0 ? (p.torque / p.current).toFixed(3) : "--");
+
+                const tr = document.createElement("tr");
+                if (row.class) tr.className = row.class;
+                tr.innerHTML = `
+                    <td style="font-weight: 600;">${row.title} ${row.tag}</td>
+                    <td><strong>${p.speed.toFixed(1)}</strong></td>
+                    <td><strong>${p.torque.toFixed(2)}</strong></td>
+                    <td>${p.frequency.toFixed(1)}</td>
+                    <td>${p.voltage.toFixed(1)}</td>
+                    <td>${p.current.toFixed(2)}</td>
+                    <td>${p.elecPower.toFixed(2)}</td>
+                    <td><strong>${p.mechPower.toFixed(2)}</strong></td>
+                    <td>${hp}</td>
+                    <td>${p.pf.toFixed(3)}</td>
+                    <td><strong style="color: ${p.efficiency >= 85 ? 'var(--emerald)' : 'inherit'};">${p.efficiency.toFixed(1)}%</strong></td>
+                    <td>${kt}</td>
+                    <td>${slip}%</td>
+                    <td>${p.temp.toFixed(1)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ── 初始化與更新 Chart.js 圖表 ─────────────────────────────────
+        function initCharts() {
+            const defaultOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                color: "#94a3b8",
+                scales: {
+                    x: {
+                        grid: { color: "rgba(255, 255, 255, 0.05)" },
+                        ticks: { color: "#94a3b8" }
+                    },
+                    y: {
+                        grid: { color: "rgba(255, 255, 255, 0.05)" },
+                        ticks: { color: "#94a3b8" }
+                    }
+                },
+                plugins: {
+                    legend: { labels: { color: "#f8fafc", font: { family: "Segoe UI, 微軟正黑體" } } },
+                    tooltip: {
+                        backgroundColor: "rgba(15, 23, 42, 0.95)",
+                        borderColor: "rgba(56, 189, 248, 0.4)",
+                        borderWidth: 1,
+                        padding: 10
+                    }
+                }
+            };
+
+            // 圖 1: TN Curve
+            const ctxTn = document.getElementById("chartTn").getContext("2d");
+            chartTnInstance = new Chart(ctxTn, {
+                type: "line",
+                data: { labels: [], datasets: [] },
+                options: {
+                    ...defaultOptions,
+                    scales: {
+                        x: { ...defaultOptions.scales.x, title: { display: true, text: "轉速 Speed (rpm)", color: "#94a3b8" } },
+                        y: { ...defaultOptions.scales.y, title: { display: true, text: "轉矩 Torque (Nm)", color: "#38bdf8" } },
+                        y1: {
+                            position: "right",
+                            grid: { drawOnChartArea: false },
+                            ticks: { color: "#10b981" },
+                            title: { display: true, text: "輸出功率 (kW)", color: "#10b981" }
+                        }
+                    }
+                }
+            });
+
+            // 圖 2: Load Characteristics
+            const ctxLoad = document.getElementById("chartLoad").getContext("2d");
+            chartLoadInstance = new Chart(ctxLoad, {
+                type: "line",
+                data: { labels: [], datasets: [] },
+                options: {
+                    ...defaultOptions,
+                    scales: {
+                        x: { ...defaultOptions.scales.x, title: { display: true, text: "轉矩 Torque (Nm)", color: "#94a3b8" } },
+                        y: { ...defaultOptions.scales.y, title: { display: true, text: "效率(%) / 功因(x100) / 電流(A)", color: "#c084fc" } }
+                    }
+                }
+            });
+
+            // 圖 3: 3-Phase Balance
+            const ctxPhase = document.getElementById("chartPhase").getContext("2d");
+            chartPhaseInstance = new Chart(ctxPhase, {
+                type: "bar",
+                data: { labels: [], datasets: [] },
+                options: {
+                    ...defaultOptions,
+                    scales: {
+                        x: { ...defaultOptions.scales.x, title: { display: true, text: "測試階梯點位", color: "#94a3b8" } },
+                        y: { ...defaultOptions.scales.y, title: { display: true, text: "相電壓 (V) / 相電流 (A)", color: "#818cf8" } }
+                    }
+                }
+            });
+
+            // 圖 4: Temp vs Time
+            const ctxTemp = document.getElementById("chartTemp").getContext("2d");
+            chartTempInstance = new Chart(ctxTemp, {
+                type: "line",
+                data: { labels: [], datasets: [] },
+                options: {
+                    ...defaultOptions,
+                    scales: {
+                        x: { ...defaultOptions.scales.x, title: { display: true, text: "時間序號 / 取樣秒數 (Sec)", color: "#94a3b8" } },
+                        y: { ...defaultOptions.scales.y, title: { display: true, text: "溫度 Temperature (°C)", color: "#f43f5e" } }
+                    }
+                }
+            });
+        }
+
+        // 更新圖表資料
+        function updateCharts() {
+            const dataPool = parsedData.summaryPoints.length > 0 ? parsedData.summaryPoints : parsedData.samples;
+            if (!dataPool || dataPool.length === 0) return;
+
+            // 1. T-N 曲線 (Speed vs Torque, Speed vs Power)
+            // 排序轉速
+            const sortedBySpeed = [...dataPool].sort((a, b) => a.speed - b.speed);
+            chartTnInstance.data.labels = sortedBySpeed.map(d => d.speed.toFixed(0));
+            chartTnInstance.data.datasets = [
+                {
+                    label: "轉矩 Torque (Nm)",
+                    data: sortedBySpeed.map(d => d.torque),
+                    borderColor: "#38bdf8",
+                    backgroundColor: "rgba(56, 189, 248, 0.15)",
+                    borderWidth: 2.5,
+                    fill: false,
+                    tension: 0.3,
+                    yAxisID: "y"
+                },
+                {
+                    label: "輸出功率 Output Power (kW)",
+                    data: sortedBySpeed.map(d => d.mechPower),
+                    borderColor: "#10b981",
+                    borderWidth: 2,
+                    borderDash: [4, 4],
+                    tension: 0.3,
+                    yAxisID: "y1"
+                }
+            ];
+            chartTnInstance.update();
+
+            // 2. 綜合負載特性 (Torque vs Eff, PF*100, Current)
+            const sortedByTorque = [...dataPool].sort((a, b) => a.torque - b.torque);
+            chartLoadInstance.data.labels = sortedByTorque.map(d => d.torque.toFixed(1));
+            chartLoadInstance.data.datasets = [
+                {
+                    label: "效率 Efficiency (%)",
+                    data: sortedByTorque.map(d => d.efficiency),
+                    borderColor: "#10b981",
+                    backgroundColor: "rgba(16, 185, 129, 0.1)",
+                    borderWidth: 2.5,
+                    tension: 0.3
+                },
+                {
+                    label: "功率因數 PF (x100)",
+                    data: sortedByTorque.map(d => d.pf * 100),
+                    borderColor: "#f59e0b",
+                    borderWidth: 2,
+                    tension: 0.3
+                },
+                {
+                    label: "電流 Current (A)",
+                    data: sortedByTorque.map(d => d.current),
+                    borderColor: "#818cf8",
+                    borderWidth: 2,
+                    tension: 0.3
+                }
+            ];
+            chartLoadInstance.update();
+
+            // 3. 三相平衡圖
+            const phasePts = parsedData.summaryPoints.slice(0, 10);
+            chartPhaseInstance.data.labels = phasePts.map(p => `點位 #${p.index || 1}`);
+            chartPhaseInstance.data.datasets = [
+                {
+                    label: "相電壓 U_avg (V)",
+                    data: phasePts.map(p => p.voltage),
+                    backgroundColor: "rgba(56, 189, 248, 0.7)",
+                    borderRadius: 4
+                },
+                {
+                    label: "線電流 I_avg (A)",
+                    data: phasePts.map(p => p.current),
+                    backgroundColor: "rgba(192, 132, 252, 0.7)",
+                    borderRadius: 4
+                }
+            ];
+            chartPhaseInstance.update();
+
+            // 4. 溫度走勢圖
+            const tempSource = parsedData.samples.length > 0 ? parsedData.samples : parsedData.summaryPoints;
+            chartTempInstance.data.labels = tempSource.map((d, idx) => d.sec || (idx + 1));
+            chartTempInstance.data.datasets = [
+                {
+                    label: "馬達溫度 Motor Temp (°C)",
+                    data: tempSource.map(d => d.temp),
+                    borderColor: "#f43f5e",
+                    backgroundColor: "rgba(244, 63, 94, 0.15)",
+                    borderWidth: 2.5,
+                    fill: true,
+                    tension: 0.2
+                }
+            ];
+            chartTempInstance.update();
+        }
+
+        // ── 渲染明細表格 ───────────────────────────────────────────────
+        function renderDetailTable() {
+            const tbody = document.getElementById("detailTableBody");
+            tbody.innerHTML = "";
+
+            const isSamples = (parsedData.currentMode === "samples" && parsedData.samples.length > 0);
+            const dataList = isSamples ? parsedData.samples : parsedData.summaryPoints;
+
+            if (dataList.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="12" class="empty-state"><div>暫無數據</div></td></tr>`;
+                return;
+            }
+
+            // 更新表頭序號
+            document.getElementById("detailTableHead").rows[0].cells[0].textContent = isSamples ? "取樣序號 (Sec)" : "測試階梯點位";
+
+            const maxRender = isSamples ? 300 : dataList.length; // 秒級取樣限制先渲染 300 筆維持效能
+            for (let i = 0; i < Math.min(dataList.length, maxRender); i++) {
+                const d = dataList[i];
+                const tr = document.createElement("tr");
+                const seq = isSamples ? `Point #${d.point || 1} [Sec ${d.sec}]` : `階梯 #${d.index || (i+1)}`;
+                const ktStr = d.kt > 0 ? d.kt.toFixed(3) : (d.current > 0 ? (d.torque / d.current).toFixed(3) : "--");
+
+                tr.innerHTML = `
+                    <td style="font-weight: 600;">${seq}</td>
+                    <td>${d.speed.toFixed(1)}</td>
+                    <td>${d.frequency.toFixed(1)}</td>
+                    <td><strong>${d.torque.toFixed(2)}</strong></td>
+                    <td>${d.voltage.toFixed(1)}</td>
+                    <td>${d.current.toFixed(2)}</td>
+                    <td>${d.elecPower.toFixed(2)}</td>
+                    <td><strong>${d.mechPower.toFixed(2)}</strong></td>
+                    <td>${d.pf.toFixed(3)}</td>
+                    <td><span style="color: ${d.efficiency >= 85 ? 'var(--emerald)' : 'inherit'}; font-weight: 600;">${d.efficiency.toFixed(1)}%</span></td>
+                    <td>${ktStr}</td>
+                    <td>${d.temp.toFixed(1)}</td>
+                `;
+                tbody.appendChild(tr);
+            }
+
+            if (isSamples && dataList.length > maxRender) {
+                const trMore = document.createElement("tr");
+                trMore.innerHTML = `<td colspan="12" style="text-align: center; color: var(--text-sub); padding: 12px;">... 尚有 ${dataList.length - maxRender} 筆未展示，可利用上方搜尋即時過濾 ...</td>`;
+                tbody.appendChild(trMore);
+            }
+        }
+
+        // 切換資料表顯示模式
+        function setTableMode(mode) {
+            parsedData.currentMode = mode;
+            document.getElementById("btnTabSummary").classList.toggle("active", mode === "summary");
+            document.getElementById("btnTabSamples").classList.toggle("active", mode === "samples");
+            renderDetailTable();
+        }
+
+        // 搜尋過濾
+        function filterTable(keyword) {
+            const filter = keyword.toLowerCase();
+            const rows = document.getElementById("detailTableBody").getElementsByTagName("tr");
+            for (let i = 0; i < rows.length; i++) {
+                const text = rows[i].textContent.toLowerCase();
+                rows[i].style.display = text.includes(filter) ? "" : "none";
+            }
+        }
+
+        // ── 匯出清洗後的規格表為 CSV ─────────────────────────────────────
+        function exportSpecToCsv() {
+            if (parsedData.summaryPoints.length === 0) {
+                alert("目前無可匯出之規格數據！");
+                return;
+            }
+
+            let csv = "\uFEFF=== 馬達規格特性表 (Motor Characteristics Specifications) ===\r\n";
+            csv += `檔案來源,${parsedData.fileName}\r\n`;
+            csv += `馬達型號,${parsedData.motorName}\r\n`;
+            csv += `產出時間,${new Date().toLocaleString()}\r\n\r\n`;
+            csv += "工況項目,轉速(rpm),轉矩(Nm),頻率(Hz),電壓(V),電流(A),輸入電功率(kW),輸出機械功率(kW),輸出馬力(HP),功率因數(PF),效率(%),Kt(Nm/A),轉差率(%)\r\n";
+
+            const rows = document.getElementById("specTableBody").getElementsByTagName("tr");
+            for (let i = 0; i < rows.length; i++) {
+                const cells = rows[i].getElementsByTagName("td");
+                if (cells.length < 13) continue;
+                const line = Array.from(cells).map(c => `"${c.textContent.replace(/"/g, '""').trim()}"`).join(",");
+                csv += line + "\r\n";
+            }
+
+            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `Motor_Spec_Report_${parsedData.motorName}_${new Date().toISOString().slice(0,10)}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // ── 清除全部資料 ───────────────────────────────────────────────
+        function clearAllData() {
+            parsedData.summaryPoints = [];
+            parsedData.samples = [];
+            parsedData.fileName = "";
+            document.getElementById("fileInfoBar").classList.remove("active");
+            document.getElementById("specTableBody").innerHTML = `<tr><td colspan="14" class="empty-state"><div>尚未載入紀錄資料，請上傳 CSV 檔案或點擊上方示範資料。</div></td></tr>`;
+            document.getElementById("detailTableBody").innerHTML = `<tr><td colspan="12" class="empty-state"><div>暫無數據</div></td></tr>`;
+            
+            // 重設 KPI
+            ["kpiPeakTorque", "kpiMaxSpeed", "kpiMaxMechPower", "kpiPeakEff", "kpiMaxCurrent", "kpiMaxTemp"].forEach(id => {
+                document.getElementById(id).textContent = "--";
+            });
+
+            // 清空圖表
+            [chartTnInstance, chartLoadInstance, chartPhaseInstance, chartTempInstance].forEach(chart => {
+                if (chart) {
+                    chart.data.labels = [];
+                    chart.data.datasets = [];
+                    chart.update();
+                }
+            });
+        }
+
+        // ── 內建示範資料 1: T-N 多點階梯試驗範例 ─────────────────────────
+        function loadDemoTNData() {
+            const demoCsv = `=== T-N 多點自訂測試彙總報表 ===
+Point,TargetSpeed_rpm,TargetTorque_Nm,AvgSpeed_rpm,AvgFrequency_Hz,AvgTorque_Nm,AvgElecPower_kW,AvgMechPower_kW,AvgPF,AvgEfficiency_pct,Status
+1,1500,0.00,1498.2,50.00,0.85,0.42,0.13,0.220,31.0,COMPLETED
+2,1500,10.00,1485.4,50.00,9.98,1.92,1.55,0.710,80.7,COMPLETED
+3,1500,20.00,1470.1,50.00,20.05,3.65,3.09,0.820,84.7,COMPLETED
+4,1500,30.00,1455.6,50.00,30.12,5.35,4.59,0.865,85.8,COMPLETED
+5,1500,40.00,1438.0,50.00,40.25,7.20,6.06,0.880,84.2,COMPLETED
+6,1500,50.00,1415.2,50.00,50.18,9.25,7.44,0.890,80.4,COMPLETED
+7,1500,58.00,1380.5,50.00,58.40,11.20,8.44,0.895,75.4,COMPLETED
+
+=== 各測試點 30 秒每秒穩定資料明細 (1Hz) ===
+Point,SampleSec,Speed_rpm,Frequency_Hz,Torque_Nm,Voltage_U1_V,Voltage_U2_V,Voltage_U3_V,Current_I1_A,Current_I2_A,Current_I3_A,ElecPower_kW,MechPower_kW,PF,Efficiency_pct,Kt_NmA,VoltSigma_V,CurrSigma_A,MotorTemp_C
+1,1,1498.1,50.00,0.84,220.5,220.1,220.4,3.210,3.220,3.190,0.41,0.13,0.218,31.7,0.26,220.3,3.21,29.5
+1,2,1498.3,50.00,0.86,220.4,220.2,220.3,3.200,3.210,3.210,0.42,0.13,0.221,31.0,0.27,220.3,3.21,29.5
+2,1,1485.6,50.00,9.95,219.8,219.5,219.7,6.850,6.840,6.860,1.91,1.55,0.708,81.2,1.45,219.7,6.85,31.2
+2,2,1485.2,50.00,10.01,219.7,219.6,219.8,6.860,6.850,6.870,1.93,1.56,0.712,80.8,1.46,219.7,6.86,31.3
+3,1,1470.3,50.00,20.02,219.1,218.9,219.2,11.450,11.420,11.480,3.64,3.08,0.819,84.6,1.75,219.1,11.45,34.0
+3,2,1469.9,50.00,20.08,219.0,218.8,219.1,11.480,11.450,11.500,3.66,3.10,0.821,84.7,1.75,219.0,11.48,34.2
+4,1,1455.8,50.00,30.10,218.4,218.2,218.5,16.200,16.180,16.250,5.34,4.59,0.864,85.9,1.86,218.4,16.21,37.5
+4,2,1455.4,50.00,30.15,218.3,218.1,218.4,16.220,16.200,16.280,5.36,4.60,0.866,85.8,1.86,218.3,16.23,37.8
+5,1,1438.2,50.00,40.22,217.5,217.3,217.6,21.500,21.480,21.550,7.18,6.06,0.879,84.4,1.87,217.5,21.51,41.2
+5,2,1437.8,50.00,40.28,217.4,217.2,217.5,21.550,21.500,21.600,7.22,6.07,0.881,84.1,1.87,217.4,21.55,41.5
+6,1,1415.5,50.00,50.15,216.5,216.2,216.6,27.300,27.250,27.350,9.22,7.44,0.889,80.7,1.84,216.4,27.30,45.0
+6,2,1414.9,50.00,50.21,216.4,216.1,216.5,27.350,27.300,27.400,9.28,7.44,0.891,80.2,1.84,216.3,27.35,45.3
+7,1,1380.8,50.00,58.35,215.2,215.0,215.3,33.100,33.000,33.200,11.18,8.44,0.894,75.5,1.76,215.2,33.10,49.2
+7,2,1380.2,50.00,58.45,215.1,214.9,215.2,33.200,33.100,33.300,11.22,8.45,0.896,75.3,1.76,215.1,33.20,49.6`;
+
+            parseDynamometerCsv(demoCsv, "Report_TN_MultiPoints_SVM225_20260910_154801.csv");
+        }
+
+        // ── 內建示範資料 2: 全參數遙測範例 ───────────────────────────────
+        function loadDemoTelemetryData() {
+            let demoCsv = `Timestamp,Speed_rpm,Frequency_Hz,Torque_Nm,Voltage_U1_V,Voltage_U2_V,Voltage_U3_V,Current_I1_A,Current_I2_A,Current_I3_A,ElecPower_kW,MechPower_kW,PF,Efficiency_pct,Kt_NmA,Power_P1_kW,Power_P2_kW,Power_P3_kW,Voltage_Sigma_V,Current_Sigma_A,MotorTemp_C\r\n`;
+            const baseTime = new Date("2026-09-10T14:30:00");
+            
+            // 模擬從 500 到 1500 rpm，轉矩從 2 到 45 Nm 的連續負載加載
+            for (let i = 0; i < 40; i++) {
+                const t = new Date(baseTime.getTime() + i * 1000);
+                const tStr = t.toTimeString().split(" ")[0];
+                const speed = 1000 + i * 12.5 + (Math.random() * 2 - 1);
+                const torque = 5.0 + i * 1.0 + (Math.random() * 0.4 - 0.2);
+                const freq = (speed / 1500) * 50.0;
+                const mechPwr = (speed * torque) / 9549.3;
+                const eff = 70 + (i / 40) * 16.5;
+                const elecPwr = mechPwr / (eff / 100);
+                const pf = 0.65 + (i / 40) * 0.22;
+                const current = (elecPwr * 1000) / (1.732 * 220 * pf);
+                const kt = torque / current;
+                const temp = 30 + (i / 40) * 12;
+
+                demoCsv += `"${tStr}",${speed.toFixed(1)},${freq.toFixed(2)},${torque.toFixed(2)},220.1,219.8,220.2,${(current*0.99).toFixed(3)},${current.toFixed(3)},${(current*1.01).toFixed(3)},${elecPwr.toFixed(2)},${mechPwr.toFixed(2)},${pf.toFixed(3)},${eff.toFixed(1)},${kt.toFixed(2)},${(elecPwr/3).toFixed(3)},${(elecPwr/3).toFixed(3)},${(elecPwr/3).toFixed(3)},220.0,${current.toFixed(2)},${temp.toFixed(1)}\r\n`;
+            }
+
+            parseDynamometerCsv(demoCsv, "Auto_Raw_Telemetry_20260910.csv");
+        }
+    </script>
+</body>
+</html>
