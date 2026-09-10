@@ -736,6 +736,23 @@
         <div class="temp-grid" id="tempGridContainer">
             <!-- 由 JS 動態生成 CH1 ~ CH20 -->
         </div>
+    <!-- 雲端測試報告與壓縮包下載專區 -->
+    <div class="section-card" id="cardReportDownload" style="display:none; margin-bottom: 24px; border: 1px solid rgba(16, 185, 129, 0.4); background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(15, 23, 42, 0.9) 100%);">
+        <div class="section-header">
+            <span>📥 最新雲端測試報告下載 (Test Report Download)</span>
+            <span id="badgeReportTime" style="font-size: 11px; color: var(--emerald);">● 最新生成</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 10px 0;">
+            <div>
+                <div style="font-size: 16px; font-weight: 700; color: var(--text-primary);" id="lblReportName">Report.zip</div>
+                <div style="font-size: 13px; color: var(--text-secondary); margin-top: 5px;">
+                    <span id="lblReportMeta">大小: -- | 包含 -- 個檔案 | 生成時間: --</span>
+                </div>
+            </div>
+            <button id="btnDownloadReport" onclick="downloadLatestReportZip()" style="background: var(--emerald); color: #fff; border: none; border-radius: 6px; padding: 12px 24px; font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
+                ⬇️ 一鍵下載報告 ZIP
+            </button>
+        </div>
     </div>
 
     <footer>
@@ -1297,13 +1314,61 @@
             }
         }, 1000);
 
-        window.addEventListener("resize", drawChart);
+        // ================================================================
+        //  雲端測試報告自動探測與下載
+        // ================================================================
+        let _cachedReportData = null;
+        async function checkLatestReport() {
+            try {
+                const res = await fetch(`${FB_BASE}/reports/latest.json`, { cache: "no-store" });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!data || !data.filename || !data.data) {
+                    const card = document.getElementById("cardReportDownload");
+                    if (card) card.style.display = "none";
+                    return;
+                }
+                _cachedReportData = data;
+                const card = document.getElementById("cardReportDownload");
+                if (card) card.style.display = "block";
+                document.getElementById("lblReportName").textContent = "📦 " + data.filename;
+                const sizeKb = (data.sizeBytes / 1024).toFixed(1);
+                document.getElementById("lblReportMeta").textContent = `容量: ${sizeKb} KB | 檔案數: ${data.filesCount || 1} | 上傳時間: ${data.timestamp || "--"}`;
+                document.getElementById("badgeReportTime").textContent = `● 已就緒 (${data.timestamp || ""})`;
+            } catch (err) { }
+        }
+
+        function downloadLatestReportZip() {
+            if (!_cachedReportData || !_cachedReportData.data) {
+                alert("目前尚無可下載之報告數據！");
+                return;
+            }
+            try {
+                const byteCharacters = atob(_cachedReportData.data);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: "application/zip" });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = _cachedReportData.filename || "Report.zip";
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } catch (e) {
+                alert("下載失敗: " + e.message);
+            }
+        }
 
         // 頁面就緒：即刻啟動即時數據串流與訪客靜默審計
         initTempGrid();
         connectFirebaseSSE();
         pollTimer = setInterval(fetchPollingFallback, 800);
         initVisitorAudit();
+        checkLatestReport();
+        setInterval(checkLatestReport, 15000);
     </script>
 </body>
 </html>
