@@ -8,8 +8,52 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.74 (beta) | v2.10.34 | 2026-09-11 | 本地歷史版本自動滾動備份 (保留前 5 版) 與雙軌自主退回機制 (HMI GUI 線上一鍵退回重啟 + 離線崩潰防護急救工具 Rollback_Version.bat / 退回舊版本.bat、相容 Windows XP 向上加載 DLL/ 驅動) |
 | V2.73 (beta) | v2.10.33 | 2026-09-11 | KEB 雙載台通訊連線徹底修復：根治 copydata 記憶體越界指標解引用 (AccessViolationException 0xC0000005) 與 COM 通道追蹤變數重置迴圈、還原 DIN 66019-II 實體電文 Data 暫存器偏移量 (rxBuf[24])、升級 EnsureHmiKebOpen 結構化佐證日誌、雙向同步便攜發布包 (含 DLL/ 驅動函式庫) |
 | V2.72 (beta) | v2.10.32 | 2026-09-10 | 馬達動力計規格特性分析儀 (Motor Characteristics Web Viewer - 純前端零依賴、支援拖曳讀取 Dynamometer 各類測試紀錄檔、智慧提取電氣/機械量、自動歸納 CNS 14400 / IEC 60034-2-1 馬達規格特性判定表、四大互動工程圖表與出廠規格書 CSV/PDF 匯出) |
+
+---
+
+## [V2.74 beta / v2.10.34] - 2026-09-11
+
+### 🎯 現象與佐證 (Log-First Verbatim Excerpts)
+1. **使用者需求指示**：
+   - 「Dynamometer 目前還在快速更新中，本地端是否能存前5個版本當做備份，讓使用者可以自己退回舊版本，否則一旦改壞了就無法使用了。」
+2. **現狀盲點與佐證分析**：
+   - 經審查舊版封裝與熱替換邏輯：
+     - `Dynamometer_WebServer.cs` 的 `ExecuteHotSwapAndRestart` 原先僅將執行中的程式命名為單一 `Dynamometer_HMI_Pro.bak`，缺乏歷史版本管理，下一次更新時立即被覆蓋沖掉；
+     - 本地與發布目錄均無任何版本備份選單，現場機台一旦遇到新版出現嚴重相容性問題或啟動閃退，使用者完全無法在現場自主還原，測試被迫完全中斷；
+     - `Dynamometer_HMI_WinForms.cs` 原生 DLL 載入路徑嚴格綁定 `BaseDirectory` 下之 `DLL/`，若備份檔案置於子目錄下直接執行，會因找不到廠商驅動函式庫而無法載入。
+
+---
+
+### 💡 致命根因 (Root Cause Analysis)
+1. **單一覆蓋型備份設計缺陷**：舊有熱更新機制未設計多版本滾動生命週期，僅保留單份 `.bak`，無法應對多輪快速迭代時的連續回退需求。
+2. **缺乏雙軌退回管道 (Dual-Track Rollback)**：
+   - GUI 介面端：更新對話框 `ShowUpdateWizardDialog` 僅有「開始線上更新」單向路徑，缺乏可視化歷史版本清單與退回觸發按鈕；
+   - 外部急救端：發布目錄完全依賴單一主程式，缺乏在主程式崩潰無法啟動時的外部離線還原工具（如 `.bat` 腳本）。
+3. **子目錄 DLL 搜尋邊界限制**：原生 `SetDllDirectory` 與 `AssemblyResolve` 缺乏向上一層目錄檢測機制，限制了備份 EXE 在 `backups/` 子資料夾內直接雙擊執行的可行性。
+
+---
+
+### 🚀 精確修復方案 (Accurate Solution & Release Verifications)
+1. **本地自動滾動備份機制 (Rolling 5-Version Backup)**：
+   - 於 `Dynamometer_WebServer.cs` 實作 `BackupCurrentExecutable(appDir, currentExe)` 與 `PruneBackupDirectory(backupDir, 5)`；
+   - 在主程式執行線上熱替換 (`ExecuteHotSwapAndRestart`) 前，自動將當前運行的主程式封存至 `backups/Dynamometer_HMI_Pro_v{VERSION}_{TIMESTAMP}.exe`；
+   - 程式啟動時 (`StartCloudUploader`) 自動檢測 `backups/`，若尚無備份則自動為當前版本建立基準備份；
+   - 永遠嚴格依最後寫入時間保留最新 **5 個歷史版本**，自動修剪刪除超過上限之最舊檔案。
+2. **HMI 線上一鍵自主退回介面 (GUI Rollback)**：
+   - 升級 `ShowUpdateWizardDialog` 介面，在視窗下方加入「📦 本地歷史版本備份」區域，透過清單列出本機已備份之版本、時間與大小；
+   - 提供「⏪ 退回選定版本並重啟」按鈕與 `RollbackToBackupExecutable(backupPath)` 實作，點擊並確認後自動將選定舊版無痛替換並重啟主程式。
+3. **離線/崩潰防護急救工具 (`Rollback_Version.bat` / `退回舊版本.bat`)**：
+   - 針對新版本可能發生嚴重閃退、主程式無法啟動之極端情境，於發布目錄提供原生 Windows XP (x86 32-bit) 完全相容之批次急救工具；
+   - 自動終止殘留之 HMI 執行序、列出 `backups/` 前 5 個版本選單 `[1]~[5]`，輸入數字即可一秒將選定版本還原為 `Dynamometer_HMI_Pro.exe` 並自動啟動。
+4. **backups/ 子目錄 DLL 向上相容相依性**：
+   - 於 `Dynamometer_HMI_WinForms.cs` 中強化 DLL 載入邏輯：若當前目錄無 `DLL/`，自動向上一層檢測 `..\DLL/`，並加入 `SetDllDirectory` 與 `AssemblyResolve`，確保直接執行 `backups/` 內的舊版 EXE 亦能正確載入廠商驅動。
+5. **發布腳本自動化整合與版本推播**：
+   - 更新 `package_release.ps1`，打包新版本時自動封存舊版 EXE 並修剪保留前 5 版，保留急救批次檔並雙向同步至專案發布目錄與根目錄 `Release/`；
+   - 軟體版本號正式升級為 **`APP_VERSION = "2.7.2"` (內部版號 `v2.10.34`)**，`[assembly: AssemblyVersion("2.7.2.0")]`；
+   - 透過 Windows XP .NET 4.0 `/platform:x86` 編譯無誤 (Exit Code 0)，完成打包並自動推送至 GitHub `gh-pages` 與更新 Firebase 版本清單。
 
 ---
 
