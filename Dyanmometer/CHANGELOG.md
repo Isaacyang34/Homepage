@@ -7,7 +7,57 @@
 ## Beta 版本對照索引
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
+| V2.63 (beta) | v2.10.23 | 2026-09-10 | 本地端日誌生命週期自動清理器 (保留最新 30 筆測試 CSV/GBD 與報表、CRASH 日誌修剪、10MB 日誌自動輪替歸檔、UI 本地保留筆數微調與清理按鈕)：(1)現象與佐證：使用者提出本地端日誌維護指令：「LOG的部分，本地端LOG也需要清理，保存最後30筆就好」；現場工控電腦 logs/ 目錄原先採取永久無限期寫入，長期運行產出大量測試 CSV、GBD 與系統日誌，累積大量歷史檔案佔用 WinXP 磁碟空間；(2)致命根因：系統原僅實作雲端歷史日誌之 PurgeCloudLogsAsync 自動修剪 (30筆/7天)，本機端 logs/ 目錄缺乏生命週期旋轉與淘汰機制；hmi_telemetry.log 無大小上限持續追加，長時間測試後有磁碟寫滿風險；(3)精確修復方案：Dynamometer_WebServer.cs 實作全自動非同步 PurgeLocalLogs(isManualClick)，依 localLogMaxHistoryCount (預設 30 筆) 自動掃描 logs/ (及自訂 RAW 目錄)，按 LastWriteTime 降序排序並修剪淘汰第 31 筆起之舊測試 CSV 與配對 GBD 檔案，同步修剪過期 CRASH_REPORT_*.log 與歸檔日誌，並排除鎖定中檔案；Dynamometer_Telemetry.cs 加入 hmiLogWriter 達 10MB 自動旋轉歸檔機制；實裝「💾 本地保留: [30] 筆 [🧹 清理本地]」工具列控制項與 AutoScroll 防破版；Dynamometer_HMI_WinForms.cs 實作 LocalLogMaxCount 於 config.ini 之記憶保存與啟動 Shown 自動清除非同步排程；(4)版本號升級至 APP_VERSION = "2.6.3"，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
 | V2.62 (beta) | v2.10.22 | 2026-09-10 | 空載溫升測試核心設備三在線防呆 (待測端驅動器+WT333E+GL820)、非必要設備 (扭力計/加載端) 零干涉防護、空載無轉速回授訊號友善顯示與堵轉/扭力計斷線保護跳脫豁免：(1)現象與佐證：使用者回報指令「修正LOG所看到的BUG；空載測試基本上只要待側端的驅動器與POWERMETER和溫度紀錄有在線就可以執行，其他儀器連線與否以及數據都可以不用分析。我看到有時測轉速理論上是看不見的，因為空載沒有任何回授訊號」；現場雲端實測日誌 hmi_telemetry.log 顯示 09:15:20 曾發生「【🚨 安全保護跳脫】扭力計斷線或反饋逾時 (超過 1.5 秒無數據)，已強制雙機急停！」，且 09:20~09:31 實測 CSV 中 Speed_rpm 全程 0.0 rpm；(2)致命根因：CheckSafetyProtectionMatrix 中 enableProtTorqueLoss (扭力計逾時) 與 enableProtStall (失速堵轉) 缺乏 isNoLoadRunning 狀態豁免，空載測試無需扭力計且無轉速編碼器回授，因 Kistler 瞬時逾時或 actSpeed=0 誤觸發急停跳脫；StartNoLoadTest 僅防呆 GL820，未校驗待測端驅動器與 WT333E 功率表是否就緒；UI 實測轉速與 DataGridView 硬寫 0 rpm 造成困惑；(3)精確修復方案：Dynamometer_HMI_WinForms.cs 在 CheckSafetyProtectionMatrix 對 enableProtTorqueLoss 與 enableProtStall 增加 && !isNoLoadRunning 雙重豁免，空載測試期間扭力計與轉速不進行安全判定；Dynamometer_TestNoLoad.cs 於 StartNoLoadTest 實裝「待測端驅動器 + WT333E功率表 + GL820溫度記錄器」三項核心在線防呆攔截，其餘設備不阻擋啟動；lblNoLoadActSpdDisp 與 dgvNoLoad 當無回授時優雅顯示「-- rpm (無回授)」；NoLoadTimer_Tick 改用原生無分配二分法取代高頻 LINQ 查詢並全函式包裹 try-catch 防閃退；(4)版本號升級至 APP_VERSION = "2.6.2"，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
+
+## [V2.63 beta / v2.10.23] - 2026-09-10
+
+### 🎯 現象與佐證
+1. **使用者指令與問題回報**：
+   - 使用者明確指示：「LOG的部分，本地端LOG也需要清理，保存最後30筆就好。」
+2. **現場現狀佐證**：
+   - 現場 Windows XP 工控電腦在執行馬達測試（包含空載、TN、工作制、效率地圖與手動錄製）時，每次測試均於 `logs/` 產生以時間戳命名之獨立 `.csv` 與 `.gbd` 檔案，以及每日 `Auto_Raw_Telemetry_*.csv`。
+   - 原架構僅在雲端端點執行 `PurgeCloudLogsAsync` 修剪，本地硬碟未設淘汰機制，導致長期運作累積數百筆檔案佔用工控機磁碟空間。
+   - `hmi_telemetry.log` 系統運作日誌持續累加無單檔上限。
+
+### 💡 致命根因 (Root Cause)
+1. **本機 logs/ 目錄缺乏生命週期旋轉與淘汰機制 (`Dynamometer_WebServer.cs`)**：
+   - 程式僅對雲端 Firebase `/logs/history` 執行了容量修剪，本機端測試資料檔案只增不減。
+2. **系統日誌單檔無大小保護 (`Dynamometer_Telemetry.cs:384`)**：
+   - `hmiLogWriter` 無條件以 `FileMode.Append` 寫入 `hmi_telemetry.log`，未監控檔案大小，長期運行易耗盡磁碟空間。
+3. **欠缺本地端保留筆數設定與手動清理介面 (`Dynamometer_Telemetry.cs`)**：
+   - 介面僅具備「雲端保留」設定，缺乏直觀的本地日誌保留上限與手動清理功能。
+
+### 🔧 精確修復方案
+**修改核心檔案：**
+* `Dyanmometer_Modern/Dynamometer_WebServer.cs`
+* `Dyanmometer_Modern/Dynamometer_Telemetry.cs`
+* `Dyanmometer_Modern/Dynamometer_HMI_WinForms.cs`
+* `Dyanmometer_Modern/Dynamometer_TestTN.cs`
+* `Dyanmometer_Modern/Dynamometer_TestDuty.cs`
+* `Dyanmometer_Modern/Dynamometer_TestEffMap.cs`
+
+**具體實施細節：**
+1. **實裝全自動本地日誌生命週期清理器 `PurgeLocalLogs(bool isManualClick = false)`**：
+   - 預設限制 `localLogMaxHistoryCount = 30` 筆（可配置）。
+   - 自動遍歷 `logs/` 目錄中所有 `*.csv` 檔案，按 `LastWriteTime` 降序（最新在前）排列，保留前 30 筆最新測試資料，將第 31 筆以後的過期測試 CSV 及其同名 `.gbd` 檔案安全刪除。
+   - 同步修剪清理歷史崩潰報告 `CRASH_REPORT_*.log` 與歷史歸檔日誌 `hmi_telemetry_*.log`，各保留最新 30 筆。
+   - 若使用者設定了自訂 RAW DATA 儲存資料夾，亦同步執行該目錄之安全修剪。
+   - 嚴格保護正在錄製中的檔案（`isManualRecording && manualRecordFilePath`）與即時黑盒子（`hmi_telemetry.log`、`Crash_Last_Exception.log`、`system_error.log`），嚴禁誤刪。
+2. **多重觸發機制與即時清理保障**：
+   - **程式啟動時**：在 `this.Shown` 佈局載入完成後自動於背景非同步執行一次清理。
+   - **雲端上傳時**：在 `UploadLatestLogToCloudAsync` 成功上傳後，與 `PurgeCloudLogsAsync` 同步執行本地修剪。
+   - **測試完成時**：在手動錄製結束（`StopManualRecording`）、TN 測試匯出、工作制匯出、效率地圖匯出時自動調用修剪。
+3. **即時日誌 10MB 自動輪替機制**：
+   - 在 `hmiLogWriter` 寫入時動態偵測檔案大小，當 `hmi_telemetry.log` 超過 10MB 時，自動 flush 關閉並重命名歸檔為 `hmi_telemetry_{yyyyMMdd_HHmmss}.log`，隨後自動建立新的 `hmi_telemetry.log`，歸檔檔案納入 30 筆輪替管理。
+4. **UI 控制項與設定檔持久化**：
+   - 在 Telemetry 日誌頁工具列加入「💾 本地保留: [30] 筆 [🧹 清理本地]」，支援 5~500 筆自由調整。
+   - 工具列容器啟用 `AutoScroll = true`，杜絕不同 DPI 下按鈕裁切。
+   - 於 `config.ini` 之 `[Logging]` 區塊新增 `LocalLogMaxCount` 儲存與載入支援。
+5. **版本發布**：
+   - 版本號升級至 **`APP_VERSION = "2.6.3"` (內部版號: `v2.10.23`)**，透過 `package_release.ps1 -Version 2.5.0` 完成 x86 32-bit 編譯、便攜打包與 Firebase/GitHub 遠端發布。
+
+## [V2.62 beta / v2.10.22] - 2026-09-10
 | V2.61 (beta) | v2.10.21 | 2026-09-09 | 趨勢圖核心單一化重構 (單一實例複用動態停泊 Dynamic Re-Parenting、主記錄器獨立完整、全測試分頁共用單一核心、GDI/GC 資源腰斬減負)：(1)現象與佐證：使用者提出架構優化指令：「趨勢圖的負載很高，能全部都只跑一支程式，然後只是呼叫的位置不同就好嗎? 除了溫度紀錄自己的分頁必須要有完整的，其他的能共用嗎?這樣能減少資源消耗嗎? 就這樣改，改好上傳更新」；(2)致命根因：舊架構在 Tab1(TN)、Tab2(Duty)、Tab4(空載) 分別 new 獨立之 GbdTemperatureTrendControl 實例，系統同時常駐 4 套大型繪圖控制項、各自配置 3,600 筆 double[20] 歷史陣列、各自持有 Toolbar 子面板與 GDI 物件，在 WinXP 32-bit 系統上每秒重複產生 4 份陣列拷貝與 GC 負載，造成 Win32 Handle 與佇列冗餘浪費；(3)精確修復方案：重構為「溫度記錄專屬 + 測試分頁共用單一核心」架構：溫度記錄分頁 (tabGbd) 保留專屬常駐之 gbdTrendChart 維護全時完整黑盒子；所有測試分頁 (TN / Duty / 空載) 統一共用單一 sharedTestTempTrend 實例，tnTempTrend、dutyTempTrend、noLoadTempTrend 改為屬性代理；實作 AttachSharedTempTrendTo(targetContainer, channelMask)，在 tabControl.SelectedIndexChanged 時自動將共用控制項動態掛載至當前測試容器 (grpTnTemp / grpDutyTemp / grpNoLoadChart) 並切換對應通道遮罩；motorTempTimer.Tick 由推播 4 個控制項縮減為僅推播 2 個控制項，記憶體配置與 GC 壓力直接減少 50% 以上；(4)版本號升級至 APP_VERSION = "2.6.1"，執行 package_release.ps1 -Version 2.5.0 完成 x86 32-bit 編譯、打包並自動同步發布至 GitHub gh-pages 與 Firebase。 |
 | V2.60 (beta) | v2.10.20 | 2026-09-09 | 閒置待命靜默閃退根治、背景溫度圖表重繪負載削減75%、雲端日誌黑盒子崩潰報告優先透傳保障與 T-N 換項邊界安全防護：(1)現象與佐證：使用者回報「剛才程式又崩潰了，我有上傳LOG你下載來分析」；實測解析雲端日誌 SIMW132S-15-08_20260909_154800_TN_Multi.csv 與 hmi_telemetry.log，TN 4 個自訂點於 15:51:34.390 圓滿完成並煞車停機至 7 rpm 斷電 (15:51:38.609)；程式隨後處於 0 rpm 待命狀態達 19 分鐘，於 16:10:54.640 突然無預警中斷 (Silent Exit)，未在日誌留存例外；16:11:58 使用者重新啟動 HMI 並於 16:12:00 推播日誌至 Firebase；(2)致命根因：GbdTemperatureTrendControl 與 TorqueSpeedTrendControl 在待命狀態下，每秒由 motorTempTimer 無條件更新 4 個圖表控制項並調用 Invalidate()，造成 Win32 GDI/USER 繪圖訊息佇列大量堆積與 native 資源消耗，在 WinXP 上運行長達 19 分鐘後觸發 OS 級別靜默殺死 (Silent Process Termination)；UploadLatestLogToCloudAsync 盲點：重開機後 hmi_telemetry.log 被寫入新連線紀錄，時間戳更新為 16:11:58，直接擠掉 16:10:54 崩潰產生的 CRASH_REPORT_*.log 或 system_error.log，導致雲端日誌只收到新 session 的正常紀錄，真正崩潰證據被留在現場主機硬碟；Dynamometer_TestTN.cs 第 1359 行在 Subphase 4 執行 3 步降載時，直接執行 tnMultiCurrentIndex++ 與 tnCustomPoints[tnMultiCurrentIndex]，缺乏邊界防禦；(3)精確修復方案：Dynamometer_UIControls.cs 在 GbdTemperatureTrendControl.AddSample 與 TorqueSpeedTrendControl.AddSample 中加入 if (this.Visible) this.Invalidate(); 智慧可見性感知，非目前顯示中分頁圖表僅儲存數值不重複調用 GDI 重繪，降低 75% GDI+ 負擔；Dynamometer_WebServer.cs 升級 UploadLatestLogToCloudAsync，遍歷 logs/ 下所有檔案，若存在 CRASH_REPORT_*.log、Crash_Last_Exception.log 或 system_error.log，一律自動提取最新黑盒子報告置頂拼接於 logContent 與 last_error，徹底破除重開機時間戳覆蓋盲點；Dynamometer_TestTN.cs 在 Subphase 4 第 3 步加入 if (tnMultiCurrentIndex + 1 >= tnCustomPoints.Count) 邊界檢查，若已為最後一點則安全調用 StartGradualAutoStop 終止測試；(4)版本號升級至 APP_VERSION = "2.6.0"，透過 package_release.ps1 -Version 2.5.0 完成編譯、打包並自動同步發布至 GitHub gh-pages 與 Firebase。 |
 | V2.59 (beta) | v2.10.19 | 2026-09-09 | T-N 測試負載與轉速平穩控制全面優化 (嚴格轉速補償穩定判定、同轉速換項直接調扭、異速換項 3 步平穩階梯降載至 25% 再變速)：(1)現象與佐證：使用者回報「TN測試的減速問題需要改進，目前會急速變化負載的問題，需要改進：1.一開始的穩定判定似乎不太對，按照我觀察上了負載到達目標後就開始進入穩定倒數，應該是要等轉速也補償回來後才開始倒數比較合理；2.若下一個測試項目沒有轉速改變，則直接修正(遞增遞減)扭力至目標；3.若下個測試目標是需要變速，則遞減(分三次減)降載到下個目標的25%之後再開始變速，等速度到達後再開始遞增加載」；(2)致命根因：原先 isSpdValid 門檻為 Max(25.0, targetSpd * 0.08)，在 1500 rpm 時容許誤差高達 120 rpm，馬達帶載轉差自然滑落 60~80 rpm 時仍被判定為達標，導致轉速尚未被 ApplyTnSpeedTracking 補回額定值就過早開始 5 秒倒數；舊版在每個項目測試完成後一律強制降載至 25% 且甩載歸零重來，造成同轉速測試項目時負載劇烈急速跳動；異速切換時一次性跳躍降載，缺乏平滑過渡緩衝；(3)精確修復方案：將進入穩定倒數之轉速誤差門檻縮緊為 Max(6.0, targetSpd * 0.015) (1.5% 或 6 rpm)，未達標前持續補償轉差，雙達標持續 2 秒才啟動 5 秒倒數；在 Subphase 3 採樣完成時比對下一點轉速，若轉速不變 (<=5 rpm) 則直接切入 Subphase 1，平滑遞增/遞減扭力至目標，不降載不變速；若需變速，在 Subphase 4 實施 3 步平穩階梯降載 (每秒 1 步，共 3 秒) 降至 25%，第 3 步完成後發送新轉速命令進入 Subphase 0，等待實際速度到達新目標帶 (<=Max(12, 2%)) 後，才切入 Subphase 1 自 25% 平穩遞增加載；(4)版本升級至 2.5.9，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
