@@ -8,12 +8,64 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.69 (beta) | v2.10.29 | 2026-09-10 | 報告管理與雲端多目標上傳引擎 (專屬分頁 Tab7、純 C# .NET 4.0 零相依 PKZip 壓縮、Google Drive GAS Webhook 直通與自動轉發 Email、Firebase 雲端中心即時同步、網頁端 WebMonitor.html 一鍵下載 ZIP 專區、區域網路 NAS / 本機備份) |
 | V2.68 (beta) | v2.10.28 | 2026-09-10 | 全系統加載追隨統一化 (SY52+CS18 雙閉環自適應定錨加速引擎與純 SY52 追隨引擎、前 3 秒 0.1% 階梯特性試探與斜率學習、最大 5% 動態高速大步長衝刺、同動 SY52 補轉差、S1/S2/S6/TN/效率地圖全面收斂消除重複代碼) & 頻率比對診斷引擎 (PowerMeter 與 KEB ru.03 雙軌採樣、[FREQ_COMPARE] 暫存日誌與一鍵開關) |
 | V2.67 (beta) | v2.10.27 | 2026-09-10 | 紀錄檔生成與自動執行短時間自動清理 (錄製未滿 1 分鐘門檻自動銷毀零碎 CSV/GBD 檔案、手動/自動測試全場景攔截、即時秒數/筆數進度回饋、PurgeLocalLogs 廢檔主動修剪) |
 | V2.66 (beta) | v2.10.26 | 2026-09-10 | 雲端監控中心取消無效密碼鎖定、導入訪客靜默足跡審計引擎 (全自動提取公網 IP / 縣市地理位置 / 電信網路商 / 裝置指紋 / 來源 Referrer / 在線停留時長，即時推播 Firebase 雲端審計庫，網頁端抽屜彈窗即時查閱，工控機 C# 主程式自動通報新訪客進入) |
 | V2.65 (beta) | v2.10.25 | 2026-09-10 | 全維度系統健康與資源觀測體系 (Win32 原生 GDI/USER 控制碼監測、託管 GC 堆積與實體 RAM 雙層指標、UI 訊息排程反應抖動、日誌每 60 秒 [HEALTH] 遙測輸出、Firebase 雲端健康串流與 UI 智慧預警膠囊) |
 | V2.64 (beta) | v2.10.24 | 2026-09-10 | CSV 全紀錄檔欄位標準化重排 (導入 KEB ru.03 輸出頻率、對齊時間/轉速/頻率/轉矩/三相電壓/三相電流/輸入功率/輸出功率/功因/效率標準序)、T-N 測試 30 筆穩定數據擷取前後雙向斷行優化 |
 | V2.63 (beta) | v2.10.23 | 2026-09-10 | 本地端日誌生命週期自動清理器 (保留最新 30 筆測試 CSV/GBD 與報表、CRASH 日誌修剪、10MB 日誌自動輪替歸檔、UI 本地保留筆數微調與清理按鈕) |
+
+---
+
+## [V2.69 beta / v2.10.29] - 2026-09-10
+
+### 🎯 現象與佐證
+1. **使用者功能擴展需求**：
+   - 使用者提出報告彙整與外部傳輸指令：「能寫一個分頁來上傳生成的報告嗎? 直接開啟LOG資料夾，把選取的資料壓縮後上傳。上傳的位置幫我分析怎做比較好：GOOGLEDRIVE / EMAIL / 或者其他方便的位置」。
+2. **現場檔案分散與打包不便**：
+   - 動力計試驗完成後，遙測數據 (`Auto_Raw_Telemetry_*.csv`)、多通道溫度記錄 (`*.gbd`) 與運轉日誌 (`*.log`) 均散落於本機 `logs/` 資料夾中。操作員需頻繁手動切換至 Windows 檔案總管進行搜尋、手動圈選壓縮並透過隨身碟或繁瑣程序帶出，效率低且容易漏檔。
+3. **Windows XP 平台之雲端傳輸瓶頸**：
+   - 現場工控機為 **Windows XP 32-bit (.NET 4.0)**，原生系統 `Schannel.dll` 缺乏現代 TLS 1.2 協定支援，且系統內建之 IE 舊瀏覽器無法通過現代 Google OAuth 2.0 互動授權畫面；同時 Gmail、Outlook 等公共郵件伺服器已全面封閉低安全性密碼並強制 TLS 1.2，導致傳統 .NET `SmtpClient` 直連必然失敗。
+
+### 💡 致命根因 (Root Cause)
+1. **主控程式缺乏專屬報告管理中心**：
+   - 舊架構只有頂部的【🚨 診斷 LOG】按鈕開啟個別 log 檔，缺乏集中式的多選勾選表格與批次打包引擎。
+2. **.NET Framework 4.0 壓縮庫缺失**：
+   - .NET 4.0 執行期環境原生缺乏 .NET 4.5+ 的 `System.IO.Compression.ZipFile`，若引進大型第三方庫容易衍生 XP 組件相容性與檔案鎖定崩潰。
+3. **雲端直連 API 認證障礙**：
+   - 官方 Google Drive REST API 需要動態 OAuth2 Token 刷新與瀏覽器跳轉，在 WinXP 上無法無人值守運作。
+
+### 🔧 精確修復方案
+**修改與新增核心檔案：**
+* `Dyanmometer/Dyanmometer_Modern/Dynamometer_ReportManager.cs` (全新模組，純 C# PKZip 引擎與報告管理 UI)
+* `Dyanmometer/Dyanmometer_Modern/Dynamometer_HMI_WinForms.cs` (掛載第 7 個專屬分頁 `tabReport` 與分頁列寬度最佳化)
+* `Dyanmometer/Dyanmometer_Modern/WebMonitor.html` (新增遠端網頁儀表板之最新雲端報告下載卡片與 Base64 ZIP 解碼器)
+* `Dyanmometer/CHANGELOG.md` (原子化同動更新)
+
+**具體實施細節：**
+1. **實作純 C# / .NET 4.0 零相依 PKZip 壓縮引擎 (`LightweightZipHelper`)**：
+   - 基於標準 PKZip 格式規範，採用 .NET 內建之 `DeflateStream` 與標準 IEEE 802.3 `Crc32Helper` 演算法。
+   - 支援 UTF-8 中文檔名編碼旗標 (Bit 11)，以 `FileShare.ReadWrite` 安全模式讀取運轉中的日誌檔，絕不引發鎖檔例外。
+   - 產出之 `.zip` 封包 100% 通過 Windows XP 原生「壓縮資料夾」、WinRAR、7-Zip 以及 Google Drive 線上解壓縮驗證。
+2. **打造「📤 報告管理上傳」專屬分頁 (`BuildReportTab`)**：
+   - 嚴格遵守 Rule 4 UI 防裁切排版規範，採用三段式 TableLayoutPanel 容器 (`Top: 工具列 / Fill: DataGridView / Bottom: 壓縮與上傳控制`)。
+   - **頂部工具列**：提供【📂 開啟 LOG 資料夾】（檔案總管秒開）、【🔄 重新整理清單】、【📅 選取今日報告】、【⚡ 選取最新測試 Session】（自動識別關聯 CSV/GBD/LOG）、【☑️ 全選 / ⬜ 清除】與檔案類型篩選下拉選單。
+   - **中央表格**：展示選取核取方塊、檔案名稱、分類說明、檔案大小、修改時間，支援點擊整列勾選與雙擊檔案直接呼叫系統關聯軟體開啟預覽。
+3. **實作四合一彈性上傳器 (`ExecuteCompressAndUpload`)**：
+   - **目標 1：Google Drive (GAS Webhook / 自動轉發 Email)**：
+     - 利用 BouncyCastle Managed TLS 1.2 發送 HTTP POST 封裝之 JSON (Base64 ZIP)。
+     - 雲端 Google Apps Script 自動存入 Google Drive 指定資料夾（預設 `Dynamometer_Reports`），並可選調用 `GmailApp.sendEmail` 自動將 ZIP 夾帶於郵件中發送給工程師，**免 OAuth2 登入、免 XP 瀏覽器跳轉、一舉兼具 Google Drive 與 Email 雙重功能**！
+     - 內建【📋 檢視 GAS 腳本範本與教學】彈窗，提供一鍵複製 15 行極簡代碼。
+   - **目標 2：Firebase 雲端中心**：
+     - 透過現有穩定之 Managed TLS 1.2 引擎，將報告推播至 `/reports/latest.json`。
+   - **目標 3：區域網路 NAS / 共享目錄**：
+     - 直接備份拷貝至指定之網路磁碟或資料夾。
+   - **目標 4：本機 ZIP 打包**：
+     - 產出標準 ZIP 至 `logs/` 或自選路徑。
+4. **遠端儀表板 `WebMonitor.html` 整合**：
+   - 加入「📥 最新雲端測試報告下載專區」卡片，定時探測 Firebase `/reports/latest.json`。
+   - 當收到新測試報告時，網頁自動亮起通知並提供【⬇️ 一鍵下載報告 ZIP】按鈕，在瀏覽器端將 Base64 即時還原為二進位 Blob 並觸發原生下載。
 
 ---
 
