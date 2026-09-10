@@ -1160,6 +1160,9 @@ namespace DynamometerHMI
                     actKt, actVoltageSigma, actCurrentSigma, actTemp
                 });
 
+                // 依指示：採樣時即刻進行頻率比對診斷記錄
+                CheckAndLogFrequencyComparison("TN_SAMPLE");
+
                 // ★【待測端轉速平滑閉迴路追隨 (同動 S1/S2/S6 補轉差機制)】
                 ApplyTnSpeedTracking(spdCom, spdBaud, spdNode, spdDrive, targetSpd, actAbsSpd);
 

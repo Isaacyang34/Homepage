@@ -1709,6 +1709,7 @@ namespace DynamometerHMI
                 if (ru00_1.HasValue)
                 {
                     successCount++;
+                    lastRawRu00_1 = ru00_1.Value;
                     CheckHardwareStStatus(1, ru00_1.Value);
                 }
 
@@ -1729,7 +1730,12 @@ namespace DynamometerHMI
                             successCount++;
                             if (item.Address == 0x0200)
                             {
+                                lastRawRu00_1 = val.Value;
                                 CheckHardwareStStatus(1, val.Value);
+                            }
+                            if (item.Address == 0x0207)
+                            {
+                                lastRawRu07_1 = val.Value;
                             }
                             if (item.Address == 0x020F)
                             {
@@ -1737,6 +1743,7 @@ namespace DynamometerHMI
                             }
                             if (item.Address == 0x0203)
                             {
+                                lastRawRu03_1 = val.Value;
                                 kebFrequency1 = (Math.Abs(val.Value) >= 100000) ? (val.Value * 0.0001) : (val.Value * 0.01);
                             }
                             if (item.IsStatus)
@@ -1796,6 +1803,7 @@ namespace DynamometerHMI
                     if (ru03_1.HasValue)
                     {
                         successCount++;
+                        lastRawRu03_1 = ru03_1.Value;
                         kebFrequency1 = (Math.Abs(ru03_1.Value) >= 100000) ? (ru03_1.Value * 0.0001) : (ru03_1.Value * 0.01);
                     }
                 }
@@ -1903,6 +1911,7 @@ namespace DynamometerHMI
                 if (ru00_2.HasValue)
                 {
                     successCount++;
+                    lastRawRu00_2 = ru00_2.Value;
                     CheckHardwareStStatus(2, ru00_2.Value);
                 }
 
@@ -1923,7 +1932,12 @@ namespace DynamometerHMI
                             successCount++;
                             if (item.Address == 0x0200)
                             {
+                                lastRawRu00_2 = val.Value;
                                 CheckHardwareStStatus(2, val.Value);
+                            }
+                            if (item.Address == 0x0207)
+                            {
+                                lastRawRu07_2 = val.Value;
                             }
                             if (item.Address == 0x020F)
                             {
@@ -1931,6 +1945,7 @@ namespace DynamometerHMI
                             }
                             if (item.Address == 0x0203)
                             {
+                                lastRawRu03_2 = val.Value;
                                 kebFrequency2 = (Math.Abs(val.Value) >= 100000) ? (val.Value * 0.0001) : (val.Value * 0.01);
                             }
                             if (item.IsStatus)
@@ -1990,6 +2005,7 @@ namespace DynamometerHMI
                     if (ru03_2.HasValue)
                     {
                         successCount++;
+                        lastRawRu03_2 = ru03_2.Value;
                         kebFrequency2 = (Math.Abs(ru03_2.Value) >= 100000) ? (ru03_2.Value * 0.0001) : (ru03_2.Value * 0.01);
                     }
                 }

@@ -413,6 +413,13 @@ namespace DynamometerHMI
         public double kebCurrent1 = 0.0, kebCurrent2 = 0.0;
         public double kebFrequency1 = 0.0, kebFrequency2 = 0.0;
 
+        // 頻率診斷對比追蹤變數 (PowerMeter vs KEB RU 暫時性比對 LOG，問題解決後可一鍵關閉)
+        public volatile int lastRawRu00_1 = 0, lastRawRu00_2 = 0;
+        public volatile int lastRawRu03_1 = 0, lastRawRu03_2 = 0;
+        public volatile int lastRawRu07_1 = 0, lastRawRu07_2 = 0;
+        public volatile bool enableFreqCompareLog = true;
+        private DateTime lastFreqLogTime = DateTime.MinValue;
+
         /// <summary>
         /// 即時變頻器輸出頻率 (Hz)，優先回傳待測端(DUT)驅動器之 ru.03 回授頻率
         /// </summary>
@@ -433,6 +440,54 @@ namespace DynamometerHMI
                     return kebFrequency2 > 0 ? kebFrequency2 : kebFrequency1;
                 return kebFrequency1 > 0 ? kebFrequency1 : kebFrequency2;
             }
+        }
+
+        /// <summary>
+        /// 暫時性頻率比對診斷 (同時撈取 POWERMETER 與 KEB RU 參數比對，輸出至 LOG 觀察)
+        /// 包含：報告寫入值、PowerMeter U/I頻率、KEB A/B ru.03原始整數與換算Hz、實測轉速與理論電頻率
+        /// </summary>
+        public void CheckAndLogFrequencyComparison(string tag = "TELEMETRY")
+        {
+            if (!enableFreqCompareLog) return;
+
+            DateTime now = DateTime.Now;
+            bool isMotorActive = (Math.Abs(actSpeed) > 20.0 || isRunning || isNoLoadRunning ||
+                (dutyTimer != null && dutyTimer.Enabled) ||
+                (tnTimer != null && tnTimer.Enabled) ||
+                (effMapTimer != null && effMapTimer.Enabled));
+            double intervalSec = isMotorActive ? 2.0 : 10.0;
+
+            if (tag == "TELEMETRY" && (now - lastFreqLogTime).TotalSeconds < intervalSec) return;
+            lastFreqLogTime = now;
+
+            int dutDrive = 1;
+            try
+            {
+                if (cmbTnRole != null && cmbTnRole.SelectedIndex == 1) dutDrive = 2;
+                else if (noLoadSpdDrive == 2 && isNoLoadRunning) dutDrive = 2;
+                else if (cmbDutyRole != null && cmbDutyRole.SelectedIndex == 1) dutDrive = 2;
+            }
+            catch { }
+            string dutDriveName = (dutDrive == 1) ? "A載台(待測)" : "B載台(待測)";
+
+            // 理論電頻率估算 (以 4 極馬達 f = rpm / 30, 8 極馬達 f = rpm / 15 為理論基準供交叉比對)
+            double p4_freq = Math.Abs(actSpeed) / 30.0;
+            double p8_freq = Math.Abs(actSpeed) / 15.0;
+
+            string logMsg = string.Format(
+                "【頻率比對診斷 - {0}】報告採納值={1:F2}Hz ({2}) | " +
+                "PowerMeter[U頻率={3:F2}Hz, I頻率={4:F2}Hz] | " +
+                "KEB_A[ru03_raw={5}, 換算={6:F2}Hz, ru07_spd={7}rpm, ru00={8}] | " +
+                "KEB_B[ru03_raw={9}, 換算={10:F2}Hz, ru07_spd={11}, ru00={12}] | " +
+                "實測轉速={13:F1}rpm (理論參考: 4極={14:F1}Hz, 8極={15:F1}Hz)",
+                tag, actFrequency, dutDriveName,
+                wtFreqU, wtFreqI,
+                lastRawRu03_1, kebFrequency1, lastRawRu07_1, lastRawRu00_1,
+                lastRawRu03_2, kebFrequency2, lastRawRu07_2, lastRawRu00_2,
+                actSpeed, p4_freq, p8_freq
+            );
+
+            WriteHmiLog("FREQ_COMPARE", logMsg);
         }
 
         // DUTY 過電流保護變數 (S1 / S2 / S6)
@@ -5443,6 +5498,14 @@ namespace DynamometerHMI
                                         actPf = ParseSci(tokens[3]);
                                         if (actElecPower > 1000.0) actElecPower /= 1000.0;
                                     }
+                                    if (tokens.Length >= 8)
+                                    {
+                                        wtFreqU = (float)ParseSci(tokens[7]);
+                                    }
+                                    if (tokens.Length >= 9)
+                                    {
+                                        wtFreqI = (float)ParseSci(tokens[8]);
+                                    }
                                 }
                             }
                             catch { }
@@ -5601,6 +5664,9 @@ namespace DynamometerHMI
                             manualSampleAccumulator.Clear();
                         }
                     }
+
+                    // 頻率診斷比對 LOG (依指示：同時撈取 POWERMETER 與 KEB RU 參數比對，暫存於 LOG 觀察)
+                    CheckAndLogFrequencyComparison("TELEMETRY");
                 }
                 catch { }
 
