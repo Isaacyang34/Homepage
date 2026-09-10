@@ -1021,13 +1021,15 @@ namespace DynamometerHMI
                     if (btnRecordRaw != null && !btnRecordRaw.IsDisposed)
                     {
                         btnRecordRaw.BeginInvoke(new Action(() => {
-                            btnRecordRaw.Text = string.Format(" 停止錄製 ({0} 筆: {1})", manualRecordCount, motorModelName);
+                            int elSec = manualRecordStartTime != DateTime.MinValue ? (int)(DateTime.Now - manualRecordStartTime).TotalSeconds : 0;
+                            btnRecordRaw.Text = string.Format(" 停止錄製 ({0}s/{1}筆)", elSec, manualRecordCount);
                         }));
                     }
                     if (btnRecordRawTop != null && !btnRecordRawTop.IsDisposed)
                     {
                         btnRecordRawTop.BeginInvoke(new Action(() => {
-                            btnRecordRawTop.Text = string.Format(" 停止錄製 ({0} 筆: {1})", manualRecordCount, motorModelName);
+                            int elSec = manualRecordStartTime != DateTime.MinValue ? (int)(DateTime.Now - manualRecordStartTime).TotalSeconds : 0;
+                            btnRecordRawTop.Text = string.Format(" 停止錄製 ({0}s/{1}筆)", elSec, manualRecordCount);
                         }));
                     }
                 }
@@ -1056,12 +1058,14 @@ namespace DynamometerHMI
                     manualRecordWriter.WriteLine(BuildRawCsvHeader());
                     manualRecordWriter.Flush();
 
+                    manualRecordStartTime = DateTime.Now;
+                    manualGbdStartTime = manualRecordStartTime;
+
                     // 同步建立同名二進位 .GBD 檔案 (立即寫入標準 12KB 原廠 ASCII 標頭，嚴禁全 0x00 空白標頭)
                     try
                     {
                         manualRecordGbdPath = Path.Combine(folderPath, Path.GetFileNameWithoutExtension(fileName) + ".gbd");
                         manualGbdStream = new FileStream(manualRecordGbdPath, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite);
-                        manualGbdStartTime = DateTime.Now;
                         int sampSec = Math.Max(1, rawDataIntervalMs / 1000);
                         byte[] initialHeader = BuildGbdHeader(0, manualGbdStartTime, manualGbdStartTime, sampSec);
                         manualGbdStream.Write(initialHeader, 0, 12288);
@@ -1087,7 +1091,7 @@ namespace DynamometerHMI
 
                     if (btnRecordRaw != null)
                     {
-                        btnRecordRaw.Text = string.Format(" 停止錄製 (0 筆: {0})", motorModelName);
+                        btnRecordRaw.Text = string.Format(" 停止錄製 (0s: {0})", motorModelName);
                         btnRecordRaw.BackColor = Color.FromArgb(239, 68, 68);
                     }
                     if (btnRecordRawTop != null)
@@ -1095,8 +1099,9 @@ namespace DynamometerHMI
                         btnRecordRawTop.Image = CreateFloppyIconImage(36, 28, Color.White, true);
                         btnRecordRawTop.BackColor = Color.FromArgb(239, 68, 68);
                     }
-                    WriteHmiLog("RECORDER", string.Format(" [開始手動錄製 RAW DATA] 馬達: {0} | 週期: {1}ms | CSV: {2} | GBD: {3}",
-                        motorModelName, rawDataIntervalMs, Path.GetFileName(manualRecordFilePath), Path.GetFileName(manualRecordGbdPath)));
+                    string modeStr = isAutoTriggeredRecording ? string.Format("自動測試 [{0}]", autoRecordTestTag) : "手動錄製";
+                    WriteHmiLog("RECORDER", string.Format(" [開始{0} RAW DATA] 馬達: {1} | 週期: {2}ms | CSV: {3} | GBD: {4} (門檻: 錄製未滿 1 分鐘將於停止時自動刪除)",
+                        modeStr, motorModelName, rawDataIntervalMs, Path.GetFileName(manualRecordFilePath), Path.GetFileName(manualRecordGbdPath)));
                 }
                 catch (Exception ex)
                 {
@@ -1111,6 +1116,18 @@ namespace DynamometerHMI
             {
                 if (!isManualRecording) return;
                 isManualRecording = false;
+
+                DateTime stopTime = DateTime.Now;
+                double durationSec = (manualRecordStartTime != DateTime.MinValue)
+                    ? (stopTime - manualRecordStartTime).TotalSeconds
+                    : (manualGbdStartTime != DateTime.MinValue ? (stopTime - manualGbdStartTime).TotalSeconds : 0.0);
+                bool wasAuto = isAutoTriggeredRecording;
+                string tag = autoRecordTestTag;
+                string targetCsvPath = manualRecordFilePath;
+                string targetGbdPath = manualRecordGbdPath;
+                int recordedCount = manualRecordCount;
+
+                // 1. 安全關閉 CSV 寫入器
                 try
                 {
                     if (manualRecordWriter != null)
@@ -1123,12 +1140,101 @@ namespace DynamometerHMI
                 }
                 catch { }
 
-                // 封裝與回填原廠二進位 .GBD 標頭
+                // 2. 判斷錄製時長是否滿足「最低 1 分鐘 (>= 60 秒)」門檻
+                // 若時間太短 (< 60 秒)，直接將生成的紀錄檔刪除，避免磁碟累積零碎檔案
+                bool isTooShort = durationSec < 60.0;
+
+                if (isTooShort)
+                {
+                    // 關閉二進位 GBD 檔案串流（直接關閉準備刪除）
+                    if (manualGbdWriter != null)
+                    {
+                        try { manualGbdWriter.Close(); } catch { }
+                        manualGbdWriter = null;
+                    }
+                    if (manualGbdStream != null)
+                    {
+                        try { manualGbdStream.Close(); manualGbdStream.Dispose(); } catch { }
+                        manualGbdStream = null;
+                    }
+
+                    // 刪除 CSV 檔案
+                    string deletedCsvName = "";
+                    try
+                    {
+                        if (!string.IsNullOrEmpty(targetCsvPath) && File.Exists(targetCsvPath))
+                        {
+                            deletedCsvName = Path.GetFileName(targetCsvPath);
+                            File.Delete(targetCsvPath);
+                        }
+                    }
+                    catch (Exception exDelCsv)
+                    {
+                        WriteHmiLog("REC_PURGE_ERR", "刪除未滿1分鐘 CSV 紀錄檔失敗: " + exDelCsv.Message);
+                    }
+
+                    // 刪除 GBD 檔案
+                    string deletedGbdName = "";
+                    try
+                    {
+                        if (!string.IsNullOrEmpty(targetGbdPath) && File.Exists(targetGbdPath))
+                        {
+                            deletedGbdName = Path.GetFileName(targetGbdPath);
+                            File.Delete(targetGbdPath);
+                        }
+                    }
+                    catch (Exception exDelGbd)
+                    {
+                        WriteHmiLog("REC_PURGE_ERR", "刪除未滿1分鐘 GBD 紀錄檔失敗: " + exDelGbd.Message);
+                    }
+
+                    // 復歸 UI 按鈕狀態
+                    if (btnRecordRaw != null)
+                    {
+                        btnRecordRaw.Text = " 錄製 RAW DATA";
+                        btnRecordRaw.BackColor = Color.FromArgb(220, 38, 38);
+                    }
+                    if (btnRecordRawTop != null)
+                    {
+                        btnRecordRawTop.Image = CreateFloppyIconImage(36, 28, Color.White, false);
+                        btnRecordRawTop.BackColor = Color.FromArgb(220, 38, 38);
+                    }
+
+                    // 紀錄日誌
+                    if (wasAuto)
+                    {
+                        WriteHmiLog("AUTO_RAW", string.Format("【自動測試紀錄清理】測試標籤 [{0}] 錄製時間僅 {1:F1} 秒 (未滿 1 分鐘門檻，共 {2} 筆)，已直接刪除紀錄檔 [{3}]，避免產生零碎檔案。",
+                            tag, durationSec, recordedCount, deletedCsvName));
+                    }
+                    else
+                    {
+                        WriteHmiLog("RECORDER", string.Format("【手動錄製自動清除】錄製歷時僅 {0:F1} 秒 (未滿 1 分鐘門檻，共 {1} 筆)，已直接刪除紀錄檔 [{2}]，保持目錄純淨。",
+                            durationSec, recordedCount, deletedCsvName));
+                    }
+
+                    // 提示使用者 (僅在手動點擊停止且 showPrompt=true 時跳提示，自動測試中止不彈窗干擾操作)
+                    if (showPrompt)
+                    {
+                        string msg = string.Format("本次錄製時間過短 (實際僅 {0:F1} 秒，未達最低有效門檻 1 分鐘 / 60 秒)。\n\n為避免產生過多零碎無效檔案，系統已直接刪除本次產生的紀錄檔：\n• CSV: {1}\n• GBD: {2}",
+                            durationSec, deletedCsvName, deletedGbdName);
+                        MessageBox.Show(msg, "錄製時間未滿 1 分鐘 (已自動刪除)", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+
+                    isAutoTriggeredRecording = false;
+                    autoRecordTestTag = "";
+                    manualRecordFilePath = "";
+                    manualRecordGbdPath = "";
+                    manualRecordStartTime = DateTime.MinValue;
+                    manualGbdStartTime = DateTime.MinValue;
+                    manualRecordCount = 0;
+                    return;
+                }
+
+                // ── 時長滿 1 分鐘 (>= 60 秒)：正常封裝與保留 ──
                 if (manualGbdStream != null && manualGbdWriter != null)
                 {
                     try
                     {
-                        DateTime stopTime = DateTime.Now;
                         int sampSec = Math.Max(1, rawDataIntervalMs / 1000);
                         byte[] gbdHeader = BuildGbdHeader(manualRecordCount, manualGbdStartTime, stopTime, sampSec);
                         manualGbdStream.Seek(0, SeekOrigin.Begin);
@@ -1155,15 +1261,18 @@ namespace DynamometerHMI
                     btnRecordRawTop.Image = CreateFloppyIconImage(36, 28, Color.White, false);
                     btnRecordRawTop.BackColor = Color.FromArgb(220, 38, 38);
                 }
-                WriteHmiLog("RECORDER", string.Format(" [RAW DATA 錄製完成] 馬達: {0} | 共錄製 {1} 筆 RAW DATA 數據至 CSV 與 GBD！", motorModelName, manualRecordCount));
+
+                string triggerType = wasAuto ? string.Format("自動測試 [{0}]", tag) : "手動錄製";
+                WriteHmiLog("RECORDER", string.Format(" [RAW DATA 錄製完成] 模式: {0} | 馬達: {1} | 歷時: {2:F1} 秒 ({3:F1} 分鐘) | 共錄製 {4} 筆 RAW DATA 數據至 CSV 與 GBD！",
+                    triggerType, motorModelName, durationSec, durationSec / 60.0, manualRecordCount));
 
                 // 本地日誌生命週期維護：錄製結束後自動觸發本地日誌修剪 (保留最新 30 筆)
                 PurgeLocalLogs(false);
 
                 if (showPrompt)
                 {
-                    string msg = string.Format("[成功] 手動 RAW DATA 錄製完成！\n\n 馬達名稱：{0}\n 錄製筆數：{1} 筆\n CSV 路徑：\n{2}\n GBD 原廠檔：\n{3}\n\n是否立即在檔案總管中查看？",
-                        motorModelName, manualRecordCount, manualRecordFilePath, manualRecordGbdPath);
+                    string msg = string.Format("[成功] 手動 RAW DATA 錄製完成！\n\n 馬達名稱：{0}\n 錄製時間：{1:F1} 秒 ({2:F1} 分鐘)\n 錄製筆數：{3} 筆\n CSV 路徑：\n{4}\n GBD 原廠檔：\n{5}\n\n是否立即在檔案總管中查看？",
+                        motorModelName, durationSec, durationSec / 60.0, manualRecordCount, manualRecordFilePath, manualRecordGbdPath);
 
                     DialogResult res = MessageBox.Show(msg, "錄製完成", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
                     if (res == DialogResult.Yes)
@@ -1179,6 +1288,11 @@ namespace DynamometerHMI
                         catch { }
                     }
                 }
+
+                isAutoTriggeredRecording = false;
+                autoRecordTestTag = "";
+                manualRecordStartTime = DateTime.MinValue;
+                manualGbdStartTime = DateTime.MinValue;
             }
         }
 
@@ -1191,12 +1305,15 @@ namespace DynamometerHMI
                     StopManualRecording(showPrompt: false);
                 }
 
+                isAutoTriggeredRecording = true;
+                autoRecordTestTag = string.IsNullOrEmpty(testTag) ? "TEST" : testTag.Trim().Replace(" ", "_");
+
                 string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
                 string fDir = !string.IsNullOrEmpty(rawDataSaveDirectory) && Directory.Exists(rawDataSaveDirectory)
                     ? rawDataSaveDirectory
                     : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
 
-                string tag = string.IsNullOrEmpty(testTag) ? "TEST" : testTag.Trim().Replace(" ", "_");
+                string tag = autoRecordTestTag;
                 string fName = string.Format("{0}_{1}_{2}.csv", mName, DateTime.Now.ToString("yyyyMMdd_HHmmss"), tag);
 
                 StartManualRecordingWithParams(mName, fDir, fName, gl820ChannelMask, recordKebRuParams, rawDataIntervalMs);
@@ -1208,6 +1325,8 @@ namespace DynamometerHMI
         {
             if (!isManualRecording)
             {
+                isAutoTriggeredRecording = false;
+                autoRecordTestTag = "";
                 string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
                 string fDir = !string.IsNullOrEmpty(rawDataSaveDirectory) && Directory.Exists(rawDataSaveDirectory)
                     ? rawDataSaveDirectory
@@ -1217,7 +1336,7 @@ namespace DynamometerHMI
             }
             else
             {
-                StopManualRecording();
+                StopManualRecording(showPrompt: true);
             }
         }
 

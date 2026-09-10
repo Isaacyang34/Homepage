@@ -38,7 +38,7 @@ namespace DynamometerHMI
         private bool isCloudUploadRunning = false;
 
         // ── 軟體線上熱更新設定 (Online Auto-Update & In-Place Hot Swap) ──────
-        public const string APP_VERSION = "2.6.6";
+        public const string APP_VERSION = "2.6.7";
         public string cloudUpdateManifestUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/update/version.json";
         public Button btnOnlineUpdate = null;
         private bool? lastCloudUploadSuccess = null;
@@ -748,6 +748,36 @@ namespace DynamometerHMI
 
                     // 1. 清理測試資料 CSV 檔案 (*.csv)，保留最新 maxAllowed 筆
                     var csvFiles = dirInfo.GetFiles("*.csv");
+
+                    // 1-0. 先行主動清理過短中斷、無效或內容空白之零碎檔案 (< 500 bytes 之 CSV，排除 Auto_Raw_Telemetry 與當前錄製)
+                    foreach (var fi in csvFiles)
+                    {
+                        try
+                        {
+                            if (isManualRecording && !string.IsNullOrEmpty(manualRecordFilePath) &&
+                                string.Equals(fi.FullName, manualRecordFilePath, StringComparison.OrdinalIgnoreCase))
+                            {
+                                continue;
+                            }
+                            if (fi.Name.StartsWith("Auto_Raw_Telemetry_", StringComparison.OrdinalIgnoreCase) ||
+                                fi.Name.StartsWith("RawData_Snapshots_", StringComparison.OrdinalIgnoreCase))
+                            {
+                                continue;
+                            }
+                            // 若檔案小於 500 bytes (僅有單行標頭或全空)，代表測試時間過短或中斷，直接清除
+                            if (fi.Length < 500)
+                            {
+                                string gbdPath = Path.Combine(fi.DirectoryName, Path.GetFileNameWithoutExtension(fi.Name) + ".gbd");
+                                fi.Delete();
+                                if (File.Exists(gbdPath)) { try { File.Delete(gbdPath); } catch { } }
+                                deletedCsvCount++;
+                            }
+                        }
+                        catch { }
+                    }
+
+                    // 重新整理有效測試 CSV 檔案列表並由新到舊排序
+                    csvFiles = dirInfo.GetFiles("*.csv");
                     Array.Sort(csvFiles, (a, b) => b.LastWriteTime.CompareTo(a.LastWriteTime)); // 由新到舊排序
 
                     if (csvFiles.Length > maxAllowed)
@@ -819,6 +849,31 @@ namespace DynamometerHMI
                         {
                             var customDirInfo = new DirectoryInfo(rawDataSaveDirectory);
                             var customCsvFiles = customDirInfo.GetFiles("*.csv");
+                            foreach (var cfi in customCsvFiles)
+                            {
+                                try
+                                {
+                                    if (isManualRecording && !string.IsNullOrEmpty(manualRecordFilePath) &&
+                                        string.Equals(cfi.FullName, manualRecordFilePath, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        continue;
+                                    }
+                                    if (cfi.Name.StartsWith("Auto_Raw_Telemetry_", StringComparison.OrdinalIgnoreCase) ||
+                                        cfi.Name.StartsWith("RawData_Snapshots_", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        continue;
+                                    }
+                                    if (cfi.Length < 500)
+                                    {
+                                        string gbdPath = Path.Combine(cfi.DirectoryName, Path.GetFileNameWithoutExtension(cfi.Name) + ".gbd");
+                                        cfi.Delete();
+                                        if (File.Exists(gbdPath)) { try { File.Delete(gbdPath); } catch { } }
+                                        deletedCsvCount++;
+                                    }
+                                }
+                                catch { }
+                            }
+                            customCsvFiles = customDirInfo.GetFiles("*.csv");
                             Array.Sort(customCsvFiles, (a, b) => b.LastWriteTime.CompareTo(a.LastWriteTime));
                             if (customCsvFiles.Length > maxAllowed)
                             {

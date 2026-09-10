@@ -201,6 +201,9 @@ namespace DynamometerHMI
         private BinaryWriter manualGbdWriter = null;
         private string manualRecordGbdPath = "";
         private DateTime manualGbdStartTime = DateTime.MinValue;
+        private DateTime manualRecordStartTime = DateTime.MinValue; // 錄製起始時間 (計算總錄製時長)
+        private bool isAutoTriggeredRecording = false; // 是否為自動測試觸發之錄製
+        private string autoRecordTestTag = ""; // 自動測試標籤名稱
         private volatile string lastRawKistler = "";
         private volatile string lastRawWt333eHex = "";
         private volatile string lastRawKebA = "";
