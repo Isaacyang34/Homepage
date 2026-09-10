@@ -421,24 +421,29 @@ namespace DynamometerHMI
         private DateTime lastFreqLogTime = DateTime.MinValue;
 
         /// <summary>
-        /// 即時變頻器輸出頻率 (Hz)，優先回傳待測端(DUT)驅動器之 ru.03 回授頻率
+        /// 即時輸出頻率 (Hz)。
+        /// 依現場硬體規範：目前僅 B 載台下轉速命令(待測端)，A 載台僅為加載端；PowerMeter 亦僅接在 B 載台馬達輸入。
+        /// 故頻率來源鎖定優先採納 B 載台變頻器 (kebFrequency2) 或 PowerMeter 實測電氣基波頻率 (wtFreqU / wtFreqI)。
         /// </summary>
         public double actFrequency
         {
             get
             {
-                int dutDrive = 1;
-                try
-                {
-                    if (cmbTnRole != null && cmbTnRole.SelectedIndex == 1) dutDrive = 2;
-                    else if (noLoadSpdDrive == 2 && isNoLoadRunning) dutDrive = 2;
-                    else if (cmbDutyRole != null && cmbDutyRole.SelectedIndex == 1) dutDrive = 2;
-                }
-                catch { }
+                // 優先採納 B 載台 (待測端) KEB ru.03 輸出頻率
+                if (kebFrequency2 > 0)
+                    return kebFrequency2;
 
-                if (dutDrive == 2)
-                    return kebFrequency2 > 0 ? kebFrequency2 : kebFrequency1;
-                return kebFrequency1 > 0 ? kebFrequency1 : kebFrequency2;
+                // 若 KEB B 載台暫未回傳，採納 PowerMeter WT333E 實測電氣頻率 (電壓頻率 > 1Hz 或 電流頻率 > 1Hz)
+                if (wtFreqU > 1.0f)
+                    return wtFreqU;
+                if (wtFreqI > 1.0f)
+                    return wtFreqI;
+
+                // 備援回退：若使用者在介面明確切換為 A 載台待測，才取用 kebFrequency1
+                if (cmbTnRole != null && cmbTnRole.SelectedIndex == 0)
+                    return kebFrequency1;
+
+                return kebFrequency2 > 0 ? kebFrequency2 : kebFrequency1;
             }
         }
 
@@ -460,15 +465,15 @@ namespace DynamometerHMI
             if (tag == "TELEMETRY" && (now - lastFreqLogTime).TotalSeconds < intervalSec) return;
             lastFreqLogTime = now;
 
-            int dutDrive = 1;
+            int dutDrive = 2; // 目前依現場硬體規範：僅 B 載台下轉速命令(待測端)
             try
             {
-                if (cmbTnRole != null && cmbTnRole.SelectedIndex == 1) dutDrive = 2;
-                else if (noLoadSpdDrive == 2 && isNoLoadRunning) dutDrive = 2;
-                else if (cmbDutyRole != null && cmbDutyRole.SelectedIndex == 1) dutDrive = 2;
+                if (cmbTnRole != null && cmbTnRole.SelectedIndex == 0) dutDrive = 1;
+                else if (noLoadSpdDrive == 1 && isNoLoadRunning) dutDrive = 1;
+                else if (cmbDutyRole != null && cmbDutyRole.SelectedIndex == 0) dutDrive = 1;
             }
             catch { }
-            string dutDriveName = (dutDrive == 1) ? "A載台(待測)" : "B載台(待測)";
+            string dutDriveName = (dutDrive == 2) ? "B載台(待測-轉速控制)" : "A載台(加載)";
 
             // 理論電頻率估算 (以 4 極馬達 f = rpm / 30, 8 極馬達 f = rpm / 15 為理論基準供交叉比對)
             double p4_freq = Math.Abs(actSpeed) / 30.0;
@@ -477,13 +482,13 @@ namespace DynamometerHMI
             string logMsg = string.Format(
                 "【頻率比對診斷 - {0}】報告採納值={1:F2}Hz ({2}) | " +
                 "PowerMeter[U頻率={3:F2}Hz, I頻率={4:F2}Hz] | " +
-                "KEB_A[ru03_raw={5}, 換算={6:F2}Hz, ru07_spd={7}rpm, ru00={8}] | " +
-                "KEB_B[ru03_raw={9}, 換算={10:F2}Hz, ru07_spd={11}, ru00={12}] | " +
+                "KEB_B待測[ru03_raw={5}, 換算={6:F2}Hz, ru07_spd={7}rpm, ru00={8}] | " +
+                "KEB_A加載[ru03_raw={9}, 換算={10:F2}Hz, ru07_spd={11}rpm, ru00={12}] | " +
                 "實測轉速={13:F1}rpm (理論參考: 4極={14:F1}Hz, 8極={15:F1}Hz)",
                 tag, actFrequency, dutDriveName,
                 wtFreqU, wtFreqI,
-                lastRawRu03_1, kebFrequency1, lastRawRu07_1, lastRawRu00_1,
                 lastRawRu03_2, kebFrequency2, lastRawRu07_2, lastRawRu00_2,
+                lastRawRu03_1, kebFrequency1, lastRawRu07_1, lastRawRu00_1,
                 actSpeed, p4_freq, p8_freq
             );
 
