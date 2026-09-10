@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.IO.Compression;
@@ -196,6 +197,105 @@ namespace DynamometerHMI
                 bw.Write(centralDirSize);
                 bw.Write(centralDirOffset);
                 bw.Write((ushort)0);        // Comment length
+            }
+        }
+
+        /// <summary>
+        /// 自動探測本機 7-Zip 主程式 (7z.exe) 路徑 (支援 32-bit Windows XP 與登錄檔探測)
+        /// </summary>
+        public static string Find7ZipExecutable()
+        {
+            string[] candidatePaths = new string[]
+            {
+                @"C:\Program Files\7-Zip\7z.exe",
+                @"C:\Program Files (x86)\7-Zip\7z.exe",
+                @"D:\Program Files\7-Zip\7z.exe",
+                @"D:\Program Files (x86)\7-Zip\7z.exe"
+            };
+
+            foreach (string p in candidatePaths)
+            {
+                if (File.Exists(p)) return p;
+            }
+
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\7-Zip"))
+                {
+                    if (key != null)
+                    {
+                        object pathObj = key.GetValue("Path");
+                        if (pathObj != null)
+                        {
+                            string exePath = Path.Combine(pathObj.ToString(), "7z.exe");
+                            if (File.Exists(exePath)) return exePath;
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            return null;
+        }
+
+        /// <summary>
+        /// 嘗試調用本機 7-Zip CLI 進行高效標準 ZIP 壓縮 (相容 UTF-8 與清單檔案)
+        /// </summary>
+        public static bool TryCompressWith7Zip(string zipPath, List<string> filePaths, out string errorMsg)
+        {
+            errorMsg = "";
+            string sevenZipExe = Find7ZipExecutable();
+            if (string.IsNullOrEmpty(sevenZipExe))
+            {
+                errorMsg = "找不到 7z.exe";
+                return false;
+            }
+
+            string tempDir = Path.GetDirectoryName(zipPath);
+            string listFile = Path.Combine(tempDir, "7z_list_" + Guid.NewGuid().ToString("N").Substring(0, 8) + ".txt");
+
+            try
+            {
+                // 寫入清單檔案 (UTF-8)
+                File.WriteAllLines(listFile, filePaths.ToArray(), Encoding.UTF8);
+
+                if (File.Exists(zipPath)) File.Delete(zipPath);
+
+                ProcessStartInfo psi = new ProcessStartInfo()
+                {
+                    FileName = sevenZipExe,
+                    Arguments = string.Format("a -tzip \"{0}\" @\"{1}\" -y", zipPath, listFile),
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+
+                using (Process proc = Process.Start(psi))
+                {
+                    string stdout = proc.StandardOutput.ReadToEnd();
+                    string stderr = proc.StandardError.ReadToEnd();
+                    proc.WaitForExit(30000);
+
+                    if (proc.ExitCode == 0 && File.Exists(zipPath))
+                    {
+                        return true;
+                    }
+                    else
+                    {
+                        errorMsg = "7-Zip 退出碼: " + proc.ExitCode + " " + stderr;
+                        return false;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                errorMsg = ex.Message;
+                return false;
+            }
+            finally
+            {
+                try { if (File.Exists(listFile)) File.Delete(listFile); } catch { }
             }
         }
     }
@@ -987,15 +1087,45 @@ namespace DynamometerHMI
                 string tempZipPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs", zipName);
                 try
                 {
-                    // 步驟 1: 執行 ZIP 壓縮 (純 C# .NET 4.0 相容引擎)
-                    LightweightZipHelper.CreateZipArchive(tempZipPath, selectedFiles, (curr, total, name) => {
+                    // 步驟 1: 執行 ZIP 壓縮 (優先使用本機 7-Zip，若無則切換內建純 C# 引擎)
+                    string sevenZipExe = LightweightZipHelper.Find7ZipExecutable();
+                    bool used7z = false;
+
+                    if (!string.IsNullOrEmpty(sevenZipExe))
+                    {
                         this.BeginInvoke((Action)(() => {
-                            int pct = 10 + (int)((double)curr / total * 30);
-                            if (pct > 40) pct = 40;
-                            prgReportTask.Value = pct;
-                            lblReportStatus.Text = string.Format("壓縮中 ({0}/{1}): {2}", curr, total, name);
+                            lblReportStatus.Text = "⏳ 偵測到本機 7-Zip，正在調用 7z.exe 極速壓縮中...";
+                            WriteReportLog("偵測到本機 7-Zip 引擎: " + sevenZipExe);
+                            prgReportTask.Value = 25;
                         }));
-                    });
+
+                        string err7z;
+                        if (LightweightZipHelper.TryCompressWith7Zip(tempZipPath, selectedFiles, out err7z))
+                        {
+                            used7z = true;
+                            this.BeginInvoke((Action)(() => {
+                                WriteReportLog("✅ 7-Zip 引擎壓縮完成！");
+                            }));
+                        }
+                        else
+                        {
+                            this.BeginInvoke((Action)(() => {
+                                WriteReportLog("⚠️ 7-Zip 呼叫未完成 (" + err7z + ")，無縫切換為內建 PKZip 引擎繼續壓縮...");
+                            }));
+                        }
+                    }
+
+                    if (!used7z)
+                    {
+                        LightweightZipHelper.CreateZipArchive(tempZipPath, selectedFiles, (curr, total, name) => {
+                            this.BeginInvoke((Action)(() => {
+                                int pct = 10 + (int)((double)curr / total * 30);
+                                if (pct > 40) pct = 40;
+                                prgReportTask.Value = pct;
+                                lblReportStatus.Text = string.Format("壓縮中 ({0}/{1}): {2}", curr, total, name);
+                            }));
+                        });
+                    }
 
                     FileInfo zipFi = new FileInfo(tempZipPath);
                     long zipSize = zipFi.Length;
