@@ -704,6 +704,8 @@ namespace DynamometerHMI
                     setprotproperties(ref prop);
                     setretrycnt(3);
                     setinvprot((int)numHmiKebNode1.Value, 1);
+                    activeKebComIndex_1 = comIdx;
+                    activeKebBaudIndex_1 = baudIdx;
                     activeKebComIndex_hmi = comIdx;
                     activeKebBaudIndex_hmi = baudIdx;
                 }
@@ -730,6 +732,7 @@ namespace DynamometerHMI
                         lblPillKeb1.ForeColor = Color.FromArgb(74, 222, 128);
                     }
                     if (txtHmiKebLog != null) txtHmiKebLog.AppendText(string.Format("[{0}] A載台 (加載端) 握手成功：{1} @ {2} bps (實體回應 0x{3:X4})\r\n", DateTime.Now.ToLongTimeString(), port, baud, testVal.Value));
+                    WriteHmiLog("KEB_A", string.Format("[OK] A載台驅動器握手成功 ({0} @ {1} bps, 節點 {2}, 回應 0x{3:X4})", port, baud, numHmiKebNode1.Value, testVal.Value));
                     
                     // 連線成功後第一動作：先讀回變頻器目前真實硬體參數，並同步至介面設定框與模式按鈕
                     ReadAndSyncHmiKebInitialParams(1);
@@ -747,6 +750,7 @@ namespace DynamometerHMI
                         lblPillKeb1.ForeColor = Color.FromArgb(248, 113, 113);
                     }
                     if (txtHmiKebLog != null) txtHmiKebLog.AppendText(string.Format("[{0}] [A載台錯誤] {1} 站號 {2} 無回應，請檢查實體接線與變頻器電源！\r\n", DateTime.Now.ToLongTimeString(), port, numHmiKebNode1.Value));
+                    WriteHmiLog("KEB_A", string.Format("[FAIL] A載台驅動器連線失敗: {0} 站號 {1} 握手無回應，請檢查實體接線與變頻器電源！", port, numHmiKebNode1.Value));
                     return false;
                 }
             }
@@ -754,6 +758,7 @@ namespace DynamometerHMI
             {
                 CloseHmiKebPort1();
                 if (txtHmiKebLog != null) txtHmiKebLog.AppendText(string.Format("[A載台錯誤] 開啟 {0} 異常: {1}\r\n", port, ex.Message));
+                WriteHmiLog("KEB_A", string.Format("[ERR] A載台開啟 {0} 發生例外: {1}", port, ex.Message));
                 lblHmiKebStatus1.Text = "狀態: 連線異常";
                 lblHmiKebStatus1.ForeColor = Color.Red;
                 if (lblPillKeb1 != null && !lblPillKeb1.IsDisposed)
@@ -776,7 +781,10 @@ namespace DynamometerHMI
             lock (kebLock)
             {
                 try { closechannels(); } catch { }
+                activeKebComIndex_1 = -1;
+                activeKebBaudIndex_1 = -1;
                 activeKebComIndex_hmi = -1;
+                activeKebBaudIndex_hmi = -1;
             }
             if (spKeb1 != null) { try { spKeb1.Close(); spKeb1.Dispose(); } catch {} spKeb1 = null; }
             isHmiKebOpen1 = false;
@@ -799,6 +807,7 @@ namespace DynamometerHMI
                 lblPillKeb1.ForeColor = Color.FromArgb(203, 213, 225);
             }
             if (txtHmiKebLog != null) txtHmiKebLog.AppendText(string.Format("[{0}] A載台 COM 埠已釋放 (已解除鎖定，可供外部軟體使用)\r\n", DateTime.Now.ToLongTimeString()));
+            WriteHmiLog("KEB_A", "[INFO] A載台 COM 埠已關閉釋放");
         }
 
         private bool EnsureHmiKebOpen2()
@@ -826,6 +835,8 @@ namespace DynamometerHMI
                     setprotproperties_2(ref prop);
                     setretrycnt_2(3);
                     setinvprot_2((int)numHmiKebNode2.Value, 1);
+                    activeKebComIndex_2 = comIdx;
+                    activeKebBaudIndex_2 = baudIdx;
                     activeKebComIndex_hmi = comIdx;
                     activeKebBaudIndex_hmi = baudIdx;
                 }
@@ -852,6 +863,7 @@ namespace DynamometerHMI
                         lblPillKeb2.ForeColor = Color.FromArgb(74, 222, 128);
                     }
                     if (txtHmiKebLog != null) txtHmiKebLog.AppendText(string.Format("[{0}] B載台 (待測端) 握手成功：{1} @ {2} bps (實體回應 0x{3:X4})\r\n", DateTime.Now.ToLongTimeString(), port, baud, testVal.Value));
+                    WriteHmiLog("KEB_B", string.Format("[OK] B載台驅動器握手成功 ({0} @ {1} bps, 節點 {2}, 回應 0x{3:X4})", port, baud, numHmiKebNode2.Value, testVal.Value));
                     
                     // 連線成功後第一動作：先讀回變頻器目前真實硬體參數，並同步至介面設定框與模式按鈕
                     ReadAndSyncHmiKebInitialParams(2);
@@ -869,6 +881,7 @@ namespace DynamometerHMI
                         lblPillKeb2.ForeColor = Color.FromArgb(248, 113, 113);
                     }
                     if (txtHmiKebLog != null) txtHmiKebLog.AppendText(string.Format("[{0}] [B載台錯誤] {1} 站號 {2} 無回應，請檢查實體接線與變頻器電源！\r\n", DateTime.Now.ToLongTimeString(), port, numHmiKebNode2.Value));
+                    WriteHmiLog("KEB_B", string.Format("[FAIL] B載台驅動器連線失敗: {0} 站號 {1} 握手無回應，請檢查實體接線與變頻器電源！", port, numHmiKebNode2.Value));
                     return false;
                 }
             }
@@ -876,6 +889,7 @@ namespace DynamometerHMI
             {
                 CloseHmiKebPort2();
                 if (txtHmiKebLog != null) txtHmiKebLog.AppendText(string.Format("[B載台錯誤] 開啟 {0} 異常: {1}\r\n", port, ex.Message));
+                WriteHmiLog("KEB_B", string.Format("[ERR] B載台開啟 {0} 發生例外: {1}", port, ex.Message));
                 lblHmiKebStatus2.Text = "狀態: 連線異常";
                 lblHmiKebStatus2.ForeColor = Color.Red;
                 if (lblPillKeb2 != null && !lblPillKeb2.IsDisposed)
@@ -898,7 +912,10 @@ namespace DynamometerHMI
             lock (kebLock)
             {
                 try { closechannels_2(); } catch { }
+                activeKebComIndex_2 = -1;
+                activeKebBaudIndex_2 = -1;
                 activeKebComIndex_hmi = -1;
+                activeKebBaudIndex_hmi = -1;
             }
             if (spKeb2 != null) { try { spKeb2.Close(); spKeb2.Dispose(); } catch {} spKeb2 = null; }
             isHmiKebOpen2 = false;
@@ -921,6 +938,7 @@ namespace DynamometerHMI
                 lblPillKeb2.ForeColor = Color.FromArgb(203, 213, 225);
             }
             if (txtHmiKebLog != null) txtHmiKebLog.AppendText(string.Format("[{0}] B載台 COM 埠已釋放 (已解除鎖定，可供外部軟體使用)\r\n", DateTime.Now.ToLongTimeString()));
+            WriteHmiLog("KEB_B", "[INFO] B載台 COM 埠已關閉釋放");
         }
 
         private void UpdateHmiKebModeParamsDisplay(int driveId, int mode = -1, int speedVal = -1, double trqPercent = -1.0, int lastCmd = -1)
@@ -2201,21 +2219,18 @@ namespace DynamometerHMI
         // =========================================================================
         // KEB 參數讀取核心函數 — 雙 DLL 版本
         //
-        // 【根本修復說明 — 2026-09-10】
-        // 原始程式碼錯誤：BitConverter.ToInt32(rxBuf, 24)
-        //   tRecTel 結構大小 = 4+4+4+4+1+1+2+4 = 24 bytes，所以 offset 24 已超出結構體範圍！
-        //   讀到的是 rxBuf 中未初始化的記憶體，永遠為 0。
-        //
-        // 正確修復：
-        //   1. 從 rxBuf[20..23] 讀取 SR 欄位（一個 32-bit 非託管記憶體指標）
-        //   2. 用原廠 copydata(SR, destBuf, 8) 將 tServ00Rec (8 bytes) 複製到托管緩衝區
-        //      tServ00Rec layout: Adr(2B) + Paraset(1B) + Fill(1B) + Data(4B)
-        //   3. 從 destBuf[4..7] 取得真正的 Data 值
-        //
-        // 雙 DLL 分流規則：
-        //   - 使用 comIndex 1 (COM2, B載台) → protKEB_2.dll
-        //   - 其他 (COM1, A載台) → protKEB.dll
-        //   原廠 2013.08.31 歷史紀錄確認必須使用雙 DLL 才能同時維持兩個 Comport 連線！
+        // 【實體通訊解析說明 — 2026-09-11 徹底根治】
+        // 1. waitrdreq 回傳的 rxBuf 格式為 DIN 66019-II 實體電文結構：
+        //    - offset 0..19 : tRecTel 標頭 (InvId, Inverter, Service, Ack, Read, Req, Fill)
+        //    - offset 12..15: Ack (0=成功)
+        //    - offset 20..21: Adr (參數暫存器位址)
+        //    - offset 22    : Paraset (參數組別 Setmask)
+        //    - offset 23    : Fill (對齊位元組)
+        //    - offset 24..27: Data (32-bit 實體數值，真正遙測資料所在！)
+        // 2. 嚴禁將 rxBuf[20..23] 當作記憶體指標呼叫 copydata，否則必觸發 0xC0000005 存取違規！
+        // 3. 雙 DLL 分流規則：
+        //    - 使用 comIndex 1 (COM2, B載台) → protKEB_2.dll
+        //    - 其他 (COM1, A載台) → protKEB.dll
         // =========================================================================
         private static int? KebReadParamWithDll(int comIndex, int baudIndex, int invAddr, int paramAddr, int paramSet = 1)
         {
@@ -2251,14 +2266,7 @@ namespace DynamometerHMI
 
                         if (res == 0 && ack == 0)
                         {
-                            // 讀取 RT.SR 指標 (tRecTel offset 20..23)
-                            int srPtr = BitConverter.ToInt32(rxBuf, 20);
-                            if (srPtr != 0)
-                            {
-                                byte[] servBuf = new byte[16]; // tServ00Rec = 8B，多給空間
-                                copydata_2(srPtr, servBuf, 8);
-                                return BitConverter.ToInt32(servBuf, 4); // Data 欄位在 offset 4
-                            }
+                            return BitConverter.ToInt32(rxBuf, 24);
                         }
                     }
                     else
@@ -2288,14 +2296,7 @@ namespace DynamometerHMI
 
                         if (res == 0 && ack == 0)
                         {
-                            // 讀取 RT.SR 指標 (tRecTel offset 20..23)
-                            int srPtr = BitConverter.ToInt32(rxBuf, 20);
-                            if (srPtr != 0)
-                            {
-                                byte[] servBuf = new byte[16];
-                                copydata_1(srPtr, servBuf, 8);
-                                return BitConverter.ToInt32(servBuf, 4); // Data 欄位在 offset 4
-                            }
+                            return BitConverter.ToInt32(rxBuf, 24);
                         }
                     }
                 }

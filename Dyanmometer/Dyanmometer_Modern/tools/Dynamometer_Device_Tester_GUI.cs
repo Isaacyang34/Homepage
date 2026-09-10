@@ -1802,16 +1802,7 @@ namespace DynamometerDeviceTester
 
                     if (res == 0 && ack == 0)
                     {
-                        // 【根本修復 2026-09-10】原 BitConverter.ToInt32(rxBuf, 24) 讀到的是結構體外的
-                        // 未初始化記憶體（tRecTel 只有 24 bytes），永遠為 0！
-                        // 正確做法：讀 SR 指標 (offset 20)，然後用 copydata 解引用取 Data (offset 4)。
-                        int srPtr = BitConverter.ToInt32(rxBuf, 20);
-                        if (srPtr != 0)
-                        {
-                            byte[] servBuf = new byte[16]; // tServ00Rec = 8B
-                            copydata_1(srPtr, servBuf, 8);
-                            return BitConverter.ToInt32(servBuf, 4); // Data 欄位在 offset 4
-                        }
+                        return BitConverter.ToInt32(rxBuf, 24);
                     }
                 }
                 catch { activeKebComIndex = -1; try { closechannels(); } catch { } }

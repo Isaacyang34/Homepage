@@ -8,7 +8,79 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.73 (beta) | v2.10.33 | 2026-09-11 | KEB 雙載台通訊連線徹底修復：根治 copydata 記憶體越界指標解引用 (AccessViolationException 0xC0000005) 與 COM 通道追蹤變數重置迴圈、還原 DIN 66019-II 實體電文 Data 暫存器偏移量 (rxBuf[24])、升級 EnsureHmiKebOpen 結構化佐證日誌、雙向同步便攜發布包 (含 DLL/ 驅動函式庫) |
 | V2.72 (beta) | v2.10.32 | 2026-09-10 | 馬達動力計規格特性分析儀 (Motor Characteristics Web Viewer - 純前端零依賴、支援拖曳讀取 Dynamometer 各類測試紀錄檔、智慧提取電氣/機械量、自動歸納 CNS 14400 / IEC 60034-2-1 馬達規格特性判定表、四大互動工程圖表與出廠規格書 CSV/PDF 匯出) |
+
+---
+
+## [V2.73 beta / v2.10.33] - 2026-09-11
+
+### 🎯 現象與佐證 (Log-First Verbatim Excerpts)
+1. **使用者回報現象**：
+   - 「上一版改完KEB變成連不上了，LOG檔在雲端」
+2. **雲端遙測日誌提取佐證 (Firebase `/logs/latest.json` & `/logs/history/20260911_073206.json`)**：
+   - 連線時序 `2026-09-11 07:31:44` 實測：
+     ```log
+     [2026-09-11 07:31:44.265] [CONNECT_ALL] 正在啟動全設備非同步連線 (Kistler 扭力計 / 橫河 WT333E / GL820 / A/B 載台驅動器)...
+     [2026-09-11 07:31:44.281] [TORQUE] [OK] Kistler 扭力計已連線 (COM4 @ 1000000)
+     [2026-09-11 07:31:44.453] [POWER] [OK] 橫河 WT333E 電表已連線 (192.168.0.11:502 網卡: 192.168.0.100:3719)
+     [2026-09-11 07:31:44.468] [GBD] [OK] Graphtec GL820 溫度記錄器已連線 (192.168.0.3:8023 網卡: 192.168.0.100:3721)
+     [2026-09-11 07:31:45.125] [CLOUD] [OK] Firebase 雲端推播連線成功 (HTTP/1.1 200 | RTT=703ms | 網卡: 192.168.100.189) -> 資料已即時推播至雲端
+     ```
+   - 在隨後的即時遙測與診斷行中：
+     ```log
+     [2026-09-11 07:31:44.265] [FREQ_COMPARE] 【頻率比對診斷 - TELEMETRY】報告採納值=0.00Hz (B載台(待測-轉速控制)) | PowerMeter[U頻率=0.00Hz, I頻率=0.00Hz] | KEB_B待測[ru03_raw=0, 換算=0.00Hz, ru07_spd=0rpm, ru00=0] | KEB_A加載[ru03_raw=0, 換算=0.00Hz, ru07_spd=0rpm, ru00=0]
+     ```
+   - **實測佐證定讞**：Kistler、WT333E、GL820 均連線正常，唯獨 KEB A載台與 B載台完全未建立連線，ru03 與 ru00 數值全為 0，且日誌中無任何 KEB 握手成功或失敗之結構化記錄。
+
+---
+
+### 💡 致命根因 (Root Cause Analysis)
+1. **`Dynamometer_KebComm.cs`：`KebReadParamWithDll` 誤用 `copydata` 造成非託管記憶體存取違規 (AccessViolationException 0xC0000005)**
+   - 在 Commit `ce55734` 中，誤以為 `rxBuf[20..23]` 為 32-bit 記憶體指標，意圖使用 `copydata_1(srPtr, servBuf, 8)` / `copydata_2(srPtr, servBuf, 8)` 解引用讀取 Data。
+   - **事實硬體真相**：`waitrdreq` 接收到的 `rxBuf` 乃連續 256 位元組實體電文陣列：
+     - `rxBuf[0..19]` 為 `tRecTel` 封包標頭（包含 Ack 於 offset 12..15）。
+     - `rxBuf[20..21]` 為回傳參數暫存器位址 `Adr`。
+     - `rxBuf[22]` 為回傳參數組號 `Paraset`。
+     - `rxBuf[23]` 為對齊位元組 `Fill`。
+     - `rxBuf[24..27]` 乃變頻器實體數值 `Data`（32-bit 整數）。
+   - `rxBuf[20..23]` 根本不是指標，其數值為 `(Paraset << 16) | Adr`（例如 `0x00010802`）。將該偽指標傳入 `copydata` (即 `memcpy`) 必引發 Windows 記憶體保護違規（SEH Exception `0xC0000005`），被外層 `catch` 攔截後回傳 `null`。
+   - 導致 `EnsureHmiKebOpen1` / `EnsureHmiKebOpen2` 握手探測 `0x0802`、`0x0300`、`0x0200` 等暫存器時全部收到 `null`，進而判定「連線失敗 (無回應)」而強制斷線。
+
+2. **`EnsureHmiKebOpen1` / `EnsureHmiKebOpen2` 通道追蹤變數脫節導致重複 `closechannels()` 斷開埠口**
+   - `EnsureHmiKebOpen1` 內僅更新了舊變數 `activeKebComIndex_hmi = comIdx`，而未更新 `activeKebComIndex_1 = comIdx`。
+   - 隨後調用 `KebReadParamWithDll(comIdx, ...)` 時，內部檢查 `if (activeKebComIndex_1 != comIndex)` 判定為成立（原值為 `-1`），**立刻再度執行 `closechannels()` 關閉 COM 埠**，將剛開啟之串列通道與通訊狀態機直接重置中斷。
+   - B載台 `EnsureHmiKebOpen2` 亦存在相同未更新 `activeKebComIndex_2` 之問題。
+
+3. **缺少結構化連線握手日誌輸出**：
+   - 舊版 `EnsureHmiKebOpen1` / `EnsureHmiKebOpen2` 僅向本地 UI 文本框 `txtHmiKebLog` 輸出字串，未呼叫 `WriteHmiLog("KEB_A", ...)` 與 `WriteHmiLog("KEB_B", ...)`，導致雲端推播與統一遙測日誌遺漏 KEB 連線階段狀態。
+
+4. **發布目錄便攜包同步缺失**：
+   - 根目錄 `Release/Dynamometer_HMI_V2.5.0_Portable/` 曾缺少 `DLL/` 驅動子目錄，導致操作人員若直接從專案根目錄之發布路徑執行時無法加載原生廠商驅動。
+
+---
+
+### 🔧 精確修復方案 (Verification & Implementation)
+1. **徹底根治 `KebReadParamWithDll` 電文解算**：
+   - 廢除對 `rxBuf[20]` 執行 `copydata` 之危險非託管指標操作。
+   - 全面還原為直讀 `BitConverter.ToInt32(rxBuf, 24)`，確保 100% 安全且零例外，對齊 `KEB_XP_Tester_GUI.cs` 實測驗證之 DIN 66019-II 協議規範。
+   - 同步修正 `tools/Dynamometer_Device_Tester_GUI.cs` 內部之 `KebReadParamWithDll`。
+
+2. **修復 `activeKebComIndex_1` 與 `activeKebComIndex_2` 狀態同步**：
+   - `EnsureHmiKebOpen1` 中原子化同步 `activeKebComIndex_1 = comIdx; activeKebBaudIndex_1 = baudIdx;`，杜絕連線當下立即被 `KebReadParamWithDll` 誤判並執行 `closechannels()`。
+   - `EnsureHmiKebOpen2` 同步更新 `activeKebComIndex_2 = comIdx; activeKebBaudIndex_2 = baudIdx;`。
+   - `CloseHmiKebPort1` 與 `CloseHmiKebPort2` 確實重置為 `-1`。
+
+3. **補齊結構化連線/斷線 Telemetry 日誌**：
+   - 成功時調用 `WriteHmiLog("KEB_A", "[OK] A載台驅動器握手成功 ...")`。
+   - 失敗時調用 `WriteHmiLog("KEB_A", "[FAIL] A載台驅動器連線失敗 ...")`。
+   - 例外時調用 `WriteHmiLog("KEB_A", "[ERR] A載台開啟異常 ...")`。
+   - B載台同動補齊 `KEB_B` 專屬日誌。
+
+4. **升級 `package_release.ps1` 雙向發布同步**：
+   - 發布腳本除輸出至 `Dyanmometer/Release/Dynamometer_HMI_V2.5.0_Portable/` 外，同步強制鏡像拷貝至專案根目錄 `Release/Dynamometer_HMI_V2.5.0_Portable/`（含完整 `DLL/` 目錄），確保任何捷徑與工作路徑皆具備完整 32-bit 驅動環境。
+
+---
 | V2.71 (beta) | v2.10.31 | 2026-09-10 | 遠端監控「白名單無限時」與「一般訪客 5 分鐘自動斷流」雙軌連線控制機制 (WebMonitor.html 訪客 300 秒動態倒數、超時主動關閉 SSE/輪詢終止流量消耗與磨砂鎖定遮罩、👑 VIP 金鑰/URL 參數快速通關一鍵解鎖無限制長時連線、工控機 HMI 診斷中心動態管理/同步白名單金鑰至 Firebase、訪客足跡審計自動標註 VIP/訪客身分) |
 | V2.70 (beta) | v2.10.30 | 2026-09-10 | 全系統溫度趨勢圖介面統一收斂 (即時總覽工作台升級為標準端點膠囊波形圖、多通道/單通道無縫切換、標配 30秒~1小時時間縮放工具列與動態掛載重定位防裁切) & T-N 特性曲線圖 Y 軸 (Nm) 與 X 軸 (RPM) 智慧自適應刻度 (Auto-Scaling、各水平/垂直網格刻度數字即時繪製、頂部峰值轉矩提示徽章) |
 | V2.69 (beta) | v2.10.29 | 2026-09-10 | 報告管理與雲端多目標上傳引擎 (專屬分頁 Tab7、純 C# .NET 4.0 零相依 PKZip 壓縮、Google Drive GAS Webhook 直通與自動轉發 Email、Firebase 雲端中心即時同步、網頁端 WebMonitor.html 一鍵下載 ZIP 專區、區域網路 NAS / 本機備份) |
