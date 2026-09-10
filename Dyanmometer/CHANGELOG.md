@@ -7,12 +7,63 @@
 ## Beta 版本對照索引
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
-| :---: | :---: | :---: | :--- |
+| V2.62 (beta) | v2.10.22 | 2026-09-10 | 空載溫升測試核心設備三在線防呆 (待測端驅動器+WT333E+GL820)、非必要設備 (扭力計/加載端) 零干涉防護、空載無轉速回授訊號友善顯示與堵轉/扭力計斷線保護跳脫豁免：(1)現象與佐證：使用者回報指令「修正LOG所看到的BUG；空載測試基本上只要待側端的驅動器與POWERMETER和溫度紀錄有在線就可以執行，其他儀器連線與否以及數據都可以不用分析。我看到有時測轉速理論上是看不見的，因為空載沒有任何回授訊號」；現場雲端實測日誌 hmi_telemetry.log 顯示 09:15:20 曾發生「【🚨 安全保護跳脫】扭力計斷線或反饋逾時 (超過 1.5 秒無數據)，已強制雙機急停！」，且 09:20~09:31 實測 CSV 中 Speed_rpm 全程 0.0 rpm；(2)致命根因：CheckSafetyProtectionMatrix 中 enableProtTorqueLoss (扭力計逾時) 與 enableProtStall (失速堵轉) 缺乏 isNoLoadRunning 狀態豁免，空載測試無需扭力計且無轉速編碼器回授，因 Kistler 瞬時逾時或 actSpeed=0 誤觸發急停跳脫；StartNoLoadTest 僅防呆 GL820，未校驗待測端驅動器與 WT333E 功率表是否就緒；UI 實測轉速與 DataGridView 硬寫 0 rpm 造成困惑；(3)精確修復方案：Dynamometer_HMI_WinForms.cs 在 CheckSafetyProtectionMatrix 對 enableProtTorqueLoss 與 enableProtStall 增加 && !isNoLoadRunning 雙重豁免，空載測試期間扭力計與轉速不進行安全判定；Dynamometer_TestNoLoad.cs 於 StartNoLoadTest 實裝「待測端驅動器 + WT333E功率表 + GL820溫度記錄器」三項核心在線防呆攔截，其餘設備不阻擋啟動；lblNoLoadActSpdDisp 與 dgvNoLoad 當無回授時優雅顯示「-- rpm (無回授)」；NoLoadTimer_Tick 改用原生無分配二分法取代高頻 LINQ 查詢並全函式包裹 try-catch 防閃退；(4)版本號升級至 APP_VERSION = "2.6.2"，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
 | V2.61 (beta) | v2.10.21 | 2026-09-09 | 趨勢圖核心單一化重構 (單一實例複用動態停泊 Dynamic Re-Parenting、主記錄器獨立完整、全測試分頁共用單一核心、GDI/GC 資源腰斬減負)：(1)現象與佐證：使用者提出架構優化指令：「趨勢圖的負載很高，能全部都只跑一支程式，然後只是呼叫的位置不同就好嗎? 除了溫度紀錄自己的分頁必須要有完整的，其他的能共用嗎?這樣能減少資源消耗嗎? 就這樣改，改好上傳更新」；(2)致命根因：舊架構在 Tab1(TN)、Tab2(Duty)、Tab4(空載) 分別 new 獨立之 GbdTemperatureTrendControl 實例，系統同時常駐 4 套大型繪圖控制項、各自配置 3,600 筆 double[20] 歷史陣列、各自持有 Toolbar 子面板與 GDI 物件，在 WinXP 32-bit 系統上每秒重複產生 4 份陣列拷貝與 GC 負載，造成 Win32 Handle 與佇列冗餘浪費；(3)精確修復方案：重構為「溫度記錄專屬 + 測試分頁共用單一核心」架構：溫度記錄分頁 (tabGbd) 保留專屬常駐之 gbdTrendChart 維護全時完整黑盒子；所有測試分頁 (TN / Duty / 空載) 統一共用單一 sharedTestTempTrend 實例，tnTempTrend、dutyTempTrend、noLoadTempTrend 改為屬性代理；實作 AttachSharedTempTrendTo(targetContainer, channelMask)，在 tabControl.SelectedIndexChanged 時自動將共用控制項動態掛載至當前測試容器 (grpTnTemp / grpDutyTemp / grpNoLoadChart) 並切換對應通道遮罩；motorTempTimer.Tick 由推播 4 個控制項縮減為僅推播 2 個控制項，記憶體配置與 GC 壓力直接減少 50% 以上；(4)版本號升級至 APP_VERSION = "2.6.1"，執行 package_release.ps1 -Version 2.5.0 完成 x86 32-bit 編譯、打包並自動同步發布至 GitHub gh-pages 與 Firebase。 |
 | V2.60 (beta) | v2.10.20 | 2026-09-09 | 閒置待命靜默閃退根治、背景溫度圖表重繪負載削減75%、雲端日誌黑盒子崩潰報告優先透傳保障與 T-N 換項邊界安全防護：(1)現象與佐證：使用者回報「剛才程式又崩潰了，我有上傳LOG你下載來分析」；實測解析雲端日誌 SIMW132S-15-08_20260909_154800_TN_Multi.csv 與 hmi_telemetry.log，TN 4 個自訂點於 15:51:34.390 圓滿完成並煞車停機至 7 rpm 斷電 (15:51:38.609)；程式隨後處於 0 rpm 待命狀態達 19 分鐘，於 16:10:54.640 突然無預警中斷 (Silent Exit)，未在日誌留存例外；16:11:58 使用者重新啟動 HMI 並於 16:12:00 推播日誌至 Firebase；(2)致命根因：GbdTemperatureTrendControl 與 TorqueSpeedTrendControl 在待命狀態下，每秒由 motorTempTimer 無條件更新 4 個圖表控制項並調用 Invalidate()，造成 Win32 GDI/USER 繪圖訊息佇列大量堆積與 native 資源消耗，在 WinXP 上運行長達 19 分鐘後觸發 OS 級別靜默殺死 (Silent Process Termination)；UploadLatestLogToCloudAsync 盲點：重開機後 hmi_telemetry.log 被寫入新連線紀錄，時間戳更新為 16:11:58，直接擠掉 16:10:54 崩潰產生的 CRASH_REPORT_*.log 或 system_error.log，導致雲端日誌只收到新 session 的正常紀錄，真正崩潰證據被留在現場主機硬碟；Dynamometer_TestTN.cs 第 1359 行在 Subphase 4 執行 3 步降載時，直接執行 tnMultiCurrentIndex++ 與 tnCustomPoints[tnMultiCurrentIndex]，缺乏邊界防禦；(3)精確修復方案：Dynamometer_UIControls.cs 在 GbdTemperatureTrendControl.AddSample 與 TorqueSpeedTrendControl.AddSample 中加入 if (this.Visible) this.Invalidate(); 智慧可見性感知，非目前顯示中分頁圖表僅儲存數值不重複調用 GDI 重繪，降低 75% GDI+ 負擔；Dynamometer_WebServer.cs 升級 UploadLatestLogToCloudAsync，遍歷 logs/ 下所有檔案，若存在 CRASH_REPORT_*.log、Crash_Last_Exception.log 或 system_error.log，一律自動提取最新黑盒子報告置頂拼接於 logContent 與 last_error，徹底破除重開機時間戳覆蓋盲點；Dynamometer_TestTN.cs 在 Subphase 4 第 3 步加入 if (tnMultiCurrentIndex + 1 >= tnCustomPoints.Count) 邊界檢查，若已為最後一點則安全調用 StartGradualAutoStop 終止測試；(4)版本號升級至 APP_VERSION = "2.6.0"，透過 package_release.ps1 -Version 2.5.0 完成編譯、打包並自動同步發布至 GitHub gh-pages 與 Firebase。 |
 | V2.59 (beta) | v2.10.19 | 2026-09-09 | T-N 測試負載與轉速平穩控制全面優化 (嚴格轉速補償穩定判定、同轉速換項直接調扭、異速換項 3 步平穩階梯降載至 25% 再變速)：(1)現象與佐證：使用者回報「TN測試的減速問題需要改進，目前會急速變化負載的問題，需要改進：1.一開始的穩定判定似乎不太對，按照我觀察上了負載到達目標後就開始進入穩定倒數，應該是要等轉速也補償回來後才開始倒數比較合理；2.若下一個測試項目沒有轉速改變，則直接修正(遞增遞減)扭力至目標；3.若下個測試目標是需要變速，則遞減(分三次減)降載到下個目標的25%之後再開始變速，等速度到達後再開始遞增加載」；(2)致命根因：原先 isSpdValid 門檻為 Max(25.0, targetSpd * 0.08)，在 1500 rpm 時容許誤差高達 120 rpm，馬達帶載轉差自然滑落 60~80 rpm 時仍被判定為達標，導致轉速尚未被 ApplyTnSpeedTracking 補回額定值就過早開始 5 秒倒數；舊版在每個項目測試完成後一律強制降載至 25% 且甩載歸零重來，造成同轉速測試項目時負載劇烈急速跳動；異速切換時一次性跳躍降載，缺乏平滑過渡緩衝；(3)精確修復方案：將進入穩定倒數之轉速誤差門檻縮緊為 Max(6.0, targetSpd * 0.015) (1.5% 或 6 rpm)，未達標前持續補償轉差，雙達標持續 2 秒才啟動 5 秒倒數；在 Subphase 3 採樣完成時比對下一點轉速，若轉速不變 (<=5 rpm) 則直接切入 Subphase 1，平滑遞增/遞減扭力至目標，不降載不變速；若需變速，在 Subphase 4 實施 3 步平穩階梯降載 (每秒 1 步，共 3 秒) 降至 25%，第 3 步完成後發送新轉速命令進入 Subphase 0，等待實際速度到達新目標帶 (<=Max(12, 2%)) 後，才切入 Subphase 1 自 25% 平穩遞增加載；(4)版本升級至 2.5.9，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
 | V2.58 (beta) | v2.10.18 | 2026-09-09 | 線上更新日誌 Unicode 全面防亂碼、T-N 待測端雙閉迴路自動補轉差 (同步 S1/S2/S6 杜絕 50s 未達標超時)、TN 測試右上即時溫度曲線與通道自選監控：(1)現象與佐證：使用者回報「1.更新日誌又變亂碼；2.剛才TN測試出現50秒未達標，原因應該是沒有補轉差，目前只有控制扭力追隨沒有控制待側端的轉速追隨，請與S1/S2/S6的控制方法一致；3.TN測試右上請放入溫度曲線，同S1介面一樣要能選擇想監控的CH」；(2)致命根因：PowerShell 執行 package_release.ps1 傳遞包含原生中文字元之 manifest JSON 至 Firebase 時受預設 ANSI/CP950 編碼污染；Dynamometer_TestTN.cs 僅在起轉時寫入一次 Sy.52，加載端上載時感應馬達自然轉差導致轉速跌出容許帶 (spdErr > Max(25, targetSpd*0.08))，isSpdValid 永遠為 false 觸發 50 秒逾時；TN 介面右側僅有表格缺乏溫度動態圖與通道自選；(3)精確修復方案：package_release.ps1 全面改採純 7-bit ASCII 之 Unicode 跳脫碼 (\uXXXX) 杜絕亂碼；實作 ApplyTnSpeedTracking 於加載逼近、5秒穩定與30秒擷取階段即時閉迴路補轉差 SY.52；BuildTnTab 右側重構為 splitTnRight 上下分割，右上方置入 tnTempTrend (GbdTemperatureTrendControl)、通道選擇按鈕與 ShowTnChannelSelectDialog() 彈窗；(4)版本升級至 2.5.8，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
 | V2.57 (beta) | v2.10.17 | 2026-09-09 | T-N 曲線多點自訂測試模式實裝、5秒穩定+30秒每秒採樣平均、換項先降載至25%過渡保護與 GBD 零標頭損壞智能修復：(1)現象與佐證：使用者於「功能修改紀錄/Modify.txt」明確指示：「TN曲線多另一個操作模式(類似S1/S2/S6的切換方法)；可以輸入多組(預設2組，可以點擊+號增加組數)轉速以及扭力分別測試，每一個項目測試先達到目標轉速以及扭力後，穩定5秒後開始擷取30秒穩定資料每秒1筆；換到下一個項目記得先將扭力降到原測試扭力的25%後再改變目標轉速」；同時回報先前的 GBD 記錄檔因未按 STOP 拔除導致前 12KB 全為 0x00 無法開啟、Viewer 拋出 TypeError 例外；(2)致命根因：舊版 GBD 產生器預配置 12KB 全零陣列，Viewer 缺乏零標頭自修復與邊界防護；Dynamometer_TestTN.cs 僅支援等間距梯度掃描，缺乏多點自訂轉速扭力表格與換項前降載至 25% 之狀態機控制；(3)精確修復方案：全新實裝 cmbTnMode 雙模式切換、pnlTnStepRamp 與 pnlTnMultiPoint 自適應佈局切換；實作 dgvTnMultiPoints 多點表格與新增/刪除/重置按鈕；建構 RunTnMultiPointTick() 五階段狀態機 (0:提速空載 ➔ 1:平穩加載雙達標2s ➔ 2:穩定5秒等待 ➔ 3:擷取30秒每秒1筆取30s均值 ➔ 4:換項先降扭力至25%確認後再變速)；GBT 產生器即時回寫 12KB 標頭，Viewer 實裝零標頭逆算還原與通道英數限定；(4)編譯並打包發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
+
+## [V2.62 beta / v2.10.22] - 2026-09-10
+
+### 🎯 現象與佐證
+1. **使用者指令與問題回報**：
+   - 使用者明確指示：「修正LOG所看到的BUG；空載測試基本上只要待側端的驅動器與POWERMETER和溫度紀錄有在線就可以執行，其他儀器連線與否以及數據都可以不用分析。我看到有時測轉速理論上是看不見的，因為空載沒有任何回授訊號」
+2. **實測雲端日誌與 CSV 提取分析**：
+   - 現場雲端最新運作日誌 `hmi_telemetry.log` 顯示在 09:15:20 曾發生非預期急停跳脫：
+     ```text
+     [2026-09-10 09:15:20.468] [EMERGENCY_STOP] 【🚨 緊急停機 E-STOP 觸發】雙機運轉已強制中斷，所有給定值立即歸零！
+     [2026-09-10 09:15:20.468] [SAFETY_TRIP] 【🚨 安全保護跳脫】扭力計斷線或反饋逾時 (超過 1.5 秒無數據)，已強制雙機急停！
+     ```
+   - 最新實測 CSV `SIMW132S-15-08_20260910_092002_NoLoad.csv`（共 586 行，運行 11 分 16 秒）中：
+     ```csv
+     "2026-09-10 09:20:04.687",0.0,0.73,0.00,0.29,0.0,0.07,61.73,10.751,-0.574,60.58,10.451,-1.547,62.91,10.541,0.859,62.3,10.65,0.086,26.8,26.8,25.9,25.5,26.3,25.9,28.4,25.7,25.7,26.9
+     ...
+     "2026-09-10 09:31:20.531",0.0,0.76,0.00,0.54,0.0,0.04,271.24,20.809,-2.495,271.22,20.363,-5.293,272.85,20.681,3.023,272.2,20.81,0.055,34.1,34.1,27.9,26.8,27.6,27.0,28.3,25.5,25.1,33.8
+     ```
+     `Speed_rpm` 全程 0.0 rpm，但橫河 WT333E 電表顯示電壓 272V、電流 21A、空載電功率 443W，馬達溫升自 26.8℃ 攀升至 34.1℃ (+7.3℃)，物理上馬達定速 1000 rpm 運轉中；舊版 UI 與遠端狀態直接顯示「實測 0 rpm」，與實體旋轉狀態不符。
+
+### 💡 致命根因 (Root Cause)
+1. **全域安全矩陣缺乏空載測試豁免保護 (`Dynamometer_HMI_WinForms.cs:6369-6388`)**：
+   - 原 `CheckSafetyProtectionMatrix` 中的「扭力計斷線逾時保護 (`enableProtTorqueLoss`)」與「機械堵轉失速保護 (`enableProtStall`)」僅檢查 `isTestRunning` 或 `isAnyDriveRunning`，未將 `isNoLoadRunning` 排除；
+   - 空載測試本質不依賴 Kistler 扭力計，且馬達空載無任何轉速編碼器回授訊號；當 Kistler 串口出現瞬間擾動逾時（>1.5s）或 `actSpeed=0` 時，觸發了誤殺急停。
+2. **空載啟動防呆未嚴格比對核心三設備 (`Dynamometer_TestNoLoad.cs:774`)**：
+   - 舊版 `StartNoLoadTest` 僅防呆檢查 GL820 溫度記錄器，缺乏對「待測端驅動器 (A/B)」與「橫河 WT333E 功率表」的在線狀態檢驗。
+3. **無回授轉速顯示策略缺乏友善標註 (`Dynamometer_TestNoLoad.cs:947, 1535`)**：
+   - 空載運轉時由於無實體測速回授，數值顯示為 0 rpm 造成操作者誤以為馬達未起轉或程式卡死。
+
+### 🔧 精確修復方案
+**修改核心檔案：**
+* `Dyanmometer_Modern/Dynamometer_HMI_WinForms.cs`
+* `Dyanmometer_Modern/Dynamometer_TestNoLoad.cs`
+* `Dyanmometer_Modern/Dynamometer_WebServer.cs`
+
+**具體實施細節：**
+1. **安全保護矩陣針對空載測試實施定向豁免**：
+   - 在 `Dynamometer_HMI_WinForms.cs` 的 `CheckSafetyProtectionMatrix()` 中，為 `enableProtTorqueLoss` 與 `enableProtStall` 加入 `&& !isNoLoadRunning` 守門員；
+   - 確保在空載溫升測試期間，Kistler 扭力計通訊斷線或無轉速回授（`actSpeed=0`）絕不觸發任何 `SAFETY_TRIP` 急停。
+2. **實裝「待測端驅動器 + 功率表 + 溫度記錄器」核心三設備在線防呆**：
+   - `StartNoLoadTest()` 依使用者設定之待測端角色（A載台 / B載台）精準檢驗對應之驅動器連線狀態 (`isHmiKebOpen1` / `isHmiKebOpen2`)，同時檢驗 `tcpPower.Connected` 與 `tcpGbd.Connected`；
+   - 若三者有任一未在線，彈窗提示明確之未在線清單並攔截啟動；加載端與扭力計連線與否則完全不阻擋。
+3. **無回授轉速優雅可視化顯示**：
+   - 空載分頁的「實測轉速」卡片標籤於 `actSpd <= 0` 時自動切換顯示為 `-- rpm (無回授)`；
+   - 下方表格與遠端 Web Server 狀態文字同步標記為 `-- (無回授)`，清晰透明。
+4. **狀態機防閃退包覆與歷史佇列零 GC 掃描優化**：
+   - `NoLoadTimer_Tick` 採用全域 `try-catch` 包覆，杜絕任何潛在未處理例外導致主行程閃退；
+   - 30 分鐘熱平衡歷史快照搜尋改採原生無額外記憶體配置之單迴圈掃描，消除每秒 LINQ `Where().OrderBy()` 所引發之頻繁 GC 壓力。
+5. **版本號升級與發布**：
+   - 版本號升級至 `APP_VERSION = "2.6.2"` (內部版號 `v2.10.22`)；
+   - 執行 `package_release.ps1 -Version 2.5.0` 完成編譯、打包並自動同步發布至 GitHub gh-pages 與 Firebase 版本清單。
 
 ---
 
