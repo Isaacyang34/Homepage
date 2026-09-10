@@ -32,12 +32,13 @@ namespace DynamometerHMI
         public string cloudLogHistoryBaseUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/logs/history";
         public int cloudLogMaxHistoryCount = 30; // 預設保留最新 30 筆
         public int cloudLogMaxDays = 7;          // 預設保留 7 天
+        public int localLogMaxHistoryCount = 30; // 預設本地保留最新 30 筆 (CSV 測試日誌、報表與歷史記錄)
         public bool isCloudUploadEnabled = true;
         private Thread cloudUploadThread = null;
         private bool isCloudUploadRunning = false;
 
         // ── 軟體線上熱更新設定 (Online Auto-Update & In-Place Hot Swap) ──────
-        public const string APP_VERSION = "2.5.8";
+        public const string APP_VERSION = "2.6.4";
         public string cloudUpdateManifestUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/update/version.json";
         public Button btnOnlineUpdate = null;
         private bool? lastCloudUploadSuccess = null;
@@ -416,6 +417,37 @@ namespace DynamometerHMI
                         {
                             logContent = "讀取 LOG 失敗: " + ex.Message;
                         }
+
+                        // ★ 核心黑盒子穿透保障：主動搜尋 logs/ 目錄下之最新 CRASH_REPORT 或 Crash_Last_Exception
+                        // 確保即使程式閃退重開後 hmi_telemetry.log 被刷新，崩潰診斷報告依然 100% 同步推送至雲端
+                        try
+                        {
+                            FileInfo latestCrash = null;
+                            foreach (var lf in logFiles)
+                            {
+                                if (lf.Name.StartsWith("CRASH_REPORT_", StringComparison.OrdinalIgnoreCase) ||
+                                    lf.Name.Equals("Crash_Last_Exception.log", StringComparison.OrdinalIgnoreCase) ||
+                                    lf.Name.Equals("system_error.log", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    latestCrash = lf;
+                                    break;
+                                }
+                            }
+                            if (latestCrash != null)
+                            {
+                                string crashText = File.ReadAllText(latestCrash.FullName, Encoding.UTF8);
+                                if (!string.IsNullOrEmpty(crashText))
+                                {
+                                    logContent = string.Format("=== 🚨 現場主機黑盒子崩潰診斷報告 ({0}) ===\n{1}\n\n=== 即時運行日誌 ({2}) ===\n{3}",
+                                        latestCrash.Name, crashText, logName, logContent);
+                                    if (string.IsNullOrEmpty(lastCriticalLog))
+                                    {
+                                        lastCriticalLog = string.Format("【檢出崩潰報告 {0}】", latestCrash.Name);
+                                    }
+                                }
+                            }
+                        }
+                        catch { }
                     }
 
                     if (string.IsNullOrEmpty(csvContent) && string.IsNullOrEmpty(logContent))
@@ -460,6 +492,8 @@ namespace DynamometerHMI
 
                     // 觸發雲端歷史日誌清理檢查 (依保留天數與筆數限制)
                     PurgeCloudLogsAsync(false);
+                    // 觸發本地歷史日誌清理檢查 (保留最新 30 筆)
+                    PurgeLocalLogs(false);
 
                     if (isManualClick && this.IsHandleCreated && !this.IsDisposed)
                     {
@@ -638,6 +672,171 @@ namespace DynamometerHMI
                     {
                         this.BeginInvoke(new Action(() => {
                             MessageBox.Show("清空雲端最新日誌失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        }));
+                    }
+                }
+            });
+        }
+
+        // ── 本地日誌生命週期清理器 (依設定之「最大歷史筆數」自動修剪本地 logs/ 目錄) ──────
+        public void PurgeLocalLogs(bool isManualClick = false)
+        {
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try
+                {
+                    string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                    string logDir = Path.Combine(baseDir, "logs");
+                    if (!Directory.Exists(logDir))
+                    {
+                        if (isManualClick && this.IsHandleCreated && !this.IsDisposed)
+                        {
+                            this.BeginInvoke(new Action(() => {
+                                MessageBox.Show("本地 logs 目錄不存在，尚無日誌檔案需清理。", "清理提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            }));
+                        }
+                        return;
+                    }
+
+                    var dirInfo = new DirectoryInfo(logDir);
+                    int maxAllowed = Math.Max(5, localLogMaxHistoryCount);
+                    int deletedCsvCount = 0;
+                    int deletedLogCount = 0;
+
+                    // 1. 清理測試資料 CSV 檔案 (*.csv)，保留最新 maxAllowed 筆
+                    var csvFiles = dirInfo.GetFiles("*.csv");
+                    Array.Sort(csvFiles, (a, b) => b.LastWriteTime.CompareTo(a.LastWriteTime)); // 由新到舊排序
+
+                    if (csvFiles.Length > maxAllowed)
+                    {
+                        for (int i = maxAllowed; i < csvFiles.Length; i++)
+                        {
+                            FileInfo fi = csvFiles[i];
+                            try
+                            {
+                                // 若為當前正在錄製之檔案，跳過不刪除
+                                if (isManualRecording && !string.IsNullOrEmpty(manualRecordFilePath) &&
+                                    string.Equals(fi.FullName, manualRecordFilePath, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    continue;
+                                }
+                                fi.Delete();
+                                deletedCsvCount++;
+
+                                // 同步清理對應之同名 .gbd 二進位檔案 (若存在)
+                                string gbdPath = Path.Combine(fi.DirectoryName, Path.GetFileNameWithoutExtension(fi.Name) + ".gbd");
+                                if (File.Exists(gbdPath))
+                                {
+                                    try { File.Delete(gbdPath); } catch { }
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+
+                    // 2. 清理歷史崩潰日誌 (CRASH_REPORT_*.log)，保留最新 maxAllowed 筆
+                    var crashFiles = dirInfo.GetFiles("CRASH_REPORT_*.log");
+                    Array.Sort(crashFiles, (a, b) => b.LastWriteTime.CompareTo(a.LastWriteTime));
+                    if (crashFiles.Length > maxAllowed)
+                    {
+                        for (int i = maxAllowed; i < crashFiles.Length; i++)
+                        {
+                            FileInfo fi = crashFiles[i];
+                            try
+                            {
+                                fi.Delete();
+                                deletedLogCount++;
+                            }
+                            catch { }
+                        }
+                    }
+
+                    // 3. 清理歷史歸檔系統日誌 (hmi_telemetry_*.log)，保留最新 maxAllowed 筆
+                    var archivedLogs = dirInfo.GetFiles("hmi_telemetry_*.log");
+                    Array.Sort(archivedLogs, (a, b) => b.LastWriteTime.CompareTo(a.LastWriteTime));
+                    if (archivedLogs.Length > maxAllowed)
+                    {
+                        for (int i = maxAllowed; i < archivedLogs.Length; i++)
+                        {
+                            FileInfo fi = archivedLogs[i];
+                            try
+                            {
+                                fi.Delete();
+                                deletedLogCount++;
+                            }
+                            catch { }
+                        }
+                    }
+
+                    // 4. 若使用者設定了自訂 RAW DATA 儲存目錄，同步清理該目錄之 *.csv
+                    if (!string.IsNullOrEmpty(rawDataSaveDirectory) && Directory.Exists(rawDataSaveDirectory) &&
+                        !string.Equals(rawDataSaveDirectory, logDir, StringComparison.OrdinalIgnoreCase))
+                    {
+                        try
+                        {
+                            var customDirInfo = new DirectoryInfo(rawDataSaveDirectory);
+                            var customCsvFiles = customDirInfo.GetFiles("*.csv");
+                            Array.Sort(customCsvFiles, (a, b) => b.LastWriteTime.CompareTo(a.LastWriteTime));
+                            if (customCsvFiles.Length > maxAllowed)
+                            {
+                                for (int i = maxAllowed; i < customCsvFiles.Length; i++)
+                                {
+                                    FileInfo fi = customCsvFiles[i];
+                                    try
+                                    {
+                                        if (isManualRecording && !string.IsNullOrEmpty(manualRecordFilePath) &&
+                                            string.Equals(fi.FullName, manualRecordFilePath, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            continue;
+                                        }
+                                        fi.Delete();
+                                        deletedCsvCount++;
+
+                                        string gbdPath = Path.Combine(fi.DirectoryName, Path.GetFileNameWithoutExtension(fi.Name) + ".gbd");
+                                        if (File.Exists(gbdPath))
+                                        {
+                                            try { File.Delete(gbdPath); } catch { }
+                                        }
+                                    }
+                                    catch { }
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+
+                    int totalDeleted = deletedCsvCount + deletedLogCount;
+                    if (totalDeleted > 0)
+                    {
+                        WriteHmiLog("LOCAL_PURGE", string.Format("【🧹 本地日誌自動清理完成】已刪除 {0} 個過期歷史檔案 (CSV: {1}, LOG: {2}，保留最新 {3} 筆)。",
+                            totalDeleted, deletedCsvCount, deletedLogCount, maxAllowed));
+                    }
+
+                    if (isManualClick && this.IsHandleCreated && !this.IsDisposed)
+                    {
+                        this.BeginInvoke(new Action(() => {
+                            if (totalDeleted > 0)
+                            {
+                                MessageBox.Show(string.Format("【🧹 本地日誌清理完成】\n\n已成功清除 {0} 個過期舊日誌檔案！\n- 測試 CSV / GBD: {1} 筆\n- 歷史診斷 LOG: {2} 筆\n\n目前本地已修剪並保留最新 {3} 筆。",
+                                    totalDeleted, deletedCsvCount, deletedLogCount, maxAllowed),
+                                    "清理完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            }
+                            else
+                            {
+                                MessageBox.Show(string.Format("本地日誌健康良好！\n目前測試 CSV 共有 {0} 筆 (限制 {1} 筆)，無多餘舊日誌需清理。",
+                                    csvFiles.Length, maxAllowed),
+                                    "清理提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            }
+                        }));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    WriteHmiLog("LOCAL_PURGE_ERR", "本地日誌清理失敗: " + ex.Message);
+                    if (isManualClick && this.IsHandleCreated && !this.IsDisposed)
+                    {
+                        this.BeginInvoke(new Action(() => {
+                            MessageBox.Show("本地日誌清理失敗: " + ex.Message, "清理失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         }));
                     }
                 }
@@ -1415,6 +1614,9 @@ namespace DynamometerHMI
             AppN(sb, "pf",                actPf.ToString("F3", System.Globalization.CultureInfo.InvariantCulture));
             AppN(sb, "keb_current_a",     kebCurrent1.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
             AppN(sb, "keb_current_b",     kebCurrent2.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
+            AppN(sb, "keb_frequency_a",   kebFrequency1.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
+            AppN(sb, "keb_frequency_b",   kebFrequency2.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
+            AppN(sb, "act_frequency",     actFrequency.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
             AppN(sb, "temp_max",          tempMax.ToString("F1", System.Globalization.CultureInfo.InvariantCulture));
             sb.Append("\"temp_ch\":" + sbTemps + ",");
             AppB(sb, "gbd_online",        isGbdOnline);

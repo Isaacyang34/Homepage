@@ -50,9 +50,8 @@ namespace DynamometerHMI
         private Label lblNoLoadElapsedDisp;
         private ProgressBar prgNoLoad;
 
-        // 下方數據表與趨勢圖
+        // 下方數據表與趨勢圖 (noLoadTempTrend 已由 sharedTestTempTrend 統一代理)
         private DataGridView dgvNoLoad;
-        public GbdTemperatureTrendControl noLoadTempTrend;
         public GroupBox grpNoLoadChart;
 
         // 狀態機列舉
@@ -447,9 +446,7 @@ namespace DynamometerHMI
                 ForeColor = Color.FromArgb(15, 23, 42),
                 Padding = new Padding(8)
             };
-            noLoadTempTrend = new GbdTemperatureTrendControl(this) { Dock = DockStyle.Fill };
-            if (noLoadMonitoredChannels != null) noLoadTempTrend.SetChannelVisibility(noLoadMonitoredChannels);
-            grpNoLoadChart.Controls.Add(noLoadTempTrend);
+            // noLoadTempTrend 與 TN / Duty 共用 sharedTestTempTrend，切換至此分頁時由 AttachSharedTempTrendTo 動態掛載
             splitNoLoadBottom.Panel1.Controls.Add(grpNoLoadChart);
             UpdateNoLoadChannelHint();
 
@@ -773,8 +770,32 @@ namespace DynamometerHMI
                 return;
             }
 
-            // 2. 溫度安全防呆啟動攔截 (溫度記錄器連線且有有效數據)
+            // 2. 設備在線狀態防呆檢查 (使用者明確規範：空載測試僅需「待測端驅動器 + 功率表 + 溫度記錄器」3項在線即可運作)
+            //    其餘儀器 (Kistler 扭力計、加載端驅動器) 連線與否及數據完全不阻擋啟動，亦不進行分析
+            int roleIdx = cmbNoLoadRole.SelectedIndex;
+            noLoadSpdDrive = (roleIdx == 0) ? 1 : 2; // 0: A載台待測, 1: B載台待測
+            noLoadTrqDrive = 0;                      // 空載測試無加載端
+
+            bool isDutDriveOnline = (noLoadSpdDrive == 1) ? isHmiKebOpen1 : isHmiKebOpen2;
+            string dutDriveName = (noLoadSpdDrive == 1) ? "A載台驅動器 (待測端)" : "B載台驅動器 (待測端)";
+            bool isPowerMeterOnline = (tcpPower != null && tcpPower.Connected);
             bool isGbdOnline = (tcpGbd != null && tcpGbd.Connected);
+
+            List<string> missingDevices = new List<string>();
+            if (!isDutDriveOnline) missingDevices.Add("❌ " + dutDriveName + " (通訊未開啟或未連線)");
+            if (!isPowerMeterOnline) missingDevices.Add("❌ 橫河 WT333E 功率表 (未連線 Modbus TCP 192.168.0.11:502)");
+            if (!isGbdOnline) missingDevices.Add("❌ Graphtec GL820 溫度記錄器 (未連線 TCP 192.168.0.3:8023)");
+
+            if (missingDevices.Count > 0)
+            {
+                string msg = "【空載測試啟動攔截】以下必要核心設備尚未在線：\n\n" +
+                             string.Join("\n", missingDevices.ToArray()) +
+                             "\n\n※ 空載測試規則：僅需『待測端驅動器 + 功率表 + 溫度記錄器』在線即可執行，其餘設備(扭力計/加載端)不影響。請確認上述必要設備連線後再啟動！";
+                MessageBox.Show(msg, "必要設備未在線 - 啟動攔截", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // 檢查溫度數值防呆 (熱電偶必須有有效數據)
             double currentMaxBearing = -999.0;
             if (gbdChTemps != null && gbdChTemps.Length > 0)
             {
@@ -788,19 +809,12 @@ namespace DynamometerHMI
                 }
             }
 
-            if (!isGbdOnline || currentMaxBearing <= 0.0)
+            if (currentMaxBearing <= 0.0)
             {
-                string warnMsg = !isGbdOnline
-                    ? "【安全啟動攔截】溫度記錄器 (GL820) 尚未連線！\n\n自動溫升測試依賴即時軸承溫度進行超溫保護與熱平衡判定。\n請確認乙太網路連線已建立且 GL820 正常運作後再啟動。"
-                    : string.Format("【安全啟動攔截】溫度記錄器 (GL820) 已連線，但監控通道目前無有效數據 (最高讀值: {0:F1}℃ <= 0℃)！\n\n請確認熱電偶 (TC) 接線正常或是否選取了正確的監控通道後再啟動。", currentMaxBearing);
+                string warnMsg = string.Format("【安全啟動攔截】溫度記錄器 (GL820) 已連線，但監控通道目前無有效數據 (最高讀值: {0:F1}℃ <= 0℃)！\n\n請確認熱電偶 (TC) 接線正常或是否選取了正確的監控通道後再啟動。", currentMaxBearing);
                 MessageBox.Show(warnMsg, "禁止啟動 - 溫度安全防呆", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-
-            // 待測端載台角色定義 (空載測試無加載端干涉)
-            int roleIdx = cmbNoLoadRole.SelectedIndex;
-            noLoadSpdDrive = (roleIdx == 0) ? 1 : 2; // 0: A載台待測, 1: B載台待測
-            noLoadTrqDrive = 0;                      // 空載測試無加載端
 
             int spdCom = GetHmiKebComIdx(noLoadSpdDrive), spdBaud = GetHmiKebBaudIdx(noLoadSpdDrive);
             int spdNode = (noLoadSpdDrive == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
@@ -935,76 +949,86 @@ namespace DynamometerHMI
         private void NoLoadTimer_Tick(object sender, EventArgs e)
         {
             if (!isNoLoadRunning) return;
-
-            noLoadElapsedSec++;
-            noLoadStageElapsedSec++;
-
-            DateTime now = DateTime.Now;
-            int elapsedHours = noLoadElapsedSec / 3600;
-            int elapsedMins = (noLoadElapsedSec % 3600) / 60;
-            int elapsedSecs = noLoadElapsedSec % 60;
-            lblNoLoadElapsedDisp.Text = string.Format("總時間: {0:D2}:{1:D2}:{2:D2}", elapsedHours, elapsedMins, elapsedSecs);
-
-            // 1. 取得實測轉速與加載端數值
-            double actSpd = Math.Abs(actSpeed != 0.0 ? actSpeed : smoothedSpeed);
-            lblNoLoadActSpdDisp.Text = string.Format("{0:F0} rpm", actSpd);
-
-            // 2. 採樣 20 通道溫度快照
-            double[] chSnapshot = new double[20];
-            if (gbdChTemps != null && gbdChTemps.Length >= 20)
-                Array.Copy(gbdChTemps, chSnapshot, 20);
-
-            // 3. 計算已監控軸承通道之最高溫度
-            double maxBearingTemp = -999.0;
-            int maxBearingCh = -1;
-            bool hasAnyChChecked = false;
-            for (int ch = 0; ch < 20; ch++)
+            try
             {
-                if (noLoadMonitoredChannels != null && ch < noLoadMonitoredChannels.Length && noLoadMonitoredChannels[ch])
+                noLoadElapsedSec++;
+                noLoadStageElapsedSec++;
+
+                DateTime now = DateTime.Now;
+                int elapsedHours = noLoadElapsedSec / 3600;
+                int elapsedMins = (noLoadElapsedSec % 3600) / 60;
+                int elapsedSecs = noLoadElapsedSec % 60;
+                lblNoLoadElapsedDisp.Text = string.Format("總時間: {0:D2}:{1:D2}:{2:D2}", elapsedHours, elapsedMins, elapsedSecs);
+
+                // 1. 取得實測轉速 (空載無回授訊號時友善顯示無回授)
+                double actSpd = Math.Abs(actSpeed != 0.0 ? actSpeed : smoothedSpeed);
+                lblNoLoadActSpdDisp.Text = (actSpd > 0.0) ? string.Format("{0:F0} rpm", actSpd) : "-- rpm (無回授)";
+
+                // 2. 採樣 20 通道溫度快照
+                double[] chSnapshot = new double[20];
+                if (gbdChTemps != null && gbdChTemps.Length >= 20)
+                    Array.Copy(gbdChTemps, chSnapshot, 20);
+
+                // 3. 計算已監控軸承通道之最高溫度
+                double maxBearingTemp = -999.0;
+                int maxBearingCh = -1;
+                bool hasAnyChChecked = false;
+                for (int ch = 0; ch < 20; ch++)
                 {
-                    hasAnyChChecked = true;
-                    double t = chSnapshot[ch];
-                    if (t > maxBearingTemp && t < 999.0)
+                    if (noLoadMonitoredChannels != null && ch < noLoadMonitoredChannels.Length && noLoadMonitoredChannels[ch])
                     {
-                        maxBearingTemp = t;
-                        maxBearingCh = ch;
+                        hasAnyChChecked = true;
+                        double t = chSnapshot[ch];
+                        if (t > maxBearingTemp && t < 999.0)
+                        {
+                            maxBearingTemp = t;
+                            maxBearingCh = ch;
+                        }
                     }
                 }
-            }
-            if (!hasAnyChChecked)
-            {
-                maxBearingTemp = chSnapshot[0];
-                maxBearingCh = 0;
-            }
-
-            string maxTempStr = (maxBearingTemp > -100.0) ? string.Format("{0:F1} ℃ (CH{1})", maxBearingTemp, maxBearingCh + 1) : "--.- ℃";
-            lblNoLoadMaxTempDisp.Text = maxTempStr;
-
-            // 餵入多通道趨勢圖 (各選定通道獨立彩色曲線、端點即時標記與圖例)
-            if (noLoadTempTrend != null && chSnapshot != null)
-            {
-                noLoadTempTrend.AddSample(now, chSnapshot);
-            }
-
-            // 保存溫度歷史至滑動佇列 (保存 45 分鐘)
-            if (noLoadTempHistory != null)
-            {
-                noLoadTempHistory.Add(new KeyValuePair<DateTime, double[]>(now, chSnapshot));
-                DateTime expireTime = now.AddMinutes(-45);
-                noLoadTempHistory.RemoveAll(x => x.Key < expireTime);
-            }
-
-            // 4. 計算 30 分鐘溫差 (熱平衡判定依據)
-            DateTime thirtyMinAgo = now.AddMinutes(-30);
-            KeyValuePair<DateTime, double[]> baselineSample = default(KeyValuePair<DateTime, double[]>);
-            if (noLoadTempHistory != null && noLoadTempHistory.Count > 0)
-            {
-                var candidates = noLoadTempHistory.Where(x => Math.Abs((x.Key - thirtyMinAgo).TotalSeconds) <= 45).ToList();
-                if (candidates.Count > 0)
+                if (!hasAnyChChecked)
                 {
-                    baselineSample = candidates.OrderBy(x => Math.Abs((x.Key - thirtyMinAgo).TotalSeconds)).First();
+                    maxBearingTemp = chSnapshot[0];
+                    maxBearingCh = 0;
                 }
-            }
+
+                string maxTempStr = (maxBearingTemp > -100.0) ? string.Format("{0:F1} ℃ (CH{1})", maxBearingTemp, maxBearingCh + 1) : "--.- ℃";
+                lblNoLoadMaxTempDisp.Text = maxTempStr;
+
+                // 餵入多通道趨勢圖 (各選定通道獨立彩色曲線、端點即時標記與圖例)
+                if (noLoadTempTrend != null && chSnapshot != null)
+                {
+                    noLoadTempTrend.AddSample(now, chSnapshot);
+                }
+
+                // 保存溫度歷史至滑動佇列 (保存 45 分鐘)
+                if (noLoadTempHistory != null)
+                {
+                    noLoadTempHistory.Add(new KeyValuePair<DateTime, double[]>(now, chSnapshot));
+                    DateTime expireTime = now.AddMinutes(-45);
+                    noLoadTempHistory.RemoveAll(x => x.Key < expireTime);
+                }
+
+                // 4. 計算 30 分鐘溫差 (熱平衡判定依據) - 原生非 LINQ 高效掃描，零 Heap 額外配置
+                DateTime thirtyMinAgo = now.AddMinutes(-30);
+                KeyValuePair<DateTime, double[]> baselineSample = default(KeyValuePair<DateTime, double[]>);
+                if (noLoadTempHistory != null && noLoadTempHistory.Count > 0)
+                {
+                    double bestDiffSec = 45.0;
+                    for (int i = 0; i < noLoadTempHistory.Count; i++)
+                    {
+                        double diffSec = Math.Abs((noLoadTempHistory[i].Key - thirtyMinAgo).TotalSeconds);
+                        if (diffSec <= bestDiffSec)
+                        {
+                            bestDiffSec = diffSec;
+                            baselineSample = noLoadTempHistory[i];
+                        }
+                        else if (noLoadTempHistory[i].Key > thirtyMinAgo && diffSec > bestDiffSec)
+                        {
+                            break; // 歷史佇列依時間遞增，偏離後即可提前結束
+                        }
+                    }
+                }
 
             int stageMins = noLoadStageElapsedSec / 60;
             int stageSecs = noLoadStageElapsedSec % 60;
@@ -1365,12 +1389,18 @@ namespace DynamometerHMI
             }
 
             // 同步遠端 Web Server
-            webRemoteStatusText = string.Format("【空載-{0}】目標 {1:F0} rpm (實測 {2:F0} rpm, 最高溫 {3:F1}℃)",
+            string actSpdStr = (actSpd > 0.0) ? string.Format("{0:F0} rpm", actSpd) : "無回授";
+            webRemoteStatusText = string.Format("【空載-{0}】目標 {1:F0} rpm (實測: {2}, 最高溫 {3:F1}℃)",
                 (noLoadState == NoLoadState.RatedWarmup) ? "額定" : ((noLoadState == NoLoadState.MaxSpeedRun) ? "最高速" : "階梯"),
-                noLoadCurrentTargetSpd, actSpd, maxBearingTemp);
+                noLoadCurrentTargetSpd, actSpdStr, maxBearingTemp);
             webRemotePhaseText = string.Format("{0} | ΔT={1:F2}℃",
                 (noLoadState == NoLoadState.RatedWarmup) ? "額定熱平衡比對" : ((noLoadState == NoLoadState.CoolingWait) ? "超溫冷卻等待" : "最高速熱平衡比對"),
                 maxDeltaT);
+            }
+            catch (Exception ex)
+            {
+                WriteHmiLog("NOLOAD_ERR", "【空載狀態機異常】" + ex.Message);
+            }
         }
 
         private void MarkNoLoadPreStableRows(string stageTag)
@@ -1535,7 +1565,7 @@ namespace DynamometerHMI
                     elapsedStr,
                     phaseStr,
                     string.Format("{0:F0}", targetSpd),
-                    string.Format("{0:F0}", actSpd),
+                    (actSpd > 0.0) ? string.Format("{0:F0}", actSpd) : "-- (無回授)",
                     (maxTemp > -100.0) ? string.Format("{0:F1}", maxTemp) : "--.-",
                     (deltaT > 0.0) ? string.Format("{0:F2}", deltaT) : "--",
                     eventStr

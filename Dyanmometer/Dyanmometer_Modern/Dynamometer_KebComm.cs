@@ -1735,6 +1735,10 @@ namespace DynamometerHMI
                             {
                                 kebCurrent1 = val.Value * 0.1;
                             }
+                            if (item.Address == 0x0203)
+                            {
+                                kebFrequency1 = (Math.Abs(val.Value) >= 100000) ? (val.Value * 0.0001) : (val.Value * 0.01);
+                            }
                             if (item.IsStatus)
                             {
                                 lastKebFaultCode1 = val.Value;
@@ -1783,6 +1787,16 @@ namespace DynamometerHMI
                                 gridUpdates.Add(Tuple.Create(r, string.Format(fmt, displayVal, item.Unit).Trim(), Color.FromArgb(15, 23, 42)));
                             }
                         }
+                    }
+                }
+
+                if (items == null || !items.Exists(it => it.Address == 0x0203))
+                {
+                    int? ru03_1 = KebReadParamWithDll(comIdx, baudIdx, addr, 0x0203);
+                    if (ru03_1.HasValue)
+                    {
+                        successCount++;
+                        kebFrequency1 = (Math.Abs(ru03_1.Value) >= 100000) ? (ru03_1.Value * 0.0001) : (ru03_1.Value * 0.01);
                     }
                 }
 
@@ -1915,6 +1929,10 @@ namespace DynamometerHMI
                             {
                                 kebCurrent2 = val.Value * 0.1;
                             }
+                            if (item.Address == 0x0203)
+                            {
+                                kebFrequency2 = (Math.Abs(val.Value) >= 100000) ? (val.Value * 0.0001) : (val.Value * 0.01);
+                            }
                             if (item.IsStatus)
                             {
                                 lastKebFaultCode2 = val.Value;
@@ -1963,6 +1981,16 @@ namespace DynamometerHMI
                                 gridUpdates.Add(Tuple.Create(r, string.Format(fmt, displayVal, item.Unit).Trim(), Color.FromArgb(15, 23, 42)));
                             }
                         }
+                    }
+                }
+
+                if (items == null || !items.Exists(it => it.Address == 0x0203))
+                {
+                    int? ru03_2 = KebReadParamWithDll(comIdx, baudIdx, addr, 0x0203);
+                    if (ru03_2.HasValue)
+                    {
+                        successCount++;
+                        kebFrequency2 = (Math.Abs(ru03_2.Value) >= 100000) ? (ru03_2.Value * 0.0001) : (ru03_2.Value * 0.01);
                     }
                 }
 

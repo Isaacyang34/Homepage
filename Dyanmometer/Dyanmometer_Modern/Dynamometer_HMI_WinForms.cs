@@ -239,6 +239,9 @@ namespace DynamometerHMI
         private int tnMultiTransitionWaitSec = 0;
         private double tnMultiLastTestedTorque = 0.0;
         private double tnMultiLastTestedAdaptedPct = 0.0;
+        private int tnRampDownStep = 0; // 0: 無/就緒, 1..3: 分三次平穩降載階梯
+        private double tnRampDownStartPct = 0.0;
+        private double tnRampDownTargetPct = 0.0;
 
         private NumericUpDown numTnStartRpm, numTnStepRpm, numTnEndRpm, numTnTorque, numTnDwell;
         private Button btnStartTn, btnStopTn, btnExportTn, btnTnAnchor;
@@ -251,7 +254,14 @@ namespace DynamometerHMI
         private Label lblTnStatus, lblTnCountdown;
         private DataGridView dgvTnPoints;
         private TnCurveChart tnChart;
-        public GbdTemperatureTrendControl tnTempTrend;
+        // 核心架構重構：單一實例複用模式 (Shared Single Trend Instance)
+        // 溫度記錄分頁 (tabGbd) 專屬獨立完整 gbdTrendChart；所有測試分頁 (TN, Duty, NoLoad) 共用 sharedTestTempTrend
+        public GbdTemperatureTrendControl sharedTestTempTrend;
+        public GbdTemperatureTrendControl tnTempTrend { get { return sharedTestTempTrend; } set { sharedTestTempTrend = value; } }
+        public GbdTemperatureTrendControl dutyTempTrend { get { return sharedTestTempTrend; } set { sharedTestTempTrend = value; } }
+        public GbdTemperatureTrendControl noLoadTempTrend { get { return sharedTestTempTrend; } set { sharedTestTempTrend = value; } }
+        public GroupBox grpTnTemp;
+        public GroupBox grpDutyTemp;
         public bool[] tnMonitoredChannels = new bool[20] { true, true, true, true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false };
         private Button btnTnSelectChannels;
         private Label lblTnSelectedChHint, lblTnTempRealtimeVal;
@@ -363,8 +373,7 @@ namespace DynamometerHMI
         public SplitContainer splitTnMain, splitTnBottom;
         public SplitContainer splitDuty, splitDutyTop;
 
-        // DUTY 分頁專屬即時溫度波形與 S6 熱平衡/兩段式超溫防護欄位
-        public GbdTemperatureTrendControl dutyTempTrend;
+        // DUTY 分頁專屬即時溫度波形與 S6 熱平衡/兩段式超溫防護欄位 (已由 sharedTestTempTrend 統一代理)
         private Label lblDutyTempTrendTitle, lblDutyTempRealtimeVal;
         private Label lblDutyAllChTempsDisp;
         private List<double> s6PeakTempHistory = new List<double>();
@@ -379,8 +388,31 @@ namespace DynamometerHMI
         private Label lblDutyAbStatus;
         private Label lblS6NoLoadTitle, lblS6LoadedTitle, lblS6Cs18Title;
 
-        // 即時變頻器輸出電流 (ru.15, 0x020F / 0.1 A)
+        // 即時變頻器輸出電流 (ru.15, 0x020F / 0.1 A) 與輸出頻率 (ru.03, 0x0203 / Hz)
         public double kebCurrent1 = 0.0, kebCurrent2 = 0.0;
+        public double kebFrequency1 = 0.0, kebFrequency2 = 0.0;
+
+        /// <summary>
+        /// 即時變頻器輸出頻率 (Hz)，優先回傳待測端(DUT)驅動器之 ru.03 回授頻率
+        /// </summary>
+        public double actFrequency
+        {
+            get
+            {
+                int dutDrive = 1;
+                try
+                {
+                    if (cmbTnRole != null && cmbTnRole.SelectedIndex == 1) dutDrive = 2;
+                    else if (noLoadSpdDrive == 2 && isNoLoadRunning) dutDrive = 2;
+                    else if (cmbDutyRole != null && cmbDutyRole.SelectedIndex == 1) dutDrive = 2;
+                }
+                catch { }
+
+                if (dutDrive == 2)
+                    return kebFrequency2 > 0 ? kebFrequency2 : kebFrequency1;
+                return kebFrequency1 > 0 ? kebFrequency1 : kebFrequency2;
+            }
+        }
 
         // DUTY 過電流保護變數 (S1 / S2 / S6)
         public decimal dutyOverCurrentPercent = 25m;      // 門檻百分比 (預設 25%)
@@ -1154,6 +1186,8 @@ namespace DynamometerHMI
             };
 
             instance = this;
+            // 核心單一趨勢圖實例：所有測試分頁 (TN / Duty / 空載) 共用此實例，僅依分頁動態掛載與切換通道遮罩
+            sharedTestTempTrend = new GbdTemperatureTrendControl(this) { Dock = DockStyle.Fill };
 
             TabPage tab1 = new TabPage("即時綜合監控") { BackColor = Color.White };
             BuildManualTab(tab1);
@@ -1185,16 +1219,22 @@ namespace DynamometerHMI
             rootTable.Controls.Add(tabControl, 0, 1);
             this.Controls.Add(rootTable);
 
-            // 雙向全息即時同步：切換分頁時，刷新圖解面板與模式排版，避免粗暴單向覆蓋數值
+            // 雙向全息即時同步：切換分頁時，刷新圖解面板與模式排版，並依需求將共用溫度趨勢圖動態停泊 (Dynamic Re-Parenting)
             tabControl.SelectedIndexChanged += (s, e) => {
                 if (tabControl.SelectedIndex == 1) // 切換至 T-N 曲線測試分頁
                 {
-                    // 保持狀態刷新
+                    AttachSharedTempTrendTo(grpTnTemp, tnMonitoredChannels);
                 }
                 else if (tabControl.SelectedIndex == 2) // 切換至 工作制測試分頁
                 {
+                    AttachSharedTempTrendTo(grpDutyTemp, null);
                     if (cmbDutyMode != null) UpdateDutyModeVisibility(cmbDutyMode.SelectedIndex);
                     if (pnlS6Diagram != null) { pnlS6Diagram.Invalidate(); pnlS6Diagram.Refresh(); }
+                }
+                else if (tabControl.SelectedIndex == 4) // 切換至 空載溫升分頁 (tabNoLoad)
+                {
+                    AttachSharedTempTrendTo(grpNoLoadChart, noLoadMonitoredChannels);
+                    UpdateNoLoadChannelHint();
                 }
                 else if (tabControl.SelectedIndex == 0) // 切換回即時遙測總覽
                 {
@@ -1219,6 +1259,7 @@ namespace DynamometerHMI
             // 自動記憶佈局、啟動即自動連線採樣並啟動背景輪詢 Worker (主控端) 或 啟動遠端遙測接收 (VIEWER 檢視端)
             this.Shown += (s, e) => {
                 LoadLayoutConfig();
+                PurgeLocalLogs(false);
                 if (mainTimer != null && !mainTimer.Enabled) mainTimer.Start();
                 if (isViewerMode)
                 {
@@ -1288,12 +1329,8 @@ namespace DynamometerHMI
                     motorTempChart.IsConnected = isGbdOnline;
                 if (gbdTrendChart != null && !gbdTrendChart.IsDisposed)
                     gbdTrendChart.IsConnected = isGbdOnline;
-                if (dutyTempTrend != null && !dutyTempTrend.IsDisposed)
-                    dutyTempTrend.IsConnected = isGbdOnline;
-                if (noLoadTempTrend != null && !noLoadTempTrend.IsDisposed)
-                    noLoadTempTrend.IsConnected = isGbdOnline;
-                if (tnTempTrend != null && !tnTempTrend.IsDisposed)
-                    tnTempTrend.IsConnected = isGbdOnline;
+                if (sharedTestTempTrend != null && !sharedTestTempTrend.IsDisposed)
+                    sharedTestTempTrend.IsConnected = isGbdOnline;
 
                 if (!isGbdOnline)
                 {
@@ -1319,10 +1356,10 @@ namespace DynamometerHMI
                         gbdTrendChart.ClearData();
                         gbdTrendChart.Invalidate();
                     }
-                    if (tnTempTrend != null && !tnTempTrend.IsDisposed)
+                    if (sharedTestTempTrend != null && !sharedTestTempTrend.IsDisposed)
                     {
-                        tnTempTrend.ClearData();
-                        tnTempTrend.Invalidate();
+                        sharedTestTempTrend.ClearData();
+                        sharedTestTempTrend.Invalidate();
                     }
                     return;
                 }
@@ -1343,17 +1380,14 @@ namespace DynamometerHMI
                 {
                     gbdTrendChart.AddSample(DateTime.Now, gbdChTemps);
                 }
-                if (noLoadTempTrend != null && !noLoadTempTrend.IsDisposed && !isNoLoadRunning && gbdChTemps != null)
+                // 核心單一實例：所有測試分頁 (TN / Duty / 空載) 共享此實例
+                if (sharedTestTempTrend != null && !sharedTestTempTrend.IsDisposed && gbdChTemps != null)
                 {
-                    noLoadTempTrend.AddSample(DateTime.Now, gbdChTemps);
-                }
-                if (dutyTempTrend != null && !dutyTempTrend.IsDisposed && !(dutyTimer != null && dutyTimer.Enabled) && gbdChTemps != null)
-                {
-                    dutyTempTrend.AddSample(DateTime.Now, gbdChTemps);
-                }
-                if (tnTempTrend != null && !tnTempTrend.IsDisposed && gbdChTemps != null)
-                {
-                    tnTempTrend.AddSample(DateTime.Now, gbdChTemps);
+                    bool isCustomTickRunning = (dutyTimer != null && dutyTimer.Enabled) || isNoLoadRunning;
+                    if (!isCustomTickRunning)
+                    {
+                        sharedTestTempTrend.AddSample(DateTime.Now, gbdChTemps);
+                    }
                     if (lblTnTempRealtimeVal != null && !lblTnTempRealtimeVal.IsDisposed)
                     {
                         double maxT = double.MinValue;
@@ -1389,6 +1423,38 @@ namespace DynamometerHMI
                 }
             };
             motorTempTimer.Start();
+        }
+
+        /// <summary>
+        /// 輕量化動態停泊：將唯一的共用測試溫度趨勢圖 (sharedTestTempTrend) 動態掛載至目前切換之測試容器
+        /// 徹底避免在各分頁建立多套自繪控制項，大幅減輕 WinXP GDI/USER 佇列負荷與記憶體配置
+        /// </summary>
+        public void AttachSharedTempTrendTo(Control targetContainer, bool[] channelMask)
+        {
+            if (sharedTestTempTrend == null || targetContainer == null || targetContainer.IsDisposed) return;
+            try
+            {
+                if (sharedTestTempTrend.Parent != targetContainer)
+                {
+                    targetContainer.SuspendLayout();
+                    sharedTestTempTrend.Parent = targetContainer;
+                    sharedTestTempTrend.Dock = DockStyle.Fill;
+                    sharedTestTempTrend.SendToBack();
+                    targetContainer.ResumeLayout(true);
+                }
+                if (channelMask != null)
+                {
+                    sharedTestTempTrend.SetChannelVisibility(channelMask);
+                }
+                if (sharedTestTempTrend.Visible)
+                {
+                    sharedTestTempTrend.Invalidate();
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteHmiLog("UI_ATTACH_ERR", "AttachSharedTempTrendTo 失敗: " + ex.Message);
+            }
         }
 
         private Image CreateFloppyIconImage(int w, int h, Color color, bool isRec)
@@ -1785,6 +1851,7 @@ namespace DynamometerHMI
                 sb.AppendLine("SystemEventLog=" + (enableSystemEventLog ? "1" : "0"));
                 sb.AppendLine("CloudLogMaxCount=" + cloudLogMaxHistoryCount);
                 sb.AppendLine("CloudLogMaxDays=" + cloudLogMaxDays);
+                sb.AppendLine("LocalLogMaxCount=" + localLogMaxHistoryCount);
 
                 File.WriteAllText(GetLayoutConfigPath(), sb.ToString(), Encoding.UTF8);
             }
@@ -2185,6 +2252,10 @@ namespace DynamometerHMI
                         }
                         if (list1.Count > 0)
                         {
+                            if (!list1.Exists(x => x.Address == 0x0203))
+                            {
+                                list1.Insert(Math.Min(1, list1.Count), new KebMonitorItem("輸出頻率 (ru03)", 0x0203, 0.01, "Hz"));
+                            }
                             kebMonitorList1 = list1;
                             RebuildKebRuGridFromList(1);
                         }
@@ -2222,6 +2293,10 @@ namespace DynamometerHMI
                         }
                         if (list2.Count > 0)
                         {
+                            if (!list2.Exists(x => x.Address == 0x0203))
+                            {
+                                list2.Insert(Math.Min(1, list2.Count), new KebMonitorItem("輸出頻率 (ru03)", 0x0203, 0.01, "Hz"));
+                            }
                             kebMonitorList2 = list2;
                             RebuildKebRuGridFromList(2);
                         }
@@ -2240,6 +2315,12 @@ namespace DynamometerHMI
                     int d;
                     if (int.TryParse(map["Logging.CloudLogMaxDays"], out d) && d >= 1 && d <= 90)
                         cloudLogMaxDays = d;
+                }
+                if (map.ContainsKey("Logging.LocalLogMaxCount"))
+                {
+                    int lc;
+                    if (int.TryParse(map["Logging.LocalLogMaxCount"], out lc) && lc >= 5 && lc <= 500)
+                        localLogMaxHistoryCount = lc;
                 }
             }
             catch {}
@@ -2289,6 +2370,7 @@ namespace DynamometerHMI
             return new List<KebMonitorItem>()
             {
                 new KebMonitorItem("實測轉速 (ru07)", 0x0207, 0.125, "rpm"),
+                new KebMonitorItem("輸出頻率 (ru03)", 0x0203, 0.01,  "Hz"),
                 new KebMonitorItem("實測轉矩 (ru12)", 0x020C, 0.01,  "Nm"),
                 new KebMonitorItem("輸出電流 (ru15)", 0x020F, 0.1,   "A"),
                 new KebMonitorItem("轉矩命令 (ru11)", 0x020B, 0.01,  "Nm"),
@@ -5465,7 +5547,7 @@ namespace DynamometerHMI
                     // 雙軌日誌儲存引擎：採樣累積與算術平均 (Arithmetic Average) 存檔
                     // -------------------------------------------------------------
                     autoSampleAccumulator.AddSample(
-                        actSpeed, actTorque, actMechPower, actElecPower, actEfficiency, actKt,
+                        actSpeed, actFrequency, actTorque, actMechPower, actElecPower, actEfficiency, actKt,
                         wtU1, wtI1, wtP1,
                         wtU2, wtI2, wtP2,
                         wtU3, wtI3, wtP3,
@@ -5482,7 +5564,7 @@ namespace DynamometerHMI
                     if (isManualRecording && manualRecordWriter != null)
                     {
                         manualSampleAccumulator.AddSample(
-                            actSpeed, actTorque, actMechPower, actElecPower, actEfficiency, actKt,
+                            actSpeed, actFrequency, actTorque, actMechPower, actElecPower, actEfficiency, actKt,
                             wtU1, wtI1, wtP1,
                             wtU2, wtI2, wtP2,
                             wtU3, wtI3, wtP3,
@@ -6324,7 +6406,8 @@ namespace DynamometerHMI
             DateTime now = DateTime.Now;
 
             // 1. 扭力計斷線 / 反饋凍結保護 (僅在扭力計通訊已開啟且驅動器運轉中或自動測試進行中才守護，靜止停機狀態下不觸發)
-            if (enableProtTorqueLoss && (isAnyDriveRunning || isTestRunning))
+            // ★ 空載測試特殊防護：使用者明確指示空載測試不依賴扭力計，嚴禁觸發逾時跳脫！
+            if (enableProtTorqueLoss && (isAnyDriveRunning || isTestRunning) && !isNoLoadRunning)
             {
                 if (spTorque != null && spTorque.IsOpen)
                 {
@@ -6337,7 +6420,8 @@ namespace DynamometerHMI
             }
 
             // 2. 機械堵轉 / 失速保護 (量: protStallSpeedThreshold, 時間: protStallDelaySec)
-            if (enableProtStall && isAnyDriveRunning)
+            // ★ 空載測試特殊防護：空載測試無轉速回授訊號 (理論上看不到實測轉速)，嚴禁誤判為堵轉失速！
+            if (enableProtStall && isAnyDriveRunning && !isNoLoadRunning)
             {
                 int cmdSpd1 = (numHmiKebSpeed1 != null) ? (int)numHmiKebSpeed1.Value : 0;
                 int cmdSpd2 = (numHmiKebSpeed2 != null) ? (int)numHmiKebSpeed2.Value : 0;

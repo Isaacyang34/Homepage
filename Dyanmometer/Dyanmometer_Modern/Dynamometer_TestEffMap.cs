@@ -802,6 +802,7 @@ namespace DynamometerHMI
                         }
                     }
                 }
+                PurgeLocalLogs(false);
                 MessageBox.Show("效率地圖報表已成功匯出至:\n" + path, "匯出成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)

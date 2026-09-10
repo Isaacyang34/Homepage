@@ -416,7 +416,7 @@ namespace DynamometerHMI
             SafeSetupSplitContainer(splitTnRight, 260, 120, 120);
 
             // 右上方：專屬即時溫度動態曲線與通道選擇 (同 S1 介面規格)
-            GroupBox grpTnTemp = new GroupBox()
+            grpTnTemp = new GroupBox()
             {
                 Text = "🌡️ 專屬溫度監控與即時動態曲線",
                 Dock = DockStyle.Fill,
@@ -463,11 +463,16 @@ namespace DynamometerHMI
 
             pnlTnTempHeader.Controls.AddRange(new Control[] { btnTnSelectChannels, lblTnSelectedChHint, lblTnTempRealtimeVal });
 
-            tnTempTrend = new GbdTemperatureTrendControl(this) { Dock = DockStyle.Fill };
-            if (tnMonitoredChannels != null) tnTempTrend.SetChannelVisibility(tnMonitoredChannels);
+            // 專屬動態溫度曲線：與 Duty / 空載 共用 sharedTestTempTrend
+            if (sharedTestTempTrend == null)
+            {
+                sharedTestTempTrend = new GbdTemperatureTrendControl(this) { Dock = DockStyle.Fill };
+            }
+            if (tnMonitoredChannels != null) sharedTestTempTrend.SetChannelVisibility(tnMonitoredChannels);
 
-            grpTnTemp.Controls.Add(tnTempTrend);     // Fill
-            grpTnTemp.Controls.Add(pnlTnTempHeader); // Top
+            grpTnTemp.Controls.Add(sharedTestTempTrend); // Fill
+            sharedTestTempTrend.SendToBack();
+            grpTnTemp.Controls.Add(pnlTnTempHeader);     // Top
 
             splitTnRight.Panel1.Controls.Add(grpTnTemp);
 
@@ -985,30 +990,40 @@ namespace DynamometerHMI
             double actAbsTrq = Math.Abs(actTorque);
             double spdErr = Math.Abs(actAbsSpd - targetSpd);
             double trqErr = targetTrq - actAbsTrq;
-            bool isSpdValid = (targetSpd <= 0) || (spdErr <= Math.Max(25.0, targetSpd * 0.08));
-            bool isTrqValid = (targetTrq <= 0) || (tnAdaptedTorquePct >= 1.0 && Math.Abs(trqErr) <= Math.Max(1.0, targetTrq * 0.08));
+
+            // ★【穩定判定合理化】：必須等待測端閉迴路補轉差將轉速補償回額定轉速帶內 (誤差 <= Max(6 rpm, 1.5% 目標轉速))，且轉矩達標
+            bool isSpdValid = (targetSpd <= 0) || (spdErr <= Math.Max(6.0, targetSpd * 0.015));
+            bool isTrqValid = (targetTrq <= 0) || (tnAdaptedTorquePct >= 0.5 && Math.Abs(trqErr) <= Math.Max(1.0, targetTrq * 0.08));
 
             // =========================================================================
-            // 子階段 0: 待測端提速空載
+            // 子階段 0: 待測端提速/變速 (維持 25% 或空載，等待速度到達後才進入加載)
             // =========================================================================
             if (tnMultiSubPhase == 0)
             {
                 tnConvergeTimeoutSec++;
-                bool reached = (targetSpd <= 0) || (actAbsSpd >= targetSpd * 0.82) || (spdErr <= Math.Max(20.0, targetSpd * 0.12));
+
+                // ★【待測端轉速平滑閉迴路追隨 (同動 S1/S2/S6 補轉差機制)】
+                ApplyTnSpeedTracking(spdCom, spdBaud, spdNode, spdDrive, targetSpd, actAbsSpd);
+
+                // 速度到達判定：等待實際速度到達目標轉速帶 (誤差 <= Max(12.0 rpm, 2% 目標轉速))
+                bool reached = (targetSpd <= 0) || (spdErr <= Math.Max(12.0, targetSpd * 0.02));
                 if (!reached)
                 {
-                    KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // 加載端保持 0 轉矩
-                    lblTnStatus.Text = string.Format("⌛ [第 {0}/{1} 點] 提速中：實測 {2:F0} rpm / 目標 {3:F0} rpm",
-                        tnMultiCurrentIndex + 1, tnCustomPoints.Count, actAbsSpd, targetSpd);
-                    lblTnCountdown.Text = "提速空載中";
+                    // 若是換項變速過渡，加載端維持在 25% 負載；若是第 1 點起步則保持 0 轉矩
+                    int curTrqHold = (int)Math.Round(tnAdaptedTorquePct * 10);
+                    KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, curTrqHold);
+
+                    lblTnStatus.Text = string.Format("⌛ [第 {0}/{1} 點] 變速調整中：實測 {2:F0} rpm / 目標 {3:F0} rpm (加載端保持 {4:F1}%)",
+                        tnMultiCurrentIndex + 1, tnCustomPoints.Count, actAbsSpd, targetSpd, tnAdaptedTorquePct);
+                    lblTnCountdown.Text = string.Format("變速中 ({0}s)", tnConvergeTimeoutSec);
                     if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                     if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
                     if (dgvTnMultiPoints.Rows.Count > tnMultiCurrentIndex)
-                        dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = "⏳ 提速中";
+                        dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = "⏳ 變速調整中";
                     return;
                 }
 
-                // 轉速到位，啟動加載端激磁
+                // 轉速已確實到達！啟動加載端激磁，準備平滑遞增加載
                 tnMultiSubPhase = 1;
                 tnConvergeTimeoutSec = 0;
                 tnTrqSustainedSec = 0;
@@ -1017,10 +1032,11 @@ namespace DynamometerHMI
                 {
                     SetHmiKebCommand(trqCom, trqBaud, trqNode, 4, string.Format("{0}TN加載端轉速達標激磁啟動 (Sy50=4)", trqDriveName));
                 }
-                WriteHmiLog("TN_MULTI", string.Format("【第 {0} 點轉速達標】{1:F0} rpm 到位，啟動加載端激磁，開始轉矩逼近", tnMultiCurrentIndex + 1, actAbsSpd));
+                WriteHmiLog("TN_MULTI", string.Format("【第 {0} 點轉速達標】實測 {1:F0} rpm (目標 {2:F0} rpm) 到位，進入平穩加載逼近 (當前負載基準: {3:F1}%)",
+                    tnMultiCurrentIndex + 1, actAbsSpd, targetSpd, tnAdaptedTorquePct));
             }
             // =========================================================================
-            // 子階段 1: 加載逼近目標轉矩 (雙達標 2 秒判定)
+            // 子階段 1: 加載逼近目標轉矩 (等待轉速補償回來且轉矩達標持續 2 秒)
             // =========================================================================
             else if (tnMultiSubPhase == 1)
             {
@@ -1051,8 +1067,9 @@ namespace DynamometerHMI
                     if (trqDrive == 1 && numHmiKebTorque1 != null) numHmiKebTorque1.Value = (decimal)tnAdaptedTorquePct;
                     else if (trqDrive == 2 && numHmiKebTorque2 != null) numHmiKebTorque2.Value = (decimal)tnAdaptedTorquePct;
 
-                    lblTnStatus.Text = string.Format("⌛ [第 {0}/{1} 點] 扭矩加載中：實測 {2:F1} Nm / 目標 {3:F1} Nm (給定 {4:F1}%)",
-                        tnMultiCurrentIndex + 1, tnCustomPoints.Count, actAbsTrq, targetTrq, tnAdaptedTorquePct);
+                    string spdStatusText = isSpdValid ? "轉速已達標" : string.Format("轉速補償中({0:F0}/{1:F0}rpm)", actAbsSpd, targetSpd);
+                    lblTnStatus.Text = string.Format("⌛ [第 {0}/{1} 點] 扭矩調節中：實測 {2:F1}/{3:F1} Nm (給定 {4:F1}%, {5})",
+                        tnMultiCurrentIndex + 1, tnCustomPoints.Count, actAbsTrq, targetTrq, tnAdaptedTorquePct, spdStatusText);
                     lblTnCountdown.Text = string.Format("加載中 ({0}s)", tnConvergeTimeoutSec);
                     if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                     if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
@@ -1068,12 +1085,12 @@ namespace DynamometerHMI
                 }
                 else
                 {
-                    // 雙達標連續 2 秒，進入【子階段 2：穩定 5 秒等待】
+                    // 雙達標連續 2 秒 (轉矩到位且轉速已完全補償回來)，進入【子階段 2：穩定 5 秒等待】
                     tnMultiSubPhase = 2;
                     tnMultiStabilizeCounter = 5;
                     tnConvergeTimeoutSec = 0;
                     tnTrqSustainedSec = 0;
-                    lblTnStatus.Text = string.Format("✅ [第 {0}/{1} 點] 轉矩與轉速已達標 ({2:F0}rpm / {3:F1}Nm)，開始穩定 5 秒計時！",
+                    lblTnStatus.Text = string.Format("✅ [第 {0}/{1} 點] 轉速補償與轉矩雙雙達標 ({2:F0}rpm / {3:F1}Nm)，開始穩定 5 秒倒數！",
                         tnMultiCurrentIndex + 1, tnCustomPoints.Count, actAbsSpd, actAbsTrq);
                     lblTnCountdown.Text = "穩定等待: 5 s";
                     if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
@@ -1083,7 +1100,7 @@ namespace DynamometerHMI
                 }
             }
             // =========================================================================
-            // 子階段 2: 穩定 5 秒等待 (倒數 5 秒)
+            // 子階段 2: 穩定 5 秒等待 (倒數 5 秒，若轉速或轉矩偏離則暫停倒數持續微調補償)
             // =========================================================================
             else if (tnMultiSubPhase == 2)
             {
@@ -1096,13 +1113,27 @@ namespace DynamometerHMI
                     if (trqErr > 0) tnAdaptedTorquePct += step;
                     else tnAdaptedTorquePct -= step;
                     tnAdaptedTorquePct = Math.Max(0.0, Math.Min(100.0, tnAdaptedTorquePct));
-                    KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, (int)Math.Round(tnAdaptedTorquePct * 10));
+                    int trqRaw = (int)Math.Round(tnAdaptedTorquePct * 10);
+                    KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, trqRaw);
+                    if (trqDrive == 1 && numHmiKebTorque1 != null) numHmiKebTorque1.Value = (decimal)tnAdaptedTorquePct;
+                    else if (trqDrive == 2 && numHmiKebTorque2 != null) numHmiKebTorque2.Value = (decimal)tnAdaptedTorquePct;
                 }
 
-                tnMultiStabilizeCounter--;
-                lblTnCountdown.Text = string.Format("穩定等待: {0} s", tnMultiStabilizeCounter);
-                lblTnStatus.Text = string.Format("⚖️ [第 {0}/{1} 點] 穩定確認中：轉速 {2:F0} rpm | 轉矩 {3:F2} Nm",
-                    tnMultiCurrentIndex + 1, tnCustomPoints.Count, actAbsSpd, actAbsTrq);
+                // 轉速與轉矩必須維持在合格帶內才扣減秒數
+                if (isSpdValid && isTrqValid)
+                {
+                    tnMultiStabilizeCounter--;
+                    lblTnCountdown.Text = string.Format("穩定等待: {0} s", tnMultiStabilizeCounter);
+                    lblTnStatus.Text = string.Format("⚖️ [第 {0}/{1} 點] 穩定確認中：轉速 {2:F0} rpm | 轉矩 {3:F2} Nm",
+                        tnMultiCurrentIndex + 1, tnCustomPoints.Count, actAbsSpd, actAbsTrq);
+                }
+                else
+                {
+                    lblTnCountdown.Text = string.Format("調節等待: {0} s (暫停)", tnMultiStabilizeCounter);
+                    lblTnStatus.Text = string.Format("⌛ [第 {0}/{1} 點] 偏離補償微調中：轉速 {2:F0}/{3:F0} rpm | 轉矩 {4:F2}/{5:F1} Nm",
+                        tnMultiCurrentIndex + 1, tnCustomPoints.Count, actAbsSpd, targetSpd, actAbsTrq, targetTrq);
+                }
+
                 if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                 if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
                 if (dgvTnMultiPoints.Rows.Count > tnMultiCurrentIndex)
@@ -1114,6 +1145,16 @@ namespace DynamometerHMI
                     tnMultiSubPhase = 3;
                     tnMultiSampleCounter = 30;
                     curPt.Samples.Clear();
+
+                    // ★【TN測試紀錄檔優化】在確定穩定後抓取30筆數據時給資料一個斷行
+                    lock (manualRecordLock)
+                    {
+                        if (manualRecordWriter != null && isManualRecording)
+                        {
+                            try { manualRecordWriter.WriteLine(); manualRecordWriter.Flush(); } catch { }
+                        }
+                    }
+
                     lblTnStatus.Text = string.Format("📊 [第 {0}/{1} 點] 開始擷取 30 秒穩定資料 (每秒 1 筆)！", tnMultiCurrentIndex + 1, tnCustomPoints.Count);
                     lblTnCountdown.Text = "擷取: 30 s";
                     if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
@@ -1127,9 +1168,13 @@ namespace DynamometerHMI
             // =========================================================================
             else if (tnMultiSubPhase == 3)
             {
+                // 依 Modify.txt 規範順序: 轉速 頻率 轉矩 U1 U2 U3 I1 I2 I3 輸入功率 輸出功率 功因 效率 Kt V_Sigma I_Sigma 溫度
                 curPt.Samples.Add(new double[] {
-                    actAbsSpd, actAbsTrq, actMechPower, actElecPower, actEfficiency,
-                    actVoltageSigma, actCurrentSigma, actPf
+                    actAbsSpd, actFrequency, actAbsTrq,
+                    wtU1, wtU2, wtU3,
+                    wtI1, wtI2, wtI3,
+                    actElecPower, actMechPower, actPf, actEfficiency,
+                    actKt, actVoltageSigma, actCurrentSigma, actTemp
                 });
 
                 // ★【待測端轉速平滑閉迴路追隨 (同動 S1/S2/S6 補轉差機制)】
@@ -1142,6 +1187,8 @@ namespace DynamometerHMI
                     else tnAdaptedTorquePct -= step;
                     tnAdaptedTorquePct = Math.Max(0.0, Math.Min(100.0, tnAdaptedTorquePct));
                     KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, (int)Math.Round(tnAdaptedTorquePct * 10));
+                    if (trqDrive == 1 && numHmiKebTorque1 != null) numHmiKebTorque1.Value = (decimal)tnAdaptedTorquePct;
+                    else if (trqDrive == 2 && numHmiKebTorque2 != null) numHmiKebTorque2.Value = (decimal)tnAdaptedTorquePct;
                 }
 
                 tnMultiSampleCounter--;
@@ -1155,12 +1202,23 @@ namespace DynamometerHMI
 
                 if (tnMultiSampleCounter <= 0)
                 {
+                    // ★【TN測試紀錄檔優化】30筆數據結束後也多一個斷行方便識別測試區間
+                    lock (manualRecordLock)
+                    {
+                        if (manualRecordWriter != null && isManualRecording)
+                        {
+                            try { manualRecordWriter.WriteLine(); manualRecordWriter.Flush(); } catch { }
+                        }
+                    }
+
                     // 30 筆採樣完成！計算 30 秒平均值
                     double avgSpd = curPt.Samples.Average(s => s[0]);
-                    double avgTrq = curPt.Samples.Average(s => s[1]);
-                    double avgMechPwr = curPt.Samples.Average(s => s[2]);
-                    double avgElecPwr = curPt.Samples.Average(s => s[3]);
-                    double avgEff = curPt.Samples.Average(s => s[4]);
+                    double avgFreq = curPt.Samples.Average(s => s[1]);
+                    double avgTrq = curPt.Samples.Average(s => s[2]);
+                    double avgElecPwr = curPt.Samples.Average(s => s[9]);
+                    double avgMechPwr = curPt.Samples.Average(s => s[10]);
+                    double avgPf = curPt.Samples.Average(s => s[11]);
+                    double avgEff = curPt.Samples.Average(s => s[12]);
 
                     curPt.AvgSpeed = avgSpd;
                     curPt.AvgTorque = avgTrq;
@@ -1221,80 +1279,153 @@ namespace DynamometerHMI
                         return;
                     }
 
-                    // =========================================================================
-                    // 規範 3: 換到下一個項目記得先將扭力降到原測試扭力的25%後再改變目標轉速！
-                    // =========================================================================
-                    tnMultiSubPhase = 4;
-                    tnMultiTransitionWaitSec = 0;
+                    // 檢查下一個測試項目是否需要變速
+                    var nextPt = tnCustomPoints[tnMultiCurrentIndex + 1];
+                    bool isSpeedChange = Math.Abs(nextPt.TargetSpeed - curPt.TargetSpeed) > 5.0;
 
-                    tnAdaptedTorquePct = Math.Max(0.0, tnMultiLastTestedAdaptedPct * 0.25);
-                    int trqRaw25 = (int)Math.Round(tnAdaptedTorquePct * 10);
-                    KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, trqRaw25);
+                    if (!isSpeedChange)
+                    {
+                        // =========================================================================
+                        // 規範 2: 若下一個測試項目沒有轉速改變，則直接修正(遞增遞減)扭力至目標！
+                        // 嚴禁降載或變速，直接切入子階段 1 平穩逼近新目標轉矩！
+                        // =========================================================================
+                        tnMultiCurrentIndex++;
+                        tnMultiSubPhase = 1; // 直接進入加載逼近新目標轉矩
+                        tnConvergeTimeoutSec = 0;
+                        tnTrqSustainedSec = 0;
 
-                    if (trqDrive == 1 && numHmiKebTorque1 != null) numHmiKebTorque1.Value = (decimal)tnAdaptedTorquePct;
-                    else if (trqDrive == 2 && numHmiKebTorque2 != null) numHmiKebTorque2.Value = (decimal)tnAdaptedTorquePct;
+                        WriteHmiLog("TN_MULTI", string.Format("【同轉速換項】第 {0} 點轉速相同 ({1:F0} rpm)，直接平穩調升/調降轉矩至 {2:F1} Nm (當前負載基準: {3:F1}%)",
+                            tnMultiCurrentIndex + 1, nextPt.TargetSpeed, nextPt.TargetTorque, tnAdaptedTorquePct));
 
-                    double trq25Nm = tnMultiLastTestedTorque * 0.25;
-                    lblTnStatus.Text = string.Format("⬇️ 換項降載中：先降轉矩至 25% ({0:F1} Nm, 給定 {1:F1}%)，再行變速...", trq25Nm, tnAdaptedTorquePct);
-                    lblTnCountdown.Text = "降載 25% 中";
-                    if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
-                    if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
+                        lblTnStatus.Text = string.Format("➡️ 同速調扭：第 {0}/{1} 點 (目標 {2:F0} rpm / {3:F1} Nm)，直接平穩過渡...",
+                            tnMultiCurrentIndex + 1, tnCustomPoints.Count, nextPt.TargetSpeed, nextPt.TargetTorque);
+                        lblTnCountdown.Text = "調扭過渡中";
+                        if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
+                        if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
+                        if (dgvTnMultiPoints.Rows.Count > tnMultiCurrentIndex)
+                            dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = "⏳ 調扭加載中";
+                    }
+                    else
+                    {
+                        // =========================================================================
+                        // 規範 3: 若下個測試目標是需要變速，則遞減(分三次減)降載到下個目標的25%之後再開始變速！
+                        // 等速度到達後再開始遞增加載。
+                        // =========================================================================
+                        tnMultiSubPhase = 4;
+                        tnMultiTransitionWaitSec = 0;
+                        tnRampDownStep = 1; // 啟動第 1 階梯降載
+                        tnRampDownStartPct = tnAdaptedTorquePct;
 
-                    WriteHmiLog("TN_MULTI", string.Format("【換項過渡安全降載】第 {0} 點完成，先將負載轉矩降至原測試之 25% ({1:F1} Nm, 給定 {2:F1}%)",
-                        tnMultiCurrentIndex + 1, trq25Nm, tnAdaptedTorquePct));
+                        // 計算目標 25% 輸出百分比 (以原測試扭力百分比之 25% 為安全基準)
+                        tnRampDownTargetPct = Math.Max(0.0, tnRampDownStartPct * 0.25);
+
+                        // 立即輸出第 1 步降載：start - (start - target) * (1/3)
+                        double step1Pct = tnRampDownStartPct - (tnRampDownStartPct - tnRampDownTargetPct) * (1.0 / 3.0);
+                        tnAdaptedTorquePct = Math.Max(0.0, step1Pct);
+                        int trqRaw1 = (int)Math.Round(tnAdaptedTorquePct * 10);
+                        KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, trqRaw1);
+
+                        if (trqDrive == 1 && numHmiKebTorque1 != null) numHmiKebTorque1.Value = (decimal)tnAdaptedTorquePct;
+                        else if (trqDrive == 2 && numHmiKebTorque2 != null) numHmiKebTorque2.Value = (decimal)tnAdaptedTorquePct;
+
+                        double trqStep1Nm = curPt.TargetTorque * (tnAdaptedTorquePct / Math.Max(0.1, tnRampDownStartPct));
+                        lblTnStatus.Text = string.Format("⬇️ 換項降載 (1/3 步)：轉矩調降至 {0:F1}% ({1:F1} Nm)，平穩邁向 25%...", tnAdaptedTorquePct, trqStep1Nm);
+                        lblTnCountdown.Text = "降載階梯 1/3";
+                        if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
+                        if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
+
+                        WriteHmiLog("TN_MULTI", string.Format("【換項階梯降載 1/3】第 {0} 點完成，啟動 3 步平穩降載：第 1 步降至 {1:F1}%",
+                            tnMultiCurrentIndex + 1, tnAdaptedTorquePct));
+                    }
                 }
             }
             // =========================================================================
-            // 子階段 4: 換項降載 25% 過渡保護 ➔ 確認降載後才切換至下一個目標轉速
+            // 子階段 4: 換項 3 步階梯平穩降載至 25% ➔ 變速 ➔ 切換至子階段 0 等待新速度到達
             // =========================================================================
             else if (tnMultiSubPhase == 4)
             {
                 tnMultiTransitionWaitSec++;
-                double trq25Limit = Math.Max(1.5, tnMultiLastTestedTorque * 0.28);
 
-                bool trqReduced = (actAbsTrq <= trq25Limit) || (tnMultiTransitionWaitSec >= 2);
-                if (!trqReduced)
+                if (tnRampDownStep == 1)
                 {
-                    lblTnStatus.Text = string.Format("⬇️ 等待轉矩降載至 25%：實測 {0:F1} Nm (門檻 {1:F1} Nm)...", actAbsTrq, trq25Limit);
-                    lblTnCountdown.Text = string.Format("降載中 ({0}s)", tnMultiTransitionWaitSec);
+                    // 執行第 2 步降載：start - (start - target) * (2/3)
+                    tnRampDownStep = 2;
+                    double step2Pct = tnRampDownStartPct - (tnRampDownStartPct - tnRampDownTargetPct) * (2.0 / 3.0);
+                    tnAdaptedTorquePct = Math.Max(0.0, step2Pct);
+                    int trqRaw2 = (int)Math.Round(tnAdaptedTorquePct * 10);
+                    KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, trqRaw2);
+
+                    if (trqDrive == 1 && numHmiKebTorque1 != null) numHmiKebTorque1.Value = (decimal)tnAdaptedTorquePct;
+                    else if (trqDrive == 2 && numHmiKebTorque2 != null) numHmiKebTorque2.Value = (decimal)tnAdaptedTorquePct;
+
+                    lblTnStatus.Text = string.Format("⬇️ 換項降載 (2/3 步)：轉矩調降至 {0:F1}%，平穩邁向 25%...", tnAdaptedTorquePct);
+                    lblTnCountdown.Text = "降載階梯 2/3";
                     if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                     if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
+                    WriteHmiLog("TN_MULTI", string.Format("【換項階梯降載 2/3】第 2 步降至 {0:F1}%", tnAdaptedTorquePct));
                     return;
                 }
+                else if (tnRampDownStep == 2)
+                {
+                    // 執行第 3 步降載：精確到達 target 25%
+                    tnRampDownStep = 3;
+                    tnAdaptedTorquePct = Math.Max(0.0, tnRampDownTargetPct);
+                    int trqRaw3 = (int)Math.Round(tnAdaptedTorquePct * 10);
+                    KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, trqRaw3);
 
-                // 轉矩已成功降至 25%！現在正式切換至下一個項目的目標轉速！
-                tnMultiCurrentIndex++;
-                var nextPt = tnCustomPoints[tnMultiCurrentIndex];
-                double nextSpd = nextPt.TargetSpeed;
-                double nextTrq = nextPt.TargetTorque;
+                    if (trqDrive == 1 && numHmiKebTorque1 != null) numHmiKebTorque1.Value = (decimal)tnAdaptedTorquePct;
+                    else if (trqDrive == 2 && numHmiKebTorque2 != null) numHmiKebTorque2.Value = (decimal)tnAdaptedTorquePct;
 
-                WriteHmiLog("TN_MULTI", string.Format("【換項啟動新轉速】已確認轉矩降至 25% ({0:F1} Nm)，正式切換第 {1} 點目標轉速: {2:F0} rpm (目標轉矩: {3:F1} Nm)",
-                    actAbsTrq, tnMultiCurrentIndex + 1, nextSpd, nextTrq));
+                    lblTnStatus.Text = string.Format("⬇️ 換項降載 (3/3 步)：轉矩已到達 25% ({0:F1}%)，確認負載穩定後開始變速...", tnAdaptedTorquePct);
+                    lblTnCountdown.Text = "降載階梯 3/3";
+                    if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
+                    if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
+                    WriteHmiLog("TN_MULTI", string.Format("【換項階梯降載 3/3】第 3 步已到達 25% ({0:F1}%)", tnAdaptedTorquePct));
+                    return;
+                }
+                else if (tnRampDownStep == 3)
+                {
+                    // 3 步降載全部完成！確認轉矩已降至安全帶，正式切換待測端新轉速！
+                    if (tnMultiCurrentIndex + 1 >= tnCustomPoints.Count)
+                    {
+                        // 邊界防禦：已無下一點，安全結束測試
+                        tnTimer.Stop();
+                        if (isManualRecording) StopManualRecording(showPrompt: false);
+                        StartGradualAutoStop(spdDrive, trqDrive, "T-N多點測試全部完成", null);
+                        return;
+                    }
 
-                // 卸載加載端維持 0 轉矩，讓待測端順暢變速到新目標轉速
-                KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0);
-                tnAdaptedTorquePct = 0.0;
+                    tnMultiCurrentIndex++;
+                    var nextPt = tnCustomPoints[tnMultiCurrentIndex];
+                    double nextSpd = nextPt.TargetSpeed;
+                    double nextTrq = nextPt.TargetTorque;
 
-                // 待測端寫入新轉速
-                tnCurrentSpeedCmd = nextSpd;
-                KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)nextSpd, "TN多點換項變速");
+                    WriteHmiLog("TN_MULTI", string.Format("【3步降載完成 ➔ 啟動變速】轉矩已平穩降至 25% ({0:F1}%, 實測 {1:F1} Nm)，正式切換第 {2} 點目標轉速: {3:F0} rpm (目標轉矩: {4:F1} Nm)",
+                        tnAdaptedTorquePct, actAbsTrq, tnMultiCurrentIndex + 1, nextSpd, nextTrq));
 
-                if (spdDrive == 2 && numHmiKebSpeed2 != null) numHmiKebSpeed2.Value = Math.Max(0, Math.Min(6000, (decimal)nextSpd));
-                else if (spdDrive == 1 && numHmiKebSpeed1 != null) numHmiKebSpeed1.Value = Math.Max(0, Math.Min(6000, (decimal)nextSpd));
+                    // 加載端保持在 25% 負載 (不歸零，避免急速甩載)，待測端下達新目標轉速
+                    tnCurrentSpeedCmd = nextSpd;
+                    KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)nextSpd, "TN多點換項變速 (SY52)");
 
-                // 重置為子階段 0 (等待待測端新轉速到位)
-                tnMultiSubPhase = 0;
-                tnConvergeTimeoutSec = 0;
-                tnTrqSustainedSec = 0;
+                    if (spdDrive == 2 && numHmiKebSpeed2 != null) numHmiKebSpeed2.Value = Math.Max(0, Math.Min(6000, (decimal)nextSpd));
+                    else if (spdDrive == 1 && numHmiKebSpeed1 != null) numHmiKebSpeed1.Value = Math.Max(0, Math.Min(6000, (decimal)nextSpd));
 
-                lblTnStatus.Text = string.Format("切換第 {0}/{1} 點：目標轉速 {2:F0} rpm / 目標轉矩 {3:F1} Nm，等待轉速到位...",
-                    tnMultiCurrentIndex + 1, tnCustomPoints.Count, nextSpd, nextTrq);
-                lblTnCountdown.Text = "提速空載中";
-                if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
-                if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
-                if (dgvTnMultiPoints.Rows.Count > tnMultiCurrentIndex)
-                    dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = "⏳ 變速提速中";
+                    // 切換至子階段 0：等待待測端新轉速到達目標！速度到達後才會自 25% 遞增加載！
+                    tnMultiSubPhase = 0;
+                    tnConvergeTimeoutSec = 0;
+                    tnTrqSustainedSec = 0;
+                    tnRampDownStep = 0;
+
+                    lblTnStatus.Text = string.Format("切換第 {0}/{1} 點：目標轉速 {2:F0} rpm / 目標轉矩 {3:F1} Nm，等待速度到位後加載...",
+                        tnMultiCurrentIndex + 1, tnCustomPoints.Count, nextSpd, nextTrq);
+                    lblTnCountdown.Text = "變速調整中";
+                    if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
+                    if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
+                    if (dgvTnMultiPoints.Rows.Count > tnMultiCurrentIndex)
+                        dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = "⏳ 變速調整中";
+                }
             }
+
 
             // ── 遠端監看同步 ──
             if (lblTnStatus != null) { webRemoteStatusText = lblTnStatus.Text; }
@@ -1386,8 +1517,8 @@ namespace DynamometerHMI
             double spdErr = Math.Abs(actAbsSpd - targetSpd);
             double trqErr = targetTrq - actAbsTrq;
 
-            // 判定轉矩與轉速是否進入合格穩定帶 (防瞬間慣性衝擊假觸發：必須加載量 tnAdaptedTorquePct >= 1.0% 且轉矩誤差在 ±8% 或 1.0 Nm 以內，轉速誤差在合格帶內)
-            bool isSpdValid = (targetSpd <= 0) || (spdErr <= Math.Max(25.0, targetSpd * 0.08));
+            // ★【穩定判定合理化】：必須等待測端閉迴路補轉差將轉速補償回額定轉速帶內 (誤差 <= Max(6 rpm, 1.5% 目標轉速))，且轉矩達標
+            bool isSpdValid = (targetSpd <= 0) || (spdErr <= Math.Max(6.0, targetSpd * 0.015));
             bool isTrqValid = (targetTrq <= 0) || (tnAdaptedTorquePct >= 1.0 && Math.Abs(trqErr) <= Math.Max(1.0, targetTrq * 0.08));
 
             // =========================================================================
@@ -1520,7 +1651,7 @@ namespace DynamometerHMI
                 }
 
                 // ★【達標才倒數鐵律】：只有在轉速與轉矩雙雙達標合格帶內，才扣減倒數！
-                bool isTnTargetReached = (spdErr <= Math.Max(25.0, targetSpd * 0.08)) && (Math.Abs(trqErr) <= Math.Max(1.0, targetTrq * 0.08));
+                bool isTnTargetReached = (spdErr <= Math.Max(6.0, targetSpd * 0.015)) && (Math.Abs(trqErr) <= Math.Max(1.0, targetTrq * 0.08));
                 if (isTnTargetReached)
                 {
                     tnDwellRemaining--;
@@ -1680,27 +1811,38 @@ namespace DynamometerHMI
                     using (StreamWriter sw = new StreamWriter(multiPath, false, Encoding.UTF8))
                     {
                         sw.WriteLine("=== T-N 多點自訂測試彙總報表 ===");
-                        sw.WriteLine("Point,TargetSpeed_rpm,TargetTorque_Nm,AvgSpeed_rpm,AvgTorque_Nm,AvgMechPower_kW,AvgEfficiency_pct,Status");
+                        sw.WriteLine("Point,TargetSpeed_rpm,TargetTorque_Nm,AvgSpeed_rpm,AvgFrequency_Hz,AvgTorque_Nm,AvgElecPower_kW,AvgMechPower_kW,AvgPF,AvgEfficiency_pct,Status");
                         for (int i = 0; i < tnCustomPoints.Count; i++)
                         {
                             var pt = tnCustomPoints[i];
-                            sw.WriteLine(string.Format("{0},{1:F0},{2:F2},{3:F1},{4:F2},{5:F2},{6:F1},{7}",
-                                pt.Index, pt.TargetSpeed, pt.TargetTorque, pt.AvgSpeed, pt.AvgTorque, pt.AvgMechPower, pt.AvgEfficiency, pt.Status));
+                            double ptFreq = (pt.Samples != null && pt.Samples.Count > 0) ? pt.Samples.Average(s => s[1]) : 0.0;
+                            double ptElecPwr = (pt.Samples != null && pt.Samples.Count > 0) ? pt.Samples.Average(s => s[9]) : 0.0;
+                            double ptPf = (pt.Samples != null && pt.Samples.Count > 0) ? pt.Samples.Average(s => s[11]) : 0.0;
+                            sw.WriteLine(string.Format("{0},{1:F0},{2:F2},{3:F1},{4:F2},{5:F2},{6:F2},{7:F2},{8:F3},{9:F1},{10}",
+                                pt.Index, pt.TargetSpeed, pt.TargetTorque, pt.AvgSpeed, ptFreq, pt.AvgTorque, ptElecPwr, pt.AvgMechPower, ptPf, pt.AvgEfficiency, pt.Status));
                         }
                         sw.WriteLine();
                         sw.WriteLine("=== 各測試點 30 秒每秒穩定資料明細 (1Hz) ===");
-                        sw.WriteLine("Point,SampleSec,Speed_rpm,Torque_Nm,MechPower_kW,ElecPower_kW,Efficiency_pct,VoltSigma_V,CurrSigma_A,PowerFactor");
+                        sw.WriteLine("Point,SampleSec,Speed_rpm,Frequency_Hz,Torque_Nm,Voltage_U1_V,Voltage_U2_V,Voltage_U3_V,Current_I1_A,Current_I2_A,Current_I3_A,ElecPower_kW,MechPower_kW,PF,Efficiency_pct,Kt_NmA,VoltSigma_V,CurrSigma_A,MotorTemp_C");
                         for (int i = 0; i < tnCustomPoints.Count; i++)
                         {
                             var pt = tnCustomPoints[i];
+                            sw.WriteLine(); // ★ 依 Modify.txt: 在確定穩定後抓取30筆數據時給資料一個斷行
                             for (int s = 0; s < pt.Samples.Count; s++)
                             {
                                 var row = pt.Samples[s];
-                                sw.WriteLine(string.Format("{0},{1},{2:F1},{3:F2},{4:F2},{5:F2},{6:F1},{7:F1},{8:F2},{9:F3}",
-                                    pt.Index, s + 1, row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7]));
+                                sw.WriteLine(string.Format("{0},{1},{2:F1},{3:F2},{4:F2},{5:F2},{6:F2},{7:F2},{8:F3},{9:F3},{10:F3},{11:F2},{12:F2},{13:F3},{14:F1},{15:F2},{16:F1},{17:F2},{18:F1}",
+                                    pt.Index, s + 1,
+                                    row[0], row[1], row[2],
+                                    row[3], row[4], row[5],
+                                    row[6], row[7], row[8],
+                                    row[9], row[10], row[11], row[12],
+                                    row[13], row[14], row[15], row[16]));
                             }
+                            sw.WriteLine(); // ★ 依 Modify.txt: 結束後也多一個斷行方便識別測試區間
                         }
                     }
+                    PurgeLocalLogs(false);
                     MessageBox.Show("T-N 多點自訂測試完整報表 (含30秒秒級明細) 已成功匯出至:\n" + multiPath, "匯出成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
@@ -1714,6 +1856,7 @@ namespace DynamometerHMI
                         sw.WriteLine(string.Format("{0},{1}", i + 1, string.Join(",", tnResults[i])));
                     }
                 }
+                PurgeLocalLogs(false);
                 MessageBox.Show("T-N 測試報表已成功匯出至:\n" + path, "匯出成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)

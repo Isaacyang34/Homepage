@@ -673,7 +673,10 @@ namespace DynamometerHMI
             {
                 samples.RemoveRange(0, 120);
             }
-            this.Invalidate();
+            if (this.Visible)
+            {
+                this.Invalidate();
+            }
         }
 
         private bool[] channelVisible = null; // null = 全部顯示
@@ -1816,7 +1819,10 @@ namespace DynamometerHMI
                     samples.RemoveRange(0, samples.Count - MaxPoints);
                 }
             }
-            this.Invalidate();
+            if (this.Visible)
+            {
+                this.Invalidate();
+            }
         }
 
         public void ClearData()
@@ -2597,9 +2603,12 @@ namespace DynamometerHMI
     // =========================================================================
     //  RAW DATA 採樣數據累積器 (用於設定時間窗口內進行算術平均 Arithmetic Mean 計算)
     // =========================================================================
+    //  RAW DATA 高頻採樣累加器 (支援 N 毫秒算術平均輸出，消除高頻雜訊)
+    // =========================================================================
     public class RawDataSampleAccumulator
     {
         private readonly List<double> speeds = new List<double>();
+        private readonly List<double> frequencies = new List<double>();
         private readonly List<double> torques = new List<double>();
         private readonly List<double> mechPowers = new List<double>();
         private readonly List<double> elecPowers = new List<double>();
@@ -2625,7 +2634,7 @@ namespace DynamometerHMI
         private string lastKebB = "";
 
         public void AddSample(
-            double spd, double trq, double pMech, double pElec, double eff, double kt,
+            double spd, double freq, double trq, double pMech, double pElec, double eff, double kt,
             double u1, double i1, double p1,
             double u2, double i2, double p2,
             double u3, double i3, double p3,
@@ -2633,6 +2642,7 @@ namespace DynamometerHMI
             double[] gbd, string ka, string kb)
         {
             speeds.Add(spd);
+            frequencies.Add(freq);
             torques.Add(trq);
             mechPowers.Add(pMech);
             elecPowers.Add(pElec);
@@ -2659,6 +2669,7 @@ namespace DynamometerHMI
         {
             if (speeds.Count == 0) return "";
             double avgSpd = speeds.Average();
+            double avgFreq = frequencies.Count > 0 ? frequencies.Average() : 0.0;
             double avgTrq = torques.Average();
             double avgPMech = mechPowers.Average();
             double avgPElec = elecPowers.Average();
@@ -2682,19 +2693,25 @@ namespace DynamometerHMI
             double avgPf = pfs.Count > 0 ? pfs.Average() : 0.0;
             double avgT = temps.Count > 0 ? temps.Average() : 25.0;
 
+            // 依 Modify.txt 規範順序:
+            // 時間 轉速 頻率(KEB ru.03) 轉矩 電壓1 電壓2 電壓3 電流1 電流2 電流3 輸入功率 輸出功率 功因 效率 [Kt P1 P2 P3 V_Sigma I_Sigma] 溫度
             StringBuilder sb = new StringBuilder();
-            sb.AppendFormat("\"{0}\",{1:F1},{2:F2},{3:F2},{4:F2},{5:F1},{6:F2}",
+            sb.AppendFormat("\"{0}\",{1:F1},{2:F2},{3:F2}",
                 timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff"),
-                avgSpd, avgTrq, avgPMech, avgPElec,
-                avgEff, avgKt);
+                avgSpd, avgFreq, avgTrq);
 
-            sb.AppendFormat(",{0:F2},{1:F3},{2:F3},{3:F2},{4:F3},{5:F3},{6:F2},{7:F3},{8:F3}",
-                avgU1, avgI1, avgP1,
-                avgU2, avgI2, avgP2,
-                avgU3, avgI3, avgP3);
+            sb.AppendFormat(",{0:F2},{1:F2},{2:F2}",
+                avgU1, avgU2, avgU3);
 
-            sb.AppendFormat(",{0:F1},{1:F2},{2:F3},{3:F1}",
-                avgV, avgI, avgPf, avgT);
+            sb.AppendFormat(",{0:F3},{1:F3},{2:F3}",
+                avgI1, avgI2, avgI3);
+
+            sb.AppendFormat(",{0:F2},{1:F2},{2:F3},{3:F1}",
+                avgPElec, avgPMech, avgPf, avgEff);
+
+            sb.AppendFormat(",{0:F2},{1:F3},{2:F3},{3:F3},{4:F1},{5:F2},{6:F1}",
+                avgKt, avgP1, avgP2, avgP3,
+                avgV, avgI, avgT);
 
             for (int i = 0; i < 20; i++)
             {
@@ -2726,6 +2743,7 @@ namespace DynamometerHMI
         public void Clear()
         {
             speeds.Clear();
+            frequencies.Clear();
             torques.Clear();
             mechPowers.Clear();
             elecPowers.Clear();

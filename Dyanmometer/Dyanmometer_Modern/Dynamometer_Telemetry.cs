@@ -40,14 +40,15 @@ namespace DynamometerHMI
                 ForeColor = Color.FromArgb(20, 50, 100)
             };
 
-            // 使用 FlowLayoutPanel 排列按鈕，確保任何視窗寬度都能正常顯示
+            // 使用 FlowLayoutPanel 排列按鈕，確保任何視窗寬度都能正常顯示 (啟用 AutoScroll 防裁切)
             FlowLayoutPanel flowLogTools = new FlowLayoutPanel()
             {
                 Dock = DockStyle.Fill,
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = false,
                 Padding = new Padding(6, 5, 6, 5),
-                AutoSize = false
+                AutoSize = false,
+                AutoScroll = true
             };
 
             Label lInfo2 = new Label()
@@ -176,6 +177,47 @@ namespace DynamometerHMI
             };
             btnPurgeCloud.Click += (s, e) => PurgeCloudLogsAsync(true);
 
+            Label lblLocalRetention = new Label()
+            {
+                Text = "💾 本地保留:",
+                AutoSize = true,
+                Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(16, 149, 193),
+                Margin = new Padding(6, 6, 2, 0)
+            };
+            NumericUpDown numLocalCount = new NumericUpDown()
+            {
+                Minimum = 5,
+                Maximum = 500,
+                Increment = 5,
+                Value = Math.Max(5, Math.Min(500, localLogMaxHistoryCount)),
+                Width = 58,
+                Font = new Font("Consolas", 9.5f, FontStyle.Bold),
+                BackColor = Color.FromArgb(241, 245, 249),
+                ForeColor = Color.FromArgb(16, 149, 193)
+            };
+            numLocalCount.ValueChanged += (s, e) => {
+                localLogMaxHistoryCount = (int)numLocalCount.Value;
+                SaveLayoutConfig();
+            };
+            Label lblLocalUnit = new Label()
+            {
+                Text = "筆",
+                AutoSize = true,
+                Font = new Font("微軟正黑體", 9f),
+                Margin = new Padding(2, 6, 4, 0)
+            };
+            Button btnPurgeLocal = new Button()
+            {
+                Text = "🧹 清理本地",
+                Size = new Size(88, 28),
+                BackColor = Color.FromArgb(71, 85, 105),
+                ForeColor = Color.White,
+                Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold),
+                Margin = new Padding(0, 0, 4, 0)
+            };
+            btnPurgeLocal.Click += (s, e) => PurgeLocalLogs(true);
+
             Label lblKebFreq = new Label()
             {
                 Text = "⚡ KEB更新:",
@@ -245,6 +287,7 @@ namespace DynamometerHMI
             flowLogTools.Controls.AddRange(new Control[] {
                 lInfo2, btnOpenLogDir2, btnExport2, btnClear2, btnUploadLogToCloud2,
                 lblCloudDays, numCloudDays, lblCloudDaysUnit, numCloudCount, lblCloudCountUnit, btnPurgeCloud,
+                lblLocalRetention, numLocalCount, lblLocalUnit, btnPurgeLocal,
                 lblKebFreq, numKebFreqLog, lblKebFreqMs, lblBrakeThreshLog, numBrakeThreshLog, lblBrakeThreshRpm
             });
             pnlLogTools.Controls.Add(flowLogTools);
@@ -382,6 +425,20 @@ namespace DynamometerHMI
                                 currentLogFilePath = file2;
                             }
                             hmiLogWriter.WriteLine(line);
+                            // 歷史日誌單檔過大自動輪替 (超過 10MB 歸檔並開啟新檔，防止 WinXP 硬碟爆滿)
+                            if (hmiLogWriter.BaseStream != null && hmiLogWriter.BaseStream.Length > 10485760L)
+                            {
+                                try
+                                {
+                                    hmiLogWriter.Flush();
+                                    hmiLogWriter.Dispose();
+                                    hmiLogWriter = null;
+                                    string rotatedPath = Path.Combine(logDir, string.Format("hmi_telemetry_{0}.log", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
+                                    if (File.Exists(file2)) File.Move(file2, rotatedPath);
+                                }
+                                catch { }
+                                finally { currentLogFilePath = null; }
+                            }
                         }
                         catch
                         {
@@ -730,11 +787,14 @@ namespace DynamometerHMI
         private string BuildRawCsvHeader()
         {
             StringBuilder sb = new StringBuilder();
-            sb.Append("Timestamp,Speed_rpm,Torque_Nm,MechPower_kW,ElecPower_kW,Efficiency_pct,Kt_NmA");
-            sb.Append(",Voltage_U1_V,Current_I1_A,Power_P1_kW");
-            sb.Append(",Voltage_U2_V,Current_I2_A,Power_P2_kW");
-            sb.Append(",Voltage_U3_V,Current_I3_A,Power_P3_kW");
-            sb.Append(",Voltage_Sigma_V,Current_Sigma_A,PF,MotorTemp_C");
+            // 依 Modify.txt 規範順序:
+            // 時間 轉速 頻率(新增源自於KEB[ru.03]) 轉矩 電壓1 電壓2 電壓3 電流1 電流2 電流3 輸入功率 輸出功率 功因 效率 [其他沒列到的放後面再接上溫度]
+            sb.Append("Timestamp,Speed_rpm,Frequency_Hz,Torque_Nm");
+            sb.Append(",Voltage_U1_V,Voltage_U2_V,Voltage_U3_V");
+            sb.Append(",Current_I1_A,Current_I2_A,Current_I3_A");
+            sb.Append(",ElecPower_kW,MechPower_kW,PF,Efficiency_pct");
+            sb.Append(",Kt_NmA,Power_P1_kW,Power_P2_kW,Power_P3_kW");
+            sb.Append(",Voltage_Sigma_V,Current_Sigma_A,MotorTemp_C");
 
             for (int i = 0; i < 20; i++)
             {
@@ -764,18 +824,22 @@ namespace DynamometerHMI
         private string BuildRawCsvRow(DateTime timestamp)
         {
             StringBuilder sb = new StringBuilder();
-            sb.AppendFormat("\"{0}\",{1:F1},{2:F2},{3:F2},{4:F2},{5:F1},{6:F2}",
+            sb.AppendFormat("\"{0}\",{1:F1},{2:F2},{3:F2}",
                 timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff"),
-                actSpeed, actTorque, actMechPower, actElecPower,
-                actEfficiency, actKt);
+                actSpeed, actFrequency, actTorque);
 
-            sb.AppendFormat(",{0:F2},{1:F3},{2:F3},{3:F2},{4:F3},{5:F3},{6:F2},{7:F3},{8:F3}",
-                wtU1, wtI1, wtP1,
-                wtU2, wtI2, wtP2,
-                wtU3, wtI3, wtP3);
+            sb.AppendFormat(",{0:F2},{1:F2},{2:F2}",
+                wtU1, wtU2, wtU3);
 
-            sb.AppendFormat(",{0:F1},{1:F2},{2:F3},{3:F1}",
-                actVoltageSigma, actCurrentSigma, actPf, actTemp);
+            sb.AppendFormat(",{0:F3},{1:F3},{2:F3}",
+                wtI1, wtI2, wtI3);
+
+            sb.AppendFormat(",{0:F2},{1:F2},{2:F3},{3:F1}",
+                actElecPower, actMechPower, actPf, actEfficiency);
+
+            sb.AppendFormat(",{0:F2},{1:F3},{2:F3},{3:F3},{4:F1},{5:F2},{6:F1}",
+                actKt, wtP1, wtP2, wtP3,
+                actVoltageSigma, actCurrentSigma, actTemp);
 
             for (int i = 0; i < 20; i++)
             {
@@ -1086,6 +1150,9 @@ namespace DynamometerHMI
                     btnRecordRawTop.BackColor = Color.FromArgb(220, 38, 38);
                 }
                 WriteHmiLog("RECORDER", string.Format(" [RAW DATA 錄製完成] 馬達: {0} | 共錄製 {1} 筆 RAW DATA 數據至 CSV 與 GBD！", motorModelName, manualRecordCount));
+
+                // 本地日誌生命週期維護：錄製結束後自動觸發本地日誌修剪 (保留最新 30 筆)
+                PurgeLocalLogs(false);
 
                 if (showPrompt)
                 {

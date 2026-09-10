@@ -1,0 +1,16 @@
+Timestamp	Speed_rpm	Torque_Nm	MechPower_kW	ElecPower_kW	Efficiency_pct	Kt_NmA	Voltage_U1_V	Current_I1_A	Power_P1_kW	Voltage_U2_V	Current_I2_A	Power_P2_kW	Voltage_U3_V	Current_I3_A	Power_P3_kW	Voltage_Sigma_V	Current_Sigma_A	PF
+
+以上是目前的csv紀錄檔的資料順序，後面溫度沒有要改就不節錄
+
+修改資料順序
+
+時間 轉速 頻率(新增源自於KEB[ru.03]) 轉矩 電壓1 電壓2 電壓3 電流1 電流2 電流3 輸入功率 輸出功率 功因 效率 [其他沒列到的放後面再接上溫度]
+
+請更改全部紀錄檔的格式如上
+
+--------------------------------------------------------------------
+TN測試紀錄檔優化
+
+在確定穩定後抓取30筆數據時給資料一個斷行
+結束後也多一個斷行方便識別測試區間
+

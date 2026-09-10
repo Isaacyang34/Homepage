@@ -398,7 +398,7 @@ namespace DynamometerHMI
             // -------------------------------------------------------------
             // 右側：專屬溫度監控與即時動態波形 (S1/S2/S6 模式自適應，含 S6 熱平衡與兩段超溫監控)
             // -------------------------------------------------------------
-            GroupBox grpDutyTemp = new GroupBox()
+            grpDutyTemp = new GroupBox()
             {
                 Text = "🌡️ 專屬溫度監控與即時動態波形",
                 Dock = DockStyle.Fill,
@@ -441,9 +441,7 @@ namespace DynamometerHMI
             };
             pnlTempHeader.Controls.AddRange(new Control[] { lblDutyTempTrendTitle, lblDutyTempRealtimeVal, lblS6ThermalStatus, lblDutyAllChTempsDisp });
 
-            // 專屬動態溫度曲線 (升級與空載溫升同款 GbdTemperatureTrendControl 多通道彩色波形、時間跨度切換與端點標籤)
-            dutyTempTrend = new GbdTemperatureTrendControl(this) { Dock = DockStyle.Fill };
-            if (s1MonitoredChannels != null) dutyTempTrend.SetChannelVisibility(s1MonitoredChannels);
+            // 專屬動態溫度曲線：與 TN / 空載 共用 sharedTestTempTrend，當使用者切換至此分頁時由 AttachSharedTempTrendTo 動態掛載
 
             // 底部 S6 兩段式超溫防護列
             pnlS6Overtemp = new Panel() { Dock = DockStyle.Bottom, Height = 48, BackColor = Color.FromArgb(254, 242, 242), Padding = new Padding(4) };
@@ -462,7 +460,7 @@ namespace DynamometerHMI
 
             pnlS6Overtemp.Controls.AddRange(new Control[] { lWarn, numS6WarnTemp, lTrip, numS6TripTemp, lAct, cmbS6OvertempAction });
 
-            grpDutyTemp.Controls.Add(dutyTempTrend); // Fill
+            // grpDutyTemp 內容由 AttachSharedTempTrendTo 動態掛載共用趨勢圖
             grpDutyTemp.Controls.Add(pnlTempHeader); // Top
             grpDutyTemp.Controls.Add(pnlS6Overtemp);  // Bottom
 
@@ -2950,6 +2948,7 @@ namespace DynamometerHMI
                         sw.WriteLine(string.Join(",", row));
                     }
                 }
+                PurgeLocalLogs(false);
                 MessageBox.Show("工作制報表已匯出至:\n" + path, "匯出成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
