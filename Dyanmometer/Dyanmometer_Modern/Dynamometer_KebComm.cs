@@ -81,6 +81,9 @@ namespace DynamometerHMI
             public short Data;
         }
 
+        // =========================================================================
+        // protKEB.dll (A載台 / COM1) — P/Invoke 完整宣告
+        // =========================================================================
         [DllImport("protKEB.dll", CallingConvention = CallingConvention.StdCall)]
         public static extern void closechannels();
 
@@ -98,6 +101,45 @@ namespace DynamometerHMI
 
         [DllImport("protKEB.dll", CallingConvention = CallingConvention.StdCall, EntryPoint = "waitwrreq")]
         public static extern int waitwrreq(int inv, int service, byte[] servRec, byte[] recTel);
+
+        // copydata(Source, Destination, cntBytes) — 原廠 VB6 用於解引用 RT.SR 指標取 tServ00Rec.Data
+        // 呼叫規範: copydata(SR_ptr_as_int, ref dest_struct_byte0, size)
+        [DllImport("protKEB.dll", CallingConvention = CallingConvention.StdCall, EntryPoint = "copydata")]
+        public static extern void copydata_1(int source, byte[] destination, int cntBytes);
+
+        // =========================================================================
+        // protKEB_2.dll (B載台 / COM2) — 獨立雙 DLL 架構，防止 COM 通道衝突
+        // 原廠 2013.08.31 確認：需複製 protKEB.dll 為 protKEB_2.dll 方能同時使用兩個 Comport
+        // =========================================================================
+        [DllImport("protKEB_2.dll", CallingConvention = CallingConvention.StdCall, EntryPoint = "closechannels")]
+        public static extern void closechannels_2();
+
+        [DllImport("protKEB_2.dll", CallingConvention = CallingConvention.StdCall, EntryPoint = "setprotproperties")]
+        public static extern int setprotproperties_2(ref tProtProperty prop);
+
+        [DllImport("protKEB_2.dll", CallingConvention = CallingConvention.StdCall, EntryPoint = "setinvprot")]
+        public static extern int setinvprot_2(int inv, int prot);
+
+        [DllImport("protKEB_2.dll", CallingConvention = CallingConvention.StdCall, EntryPoint = "setretrycnt")]
+        public static extern void setretrycnt_2(int retries);
+
+        [DllImport("protKEB_2.dll", CallingConvention = CallingConvention.StdCall, EntryPoint = "waitrdreq")]
+        public static extern int waitrdreq_2(int inv, int service, byte[] servRec, byte[] recTel);
+
+        [DllImport("protKEB_2.dll", CallingConvention = CallingConvention.StdCall, EntryPoint = "waitwrreq")]
+        public static extern int waitwrreq_2(int inv, int service, byte[] servRec, byte[] recTel);
+
+        [DllImport("protKEB_2.dll", CallingConvention = CallingConvention.StdCall, EntryPoint = "copydata")]
+        public static extern void copydata_2(int source, byte[] destination, int cntBytes);
+
+        // =========================================================================
+        // 雙 DLL 各自的 COM 通道狀態追蹤 (防止不必要的 closechannels)
+        // =========================================================================
+        private static readonly object kebLock = new object();
+        private static int activeKebComIndex_1 = -1;   // protKEB.dll (A載台)
+        private static int activeKebBaudIndex_1 = -1;
+        private static int activeKebComIndex_2 = -1;   // protKEB_2.dll (B載台)
+        private static int activeKebBaudIndex_2 = -1;
 
         // =========================================================================
         //  硬體 ST 安全端子與 ru.00 狀態解碼與即時變更追蹤
@@ -632,9 +674,8 @@ namespace DynamometerHMI
         private bool isHmiKebOpen2 = false;
         private int cachedUd02_1 = -1, cachedUd02_2 = -1;
         private int cachedCs00_1 = -1, cachedCs00_2 = -1;
-        private static readonly object kebLock = new object();
-        private static int activeKebComIndex = -1;
-        private static int activeKebBaudIndex = -1;
+        private static int activeKebComIndex_hmi = -1;  // 僅供 EnsureHmiKebOpen 舊版HMI通道追蹤
+        private static int activeKebBaudIndex_hmi = -1;
 
 
 
@@ -663,8 +704,8 @@ namespace DynamometerHMI
                     setprotproperties(ref prop);
                     setretrycnt(3);
                     setinvprot((int)numHmiKebNode1.Value, 1);
-                    activeKebComIndex = comIdx;
-                    activeKebBaudIndex = baudIdx;
+                    activeKebComIndex_hmi = comIdx;
+                    activeKebBaudIndex_hmi = baudIdx;
                 }
 
                 // 實體通訊握手校驗：多重探測 ud.02 (0x0802) / oP.00 (0x0300) / ru.00 (0x0200) / Sy.51 (0x0033) / ru.07 (0x0207)
@@ -735,7 +776,7 @@ namespace DynamometerHMI
             lock (kebLock)
             {
                 try { closechannels(); } catch { }
-                activeKebComIndex = -1;
+                activeKebComIndex_hmi = -1;
             }
             if (spKeb1 != null) { try { spKeb1.Close(); spKeb1.Dispose(); } catch {} spKeb1 = null; }
             isHmiKebOpen1 = false;
@@ -772,7 +813,7 @@ namespace DynamometerHMI
             {
                 lock (kebLock)
                 {
-                    closechannels();
+                    closechannels_2();
                     tProtProperty prop = new tProtProperty();
                     prop.ProtType = 1; // DIN 66019-II (prAnsi)
                     prop.Baudrate = baudIdx;
@@ -782,11 +823,11 @@ namespace DynamometerHMI
                     prop.Port     = 0;
                     prop.Txtlen   = 0;
                     prop.txt      = "";
-                    setprotproperties(ref prop);
-                    setretrycnt(3);
-                    setinvprot((int)numHmiKebNode2.Value, 1);
-                    activeKebComIndex = comIdx;
-                    activeKebBaudIndex = baudIdx;
+                    setprotproperties_2(ref prop);
+                    setretrycnt_2(3);
+                    setinvprot_2((int)numHmiKebNode2.Value, 1);
+                    activeKebComIndex_hmi = comIdx;
+                    activeKebBaudIndex_hmi = baudIdx;
                 }
 
                 // 實體通訊握手校驗：多重探測 ud.02 (0x0802) / oP.00 (0x0300) / ru.00 (0x0200) / Sy.51 (0x0033) / ru.07 (0x0207)
@@ -856,8 +897,8 @@ namespace DynamometerHMI
 
             lock (kebLock)
             {
-                try { closechannels(); } catch { }
-                activeKebComIndex = -1;
+                try { closechannels_2(); } catch { }
+                activeKebComIndex_hmi = -1;
             }
             if (spKeb2 != null) { try { spKeb2.Close(); spKeb2.Dispose(); } catch {} spKeb2 = null; }
             isHmiKebOpen2 = false;
@@ -2157,86 +2198,177 @@ namespace DynamometerHMI
             }
         }
 
+        // =========================================================================
+        // KEB 參數讀取核心函數 — 雙 DLL 版本
+        //
+        // 【根本修復說明 — 2026-09-10】
+        // 原始程式碼錯誤：BitConverter.ToInt32(rxBuf, 24)
+        //   tRecTel 結構大小 = 4+4+4+4+1+1+2+4 = 24 bytes，所以 offset 24 已超出結構體範圍！
+        //   讀到的是 rxBuf 中未初始化的記憶體，永遠為 0。
+        //
+        // 正確修復：
+        //   1. 從 rxBuf[20..23] 讀取 SR 欄位（一個 32-bit 非託管記憶體指標）
+        //   2. 用原廠 copydata(SR, destBuf, 8) 將 tServ00Rec (8 bytes) 複製到托管緩衝區
+        //      tServ00Rec layout: Adr(2B) + Paraset(1B) + Fill(1B) + Data(4B)
+        //   3. 從 destBuf[4..7] 取得真正的 Data 值
+        //
+        // 雙 DLL 分流規則：
+        //   - 使用 comIndex 1 (COM2, B載台) → protKEB_2.dll
+        //   - 其他 (COM1, A載台) → protKEB.dll
+        //   原廠 2013.08.31 歷史紀錄確認必須使用雙 DLL 才能同時維持兩個 Comport 連線！
+        // =========================================================================
         private static int? KebReadParamWithDll(int comIndex, int baudIndex, int invAddr, int paramAddr, int paramSet = 1)
         {
+            bool useDll2 = (comIndex == 1); // COM2 = index 1 = B載台 → protKEB_2.dll
             lock (kebLock)
             {
                 try
                 {
-                    if (activeKebComIndex != comIndex || activeKebBaudIndex != baudIndex)
+                    if (useDll2)
                     {
-                        closechannels();
-                        tProtProperty prop = new tProtProperty();
-                        prop.ProtType = 1; // DIN 66019-II (prAnsi)
-                        prop.Baudrate = baudIndex;
-                        prop.Comport  = comIndex;
-                        prop.TimeOut  = 600;
-                        prop.Flag     = 0;
-                        prop.Port     = 0;     // 必填：tcp 模式保留欄位
-                        prop.Txtlen   = 0;     // 必填：防止 DLL 讀入垃圾記憶體
-                        prop.txt      = "";    // 必填：managed 字串歸零
-                        setprotproperties(ref prop);
-                        setretrycnt(1); // 快速非阻塞輪詢，避免單參數逾時卡死通訊
-                        activeKebComIndex = comIndex;
-                        activeKebBaudIndex = baudIndex;
+                        // ---- B載台：protKEB_2.dll (COM2) ----
+                        if (activeKebComIndex_2 != comIndex || activeKebBaudIndex_2 != baudIndex)
+                        {
+                            closechannels_2();
+                            tProtProperty prop = new tProtProperty();
+                            prop.ProtType = 1; prop.Baudrate = baudIndex; prop.Comport = comIndex;
+                            prop.TimeOut  = 600; prop.Flag = 0; prop.Port = 0;
+                            prop.Txtlen   = 0; prop.txt = "";
+                            setprotproperties_2(ref prop);
+                            setretrycnt_2(1);
+                            activeKebComIndex_2 = comIndex;
+                            activeKebBaudIndex_2 = baudIndex;
+                        }
+                        setinvprot_2(invAddr, 1);
+
+                        byte[] txBuf = new byte[256];
+                        byte[] rxBuf = new byte[256];
+                        BitConverter.GetBytes((short)paramAddr).CopyTo(txBuf, 0);
+                        txBuf[2] = (byte)paramSet;
+
+                        int res = waitrdreq_2(invAddr, 0, txBuf, rxBuf);
+                        int ack = BitConverter.ToInt32(rxBuf, 12);
+
+                        if (res == 0 && ack == 0)
+                        {
+                            // 讀取 RT.SR 指標 (tRecTel offset 20..23)
+                            int srPtr = BitConverter.ToInt32(rxBuf, 20);
+                            if (srPtr != 0)
+                            {
+                                byte[] servBuf = new byte[16]; // tServ00Rec = 8B，多給空間
+                                copydata_2(srPtr, servBuf, 8);
+                                return BitConverter.ToInt32(servBuf, 4); // Data 欄位在 offset 4
+                            }
+                        }
                     }
-
-                    setinvprot(invAddr, 1);
-
-                    byte[] txBuf = new byte[256];
-                    byte[] rxBuf = new byte[256];
-                    BitConverter.GetBytes((short)paramAddr).CopyTo(txBuf, 0);
-                    txBuf[2] = (byte)paramSet;
-
-                    int res = waitrdreq(invAddr, 0, txBuf, rxBuf);
-                    int ack = BitConverter.ToInt32(rxBuf, 12);
-
-                    if (res == 0 && ack == 0)
+                    else
                     {
-                        return BitConverter.ToInt32(rxBuf, 24);
+                        // ---- A載台：protKEB.dll (COM1) ----
+                        if (activeKebComIndex_1 != comIndex || activeKebBaudIndex_1 != baudIndex)
+                        {
+                            closechannels();
+                            tProtProperty prop = new tProtProperty();
+                            prop.ProtType = 1; prop.Baudrate = baudIndex; prop.Comport = comIndex;
+                            prop.TimeOut  = 600; prop.Flag = 0; prop.Port = 0;
+                            prop.Txtlen   = 0; prop.txt = "";
+                            setprotproperties(ref prop);
+                            setretrycnt(1);
+                            activeKebComIndex_1 = comIndex;
+                            activeKebBaudIndex_1 = baudIndex;
+                        }
+                        setinvprot(invAddr, 1);
+
+                        byte[] txBuf = new byte[256];
+                        byte[] rxBuf = new byte[256];
+                        BitConverter.GetBytes((short)paramAddr).CopyTo(txBuf, 0);
+                        txBuf[2] = (byte)paramSet;
+
+                        int res = waitrdreq(invAddr, 0, txBuf, rxBuf);
+                        int ack = BitConverter.ToInt32(rxBuf, 12);
+
+                        if (res == 0 && ack == 0)
+                        {
+                            // 讀取 RT.SR 指標 (tRecTel offset 20..23)
+                            int srPtr = BitConverter.ToInt32(rxBuf, 20);
+                            if (srPtr != 0)
+                            {
+                                byte[] servBuf = new byte[16];
+                                copydata_1(srPtr, servBuf, 8);
+                                return BitConverter.ToInt32(servBuf, 4); // Data 欄位在 offset 4
+                            }
+                        }
                     }
                 }
-                catch { activeKebComIndex = -1; try { closechannels(); } catch { } }
+                catch (Exception ex)
+                {
+                    WriteHmiLog("KEB_ERR", "KebReadParamWithDll 例外: " + ex.Message);
+                    if (useDll2) { activeKebComIndex_2 = -1; try { closechannels_2(); } catch { } }
+                    else         { activeKebComIndex_1 = -1; try { closechannels();   } catch { } }
+                }
                 return null;
             }
         }
 
         private static bool KebWriteParamWithDll(int comIndex, int baudIndex, int invAddr, int paramAddr, int val, int paramSet = 1)
         {
+            bool useDll2 = (comIndex == 1);
             lock (kebLock)
             {
                 try
                 {
-                    if (activeKebComIndex != comIndex || activeKebBaudIndex != baudIndex)
+                    if (useDll2)
                     {
-                        closechannels();
-                        tProtProperty prop = new tProtProperty();
-                        prop.ProtType = 1; // DIN 66019-II (prAnsi)
-                        prop.Baudrate = baudIndex;
-                        prop.Comport  = comIndex;
-                        prop.TimeOut  = 600;
-                        prop.Flag     = 0;
-                        prop.Port     = 0;     // 必填：tcp 模式保留欄位
-                        prop.Txtlen   = 0;     // 必填：防止 DLL 讀入垃圾記憶體
-                        prop.txt      = "";    // 必填：managed 字串歸零
-                        setprotproperties(ref prop);
-                        setretrycnt(3); // 對齊 KEB_XP_Portable_Tester 參考值
-                        activeKebComIndex = comIndex;
-                        activeKebBaudIndex = baudIndex;
+                        if (activeKebComIndex_2 != comIndex || activeKebBaudIndex_2 != baudIndex)
+                        {
+                            closechannels_2();
+                            tProtProperty prop = new tProtProperty();
+                            prop.ProtType = 1; prop.Baudrate = baudIndex; prop.Comport = comIndex;
+                            prop.TimeOut  = 600; prop.Flag = 0; prop.Port = 0;
+                            prop.Txtlen   = 0; prop.txt = "";
+                            setprotproperties_2(ref prop);
+                            setretrycnt_2(3);
+                            activeKebComIndex_2 = comIndex;
+                            activeKebBaudIndex_2 = baudIndex;
+                        }
+                        setinvprot_2(invAddr, 1);
+                        byte[] txBuf = new byte[256]; byte[] rxBuf = new byte[256];
+                        BitConverter.GetBytes((short)paramAddr).CopyTo(txBuf, 0);
+                        txBuf[2] = (byte)paramSet;
+                        BitConverter.GetBytes(val).CopyTo(txBuf, 4);
+                        int res = waitwrreq_2(invAddr, 0, txBuf, rxBuf);
+                        int ack = BitConverter.ToInt32(rxBuf, 12);
+                        return (res == 0 && ack == 0);
                     }
-
-                    setinvprot(invAddr, 1);
-
-                    byte[] txBuf = new byte[256];
-                    byte[] rxBuf = new byte[256];
-                    BitConverter.GetBytes((short)paramAddr).CopyTo(txBuf, 0);
-                    txBuf[2] = (byte)paramSet;
-                    BitConverter.GetBytes(val).CopyTo(txBuf, 4);
-                    int res = waitwrreq(invAddr, 0, txBuf, rxBuf);
-                    int ack = BitConverter.ToInt32(rxBuf, 12);
-                    return (res == 0 && ack == 0);
+                    else
+                    {
+                        if (activeKebComIndex_1 != comIndex || activeKebBaudIndex_1 != baudIndex)
+                        {
+                            closechannels();
+                            tProtProperty prop = new tProtProperty();
+                            prop.ProtType = 1; prop.Baudrate = baudIndex; prop.Comport = comIndex;
+                            prop.TimeOut  = 600; prop.Flag = 0; prop.Port = 0;
+                            prop.Txtlen   = 0; prop.txt = "";
+                            setprotproperties(ref prop);
+                            setretrycnt(3);
+                            activeKebComIndex_1 = comIndex;
+                            activeKebBaudIndex_1 = baudIndex;
+                        }
+                        setinvprot(invAddr, 1);
+                        byte[] txBuf = new byte[256]; byte[] rxBuf = new byte[256];
+                        BitConverter.GetBytes((short)paramAddr).CopyTo(txBuf, 0);
+                        txBuf[2] = (byte)paramSet;
+                        BitConverter.GetBytes(val).CopyTo(txBuf, 4);
+                        int res = waitwrreq(invAddr, 0, txBuf, rxBuf);
+                        int ack = BitConverter.ToInt32(rxBuf, 12);
+                        return (res == 0 && ack == 0);
+                    }
                 }
-                catch { activeKebComIndex = -1; try { closechannels(); } catch { } }
+                catch (Exception ex)
+                {
+                    WriteHmiLog("KEB_ERR", "KebWriteParamWithDll 例外: " + ex.Message);
+                    if (useDll2) { activeKebComIndex_2 = -1; try { closechannels_2(); } catch { } }
+                    else         { activeKebComIndex_1 = -1; try { closechannels();   } catch { } }
+                }
                 return false;
             }
         }

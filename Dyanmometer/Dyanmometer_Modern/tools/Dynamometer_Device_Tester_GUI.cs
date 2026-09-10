@@ -95,6 +95,10 @@ namespace DynamometerDeviceTester
         [DllImport("protKEB.dll", CallingConvention = CallingConvention.StdCall, EntryPoint = "waitwrreq")]
         public static extern int waitwrreq(int inv, int service, byte[] servRec, byte[] recTel);
 
+        // copydata(Source, Destination, cntBytes) — 解引用 tRecTel.SR 指標取得 tServ00Rec.Data
+        [DllImport("protKEB.dll", CallingConvention = CallingConvention.StdCall, EntryPoint = "copydata")]
+        public static extern void copydata_1(int source, byte[] destination, int cntBytes);
+
         // 頂部大分頁導航按鈕 (4 大設備)
         private Button btnTab1, btnTab2, btnTab3, btnTab4;
         private Panel pnlTorque, pnlPower, pnlGbd, pnlKeb;
@@ -1775,8 +1779,11 @@ namespace DynamometerDeviceTester
                         prop.ProtType = 1; // DIN 66019-II
                         prop.Baudrate = baudIndex;
                         prop.Comport  = comIndex;
-                        prop.TimeOut  = 500;
+                        prop.TimeOut  = 600;
                         prop.Flag     = 0;
+                        prop.Port     = 0;
+                        prop.Txtlen   = 0;
+                        prop.txt      = "";
                         setprotproperties(ref prop);
                         setretrycnt(2);
                         activeKebComIndex = comIndex;
@@ -1795,7 +1802,16 @@ namespace DynamometerDeviceTester
 
                     if (res == 0 && ack == 0)
                     {
-                        return BitConverter.ToInt32(rxBuf, 24);
+                        // 【根本修復 2026-09-10】原 BitConverter.ToInt32(rxBuf, 24) 讀到的是結構體外的
+                        // 未初始化記憶體（tRecTel 只有 24 bytes），永遠為 0！
+                        // 正確做法：讀 SR 指標 (offset 20)，然後用 copydata 解引用取 Data (offset 4)。
+                        int srPtr = BitConverter.ToInt32(rxBuf, 20);
+                        if (srPtr != 0)
+                        {
+                            byte[] servBuf = new byte[16]; // tServ00Rec = 8B
+                            copydata_1(srPtr, servBuf, 8);
+                            return BitConverter.ToInt32(servBuf, 4); // Data 欄位在 offset 4
+                        }
                     }
                 }
                 catch { activeKebComIndex = -1; try { closechannels(); } catch { } }
