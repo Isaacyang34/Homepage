@@ -7,8 +7,14 @@
 ## Beta 版本對照索引
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
-| V2.67 (beta) | v2.10.27 | 2026-09-10 | 紀錄檔生成與自動執行短時間自動清理 (錄製未滿 1 分鐘門檻自動銷毀零碎 CSV/GBD 檔案、手動/自動測試全場景攔截、即時秒數/筆數進度回饋、PurgeLocalLogs 廢檔主動修剪)：(1)現象與佐證：使用者提出工程實證與精準指示：「紀錄檔的生成，若時間太短，則直接刪除；自動執行的部分，若時間太短則直接將紀錄檔刪除，避免太多檔案；有紀錄到的時間最少要有1分鐘」；(2)致命根因：過去手動點擊錄製或自動測試 (NoLoad / TN / DutyCycle) 一旦啟動即無條件於磁碟建立 CSV 與 12KB GBD 實體檔案，若測試因操作誤觸、參數設錯、安全防護立即中斷或測試時間僅數秒至幾十秒，便會在 logs/ 產生大量只有標頭或僅數筆數據的無效零碎廢檔，長期累積嚴重干擾資料整理；(3)精確修復方案：Dynamometer_HMI_WinForms.cs 宣告 manualRecordStartTime 錄製起始計時戳記、isAutoTriggeredRecording 與 autoRecordTestTag 追蹤標籤；Dynamometer_Telemetry.cs 於 StartManualRecordingWithParams / StartAutoRawRecordingWithTag 鎖定錄製開始時刻，並於 UI 工具列按鈕即時動態更新 (如 "停止錄製 (25s/25筆)")；StopManualRecording 嚴格計算錄製時長 durationSec，若未滿 60.0 秒 (最低 1 分鐘門檻)，立即安全關閉檔案串流並直接呼叫 File.Delete 銷毀對應之 .csv 與 .gbd 檔案，輸出 [AUTO_RAW]/[RECORDER] 清理日誌並於手動模式跳出友善提示，避免彈窗凍結自動測試；Dynamometer_WebServer.cs 於 PurgeLocalLogs 自動清理前增加 < 500 bytes 零碎/中斷廢檔主動銷毀邏輯；(4)版本號升級至 APP_VERSION = "2.6.7"，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
-| V2.66 (beta) | v2.10.26 | 2026-09-10 | 雲端監控中心取消無效密碼鎖定、導入訪客靜默足跡審計引擎 (全自動提取公網 IP / 縣市地理位置 / 電信網路商 / 裝置指紋 / 來源 Referrer / 在線停留時長，即時推播 Firebase 雲端審計庫，網頁端抽屜彈窗即時查閱，工控機 C# 主程式自動通報新訪客進入)：(1)現象與佐證：使用者提出工程實證與改進指令：「我發現網頁做了加密還是被破解掉了；這邊能座登入者的資訊蒐集嗎? 直接取消登入的密碼功能」；(2)致命根因：GitHub Pages 屬於純靜態前端託管環境，無後端伺服器進行 Session Token 授權，前端密碼驗證邏輯與資料庫網址完全暴露於訪客瀏覽器，透過 F12 開發者工具即可直接繞過遮罩或擷取 Firebase live.json 裸端點，密碼功能形同虛設且造成正常訪問之繁瑣阻礙；(3)精確修復方案：WebMonitor.html 徹底刪除 #auth-overlay 密碼遮罩、密碼比對與冷卻鎖定邏輯，開啟頁面直接無縫秒進 SSE 即時串流；實裝 initVisitorAudit() 靜默審計引擎，無感提取訪客真實公網 IP、縣市位置與電信商 (中華電信/遠傳/台哥大等)、行動裝置/OS/瀏覽器、螢幕解析度、來源 Referrer、回訪次數與停留秒數，推播至 Firebase /audit/visitors/ 與 /audit/latest_visitor.json；頂部導航列實裝「👥 訪客足跡」抽屜彈窗供隨時查閱；Dynamometer_WebServer.cs 實作 CheckRemoteVisitorAudit() 於工控主程式背景輪詢最新訪客，並於主畫面輸出 [WEB_AUDIT] 通報日誌；(4)版本號升級至 APP_VERSION = "2.6.6"，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
+| :--- | :--- | :--- | :--- |
+| V2.67 (beta) | v2.10.27 | 2026-09-10 | 紀錄檔生成與自動執行短時間自動清理 (錄製未滿 1 分鐘門檻自動銷毀零碎 CSV/GBD 檔案、手動/自動測試全場景攔截、即時秒數/筆數進度回饋、PurgeLocalLogs 廢檔主動修剪) |
+| V2.66 (beta) | v2.10.26 | 2026-09-10 | 雲端監控中心取消無效密碼鎖定、導入訪客靜默足跡審計引擎 (全自動提取公網 IP / 縣市地理位置 / 電信網路商 / 裝置指紋 / 來源 Referrer / 在線停留時長，即時推播 Firebase 雲端審計庫，網頁端抽屜彈窗即時查閱，工控機 C# 主程式自動通報新訪客進入) |
+| V2.65 (beta) | v2.10.25 | 2026-09-10 | 全維度系統健康與資源觀測體系 (Win32 原生 GDI/USER 控制碼監測、託管 GC 堆積與實體 RAM 雙層指標、UI 訊息排程反應抖動、日誌每 60 秒 [HEALTH] 遙測輸出、Firebase 雲端健康串流與 UI 智慧預警膠囊) |
+| V2.64 (beta) | v2.10.24 | 2026-09-10 | CSV 全紀錄檔欄位標準化重排 (導入 KEB ru.03 輸出頻率、對齊時間/轉速/頻率/轉矩/三相電壓/三相電流/輸入功率/輸出功率/功因/效率標準序)、T-N 測試 30 筆穩定數據擷取前後雙向斷行優化 |
+| V2.63 (beta) | v2.10.23 | 2026-09-10 | 本地端日誌生命週期自動清理器 (保留最新 30 筆測試 CSV/GBD 與報表、CRASH 日誌修剪、10MB 日誌自動輪替歸檔、UI 本地保留筆數微調與清理按鈕) |
+
+---
 
 ## [V2.67 beta / v2.10.27] - 2026-09-10
 
@@ -48,7 +54,8 @@
    - 於 `Dynamometer_WebServer.cs` 之本機日誌自動清理流程中，在排序前主動檢測並刪除大小小於 500 bytes 之歷史殘留 CSV 廢檔（及對應 GBD），防範過去中斷的異常空檔案累積。
 5. **版本升級與發布**：
    - 版本升級至 `APP_VERSION = "2.6.7"`，執行 `package_release.ps1 -Version 2.5.0` 完成編譯、打包並自動同步至 GitHub Pages 與 Firebase 版本清單。
-| V2.65 (beta) | v2.10.25 | 2026-09-10 | 全維度系統健康與資源觀測體系 (Win32 原生 GDI/USER 控制碼監測、託管 GC 堆積與實體 RAM 雙層指標、UI 訊息排程反應抖動、日誌每 60 秒 [HEALTH] 遙測輸出、Firebase 雲端健康串流與 UI 智慧預警膠囊)：(1)現象與佐證：使用者提出工程實證質疑：「關於曲線圖的資源累積問題，LOG應該能看到昨天19:00一直到今天08:00我都開著軟體，並沒有崩潰的狀況，我覺得這並不是溫度曲線的問題。請多給定幾個觀測的標的來判斷不要都用猜的」；經比對實測雲端遙測紀錄，機台於 2026-09-09 18:20 啟動後通宵運行至 2026-09-10 09:10 (逾 13 小時未中斷)，圖表歷經逾 46,000 幀渲染無崩潰，直接以客觀數據推翻「溫度歷史曲線累積洩漏資源致死」之猜想；(2)致命根因：缺乏可量化、可追蹤之系統資源觀測維度，過去面對卡頓或偶發閃退僅能盲目猜測；WinXP x86 核心存在 GDI Handle 10,000 實體上限、2GB 虛擬位址極限，且難以釐清是 C# 託管堆積 (GC) 累積還是第三方原生 C-DLL (tmctl.dll/protKEB.dll) 洩漏；(3)精確修復方案：Dynamometer_HMI_WinForms.cs 透過 Win32 P/Invoke 原生導入 user32.dll!GetGuiResources，即時取得 GDI 與 USER 控制碼；全面監測 WorkingSet64、PrivateMemorySize64 與 GC.GetTotalMemory(false)，拆解託管與原生記憶體邊界；計算 UI 執行緒訊息排程反應延遲 (tickDelta - Interval)；狀態列底部新增 lblSystemHealth 智慧預警標籤 (綠/黃/紅三態)；每 60 秒輸出單一整合日誌 [HEALTH] 結構化紀錄；Dynamometer_Telemetry.cs 追蹤隱蔽例外累計計數；Dynamometer_WebServer.cs 於 GetTelemetryJson() 擴充 health_gdi、health_user、health_mem_mb、health_gc_heap_mb、health_threads、health_ui_lag_ms、health_handled_errs，無縫推播至雲端；(4)版本號升級至 APP_VERSION = "2.6.5"，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
+
+---
 
 ## [V2.66 beta / v2.10.26] - 2026-09-10
 
@@ -89,8 +96,8 @@
    - 偵測到新訪客時，於主程式自動輸出：`[WEB_AUDIT] 遠端監看訪客進入: {地點} ({電信商}) | IP: {IP} | 裝置: {OS} / {Browser} | 第 {次數} 次訪問`。
 6. **版本升級與同步發布**：
    - 版本升級至 `APP_VERSION = "2.6.6"`，執行 `package_release.ps1 -Version 2.5.0` 同步至發布目錄並推播至 GitHub Pages。
-| V2.64 (beta) | v2.10.24 | 2026-09-10 | CSV 全紀錄檔欄位標準化重排 (導入 KEB ru.03 輸出頻率、對齊時間/轉速/頻率/轉矩/三相電壓/三相電流/輸入功率/輸出功率/功因/效率標準序)、T-N 測試 30 筆穩定數據擷取前後雙向斷行優化：(1)現象與佐證：依據「功能修改紀錄/Modify.txt」之工程規範要求「時間 轉速 頻率(新增源自於KEB[ru.03]) 轉矩 電壓1 電壓2 電壓3 電流1 電流2 電流3 輸入功率 輸出功率 功因 效率 [其他沒列到的放後面再接上溫度]；請更改全部紀錄檔的格式如上；TN測試紀錄檔優化：在確定穩定後抓取30筆數據時給資料一個斷行，結束後也多一個斷行方便識別測試區間」；(2)致命根因：舊版 CSV 與累加器採用早期「Timestamp, Speed, Torque, MechPower, ElecPower, Efficiency...」之排列，未將變頻器輸出頻率 (ru.03, 0x0203) 納入採樣資料鏈；TN 測試在 5 秒穩定後擷取 30 秒數據時與前後過渡狀態數據無縫緊連，在 Excel / 試算表中分析時無法直觀區隔出各測試點的 30 筆黃金採樣區間；(3)精確修復方案：Dynamometer_HMI_WinForms.cs 增加 kebFrequency1, kebFrequency2 與 actFrequency 即時屬性，將 0x0203 納入預設監控清單與佈局加載自動修復；Dynamometer_KebComm.cs 於 DoHmiKebQuery1 與 DoHmiKebQuery2 實裝 0x0203 週期查詢與 0.01Hz / 0.0001Hz 智慧自適應縮放；Dynamometer_UIControls.cs 之 RawDataSampleAccumulator 擴充 frequencies 序列並更新 AddSample 與 BuildAveragedCsvRow；Dynamometer_Telemetry.cs 之 BuildRawCsvHeader 與 BuildRawCsvRow 依 Modify.txt 標準化重組欄位順序；Dynamometer_TestTN.cs 於子階段 2->3 (5s穩定結束進入30s擷取) 與子階段 3 完成時，向 manualRecordWriter 寫入空行斷行，並於 Report_TN_MultiPoints 報表在各測試點 30 筆資料前後插入斷行；(4)版本號升級至 APP_VERSION = "2.6.4"，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
-| V2.63 (beta) | v2.10.23 | 2026-09-10 | 本地端日誌生命週期自動清理器 (保留最新 30 筆測試 CSV/GBD 與報表、CRASH 日誌修剪、10MB 日誌自動輪替歸檔、UI 本地保留筆數微調與清理按鈕)：(1)現象與佐證：使用者提出本地端日誌維護指令：「LOG的部分，本地端LOG也需要清理，保存最後30筆就好」；現場工控電腦 logs/ 目錄原先採取永久無限期寫入，長期運行產出大量測試 CSV、GBD 與系統日誌，累積大量歷史檔案佔用 WinXP 磁碟空間；(2)致命根因：系統原僅實作雲端歷史日誌之 PurgeCloudLogsAsync 自動修剪 (30筆/7天)，本機端 logs/ 目錄缺乏生命週期旋轉與淘汰機制；hmi_telemetry.log 無大小上限持續追加，長時間測試後有磁碟寫滿風險；(3)精確修復方案：Dynamometer_WebServer.cs 實作全自動非同步 PurgeLocalLogs(isManualClick)，依 localLogMaxHistoryCount (預設 30 筆) 自動掃描 logs/ (及自訂 RAW 目錄)，按 LastWriteTime 降序排序並修剪淘汰第 31 筆起之舊測試 CSV 與配對 GBD 檔案，同步修剪過期 CRASH_REPORT_*.log 與歸檔日誌，並排除鎖定中檔案；Dynamometer_Telemetry.cs 加入 hmiLogWriter 達 10MB 自動旋轉歸檔機制；實裝「💾 本地保留: [30] 筆 [🧹 清理本地]」工具列控制項與 AutoScroll 防破版；Dynamometer_HMI_WinForms.cs 實作 LocalLogMaxCount 於 config.ini 之記憶保存與啟動 Shown 自動清除非同步排程；(4)版本號升級至 APP_VERSION = "2.6.3"，編譯並發布至 Release/Dynamometer_HMI_V2.5.0_Portable/。 |
+
+---
 
 ## [V2.65 beta / v2.10.25] - 2026-09-10
 
