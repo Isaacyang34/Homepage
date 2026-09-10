@@ -420,6 +420,11 @@ namespace DynamometerHMI
         public volatile bool enableFreqCompareLog = true;
         private DateTime lastFreqLogTime = DateTime.MinValue;
 
+        // dr 銘牌參數精確反算之馬達極數 (P = round(120 * dr.05 / dr.01))
+        public volatile int kebMotorPoles1 = 4, kebMotorPoles2 = 4;
+        public double kebDrSpeed1 = 1750.0, kebDrSpeed2 = 1750.0;
+        public double kebDrFreq1 = 60.0, kebDrFreq2 = 60.0;
+
         /// <summary>
         /// 即時輸出頻率 (Hz)。
         /// 依現場硬體規範：目前僅 B 載台下轉速命令(待測端)，A 載台僅為加載端；PowerMeter 亦僅接在 B 載台馬達輸入。
@@ -449,7 +454,7 @@ namespace DynamometerHMI
 
         /// <summary>
         /// 暫時性頻率比對診斷 (同時撈取 POWERMETER 與 KEB RU 參數比對，輸出至 LOG 觀察)
-        /// 包含：報告寫入值、PowerMeter U/I頻率、KEB A/B ru.03原始整數與換算Hz、實測轉速與理論電頻率
+        /// 包含：報告寫入值、PowerMeter U/I頻率、KEB A/B ru.03原始整數與換算Hz、實測轉速與dr反算電氣頻率
         /// </summary>
         public void CheckAndLogFrequencyComparison(string tag = "TELEMETRY")
         {
@@ -475,21 +480,21 @@ namespace DynamometerHMI
             catch { }
             string dutDriveName = (dutDrive == 2) ? "B載台(待測-轉速控制)" : "A載台(加載)";
 
-            // 理論電頻率估算 (以 4 極馬達 f = rpm / 30, 8 極馬達 f = rpm / 15 為理論基準供交叉比對)
-            double p4_freq = Math.Abs(actSpeed) / 30.0;
-            double p8_freq = Math.Abs(actSpeed) / 15.0;
+            // ★ 依 dr 參數精確反算極數與理論電氣頻率: P = round(120 * dr.05 / dr.01), f = P * n / 120
+            int poles = (kebMotorPoles2 > 0) ? kebMotorPoles2 : 4;
+            double drCalculatedFreq = Math.Abs(actSpeed) * poles / 120.0;
 
             string logMsg = string.Format(
                 "【頻率比對診斷 - {0}】報告採納值={1:F2}Hz ({2}) | " +
                 "PowerMeter[U頻率={3:F2}Hz, I頻率={4:F2}Hz] | " +
                 "KEB_B待測[ru03_raw={5}, 換算={6:F2}Hz, ru07_spd={7}rpm, ru00={8}] | " +
                 "KEB_A加載[ru03_raw={9}, 換算={10:F2}Hz, ru07_spd={11}rpm, ru00={12}] | " +
-                "實測轉速={13:F1}rpm (理論參考: 4極={14:F1}Hz, 8極={15:F1}Hz)",
+                "實測轉速={13:F1}rpm -> dr精確反算電氣頻率({14}極)={15:F2}Hz [dr01={16:F0}rpm, dr05={17:F1}Hz]",
                 tag, actFrequency, dutDriveName,
                 wtFreqU, wtFreqI,
                 lastRawRu03_2, kebFrequency2, lastRawRu07_2, lastRawRu00_2,
                 lastRawRu03_1, kebFrequency1, lastRawRu07_1, lastRawRu00_1,
-                actSpeed, p4_freq, p8_freq
+                actSpeed, poles, drCalculatedFreq, kebDrSpeed2, kebDrFreq2
             );
 
             WriteHmiLog("FREQ_COMPARE", logMsg);

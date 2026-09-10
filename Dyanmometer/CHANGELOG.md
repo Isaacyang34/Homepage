@@ -76,13 +76,15 @@
    - 模式 0 (等間距梯度掃描) 與模式 1 (多點自訂測試) 加載期全面接入 `ExecuteUnifiedDualTrackingStep`，同步待測端補轉差與加載端動態大步長逼近。
 6. **效率地圖測試重構 (`Dynamometer_TestEffMap.cs`)**：
    - 多點網格加載逼近全面調用 `ExecuteUnifiedDualTrackingStep`，轉速到位後快速衝刺逼近各點目標轉矩。
-7. **雙軌同步頻率比對診斷引擎 (`Dynamometer_HMI_WinForms.cs` & `Dynamometer_KebComm.cs`)**：
+7. **雙軌同步頻率比對診斷引擎與 dr 參數極數精確反算 (`Dynamometer_HMI_WinForms.cs` & `Dynamometer_KebComm.cs`)**：
+   - **全面廢除 4極/8極 人工猜測**：直接讀取 KEB 變頻器硬體銘牌參數 `dr.01` (額定轉速) 與 `dr.05` (額定頻率)，由公式 $P = \text{round}(120 \times \text{dr.05} / \text{dr.01})$ 100% 精確反算馬達實際極數（支援 2極、4極、6極、8極 等各型馬達）。
+   - 由反算之精確極數計算實時理論電氣頻率 $f_{dr} = \frac{P \times n}{120}$，同屏與 PowerMeter WT333E 實測電氣基波頻率、KEB B 載台 `ru.03` 輸出頻率進行交叉比對。
    - 建立 `CheckAndLogFrequencyComparison(tag)` 診斷方法，同屏擷取並格式化以下數值：
-     - **報告採納值**：`actFrequency` (DUT 待測端驅動器目前採納之頻率)
+     - **報告採納值**：`actFrequency` (優先採納 B 載台 KEB ru.03 與 PowerMeter 實測電氣頻率)
      - **PowerMeter WT333E**：電壓頻率 `wtFreqU` 與電流頻率 `wtFreqI` (tmctl SCPI 與 Modbus 同步解析)
-     - **KEB A 載台**：`ru03_raw` (原始整數), 換算值 (`Hz`), `ru07_spd` (即時轉速 rpm), `ru00` (運轉狀態)
-     - **KEB B 載台**：`ru03_raw` (原始整數), 換算值 (`Hz`), `ru07_spd` (即時轉速 rpm), `ru00` (運轉狀態)
-     - **理論電頻率基準**：以編碼器實測轉速 `actSpeed` 計算 4 極 ($n/30$) 與 8 極 ($n/15$) 理論頻率供對照
+     - **KEB B 載台 (待測端-轉速控制)**：`ru03_raw` (原始整數), 換算值 (`Hz`), `ru07_spd` (即時轉速 rpm), `ru00` (運轉狀態)
+     - **KEB A 載台 (加載端)**：`ru03_raw` (原始整數), 換算值 (`Hz`), `ru07_spd` (即時轉速 rpm), `ru00` (運轉狀態)
+     - **dr 參數精確反算電氣頻率**：以編碼器實測轉速 `actSpeed` 與 `dr` 反算極數計算真實理論電頻率供嚴謹對照
    - 在背景遙測線程 (`TelemetryWorkerLoop`) 運轉中每 2 秒 (馬達運轉時) / 10 秒 (待機時) 自動輸出 `[FREQ_COMPARE]` 至 `logs/hmi_telemetry.log` 與 UI。
    - 在 T-N 曲線測試 30 秒採樣階段同步調用 `CheckAndLogFrequencyComparison("TN_SAMPLE")`。
 8. **即時日誌停錄開關與 UI 勾選控制 (`Dynamometer_UIControls.cs`)**：
