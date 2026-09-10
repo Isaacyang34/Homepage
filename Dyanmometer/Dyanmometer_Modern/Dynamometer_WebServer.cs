@@ -38,7 +38,7 @@ namespace DynamometerHMI
         private bool isCloudUploadRunning = false;
 
         // ── 軟體線上熱更新設定 (Online Auto-Update & In-Place Hot Swap) ──────
-        public const string APP_VERSION = "2.6.4";
+        public const string APP_VERSION = "2.6.5";
         public string cloudUpdateManifestUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/update/version.json";
         public Button btnOnlineUpdate = null;
         private bool? lastCloudUploadSuccess = null;
@@ -1633,7 +1633,15 @@ namespace DynamometerHMI
             AppJ(sb, "crash_reason",      EscapeJson(systemCrashReason ?? ""), true);
             AppJ(sb, "last_alert_cat",    EscapeJson(lastCriticalCategory ?? ""), true);
             AppJ(sb, "last_alert_msg",    EscapeJson(lastCriticalLog ?? ""), true);
-            AppJ(sb, "last_alert_time",   EscapeJson(lastCriticalTime ?? ""), false);
+            AppJ(sb, "last_alert_time",   EscapeJson(lastCriticalTime ?? ""), true);
+            AppN(sb, "health_gdi",        healthGdiCount.ToString());
+            AppN(sb, "health_user",       healthUserCount.ToString());
+            AppN(sb, "health_mem_mb",     healthWorkingSetMb.ToString());
+            AppN(sb, "health_gc_heap_mb", healthGcHeapMb.ToString());
+            AppN(sb, "health_threads",    healthThreadCount.ToString());
+            AppN(sb, "health_ui_lag_ms",  healthUiLagMs.ToString());
+            AppN(sb, "health_handled_errs", healthHandledErrorsCount.ToString());
+            AppJ(sb, "health_ver",        APP_VERSION, false);
             sb.Append("}");
             return sb.ToString();
         }

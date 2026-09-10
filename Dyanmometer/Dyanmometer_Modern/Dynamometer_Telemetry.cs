@@ -397,6 +397,12 @@ namespace DynamometerHMI
                     lastCriticalLog = "";
                     lastCriticalTime = "";
                 }
+                // 隱蔽例外與報錯計數追蹤
+                if (category.EndsWith("_ERR") || category == "EXCEPTION" || category == "CRASH" || category.Contains("ERR"))
+                {
+                    healthHandledErrorsCount++;
+                }
+
                 string timeFull = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
                 string line = string.Format("[{0}] [{1}] {2}", timeFull, category, message);
 

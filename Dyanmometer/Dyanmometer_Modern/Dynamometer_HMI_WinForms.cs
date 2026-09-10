@@ -133,6 +133,24 @@ namespace DynamometerHMI
         private static readonly Font fontMsJhengHei10B = new Font("微軟正黑體", 10.5f, FontStyle.Bold);
         private Random rand = new Random();
 
+        // Win32 GDI & USER 原生資源監測 (100% 相容 Windows XP x86 / Win7 / Win10 / Win11)
+        [DllImport("user32.dll")]
+        public static extern uint GetGuiResources(IntPtr hProcess, uint uiFlags);
+
+        // 系統健康與資源觀測指標 (Health & Resource Observability)
+        public Label lblSystemHealth;
+        public static uint healthGdiCount = 0;
+        public static uint healthUserCount = 0;
+        public static long healthWorkingSetMb = 0;
+        public static long healthPrivateBytesMb = 0;
+        public static long healthGcHeapMb = 0;
+        public static int healthThreadCount = 0;
+        public static int healthUiLagMs = 0;
+        public static int healthHandledErrorsCount = 0;
+        private DateTime lastMainTickTime = DateTime.MinValue;
+        private DateTime lastHealthLogTime = DateTime.MinValue;
+        private int healthTickCounter = 0;
+
         // 實體硬體連線物件
         private SerialPort spTorque;
         private int ykDeviceId = -1;
@@ -3823,7 +3841,9 @@ namespace DynamometerHMI
             lblPillGbd = CreateStatusPill("GL820: " + gbdPort + " [斷線]", Point.Empty);
             lblPillKeb1 = CreateStatusPill("A載台: [斷線]", Point.Empty);
             lblPillKeb2 = CreateStatusPill("B載台: [斷線]", Point.Empty);
-            flpPills.Controls.AddRange(new Control[] { lblPillTorque, lblPillPowerMeter, lblPillGbd, lblPillKeb1, lblPillKeb2 });
+            lblSystemHealth = CreateStatusPill("資源: GDI -- | RAM --", Point.Empty);
+            lblSystemHealth.ForeColor = Color.FromArgb(56, 189, 248);
+            flpPills.Controls.AddRange(new Control[] { lblPillTorque, lblPillPowerMeter, lblPillGbd, lblPillKeb1, lblPillKeb2, lblSystemHealth });
 
             lblSafetyStatus = new Label()
             {
@@ -5648,6 +5668,67 @@ namespace DynamometerHMI
         private void MainTimer_Tick(object sender, EventArgs e)
         {
             DateTime now = DateTime.Now;
+
+            // 1. 計算 UI 執行緒訊息排程反應抖動 (UI Thread Dispatch Lag / Jitter)
+            if (lastMainTickTime != DateTime.MinValue)
+            {
+                double tickDelta = (now - lastMainTickTime).TotalMilliseconds;
+                int expectedInterval = (mainTimer != null && mainTimer.Interval > 0) ? mainTimer.Interval : 500;
+                healthUiLagMs = Math.Max(0, (int)(tickDelta - expectedInterval));
+            }
+            lastMainTickTime = now;
+
+            // 2. 週期性採樣系統健康與資源指標 (每 2 秒採樣一次，零開銷)
+            healthTickCounter++;
+            if (healthTickCounter % 4 == 0)
+            {
+                try
+                {
+                    using (Process curProc = Process.GetCurrentProcess())
+                    {
+                        IntPtr hProc = curProc.Handle;
+                        healthGdiCount = GetGuiResources(hProc, 0); // 0 = GR_GDIOBJECTS (上限 10,000)
+                        healthUserCount = GetGuiResources(hProc, 1); // 1 = GR_USEROBJECTS (上限 10,000)
+                        curProc.Refresh();
+                        healthWorkingSetMb = curProc.WorkingSet64 / (1024 * 1024);
+                        healthPrivateBytesMb = curProc.PrivateMemorySize64 / (1024 * 1024);
+                        healthGcHeapMb = GC.GetTotalMemory(false) / (1024 * 1024);
+                        healthThreadCount = curProc.Threads.Count;
+                    }
+
+                    if (lblSystemHealth != null && !lblSystemHealth.IsDisposed)
+                    {
+                        lblSystemHealth.Text = string.Format("資源: GDI {0} | RAM {1}M(GC {2}M) | 緒 {3} | 延 {4}ms",
+                            healthGdiCount, healthWorkingSetMb, healthGcHeapMb, healthThreadCount, healthUiLagMs);
+
+                        // 智慧預警燈號 (GDI > 3000 或 RAM > 600MB 或 延遲 > 300ms 預警黃燈；GDI > 7000 或 RAM > 1200MB 危險紅燈)
+                        if (healthGdiCount > 7000 || healthWorkingSetMb > 1200 || healthUiLagMs > 1000)
+                        {
+                            lblSystemHealth.ForeColor = Color.FromArgb(248, 113, 113);
+                            lblSystemHealth.BackColor = Color.FromArgb(80, 20, 20);
+                        }
+                        else if (healthGdiCount > 3000 || healthWorkingSetMb > 600 || healthUiLagMs > 300)
+                        {
+                            lblSystemHealth.ForeColor = Color.FromArgb(251, 191, 36);
+                            lblSystemHealth.BackColor = Color.FromArgb(60, 50, 15);
+                        }
+                        else
+                        {
+                            lblSystemHealth.ForeColor = Color.FromArgb(56, 189, 248);
+                            lblSystemHealth.BackColor = Color.FromArgb(15, 35, 55);
+                        }
+                    }
+                }
+                catch { }
+
+                // 每 60 秒定期輸出一次結構化健康指標至單一整合日誌
+                if ((now - lastHealthLogTime).TotalSeconds >= 60)
+                {
+                    lastHealthLogTime = now;
+                    WriteHmiLog("HEALTH", string.Format("系統資源遙測: GDI={0}/10000, USER={1}, RAM={2}MB, PrivateBytes={3}MB, GC={4}MB, Threads={5}, UiLag={6}ms, HandledErr={7}",
+                        healthGdiCount, healthUserCount, healthWorkingSetMb, healthPrivateBytesMb, healthGcHeapMb, healthThreadCount, healthUiLagMs, healthHandledErrorsCount));
+                }
+            }
 
             // 設備連線狀態指示與安全互鎖檢查 (純實體硬體狀態)
             bool isTorqueOnline = (spTorque != null && spTorque.IsOpen);
