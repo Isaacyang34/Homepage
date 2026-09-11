@@ -1312,11 +1312,18 @@ namespace DynamometerHMI
             s6NmPerPointOnePct = 0.0;
             s6Stage2StableCounter = 0;
             s6PeakTempHistory.Clear();
+            s6TroughTempHistory.Clear();
             s6CurrentCyclePeakTemp = -999.0;
+            s6CurrentCycleTroughTemp = 999.0;
+            s6LastCyclePeakTemp = 0.0;
+            s6LastCycleTroughTemp = 0.0;
             s6ThermalBalanced = false;
+            s6IsVerifyingConfirmationCycle = false;
+            s6ConfirmationCycleIndex = 0;
+            s6TempHistory.Clear();
             if (lblS6ThermalStatus != null)
             {
-                lblS6ThermalStatus.Text = "S6 熱平衡: 監測中 (需連續 3 週期，達 30 分鐘峰值溫差 <= 1.0℃ 自動停機)";
+                lblS6ThermalStatus.Text = "S6 熱平衡: 採樣中 (30分鐘穩定判定 + 1週期再次確認)";
                 lblS6ThermalStatus.ForeColor = Color.DarkOrange;
             }
             if (dutyTempTrend != null) dutyTempTrend.ClearData();
@@ -2239,9 +2246,19 @@ namespace DynamometerHMI
                     if (dutyElapsedSec <= prgDuty.Maximum) prgDuty.Value = dutyElapsedSec;
                     if (prgDutyMini != null && dutyElapsedSec <= prgDutyMini.Maximum) prgDutyMini.Value = dutyElapsedSec;
 
-                    // 追蹤當前週期之最高溫度點
+                    // 每秒記錄溫度歷程至 s6TempHistory
+                    if (s6TempHistory != null)
+                    {
+                        s6TempHistory.Add(new KeyValuePair<DateTime, double>(now, dutyMonitoredTemp));
+                        DateTime expireS6 = now.AddMinutes(-45);
+                        s6TempHistory.RemoveAll(x => x.Key < expireS6);
+                    }
+
+                    // 追蹤當前週期之最高溫度點與相對最低溫
                     if (dutyMonitoredTemp > s6CurrentCyclePeakTemp)
                         s6CurrentCyclePeakTemp = dutyMonitoredTemp;
+                    if (dutyMonitoredTemp < s6CurrentCycleTroughTemp)
+                        s6CurrentCycleTroughTemp = dutyMonitoredTemp;
 
                     // ★ S6 兩段式超溫防護監控 (警告 / 停機)
                     double warnThresh = (numS6WarnTemp != null) ? (double)numS6WarnTemp.Value : 90.0;
@@ -2341,9 +2358,67 @@ namespace DynamometerHMI
                             else if (spdDrive == 1 && numHmiKebSpeed1 != null) numHmiKebSpeed1.Value = (decimal)s6CurrentSpeedCmd;
                         }
 
-                        string formalT1Text = string.Format("[第 {0}/{1} 週期] 🔥 T1 有載運轉中 (剩餘 {2}s)", s6FormalCycleIndex, totalFormalCycles, t1Sec - s6CycleElapsedSec);
+                        // ── S6 溫升斜率與預估幾次平衡即時演算 ──
+                        double s6CycleMinVal = (numS6CycleMin != null) ? (double)numS6CycleMin.Value : 10.0;
+                        double s6EffectiveSlope = 0.0;
+                        if (s6PeakTempHistory.Count >= 2)
+                        {
+                            int nPeaks = s6PeakTempHistory.Count;
+                            double lastPeakDiff = s6PeakTempHistory[nPeaks - 1] - s6PeakTempHistory[nPeaks - 2];
+                            s6EffectiveSlope = Math.Max(0.0, lastPeakDiff / s6CycleMinVal);
+                        }
+                        else
+                        {
+                            s6EffectiveSlope = Math.Max(0.0, CalculateThermalSlopePerMin(s6TempHistory, 120));
+                        }
+
+                        int remCycles = 1;
+                        int estBalanceCycle = s6FormalCycleIndex + 1;
+                        if (s6EffectiveSlope > 0.0333)
+                        {
+                            double tauS6 = 30.0; // 分鐘
+                            double remMin = tauS6 * Math.Log(s6EffectiveSlope / 0.03333);
+                            remCycles = Math.Max(1, (int)Math.Ceiling(remMin / s6CycleMinVal));
+                            estBalanceCycle = s6FormalCycleIndex + remCycles;
+                        }
+
+                        double curPeak = (s6CurrentCyclePeakTemp > -100) ? s6CurrentCyclePeakTemp : dutyMonitoredTemp;
+                        string troughDisp = (s6LastCycleTroughTemp > 0) ? string.Format("{0:F1}℃", s6LastCycleTroughTemp) : string.Format("{0:F1}℃", dutyMonitoredTemp);
+
+                        if (lblS6ThermalStatus != null)
+                        {
+                            if (s6IsVerifyingConfirmationCycle)
+                            {
+                                lblS6ThermalStatus.Text = string.Format("⏳ [第 {0} 週期] 追加確認覆核中！最高: {1:F1}℃ | 冷卻最後: {2} (需溫差 <= 1.0℃)",
+                                    s6FormalCycleIndex, curPeak, troughDisp);
+                                lblS6ThermalStatus.ForeColor = Color.DarkCyan;
+                            }
+                            else
+                            {
+                                lblS6ThermalStatus.Text = string.Format("S6: 週期最高 {0:F1}℃ | 冷卻最後 {1} | 預估約 {2} 週期後平衡 (第 {3} 週期)",
+                                    curPeak, troughDisp, remCycles, estBalanceCycle);
+                                lblS6ThermalStatus.ForeColor = (remCycles <= 1) ? Color.Green : Color.DarkOrange;
+                            }
+                        }
+
+                        if (lblThermalStatus != null)
+                        {
+                            if (s6IsVerifyingConfirmationCycle)
+                            {
+                                lblThermalStatus.Text = string.Format("S6: 追加第 {0} 週期進行熱平衡最終確認覆核 (需溫差 <= 1.0℃)", s6FormalCycleIndex);
+                                lblThermalStatus.ForeColor = Color.DarkCyan;
+                            }
+                            else
+                            {
+                                lblThermalStatus.Text = string.Format("S6 溫升監控: 週期最高 {0:F1}℃, 冷卻最後 {1} | 預估第 {2} 週期平衡 (約 {3} 週期後)",
+                                    curPeak, troughDisp, estBalanceCycle, remCycles);
+                                lblThermalStatus.ForeColor = (remCycles <= 1) ? Color.Green : Color.FromArgb(30, 64, 175);
+                            }
+                        }
+
+                        string formalT1Text = string.Format("[第 {0}/{1} 週期] 🔥 T1 有載 (剩餘 {2}s) | 峰值: {3:F1}℃", s6FormalCycleIndex, totalFormalCycles, t1Sec - s6CycleElapsedSec, curPeak);
                         lblDutyStatus.Text = formalT1Text;
-                        lblDutyPhaseAction.Text = string.Format("【T1 有載】實測 {0:F1} Nm / 目標 {1:F1} Nm (給定 {2:F1}%)", actAbsTrq, targetTrq, s6AdaptedTorquePct);
+                        lblDutyPhaseAction.Text = string.Format("【T1 有載】實測 {0:F1} Nm / 目標 {1:F1} Nm (給定 {2:F1}%) | 最高: {3:F1}℃", actAbsTrq, targetTrq, s6AdaptedTorquePct, curPeak);
                         if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = formalT1Text;
                         if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
 
@@ -2360,12 +2435,13 @@ namespace DynamometerHMI
                             KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0);
                             if (trqDrive == 1 && numHmiKebTorque1 != null) numHmiKebTorque1.Value = 0;
                             else if (trqDrive == 2 && numHmiKebTorque2 != null) numHmiKebTorque2.Value = 0;
-                            WriteHmiLog("S6_STAGE", string.Format("[第 {0}/{1} 週期] T1 完成，加載端卸載歸零，進入 T2 空載自冷！", s6FormalCycleIndex, totalFormalCycles));
+                            WriteHmiLog("S6_STAGE", string.Format("[第 {0}/{1} 週期] T1 完成(最高溫 {2:F1}℃)，加載端卸載歸零，進入 T2 空載自冷！", s6FormalCycleIndex, totalFormalCycles, s6CurrentCyclePeakTemp));
                         }
 
-                        string formalT2Text = string.Format("[第 {0}/{1} 週期] ❄️ T2 空載自冷中 (剩餘 {2}s)", s6FormalCycleIndex, totalFormalCycles, totalCycleSec - s6CycleElapsedSec);
+                        double curPeakT2 = (s6CurrentCyclePeakTemp > -100) ? s6CurrentCyclePeakTemp : dutyMonitoredTemp;
+                        string formalT2Text = string.Format("[第 {0}/{1} 週期] ❄️ T2 空載自冷 (剩餘 {2}s) | 目前低溫: {3:F1}℃", s6FormalCycleIndex, totalFormalCycles, totalCycleSec - s6CycleElapsedSec, dutyMonitoredTemp);
                         lblDutyStatus.Text = formalT2Text;
-                        lblDutyPhaseAction.Text = string.Format("【T2 空載】加載端歸零 0.0 Nm，轉速 {0:F0} rpm 自冷中...", actAbsSpd);
+                        lblDutyPhaseAction.Text = string.Format("【T2 空載】加載端歸零 0.0 Nm，轉速 {0:F0} rpm 自冷中... (即時冷溫: {1:F1}℃)", actAbsSpd, dutyMonitoredTemp);
                         if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = formalT2Text;
                         if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
 
@@ -2374,79 +2450,141 @@ namespace DynamometerHMI
                     // 【單一正式週期結束交替】
                     else if (s6CycleElapsedSec >= totalCycleSec)
                     {
-                        // ★【S6 熱平衡分析：結算當前週期最高溫點】
+                        // ★【S6 熱平衡分析：結算當前週期最高溫點與冷卻最後低溫】
+                        double finalCoolingTrough = dutyMonitoredTemp;
+                        s6TroughTempHistory.Add(finalCoolingTrough);
+                        s6LastCycleTroughTemp = finalCoolingTrough;
+
                         if (s6CurrentCyclePeakTemp > -100.0)
                         {
                             s6PeakTempHistory.Add(s6CurrentCyclePeakTemp);
-                            WriteHmiLog("S6_PEAK_TEMP", string.Format("【S6 週期結算】第 {0} 週期最高溫為: {1:F2} ℃ (已累積 {2} 個週期高溫點)",
-                                s6FormalCycleIndex, s6CurrentCyclePeakTemp, s6PeakTempHistory.Count));
+                            s6LastCyclePeakTemp = s6CurrentCyclePeakTemp;
+                            WriteHmiLog("S6_CYCLE_TEMP", string.Format("【S6 週期結算】第 {0} 週期最高溫: {1:F2} ℃ (T1), 冷卻最後低溫: {2:F2} ℃ (T2), 週期溫差幅: {3:F2} ℃ (已累積 {4} 週期)",
+                                s6FormalCycleIndex, s6CurrentCyclePeakTemp, finalCoolingTrough, s6CurrentCyclePeakTemp - finalCoolingTrough, s6PeakTempHistory.Count));
                         }
-                        s6CurrentCyclePeakTemp = -999.0;
 
-                        // 判定是否達成熱平衡 (至少需連續 3 個週期，即 30 分鐘，連續兩段溫差均 <= 1.0℃)
-                        if (!s6ThermalBalanced && s6PeakTempHistory.Count >= 3)
+                        // ★ 判定穩定後多做一個週期再次確認機制
+                        if (s6IsVerifyingConfirmationCycle)
                         {
                             int n = s6PeakTempHistory.Count;
-                            double p1 = s6PeakTempHistory[n - 3];
-                            double p2 = s6PeakTempHistory[n - 2];
-                            double p3 = s6PeakTempHistory[n - 1];
+                            double confirmPeak = s6PeakTempHistory[n - 1];
+                            double prevPeak = s6PeakTempHistory[n - 2];
+                            double confirmDiff = Math.Abs(confirmPeak - prevPeak);
 
-                            double diff1 = Math.Abs(p2 - p1);
-                            double diff2 = Math.Abs(p3 - p2);
-
-                            if (diff1 <= 1.0 && diff2 <= 1.0)
+                            if (confirmDiff <= 1.0)
                             {
+                                // ★★★ 再次確認成功！正式宣告熱平衡達成並停機 ★★★
                                 s6ThermalBalanced = true;
+                                s6IsVerifyingConfirmationCycle = false;
+
                                 if (lblS6ThermalStatus != null)
                                 {
-                                    lblS6ThermalStatus.Text = string.Format("✅ S6 熱平衡已達成 (連續3週期峰值差: {0:F1}℃, {1:F1}℃ <= 1.0℃)", diff1, diff2);
+                                    lblS6ThermalStatus.Text = string.Format("✅ S6 熱平衡確認通過 (追加週期溫差 {0:F2}℃ <= 1.0℃)！", confirmDiff);
                                     lblS6ThermalStatus.ForeColor = Color.Green;
                                 }
-                                WriteHmiLog("S6_THERMAL_BALANCED", string.Format("【S6 達成熱平衡自動停機】第 {0} 週期達成熱平衡！最近 3 週期最高溫分別為 {1:F2}, {2:F2}, {3:F2} ℃ (連續 30 分鐘峰值溫差 <= 1.0℃，觸發自動平緩停機)",
-                                    s6FormalCycleIndex, p1, p2, p3));
+                                WriteHmiLog("S6_THERMAL_BALANCED", string.Format("【S6 熱平衡追加確認成功】第 {0} 追加確認週期最高溫 {1:F2} ℃ (前週期 {2:F2} ℃，溫差 {3:F2} ℃ <= 1.0℃，冷卻最後低溫 {4:F2} ℃)，正式達標！",
+                                    s6FormalCycleIndex, confirmPeak, prevPeak, confirmDiff, finalCoolingTrough));
 
-                                // ★ 使用者明確指令：S6 若達成 30 分鐘峰值溫差小於 1 度，則停止 S6 測試！
                                 dutyTimer.Stop();
                                 if (isManualRecording)
                                 {
                                     StopManualRecording(showPrompt: false);
                                 }
-                                StartGradualAutoStop(spdDrive, trqDrive, "S6熱平衡達標自動停機(30min峰值溫差<=1.0℃)", () => {
+                                StartGradualAutoStop(spdDrive, trqDrive, "S6熱平衡達標(含追加確認週期溫差<=1.0℃)", () => {
                                     btnStartDuty.Enabled = true;
                                     btnStopDuty.Enabled = false;
                                     if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
                                     if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
 
-                                    lblDutyStatus.Text = string.Format("[成功] S6 熱平衡達標 (第{0}週期，30min峰值溫差<=1.0℃)，試驗自動完成！", s6FormalCycleIndex);
-                                    lblDutyPhaseAction.Text = "S6 熱平衡達標，已自動平緩卸載並停機，請點擊「匯出報表」儲存數據。";
+                                    lblDutyStatus.Text = string.Format("[成功] S6 熱平衡達標且通過追加確認 (第{0}週期，溫差 {1:F2}℃<=1.0℃)！", s6FormalCycleIndex, confirmDiff);
+                                    lblDutyPhaseAction.Text = "S6 熱平衡已確認達標，已自動平緩卸載並停機，請點擊「匯出報表」儲存數據。";
                                     if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
                                     if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
 
-                                    MessageBox.Show(string.Format("S6 週期工作制熱平衡已達標！\n\n已運轉週期: 第 {0} 週期\n最近 3 週期(30分鐘)最高溫: {1:F2}℃ -> {2:F2}℃ -> {3:F2}℃\n週期峰值溫差: {4:F1}℃, {5:F1}℃ <= 1.0℃\n\n系統已自動安全平滑卸載並停機，請點擊「匯出報表」儲存測試結果。",
-                                        s6FormalCycleIndex, p1, p2, p3, diff1, diff2), "S6 熱平衡達標·試驗完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                    MessageBox.Show(string.Format("S6 週期工作制熱平衡已圓滿達標！\n\n已運轉週期: 第 {0} 週期 (含追加確認週期)\n確認週期最高溫: {1:F2}℃ (前一週期: {2:F2}℃, 溫差: {3:F2}℃ <= 1.0℃)\n冷卻最後低溫: {4:F2}℃\n\n系統已自動安全平滑卸載並停機，請點擊「匯出報表」儲存測試結果。",
+                                        s6FormalCycleIndex, confirmPeak, prevPeak, confirmDiff, finalCoolingTrough), "S6 熱平衡達標·試驗完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                                 });
                                 return;
                             }
                             else
                             {
+                                // ★★★ 再次確認未通過！繼續測試！★★★
+                                s6IsVerifyingConfirmationCycle = false;
+                                if (s6FormalCycleIndex >= totalFormalCycles)
+                                {
+                                    totalFormalCycles = s6FormalCycleIndex + 3;
+                                }
+
+                                WriteHmiLog("S6_CONFIRM_FAIL", string.Format("【⚠️ S6 追加確認未通過】第 {0} 確認週期溫差 ({1:F2}℃ > 1.0℃)，取消確認，依規定自動繼續進行週期試驗！", s6FormalCycleIndex, confirmDiff));
                                 if (lblS6ThermalStatus != null)
                                 {
-                                    lblS6ThermalStatus.Text = string.Format("S6 熱平衡: 比對中 (近3週期峰值差: {0:F1}℃, {1:F1}℃ > 1.0℃)", diff1, diff2);
+                                    lblS6ThermalStatus.Text = string.Format("⚠️ 追加確認未過 (溫差 {0:F1}℃ > 1.0℃)，繼續測試累積週期...", confirmDiff);
                                     lblS6ThermalStatus.ForeColor = Color.DarkOrange;
                                 }
                             }
                         }
                         else if (!s6ThermalBalanced)
                         {
-                            if (lblS6ThermalStatus != null)
+                            // 檢查 30 分鐘穩定判定 (例如 10 分鐘週期需要累積 3 週期)
+                            double cycleMinVal = (numS6CycleMin != null) ? (double)numS6CycleMin.Value : 10.0;
+                            int reqCycles30m = Math.Max(3, (int)Math.Ceiling(30.0 / cycleMinVal));
+                            if (s6PeakTempHistory.Count >= reqCycles30m)
                             {
-                                lblS6ThermalStatus.Text = string.Format("S6 熱平衡: 採樣累積中 ({0}/3 週期，達 30 分鐘峰值溫差 <= 1.0℃ 自動停機)", s6PeakTempHistory.Count);
-                                lblS6ThermalStatus.ForeColor = Color.DarkOrange;
+                                int n = s6PeakTempHistory.Count;
+                                bool stable30m = true;
+                                for (int i = n - reqCycles30m; i < n - 1; i++)
+                                {
+                                    if (Math.Abs(s6PeakTempHistory[i + 1] - s6PeakTempHistory[i]) > 1.0)
+                                    {
+                                        stable30m = false;
+                                        break;
+                                    }
+                                }
+
+                                if (stable30m)
+                                {
+                                    // ★ 依要求：判定穩定後再多做一個週期來再次確認！
+                                    s6IsVerifyingConfirmationCycle = true;
+                                    s6ConfirmationCycleIndex = s6FormalCycleIndex + 1;
+                                    if (totalFormalCycles < s6ConfirmationCycleIndex)
+                                    {
+                                        totalFormalCycles = s6ConfirmationCycleIndex;
+                                    }
+
+                                    WriteHmiLog("S6_CONFIRM_INIT", string.Format("【S6 初步達到 30 分鐘穩定】近 {0} 週期峰值溫差 <= 1.0℃！依規範多執行第 {1} 週期進行最終確認覆核...",
+                                        reqCycles30m, s6ConfirmationCycleIndex));
+
+                                    if (lblS6ThermalStatus != null)
+                                    {
+                                        lblS6ThermalStatus.Text = string.Format("⏳ 30分已初步穩定！追加第 {0} 週期進行覆核確認 (溫差需 <= 1.0℃)", s6ConfirmationCycleIndex);
+                                        lblS6ThermalStatus.ForeColor = Color.DarkCyan;
+                                    }
+                                }
+                                else
+                                {
+                                    if (lblS6ThermalStatus != null)
+                                    {
+                                        double d1 = Math.Abs(s6PeakTempHistory[n - 1] - s6PeakTempHistory[n - 2]);
+                                        lblS6ThermalStatus.Text = string.Format("S6 熱平衡: 比對中 (近週期差: {0:F1}℃ > 1.0℃)", d1);
+                                        lblS6ThermalStatus.ForeColor = Color.DarkOrange;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                if (lblS6ThermalStatus != null)
+                                {
+                                    lblS6ThermalStatus.Text = string.Format("S6 熱平衡: 採樣累積中 ({0}/{1} 週期，達 30 分鐘穩定將啟動追加覆核)", s6PeakTempHistory.Count, reqCycles30m);
+                                    lblS6ThermalStatus.ForeColor = Color.DarkOrange;
+                                }
                             }
                         }
 
+                        s6CurrentCyclePeakTemp = -999.0;
+                        s6CurrentCycleTroughTemp = 999.0;
+
                         s6FormalCycleIndex++;
-                        if (s6FormalCycleIndex > totalFormalCycles) // 全部週期圓滿完成！
+                        if (s6FormalCycleIndex > totalFormalCycles && !s6IsVerifyingConfirmationCycle) // 全部週期圓滿完成！
                         {
                             dutyTimer.Stop();
                             if (isManualRecording)

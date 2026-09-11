@@ -401,8 +401,15 @@ namespace DynamometerHMI
         private Label lblDutyTempTrendTitle, lblDutyTempRealtimeVal;
         private Label lblDutyAllChTempsDisp;
         private List<double> s6PeakTempHistory = new List<double>();
-        private double s6CurrentCyclePeakTemp = 0.0;
+        private List<double> s6TroughTempHistory = new List<double>();
+        private double s6CurrentCyclePeakTemp = -999.0;
+        private double s6CurrentCycleTroughTemp = 999.0;
+        private double s6LastCyclePeakTemp = 0.0;
+        private double s6LastCycleTroughTemp = 0.0;
         public bool s6ThermalBalanced = false;
+        private bool s6IsVerifyingConfirmationCycle = false;
+        private int s6ConfirmationCycleIndex = 0;
+        private List<KeyValuePair<DateTime, double>> s6TempHistory = new List<KeyValuePair<DateTime, double>>();
         private Label lblS6ThermalStatus;
         private NumericUpDown numS6WarnTemp, numS6TripTemp;
         private ComboBox cmbS6OvertempAction, cmbS6TempCh;
