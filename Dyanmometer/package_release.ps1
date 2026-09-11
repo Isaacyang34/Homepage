@@ -130,7 +130,15 @@ Get-ChildItem $targetDir -Recurse | ForEach-Object { Unblock-File $_.FullName }
 # Synchronize to workspace root Release folder (確保無論從 Dyanmometer/Release 還是 Release/ 執行皆能獲取最新驅動與主程式)
 $rootReleaseDir = "c:\Users\peter\OneDrive\Desktop\AI_Projects\Release\Dynamometer_HMI_V${Version}_Portable"
 if (!(Test-Path $rootReleaseDir)) { New-Item -ItemType Directory -Path $rootReleaseDir -Force | Out-Null }
+
+$rootIniPath = Join-Path $rootReleaseDir "dynamometer_layout.ini"
+$backupRootIni = if (Test-Path $rootIniPath) { Get-Content $rootIniPath -Raw } else { $null }
+
 Copy-Item (Join-Path $targetDir "*") $rootReleaseDir -Recurse -Force
+
+if ($backupRootIni) {
+    Set-Content -Path $rootIniPath -Value $backupRootIni -Encoding UTF8
+}
 
 Write-Host "🎉 Successfully packaged Release V$Version to:"
 Write-Host "   👉 $targetDir"
@@ -139,6 +147,19 @@ Write-Host "   👉 $rootReleaseDir"
 # 4. Auto Git Push to GitHub gh-pages
 Write-Host ""
 Write-Host "📤 Auto-pushing to GitHub (gh-pages)..."
+
+# Ensure git-tracked template INI files never contain plain text PAT secrets (avoid GitHub Push Protection block)
+$gitTrackedInis = @(
+    (Join-Path $modernDir "dynamometer_layout.ini"),
+    (Join-Path $targetDir "dynamometer_layout.ini")
+)
+foreach ($ini in $gitTrackedInis) {
+    if (Test-Path $ini) {
+        $iniTxt = Get-Content $ini -Raw
+        $iniTxtCleaned = [regex]::Replace($iniTxt, '(?m)^Token=.*$', 'Token=')
+        Set-Content -Path $ini -Value $iniTxtCleaned -Encoding UTF8
+    }
+}
 
 $gitExe = $null
 @("$env:LOCALAPPDATA\Programs\Git\cmd\git.exe", "C:\Program Files\Git\cmd\git.exe", "C:\Program Files (x86)\Git\cmd\git.exe") | ForEach-Object {
@@ -159,8 +180,9 @@ if (!$gitExe) {
     if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq 1) {
         # LASTEXITCODE 1 = nothing to commit (already up to date), treat as OK
         & $gitExe -C $repoRoot push origin gh-pages 2>&1 | Write-Host
+        & $gitExe -C $repoRoot push origin gh-pages:master --force 2>&1 | Write-Host
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✅ Successfully pushed to GitHub gh-pages!"
+            Write-Host "✅ Successfully pushed to GitHub (gh-pages & master)!"
 
             # 5. Auto-update Firebase version manifest (download_url must include Dyanmometer/ prefix)
             Write-Host ""
