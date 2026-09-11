@@ -67,3 +67,8 @@
 * **機密防護與 PAT 永久保存 (Zero-Leak PAT & INI Integrity)**：
   * **嚴禁明文 Token 上傳**：Git 追蹤之 `dynamometer_layout.ini` 中的 `Token=` 必須永久為空，程式碼內部一律採用 XOR 編碼混淆（`GetEmbeddedToken()`），嚴格杜絕觸發 GitHub Secret Scanning Push Protection 阻擋提交。
   * **設定檔防覆寫保護**：WinForms 在執行 `SaveLayoutConfig()` 儲存視窗版面時，必須完整保留並回寫所有非 UI 區段（如 `[GitHub]`、`[ReportManager]`、`[GoogleDrive]`），嚴禁截斷或清空使用者的 PAT 與外部配置。
+
+## 8. 嚴禁未經指示擅自開啟瀏覽器鐵律 (Zero Unauthorized Browser Launch - 全案最高強制規範)
+* **嚴禁主動調用瀏覽器工具**：**嚴格禁止**在未獲得使用者明確文字指令（例如明確要求「請打開瀏覽器測試」或「用瀏覽器查看」）的情況下，擅自調用 `browser_subagent` 或透過任何指令在本地彈出瀏覽器視窗！
+* **靜默與離線驗證原則**：所有 HTML、JavaScript、CSS 或前端應用之邏輯修復、資料解析與演算法測試，**一律限於背景透過本機腳本（PowerShell / Node.js 等靜態分析或單元驗證）無聲完成**，絕對禁止跳出任何瀏覽器視窗奪取作業系統焦點或干擾使用者工作！
+* **回報即止原則**：前端程式碼與樣式修改完成後，僅需清楚條列修改內容、邏輯佐證與本地檔案路徑，**由使用者完全自主決定何時開啟檢視**，嚴禁代為做主開啟！
