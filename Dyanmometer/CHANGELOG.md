@@ -8,9 +8,66 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.81 (beta) | v2.10.41 | 2026-09-11 | 全分頁視窗佈局、Splitter 與表格寬度全息記憶持久化系統：(1)修復 WinForms 背景 TabPage 尺寸未渲染回報 0 造成佈局失效與設定覆蓋之致命缺陷，實裝 `layoutSplitters` 記憶體中繼快取與 `ApplySplitterDistanceSafe` 動態防夾機制；(2)全 7 大 TabPage (即時綜合監控、TN 特性測試、Duty 工作制測試、效率曲線、空載測試、報告管理器、系統參數) 共 15 組 SplitContainer 全面接入 `dynamometer_layout.ini` 雙向儲存與恢復；(3)實裝視窗座標 (`Window.X, Y`)、視窗尺寸 (`Width, Height`)、視窗狀態 (`WindowState`) 與上次離開分頁 (`ActiveTab`) 之安全多螢幕邊界檢查復原；(4)實裝 8 大 DataGridView 表格欄寬動態自動記憶；(5)修復 `SafeSetupSplitContainer` 在視窗縮放時重複重設預設值之死迴圈 |
 | V2.80 (beta) | v2.10.40 | 2026-09-11 | Google Drive / GAS Webhook 傳輸韌性與 TLS 連線中斷容錯升級：(1)修復 Google Apps Script 無預警關閉連線所引發之 `TlsNoCloseNotifyException: No close_notify alert received before connection closed` 例外，改為緩衝讀取並將具備 HTTP 狀態碼之非預警關閉視為正常完成；(2)實裝 HTTP 301/302/303/307 重定向自動跟隨 (Redirect Follower) 與 HTTP Chunked 分塊解碼 (Unchunk)，完美解析 Google Apps Script 回傳之 `script.googleusercontent.com` 執行結果與 Drive 檔案網址；(3)報告管理器上傳日誌全面接入 `Dynamometer_Telemetry.Log("REPORT", ...)` 統一日誌軌道，杜絕日誌遺漏 |
 | V2.79 (beta) | v2.10.39 | 2026-09-11 | S6 週期工作制溫升極值監控、平衡週期預估與 +1 追加確認週期雙保險引擎：(1)週期雙極溫全息監控：即時追蹤 T1 加載結束之「最高溫 (Peak)」與 T2 空載冷卻結束之「冷卻最後低溫 (Trough)」；(2)平衡週期預估演算：導入一階熱動態動態模型，依據週期峰值漂移率或滑動斜率精準預估約需幾次週期才能達成平衡；(3)30 分鐘穩定判定後 +1 追加確認週期：初達 30 分鐘穩定門檻時不驟停，自動追加 1 個確認週期進行複核；若確認週期溫差 <= 1.0℃ 則圓滿確立停機，若否則自動延展週期繼續測試；(4)WinForms HMI 狀態列與 Web 特性分析儀工作制面板全息雙軌實裝 |
 | V2.78 (beta) | v2.10.38 | 2026-09-11 | S1 與 S2 工作制溫升斜率 (dT/dt) 即時計算與一階熱動態預測引擎：(1)實裝 IEC 60034-1 / CNS 14400 最小平方法即時溫升斜率 ($dT/dt$, °C/min 及 °C/30min 折算)；(2)S1 連續工作制實裝熱平衡預估完成時間演算 ($t_{\text{rem}} = \tau \ln(S / 0.0333)$，預測到達 ≤1.0°C/30min 之時長與時刻)；(3)S2 短時工作制同步採用一階熱動態衰減模型預估到達設定時長 (如 30m) 之最終溫度與超溫告警 ($\Delta T_{\text{rem}} = S \cdot \tau (1 - e^{-\Delta t/\tau})$)；(4)HMI WinForms 雙向即時標題、狀態列與 Web 特性分析儀工作制專屬診斷面板全息實裝 |
+
+---
+
+## [V2.81 beta / v2.10.41] - 2026-09-11
+
+### 🎯 現象與佐證 (Log-First Verbatim Excerpts)
+1. **使用者回報指示**：
+   - 「主程式修正 目前只有極時綜合監控的版面有儲存視窗座標的紀錄嗎? 其他分頁也要有這功能，否則每次都要重新調整」
+2. **實機與源碼架構佐證**：
+   - 檢視 `Dynamometer_HMI_WinForms.cs` 與各測試分頁模組：
+     1. **背景分頁尺寸歸零導致 INI 覆蓋抹除**：原 `SaveLayoutConfig()` 僅在 `split.Height > 0` 時才將 SplitterDistance 寫入 `dynamometer_layout.ini`。在 WinForms 機制中，只有當前作用中的 TabPage 會建立控制項句柄與計算尺寸，其餘未切換過之分頁其子控制項的 Width 與 Height 均回報 0。當使用者在分頁 0 (即時綜合監控) 操作或觸發儲存時，所有未渲染分頁的 Splitter 因高度為 0 而被完全略過，導致 INI 檔案中其他分頁先前儲存的設定被無情抹除；
+     2. **啟動時防夾條件恆為 false 導致無法恢復**：原 `LoadLayoutConfig()` 於啟動時嘗試讀取各 SplitterDistance，但因啟動時背景分頁尺寸尚未排版計算，防夾保護條件 `if (d >= 80 && d <= splitTnMain.Height - 80)` 因 `Height = 0` 變成 `d <= -80` 永遠為 false，導致啟動時完全無法套用背景分頁設定；
+     3. **`SafeSetupSplitContainer` 死迴圈重設預設值**：舊版於 `SafeSetupSplitContainer` 中綁定了 `split.SizeChanged += applyDistance`，導致每當視窗尺寸縮放或版面重新計算時，不斷無條件強制重設為初始 `defaultDistance`，使用者手動拖曳調整之自訂距離被反覆強制覆蓋；
+     4. **局部變數未納入全域管理**：分頁右側與子 SplitContainer (如 `splitTnRight`、`splitEff`) 原先僅為方法內局部變數 (Local Variables)，未提升為類別成員，無法被全域存取與掛載 `SplitterMoved` 事件；
+     5. **視窗座標與最後作用中分頁遺失**：`[Window]` 區塊未儲存視窗座標 `X, Y` 與最後作用中分頁 `ActiveTab`，導致每次重啟都預設在螢幕固定位置且固定回到分頁 0；
+     6. **表格欄寬未記憶**：各分頁 DataGridView 表格 (即時監控驅動器參數、遙測清單、TN 多點與單點量測表、Duty 工作制歷程、空載測試表、報告清單) 未記憶欄位寬度，使用者調整欄寬後重啟無效。
+
+---
+
+### 💡 致命根因 (Root Cause Analysis)
+1. **WinForms 延遲佈局機制下背景 TabPage 尺寸回報 0 造成防夾計算失效與 INI 設定覆蓋 (Delayed Rendering & Zero-Dimension INI Erasure)**：
+   - WinForms 的 `TabControl` 採用延遲佈局策略（Lazy Handle Creation），在未切換到該 TabPage 之前，其內部容器之 `Width` 與 `Height` 皆為 0。原程式碼直接在 `Height > 0` 判斷未通過時略過寫入，使得正在顯示的分頁寫回 INI 時順便把其他分頁的鍵值全部清除；讀取時又因總長度小於最小邊界而判定無效，形成「存不了也讀不進」的惡性循環。
+2. **`SafeSetupSplitContainer` 重複綁定 `SizeChanged` 形成重設死迴圈 (Recursive Override Loop)**：
+   - 輔助函式原本將套用預設值之匿名方法永久掛載在 `SizeChanged` 事件上，視窗拉大或最大化時又觸發預設值覆蓋，完全抹殺了使用者的自訂微調。
+3. **分頁子 Splitter 屬性範圍侷限為局部變數且缺乏全域分派中繼機制**：
+   - 部分分割容器未宣告為全域成員，各模組各自獨立處理，未形成一致的統一快取與事件連鎖機制。
+4. **視窗邊界、作用中分頁與 DataGridView 欄寬未納入持久化管線**：
+   - 缺乏多螢幕虛擬座標有效性驗證與表格欄寬讀寫協定。
+
+---
+
+### 🚀 精確修復方案 (Accurate Solution & Release Verifications)
+1. **實裝 `layoutSplitters` 記憶體中繼快取字典 (`Dictionary<string, int>`)**：
+   - 於 `MainForm` 建立全域中繼快取，長久駐留全部 15 組 SplitContainer 的最新位置；
+   - 儲存時僅對可見分頁 (`Width > 0 && Height > 0`) 更新字典值，不可見分頁直接延用快取既有數值，並完整寫回 `dynamometer_layout.ini`，徹底解決背景分頁設定被抹除的致命缺陷。
+2. **實裝動態防夾與分頁切換安全套用機制 (`ApplySplitterDistanceSafe` & `ApplyTabSplitters`)**：
+   - 於分頁切換 `tabControl.SelectedIndexChanged` 時，透過 `this.BeginInvoke` 延遲至 WinForms 完成版面排版後，動態提取該分頁的 SplitContainer 容器尺寸，確認滿足 `total > p1Min + p2Min + SplitterWidth` 後精準套用使用者設定；
+   - 全面納管全部 7 大 TabPage 共 15 組 SplitContainer：
+     - **Tab 0 (即時綜合監控)**: `MainVertical` (左側控制/右側圖表), `Drives` (驅動器上下), `Drive1` (RU1/參數), `Drive2` (RU2/參數), `Bottom` (狀態/遙測), `Param1`, `Param2`
+     - **Tab 1 (TN 特性測試)**: `TnMain` (控制/圖表), `TnBottom` (狀態/表格), `TnRight` (參數/圖表)
+     - **Tab 2 (Duty 工作制測試)**: `DutyMain` (控制/圖表), `DutyTop` (狀態/設定)
+     - **Tab 3 (效率曲線測試)**: `EffMain` (控制/圖表)
+     - **Tab 4 (空載特性測試)**: `NoLoadMain` (控制/圖表), `NoLoadBottom` (設定/表格)
+   - 各分頁 SplitContainer 均掛載 `SplitterMoved` 事件，使用者手動拉動瞬間立即更新 `layoutSplitters` 並持久化至 INI。
+3. **重構 `SafeSetupSplitContainer` 消除重複覆蓋死迴圈**：
+   - 僅在初次佈局時賦予預設值，設定完成後立即解除 `SizeChanged` 事件監聽，絕不再強制覆蓋使用者拖曳之距離。
+4. **實裝多螢幕邊界安全檢查之視窗座標與最後分頁記憶**：
+   - 儲存 `[Window]` 之 `X, Y, Width, Height, State, ActiveTab`；
+   - 載入時透過 `Screen.AllScreens` 檢驗座標是否落在任何實體螢幕的可視工作區域內，防止因螢幕拔除或解析度變更造成視窗飄至虛擬座標外無法點擊；
+   - 啟動後由 `this.Shown` 透過 `BeginInvoke` 自動切換至上次離開之 `loadedActiveTab`，無縫銜接測試流程。
+5. **實裝全系統 8 大 DataGridView 欄寬動態自動記憶 (`SaveDgvColWidths` / `LoadDgvColWidths`)**：
+   - 涵蓋 `dgvKebRu1`, `dgvKebRu2`, `dgvTelemetry`, `dgvTnMultiPoints`, `dgvTnPoints`, `dgvDuty`, `dgvNoLoad`, `dgvReports`；
+   - 綁定 `ColumnWidthChanged` 事件即時寫入 INI `[DgvColWidths]`，重啟後 100% 精準復原。
+6. **編譯打包與發布驗證**：
+   - 經由 `csc.exe` (x86 .NET 4.0 WinXP 相容模式) 編譯通過 (Exit Code 0)；
+   - 執行 `package_release.ps1 -Version 2.5.0` 完成打包發布至 `Release/Dynamometer_HMI_V2.5.0_Portable/`。
 
 ---
 
