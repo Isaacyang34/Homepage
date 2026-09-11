@@ -38,7 +38,7 @@ namespace DynamometerHMI
         private bool isCloudUploadRunning = false;
 
         // ── 軟體線上熱更新設定 (Online Auto-Update & In-Place Hot Swap) ──────
-        public const string APP_VERSION = "2.10.44";
+        public const string APP_VERSION = "2.10.45";
         public string cloudUpdateManifestUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/update/version.json";
         public Button btnOnlineUpdate = null;
         private bool? lastCloudUploadSuccess = null;
@@ -2026,6 +2026,10 @@ namespace DynamometerHMI
                     {
                         ServeReportTemplate(client, stream, path);
                     }
+                    else if (path == "/favicon.ico")
+                    {
+                        ServeFavicon(client, stream);
+                    }
                     else
                     {
                         byte[] nf = Encoding.UTF8.GetBytes("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
@@ -2064,6 +2068,38 @@ namespace DynamometerHMI
                     stream.Write(hBytes, 0, hBytes.Length);
                     stream.Write(body, 0, body.Length);
                     stream.Flush();
+                }
+                catch { }
+                finally
+                {
+                    try { client.Close(); } catch { }
+                }
+            }
+
+            private void ServeFavicon(TcpClient client, NetworkStream stream)
+            {
+                try
+                {
+                    string localIco = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico");
+                    if (File.Exists(localIco))
+                    {
+                        byte[] icoBytes = File.ReadAllBytes(localIco);
+                        string header = "HTTP/1.1 200 OK\r\n" +
+                                        "Content-Type: image/x-icon\r\n" +
+                                        "Content-Length: " + icoBytes.Length + "\r\n" +
+                                        "Cache-Control: public, max-age=86400\r\n" +
+                                        "Connection: close\r\n\r\n";
+                        byte[] hBytes = Encoding.UTF8.GetBytes(header);
+                        stream.Write(hBytes, 0, hBytes.Length);
+                        stream.Write(icoBytes, 0, icoBytes.Length);
+                        stream.Flush();
+                    }
+                    else
+                    {
+                        byte[] nf = Encoding.UTF8.GetBytes("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                        stream.Write(nf, 0, nf.Length);
+                        stream.Flush();
+                    }
                 }
                 catch { }
                 finally

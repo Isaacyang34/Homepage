@@ -1050,6 +1050,21 @@ namespace DynamometerHMI
             this.Font = new Font("微軟正黑體", 10f, FontStyle.Regular);
             this.BackColor = Color.FromArgb(240, 243, 246);
 
+            // 載入應用程式高科技專屬 Icon (支援 EXE 內嵌 Win32 圖示提取與本地 app.ico)
+            try
+            {
+                string localIco = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico");
+                if (File.Exists(localIco))
+                {
+                    this.Icon = new Icon(localIco);
+                }
+                else
+                {
+                    this.Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+                }
+            }
+            catch { }
+
             // 根佈局容器
             TableLayoutPanel rootTable = new TableLayoutPanel()
             {

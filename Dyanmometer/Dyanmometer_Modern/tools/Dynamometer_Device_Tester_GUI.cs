@@ -173,6 +173,21 @@ namespace DynamometerDeviceTester
         public TesterForm(DynamometerHMI.MainForm main)
         {
             this.mainForm = main;
+            try
+            {
+                if (main != null && main.Icon != null)
+                {
+                    this.Icon = main.Icon;
+                }
+                else
+                {
+                    string localIco = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico");
+                    if (File.Exists(localIco)) this.Icon = new Icon(localIco);
+                    else this.Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+                }
+            }
+            catch { }
+
             this.Text = "動力測試設備現場四合一連線測試工具箱 (KISTLER / WT333E / GL820 / 雙 KEB 驅動器)";
             this.Size = new Size(1020, 770);
             this.StartPosition = FormStartPosition.CenterScreen;
