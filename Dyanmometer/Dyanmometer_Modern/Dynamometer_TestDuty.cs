@@ -29,7 +29,7 @@ namespace DynamometerHMI
             splitDuty.Panel1.BackColor = Color.FromArgb(248, 250, 252);
             splitDuty.Panel2.AutoScroll = true;
             splitDuty.Panel2.BackColor = Color.White;
-            splitDuty.SplitterMoved += (s, e) => SaveLayoutConfig();
+            splitDuty.SplitterMoved += (s, e) => { layoutSplitters["DutyMain"] = splitDuty.SplitterDistance; SaveLayoutConfig(); };
             SafeSetupSplitContainer(splitDuty, 550, 150, 100);
 
             splitDutyTop = new SplitContainer()
@@ -43,7 +43,7 @@ namespace DynamometerHMI
             splitDutyTop.Panel1.BackColor = Color.FromArgb(248, 250, 252);
             splitDutyTop.Panel2.AutoScroll = true;
             splitDutyTop.Panel2.BackColor = Color.FromArgb(248, 250, 252);
-            splitDutyTop.SplitterMoved += (s, e) => SaveLayoutConfig();
+            splitDutyTop.SplitterMoved += (s, e) => { layoutSplitters["DutyTop"] = splitDutyTop.SplitterDistance; SaveLayoutConfig(); };
             SafeSetupSplitContainer(splitDutyTop, 880, 250, 150);
 
             // -------------------------------------------------------------
@@ -572,6 +572,7 @@ namespace DynamometerHMI
             dgvDuty.Columns.Add("Eff", "效率 (%)");
             dgvDuty.Columns.Add("Temp", "馬達溫度 (°C)");
             dgvDuty.Columns.Add("Thermal", "熱平衡判定");
+            dgvDuty.ColumnWidthChanged += (s, e) => SaveLayoutConfig();
 
             splitDuty.Panel2.Controls.Add(dgvDuty);
             tab.Controls.Add(splitDuty);

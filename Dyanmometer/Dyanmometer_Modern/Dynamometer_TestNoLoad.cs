@@ -122,7 +122,7 @@ namespace DynamometerHMI
             splitNoLoadMain.Panel1.BackColor = Color.FromArgb(248, 250, 252);
             splitNoLoadMain.Panel2.AutoScroll = true;
             splitNoLoadMain.Panel2.BackColor = Color.White;
-            splitNoLoadMain.SplitterMoved += (s, e) => SaveLayoutConfig();
+            splitNoLoadMain.SplitterMoved += (s, e) => { layoutSplitters["NoLoadMain"] = splitNoLoadMain.SplitterDistance; SaveLayoutConfig(); };
             SafeSetupSplitContainer(splitNoLoadMain, 460, 250, 150);
 
             // -------------------------------------------------------------
@@ -435,6 +435,7 @@ namespace DynamometerHMI
             splitNoLoadBottom.Panel1.BackColor = Color.White;
             splitNoLoadBottom.Panel2.AutoScroll = true;
             splitNoLoadBottom.Panel2.BackColor = Color.White;
+            splitNoLoadBottom.SplitterMoved += (s, e) => { layoutSplitters["NoLoadBottom"] = splitNoLoadBottom.SplitterDistance; SaveLayoutConfig(); };
             SafeSetupSplitContainer(splitNoLoadBottom, 580, 200, 200);
 
             // Panel1: 專屬即時溫度趨勢圖 (多通道各別彩色波形與端點即時標籤)
@@ -472,6 +473,7 @@ namespace DynamometerHMI
                 BorderStyle = BorderStyle.None,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
             };
+            dgvNoLoad.ColumnWidthChanged += (s, e) => SaveLayoutConfig();
             dgvNoLoad.ColumnHeadersDefaultCellStyle.Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold);
             dgvNoLoad.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(241, 245, 249);
             dgvNoLoad.DefaultCellStyle.Font = new Font("微軟正黑體", 10f);

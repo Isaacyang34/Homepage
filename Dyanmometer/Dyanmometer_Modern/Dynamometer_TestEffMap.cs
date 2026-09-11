@@ -169,11 +169,12 @@ namespace DynamometerHMI
             tableEff.Controls.Add(pnlTop, 0, 0);
 
             // 下方主工作區 (左右分割：左側 2D 彩色熱力圖，右側 數據矩陣表)
-            SplitContainer splitEff = new SplitContainer()
+            splitEff = new SplitContainer()
             {
                 Dock = DockStyle.Fill,
                 Orientation = Orientation.Vertical
             };
+            splitEff.SplitterMoved += (s, e) => { layoutSplitters["EffMain"] = splitEff.SplitterDistance; SaveLayoutConfig(); };
             SafeSetupSplitContainer(splitEff, 550, 150, 150);
 
             // 左側：2D 彩色效率熱力圖 (Custom GDI+ Heatmap & Contour Control)

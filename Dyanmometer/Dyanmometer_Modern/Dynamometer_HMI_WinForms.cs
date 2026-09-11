@@ -393,9 +393,15 @@ namespace DynamometerHMI
         private bool isSyncingTnControls = false;
         private bool isSyncingDutyControls = false;
 
-        // T-N 與 DUTY 二維排版拖曳與記憶分割容器
+        // T-N、DUTY、EFF MAP、NO-LOAD 二維排版拖曳與記憶分割容器 (支援全分頁持久化)
         public SplitContainer splitTnMain, splitTnBottom;
+        public SplitContainer splitTnRight;
         public SplitContainer splitDuty, splitDutyTop;
+        public SplitContainer splitEff;
+
+        // 跨分頁版面分割條永久記憶字典 (避免隱藏分頁 Height/Width=0 導致已存設定被覆蓋抹除)
+        private readonly Dictionary<string, int> layoutSplitters = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        private int loadedActiveTab = -1;
 
         // DUTY 分頁專屬即時溫度波形與 S6 熱平衡/兩段式超溫防護欄位 (已由 sharedTestTempTrend 統一代理)
         private Label lblDutyTempTrendTitle, lblDutyTempRealtimeVal;
@@ -1373,7 +1379,17 @@ namespace DynamometerHMI
                 {
                     RefreshReportFileList();
                 }
+
+                // 立即安全還原該分頁之視窗分割條佈局 (非同步排入訊息隊列確保容器尺寸已由 GDI+ 完成計算排版)
+                int currentTab = tabControl.SelectedIndex;
+                this.BeginInvoke(new Action(() => {
+                    ApplyTabSplitters(currentTab);
+                    SaveLayoutConfig();
+                }));
             };
+
+            // 視窗大小/位置拖曳調整結束時自動儲存視窗座標與分割條
+            this.ResizeEnd += (s, e) => SaveLayoutConfig();
 
             // 啟動初始無縫鏡像雙保險
             SyncAllTnControls(fromMiniToMain: false);
@@ -1392,6 +1408,13 @@ namespace DynamometerHMI
             this.Shown += (s, e) => {
                 LoadLayoutConfig();
                 PurgeLocalLogs(false);
+                if (loadedActiveTab >= 0 && tabControl != null && loadedActiveTab < tabControl.TabPages.Count)
+                {
+                    try { tabControl.SelectedIndex = loadedActiveTab; } catch { }
+                }
+                this.BeginInvoke(new Action(() => {
+                    ApplyTabSplitters(tabControl != null ? tabControl.SelectedIndex : 0);
+                }));
                 if (mainTimer != null && !mainTimer.Enabled) mainTimer.Start();
                 if (isViewerMode)
                 {
@@ -1822,61 +1845,52 @@ namespace DynamometerHMI
             {
                 var sb = new StringBuilder();
                 sb.AppendLine("[Window]");
-                sb.AppendLine("Width=" + (this.WindowState == FormWindowState.Normal ? this.Width : this.RestoreBounds.Width));
-                sb.AppendLine("Height=" + (this.WindowState == FormWindowState.Normal ? this.Height : this.RestoreBounds.Height));
+                var bounds = (this.WindowState == FormWindowState.Normal) ? this.Bounds : this.RestoreBounds;
+                sb.AppendLine("X=" + bounds.X);
+                sb.AppendLine("Y=" + bounds.Y);
+                sb.AppendLine("Width=" + bounds.Width);
+                sb.AppendLine("Height=" + bounds.Height);
                 sb.AppendLine("State=" + (int)this.WindowState);
+                sb.AppendLine("ActiveTab=" + (tabControl != null ? tabControl.SelectedIndex : 0));
+
+                // 立即更新目前處於活動渲染狀態 (寬高 > 0) 的分割容器位置至記憶字典 (非活動分頁保留既有字典值，杜絕被 0 抹除)
+                if (splitMainVertical != null && splitMainVertical.Height > 0) layoutSplitters["MainVertical"] = splitMainVertical.SplitterDistance;
+                if (splitDrives != null && splitDrives.Width > 0) layoutSplitters["Drives"] = splitDrives.SplitterDistance;
+                if (splitDrive1 != null && splitDrive1.Width > 0) layoutSplitters["Drive1"] = splitDrive1.SplitterDistance;
+                if (splitDrive2 != null && splitDrive2.Width > 0) layoutSplitters["Drive2"] = splitDrive2.SplitterDistance;
+                if (splitBottomHorizontal != null && splitBottomHorizontal.Width > 0) layoutSplitters["Bottom"] = splitBottomHorizontal.SplitterDistance;
+                if (splitParam1 != null && splitParam1.Height > 0) layoutSplitters["Param1"] = splitParam1.SplitterDistance;
+                if (splitParam2 != null && splitParam2.Height > 0) layoutSplitters["Param2"] = splitParam2.SplitterDistance;
+
+                if (splitTnMain != null && splitTnMain.Height > 0) layoutSplitters["TnMain"] = splitTnMain.SplitterDistance;
+                if (splitTnBottom != null && splitTnBottom.Width > 0) layoutSplitters["TnBottom"] = splitTnBottom.SplitterDistance;
+                if (splitTnRight != null && splitTnRight.Height > 0) layoutSplitters["TnRight"] = splitTnRight.SplitterDistance;
+
+                if (splitDuty != null && splitDuty.Height > 0) layoutSplitters["DutyMain"] = splitDuty.SplitterDistance;
+                if (splitDutyTop != null && splitDutyTop.Width > 0) layoutSplitters["DutyTop"] = splitDutyTop.SplitterDistance;
+
+                if (splitEff != null && splitEff.Width > 0) layoutSplitters["EffMain"] = splitEff.SplitterDistance;
+
+                if (splitNoLoadMain != null && splitNoLoadMain.Height > 0) layoutSplitters["NoLoadMain"] = splitNoLoadMain.SplitterDistance;
+                if (splitNoLoadBottom != null && splitNoLoadBottom.Width > 0) layoutSplitters["NoLoadBottom"] = splitNoLoadBottom.SplitterDistance;
 
                 sb.AppendLine("[Splitters]");
-                if (splitMainVertical != null && splitMainVertical.Height > 0)
-                    sb.AppendLine("MainVertical=" + splitMainVertical.SplitterDistance);
-                if (splitDrives != null && splitDrives.Width > 0)
-                    sb.AppendLine("Drives=" + splitDrives.SplitterDistance);
-                if (splitDrive1 != null && splitDrive1.Width > 0)
-                    sb.AppendLine("Drive1=" + splitDrive1.SplitterDistance);
-                if (splitDrive2 != null && splitDrive2.Width > 0)
-                    sb.AppendLine("Drive2=" + splitDrive2.SplitterDistance);
-                if (splitBottomHorizontal != null && splitBottomHorizontal.Width > 0)
-                    sb.AppendLine("Bottom=" + splitBottomHorizontal.SplitterDistance);
-                if (splitParam1 != null && splitParam1.Height > 0)
-                    sb.AppendLine("Param1=" + splitParam1.SplitterDistance);
-                if (splitParam2 != null && splitParam2.Height > 0)
-                    sb.AppendLine("Param2=" + splitParam2.SplitterDistance);
-                if (splitTnMain != null && splitTnMain.Height > 0)
-                    sb.AppendLine("TnMain=" + splitTnMain.SplitterDistance);
-                if (splitTnBottom != null && splitTnBottom.Width > 0)
-                    sb.AppendLine("TnBottom=" + splitTnBottom.SplitterDistance);
-                if (splitDuty != null && splitDuty.Height > 0)
-                    sb.AppendLine("DutyMain=" + splitDuty.SplitterDistance);
-                if (splitDutyTop != null && splitDutyTop.Width > 0)
-                    sb.AppendLine("DutyTop=" + splitDutyTop.SplitterDistance);
-                if (splitNoLoadMain != null && splitNoLoadMain.Height > 0)
-                    sb.AppendLine("NoLoadMain=" + splitNoLoadMain.SplitterDistance);
-                if (splitNoLoadBottom != null && splitNoLoadBottom.Width > 0)
-                    sb.AppendLine("NoLoadBottom=" + splitNoLoadBottom.SplitterDistance);
+                foreach (var kvp in layoutSplitters)
+                {
+                    sb.AppendLine(kvp.Key + "=" + kvp.Value);
+                }
 
                 sb.AppendLine("[Workbench]");
                 sb.AppendLine("ActiveView=" + activeWorkbenchViewIdx);
 
-                if (dgvKebRu1 != null && dgvKebRu1.Columns.Count >= 2)
-                {
-                    sb.AppendLine("[DgvKebRu1]");
-                    for (int i = 0; i < dgvKebRu1.Columns.Count; i++)
-                        sb.AppendLine("Col" + i + "=" + dgvKebRu1.Columns[i].Width);
-                }
-
-                if (dgvKebRu2 != null && dgvKebRu2.Columns.Count >= 2)
-                {
-                    sb.AppendLine("[DgvKebRu2]");
-                    for (int i = 0; i < dgvKebRu2.Columns.Count; i++)
-                        sb.AppendLine("Col" + i + "=" + dgvKebRu2.Columns[i].Width);
-                }
-
-                if (dgvTelemetry != null && dgvTelemetry.Columns.Count > 0)
-                {
-                    sb.AppendLine("[DgvTelemetry]");
-                    for (int i = 0; i < dgvTelemetry.Columns.Count; i++)
-                        sb.AppendLine("Col" + i + "=" + dgvTelemetry.Columns[i].Width);
-                }
+                SaveDgvColWidths(sb, "DgvKebRu1", dgvKebRu1);
+                SaveDgvColWidths(sb, "DgvKebRu2", dgvKebRu2);
+                SaveDgvColWidths(sb, "DgvTelemetry", dgvTelemetry);
+                SaveDgvColWidths(sb, "DgvTnMultiPoints", dgvTnMultiPoints);
+                SaveDgvColWidths(sb, "DgvTnPoints", dgvTnPoints);
+                SaveDgvColWidths(sb, "DgvDuty", dgvDuty);
+                SaveDgvColWidths(sb, "DgvNoLoad", dgvNoLoad);
+                SaveDgvColWidths(sb, "DgvReports", dgvReports);
 
                 if (numUnifiedInterval != null)
                 {
@@ -2041,15 +2055,46 @@ namespace DynamometerHMI
                 {
                     int w = int.Parse(map["Window.Width"]);
                     int h = int.Parse(map["Window.Height"]);
+                    int x = map.ContainsKey("Window.X") ? int.Parse(map["Window.X"]) : this.Left;
+                    int y = map.ContainsKey("Window.Y") ? int.Parse(map["Window.Y"]) : this.Top;
+
                     if (w >= 600 && h >= 400)
                     {
-                        this.Size = new Size(Math.Min(w, Screen.PrimaryScreen.WorkingArea.Width), Math.Min(h, Screen.PrimaryScreen.WorkingArea.Height));
+                        Rectangle targetRect = new Rectangle(x, y, w, h);
+                        bool isVisibleOnAnyScreen = false;
+                        foreach (var scr in Screen.AllScreens)
+                        {
+                            if (scr.WorkingArea.IntersectsWith(targetRect))
+                            {
+                                isVisibleOnAnyScreen = true;
+                                break;
+                            }
+                        }
+
+                        if (isVisibleOnAnyScreen)
+                        {
+                            this.StartPosition = FormStartPosition.Manual;
+                            this.Bounds = targetRect;
+                        }
+                        else
+                        {
+                            this.StartPosition = FormStartPosition.CenterScreen;
+                            this.Size = new Size(Math.Min(w, Screen.PrimaryScreen.WorkingArea.Width), Math.Min(h, Screen.PrimaryScreen.WorkingArea.Height));
+                        }
                     }
                 }
                 if (map.ContainsKey("Window.State"))
                 {
                     int st = int.Parse(map["Window.State"]);
                     if (st == (int)FormWindowState.Maximized) this.WindowState = FormWindowState.Maximized;
+                }
+                if (map.ContainsKey("Window.ActiveTab"))
+                {
+                    int at;
+                    if (int.TryParse(map["Window.ActiveTab"], out at) && at >= 0)
+                    {
+                        loadedActiveTab = at;
+                    }
                 }
 
                 // Polling Interval
@@ -2170,85 +2215,20 @@ namespace DynamometerHMI
                 if (map.ContainsKey("RawData.RecordKebRu")) recordKebRuParams = map["RawData.RecordKebRu"] == "1";
                 if (map.ContainsKey("RawData.RecordIntervalMs")) int.TryParse(map["RawData.RecordIntervalMs"], out rawDataIntervalMs);
 
-                // Splitters
-                if (map.ContainsKey("Splitters.MainVertical") && splitMainVertical != null)
+                // Splitters: 完整讀入字典，杜絕跨分頁未渲染容器被抹除
+                foreach (var kvp in map)
                 {
-                    int d = int.Parse(map["Splitters.MainVertical"]);
-                    if (d >= 80 && d <= splitMainVertical.Height - 80)
-                        splitMainVertical.SplitterDistance = d;
+                    if (kvp.Key.StartsWith("Splitters.", StringComparison.OrdinalIgnoreCase))
+                    {
+                        string subKey = kvp.Key.Substring("Splitters.".Length);
+                        int val;
+                        if (int.TryParse(kvp.Value, out val) && val > 0)
+                        {
+                            layoutSplitters[subKey] = val;
+                        }
+                    }
                 }
-                if (map.ContainsKey("Splitters.Drives") && splitDrives != null)
-                {
-                    int d = int.Parse(map["Splitters.Drives"]);
-                    if (d >= 80 && d <= splitDrives.Width - 80)
-                        splitDrives.SplitterDistance = d;
-                }
-                if (map.ContainsKey("Splitters.Drive1") && splitDrive1 != null)
-                {
-                    int d = int.Parse(map["Splitters.Drive1"]);
-                    if (d >= 80 && d <= splitDrive1.Width - 80)
-                        splitDrive1.SplitterDistance = d;
-                }
-                if (map.ContainsKey("Splitters.Drive2") && splitDrive2 != null)
-                {
-                    int d = int.Parse(map["Splitters.Drive2"]);
-                    if (d >= 80 && d <= splitDrive2.Width - 80)
-                        splitDrive2.SplitterDistance = d;
-                }
-                if (map.ContainsKey("Splitters.Bottom") && splitBottomHorizontal != null)
-                {
-                    int d = int.Parse(map["Splitters.Bottom"]);
-                    if (d >= 80 && d <= splitBottomHorizontal.Width - 80)
-                        splitBottomHorizontal.SplitterDistance = d;
-                }
-                if (map.ContainsKey("Splitters.Param1") && splitParam1 != null)
-                {
-                    int d = int.Parse(map["Splitters.Param1"]);
-                    if (d >= 50 && d <= splitParam1.Height - 20)
-                        splitParam1.SplitterDistance = d;
-                }
-                if (map.ContainsKey("Splitters.Param2") && splitParam2 != null)
-                {
-                    int d = int.Parse(map["Splitters.Param2"]);
-                    if (d >= 50 && d <= splitParam2.Height - 20)
-                        splitParam2.SplitterDistance = d;
-                }
-                if (map.ContainsKey("Splitters.TnMain") && splitTnMain != null)
-                {
-                    int d = int.Parse(map["Splitters.TnMain"]);
-                    if (d >= 80 && d <= splitTnMain.Height - 80)
-                        splitTnMain.SplitterDistance = d;
-                }
-                if (map.ContainsKey("Splitters.TnBottom") && splitTnBottom != null)
-                {
-                    int d = int.Parse(map["Splitters.TnBottom"]);
-                    if (d >= 150 && d <= splitTnBottom.Width - 150)
-                        splitTnBottom.SplitterDistance = d;
-                }
-                if (map.ContainsKey("Splitters.DutyMain") && splitDuty != null)
-                {
-                    int d = int.Parse(map["Splitters.DutyMain"]);
-                    if (d >= 150 && d <= splitDuty.Height - 80)
-                        splitDuty.SplitterDistance = d;
-                }
-                if (map.ContainsKey("Splitters.DutyTop") && splitDutyTop != null)
-                {
-                    int d = int.Parse(map["Splitters.DutyTop"]);
-                    if (d >= 200 && d <= splitDutyTop.Width - 150)
-                        splitDutyTop.SplitterDistance = d;
-                }
-                if (map.ContainsKey("Splitters.NoLoadMain") && splitNoLoadMain != null)
-                {
-                    int d = int.Parse(map["Splitters.NoLoadMain"]);
-                    if (d >= 200 && d <= splitNoLoadMain.Height - 100)
-                        splitNoLoadMain.SplitterDistance = d;
-                }
-                if (map.ContainsKey("Splitters.NoLoadBottom") && splitNoLoadBottom != null)
-                {
-                    int d = int.Parse(map["Splitters.NoLoadBottom"]);
-                    if (d >= 200 && d <= splitNoLoadBottom.Width - 150)
-                        splitNoLoadBottom.SplitterDistance = d;
-                }
+                ApplyTabSplitters(tabControl != null ? tabControl.SelectedIndex : 0);
 
                 // 空載測試參數記憶還原 (NoLoadTest)
                 if (map.ContainsKey("NoLoadTest.DriveRole") && cmbNoLoadRole != null)
@@ -2326,44 +2306,15 @@ namespace DynamometerHMI
                     SwitchWorkbenchView(v);
                 }
 
-                // DgvKebRu1
-                if (dgvKebRu1 != null && dgvKebRu1.Columns.Count >= 2)
-                {
-                    for (int i = 0; i < 2; i++)
-                    {
-                        if (map.ContainsKey("DgvKebRu1.Col" + i))
-                        {
-                            int cw = int.Parse(map["DgvKebRu1.Col" + i]);
-                            if (cw >= 25 && cw <= 500) dgvKebRu1.Columns[i].Width = cw;
-                        }
-                    }
-                }
-
-                // DgvKebRu2
-                if (dgvKebRu2 != null && dgvKebRu2.Columns.Count >= 2)
-                {
-                    for (int i = 0; i < 2; i++)
-                    {
-                        if (map.ContainsKey("DgvKebRu2.Col" + i))
-                        {
-                            int cw = int.Parse(map["DgvKebRu2.Col" + i]);
-                            if (cw >= 25 && cw <= 500) dgvKebRu2.Columns[i].Width = cw;
-                        }
-                    }
-                }
-
-                // DgvTelemetry
-                if (dgvTelemetry != null)
-                {
-                    for (int i = 0; i < dgvTelemetry.Columns.Count; i++)
-                    {
-                        if (map.ContainsKey("DgvTelemetry.Col" + i))
-                        {
-                            int cw = int.Parse(map["DgvTelemetry.Col" + i]);
-                            if (cw >= 25 && cw <= 500) dgvTelemetry.Columns[i].Width = cw;
-                        }
-                    }
-                }
+                // DataGridView 欄寬記憶還原 (支援全分頁表格)
+                LoadDgvColWidths(map, "DgvKebRu1", dgvKebRu1);
+                LoadDgvColWidths(map, "DgvKebRu2", dgvKebRu2);
+                LoadDgvColWidths(map, "DgvTelemetry", dgvTelemetry);
+                LoadDgvColWidths(map, "DgvTnMultiPoints", dgvTnMultiPoints);
+                LoadDgvColWidths(map, "DgvTnPoints", dgvTnPoints);
+                LoadDgvColWidths(map, "DgvDuty", dgvDuty);
+                LoadDgvColWidths(map, "DgvNoLoad", dgvNoLoad);
+                LoadDgvColWidths(map, "DgvReports", dgvReports);
 
                 // 載入 A/B 載台自訂監控參數清單 (記憶功能)
                 if (map.ContainsKey("KebMonitors1.Count"))
@@ -2482,20 +2433,21 @@ namespace DynamometerHMI
             if (split == null) return;
             try
             {
-                split.Panel1MinSize = 0;
-                split.Panel2MinSize = 0;
+                split.Panel1MinSize = p1Min;
+                split.Panel2MinSize = p2Min;
 
-                Action applyDistance = () => {
+                bool initialized = false;
+                Action tryApplyDefault = () => {
+                    if (initialized) return;
                     try
                     {
                         int total = (split.Orientation == Orientation.Horizontal) ? split.Height : split.Width;
                         if (total > (p1Min + p2Min + split.SplitterWidth))
                         {
-                            split.Panel1MinSize = p1Min;
-                            split.Panel2MinSize = p2Min;
                             int maxDist = total - p2Min - split.SplitterWidth;
                             int target = Math.Max(p1Min, Math.Min(maxDist, defaultDistance));
                             split.SplitterDistance = target;
+                            initialized = true;
                         }
                     }
                     catch { }
@@ -2504,12 +2456,120 @@ namespace DynamometerHMI
                 int curTotal = (split.Orientation == Orientation.Horizontal) ? split.Height : split.Width;
                 if (curTotal > (p1Min + p2Min + split.SplitterWidth))
                 {
-                    applyDistance();
+                    tryApplyDefault();
                 }
-
-                split.SizeChanged += (s, e) => applyDistance();
+                else
+                {
+                    EventHandler onSize = null;
+                    onSize = (s, e) => {
+                        tryApplyDefault();
+                        if (initialized)
+                        {
+                            try { split.SizeChanged -= onSize; } catch { }
+                        }
+                    };
+                    split.SizeChanged += onSize;
+                }
             }
             catch { }
+        }
+
+        public bool ApplySplitterDistanceSafe(SplitContainer split, string key, int defaultFallback = -1, int p1Min = 50, int p2Min = 50)
+        {
+            if (split == null) return false;
+            try
+            {
+                int total = (split.Orientation == Orientation.Horizontal) ? split.Height : split.Width;
+                if (total <= (p1Min + p2Min + split.SplitterWidth))
+                    return false; // 面板尚未完成排版或處於隱藏狀態 (Total <= 0)
+
+                int desired;
+                if (!layoutSplitters.TryGetValue(key, out desired))
+                {
+                    desired = (defaultFallback > 0) ? defaultFallback : split.SplitterDistance;
+                }
+
+                if (desired > 0)
+                {
+                    split.Panel1MinSize = p1Min;
+                    split.Panel2MinSize = p2Min;
+                    int maxDist = total - p2Min - split.SplitterWidth;
+                    int clamped = Math.Max(p1Min, Math.Min(maxDist, desired));
+                    if (split.SplitterDistance != clamped)
+                    {
+                        split.SplitterDistance = clamped;
+                    }
+                    layoutSplitters[key] = clamped;
+                    return true;
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        public void ApplyTabSplitters(int tabIndex)
+        {
+            try
+            {
+                if (tabIndex == 0) // 即時綜合監控
+                {
+                    ApplySplitterDistanceSafe(splitMainVertical, "MainVertical", 330, 80, 80);
+                    ApplySplitterDistanceSafe(splitDrives, "Drives", 450, 80, 80);
+                    ApplySplitterDistanceSafe(splitDrive1, "Drive1", 280, 80, 80);
+                    ApplySplitterDistanceSafe(splitDrive2, "Drive2", 280, 80, 80);
+                    ApplySplitterDistanceSafe(splitBottomHorizontal, "Bottom", 520, 80, 80);
+                    ApplySplitterDistanceSafe(splitParam1, "Param1", 160, 50, 20);
+                    ApplySplitterDistanceSafe(splitParam2, "Param2", 160, 50, 20);
+                }
+                else if (tabIndex == 1) // 多段 T-N 測試
+                {
+                    ApplySplitterDistanceSafe(splitTnMain, "TnMain", 190, 80, 80);
+                    ApplySplitterDistanceSafe(splitTnBottom, "TnBottom", 600, 150, 150);
+                    ApplySplitterDistanceSafe(splitTnRight, "TnRight", 260, 120, 120);
+                }
+                else if (tabIndex == 2) // 工作制測試 Duty
+                {
+                    ApplySplitterDistanceSafe(splitDuty, "DutyMain", 550, 150, 80);
+                    ApplySplitterDistanceSafe(splitDutyTop, "DutyTop", 880, 200, 150);
+                }
+                else if (tabIndex == 3) // 效率地圖 Map
+                {
+                    ApplySplitterDistanceSafe(splitEff, "EffMain", 550, 150, 150);
+                }
+                else if (tabIndex == 4) // 空載溫升 No-Load
+                {
+                    ApplySplitterDistanceSafe(splitNoLoadMain, "NoLoadMain", 460, 200, 100);
+                    ApplySplitterDistanceSafe(splitNoLoadBottom, "NoLoadBottom", 580, 200, 150);
+                }
+            }
+            catch { }
+        }
+
+        private void SaveDgvColWidths(StringBuilder sb, string sectionName, DataGridView dgv)
+        {
+            if (dgv == null || dgv.Columns.Count == 0) return;
+            sb.AppendLine("[" + sectionName + "]");
+            for (int i = 0; i < dgv.Columns.Count; i++)
+            {
+                sb.AppendLine("Col" + i + "=" + dgv.Columns[i].Width);
+            }
+        }
+
+        private void LoadDgvColWidths(Dictionary<string, string> map, string sectionName, DataGridView dgv)
+        {
+            if (dgv == null || dgv.Columns.Count == 0) return;
+            for (int i = 0; i < dgv.Columns.Count; i++)
+            {
+                string key = sectionName + ".Col" + i;
+                if (map.ContainsKey(key))
+                {
+                    int w;
+                    if (int.TryParse(map[key], out w) && w >= 20 && w <= 1200)
+                    {
+                        try { dgv.Columns[i].Width = w; } catch { }
+                    }
+                }
+            }
         }
 
         private List<KebMonitorItem> CreateDefaultKebMonitorList()

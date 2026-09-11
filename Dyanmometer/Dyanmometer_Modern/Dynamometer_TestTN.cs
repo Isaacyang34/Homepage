@@ -30,7 +30,7 @@ namespace DynamometerHMI
             splitTnMain.Panel1.BackColor = Color.FromArgb(248, 250, 252);
             splitTnMain.Panel2.AutoScroll = true;
             splitTnMain.Panel2.BackColor = Color.White;
-            splitTnMain.SplitterMoved += (s, e) => SaveLayoutConfig();
+            splitTnMain.SplitterMoved += (s, e) => { layoutSplitters["TnMain"] = splitTnMain.SplitterDistance; SaveLayoutConfig(); };
             SafeSetupSplitContainer(splitTnMain, 190, 100, 100);
 
             // 頂部參數設定區
@@ -297,6 +297,7 @@ namespace DynamometerHMI
 
             dgvTnMultiPoints.Columns.Add("AvgEff", "30s均效率(%)");
             dgvTnMultiPoints.Columns["AvgEff"].ReadOnly = true;
+            dgvTnMultiPoints.ColumnWidthChanged += (s, e) => SaveLayoutConfig();
 
             // 預設兩組測試點 (1500 rpm / 10.0 Nm 與 3000 rpm / 15.0 Nm)
             dgvTnMultiPoints.Rows.Add("1", "1500", "10.0", "待命", "-", "-", "-", "-");
@@ -309,7 +310,7 @@ namespace DynamometerHMI
             btnTnRemovePoint.Click += (s, e) => {
                 if (dgvTnMultiPoints.Rows.Count <= 1)
                 {
-                    MessageBox.Show("至少必須保留 1 組測試點！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("至少需保留一個測試點位！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
                 int selIdx = dgvTnMultiPoints.CurrentRow != null ? dgvTnMultiPoints.CurrentRow.Index : dgvTnMultiPoints.Rows.Count - 1;
@@ -335,6 +336,7 @@ namespace DynamometerHMI
             // =========================================================================
             // 面板 C：啟動、停止、匯出與進度狀態 (pnlTnActions，隨模式自適應垂直定位)
             // =========================================================================
+            // 底部操作按鈕群 (單一彈性面板，位置依模式動態下移)
             pnlTnActions = new Panel()
             {
                 Location = new Point(6, 155),
@@ -398,7 +400,7 @@ namespace DynamometerHMI
                 SplitterWidth = 8,
                 BackColor = Color.FromArgb(203, 213, 225)
             };
-            splitTnBottom.SplitterMoved += (s, e) => SaveLayoutConfig();
+            splitTnBottom.SplitterMoved += (s, e) => { layoutSplitters["TnBottom"] = splitTnBottom.SplitterDistance; SaveLayoutConfig(); };
             SafeSetupSplitContainer(splitTnBottom, 600, 150, 150);
 
             // 左側：T-N 曲線圖
@@ -406,13 +408,14 @@ namespace DynamometerHMI
             splitTnBottom.Panel1.Controls.Add(tnChart);
 
             // 右側：上方即時動態溫度曲線 + 下方數據表格 (垂直分割，可自由拖曳調整高低)
-            SplitContainer splitTnRight = new SplitContainer()
+            splitTnRight = new SplitContainer()
             {
                 Dock = DockStyle.Fill,
                 Orientation = Orientation.Horizontal,
                 SplitterWidth = 8,
                 BackColor = Color.FromArgb(203, 213, 225)
             };
+            splitTnRight.SplitterMoved += (s, e) => { layoutSplitters["TnRight"] = splitTnRight.SplitterDistance; SaveLayoutConfig(); };
             SafeSetupSplitContainer(splitTnRight, 260, 120, 120);
 
             // 右上方：專屬即時溫度動態曲線與通道選擇 (同 S1 介面規格)
@@ -558,6 +561,7 @@ namespace DynamometerHMI
             dgvTnPoints.Columns.Add("Pwr", "功率(kW)");
             dgvTnPoints.Columns.Add("Eff", "效率(%)");
             dgvTnPoints.Columns.Add("Status", "狀態");
+            dgvTnPoints.ColumnWidthChanged += (s, e) => SaveLayoutConfig();
             splitTnRight.Panel2.Controls.Add(dgvTnPoints);
 
             splitTnBottom.Panel2.Controls.Add(splitTnRight);
@@ -579,9 +583,15 @@ namespace DynamometerHMI
             {
                 pnlTnActions.Location = isMulti ? new Point(6, 255) : new Point(6, 155);
             }
-            if (splitTnMain != null)
+            if (splitTnMain != null && splitTnMain.Height > 0)
             {
-                splitTnMain.SplitterDistance = isMulti ? 325 : 205;
+                int defaultTarget = isMulti ? 325 : 205;
+                int target = defaultTarget;
+                if (layoutSplitters.ContainsKey("TnMain"))
+                {
+                    target = Math.Max(defaultTarget, layoutSplitters["TnMain"]);
+                }
+                ApplySplitterDistanceSafe(splitTnMain, "TnMain", target);
             }
         }
 
