@@ -461,6 +461,71 @@ namespace DynamometerHMI
                 ForeColor = Color.FromArgb(30, 64, 175)
             };
 
+            // 時間軸快捷控制列 (固定靠右對齊)
+            Panel pnlTnTimeSpan = new Panel()
+            {
+                Dock = DockStyle.Right,
+                Width = 244,
+                BackColor = Color.Transparent
+            };
+            Label lblTnTimeTitle = new Label()
+            {
+                Text = "⏱️ 時間軸:",
+                Location = new Point(0, 8),
+                AutoSize = true,
+                Font = new Font("微軟正黑體", 10f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(51, 65, 85)
+            };
+            Button btnTnTimeMinus = new Button()
+            {
+                Text = "➖",
+                Location = new Point(68, 5),
+                Size = new Size(26, 28),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.White,
+                Font = new Font("微軟正黑體", 8.5f),
+                Cursor = Cursors.Hand
+            };
+            btnTnTimeMinus.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
+
+            cmbTnTimeSpan = new ComboBox()
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Location = new Point(96, 7),
+                Size = new Size(114, 26),
+                Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
+                BackColor = Color.White
+            };
+            cmbTnTimeSpan.Items.AddRange(GbdTemperatureTrendControl.TimeSpanNames);
+            cmbTnTimeSpan.SelectedIndex = (sharedTestTempTrend != null) ? sharedTestTempTrend.CurrentTimeSpanIndex : 3;
+
+            Button btnTnTimePlus = new Button()
+            {
+                Text = "➕",
+                Location = new Point(212, 5),
+                Size = new Size(26, 28),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.White,
+                Font = new Font("微軟正黑體", 8.5f),
+                Cursor = Cursors.Hand
+            };
+            btnTnTimePlus.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
+
+            cmbTnTimeSpan.SelectedIndexChanged += (s, e) => {
+                if (sharedTestTempTrend != null && cmbTnTimeSpan.SelectedIndex >= 0)
+                {
+                    sharedTestTempTrend.CurrentTimeSpanIndex = cmbTnTimeSpan.SelectedIndex;
+                }
+            };
+            btnTnTimeMinus.Click += (s, e) => {
+                if (cmbTnTimeSpan.SelectedIndex > 0) cmbTnTimeSpan.SelectedIndex--;
+            };
+            btnTnTimePlus.Click += (s, e) => {
+                if (cmbTnTimeSpan.SelectedIndex < cmbTnTimeSpan.Items.Count - 1) cmbTnTimeSpan.SelectedIndex++;
+            };
+
+            pnlTnTimeSpan.Controls.AddRange(new Control[] { lblTnTimeTitle, btnTnTimeMinus, cmbTnTimeSpan, btnTnTimePlus });
+            pnlTnTempHeader.Controls.Add(pnlTnTimeSpan);
             pnlTnTempHeader.Controls.AddRange(new Control[] { btnTnSelectChannels, lblTnSelectedChHint, lblTnTempRealtimeVal });
 
             // 專屬動態溫度曲線：與 Duty / 空載 共用 sharedTestTempTrend

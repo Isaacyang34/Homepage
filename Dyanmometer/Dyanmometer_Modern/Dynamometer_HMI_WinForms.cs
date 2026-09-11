@@ -286,6 +286,8 @@ namespace DynamometerHMI
         public bool[] tnMonitoredChannels = new bool[20] { true, true, true, true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false };
         private Button btnTnSelectChannels;
         private Label lblTnSelectedChHint, lblTnTempRealtimeVal;
+        public ComboBox cmbTnTimeSpan;
+        public ComboBox cmbDutyTimeSpan;
         private double tnCurrentSpeedCmd = 0.0; // T-N 待測端閉迴路追隨目標轉速 (補轉差)
         private System.Windows.Forms.Timer tnTimer;
         private int tnCurrentStep = 0;
@@ -1295,6 +1297,16 @@ namespace DynamometerHMI
             instance = this;
             // 核心單一趨勢圖實例：所有測試分頁 (TN / Duty / 空載) 共用此實例，僅依分頁動態掛載與切換通道遮罩
             sharedTestTempTrend = new GbdTemperatureTrendControl(this) { Dock = DockStyle.Fill };
+            sharedTestTempTrend.TimeSpanChanged += (idx) => {
+                if (cmbTnTimeSpan != null && cmbTnTimeSpan.SelectedIndex != idx)
+                {
+                    try { cmbTnTimeSpan.SelectedIndex = idx; } catch { }
+                }
+                if (cmbDutyTimeSpan != null && cmbDutyTimeSpan.SelectedIndex != idx)
+                {
+                    try { cmbDutyTimeSpan.SelectedIndex = idx; } catch { }
+                }
+            };
 
             TabPage tab1 = new TabPage("即時綜合監控") { BackColor = Color.White };
             BuildManualTab(tab1);
@@ -1563,6 +1575,14 @@ namespace DynamometerHMI
                     sharedTestTempTrend.SetChannelVisibility(channelMask);
                 }
                 sharedTestTempTrend.PositionTimeSpanToolbar();
+                if (cmbTnTimeSpan != null && cmbTnTimeSpan.SelectedIndex != sharedTestTempTrend.CurrentTimeSpanIndex)
+                {
+                    try { cmbTnTimeSpan.SelectedIndex = sharedTestTempTrend.CurrentTimeSpanIndex; } catch { }
+                }
+                if (cmbDutyTimeSpan != null && cmbDutyTimeSpan.SelectedIndex != sharedTestTempTrend.CurrentTimeSpanIndex)
+                {
+                    try { cmbDutyTimeSpan.SelectedIndex = sharedTestTempTrend.CurrentTimeSpanIndex; } catch { }
+                }
                 if (sharedTestTempTrend.Visible)
                 {
                     sharedTestTempTrend.Invalidate();

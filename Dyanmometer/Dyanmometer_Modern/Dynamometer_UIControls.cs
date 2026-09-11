@@ -648,10 +648,39 @@ namespace DynamometerHMI
         private static readonly Font fontLeg85B = new Font("微軟正黑體", 8.5f, FontStyle.Bold);
         private static readonly Font fontLeg75B = new Font("微軟正黑體", 7.5f, FontStyle.Bold);
 
-        private static readonly int[] timeSpanSteps = new int[] { 30, 60, 120, 300, 600, 1800, 3600 };
-        private static readonly string[] timeSpanNames = new string[] { "30秒", "1分鐘", "2分鐘", "5分鐘", "10分鐘", "30分鐘", "1小時" };
+        private static readonly int[] timeSpanSteps = new int[] { 30, 60, 120, 300, 600, 1800, 3600, 7200, 0 };
+        private static readonly string[] timeSpanNames = new string[] { "30秒", "1分鐘", "2分鐘", "5分鐘", "10分鐘", "30分鐘", "1小時", "2小時", "全程 (全部)" };
+        public static int[] TimeSpanSteps { get { return timeSpanSteps; } }
+        public static string[] TimeSpanNames { get { return timeSpanNames; } }
+
         private int currentTimeSpanIndex = 3; // 預設 5 分鐘
         public int CurrentTimeSpanSeconds { get { return timeSpanSteps[currentTimeSpanIndex]; } }
+        public int CurrentTimeSpanIndex
+        {
+            get { return currentTimeSpanIndex; }
+            set
+            {
+                if (value >= 0 && value < timeSpanSteps.Length)
+                {
+                    if (currentTimeSpanIndex != value)
+                    {
+                        currentTimeSpanIndex = value;
+                        UpdateTimeSpanLabel();
+                        if (TimeSpanChanged != null)
+                        {
+                            try { TimeSpanChanged(currentTimeSpanIndex); } catch { }
+                        }
+                        this.Invalidate();
+                    }
+                }
+            }
+        }
+        public event Action<int> TimeSpanChanged;
+
+        public void SetTimeSpanIndex(int idx)
+        {
+            CurrentTimeSpanIndex = idx;
+        }
 
         public GbdTemperatureTrendControl(MainForm parent = null)
         {
@@ -686,9 +715,7 @@ namespace DynamometerHMI
             btnTimeMinus.Click += (s, e) => {
                 if (currentTimeSpanIndex > 0)
                 {
-                    currentTimeSpanIndex--;
-                    UpdateTimeSpanLabel();
-                    this.Invalidate();
+                    CurrentTimeSpanIndex = currentTimeSpanIndex - 1;
                 }
             };
 
@@ -702,9 +729,7 @@ namespace DynamometerHMI
                 Margin = new Padding(2, 3, 2, 0)
             };
             lblTimeSpan.Click += (s, e) => {
-                currentTimeSpanIndex = (currentTimeSpanIndex + 1) % timeSpanSteps.Length;
-                UpdateTimeSpanLabel();
-                this.Invalidate();
+                CurrentTimeSpanIndex = (currentTimeSpanIndex + 1) % timeSpanSteps.Length;
             };
 
             btnTimePlus = new Button()
@@ -720,9 +745,7 @@ namespace DynamometerHMI
             btnTimePlus.Click += (s, e) => {
                 if (currentTimeSpanIndex < timeSpanSteps.Length - 1)
                 {
-                    currentTimeSpanIndex++;
-                    UpdateTimeSpanLabel();
-                    this.Invalidate();
+                    CurrentTimeSpanIndex = currentTimeSpanIndex + 1;
                 }
             };
 
@@ -733,7 +756,7 @@ namespace DynamometerHMI
 
         private void UpdateTimeSpanLabel()
         {
-            if (lblTimeSpan != null)
+            if (lblTimeSpan != null && currentTimeSpanIndex >= 0 && currentTimeSpanIndex < timeSpanNames.Length)
             {
                 lblTimeSpan.Text = "⏱️ " + timeSpanNames[currentTimeSpanIndex];
                 PositionTimeSpanToolbar();
@@ -770,10 +793,10 @@ namespace DynamometerHMI
                 copy[i] = (channelTemps[i] > 0.0) ? channelTemps[i] : 0.0;
             }
             samples.Add(new KeyValuePair<DateTime, double[]>(time, copy));
-            // 長時間運行記憶體防護：批次修剪取代頻繁 RemoveAt(0)，大幅減少陣列搬移與 GC 開銷
-            if (samples.Count > 3600 + 120)
+            // 長時間運行記憶體防護 (支援最多 24 小時連續取樣，約 86400 點，記憶體僅約 15MB)：批次修剪取代頻繁 RemoveAt(0)
+            if (samples.Count > 86400 + 1000)
             {
-                samples.RemoveRange(0, 120);
+                samples.RemoveRange(0, 1000);
             }
             if (this.Visible)
             {
@@ -812,7 +835,18 @@ namespace DynamometerHMI
 
             // 統計可見區間內的資料與 Y 軸自動適應 (上下 25% 餘裕，不強制從 0 起算)
             DateTime now = (samples.Count > 0) ? samples[samples.Count - 1].Key : DateTime.Now;
-            DateTime startTime = now.AddSeconds(-CurrentTimeSpanSeconds);
+            DateTime startTime;
+            double effectiveSpanSec;
+            if (CurrentTimeSpanSeconds <= 0) // 0 代表 全程 (全部)
+            {
+                startTime = (samples.Count > 0) ? samples[0].Key : now.AddSeconds(-300);
+                effectiveSpanSec = Math.Max(10.0, (now - startTime).TotalSeconds);
+            }
+            else
+            {
+                effectiveSpanSec = (double)CurrentTimeSpanSeconds;
+                startTime = now.AddSeconds(-effectiveSpanSec);
+            }
 
             double minTemp = double.MaxValue;
             double maxTemp = double.MinValue;
@@ -872,8 +906,8 @@ namespace DynamometerHMI
                 {
                     float x = plotRect.Left + i * (plotRect.Width / (float)xSteps);
                     g.DrawLine(pGrid, x, plotRect.Top, x, plotRect.Bottom);
-                    int secFromNow = (xSteps - i) * (CurrentTimeSpanSeconds / xSteps);
-                    string timeStr = (secFromNow == 0) ? "現在" : (secFromNow >= 60 ? string.Format("-{0}m", secFromNow / 60) : string.Format("-{0}s", secFromNow));
+                    int secFromNow = (int)((xSteps - i) * (effectiveSpanSec / xSteps));
+                    string timeStr = (secFromNow == 0) ? "現在" : (secFromNow >= 3600 ? string.Format("-{0:F1}h", secFromNow / 3600.0) : (secFromNow >= 60 ? string.Format("-{0}m", secFromNow / 60) : string.Format("-{0}s", secFromNow)));
                     g.DrawString(timeStr, fontTick8, Brushes.Gray, x - 12, plotRect.Bottom + 2);
                 }
             }
@@ -924,7 +958,7 @@ namespace DynamometerHMI
                         double temp = (ch < s.Value.Length) ? s.Value[ch] : 0.0;
                         if (temp <= 0.0) continue;
                         double secOffset = (s.Key - startTime).TotalSeconds;
-                        float x = plotRect.Left + (float)(Math.Max(0.0, Math.Min(CurrentTimeSpanSeconds, secOffset)) / CurrentTimeSpanSeconds) * plotRect.Width;
+                        float x = plotRect.Left + (float)(Math.Max(0.0, Math.Min(effectiveSpanSec, secOffset)) / effectiveSpanSec) * plotRect.Width;
                         float y = plotRect.Bottom - (float)((temp - plotMinY) / (plotMaxY - plotMinY)) * plotRect.Height;
                         pts.Add(new PointF(x, Math.Max(plotRect.Top, Math.Min(plotRect.Bottom, y))));
                     }
@@ -936,7 +970,7 @@ namespace DynamometerHMI
                         if (temp > 0.0)
                         {
                             double secOffset = (s.Key - startTime).TotalSeconds;
-                            float x = plotRect.Left + (float)(Math.Max(0.0, Math.Min(CurrentTimeSpanSeconds, secOffset)) / CurrentTimeSpanSeconds) * plotRect.Width;
+                            float x = plotRect.Left + (float)(Math.Max(0.0, Math.Min(effectiveSpanSec, secOffset)) / effectiveSpanSec) * plotRect.Width;
                             float y = plotRect.Bottom - (float)((temp - plotMinY) / (plotMaxY - plotMinY)) * plotRect.Height;
                             pts.Add(new PointF(x, Math.Max(plotRect.Top, Math.Min(plotRect.Bottom, y))));
                         }
