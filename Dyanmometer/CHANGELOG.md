@@ -8,7 +8,27 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.94 (beta) | v2.10.52 | 2026-09-11 | 分頁列抬頭顯示器 (Tab Row Layout HUD) 功成身退與視覺簡潔純化：(1)需求背景：在排版記憶時序與巢狀容器自適應根治後，分割條數值已可 100% 於開機冷啟動時永久穩定復原，使用者指示移除分頁列右側除錯用之抬頭顯示區 (Tab Row Layout HUD)；(2)元件徹底解耦與移除：全面刪除 pnlTabHud、lblTabHudCoords、btnSaveHud、btnOpenIni、btnReloadHud、ttTabHud 及其所有關聯事件與連動監聽，零代碼殘留；(3)分頁列視覺恢復：分頁標籤 Padding 回調至舒適之 new Point(12, 6)，恢復頂部介面大氣、專業且純粹之主控台視覺，底層自動記憶引擎持續維持最高可靠度運作。 |
 | V2.93 (beta) | v2.10.51 | 2026-09-11 | 排版記憶啟動時序與巢狀容器自適應修復（徹底根治「存好按載入能恢復，但重啟後失效」之深層病灶）：(1)致命根因：過去 LoadLayoutConfig() 被延遲至視窗完全顯示 (this.Shown) 時才執行，導致建構式建立 TN/Duty 各子分頁時，排版字典 layoutSplitters 仍為空，所有分割條被強制灌入硬編碼預設值 (如 210, 650, 550) 並解除監聽；同時 WinForms SplitContainer 預設 FixedPanel=None，導致視窗最大化時依比例縮放拉偏數值；且巢狀容器 (如 splitTnBottom) 在分頁尚未完全渲染時因尺寸為 0 被拋棄套用；(2)建構式第一優先預載 (Pre-Construction Preload)：在 MainForm 建構式建立任何子元件前立即執行 LoadLayoutConfig()，確保全域排版字典、視窗最大化狀態、上次活動分頁於實例化前 100% 準備就緒；(3)Panel1 絕對像素鎖定 (FixedPanel.Panel1)：全分割容器強制啟用 FixedPanel = FixedPanel.Panel1，徹底杜絕全螢幕與視窗縮放時被 WinForms 等比縮放自動破壞像素設定；(4)巢狀佈局自適應延遲補償 (Self-Healing Layout Retry)：若呼叫 ApplySplitterDistanceSafe 時容器寬高尚未由 GDI+ 完成佈局，自動掛載一次性 SizeChanged 重試監聽，尺寸一就緒即刻以微秒級速度套用使用者 INI 記憶之絕對像素；(5)分頁建立完成即刻切換：於 TabPages 填入完畢後立即恢復 loadedActiveTab，開機即定位至上次操作分頁。 |
+
+---
+
+## [V2.94 beta / v2.10.52] - 2026-09-11
+
+### 🎯 現象與需求 (User Request & Aesthetic Refinement)
+1. **使用者明確指令**：
+   - 使用者回報：「既然可以存了那就刪掉分頁列最右側抬頭顯示區 (Tab Row Layout HUD)功能吧!」。
+   - 在排版記憶的底層架構、巢狀容器延遲重試與開機預載機制徹底解決之後，設定檔儲存與重開自動復原已 100% 正常，分頁列右側之除錯與手動操作抬頭顯示器已完成階段性任務，應予移除以保持主畫面俐落簡潔。
+
+---
+
+### 💡 架構清理與純化 (Architecture Purification)
+1. **HUD 控制項全面解耦拔除**：
+   - 移除頂部面板 `pnlTabHud`、座標標籤 `lblTabHudCoords`、快捷按鈕 `btnSaveHud`、`btnOpenIni`、`btnReloadHud` 及提示元件 `ttTabHud`；
+   - 清除所有呼叫端（包含 `SafeSetupSplitContainer`、`UpdateTnModeVisibility`、`UpdateDutyModeVisibility`、`LoadLayoutConfig`、`tabControl.SelectedIndexChanged`、`this.Shown` 與 `this.Resize`）；
+2. **分頁列視覺呼吸感恢復**：
+   - 分頁標籤 Padding 回調為 `new Point(12, 6)`，字體維持粗體高辨識度，整體分頁列乾淨大氣，無任何多餘視覺干擾。
+
 | V2.92 (beta) | v2.10.50 | 2026-09-11 | 分頁列右側即時排版記憶 HUD 抬頭顯示器與熱載入/直修控制中心：(1)根因與需求：使用者調整分割條後渴望即時目視目前記憶座標、手動修訂行數與立即回寫，過去排版記憶隱藏於背景；(2)分頁列右端空間重構：將 tabControl 的 SizeMode 改為 Normal、縮減 Padding 釋出右側空間，於分頁標籤列最右側頂層錨定專屬抬頭顯示面板 (pnlTabHud)；(3)即時座標聯動顯示：分割條拖曳 (SplitterMoved)、工作制 (S1/S2/S6) 或分頁切換時，毫秒級動態刷新當前分頁核心分割條像素數值 (如 TnMain:232, TnBot:732)；(4)一鍵熱操作三核心按鈕：實裝 [💾存] 即刻強制同步寫入根目錄與 ini/、[📝改] 一鍵喚醒 Windows 原生 Notepad.exe 直接手動修改 dynamometer_layout.ini 指定行數、[🔄載] 即刻免重啟熱載入 (Hot-Reload) 重新套用最新 INI 尺寸；(5)懸浮完整資訊提示 (ToolTip)：滑鼠懸停即浮現目前 [Splitters] 完整排版鍵值清單。 |
 
 ---
