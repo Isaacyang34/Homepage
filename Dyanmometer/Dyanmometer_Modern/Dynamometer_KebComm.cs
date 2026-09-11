@@ -674,10 +674,91 @@ namespace DynamometerHMI
         private bool isHmiKebOpen2 = false;
         private int cachedUd02_1 = -1, cachedUd02_2 = -1;
         private int cachedCs00_1 = -1, cachedCs00_2 = -1;
+        public static double cachedRu03Scale_1 = 0.0125;  // A載台預設 4000 rpm 速度範圍 (0.0125 Hz)
+        public static double cachedRu03Scale_2 = 0.025;   // B載台預設 8000 rpm 速度範圍 (0.025 Hz)
         private static int activeKebComIndex_hmi = -1;  // 僅供 EnsureHmiKebOpen 舊版HMI通道追蹤
         private static int activeKebBaudIndex_hmi = -1;
 
+        /// <summary>
+        /// KEB COMBIVERT F5 ru.03 輸出頻率精確物理換算引擎
+        /// KEB F5 ru.03 (0x0203) 內部解析度遵循速度範圍標準化 (Standardization of parameters)：
+        ///  - 8000 rpm 速度範圍 (標準 400Hz 驅動器，B載台待測)：Scale = 0.025 Hz (1 Hz = 40 units, 例: 1388 * 0.025 = 34.70 Hz)
+        ///  - 4000 rpm 速度範圍 (加載機，A載台)：Scale = 0.0125 Hz (1 Hz = 80 units, 例: -4180 * 0.0125 = -52.25 Hz)
+        ///  - 16000 rpm 速度範圍：Scale = 0.05 Hz (1 Hz = 20 units)
+        ///  - 高解析度擴展模式：Scale = 0.0001 Hz (raw >= 100000)
+        /// 當 PowerMeter WT333E 連線時，以高精度功率計實測電氣基波頻率進行即時自適應校驗並鎖定 Scale。
+        /// </summary>
+        public static double ConvertKebRu03ToFrequency(int rawRu03, int driveId, double powerMeterFreq = 0.0, double shaftRpm = 0.0, int motorPoles = 0)
+        {
+            if (rawRu03 == 0) return 0.0;
 
+            // 1. 高解析度擴展模式判別 (例如 raw = 500,000 代表 50.0000 Hz)
+            if (Math.Abs(rawRu03) >= 100000)
+            {
+                return rawRu03 * 0.0001;
+            }
+
+            double absRaw = Math.Abs((double)rawRu03);
+
+            // 2. 當 PowerMeter WT333E 有即時有效頻率 (> 2.0 Hz) 且量測對象吻合待測端
+            if (powerMeterFreq > 2.0)
+            {
+                double[] candidateScales = new double[] { 0.025, 0.0125, 0.05, 0.00625, 0.01 };
+                double bestScale = (driveId == 1) ? cachedRu03Scale_1 : cachedRu03Scale_2;
+                double minDiff = Math.Abs(absRaw * bestScale - powerMeterFreq);
+
+                foreach (double s in candidateScales)
+                {
+                    double diff = Math.Abs(absRaw * s - powerMeterFreq);
+                    if (diff < minDiff)
+                    {
+                        minDiff = diff;
+                        bestScale = s;
+                    }
+                }
+
+                if (minDiff < 3.0 || (powerMeterFreq > 10.0 && minDiff / powerMeterFreq < 0.15))
+                {
+                    if (driveId == 1) cachedRu03Scale_1 = bestScale;
+                    else cachedRu03Scale_2 = bestScale;
+                    return rawRu03 * bestScale;
+                }
+            }
+
+            // 3. 若無 PowerMeter 但有實測轉速與極數，以電機理論電頻率驗證 Scale
+            if (Math.Abs(shaftRpm) > 50.0 && motorPoles > 0)
+            {
+                double theoFreq = (double)motorPoles * Math.Abs(shaftRpm) / 120.0;
+                if (theoFreq > 2.0)
+                {
+                    double[] candidateScales = new double[] { 0.025, 0.0125, 0.05, 0.00625, 0.01 };
+                    double bestScale = (driveId == 1) ? cachedRu03Scale_1 : cachedRu03Scale_2;
+                    double minDiff = Math.Abs(absRaw * bestScale - theoFreq);
+
+                    foreach (double s in candidateScales)
+                    {
+                        double diff = Math.Abs(absRaw * s - theoFreq);
+                        if (diff < minDiff)
+                        {
+                            minDiff = diff;
+                            bestScale = s;
+                        }
+                    }
+
+                    if (minDiff < 5.0 || minDiff / theoFreq < 0.15)
+                    {
+                        if (driveId == 1) cachedRu03Scale_1 = bestScale;
+                        else cachedRu03Scale_2 = bestScale;
+                        return rawRu03 * bestScale;
+                    }
+                }
+            }
+
+            // 4. 預設標準 Scale 回退 (B載台=0.025, A載台=0.0125)
+            double adoptedScale = (driveId == 1) ? cachedRu03Scale_1 : cachedRu03Scale_2;
+            if (adoptedScale <= 0) adoptedScale = (driveId == 1) ? 0.0125 : 0.025;
+            return rawRu03 * adoptedScale;
+        }
 
         private bool EnsureHmiKebOpen1()
         {
@@ -1034,15 +1115,36 @@ namespace DynamometerHMI
                 int? r_sy50 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0032);
                 int? r_sy52 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0034);
 
-                int? r_dr00 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0400, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0400, 1); // dr.00 額定電流 (0.1 A)
-                int? r_dr01 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0401, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0401, 1); // dr.01 額定轉速 (1.0 rpm)
-                int? r_dr02 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0402, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0402, 1); // dr.02 額定電壓 (1.0 V)
-                int? r_dr03 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0403, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0403, 1); // dr.03 額定功率 (0.01 kW)
-                int? r_dr04 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0404, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0404, 1); // dr.04 功率因數 (0.01)
-                int? r_dr05 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0405, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0405, 1); // dr.05 額定頻率 (0.1 Hz)
+                // 讀取 dr 銘牌參數 (優先讀取 KEB F5 原廠位址 0x0600~0x0605，相容 0x0400~0x0405)
+                int? r_dr00 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0600, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0600, 1) ??
+                              KebReadParamWithDll(comIdx, baudIdx, node, 0x0400, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0400, 1);
+                int? r_dr01 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0601, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0601, 1) ??
+                              KebReadParamWithDll(comIdx, baudIdx, node, 0x0401, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0401, 1);
+                int? r_dr02 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0602, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0602, 1) ??
+                              KebReadParamWithDll(comIdx, baudIdx, node, 0x0402, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0402, 1);
+                int? r_dr03 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0603, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0603, 1) ??
+                              KebReadParamWithDll(comIdx, baudIdx, node, 0x0403, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0403, 1);
+                int? r_dr04 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0604, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0604, 1) ??
+                              KebReadParamWithDll(comIdx, baudIdx, node, 0x0404, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0404, 1);
+                int? r_dr05 = KebReadParamWithDll(comIdx, baudIdx, node, 0x0605, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0605, 1) ??
+                              KebReadParamWithDll(comIdx, baudIdx, node, 0x0405, 0) ?? KebReadParamWithDll(comIdx, baudIdx, node, 0x0405, 1);
 
                 double drSpeed = (r_dr01.HasValue && r_dr01.Value > 0) ? (double)r_dr01.Value : 0.0;
-                double drFreq = (r_dr05.HasValue && r_dr05.Value > 0) ? ((double)r_dr05.Value * 0.1) : 0.0;
+                double drFreq = 0.0;
+                if (r_dr05.HasValue && r_dr05.Value > 0)
+                {
+                    if (r_dr05.Value >= 200) drFreq = (double)r_dr05.Value * 0.1;
+                    else if (r_dr05.Value == 50 || r_dr05.Value == 60) drFreq = (double)r_dr05.Value;
+                    else if (r_dr05.Value < 20 && drSpeed > 500)
+                    {
+                        drFreq = ((drSpeed >= 1600 && drSpeed <= 1800) || (drSpeed >= 3200 && drSpeed <= 3600) || (drSpeed >= 1100 && drSpeed <= 1200)) ? 60.0 : 50.0;
+                    }
+                }
+                else if (drSpeed > 500)
+                {
+                    drFreq = ((drSpeed >= 1600 && drSpeed <= 1800) || (drSpeed >= 3200 && drSpeed <= 3600) || (drSpeed >= 1100 && drSpeed <= 1200)) ? 60.0 : 50.0;
+                }
+
                 int motorPoles = (drSpeed > 0 && drFreq > 0) ? (int)Math.Round(120.0 * drFreq / drSpeed) : 0;
                 if (motorPoles == 0 && !string.IsNullOrEmpty(motorModelName))
                 {
@@ -1826,7 +1928,7 @@ namespace DynamometerHMI
                             if (item.Address == 0x0203)
                             {
                                 lastRawRu03_1 = val.Value;
-                                kebFrequency1 = (Math.Abs(val.Value) >= 100000) ? (val.Value * 0.0001) : (val.Value * 0.01);
+                                kebFrequency1 = ConvertKebRu03ToFrequency(val.Value, 1, (double)wtFreqU, actSpeed, kebMotorPoles1);
                             }
                             if (item.IsStatus)
                             {
@@ -1870,10 +1972,17 @@ namespace DynamometerHMI
                             }
                             else
                             {
-                                double scale = (item.Address == 0x0034) ? 1.0 : item.Scale;
-                                double displayVal = val.Value * scale;
-                                string fmt = (scale == 1.0) ? "{0:F0} {1}" : ((scale == 0.1) ? "{0:F1} {1}" : "{0:F2} {1}");
-                                gridUpdates.Add(Tuple.Create(r, string.Format(fmt, displayVal, item.Unit).Trim(), Color.FromArgb(15, 23, 42)));
+                                if (item.Address == 0x0203)
+                                {
+                                    gridUpdates.Add(Tuple.Create(r, string.Format("{0:F2} Hz", Math.Abs(kebFrequency1)), Color.FromArgb(15, 23, 42)));
+                                }
+                                else
+                                {
+                                    double scale = (item.Address == 0x0034) ? 1.0 : item.Scale;
+                                    double displayVal = val.Value * scale;
+                                    string fmt = (scale == 1.0) ? "{0:F0} {1}" : ((scale == 0.1) ? "{0:F1} {1}" : "{0:F2} {1}");
+                                    gridUpdates.Add(Tuple.Create(r, string.Format(fmt, displayVal, item.Unit).Trim(), Color.FromArgb(15, 23, 42)));
+                                }
                             }
                         }
                     }
@@ -1886,7 +1995,7 @@ namespace DynamometerHMI
                     {
                         successCount++;
                         lastRawRu03_1 = ru03_1.Value;
-                        kebFrequency1 = (Math.Abs(ru03_1.Value) >= 100000) ? (ru03_1.Value * 0.0001) : (ru03_1.Value * 0.01);
+                        kebFrequency1 = ConvertKebRu03ToFrequency(ru03_1.Value, 1, (double)wtFreqU, actSpeed, kebMotorPoles1);
                     }
                 }
 
@@ -2028,7 +2137,7 @@ namespace DynamometerHMI
                             if (item.Address == 0x0203)
                             {
                                 lastRawRu03_2 = val.Value;
-                                kebFrequency2 = (Math.Abs(val.Value) >= 100000) ? (val.Value * 0.0001) : (val.Value * 0.01);
+                                kebFrequency2 = ConvertKebRu03ToFrequency(val.Value, 2, (double)wtFreqU, actSpeed, kebMotorPoles2);
                             }
                             if (item.IsStatus)
                             {
@@ -2072,10 +2181,17 @@ namespace DynamometerHMI
                             }
                             else
                             {
-                                double scale = (item.Address == 0x0034) ? 1.0 : item.Scale;
-                                double displayVal = val.Value * scale;
-                                string fmt = (scale == 1.0) ? "{0:F0} {1}" : ((scale == 0.1) ? "{0:F1} {1}" : "{0:F2} {1}");
-                                gridUpdates.Add(Tuple.Create(r, string.Format(fmt, displayVal, item.Unit).Trim(), Color.FromArgb(15, 23, 42)));
+                                if (item.Address == 0x0203)
+                                {
+                                    gridUpdates.Add(Tuple.Create(r, string.Format("{0:F2} Hz", Math.Abs(kebFrequency2)), Color.FromArgb(15, 23, 42)));
+                                }
+                                else
+                                {
+                                    double scale = (item.Address == 0x0034) ? 1.0 : item.Scale;
+                                    double displayVal = val.Value * scale;
+                                    string fmt = (scale == 1.0) ? "{0:F0} {1}" : ((scale == 0.1) ? "{0:F1} {1}" : "{0:F2} {1}");
+                                    gridUpdates.Add(Tuple.Create(r, string.Format(fmt, displayVal, item.Unit).Trim(), Color.FromArgb(15, 23, 42)));
+                                }
                             }
                         }
                     }
@@ -2088,19 +2204,24 @@ namespace DynamometerHMI
                     {
                         successCount++;
                         lastRawRu03_2 = ru03_2.Value;
-                        kebFrequency2 = (Math.Abs(ru03_2.Value) >= 100000) ? (ru03_2.Value * 0.0001) : (ru03_2.Value * 0.01);
+                        kebFrequency2 = ConvertKebRu03ToFrequency(ru03_2.Value, 2, (double)wtFreqU, actSpeed, kebMotorPoles2);
                     }
                 }
 
-                // 自動從 B 載台硬體讀取 dr 銘牌參數以精確計算極數 (dr.01 額定轉速, dr.05 額定頻率，依序嘗試 Set 0 與 Set 1)
+                // 自動從 B 載台硬體讀取 dr 銘牌參數以精確計算極數 (優先讀取 0x0601/0x0605，相容 0x0401/0x0405)
                 if (kebMotorPoles2 <= 0 || kebDrSpeed2 <= 0)
                 {
-                    int? r_dr01 = KebReadParamWithDll(comIdx, baudIdx, addr, 0x0401, 0) ?? KebReadParamWithDll(comIdx, baudIdx, addr, 0x0401, 1);
-                    int? r_dr05 = KebReadParamWithDll(comIdx, baudIdx, addr, 0x0405, 0) ?? KebReadParamWithDll(comIdx, baudIdx, addr, 0x0405, 1);
-                    if (r_dr01.HasValue && r_dr05.HasValue && r_dr01.Value > 0 && r_dr05.Value > 0)
+                    int? r_dr01 = KebReadParamWithDll(comIdx, baudIdx, addr, 0x0601, 0) ?? KebReadParamWithDll(comIdx, baudIdx, addr, 0x0601, 1) ??
+                                  KebReadParamWithDll(comIdx, baudIdx, addr, 0x0401, 0) ?? KebReadParamWithDll(comIdx, baudIdx, addr, 0x0401, 1);
+                    int? r_dr05 = KebReadParamWithDll(comIdx, baudIdx, addr, 0x0605, 0) ?? KebReadParamWithDll(comIdx, baudIdx, addr, 0x0605, 1) ??
+                                  KebReadParamWithDll(comIdx, baudIdx, addr, 0x0405, 0) ?? KebReadParamWithDll(comIdx, baudIdx, addr, 0x0405, 1);
+                    if (r_dr01.HasValue && r_dr01.Value > 0)
                     {
                         kebDrSpeed2 = (double)r_dr01.Value;
-                        kebDrFreq2 = (double)r_dr05.Value * 0.1;
+                        if (r_dr05.HasValue && r_dr05.Value >= 200) kebDrFreq2 = (double)r_dr05.Value * 0.1;
+                        else if (r_dr05.HasValue && (r_dr05.Value == 50 || r_dr05.Value == 60)) kebDrFreq2 = (double)r_dr05.Value;
+                        else kebDrFreq2 = ((kebDrSpeed2 >= 1600 && kebDrSpeed2 <= 1800) || (kebDrSpeed2 >= 3200 && kebDrSpeed2 <= 3600)) ? 60.0 : 50.0;
+                        
                         kebMotorPoles2 = (int)Math.Round(120.0 * kebDrFreq2 / kebDrSpeed2);
                         WriteHmiLog("KEB_DR", string.Format("【B載台 dr 參數精確反算極數】dr01={0:F0}rpm, dr05={1:F1}Hz -> 極數={2}極", kebDrSpeed2, kebDrFreq2, kebMotorPoles2));
                     }

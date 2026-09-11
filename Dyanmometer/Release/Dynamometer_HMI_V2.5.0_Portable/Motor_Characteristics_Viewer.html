@@ -826,6 +826,7 @@
             </div>
         </div>
         <div class="top-actions">
+            <span id="badgeVipAuth" style="font-size: 12px; font-weight: 700; color: #facc15; background: rgba(234, 179, 8, 0.15); border: 1px solid rgba(234, 179, 8, 0.4); padding: 5px 12px; border-radius: 8px; display: inline-flex; align-items: center; gap: 4px;">👑 VIP 授權模式 (vip888)</span>
             <button class="btn-modern btn-firebase" id="btnOpenFirebaseModal" title="從 Firebase 雲端資料庫直接下載工控機上傳之最新測試報告或即時數據">☁️ Firebase 雲端下載</button>
             <button class="btn-modern" id="btnPrintReport" title="列印或儲存為 PDF 格式報告">🖨️ 列印/匯出 PDF</button>
             <button class="btn-modern" id="btnExportSpecCsv" title="匯出清洗後之規格表試算表">📥 匯出規格 CSV</button>
@@ -2846,6 +2847,33 @@ Speed/Torque,10Nm,20Nm,30Nm,40Nm,50Nm
             }
             parseDynamometerCsv(demoCsv, "Auto_Raw_Telemetry_20260910.csv");
         }
+
+        // VIP 授權狀態檢查與同步
+        (function initVipStatus() {
+            const DEFAULT_VIP_KEYS = ["dyn888", "dyn2026", "vip888", "admin888"];
+            const urlParams = new URLSearchParams(window.location.search);
+            const queryKey = urlParams.get("key") || urlParams.get("vip") || urlParams.get("pass");
+            let token = localStorage.getItem("dyn_whitelist_token");
+            if (queryKey && DEFAULT_VIP_KEYS.some(k => k.toLowerCase() === queryKey.trim().toLowerCase())) {
+                token = queryKey.trim();
+                localStorage.setItem("dyn_whitelist_token", token);
+            }
+            const isVip = token && DEFAULT_VIP_KEYS.some(k => k.toLowerCase() === token.trim().toLowerCase());
+            const badge = document.getElementById("badgeVipAuth");
+            if (badge) {
+                if (isVip) {
+                    badge.innerHTML = `👑 VIP 已授權 (${token})`;
+                    badge.style.background = "rgba(16, 185, 129, 0.15)";
+                    badge.style.borderColor = "rgba(16, 185, 129, 0.4)";
+                    badge.style.color = "var(--emerald)";
+                } else {
+                    badge.innerHTML = `🔒 VIP 專屬模組 (vip888)`;
+                    badge.style.background = "rgba(234, 179, 8, 0.15)";
+                    badge.style.borderColor = "rgba(234, 179, 8, 0.4)";
+                    badge.style.color = "#facc15";
+                }
+            }
+        })();
     </script>
 </body>
 </html>

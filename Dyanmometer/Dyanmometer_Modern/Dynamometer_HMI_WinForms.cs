@@ -26,8 +26,8 @@ using System.Diagnostics;
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 [assembly: ComVisible(false)]
-[assembly: AssemblyVersion("2.7.2.0")]
-[assembly: AssemblyFileVersion("2.7.2.0")]
+[assembly: AssemblyVersion("2.7.3.0")]
+[assembly: AssemblyFileVersion("2.7.3.0")]
 
 namespace DynamometerHMI
 {
@@ -427,28 +427,36 @@ namespace DynamometerHMI
 
         /// <summary>
         /// 即時輸出頻率 (Hz)。
-        /// 依現場硬體規範：目前僅 B 載台下轉速命令(待測端)，A 載台僅為加載端；PowerMeter 亦僅接在 B 載台馬達輸入。
-        /// 故頻率來源鎖定優先採納 B 載台變頻器 (kebFrequency2) 或 PowerMeter 實測電氣基波頻率 (wtFreqU / wtFreqI)。
+        /// <summary>
+        /// 全系統即時電氣頻率採納 (報表、T-N曲線、雲端遙測之統一頻率來源)
+        /// 1. 若 Yokogawa PowerMeter WT333E 連線正常且量測到有效電氣頻率 (U頻率 > 2Hz 或 I頻率 > 2Hz)，以高精度功率計為黃金基準
+        /// 2. 若 WT333E 離線或未通電，優先採納當前待測端 KEB 驅動器 ru.03 輸出頻率 (kebFrequency2 或 kebFrequency1)
+        /// 3. 備援採納另一側 KEB 輸出頻率
         /// </summary>
         public double actFrequency
         {
             get
             {
-                // 優先採納 B 載台 (待測端) KEB ru.03 輸出頻率
-                if (kebFrequency2 > 0)
-                    return kebFrequency2;
-
-                // 若 KEB B 載台暫未回傳，採納 PowerMeter WT333E 實測電氣頻率 (電壓頻率 > 1Hz 或 電流頻率 > 1Hz)
-                if (wtFreqU > 1.0f)
+                // 首要黃金基準：Yokogawa PowerMeter WT333E 實測電氣基波頻率 (直接硬體 CT/PT 物理量測，無轉差與通訊縮放誤差)
+                if (wtFreqU > 2.0f)
                     return wtFreqU;
-                if (wtFreqI > 1.0f)
+                if (wtFreqI > 2.0f)
                     return wtFreqI;
 
-                // 備援回退：若使用者在介面明確切換為 A 載台待測，才取用 kebFrequency1
-                if (cmbTnRole != null && cmbTnRole.SelectedIndex == 0)
-                    return kebFrequency1;
+                // 次要基準：待測端 KEB ru.03 輸出頻率 (已由 ConvertKebRu03ToFrequency 依據速度範圍精確換算)
+                bool isDrive1Dut = (cmbTnRole != null && cmbTnRole.SelectedIndex == 0) ||
+                                  (noLoadSpdDrive == 1 && isNoLoadRunning) ||
+                                  (cmbDutyRole != null && cmbDutyRole.SelectedIndex == 0);
 
-                return kebFrequency2 > 0 ? kebFrequency2 : kebFrequency1;
+                double dutKebFreq = isDrive1Dut ? kebFrequency1 : kebFrequency2;
+                if (Math.Abs(dutKebFreq) > 0.1)
+                    return Math.Abs(dutKebFreq);
+
+                double otherKebFreq = isDrive1Dut ? kebFrequency2 : kebFrequency1;
+                if (Math.Abs(otherKebFreq) > 0.1)
+                    return Math.Abs(otherKebFreq);
+
+                return 0.0;
             }
         }
 
@@ -2355,6 +2363,7 @@ namespace DynamometerHMI
                                     bool isNode = (parts.Length >= 8) ? (parts[6] == "1") : (name.Contains("站號"));
                                     if (addr == 0x0F13 || addr == 0x0231) continue;
                                     if (addr == 0x0F12 && scale == 0.01) { scale = 0.1; unit = "%"; }
+                                    if (addr == 0x0203 && (scale == 0.0001 || scale == 0.01)) { scale = 0.0125; }
                                     list1.Add(new KebMonitorItem(name, addr, scale, unit, isHex, isStatus, isNode));
                                 }
                             }
@@ -2363,7 +2372,7 @@ namespace DynamometerHMI
                         {
                             if (!list1.Exists(x => x.Address == 0x0203))
                             {
-                                list1.Insert(Math.Min(1, list1.Count), new KebMonitorItem("輸出頻率 (ru03)", 0x0203, 0.01, "Hz"));
+                                list1.Insert(Math.Min(1, list1.Count), new KebMonitorItem("輸出頻率 (ru03)", 0x0203, 0.0125, "Hz"));
                             }
                             kebMonitorList1 = list1;
                             RebuildKebRuGridFromList(1);
@@ -2396,6 +2405,7 @@ namespace DynamometerHMI
                                     bool isNode = (parts.Length >= 8) ? (parts[6] == "1") : (name.Contains("站號"));
                                     if (addr == 0x0F13 || addr == 0x0231) continue;
                                     if (addr == 0x0F12 && scale == 0.01) { scale = 0.1; unit = "%"; }
+                                    if (addr == 0x0203 && (scale == 0.0001 || scale == 0.01)) { scale = 0.025; }
                                     list2.Add(new KebMonitorItem(name, addr, scale, unit, isHex, isStatus, isNode));
                                 }
                             }
@@ -2404,7 +2414,7 @@ namespace DynamometerHMI
                         {
                             if (!list2.Exists(x => x.Address == 0x0203))
                             {
-                                list2.Insert(Math.Min(1, list2.Count), new KebMonitorItem("輸出頻率 (ru03)", 0x0203, 0.01, "Hz"));
+                                list2.Insert(Math.Min(1, list2.Count), new KebMonitorItem("輸出頻率 (ru03)", 0x0203, 0.025, "Hz"));
                             }
                             kebMonitorList2 = list2;
                             RebuildKebRuGridFromList(2);
@@ -2479,7 +2489,7 @@ namespace DynamometerHMI
             return new List<KebMonitorItem>()
             {
                 new KebMonitorItem("實測轉速 (ru07)", 0x0207, 0.125, "rpm"),
-                new KebMonitorItem("輸出頻率 (ru03)", 0x0203, 0.01,  "Hz"),
+                new KebMonitorItem("輸出頻率 (ru03)", 0x0203, 0.025, "Hz"),
                 new KebMonitorItem("實測轉矩 (ru12)", 0x020C, 0.01,  "Nm"),
                 new KebMonitorItem("輸出電流 (ru15)", 0x020F, 0.1,   "A"),
                 new KebMonitorItem("轉矩命令 (ru11)", 0x020B, 0.01,  "Nm"),
@@ -2709,7 +2719,7 @@ namespace DynamometerHMI
                 new { Title = "【ru.00】變頻器運轉狀態 (0x0200 / HEX)",          Name = "運轉狀態 (ru00)", Addr = "0200", Scale = "1.0",    Unit = "",    IsHex = true,  IsStatus = false },
                 new { Title = "【ru.01】設定轉速顯示 (0x0201 / 0.125 rpm)",      Name = "設定轉速 (ru01)", Addr = "0201", Scale = "0.125",  Unit = "rpm", IsHex = false, IsStatus = false },
                 new { Title = "【ru.02】轉速斜坡輸出 (0x0202 / 0.125 rpm)",      Name = "斜坡轉速 (ru02)", Addr = "0202", Scale = "0.125",  Unit = "rpm", IsHex = false, IsStatus = false },
-                new { Title = "【ru.03】實測輸出頻率 (0x0203 / 0.0001 Hz)",     Name = "輸出頻率 (ru03)", Addr = "0203", Scale = "0.0001", Unit = "Hz",  IsHex = false, IsStatus = false },
+                new { Title = "【ru.03】實測輸出頻率 (0x0203 / 0.025 Hz)",       Name = "輸出頻率 (ru03)", Addr = "0203", Scale = "0.025",  Unit = "Hz",  IsHex = false, IsStatus = false },
                 new { Title = "【ru.06】計算轉速反饋 (0x0206 / 0.125 rpm)",      Name = "計算轉速 (ru06)", Addr = "0206", Scale = "0.125",  Unit = "rpm", IsHex = false, IsStatus = false },
                 new { Title = "【ru.07】實測轉速反饋 (0x0207 / 0.125 rpm)",      Name = "實測轉速 (ru07)", Addr = "0207", Scale = "0.125",  Unit = "rpm", IsHex = false, IsStatus = false },
                 new { Title = "【ru.09】編碼器1轉速 (0x0209 / 0.125 rpm)",       Name = "編碼1轉速(ru09)", Addr = "0209", Scale = "0.125",  Unit = "rpm", IsHex = false, IsStatus = false },
