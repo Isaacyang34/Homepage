@@ -27,9 +27,12 @@
    - 「A方案生成一張圖給我看看」
    - 「檔案位置要給我啊?」
    - 「OK! 能直接綁定進軟體」
+   - 「改一版，中間的風扇變成馬達的轉定子矽鋼片+磁力線的樣子」
+   - 「就用neon版本，生成一個低解析度版本icon用」
 2. **實機與架構分析佐證**：
    - 原系統 `Dynamometer_HMI_Pro.exe` 執行檔與 WinForms 主視窗使用 Windows 預設通用圖示，缺乏專業高科技與工業儀表品牌辨識度；
-   - 瀏覽器端之雲端即時監控中心 (`WebMonitor.html`) 與馬達規格特性分析儀 (`Motor_Characteristics_Viewer.html`) 缺乏專屬 Favicon，在多標籤頁下辨識度不足。
+   - 瀏覽器端之雲端即時監控中心 (`WebMonitor.html`) 與馬達規格特性分析儀 (`Motor_Characteristics_Viewer.html`) 缺乏專屬 Favicon，在多標籤頁下辨識度不足；
+   - Windows XP 作業系統工作列與檔案總管對圖示尺寸有嚴苛限制 (標準為 16×16、32×32、48×48)，且 XP 不支援 Vista+ 的 PNG 壓縮圖示，需生成純 DIB 位元圖相容之專屬低解析度圖示。
 
 ---
 
@@ -44,9 +47,12 @@
 ---
 
 ### 🚀 精確修復方案 (Accurate Solution & Release Verifications)
-1. **高科技品牌圖示設計與全解析度轉換 (`assets/` & `app.ico`)**：
-   - 打造專屬「Neon "D" Brand Emblem」高科技標誌：結合大寫「D」幾何框架、高能橙金 (Electric Amber) 馬達電樞渦輪葉片、賽博青藍 (Neon Cyan) 測功機 RPM/Torque 同心圓刻度盤與發光指針，置於黑曜石碳鈦 Squircle 圓角基座；
-   - 輸出標準多解析度 `app.ico` (256x256, 128x128, 64x64, 48x48, 32x32, 16x16)，100% 相容 Windows XP 至 Windows 11。
+1. **Neon 馬達矽鋼片與磁力線高科技品牌圖示實裝 (`assets/` & `app.ico`)**：
+   - 正式採用使用者選定之 **Neon 旗艦版圖示**：核心精確刻劃馬達定子槽、銅線繞組與轉子矽鋼片疊片層次 (Silicon Steel Laminations)，並以賽博青藍與高能橙金雙色電磁力線 (Magnetic Flux Lines) 穿透氣隙並勾勒出「D」字幾何框架，右側延伸測功儀表盤與發光指針；
+   - 打造專屬 ICO 建置管線 (`BuildIco.cs`)，以高階雙立方內插 (Bicubic) 產生：
+     - `dynamometer_icon.ico` (完整多解析度：256, 128, 64, 48, 32, 16)；
+     - `dynamometer_icon_neon_lowres.ico` (純淨低解析度：48, 32, 16，100% XP DIB 位圖相容)；
+     - 單一低解析度點陣圖：`16×16`、`32×32`、`48×48`、`64×64`、`128×128`、`256×256` 等全套 PNG。
 2. **原生 Win32 編譯參數全面注入 (`package_release.ps1` & `build.bat`)**：
    - 於 `package_release.ps1` 加入 `/win32icon:"$modernDir\app.ico"` 參數，編譯時直接封裝進 PE 資源段；
    - 自動將 `app.ico` 拷貝至便攜發布目錄 (`Release/Dynamometer_HMI_V2.5.0_Portable/app.ico`)。
