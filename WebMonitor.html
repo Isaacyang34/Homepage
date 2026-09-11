@@ -528,6 +528,274 @@
             border-radius: 6px;
             border: 1px solid rgba(255, 255, 255, 0.08);
         }
+
+        /* ====== 白名單認證彈窗與訪客逾時鎖定介面 ====== */
+        #whitelistModal {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 15, 29, 0.85);
+            backdrop-filter: blur(12px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .auth-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-highlight);
+            border-radius: 20px;
+            width: 90%;
+            max-width: 480px;
+            padding: 24px 28px;
+            box-shadow: 0 0 50px rgba(234, 179, 8, 0.15), 0 20px 50px rgba(0,0,0,0.7);
+            animation: fadeInUp 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        #guestTimeoutOverlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 15, 29, 0.92);
+            backdrop-filter: blur(16px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9998;
+            padding: 20px;
+        }
+
+        .timeout-card {
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(244, 63, 94, 0.4);
+            border-radius: 24px;
+            max-width: 520px;
+            width: 100%;
+            padding: 32px 28px;
+            text-align: center;
+            box-shadow: 0 0 60px rgba(244, 63, 94, 0.2), 0 24px 60px rgba(0,0,0,0.8);
+            animation: fadeInUp 0.35s ease;
+        }
+
+        .btn-vip-gold {
+            background: linear-gradient(135deg, #eab308, #ca8a04);
+            border: none;
+            color: #0f172a;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 14px rgba(234, 179, 8, 0.3);
+        }
+        .btn-vip-gold:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(234, 179, 8, 0.45);
+        }
+
+        .btn-ghost {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-ghost:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: var(--cyan);
+        }
+
+        /* ====== 主導航分頁列 (Main Tabs Navigation) ====== */
+        .main-tabs-bar {
+            display: flex;
+            gap: 12px;
+            background: var(--bg-card);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 8px 12px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .main-tab-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--text-secondary);
+            padding: 9px 18px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.22s ease;
+            user-select: none;
+        }
+
+        .main-tab-btn:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .main-tab-btn.active {
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(99, 102, 241, 0.18));
+            border-color: rgba(56, 189, 248, 0.5);
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(56, 189, 248, 0.2);
+        }
+
+        .main-tab-btn.active .tab-icon {
+            transform: scale(1.15);
+            filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.6));
+        }
+
+        .tab-badge-live {
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid rgba(16, 185, 129, 0.5);
+            color: var(--emerald);
+            font-size: 10px;
+            font-weight: 800;
+            padding: 2px 6px;
+            border-radius: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        .tab-vip-lock-badge {
+            background: rgba(234, 179, 8, 0.15);
+            border: 1px solid rgba(234, 179, 8, 0.4);
+            color: #facc15;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s;
+        }
+
+        .tab-vip-lock-badge.unlocked {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: rgba(16, 185, 129, 0.4);
+            color: var(--emerald);
+        }
+
+        /* ====== VIP 權限鎖定卡片 (Spec VIP Lock Container) ====== */
+        .spec-vip-lock-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 560px;
+            padding: 40px 20px;
+            animation: fadeInUp 0.35s ease;
+        }
+
+        .spec-lock-box {
+            background: linear-gradient(145deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.9));
+            border: 1px solid rgba(234, 179, 8, 0.45);
+            box-shadow: 0 0 50px rgba(234, 179, 8, 0.15), 0 20px 40px rgba(0, 0, 0, 0.7);
+            border-radius: 20px;
+            max-width: 580px;
+            width: 100%;
+            padding: 36px 32px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .spec-lock-icon {
+            font-size: 48px;
+            margin-bottom: -4px;
+            filter: drop-shadow(0 0 18px rgba(234, 179, 8, 0.6));
+            animation: pulse-ring 2.5s infinite ease-in-out;
+        }
+
+        .spec-lock-badge {
+            background: rgba(234, 179, 8, 0.15);
+            border: 1px solid rgba(234, 179, 8, 0.4);
+            color: #facc15;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .spec-lock-box h2 {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        .spec-lock-box p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin: 0;
+        }
+
+        .spec-lock-input-group {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            max-width: 420px;
+            margin-top: 6px;
+        }
+
+        .spec-lock-input-group input {
+            flex: 1;
+            background: rgba(10, 15, 29, 0.85);
+            border: 1px solid rgba(234, 179, 8, 0.4);
+            color: #facc15;
+            font-family: Consolas, monospace;
+            font-size: 15px;
+            font-weight: bold;
+            padding: 10px 14px;
+            border-radius: 10px;
+            outline: none;
+            text-align: center;
+            letter-spacing: 1px;
+        }
+
+        .spec-lock-input-group input:focus {
+            border-color: #facc15;
+            box-shadow: 0 0 14px rgba(234, 179, 8, 0.35);
+        }
+
+        .spec-lock-hint {
+            font-size: 11px;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        /* 內嵌分析儀頂部快捷工具列 */
+        .spec-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 18px;
+            background: rgba(15, 23, 42, 0.85);
+            border-bottom: 1px solid var(--border);
+            border-top-left-radius: 16px;
+            border-top-right-radius: 16px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
     </style>
 </head>
 <body>
@@ -559,6 +827,67 @@
         </div>
     </div>
 
+    <!-- ====== 白名單授權認證彈窗 (Whitelist Modal) ====== -->
+    <div id="whitelistModal">
+        <div class="auth-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:24px;">🔑</span>
+                    <div>
+                        <h3 style="font-size:16px; font-weight:700; color:var(--text-primary); margin:0;">VIP 白名單認證中心</h3>
+                        <p style="font-size:11px; color:var(--text-muted); margin:0;">解鎖 24 小時不中斷即時監看，免受 5 分鐘訪客限制</p>
+                    </div>
+                </div>
+                <button onclick="closeWhitelistModal()" style="background:none; border:none; color:var(--text-secondary); font-size:18px; cursor:pointer;">✕</button>
+            </div>
+
+            <div id="whitelistFormBody">
+                <div style="font-size:13px; color:var(--text-secondary); line-height:1.6; margin-bottom:14px;">
+                    請輸入現場測試人員或工程師提供之<b>專屬白名單通行金鑰</b>：
+                </div>
+                <div style="display:flex; gap:10px; margin-bottom:14px;">
+                    <input type="password" id="txtWhitelistKey" placeholder="請輸入通行金鑰 (例如: dyn888)" 
+                        style="flex:1; background:rgba(15,23,42,0.8); border:1px solid var(--border-highlight); color:#facc15; font-family:Consolas, monospace; font-size:15px; font-weight:bold; padding:10px 14px; border-radius:10px; outline:none;"
+                        onkeydown="if(event.key==='Enter') unlockWithKey();" />
+                    <button class="btn-vip-gold" onclick="unlockWithKey()">驗證解鎖</button>
+                </div>
+                <div style="font-size:11px; color:var(--text-muted); display:flex; align-items:center; gap:6px;">
+                    <span>💡 認證成功後將保存在此瀏覽器，下次進入自動免密進入 VIP 模式。</span>
+                </div>
+            </div>
+
+            <div id="whitelistActiveBody" style="display:none; flex-direction:column; gap:12px;">
+                <div style="background:rgba(234,179,8,0.1); border:1px solid rgba(234,179,8,0.3); border-radius:12px; padding:14px; display:flex; align-items:center; gap:12px;">
+                    <span style="font-size:28px;">👑</span>
+                    <div>
+                        <div style="color:#facc15; font-weight:700; font-size:14px;">您目前已享有【VIP 白名單】無限時權限</div>
+                        <div style="color:var(--text-secondary); font-size:12px; margin-top:2px;">連線時間無限制，享受 24 小時全即時遙測串流</div>
+                    </div>
+                </div>
+                <div style="display:flex; gap:10px; justify-content:space-between; margin-top:8px;">
+                    <button class="btn-ghost" style="font-size:12px;" onclick="copyVipShareLink()">📋 複製 VIP 專屬快速登入連結</button>
+                    <button class="btn-ghost" style="font-size:12px; color:#f87171; border-color:rgba(239,68,68,0.3);" onclick="revokeVipAccess()">登出 VIP</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====== 訪客 5 分鐘連線逾時鎖定遮罩 (Guest Timeout Overlay) ====== -->
+    <div id="guestTimeoutOverlay">
+        <div class="timeout-card">
+            <div style="font-size:52px; margin-bottom:12px; animation:pulse-ring 2s infinite;">⌛</div>
+            <h2 style="color:#fca5a5; font-size:22px; font-weight:700; margin:0 0 10px 0;">訪客連線時限已達 (5 分鐘)</h2>
+            <p style="color:var(--text-secondary); line-height:1.7; font-size:14px; max-width:440px; margin:0 auto 24px auto;">
+                為確保現場工控伺服器頻寬與每月連線額度，一般訪客每次連線限時 5 分鐘，即時串流已主動暫停。<br>
+                若您為<b>測試工程師或授權同仁</b>，請輸入白名單通行金鑰解除限制；或點擊下方按鈕重新連線。
+            </p>
+            <div style="display:flex; justify-content:center; gap:14px; flex-wrap:wrap;">
+                <button onclick="reconnectGuestSession()" class="btn-ghost" style="border-color:rgba(56,189,248,0.4); color:var(--cyan);">🔄 重新連線 (再看 5 分鐘)</button>
+                <button onclick="openWhitelistModal()" class="btn-vip-gold">🔑 輸入白名單金鑰 (無限時)</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 頂部資訊列 -->
     <header>
         <div class="header-title">
@@ -574,6 +903,11 @@
                 <span id="statusText">即時串流中 (SSE)</span>
                 <span id="pingText" style="color: var(--cyan); font-size: 11px;">-- ms</span>
             </div>
+            <!-- 白名單無限時徽章 (VIP) -->
+            <div id="whitelistBadge" class="status-pill" style="display:none; background:rgba(234,179,8,0.15); border-color:rgba(234,179,8,0.4); color:#facc15; cursor:pointer;" onclick="openWhitelistModal()" title="已取得白名單授權，點擊管理">👑 VIP 無限時</div>
+            <!-- 訪客 5 分鐘倒數計時膠囊 -->
+            <div id="guestTimerPill" class="status-pill" style="background:rgba(244,63,94,0.15); border-color:rgba(244,63,94,0.4); color:#fda4af; cursor:pointer;" onclick="openWhitelistModal()" title="一般訪客限時 5 分鐘，點擊輸入金鑰解鎖">⏱️ <span id="guestTimerText">05:00</span> <span style="font-size:10px; color:#fb7185; text-decoration:underline; margin-left:2px;">解鎖</span></div>
+            <button class="btn-action" id="btnSpecViewer" onclick="switchMainTab('spec')" style="display:inline-flex; align-items:center; gap:4px; background: rgba(16,185,129,0.15); border-color: rgba(16,185,129,0.4); color: var(--emerald); cursor:pointer;" title="切換至馬達規格特性分析儀 (VIP 專屬)">📑 馬達規格特性分析</button>
             <button class="btn-action" id="btnVisitors" onclick="openVisitorAuditModal()" style="background: rgba(56,189,248,0.15); border-color: rgba(56,189,248,0.3); color: var(--cyan);">👥 訪客足跡</button>
             <button class="btn-action" id="btnFullscreen" onclick="toggleFullscreen()">⛶ 全螢幕</button>
         </div>
@@ -582,6 +916,22 @@
     <!-- 致命異常與崩潰緊急警報廣播橫幅 -->
     <div id="alertBanner" style="display:none; background:rgba(239, 68, 68, 0.25); border:1px solid rgba(239, 68, 68, 0.6); color:#fca5a5; padding:10px 16px; border-radius:12px; font-weight:600; font-size:13px; align-items:center; gap:8px;"></div>
 
+    <!-- 主導航分頁列 (Main Navigation Tabs) -->
+    <div class="main-tabs-bar">
+        <button class="main-tab-btn active" id="tabBtnLive" onclick="switchMainTab('live')">
+            <span class="tab-icon">⚡</span>
+            <span>雲端即時監控中心 (Live Monitor)</span>
+            <span class="tab-badge-live">LIVE</span>
+        </button>
+        <button class="main-tab-btn" id="tabBtnSpec" onclick="switchMainTab('spec')">
+            <span class="tab-icon">📑</span>
+            <span>馬達規格特性分析儀 (Specs & Duty)</span>
+            <span class="tab-vip-lock-badge" id="tabSpecVipBadge">🔒 VIP</span>
+        </button>
+    </div>
+
+    <!-- ── 分頁 1: 雲端即時監控中心 ── -->
+    <div id="tabContentLive" class="tab-content-pane" style="display: flex; flex-direction: column; gap: 16px;">
     <!-- 核心動力四大 KPI -->
     <div class="grid-kpis">
         <div class="card-kpi kpi-speed">
@@ -736,7 +1086,66 @@
         <div class="temp-grid" id="tempGridContainer">
             <!-- 由 JS 動態生成 CH1 ~ CH20 -->
         </div>
+    <!-- 雲端測試報告與壓縮包下載專區 -->
+    <div class="section-card" id="cardReportDownload" style="display:none; margin-bottom: 24px; border: 1px solid rgba(16, 185, 129, 0.4); background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(15, 23, 42, 0.9) 100%);">
+        <div class="section-header">
+            <span>📥 最新雲端測試報告下載 (Test Report Download)</span>
+            <span id="badgeReportTime" style="font-size: 11px; color: var(--emerald);">● 最新生成</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 10px 0;">
+            <div>
+                <div style="font-size: 16px; font-weight: 700; color: var(--text-primary);" id="lblReportName">Report.zip</div>
+                <div style="font-size: 13px; color: var(--text-secondary); margin-top: 5px;">
+                    <span id="lblReportMeta">大小: -- | 包含 -- 個檔案 | 生成時間: --</span>
+                </div>
+            </div>
+            <button id="btnDownloadReport" onclick="downloadLatestReportZip()" style="background: var(--emerald); color: #fff; border: none; border-radius: 6px; padding: 12px 24px; font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
+                ⬇️ 一鍵下載報告 ZIP
+            </button>
+        </div>
     </div>
+    </div>
+    <!-- ── 分頁 1 結束 ── -->
+
+    <!-- ── 分頁 2: 馬達規格特性分析儀 (VIP 專屬) ── -->
+    <div id="tabContentSpec" class="tab-content-pane" style="display:none; flex-direction: column; gap: 16px;">
+        <!-- VIP 未解鎖時顯示的鎖定卡片 -->
+        <div id="specVipLockCard" class="spec-vip-lock-container">
+            <div class="spec-lock-box">
+                <div class="spec-lock-icon">👑🔒</div>
+                <div class="spec-lock-badge">VIP 專屬工程分析中心</div>
+                <h2>馬達動力計規格特性分析儀</h2>
+                <p>
+                    本模組提供 <b>CNS 14400 / IEC 60034-2-1</b> 馬達規格特性自動推算判定表、<b>S1 / S2 / S6 工作制熱平衡診斷</b>、<b>2D 效率雲圖</b> 與 <b>Firebase 雲端報表 ZIP 一鍵解包分析</b>。<br>
+                    此功能受 VIP 權限保護，請輸入工程通行金鑰驗證解鎖。
+                </p>
+                <div class="spec-lock-input-group">
+                    <input type="password" id="txtSpecVipKey" placeholder="請輸入通行金鑰 (例如: vip888)" onkeydown="if(event.key==='Enter') unlockSpecTabWithKey();" />
+                    <button class="btn-vip-gold" onclick="unlockSpecTabWithKey()">驗證解鎖</button>
+                </div>
+                <div class="spec-lock-hint">
+                    💡 提示：輸入通行金鑰 <code>vip888</code> 即可立即解鎖此分析儀與全系統 VIP 無限時連續監控權限。
+                </div>
+            </div>
+        </div>
+
+        <!-- VIP 已解鎖時顯示的內嵌分析儀 -->
+        <div id="specViewerFrameWrapper" style="display:none; width:100%; height:calc(100vh - 150px); min-height:860px; border-radius:16px; overflow:hidden; border:1px solid var(--border); box-shadow:0 10px 30px rgba(0,0,0,0.5); background:var(--bg-primary);">
+            <div class="spec-toolbar">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:16px;">📑</span>
+                    <span style="font-size:13px; font-weight:700; color:var(--text-primary);">馬達動力計規格特性分析儀 (CNS 14400 / IEC 60034-2-1 / S1·S2·S6)</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:12px; color:#facc15; font-weight:bold; background:rgba(234,179,8,0.15); padding:4px 10px; border-radius:8px; border:1px solid rgba(234,179,8,0.3);">👑 VIP 已授權</span>
+                    <button onclick="reloadSpecIframe()" class="btn-ghost" style="padding:4px 10px; font-size:12px;">🔄 重新載入</button>
+                    <a href="Motor_Characteristics_Viewer.html" target="_blank" class="btn-ghost" style="text-decoration:none; padding:4px 10px; font-size:12px; color:var(--cyan); border-color:rgba(56,189,248,0.4);">⛶ 獨立新分頁開啟 ↗</a>
+                </div>
+            </div>
+            <iframe id="specViewerFrame" src="" style="width:100%; height:calc(100% - 46px); border:none; background:transparent;"></iframe>
+        </div>
+    </div>
+    <!-- ── 分頁 2 結束 ── -->
 
     <footer>
         動力計雲端遠端監控系統 &copy; 2026 | 全端純唯讀架構 | 自動適配手機、平板與桌上型電腦
@@ -756,6 +1165,374 @@
         const SSE_URL = _buildEndpoint();
         const STATUS_URL = SSE_URL;
         const FB_BASE = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app";
+
+        // ================================================================
+        //  白名單權限與訪客 5 分鐘逾時控制系統 (Whitelist & Access Tier Engine)
+        // ================================================================
+        const GUEST_TIME_LIMIT_SEC = 300; // 5 分鐘 (300 秒)
+        let _guestRemainingSec = GUEST_TIME_LIMIT_SEC;
+        let _guestCountdownTimer = null;
+        let _isVipUser = false;
+        let _remoteWhitelistKey = "dyn888";
+        const DEFAULT_VIP_KEYS = ["dyn888", "dyn2026", "vip888", "admin888"];
+
+        // Toast 訊息提示元件
+        function showToast(msg, type = "info") {
+            let container = document.getElementById("toastContainer");
+            if (!container) {
+                container = document.createElement("div");
+                container.id = "toastContainer";
+                container.style.cssText = "position:fixed; bottom:28px; left:50%; transform:translateX(-50%); z-index:99999; display:flex; flex-direction:column; gap:8px; pointer-events:none;";
+                document.body.appendChild(container);
+            }
+            const t = document.createElement("div");
+            let bg = "rgba(15, 23, 42, 0.95)";
+            let border = "var(--border)";
+            let color = "var(--text-primary)";
+            if (type === "success") { border = "rgba(16, 185, 129, 0.6)"; color = "#34d399"; }
+            else if (type === "warning") { border = "rgba(245, 158, 11, 0.6)"; color = "#fbbf24"; }
+            else if (type === "error") { border = "rgba(239, 68, 68, 0.6)"; color = "#f87171"; }
+            
+            t.style.cssText = `background:${bg}; border:1px solid ${border}; color:${color}; padding:10px 18px; border-radius:10px; font-size:13px; font-weight:600; box-shadow:0 8px 24px rgba(0,0,0,0.5); backdrop-filter:blur(8px); animation:fadeInUp 0.25s ease; transition:opacity 0.3s;`;
+            t.textContent = msg;
+            container.appendChild(t);
+            setTimeout(() => {
+                t.style.opacity = "0";
+                setTimeout(() => t.remove(), 300);
+            }, 3200);
+        }
+
+        function isValidKey(key) {
+            if (!key) return false;
+            const k = key.trim().toLowerCase();
+            if (k === _remoteWhitelistKey.toLowerCase()) return true;
+            return DEFAULT_VIP_KEYS.some(dk => dk.toLowerCase() === k);
+        }
+
+        async function fetchRemoteWhitelistKey() {
+            try {
+                const res = await fetch(`${FB_BASE}/config/whitelist_key.json`, { cache: "no-store" });
+                if (res.ok) {
+                    const val = await res.json();
+                    if (val && typeof val === "string" && val.trim().length > 0) {
+                        _remoteWhitelistKey = val.trim();
+                    }
+                }
+            } catch (e) {}
+        }
+
+        function checkWhitelistStatus() {
+            // 1. 優先檢查 URL 專屬快速登入參數 (例如 WebMonitor.html?key=dyn888 或 ?vip=dyn888 或 ?vip=vip888)
+            const urlParams = new URLSearchParams(window.location.search);
+            const queryKey = urlParams.get("key") || urlParams.get("vip") || urlParams.get("pass");
+            if (queryKey) {
+                if (isValidKey(queryKey)) {
+                    localStorage.setItem("dyn_whitelist_token", queryKey.trim());
+                    _isVipUser = true;
+                    showToast("👑 已透過專屬連結啟用 VIP 白名單！享受無限時連線", "success");
+                } else {
+                    showToast("⚠️ 專屬連結中之白名單通行金鑰無效", "warning");
+                }
+            }
+
+            // 2. 檢查本地儲存之 Token
+            const savedToken = localStorage.getItem("dyn_whitelist_token");
+            if (savedToken && isValidKey(savedToken)) {
+                _isVipUser = true;
+            }
+
+            updateAccessTierUI();
+
+            // 3. 若網址指定了分頁 (例如 ?tab=spec)，直接切換
+            if (urlParams.get("tab") === "spec") {
+                switchMainTab("spec");
+            }
+        }
+
+        function updateAccessTierUI() {
+            const badgeVip = document.getElementById("whitelistBadge");
+            const pillGuest = document.getElementById("guestTimerPill");
+            const formBody = document.getElementById("whitelistFormBody");
+            const activeBody = document.getElementById("whitelistActiveBody");
+            const tabSpecBadge = document.getElementById("tabSpecVipBadge");
+
+            if (_isVipUser) {
+                if (badgeVip) badgeVip.style.display = "flex";
+                if (pillGuest) pillGuest.style.display = "none";
+                if (formBody) formBody.style.display = "none";
+                if (activeBody) activeBody.style.display = "flex";
+                if (tabSpecBadge) {
+                    tabSpecBadge.textContent = "👑 VIP (已解鎖)";
+                    tabSpecBadge.className = "tab-vip-lock-badge unlocked";
+                }
+                if (_guestCountdownTimer) {
+                    clearInterval(_guestCountdownTimer);
+                    _guestCountdownTimer = null;
+                }
+            } else {
+                if (badgeVip) badgeVip.style.display = "none";
+                if (pillGuest) pillGuest.style.display = "flex";
+                if (formBody) formBody.style.display = "block";
+                if (activeBody) activeBody.style.display = "none";
+                if (tabSpecBadge) {
+                    tabSpecBadge.textContent = "🔒 VIP";
+                    tabSpecBadge.className = "tab-vip-lock-badge";
+                }
+                startGuestCountdown();
+            }
+
+            updateSpecTabAccess();
+        }
+
+        // ================================================================
+        //  主導航分頁切換與 VIP 馬達規格分析儀連動控制
+        // ================================================================
+        let _activeMainTab = "live";
+
+        function switchMainTab(target) {
+            _activeMainTab = target;
+            const tabLive = document.getElementById("tabBtnLive");
+            const tabSpec = document.getElementById("tabBtnSpec");
+            const viewLive = document.getElementById("tabContentLive");
+            const viewSpec = document.getElementById("tabContentSpec");
+
+            if (target === "spec") {
+                if (tabLive) tabLive.classList.remove("active");
+                if (tabSpec) tabSpec.classList.add("active");
+                if (viewLive) viewLive.style.display = "none";
+                if (viewSpec) viewSpec.style.display = "flex";
+                updateSpecTabAccess();
+                if (!_isVipUser) {
+                    setTimeout(() => {
+                        const inp = document.getElementById("txtSpecVipKey");
+                        if (inp) inp.focus();
+                    }, 150);
+                }
+            } else {
+                if (tabSpec) tabSpec.classList.remove("active");
+                if (tabLive) tabLive.classList.add("active");
+                if (viewSpec) viewSpec.style.display = "none";
+                if (viewLive) viewLive.style.display = "flex";
+            }
+        }
+
+        function updateSpecTabAccess() {
+            const lockCard = document.getElementById("specVipLockCard");
+            const frameWrapper = document.getElementById("specViewerFrameWrapper");
+            const frame = document.getElementById("specViewerFrame");
+
+            if (_isVipUser) {
+                if (lockCard) lockCard.style.display = "none";
+                if (frameWrapper) frameWrapper.style.display = "block";
+                if (frame) {
+                    const currentSrc = frame.getAttribute("src") || "";
+                    if (!currentSrc || currentSrc === "about:blank") {
+                        frame.src = "Motor_Characteristics_Viewer.html";
+                    }
+                }
+            } else {
+                if (lockCard) lockCard.style.display = "flex";
+                if (frameWrapper) frameWrapper.style.display = "none";
+            }
+        }
+
+        function unlockSpecTabWithKey() {
+            const input = document.getElementById("txtSpecVipKey");
+            const key = input ? input.value.trim() : "";
+            if (!key) {
+                showToast("請輸入白名單通行金鑰 (例如: vip888)", "warning");
+                return;
+            }
+
+            if (isValidKey(key)) {
+                localStorage.setItem("dyn_whitelist_token", key);
+                _isVipUser = true;
+                const overlay = document.getElementById("guestTimeoutOverlay");
+                if (overlay) overlay.style.display = "none";
+                updateAccessTierUI();
+                connectFirebaseSSE();
+                if (!pollTimer) pollTimer = setInterval(fetchPollingFallback, 800);
+                showToast("👑 VIP 驗證成功！已解鎖馬達規格特性分析儀與全系統無限時連線", "success");
+
+                // 更新審計狀態
+                if (_currentVisitorSession) {
+                    _currentVisitorSession.is_vip = true;
+                    _currentVisitorSession.tier = "👑 VIP 白名單";
+                    fetch(`${FB_BASE}/audit/latest_visitor.json`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(_currentVisitorSession)
+                    }).catch(() => {});
+                }
+            } else {
+                showToast("❌ 通行金鑰不正確 (提示: vip888)", "error");
+            }
+        }
+
+        function reloadSpecIframe() {
+            const frame = document.getElementById("specViewerFrame");
+            if (frame) {
+                frame.src = "Motor_Characteristics_Viewer.html?t=" + Date.now();
+                showToast("🔄 分析儀已重新整理", "info");
+            }
+        }
+
+        function startGuestCountdown() {
+            if (_isVipUser) return;
+            if (_guestCountdownTimer) clearInterval(_guestCountdownTimer);
+
+            _guestCountdownTimer = setInterval(() => {
+                if (_isVipUser) {
+                    clearInterval(_guestCountdownTimer);
+                    _guestCountdownTimer = null;
+                    return;
+                }
+
+                _guestRemainingSec--;
+                const m = Math.floor(_guestRemainingSec / 60);
+                const s = _guestRemainingSec % 60;
+                const timeStr = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+                const timerEl = document.getElementById("guestTimerText");
+                if (timerEl) timerEl.textContent = timeStr;
+
+                const pill = document.getElementById("guestTimerPill");
+                if (pill) {
+                    if (_guestRemainingSec <= 60) {
+                        pill.style.background = "rgba(239, 68, 68, 0.3)";
+                        pill.style.borderColor = "rgba(239, 68, 68, 0.7)";
+                        pill.style.color = "#fca5a5";
+                    } else {
+                        pill.style.background = "rgba(244, 63, 94, 0.15)";
+                        pill.style.borderColor = "rgba(244, 63, 94, 0.4)";
+                        pill.style.color = "#fda4af";
+                    }
+                }
+
+                if (_guestRemainingSec <= 0) {
+                    triggerGuestTimeout();
+                }
+            }, 1000);
+        }
+
+        // 觸發訪客 5 分鐘連線中斷保護
+        function triggerGuestTimeout() {
+            if (_guestCountdownTimer) {
+                clearInterval(_guestCountdownTimer);
+                _guestCountdownTimer = null;
+            }
+
+            // 🛑 核心防禦：主動銷毀 SSE 與清除輪詢計時器，完全停止對 Firebase 發出請求，100% 停止吃流量！
+            if (eventSource) {
+                try { eventSource.close(); } catch(e) {}
+                eventSource = null;
+            }
+            if (pollTimer) {
+                clearInterval(pollTimer);
+                pollTimer = null;
+            }
+
+            const dot = document.getElementById("statusDot");
+            if (dot) {
+                dot.className = "status-dot offline";
+            }
+            const statusText = document.getElementById("statusText");
+            if (statusText) {
+                statusText.textContent = "訪客限時已達 (已中斷)";
+            }
+
+            const overlay = document.getElementById("guestTimeoutOverlay");
+            if (overlay) overlay.style.display = "flex";
+        }
+
+        // 訪客點擊重新連線 (再看 5 分鐘)
+        function reconnectGuestSession() {
+            const overlay = document.getElementById("guestTimeoutOverlay");
+            if (overlay) overlay.style.display = "none";
+            _guestRemainingSec = GUEST_TIME_LIMIT_SEC;
+            startGuestCountdown();
+            connectFirebaseSSE();
+            if (!pollTimer) pollTimer = setInterval(fetchPollingFallback, 800);
+            showToast("🔄 訪客連線已重新建立 (獲得 5 分鐘觀看時限)", "info");
+        }
+
+        // 開啟/關閉白名單彈窗
+        function openWhitelistModal() {
+            const modal = document.getElementById("whitelistModal");
+            if (modal) modal.style.display = "flex";
+            const input = document.getElementById("txtWhitelistKey");
+            if (input && !_isVipUser) {
+                input.value = "";
+                setTimeout(() => input.focus(), 100);
+            }
+        }
+
+        function closeWhitelistModal() {
+            const modal = document.getElementById("whitelistModal");
+            if (modal) modal.style.display = "none";
+        }
+
+        // 驗證金鑰解鎖
+        function unlockWithKey() {
+            const input = document.getElementById("txtWhitelistKey");
+            const key = input ? input.value.trim() : "";
+            if (!key) {
+                showToast("請輸入白名單通行金鑰", "warning");
+                return;
+            }
+
+            if (isValidKey(key)) {
+                localStorage.setItem("dyn_whitelist_token", key);
+                _isVipUser = true;
+                closeWhitelistModal();
+                const overlay = document.getElementById("guestTimeoutOverlay");
+                if (overlay) overlay.style.display = "none";
+                updateAccessTierUI();
+                connectFirebaseSSE();
+                if (!pollTimer) pollTimer = setInterval(fetchPollingFallback, 800);
+                showToast("👑 白名單認證成功！已升級為 VIP 無限時連續監控", "success");
+                
+                // 向 Firebase 更新審計身分為 VIP
+                if (_currentVisitorSession) {
+                    _currentVisitorSession.is_vip = true;
+                    _currentVisitorSession.tier = "👑 VIP 白名單";
+                    fetch(`${FB_BASE}/audit/latest_visitor.json`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(_currentVisitorSession)
+                    }).catch(() => {});
+                }
+            } else {
+                showToast("❌ 通行金鑰不正確，請洽現場測試人員或工程師", "error");
+            }
+        }
+
+        // 登出 VIP
+        function revokeVipAccess() {
+            if (confirm("確定要登出 VIP 白名單權限嗎？登出後將恢復 5 分鐘訪客連線限制。")) {
+                localStorage.removeItem("dyn_whitelist_token");
+                _isVipUser = false;
+                closeWhitelistModal();
+                _guestRemainingSec = GUEST_TIME_LIMIT_SEC;
+                updateAccessTierUI();
+                showToast("已登出 VIP，已恢復訪客時限模式", "info");
+            }
+        }
+
+        // 複製 VIP 專屬快速通關連結
+        function copyVipShareLink() {
+            const token = localStorage.getItem("dyn_whitelist_token") || "dyn888";
+            const url = window.location.origin + window.location.pathname + "?key=" + encodeURIComponent(token);
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(() => {
+                    showToast("📋 已複製 VIP 專屬快速登入連結！可直接分享給同仁秒開", "success");
+                }).catch(() => {
+                    prompt("請複製以下 VIP 專屬連結：", url);
+                });
+            } else {
+                prompt("請複製以下 VIP 專屬連結：", url);
+            }
+        }
 
         // ================================================================
         //  訪客即時審計與足跡追蹤引擎 (Visitor Audit & Telemetry Engine)
@@ -878,7 +1655,9 @@
                     tz: dev.tz,
                     referrer: document.referrer || "Direct / Bookmark",
                     duration_sec: 0,
-                    status: "online"
+                    status: "online",
+                    is_vip: _isVipUser,
+                    tier: _isVipUser ? "👑 VIP 白名單" : "⏱️ 一般訪客 (5分時限)"
                 };
 
                 _currentVisitorSession = visitorRecord;
@@ -959,6 +1738,11 @@
                         ? (v.duration_sec >= 60 ? `${Math.floor(v.duration_sec / 60)}分${v.duration_sec % 60}秒` : `${v.duration_sec}秒`) 
                         : "剛進站";
 
+                    const isVip = (v.is_vip === true || (v.tier && v.tier.indexOf("VIP") >= 0));
+                    const tierTag = isVip 
+                        ? `<span class="visitor-tag" style="background:rgba(234,179,8,0.2); color:#facc15; border-color:rgba(234,179,8,0.4); font-weight:700;">👑 VIP 白名單</span>` 
+                        : `<span class="visitor-tag" style="color:var(--text-muted);">⏱️ 訪客 (5分)</span>`;
+
                     html += `
                     <div class="visitor-item">
                         <div class="visitor-header">
@@ -970,6 +1754,7 @@
                             <span class="visitor-time">⏱️ ${v.time || '--'}</span>
                         </div>
                         <div class="visitor-meta">
+                            ${tierTag}
                             <span class="visitor-tag">🌐 IP: ${v.ip || '未知'}</span>
                             <span class="visitor-tag">⚙️ ${v.os || ''} · ${v.browser || ''}</span>
                             <span class="visitor-tag">📐 ${v.screen || ''}</span>
@@ -1297,13 +2082,65 @@
             }
         }, 1000);
 
-        window.addEventListener("resize", drawChart);
+        // ================================================================
+        //  雲端測試報告自動探測與下載
+        // ================================================================
+        let _cachedReportData = null;
+        async function checkLatestReport() {
+            try {
+                const res = await fetch(`${FB_BASE}/reports/latest.json`, { cache: "no-store" });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!data || !data.filename || !data.data) {
+                    const card = document.getElementById("cardReportDownload");
+                    if (card) card.style.display = "none";
+                    return;
+                }
+                _cachedReportData = data;
+                const card = document.getElementById("cardReportDownload");
+                if (card) card.style.display = "block";
+                document.getElementById("lblReportName").textContent = "📦 " + data.filename;
+                const sizeKb = (data.sizeBytes / 1024).toFixed(1);
+                document.getElementById("lblReportMeta").textContent = `容量: ${sizeKb} KB | 檔案數: ${data.filesCount || 1} | 上傳時間: ${data.timestamp || "--"}`;
+                document.getElementById("badgeReportTime").textContent = `● 已就緒 (${data.timestamp || ""})`;
+            } catch (err) { }
+        }
+
+        function downloadLatestReportZip() {
+            if (!_cachedReportData || !_cachedReportData.data) {
+                alert("目前尚無可下載之報告數據！");
+                return;
+            }
+            try {
+                const byteCharacters = atob(_cachedReportData.data);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: "application/zip" });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = _cachedReportData.filename || "Report.zip";
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } catch (e) {
+                alert("下載失敗: " + e.message);
+            }
+        }
 
         // 頁面就緒：即刻啟動即時數據串流與訪客靜默審計
+        checkWhitelistStatus(); // 先以本地憑證或 URL 參數即時初始化
+        fetchRemoteWhitelistKey().then(() => {
+            checkWhitelistStatus();
+        });
         initTempGrid();
         connectFirebaseSSE();
         pollTimer = setInterval(fetchPollingFallback, 800);
         initVisitorAudit();
+        checkLatestReport();
+        setInterval(checkLatestReport, 15000);
     </script>
 </body>
 </html>
