@@ -819,6 +819,22 @@ namespace DynamometerHMI
                 tblDutyMini.RowStyles[4].Height = isS6 ? 56f : 0f; // Row 4: S6 雙重定錨
                 tblDutyMini.RowStyles[5].Height = isS6 ? 65f : 0f; // Row 5: S6 週期圖解
             }
+
+            if (splitDuty != null && splitDuty.Height > 0)
+            {
+                string dutyModeKey = isS1 ? "DutyMain_S1" : (isS2 ? "DutyMain_S2" : "DutyMain_S6");
+                int defDist = 550;
+                int saved;
+                if (layoutSplitters.TryGetValue(dutyModeKey, out saved) && saved > 0)
+                {
+                    defDist = saved;
+                }
+                else if (layoutSplitters.TryGetValue("DutyMain", out saved) && saved > 0)
+                {
+                    defDist = saved;
+                }
+                ApplySplitterDistanceSafe(splitDuty, dutyModeKey, defDist, 150, 80);
+            }
         }
 
         private void UpdateS6CalcInfo()

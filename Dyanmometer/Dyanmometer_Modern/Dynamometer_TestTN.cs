@@ -30,12 +30,6 @@ namespace DynamometerHMI
             splitTnMain.Panel1.BackColor = Color.FromArgb(248, 250, 252);
             splitTnMain.Panel2.AutoScroll = true;
             splitTnMain.Panel2.BackColor = Color.White;
-            splitTnMain.SplitterMoved += (s, e) => {
-                if (!isLayoutLoaded || isApplyingSplitterLayout) return;
-                string k = (cmbTnMode != null && cmbTnMode.SelectedIndex == 1) ? "TnMainMulti" : "TnMain";
-                layoutSplitters[k] = splitTnMain.SplitterDistance;
-                SaveLayoutConfig();
-            };
             SafeSetupSplitContainer(splitTnMain, "TnMain", 210, 100, 100);
 
             // 頂部參數設定區
@@ -405,11 +399,6 @@ namespace DynamometerHMI
                 SplitterWidth = 8,
                 BackColor = Color.FromArgb(203, 213, 225)
             };
-            splitTnBottom.SplitterMoved += (s, e) => {
-                if (!isLayoutLoaded || isApplyingSplitterLayout) return;
-                layoutSplitters["TnBottom"] = splitTnBottom.SplitterDistance;
-                SaveLayoutConfig();
-            };
             SafeSetupSplitContainer(splitTnBottom, "TnBottom", 650, 150, 150);
 
             // 左側：T-N 曲線圖
@@ -423,11 +412,6 @@ namespace DynamometerHMI
                 Orientation = Orientation.Horizontal,
                 SplitterWidth = 8,
                 BackColor = Color.FromArgb(203, 213, 225)
-            };
-            splitTnRight.SplitterMoved += (s, e) => {
-                if (!isLayoutLoaded || isApplyingSplitterLayout) return;
-                layoutSplitters["TnRight"] = splitTnRight.SplitterDistance;
-                SaveLayoutConfig();
             };
             SafeSetupSplitContainer(splitTnRight, "TnRight", 280, 120, 120);
 

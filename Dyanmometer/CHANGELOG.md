@@ -8,8 +8,62 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.89 (beta) | v2.10.48 | 2026-09-11 | TN / Duty (S1/S2/S6) 各分頁排版記憶徹底根治修復（排版設定檔存放於執行檔目錄 `dynamometer_layout.ini`）：(1)根絕 INI 寫入漏列 managedSecSet 導致 [UI]、[Safety] 等區段無限重複疊加膨脹至 4484 行之腐蝕缺陷；(2)修復 SaveLayoutConfig() 跨分頁盲目讀取背景未呈現 Splitter 導致以預設值覆寫使用者已調整設定之破壞迴圈，嚴格限縮僅同步目前活動中之分頁 (curTab)；(3)移除 tabControl.SelectedIndexChanged 提前存檔之未就緒寫入；(4)解除 TN 測試手動重複繫結 SplitterMoved 雙重覆寫問題，確保 multi-point 與 single-step 獨立記憶；(5)Duty 工作制 S1/S2/S6 三大模式獨立分立 DutyMain_S1, DutyMain_S2, DutyMain_S6 記憶鍵值，模式切換即時動態無縫復原。 |
 | V2.88 (beta) | v2.10.48 | 2026-09-11 | WEB_GBD (GBD_Viewer.html & GBD_Editor.html) 通道觀看預設勾選邏輯升級：(1)廢除舊有固定寫死 CH1, CH5, CH8, CH10 之限制，全面同步對齊 Dynamometer 實測有效通道辨識引擎 (DetectActiveGbdChannels)；(2)開檔載入 (onLoaded) 時自動動態掃描並識別具備合法溫度數據 (-40℃ ~ 350℃ 且非 0、非 999、非 32767 斷線碼) 之通道進行自動勾選顯示，無資料時自適應 fallback 前 4 點；(3)左側通道列表新增「⚡ 實測」按鈕，支援隨時一鍵重新依實測數據勾選；(4)正式將 WEB_GBD 溫度資料檢視器加入全案入口導覽首頁 (index.html)。 |
 | V2.87 (beta) | v2.10.47 | 2026-09-11 | 全分頁 (TN / Duty S1/S2/S6 / 效率熱力圖 / 空載測試) 排版與分割條 (Splitter) 記憶深度修復：(1)徹底根除 WinForms SizeChanged 事件中未受保護之 SplitterMoved 回饋覆蓋迴圈與非活動分頁尺寸未就緒 (Height/Width <= 0) 抹除已存座標之致命缺陷；(2)建立 isApplyingSplitterLayout 遞迴防護鎖與 DefaultSplitterDistances 15 組全域預設基線；(3)TN 分頁細分 single-step ("TnMain") 與 multi-point ("TnMainMulti") 雙態分割條記憶，並支援 DutyMain, DutyTop, EffMain, NoLoadMain, NoLoadBottom 完整持久化；(4)解除 DataGridView AutoSizeColumnsMode.Fill 鎖定改為 None，完整記憶 TN, Duty, NoLoad 每一欄手動調整寬度；(5)記憶 TN 與 Duty 測試模式、角色與時間跨度下拉選項 ([TnTest], [DutyTest]) |
+
+## [V2.89 beta / v2.10.48] - 2026-09-11
+
+### 🎯 現象與佐證 (Log-First Verbatim Excerpts)
+1. **使用者回報現象**：
+   - 使用者回報：「還是沒記住阿，使用者改變後要記得啊!? 你記在哪裡」。
+   - 使用者反映在調整 TN 特性測試、Duty 工作制 (S1/S2/S6) 的分割條與欄位大小後，下次開啟或切換分頁仍舊未被正確記憶，甚至變回預設狀態。
+2. **實測 INI 檔案與行為分析佐證**：
+   - **排版設定檔存放位置**：本機執行檔目錄下的 `dynamometer_layout.ini`（如 `Release/Dynamometer_HMI_V2.5.0_Portable/dynamometer_layout.ini`）。
+   - 提取實測 `Dyanmometer/Release/Dynamometer_HMI_V2.5.0_Portable/dynamometer_layout.ini` 佐證：
+     * 檔案大小暴增至 78 KB、行數高達 4,484 行；
+     * 檢視內容發現 `[UI]`、`[Safety]`、`[Tracking]`、`[Devices]`、`[Fonts]`、`[RawData]`、`[EquivCircuit]` 等區段在每次呼叫 `SaveLayoutConfig()` 時皆被重複附加於檔尾，`RefreshInterval=750` 重複出現超過 4,000 次！
+     * 追蹤 `SaveLayoutConfig()` 執行邏輯：每次執行儲存時，無差別讀取全部分頁上所有 SplitterContainer 的 `SplitterDistance`。當使用者在某一分頁操作時，背景未呈現（Inactive）之分頁其 SplitterContainer 尺寸未經 GDI 渲染，回傳了初始預設值（如 550、880），當場覆蓋並抹煞了使用者先前在該分頁調好的數值！
+     * 追蹤 `tabControl.SelectedIndexChanged`：在切換分頁瞬間，透過 `BeginInvoke` 觸發了 `SaveLayoutConfig()`，此時目標分頁尚在排版未定型狀態，將過渡尺寸立即儲存入 INI。
+     * 追蹤 `Dynamometer_TestDuty.cs`：S1（連續運轉）、S2（短時過載）、S6（週期反覆）三種工作制之控制面板高度差異極大，但原本僅共用單一 `DutyMain` 鍵值，導致切換模式時彼此覆寫破版。
+
+---
+
+### 💡 致命根因 (Root Cause Analysis)
+1. **INI 區段遺漏致檔案無限膨脹損毀**：
+   - `SaveLayoutConfig()` 內部維護之 `managedSecSet` 遺漏了 `"UI"`, `"Safety"`, `"Tracking"`, `"Devices"`, `"Fonts"`, `"RawData"`, `"EquivCircuit"`，被視為未託管區段而在每次存檔時無條件重寫並在記憶體內重複疊加，導致 INI 膨脹至 4484 行。
+2. **跨分頁盲目讀取與無效尺寸覆蓋 (Cross-Tab Inactive Overwrite)**：
+   - `SaveLayoutConfig()` 過去遍歷了 15 組分割條，未檢查各分割條所屬之分頁是否處於活動狀態（`curTab == tabControl.SelectedIndex`）。未顯示之分頁控制項回報預設或殘餘值，直接覆寫了已儲存的正確值。
+3. **分頁切換時未就緒提前存檔**：
+   - `tabControl.SelectedIndexChanged` 事件中包含非同步呼叫 `SaveLayoutConfig()`，在 UI 尚未 Render 完成前便強行寫入。
+4. **Duty 工作制三大模式缺乏獨立記憶維度**：
+   - S1/S2/S6 運轉模式共用同一分割條 `splitDutyMain`，但各模式所需之控制面板高寬完全不同，缺乏各模式獨立鍵值。
+5. **重複繫結 SplitterMoved 事件**：
+   - `Dynamometer_TestTN.cs` 內部手動繫結 `SplitterMoved`，同時又呼叫 `SafeSetupSplitContainer` 再次繫結，造成同一拖曳動作觸發兩次存檔與鍵值混亂。
+
+---
+
+### 🚀 精確修復方案 (Accurate Solution & Release Verifications)
+1. **排版設定檔純淨化與託管區段完整定義**：
+   - 在 `SaveLayoutConfig()` 中將 `"UI"`, `"Safety"`, `"Tracking"`, `"Devices"`, `"Fonts"`, `"RawData"`, `"EquivCircuit"` 全數納入 `managedSecSet`，杜絕重疊寫入；
+   - 徹底清理並修復 `dynamometer_layout.ini`，刪除 4,200 多行重複髒資料，將 INI 縮減為乾淨純粹的標準設定檔；
+   - 永久落實 Rule 7：Git 追蹤之 INI 檔案中 `Token=` 保持為空，使用者本機之 PAT 則安全保留於本機 INI。
+2. **嚴格限縮分割條同步範圍至活動分頁**：
+   - 在 `SaveLayoutConfig()` 中建立嚴格的分頁關聯校驗：
+     * `splitTnMain`, `splitTnBottom`, `splitTnRight` 僅在 `curTab == 1` (TN 測試) 時才同步更新字典；
+     * `splitDutyMain`, `splitDutyTop` 僅在 `curTab == 2` (Duty 測試) 時才同步更新；
+     * `splitEffMain` 僅在 `curTab == 3` (效率測試) 時才同步更新；
+     * `splitNoLoadMain`, `splitNoLoadBottom` 僅在 `curTab == 4` (空載測試) 時才同步更新；
+     * 當某分頁未呈現時，其分割條數值**嚴禁**被無效讀取，永久鎖定並保留使用者在 INI 內已儲存的最佳座標！
+3. **Duty 工作制 S1 / S2 / S6 獨立鍵值持久化架構**：
+   - 擴充 `DefaultSplitterDistances` 與 INI 鍵值：新增 `DutyMain_S1`, `DutyMain_S2`, `DutyMain_S6`（預設 550）；
+   - 在 `SafeSetupSplitContainer` 與 `UpdateDutyModeVisibility` 中動態判定目前 Duty 模式，拖曳分割條時自動對應儲存至目前模式之專屬鍵值；
+   - 切換 S1/S2/S6 模式時，立即動態載入對應模式先前所儲存的 `SplitterDistance`，實現三個工作制各自獨立排版記憶。
+4. **清理多餘事件繫結與提前存檔呼叫**：
+   - 移除 `tabControl.SelectedIndexChanged` 中的過早 `SaveLayoutConfig()`；
+   - 移除 `Dynamometer_TestTN.cs` 中的冗餘 `SplitterMoved` 監聽器，統一由 `SafeSetupSplitContainer` 統一管理，並正確依 `cboTnMode.SelectedIndex` 映射 `TnMain` 與 `TnMainMulti`。
+
+---
 
 ## [V2.88 beta / v2.10.48] - 2026-09-11
 
