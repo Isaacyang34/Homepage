@@ -8,7 +8,44 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.76 (beta) | v2.10.36 | 2026-09-11 | WebMonitor 遠端監控中心深度整合「馬達規格特性分析儀」專屬分頁：(1)VIP 白名單雙軌權限防護 (`vip888` 一鍵驗證解鎖、自動記憶於 localStorage 與全系統無限時連線連動)、(2)訪客未授權鎖定面板與 Toast 即時回饋、(3)全套 CNS 14400 / IEC 60034-2-1 規格特性推算與 S1/S2/S6 工作制熱平衡診斷無縫嵌入、(4)支援 URL 快速通關參數 (?vip=vip888&tab=spec) |
 | V2.75 (beta) | v2.10.35 | 2026-09-11 | KEB ru.03 輸出頻率解析度縮放與報告採納邏輯徹底根治：(1)破譯 KEB COMBIVERT F5 速度範圍標準化解析度 (8000rpm B載台待測=0.025 Hz, 4000rpm A載台加載=0.0125 Hz)，徹底根除 0.01/0.0001 誤乘缺陷；(2)建立 ConvertKebRu03ToFrequency 智能換算與 WT333E 自適應鎖定引擎；(3)全面翻轉 actFrequency 採納優先順序，以 Yokogawa WT333E 實測電氣基波為最高黃金基準；(4)根治 dr.05 暫存器地址與額定頻率反算極數缺陷；(5)佈局 ini 載入自動清洗與監視網格專屬 F2 渲染 |
+
+---
+
+## [V2.76 beta / v2.10.36] - 2026-09-11
+
+### 🎯 現象與佐證 (Log-First Verbatim Excerpts)
+1. **使用者需求指示**：
+   - 「能把這網頁整合到原本的WebMonitor之中，權限控管就用之前的vip888才能使用此分頁」
+2. **整合前架構分析**：
+   - 之前 WebMonitor.html 僅提供頂部外部連結 `📑 馬達規格特性分析` 跳轉至獨立網頁 `Motor_Characteristics_Viewer.html`；
+   - 外部跳轉造成監控中斷，且缺乏與 WebMonitor 既有 VIP 訪客控制系統（`DEFAULT_VIP_KEYS = ["vip888", ...]`）整合之專屬分頁權限保護機制。
+
+---
+
+### 💡 致命根因 (Root Cause Analysis)
+1. **導航與單頁體驗分散**：現場操作人員或遠端工程師需頻繁在兩個 HTML 檔案間切換，無法在同一個監控中心內既看即時遙測、又同時執行歷史報告/雲端 ZIP 解包之馬達特性診斷。
+2. **缺乏基於角色 (Role-Based) 的分頁權限遮罩**：高階試驗分析功能涉及 CNS 14400 / IEC 60034-2-1 規格演算與工控機歷史試驗報告調閱，若未經通行金鑰控管，一般訪客亦能存取，無法區分一般即時看盤訪客與工程研發 VIP 使用者。
+
+---
+
+### 🚀 精確修復方案 (Accurate Solution & Release Verifications)
+1. **WebMonitor 頂部導航分頁列升級 (Main Tabs Navigation)**：
+   - 建立雙分頁架構：`[ ⚡ 雲端即時監控中心 (Live Monitor) ]` 與 `[ 📑 馬達規格特性分析儀 (Specs & Duty) 🔒 VIP ]`；
+   - 頂部導航按鈕 `btnSpecViewer` 升級為直接觸發分頁切換函式 `switchMainTab('spec')`。
+2. **VIP 白名單通行金鑰授權控管 (`vip888`)**：
+   - **未解鎖狀態**：當使用者尚未取得 VIP 白名單權限時，切換至規格分析分頁自動呈現高質感毛玻璃 `spec-vip-lock-container` 鎖定面板，提示輸入通行金鑰（如 `vip888`）；
+   - **一鍵解鎖與憑證持久化**：輸入 `vip888` 點擊「驗證解鎖」後，立即持久化儲存憑證至 `localStorage ("dyn_whitelist_token")`，動態將分頁徽章升級為 `👑 VIP (已解鎖)`，並自動連動解除 WebMonitor 訪客 5 分鐘斷流限制，享有 24 小時連續即時監控；
+   - **URL 快速通關**：支援 `WebMonitor.html?vip=vip888&tab=spec`，網址載入當下即可直接秒開分析分頁。
+3. **無縫嵌入全功能特性分析儀 (Embedded Characteristics Suite)**：
+   - 採用響應式隔離容器與獨立視窗整合，徹底避免 DOM ID 與全域變數碰撞；
+   - 完整支援 **S1 / S2 / S6 工作制熱平衡自動診斷**、**T-N 多點試驗特性曲線**、**CNS 14400 / IEC 60034-2-1 規格表自動推算**、**2D 效率雲圖** 與 **Firebase 雲端報告 ZIP 一鍵解壓縮分析**。
+4. **自動化測試與發布打包驗證**：
+   - 通過 `browser_subagent` 實機測試，驗證 `vip888` 金鑰輸入、解鎖 Toast、分頁切換、S1/S6/T-N/2D Map 數據載入與圖表繪製；
+   - 經由 `package_release.ps1` 自動打包至 `Release/Dynamometer_HMI_V2.5.0_Portable/` 與工作區根目錄，並同步自動推播至 GitHub `gh-pages` 與更新 Firebase 版本清單。
+
+---
 | V2.74 (beta) | v2.10.34 | 2026-09-11 | 本地歷史版本自動滾動備份 (保留前 5 版) 與雙軌自主退回機制 (HMI GUI 線上一鍵退回重啟 + 離線崩潰防護急救工具 Rollback_Version.bat / 退回舊版本.bat、相容 Windows XP 向上加載 DLL/ 驅動) |
 | V2.73 (beta) | v2.10.33 | 2026-09-11 | KEB 雙載台通訊連線徹底修復：根治 copydata 記憶體越界指標解引用 (AccessViolationException 0xC0000005) 與 COM 通道追蹤變數重置迴圈、還原 DIN 66019-II 實體電文 Data 暫存器偏移量 (rxBuf[24])、升級 EnsureHmiKebOpen 結構化佐證日誌、雙向同步便攜發布包 (含 DLL/ 驅動函式庫) |
 | V2.72 (beta) | v2.10.32 | 2026-09-10 | 馬達動力計規格特性分析儀 (Motor Characteristics Web Viewer - 純前端零依賴、支援拖曳讀取 Dynamometer 各類測試紀錄檔、智慧提取電氣/機械量、自動歸納 CNS 14400 / IEC 60034-2-1 馬達規格特性判定表、四大互動工程圖表與出廠規格書 CSV/PDF 匯出) |
