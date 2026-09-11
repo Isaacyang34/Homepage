@@ -1379,8 +1379,8 @@ namespace DynamometerHMI
                                 StringBuilder sbCreate = new StringBuilder();
                                 sbCreate.Append("{");
                                 sbCreate.AppendFormat("\"tag_name\": \"{0}\",", EscapeJson(ghTag));
-                                sbCreate.AppendFormat("\"name\": \"{0}\",", EscapeJson("測試報告歸檔 (" + ghTag + ")"));
-                                sbCreate.AppendFormat("\"body\": \"{0}\",", EscapeJson("馬達動力計自動發布之測試報告封包與歷史數據存檔"));
+                                sbCreate.AppendFormat("\"name\": \"{0}\",", EscapeJson("Motor Test Reports Archive (" + ghTag + ")"));
+                                sbCreate.AppendFormat("\"body\": \"{0}\",", EscapeJson("Dynamometer Motor Test Reports and Raw Data Archives"));
                                 sbCreate.Append("\"draft\": false,");
                                 sbCreate.Append("\"prerelease\": false");
                                 sbCreate.Append("}");

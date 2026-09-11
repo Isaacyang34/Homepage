@@ -71,6 +71,10 @@
    - 執行 `package_release.ps1 -Version 2.5.0`，C# 編譯器 (`csc.exe`) 零 Error 順利完成編譯並生成新 EXE；
    - 自動完成備份封存 (`backups/`)，同步推送到 GitHub 遠端儲存庫雙分支 (`gh-pages` 與 `master`)；
    - 同步更新 Firebase RTDB `/update/version.json` 為 `V2.10.45`。
+6. **GitHub Release 報告歸檔標題與資產下載路徑明確化**：
+   - 修復 Windows XP ANSI/Big5 字元集呼叫 GitHub API 建立 Release 時標題亂碼化為 `??????` 之缺陷，統一改為 `Motor Test Reports Archive (Reports-Archive)` 標準純淨命名；
+   - 線上 GitHub API 已同步更正歷史 Release 標題；
+   - 完整貫通「本機 logs/ 開啟」、「GitHub Releases Assets 一鍵直通下載」與「Google Drive 雲端同步」三位一體下載管道。
 
 ---
 
