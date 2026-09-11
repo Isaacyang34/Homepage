@@ -31,6 +31,8 @@
    - 「就用neon版本，生成一個低解析度版本icon用」
    - 「低解析度的要不要考慮減少色階然後簡化細節」
    - 「然後既然是icon應該就只有內部的D那個片，不用有外框，也不用有背景」
+   - 「留下simplifed版本跟neon版本其他刪掉，這兩個版本做到只有D外型以及內部細節，其他外面的框框背景都不要」
+   - 「simplifed先導入」
 2. **實機與架構分析佐證**：
    - 原系統 `Dynamometer_HMI_Pro.exe` 執行檔與 WinForms 主視窗使用 Windows 預設通用圖示，缺乏專業高科技與工業儀表品牌辨識度；
    - 瀏覽器端之雲端即時監控中心 (`WebMonitor.html`) 與馬達規格特性分析儀 (`Motor_Characteristics_Viewer.html`) 缺乏專屬 Favicon，在多標籤頁下辨識度不足；
