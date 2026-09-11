@@ -2471,10 +2471,22 @@ namespace DynamometerHMI
         /// </summary>
         public static string SendHttpRequest(string method, string url, string jsonPayload, string localWifiIp, int timeoutMs, out int statusCode)
         {
-            return SendHttpRequest(method, url, jsonPayload, localWifiIp, timeoutMs, out statusCode, 0);
+            return SendHttpRequest(method, url, jsonPayload, null, localWifiIp, timeoutMs, out statusCode, 0);
         }
 
         public static string SendHttpRequest(string method, string url, string jsonPayload, string localWifiIp, int timeoutMs, out int statusCode, int redirectHop)
+        {
+            return SendHttpRequest(method, url, jsonPayload, null, localWifiIp, timeoutMs, out statusCode, redirectHop);
+        }
+
+        public static string SendHttpRequest(string method, string url, string jsonPayload, Dictionary<string, string> customHeaders, string localWifiIp, int timeoutMs, out int statusCode, int redirectHop = 0)
+        {
+            byte[] body = !string.IsNullOrEmpty(jsonPayload) ? Encoding.UTF8.GetBytes(jsonPayload) : null;
+            string cType = (body != null && body.Length > 0) ? "application/json; charset=utf-8" : null;
+            return SendHttpRequestRaw(method, url, body, cType, customHeaders, localWifiIp, timeoutMs, out statusCode, redirectHop);
+        }
+
+        public static string SendHttpRequestRaw(string method, string url, byte[] rawBody, string contentType, Dictionary<string, string> customHeaders, string localWifiIp, int timeoutMs, out int statusCode, int redirectHop = 0)
         {
             if (string.IsNullOrEmpty(url)) throw new ArgumentNullException("url");
             Uri uri = new Uri(url);
@@ -2518,23 +2530,48 @@ namespace DynamometerHMI
                     tls.Connect(new ManagedTlsClient(uri.Host));
 
                     Stream tlsStream = tls.Stream;
-                    byte[] body = !string.IsNullOrEmpty(jsonPayload) ? Encoding.UTF8.GetBytes(jsonPayload) : new byte[0];
+                    int bodyLen = rawBody != null ? rawBody.Length : 0;
 
                     StringBuilder reqHeader = new StringBuilder();
                     reqHeader.AppendFormat("{0} {1} HTTP/1.1\r\n", verb, uri.PathAndQuery);
                     reqHeader.AppendFormat("Host: {0}\r\n", uri.Host);
-                    if (body.Length > 0 || verb == "PUT" || verb == "POST")
+                    reqHeader.Append("User-Agent: Dynamometer-HMI\r\n");
+
+                    if (customHeaders != null)
                     {
-                        reqHeader.Append("Content-Type: application/json; charset=utf-8\r\n");
-                        reqHeader.AppendFormat("Content-Length: {0}\r\n", body.Length);
+                        foreach (KeyValuePair<string, string> kv in customHeaders)
+                        {
+                            reqHeader.AppendFormat("{0}: {1}\r\n", kv.Key, kv.Value);
+                        }
+                    }
+
+                    if (bodyLen > 0)
+                    {
+                        if (!string.IsNullOrEmpty(contentType))
+                        {
+                            reqHeader.AppendFormat("Content-Type: {0}\r\n", contentType);
+                        }
+                        reqHeader.AppendFormat("Content-Length: {0}\r\n", bodyLen);
+                    }
+                    else if (verb == "PUT" || verb == "POST")
+                    {
+                        reqHeader.Append("Content-Length: 0\r\n");
                     }
                     reqHeader.Append("Connection: close\r\n\r\n");
 
                     byte[] headerBytes = Encoding.ASCII.GetBytes(reqHeader.ToString());
                     tlsStream.Write(headerBytes, 0, headerBytes.Length);
-                    if (body.Length > 0)
+                    if (bodyLen > 0)
                     {
-                        tlsStream.Write(body, 0, body.Length);
+                        // 分塊寫入，避免超大檔案單次寫入造成 Socket 緩衝阻塞
+                        int offset = 0;
+                        int chunkSize = 65536;
+                        while (offset < bodyLen)
+                        {
+                            int toWrite = Math.Min(chunkSize, bodyLen - offset);
+                            tlsStream.Write(rawBody, offset, toWrite);
+                            offset += toWrite;
+                        }
                     }
                     tlsStream.Flush();
 
@@ -2609,7 +2646,7 @@ namespace DynamometerHMI
                             !string.IsNullOrEmpty(location) && redirectHop < 5)
                         {
                             Uri nextUri = new Uri(uri, location);
-                            return SendHttpRequest("GET", nextUri.AbsoluteUri, null, localWifiIp, timeoutMs, out statusCode, redirectHop + 1);
+                            return SendHttpRequestRaw("GET", nextUri.AbsoluteUri, null, null, customHeaders, localWifiIp, timeoutMs, out statusCode, redirectHop + 1);
                         }
 
                         return respBody;
@@ -2623,6 +2660,7 @@ namespace DynamometerHMI
                 req.Method = verb;
                 req.Timeout = timeoutMs;
                 req.ReadWriteTimeout = timeoutMs;
+                req.UserAgent = "Dynamometer-HMI";
 
                 IPAddress wIp;
                 if (!string.IsNullOrEmpty(localWifiIp) && IPAddress.TryParse(localWifiIp, out wIp))
@@ -2633,14 +2671,23 @@ namespace DynamometerHMI
                     };
                 }
 
-                if (!string.IsNullOrEmpty(jsonPayload))
+                if (customHeaders != null)
                 {
-                    byte[] payload = Encoding.UTF8.GetBytes(jsonPayload);
-                    req.ContentType = "application/json; charset=utf-8";
-                    req.ContentLength = payload.Length;
+                    foreach (KeyValuePair<string, string> kv in customHeaders)
+                    {
+                        if (kv.Key.Equals("User-Agent", StringComparison.OrdinalIgnoreCase)) req.UserAgent = kv.Value;
+                        else if (kv.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase)) req.ContentType = kv.Value;
+                        else req.Headers[kv.Key] = kv.Value;
+                    }
+                }
+
+                if (rawBody != null && rawBody.Length > 0)
+                {
+                    if (!string.IsNullOrEmpty(contentType)) req.ContentType = contentType;
+                    req.ContentLength = rawBody.Length;
                     using (Stream reqStream = req.GetRequestStream())
                     {
-                        reqStream.Write(payload, 0, payload.Length);
+                        reqStream.Write(rawBody, 0, rawBody.Length);
                     }
                 }
 

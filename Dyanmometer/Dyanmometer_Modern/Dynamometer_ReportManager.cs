@@ -369,6 +369,15 @@ namespace DynamometerHMI
         public Label lblReportSelectionInfo;
         public ComboBox cmbUploadTarget;
         public Panel pnlTargetConfigContainer;
+
+        // GitHub Release 設定控制項
+        public TextBox txtGhOwner;
+        public TextBox txtGhRepo;
+        public TextBox txtGhTag;
+        public TextBox txtGhToken;
+        public Button btnGhTokenGuide;
+        public Button btnGhOpenReleases;
+
         public TextBox txtGasWebhookUrl;
         public TextBox txtGasDriveFolder;
         public TextBox txtGasNotifyEmail;
@@ -656,12 +665,16 @@ namespace DynamometerHMI
                 Font = new Font("微軟正黑體", 10f, FontStyle.Bold)
             };
             cmbUploadTarget.Items.AddRange(new object[] {
-                "1. Google Drive 雲端 (GAS Webhook / 兼發 Email)",
-                "2. Firebase 雲端中心 (現成即用 / 支援網頁儀表板下載)",
-                "3. 區域網路 NAS / 本機共享資料夾",
-                "4. 僅壓縮另存本機 ZIP (Save to Local)"
+                "1. GitHub Release 雲端 (推薦 / 直通下載 / 支援至2GB)",
+                "2. Google Drive 雲端 (GAS Webhook / 兼發 Email)",
+                "3. Firebase 雲端中心 (現成即用 / 支援網頁儀表板下載)",
+                "4. 區域網路 NAS / 本機共享資料夾",
+                "5. 僅壓縮另存本機 ZIP (Save to Local)"
             });
-            cmbUploadTarget.SelectedIndex = 0;
+            int savedTarget = 0;
+            int.TryParse(LoadConfigKey("ReportManager", "TargetIndex", "0"), out savedTarget);
+            if (savedTarget < 0 || savedTarget >= cmbUploadTarget.Items.Count) savedTarget = 0;
+            cmbUploadTarget.SelectedIndex = savedTarget;
 
             // 3.3 動態設定容器面板 (依據上傳目標切換不同欄位)
             pnlTargetConfigContainer = new Panel()
@@ -743,6 +756,61 @@ namespace DynamometerHMI
         {
             pnlTargetConfigContainer.Controls.Clear();
 
+            // === GitHub Release 設定元件 ===
+            Label lblGhRepo = new Label() { Text = "儲存庫:", Location = new Point(8, 10), AutoSize = true, Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold) };
+            txtGhOwner = new TextBox() { Location = new Point(62, 8), Size = new Size(115, 24), Font = new Font("Consolas", 9f) };
+            txtGhOwner.Text = LoadConfigKey("GitHub", "Owner", "Isaacyang34");
+
+            Label lblSlash = new Label() { Text = "/", Location = new Point(180, 10), AutoSize = true, Font = new Font("微軟正黑體", 10f, FontStyle.Bold) };
+
+            txtGhRepo = new TextBox() { Location = new Point(195, 8), Size = new Size(115, 24), Font = new Font("Consolas", 9f) };
+            txtGhRepo.Text = LoadConfigKey("GitHub", "Repo", "Homepage");
+
+            Label lblGhTag = new Label() { Text = "標籤(Tag):", Location = new Point(318, 10), AutoSize = true, Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold) };
+            txtGhTag = new TextBox() { Location = new Point(390, 8), Size = new Size(140, 24), Font = new Font("Consolas", 9f) };
+            txtGhTag.Text = LoadConfigKey("GitHub", "ReleaseTag", "Reports-Archive");
+
+            btnGhTokenGuide = new Button()
+            {
+                Text = "🔑 取得 Token 教學",
+                Location = new Point(538, 6),
+                Size = new Size(145, 28),
+                BackColor = Color.FromArgb(37, 99, 235),
+                ForeColor = Color.White,
+                Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                FlatStyle = FlatStyle.Flat
+            };
+            btnGhTokenGuide.FlatAppearance.BorderSize = 0;
+            btnGhTokenGuide.Click += (s, e) => ShowGitHubTokenGuideDialog();
+
+            btnGhOpenReleases = new Button()
+            {
+                Text = "🔗 檢視 Releases 頁面",
+                Location = new Point(690, 6),
+                Size = new Size(145, 28),
+                BackColor = Color.FromArgb(15, 118, 110),
+                ForeColor = Color.White,
+                Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                FlatStyle = FlatStyle.Flat
+            };
+            btnGhOpenReleases.FlatAppearance.BorderSize = 0;
+            btnGhOpenReleases.Click += (s, e) => OpenGitHubReleasesInBrowser();
+
+            Label lblGhToken = new Label() { Text = "權杖 (PAT):", Location = new Point(8, 42), AutoSize = true, Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold) };
+            txtGhToken = new TextBox() { Location = new Point(85, 40), Size = new Size(330, 24), Font = new Font("Consolas", 9f) };
+            txtGhToken.Text = LoadConfigKey("GitHub", "Token", "");
+
+            Label lblGhHint = new Label()
+            {
+                Text = "💡 支援單檔 2GB 直通下載！上傳後自動產生公開直連網址並複製至剪貼簿。",
+                Location = new Point(422, 42),
+                AutoSize = true,
+                Font = new Font("微軟正黑體", 9f),
+                ForeColor = Color.FromArgb(30, 41, 59)
+            };
+
             // === Google Drive / GAS 設定元件 ===
             Label lblWebhook = new Label() { Text = "Webhook 網址:", Location = new Point(8, 10), AutoSize = true, Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold) };
             txtGasWebhookUrl = new TextBox() { Location = new Point(110, 8), Size = new Size(420, 24), Font = new Font("Consolas", 9f, FontStyle.Regular) };
@@ -800,7 +868,28 @@ namespace DynamometerHMI
         private void SwitchTargetConfigView(int targetIdx)
         {
             pnlTargetConfigContainer.Controls.Clear();
-            if (targetIdx == 0) // Google Drive via GAS Webhook
+            if (targetIdx == 0) // GitHub Release 雲端
+            {
+                Label lblGhRepo = new Label() { Text = "儲存庫:", Location = new Point(8, 10), AutoSize = true, Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold) };
+                Label lblSlash = new Label() { Text = "/", Location = new Point(180, 10), AutoSize = true, Font = new Font("微軟正黑體", 10f, FontStyle.Bold) };
+                Label lblGhTag = new Label() { Text = "標籤(Tag):", Location = new Point(318, 10), AutoSize = true, Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold) };
+                Label lblGhToken = new Label() { Text = "權杖 (PAT):", Location = new Point(8, 42), AutoSize = true, Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold) };
+                Label lblGhHint = new Label()
+                {
+                    Text = "💡 支援單檔 2GB 直通下載！上傳後自動產生公開直連網址並複製至剪貼簿。",
+                    Location = new Point(422, 42),
+                    AutoSize = true,
+                    Font = new Font("微軟正黑體", 9f),
+                    ForeColor = Color.FromArgb(30, 41, 59)
+                };
+
+                pnlTargetConfigContainer.Controls.AddRange(new Control[] {
+                    lblGhRepo, txtGhOwner, lblSlash, txtGhRepo, lblGhTag, txtGhTag,
+                    btnGhTokenGuide, btnGhOpenReleases,
+                    lblGhToken, txtGhToken, lblGhHint
+                });
+            }
+            else if (targetIdx == 1) // Google Drive via GAS Webhook
             {
                 Label lblWebhook = new Label() { Text = "Webhook 網址:", Location = new Point(8, 10), AutoSize = true, Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold) };
                 Label lblDriveFolder = new Label() { Text = "雲端資料夾:", Location = new Point(8, 42), AutoSize = true, Font = new Font("微軟正黑體", 9.5f, FontStyle.Regular) };
@@ -812,7 +901,7 @@ namespace DynamometerHMI
                     lblEmail, txtGasNotifyEmail
                 });
             }
-            else if (targetIdx == 1) // Firebase 雲端中心
+            else if (targetIdx == 2) // Firebase 雲端中心
             {
                 Label lblFbHint = new Label()
                 {
@@ -824,12 +913,12 @@ namespace DynamometerHMI
                 };
                 pnlTargetConfigContainer.Controls.Add(lblFbHint);
             }
-            else if (targetIdx == 2) // NAS
+            else if (targetIdx == 3) // NAS
             {
                 Label lblNas = new Label() { Text = "NAS / 共享路徑:", Location = new Point(8, 22), AutoSize = true, Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold) };
                 pnlTargetConfigContainer.Controls.AddRange(new Control[] { lblNas, txtNasTargetPath, btnBrowseNas });
             }
-            else if (targetIdx == 3) // 本機 ZIP
+            else if (targetIdx == 4) // 本機 ZIP
             {
                 Label lblLocalHint = new Label()
                 {
@@ -1084,12 +1173,29 @@ namespace DynamometerHMI
             if (!zipName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)) zipName += ".zip";
 
             int targetMode = cmbUploadTarget.SelectedIndex;
+            string ghOwner = txtGhOwner != null ? txtGhOwner.Text.Trim() : "Isaacyang34";
+            string ghRepo = txtGhRepo != null ? txtGhRepo.Text.Trim() : "Homepage";
+            string ghTag = txtGhTag != null ? txtGhTag.Text.Trim() : "Reports-Archive";
+            string ghToken = txtGhToken != null ? txtGhToken.Text.Trim() : "";
             string gasUrl = txtGasWebhookUrl != null ? txtGasWebhookUrl.Text.Trim() : "";
             string gasFolder = txtGasDriveFolder != null ? txtGasDriveFolder.Text.Trim() : "Dynamometer_Reports";
             string gasEmail = txtGasNotifyEmail != null ? txtGasNotifyEmail.Text.Trim() : "";
             string nasPath = txtNasTargetPath != null ? txtNasTargetPath.Text.Trim() : "";
 
-            if (targetMode == 0 && string.IsNullOrEmpty(gasUrl))
+            if (targetMode == 0) // GitHub Release
+            {
+                if (string.IsNullOrEmpty(ghToken))
+                {
+                    MessageBox.Show("您選擇了 GitHub Release 雲端發布，請先輸入【權杖 (PAT)】！\n若尚未取得，可點擊【🔑 取得 Token 教學】依步驟建立。", "請輸入 GitHub Token", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                if (string.IsNullOrEmpty(ghOwner) || string.IsNullOrEmpty(ghRepo))
+                {
+                    MessageBox.Show("請填寫 GitHub 儲存庫擁有者與名稱！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+            }
+            else if (targetMode == 1 && string.IsNullOrEmpty(gasUrl)) // Google Drive
             {
                 MessageBox.Show("您選擇了 Google Drive (GAS Webhook) 上傳，請先填入 Webhook 網址！\n若尚未部署，可點擊【📋 檢視 GAS 腳本範本與教學】進行取得。", "請輸入 Webhook", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -1124,6 +1230,11 @@ namespace DynamometerHMI
             }
 
             // 保存使用者偏好設定
+            SaveConfigKey("ReportManager", "TargetIndex", targetMode.ToString());
+            SaveConfigKey("GitHub", "Owner", ghOwner);
+            SaveConfigKey("GitHub", "Repo", ghRepo);
+            SaveConfigKey("GitHub", "ReleaseTag", ghTag);
+            SaveConfigKey("GitHub", "Token", ghToken);
             SaveConfigKey("GoogleDrive", "WebhookUrl", gasUrl);
             SaveConfigKey("GoogleDrive", "NotifyEmail", gasEmail);
             SaveConfigKey("ReportManager", "NasPath", nasPath);
@@ -1205,7 +1316,144 @@ namespace DynamometerHMI
                         string currentZipName = Path.GetFileName(currentZipPath);
                         int progressBase = 50 + (int)((double)fIdx / targetZipPaths.Count * 45);
 
-                        if (targetMode == 0) // Google Apps Script Webhook
+                        if (targetMode == 0) // GitHub Release
+                        {
+                            this.BeginInvoke((Action)(() => {
+                                prgReportTask.Value = progressBase + 10;
+                                lblReportStatus.Text = string.Format("🚀 正在連線 GitHub API 查詢 Release ({0})...", ghTag);
+                                WriteReportLog(string.Format("正在透過 BouncyCastle TLS 1.2 查詢 GitHub Release: {0}/{1} (Tag: {2})...", ghOwner, ghRepo, ghTag));
+                            }));
+
+                            Dictionary<string, string> ghHeaders = new Dictionary<string, string>();
+                            ghHeaders["Authorization"] = "token " + ghToken;
+                            ghHeaders["Accept"] = "application/vnd.github.v3+json";
+
+                            // 1. 查詢 Release 是否存在
+                            string releaseTagUrl = string.Format("https://api.github.com/repos/{0}/{1}/releases/tags/{2}", ghOwner, ghRepo, Uri.EscapeDataString(ghTag));
+                            int queryStatus;
+                            string releaseResp = SendHttpRequest("GET", releaseTagUrl, null, ghHeaders, null, 30000, out queryStatus);
+
+                            long releaseId = 0;
+                            string uploadUrlPattern = "";
+
+                            if (queryStatus == 200 && !string.IsNullOrEmpty(releaseResp))
+                            {
+                                releaseId = ExtractJsonLongField(releaseResp, "id");
+                                uploadUrlPattern = ExtractJsonStringField(releaseResp, "upload_url");
+                            }
+                            else if (queryStatus == 404)
+                            {
+                                // 2. Release 不存在，自動呼叫 API 建立
+                                this.BeginInvoke((Action)(() => {
+                                    WriteReportLog(string.Format("Release 標籤 {0} 尚未建立，正在自動為儲存庫建立新 Release...", ghTag));
+                                }));
+
+                                string createReleaseUrl = string.Format("https://api.github.com/repos/{0}/{1}/releases", ghOwner, ghRepo);
+                                StringBuilder sbCreate = new StringBuilder();
+                                sbCreate.Append("{");
+                                sbCreate.AppendFormat("\"tag_name\": \"{0}\",", EscapeJson(ghTag));
+                                sbCreate.AppendFormat("\"name\": \"{0}\",", EscapeJson("測試報告歸檔 (" + ghTag + ")"));
+                                sbCreate.AppendFormat("\"body\": \"{0}\",", EscapeJson("馬達動力計自動發布之測試報告封包與歷史數據存檔"));
+                                sbCreate.Append("\"draft\": false,");
+                                sbCreate.Append("\"prerelease\": false");
+                                sbCreate.Append("}");
+
+                                int createStatus;
+                                string createResp = SendHttpRequest("POST", createReleaseUrl, sbCreate.ToString(), ghHeaders, null, 30000, out createStatus);
+                                if ((createStatus == 200 || createStatus == 201) && !string.IsNullOrEmpty(createResp))
+                                {
+                                    releaseId = ExtractJsonLongField(createResp, "id");
+                                    uploadUrlPattern = ExtractJsonStringField(createResp, "upload_url");
+                                    this.BeginInvoke((Action)(() => {
+                                        WriteReportLog(string.Format("✅ 成功建立 GitHub Release (ID: {0})！", releaseId));
+                                    }));
+                                }
+                                else
+                                {
+                                    throw new Exception(string.Format("建立 GitHub Release 失敗 (HTTP {0}): {1}", createStatus, createResp));
+                                }
+                            }
+                            else if (queryStatus == 401 || queryStatus == 403)
+                            {
+                                throw new Exception(string.Format("GitHub 認證失敗 (HTTP {0}): 請檢查 Token (PAT) 是否正確且具備 repo 權限！\n伺服器回應: {1}", queryStatus, releaseResp));
+                            }
+                            else
+                            {
+                                throw new Exception(string.Format("查詢 GitHub Release 失敗 (HTTP {0}): {1}", queryStatus, releaseResp));
+                            }
+
+                            if (releaseId <= 0)
+                            {
+                                throw new Exception("無法解析 GitHub Release ID！");
+                            }
+
+                            // 3. 檢查是否存在同名資產，若有則先刪除，避免 422 衝突
+                            string assetsUrl = string.Format("https://api.github.com/repos/{0}/{1}/releases/{2}/assets", ghOwner, ghRepo, releaseId);
+                            int assetsStatus;
+                            string assetsResp = SendHttpRequest("GET", assetsUrl, null, ghHeaders, null, 30000, out assetsStatus);
+                            if (assetsStatus == 200 && !string.IsNullOrEmpty(assetsResp))
+                            {
+                                long dupAssetId = FindAssetIdByName(assetsResp, currentZipName);
+                                if (dupAssetId > 0)
+                                {
+                                    this.BeginInvoke((Action)(() => {
+                                        WriteReportLog(string.Format("發現同名資產 (ID: {0})，正在清除舊版本以利覆蓋更新...", dupAssetId));
+                                    }));
+                                    string delAssetUrl = string.Format("https://api.github.com/repos/{0}/{1}/releases/assets/{2}", ghOwner, ghRepo, dupAssetId);
+                                    int delStatus;
+                                    SendHttpRequest("DELETE", delAssetUrl, null, ghHeaders, null, 20000, out delStatus);
+                                }
+                            }
+
+                            // 4. 上傳資產檔案
+                            this.BeginInvoke((Action)(() => {
+                                prgReportTask.Value = progressBase + 20;
+                                lblReportStatus.Text = string.Format("🚀 正在上傳 {0} 至 GitHub Release Assets...", currentZipName);
+                                WriteReportLog(string.Format("正在發送二進位封包至 uploads.github.com (大小: {0:F1} KB)...", new FileInfo(currentZipPath).Length / 1024.0));
+                            }));
+
+                            string uploadUrl = string.Format("https://uploads.github.com/repos/{0}/{1}/releases/{2}/assets?name={3}",
+                                ghOwner, ghRepo, releaseId, Uri.EscapeDataString(currentZipName));
+
+                            byte[] zipBytes = File.ReadAllBytes(currentZipPath);
+                            Dictionary<string, string> uploadHeaders = new Dictionary<string, string>();
+                            uploadHeaders["Authorization"] = "token " + ghToken;
+                            uploadHeaders["Accept"] = "application/vnd.github.v3+json";
+
+                            string contentType = currentZipName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ? "application/zip" : "application/octet-stream";
+
+                            int uploadStatus;
+                            string uploadResp = SendHttpRequestRaw("POST", uploadUrl, zipBytes, contentType, uploadHeaders, null, 180000, out uploadStatus);
+
+                            if (uploadStatus != 200 && uploadStatus != 201)
+                            {
+                                throw new Exception(string.Format("上傳資產至 GitHub 失敗 (HTTP {0}): {1}", uploadStatus, uploadResp));
+                            }
+
+                            string downloadUrl = ExtractJsonStringField(uploadResp, "browser_download_url");
+                            if (string.IsNullOrEmpty(downloadUrl))
+                            {
+                                downloadUrl = string.Format("https://github.com/{0}/{1}/releases/download/{2}/{3}", ghOwner, ghRepo, ghTag, currentZipName);
+                            }
+
+                            this.BeginInvoke((Action)(() => {
+                                prgReportTask.Value = 100;
+                                lblReportStatus.Text = "🎉 GitHub Release 上傳成功！";
+                                WriteReportLog("🎉 GitHub Release 發布成功！直通下載網址: " + downloadUrl);
+
+                                try
+                                {
+                                    Clipboard.SetText(downloadUrl);
+                                    WriteReportLog("📋 直通下載網址已自動複製至剪貼簿！");
+                                }
+                                catch { }
+
+                                string msg = string.Format("🎉 測試報告已成功發布至 GitHub Release！\n\n檔案名稱: {0}\n儲存庫: {1}/{2} (標籤: {3})\n\n直通下載網址 (已自動複製至剪貼簿):\n{4}\n\n(任何電腦或手機點擊此網址即可直接下載)",
+                                    currentZipName, ghOwner, ghRepo, ghTag, downloadUrl);
+                                MessageBox.Show(msg, "GitHub Release 發布成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            }));
+                        }
+                        else if (targetMode == 1) // Google Apps Script Webhook
                         {
                             this.BeginInvoke((Action)(() => {
                                 prgReportTask.Value = progressBase + 10;
@@ -1272,7 +1520,7 @@ namespace DynamometerHMI
                                 MessageBox.Show(msg, "上傳完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             }));
                         }
-                        else if (targetMode == 1) // Firebase 雲端中心
+                        else if (targetMode == 2) // Firebase 雲端中心
                         {
                             this.BeginInvoke((Action)(() => {
                                 prgReportTask.Value = progressBase + 15;
@@ -1304,7 +1552,7 @@ namespace DynamometerHMI
                                     "同步完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             }));
                         }
-                        else if (targetMode == 2) // NAS
+                        else if (targetMode == 3) // NAS
                         {
                             this.BeginInvoke((Action)(() => {
                                 prgReportTask.Value = progressBase + 20;
@@ -1322,7 +1570,7 @@ namespace DynamometerHMI
                                 MessageBox.Show("✅ 測試報告已成功備份至指定網路路徑：\n" + destZip, "備份成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             }));
                         }
-                        else if (targetMode == 3) // 本機 ZIP
+                        else if (targetMode == 4) // 本機 ZIP
                         {
                             this.BeginInvoke((Action)(() => {
                                 prgReportTask.Value = 100;
@@ -1480,6 +1728,152 @@ function doPost(e) {
             dlg.Controls.Add(table);
 
             dlg.ShowDialog(this);
+        }
+
+        private void OpenGitHubReleasesInBrowser()
+        {
+            try
+            {
+                string owner = txtGhOwner != null ? txtGhOwner.Text.Trim() : "Isaacyang34";
+                string repo = txtGhRepo != null ? txtGhRepo.Text.Trim() : "Homepage";
+                string url = string.Format("https://github.com/{0}/{1}/releases", owner, repo);
+                System.Diagnostics.Process.Start(url);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("無法開啟瀏覽器: " + ex.Message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        private void ShowGitHubTokenGuideDialog()
+        {
+            Form dlg = new Form()
+            {
+                Text = "GitHub Personal Access Token (PAT) 取得教學 (30秒快速設定)",
+                Size = new Size(680, 480),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false,
+                BackColor = Color.FromArgb(248, 250, 252)
+            };
+
+            TableLayoutPanel table = new TableLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                Padding = new Padding(12)
+            };
+            table.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            table.RowStyles.Add(new RowStyle(SizeType.Absolute, 50f));
+
+            TextBox txtGuide = new TextBox()
+            {
+                Dock = DockStyle.Fill,
+                Multiline = true,
+                ReadOnly = true,
+                ScrollBars = ScrollBars.Vertical,
+                Font = new Font("微軟正黑體", 10f),
+                BackColor = Color.White,
+                Text = 
+@"【GitHub Personal Access Token (PAT) 取得步驟】
+
+GitHub Release 允許您將測試報告與壓縮封包直傳至雲端，任何人點擊連結皆可「直接下載」，免除 Google Drive 繁複的轉址與下載阻擋！
+
+步驟 1：開啟 GitHub Token 設定網頁
+點擊下方【🌐 開啟 GitHub Token 建立頁面】按鈕，瀏覽器將自動開啟 GitHub 設定頁面。
+(網址: https://github.com/settings/tokens/new)
+
+步驟 2：填寫 Token 資訊
+1. Note (備註)：輸入 Dynamometer-HMI (或其他易辨識名稱)。
+2. Expiration (有效期限)：建議選擇 90 days 或 No expiration (永不過期)。
+3. Select scopes (權限勾選)：
+   ✅ 勾選【repo】(包含 repo:status, repo_deployment, public_repo, repo:invite 等完整儲存庫讀寫權限)。
+   (若您的儲存庫為公開 Public Repo，亦可僅勾選 public_repo)。
+
+步驟 3：建立並複製 Token
+點擊頁面最下方的綠色按鈕【Generate token】。
+畫面將顯示一組綠色開頭為 ghp_xxxxxxxxxxxxxxxxxxxx 的字串。
+點擊旁邊的複製按鈕，並貼回動力計 HMI 的【權杖 (PAT)】欄位中即可！
+
+💡 系統會自動將 Token 儲存於 dynamometer_layout.ini，後續完全不需要重新輸入！"
+            };
+
+            FlowLayoutPanel pnlBtn = new FlowLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.RightToLeft
+            };
+            Button btnClose = new Button() { Text = "確定", Size = new Size(90, 34), BackColor = Color.FromArgb(100, 116, 139), ForeColor = Color.White, Font = new Font("微軟正黑體", 9.5f) };
+            btnClose.Click += (s, e) => dlg.Close();
+
+            Button btnOpenUrl = new Button() { Text = "🌐 開啟 GitHub Token 建立頁面", Size = new Size(220, 34), BackColor = Color.FromArgb(37, 99, 235), ForeColor = Color.White, Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold) };
+            btnOpenUrl.Click += (s, e) => {
+                try { System.Diagnostics.Process.Start("https://github.com/settings/tokens/new?scopes=repo&description=Dynamometer-HMI"); } catch { }
+            };
+
+            pnlBtn.Controls.AddRange(new Control[] { btnClose, btnOpenUrl });
+
+            table.Controls.Add(txtGuide, 0, 0);
+            table.Controls.Add(pnlBtn, 0, 1);
+            dlg.Controls.Add(table);
+            dlg.ShowDialog(this);
+        }
+
+        private static string ExtractJsonStringField(string json, string fieldName)
+        {
+            if (string.IsNullOrEmpty(json)) return "";
+            string search = "\"" + fieldName + "\":";
+            int idx = json.IndexOf(search, StringComparison.OrdinalIgnoreCase);
+            if (idx < 0) return "";
+            int quoteStart = json.IndexOf('"', idx + search.Length);
+            if (quoteStart < 0) return "";
+            int quoteEnd = json.IndexOf('"', quoteStart + 1);
+            while (quoteEnd > 0 && json[quoteEnd - 1] == '\\')
+            {
+                quoteEnd = json.IndexOf('"', quoteEnd + 1);
+            }
+            if (quoteEnd > quoteStart)
+            {
+                return json.Substring(quoteStart + 1, quoteEnd - quoteStart - 1).Replace("\\/", "/");
+            }
+            return "";
+        }
+
+        private static long ExtractJsonLongField(string json, string fieldName)
+        {
+            if (string.IsNullOrEmpty(json)) return 0;
+            string search = "\"" + fieldName + "\":";
+            int idx = json.IndexOf(search, StringComparison.OrdinalIgnoreCase);
+            if (idx < 0) return 0;
+            int start = idx + search.Length;
+            while (start < json.Length && (json[start] == ' ' || json[start] == '\t')) start++;
+            int end = start;
+            while (end < json.Length && (char.IsDigit(json[end]) || json[end] == '-')) end++;
+            if (end > start)
+            {
+                long val;
+                if (long.TryParse(json.Substring(start, end - start), out val)) return val;
+            }
+            return 0;
+        }
+
+        private static long FindAssetIdByName(string assetsJson, string targetName)
+        {
+            if (string.IsNullOrEmpty(assetsJson) || string.IsNullOrEmpty(targetName)) return 0;
+            string search = "\"" + targetName + "\"";
+            int idx = assetsJson.IndexOf(search, StringComparison.OrdinalIgnoreCase);
+            if (idx < 0) return 0;
+
+            int objStart = assetsJson.LastIndexOf('{', idx);
+            if (objStart >= 0)
+            {
+                int len = Math.Min(assetsJson.Length - objStart, idx - objStart + search.Length + 50);
+                string sub = assetsJson.Substring(objStart, len);
+                return ExtractJsonLongField(sub, "id");
+            }
+            return 0;
         }
 
         private string LoadConfigKey(string section, string key, string defaultValue)
