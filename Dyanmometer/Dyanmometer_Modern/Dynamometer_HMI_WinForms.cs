@@ -1079,6 +1079,9 @@ namespace DynamometerHMI
             this.Font = new Font("微軟正黑體", 10f, FontStyle.Regular);
             this.BackColor = Color.FromArgb(240, 243, 246);
 
+            // 優先讀取 INI 設定檔：取得記憶的視窗座標、最大化狀態、分頁指標與全域分割條預設字典 (確保所有子分頁建立時即刻繼承)
+            LoadLayoutConfig();
+
             // 載入應用程式高科技專屬 Icon (支援 EXE 內嵌 Win32 圖示提取與本地 app.ico)
             try
             {
@@ -1400,6 +1403,12 @@ namespace DynamometerHMI
             rootTable.Controls.Add(tabControl, 0, 1);
             this.Controls.Add(rootTable);
 
+            // 依據 INI 記憶即時恢復活動分頁
+            if (loadedActiveTab >= 0 && loadedActiveTab < tabControl.TabPages.Count)
+            {
+                try { tabControl.SelectedIndex = loadedActiveTab; } catch { }
+            }
+
             // 分頁列右側排版即時數值與快捷 HUD 控制器 (直接顯示分割條數值、一鍵存檔、記事本開啟)
             BuildTabHud();
 
@@ -1447,6 +1456,7 @@ namespace DynamometerHMI
                 {
                     pnlTabHud.Location = new Point(this.ClientSize.Width - pnlTabHud.Width - 8, 54);
                 }
+                UpdateTabHudStatus();
             };
 
             // 視窗大小/位置拖曳調整結束時自動儲存視窗座標與分割條
@@ -1475,6 +1485,7 @@ namespace DynamometerHMI
                 }
                 this.BeginInvoke(new Action(() => {
                     ApplyTabSplitters(tabControl != null ? tabControl.SelectedIndex : 0);
+                    UpdateTabHudStatus();
                 }));
                 if (mainTimer != null && !mainTimer.Enabled) mainTimer.Start();
                 if (isViewerMode)
@@ -2677,6 +2688,8 @@ namespace DynamometerHMI
             {
                 split.Panel1MinSize = p1Min;
                 split.Panel2MinSize = p2Min;
+                // 設定 Panel1 為固定面板，防止視窗縮放或最大化時被 WinForms 等比縮放自動破壞像素設定
+                try { split.FixedPanel = FixedPanel.Panel1; } catch { }
 
                 // 綁定 SplitterMoved 事件，僅在使用者手動拖曳時儲存設定
                 split.SplitterMoved += (s, e) => {
@@ -2709,8 +2722,10 @@ namespace DynamometerHMI
                             else if (cmbDutyMode.SelectedIndex == 1 && layoutSplitters.ContainsKey("DutyMain_S2")) actualKey = "DutyMain_S2";
                             else if (cmbDutyMode.SelectedIndex == 2 && layoutSplitters.ContainsKey("DutyMain_S6")) actualKey = "DutyMain_S6";
                         }
-                        ApplySplitterDistanceSafe(split, actualKey, defaultDistance, p1Min, p2Min);
-                        try { split.SizeChanged -= onSize; } catch { }
+                        if (ApplySplitterDistanceSafe(split, actualKey, defaultDistance, p1Min, p2Min))
+                        {
+                            try { split.SizeChanged -= onSize; } catch { }
+                        }
                     }
                 };
                 split.SizeChanged += onSize;
@@ -2727,8 +2742,10 @@ namespace DynamometerHMI
                         else if (cmbDutyMode.SelectedIndex == 1 && layoutSplitters.ContainsKey("DutyMain_S2")) actualKey = "DutyMain_S2";
                         else if (cmbDutyMode.SelectedIndex == 2 && layoutSplitters.ContainsKey("DutyMain_S6")) actualKey = "DutyMain_S6";
                     }
-                    ApplySplitterDistanceSafe(split, actualKey, defaultDistance, p1Min, p2Min);
-                    try { split.SizeChanged -= onSize; } catch { }
+                    if (ApplySplitterDistanceSafe(split, actualKey, defaultDistance, p1Min, p2Min))
+                    {
+                        try { split.SizeChanged -= onSize; } catch { }
+                    }
                 }
             }
             catch { }
@@ -2741,7 +2758,20 @@ namespace DynamometerHMI
             {
                 int total = (split.Orientation == Orientation.Horizontal) ? split.Height : split.Width;
                 if (total <= (p1Min + p2Min + split.SplitterWidth))
-                    return false; // 面板尚未完成排版或處於隱藏狀態 (Total <= 0)
+                {
+                    // 容器尚未完成內部排版 (Height/Width 暫為 0 或小於邊界)，註冊就緒時重試
+                    EventHandler onReady = null;
+                    onReady = (s, e) => {
+                        int rTotal = (split.Orientation == Orientation.Horizontal) ? split.Height : split.Width;
+                        if (rTotal > (p1Min + p2Min + split.SplitterWidth))
+                        {
+                            try { split.SizeChanged -= onReady; } catch { }
+                            ApplySplitterDistanceSafe(split, key, defaultFallback, p1Min, p2Min);
+                        }
+                    };
+                    split.SizeChanged += onReady;
+                    return false;
+                }
 
                 int desired;
                 if (!layoutSplitters.TryGetValue(key, out desired) || desired <= 0)

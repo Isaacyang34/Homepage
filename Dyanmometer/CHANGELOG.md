@@ -8,7 +8,53 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.93 (beta) | v2.10.51 | 2026-09-11 | 排版記憶啟動時序與巢狀容器自適應修復（徹底根治「存好按載入能恢復，但重啟後失效」之深層病灶）：(1)致命根因：過去 LoadLayoutConfig() 被延遲至視窗完全顯示 (this.Shown) 時才執行，導致建構式建立 TN/Duty 各子分頁時，排版字典 layoutSplitters 仍為空，所有分割條被強制灌入硬編碼預設值 (如 210, 650, 550) 並解除監聽；同時 WinForms SplitContainer 預設 FixedPanel=None，導致視窗最大化時依比例縮放拉偏數值；且巢狀容器 (如 splitTnBottom) 在分頁尚未完全渲染時因尺寸為 0 被拋棄套用；(2)建構式第一優先預載 (Pre-Construction Preload)：在 MainForm 建構式建立任何子元件前立即執行 LoadLayoutConfig()，確保全域排版字典、視窗最大化狀態、上次活動分頁於實例化前 100% 準備就緒；(3)Panel1 絕對像素鎖定 (FixedPanel.Panel1)：全分割容器強制啟用 FixedPanel = FixedPanel.Panel1，徹底杜絕全螢幕與視窗縮放時被 WinForms 等比縮放自動破壞像素設定；(4)巢狀佈局自適應延遲補償 (Self-Healing Layout Retry)：若呼叫 ApplySplitterDistanceSafe 時容器寬高尚未由 GDI+ 完成佈局，自動掛載一次性 SizeChanged 重試監聽，尺寸一就緒即刻以微秒級速度套用使用者 INI 記憶之絕對像素；(5)分頁建立完成即刻切換：於 TabPages 填入完畢後立即恢復 loadedActiveTab，開機即定位至上次操作分頁。 |
 | V2.92 (beta) | v2.10.50 | 2026-09-11 | 分頁列右側即時排版記憶 HUD 抬頭顯示器與熱載入/直修控制中心：(1)根因與需求：使用者調整分割條後渴望即時目視目前記憶座標、手動修訂行數與立即回寫，過去排版記憶隱藏於背景；(2)分頁列右端空間重構：將 tabControl 的 SizeMode 改為 Normal、縮減 Padding 釋出右側空間，於分頁標籤列最右側頂層錨定專屬抬頭顯示面板 (pnlTabHud)；(3)即時座標聯動顯示：分割條拖曳 (SplitterMoved)、工作制 (S1/S2/S6) 或分頁切換時，毫秒級動態刷新當前分頁核心分割條像素數值 (如 TnMain:232, TnBot:732)；(4)一鍵熱操作三核心按鈕：實裝 [💾存] 即刻強制同步寫入根目錄與 ini/、[📝改] 一鍵喚醒 Windows 原生 Notepad.exe 直接手動修改 dynamometer_layout.ini 指定行數、[🔄載] 即刻免重啟熱載入 (Hot-Reload) 重新套用最新 INI 尺寸；(5)懸浮完整資訊提示 (ToolTip)：滑鼠懸停即浮現目前 [Splitters] 完整排版鍵值清單。 |
+
+---
+
+## [V2.93 beta / v2.10.51] - 2026-09-11
+
+### 🎯 現象與佐證 (Log-First Verbatim Excerpts)
+1. **使用者精確回報問題現象**：
+   - 使用者回報：「為何存好之後按載入都能恢復，但關掉在開就不見??????」。
+   - 具體操作重現路徑：
+     * 使用者在介面上調整分割條至理想寬高，並點擊 `[💾存]` 存入 `dynamometer_layout.ini`；
+     * 故意拉動分割條後點擊 `[🔄載]`，程式能完美熱載入並即刻復原；
+     * **然而將程式關閉 (FormClosing) 後重新啟動，畫面上的分割條數值卻回到系統硬編碼之舊預設值 (例如 210, 650, 550)，剛存好的記憶彷彿憑空消失！**
+2. **底層執行期追蹤佐證**：
+   - 提取實體目錄中之 `dynamometer_layout.ini`，證實 `[Splitters]` 區段內部確已包含使用者真實調整之數值（`TnMain=232`, `TnBottom=712`, `TnRight=452`, `DutyMain_S1=524`）；
+   - 這證明了 **儲存端與檔案寫入完全正確**，問題 100% 發生在 **「關閉重啟後 (App Cold Start) 的載入時序與 WinForms 佈局競爭 (Race Condition)」**！
+
+---
+
+### 💡 致命根因 (Root Cause Analysis)
+1. **建構初期載入順序延遲 (Late-Loading Race Condition)**：
+   - 原程式將 `LoadLayoutConfig()` 延遲至視窗完全呈現在螢幕上的事件 (`this.Shown`) 才執行；
+   - 但 WinForms 在建構式中依序呼叫 `BuildTnTab()`、`BuildDutyTab()`、`BuildNoLoadTab()` 時，全域排版字典 `layoutSplitters` 根本尚未載入（仍為空字典）；
+   - `SafeSetupSplitContainer` 在建構時因找不到鍵值，被強制退回 hardcoded fallback（例如 `TnMain = 210`、`TnBottom = 650`），並且過早觸發了一次性 `split.SizeChanged -= onSize` 解除綁定，造成重啟時所有分割條一開始就被死鎖在預設值！
+2. **WinForms 自動比例破壞 (Missing FixedPanel)**：
+   - WinForms 原生 `SplitContainer` 預設之 `FixedPanel` 為 `FixedPanel.None`；
+   - 當程式以 1280x800 啟動，隨後因 INI 中的 `State=2` 自動切換至螢幕最大化 (Maximized, 例如 1920x1080) 時，WinForms GDI+ 會強制按照原始比例對 Panel1 與 Panel2 進行乘除等比縮放，直接破壞了使用者指定的絕對像素（如 232px）。
+3. **巢狀容器非同步排版失效 (Nested SplitContainer Layout Latency)**：
+   - `splitTnBottom`（左右分割圖表與表格）位於 `splitTnMain.Panel2` 的內部，屬於第二層巢狀容器；
+   - 當分頁切換或剛啟動時，若父容器尚未完成佈局計算，子容器的寬高暫時為 0 (`total <= 0`)；
+   - 原有 `ApplySplitterDistanceSafe` 在遇到 `total <= min` 時直接放棄並回傳 `false`，且未註冊任何就緒監聽，導致重啟後子分割條永遠卡在 650/280，直到使用者在畫面完全渲染後手動點擊「載入」才能生效！
+
+---
+
+### 🚀 精確修復方案 (Accurate Solution & Release Verifications)
+1. **建構式第一優先預載 (Pre-Construction Preload)**：
+   - 在 `MainForm` 建構式剛初始化視窗顏色後的第一行，立即無條件調用 `LoadLayoutConfig()`；
+   - 確保 `layoutSplitters` 記憶字典、`Bounds`、`WindowState`、`loadedActiveTab` 在任何子元件（Tab、SplitContainer、DataGridView）實例化前 100% 準備就緒！
+2. **Panel1 絕對像素鎖定 (`FixedPanel = FixedPanel.Panel1`)**：
+   - 在 `SafeSetupSplitContainer` 統一強制注入 `split.FixedPanel = FixedPanel.Panel1`；
+   - 保證使用者的控制面板與設定區塊（如 232px、524px）在視窗縮放、最小化、或全螢幕最大化時穩如泰山、絕不自動等比偏移！
+3. **巢狀佈局自適應延遲補償 (Self-Healing Layout Retry)**：
+   - 重構 `ApplySplitterDistanceSafe`：若呼叫時容器寬高尚未由 GDI+ 完成佈局 (`total <= min`)，不再直接拋棄，而是自動掛載一次性 `SizeChanged` 重試監聽，一旦尺寸就緒即刻以微秒級速度自動套用使用者 INI 記憶之絕對像素！
+4. **分頁建立完成即刻切換**：
+   - 於 `tabControl.TabPages` 填入完畢後立即恢復 `loadedActiveTab`，確保開機第一時間即定位至上次操作分頁，並立即觸發該分頁之專屬排版套用。
+
 | V2.91 (beta) | v2.10.49 | 2026-09-11 | 雙目錄 (`ini/` 子目錄與根目錄) 自動識別與雙向無縫同步存檔架構（徹底解決使用者改變排版卻未反映於 `ini` 資料夾檔案之根因）：(1)根因剖析：程式底層原先寫死僅讀寫根目錄 `dynamometer_layout.ini`，而使用者在 `ini/` 資料夾內進行檢視與備份，兩者實體檔案脫節，造成使用者查看 `ini/` 時發現數值未更新；(2)實裝雙目錄自適應載入引擎 (Intelligent Dual-Path Loader)：啟動時同時檢測根目錄與 `ini/dynamometer_layout.ini`，自動以修改時間最新 (Newest LastWriteTime) 之檔案優先載入，即刻繼承使用者在 `ini/` 調校之最佳座標；(3)實裝雙向同步存檔 (Dual-Path Synchronous Saver)：排版變更與視窗關閉時，同時寫入根目錄與 `ini/` 子目錄，確保雙端檔案內容 100% 同動一致；(4)修正關閉視窗 (FormClosing) 執行順序：將 SaveLayoutConfig() 移至 this.Hide() 之前執行，杜絕控制項在視窗隱藏時座標失效。 |
 
 ---
