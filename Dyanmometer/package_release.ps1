@@ -30,17 +30,61 @@ if (Test-Path $oldTester) { Remove-Item $oldTester -Force }
 $oldTools = Join-Path $targetDir "tools"
 if (Test-Path $oldTools) { Remove-Item $oldTools -Recurse -Force }
 
+# 2-1. Local Rolling Backup (Keep latest 5 versions)
+$existingExe = Join-Path $targetDir "Dynamometer_HMI_Pro.exe"
+if (Test-Path $existingExe) {
+    $backupDir = Join-Path $targetDir "backups"
+    if (!(Test-Path $backupDir)) { New-Item -ItemType Directory -Path $backupDir -Force | Out-Null }
+    $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
+    $oldVer = $Version
+    try {
+        $fvi = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($existingExe)
+        if ($fvi.ProductVersion -and $fvi.ProductVersion -ne "1.0.0.0") { $oldVer = $fvi.ProductVersion }
+        elseif ($fvi.FileVersion -and $fvi.FileVersion -ne "1.0.0.0") { $oldVer = $fvi.FileVersion }
+        else {
+            $webServerCs = Join-Path $modernDir "Dynamometer_WebServer.cs"
+            $appVerMatch = [regex]::Match((Get-Content $webServerCs -Raw), 'APP_VERSION\s*=\s*"([^"]+)"')
+            if ($appVerMatch.Success) { $oldVer = $appVerMatch.Groups[1].Value }
+        }
+    } catch { }
+    $bakName = "Dynamometer_HMI_Pro_v${oldVer}_${stamp}.exe"
+    Copy-Item $existingExe (Join-Path $backupDir $bakName) -Force
+    Write-Host "[BACKUP] Archived previous release to backups/$bakName"
+
+    # Prune backups: keep latest 5 versions
+    $bakFiles = Get-ChildItem $backupDir -Filter "Dynamometer_HMI_Pro_*.exe" | Sort-Object LastWriteTime -Descending
+    if ($bakFiles.Count -gt 5) {
+        $bakFiles | Select-Object -Skip 5 | ForEach-Object {
+            Write-Host "[BACKUP] Pruning oldest backup: $($_.Name)"
+            Remove-Item $_.FullName -Force
+        }
+    }
+}
+
 # Copy unified single executable
 Copy-Item $outExe "$targetDir\" -Force
 
-# Copy WebMonitor.html (遠端網頁監看儀表板)
+# Copy WebMonitor.html
 $webMonitorSrc = Join-Path $modernDir "WebMonitor.html"
 if (Test-Path $webMonitorSrc) {
     Copy-Item $webMonitorSrc "$targetDir\" -Force
 }
 
-# 依 Clean Release Policy: 徹底刪除所有 .bat 批次檔 (Native winexe 直接雙擊即可，零批次檔殘留)
-Get-ChildItem $targetDir -Filter "*.bat" | ForEach-Object {
+# Copy Motor_Characteristics_Viewer.html
+$viewerSrc = Join-Path $modernDir "Motor_Characteristics_Viewer.html"
+if (Test-Path $viewerSrc) {
+    Copy-Item $viewerSrc "$targetDir\" -Force
+}
+
+# Copy rollback batch files to target directory
+Get-ChildItem $modernDir -Filter "*.bat" | ForEach-Object {
+    Copy-Item $_.FullName "$targetDir\" -Force
+}
+
+# Clean Release Policy: remove build/test batch files, preserve rollback tools
+Get-ChildItem $targetDir -Filter "*.bat" | Where-Object { 
+    $_.Name -like "*build*" -or $_.Name -like "*release*" -or $_.Name -like "*run_*" -or $_.Name -like "*test*"
+} | ForEach-Object {
     Remove-Item $_.FullName -Force
 }
 
@@ -83,8 +127,14 @@ if (Test-Path $toolsLogs) {
 # Unblock all files
 Get-ChildItem $targetDir -Recurse | ForEach-Object { Unblock-File $_.FullName }
 
+# Synchronize to workspace root Release folder (確保無論從 Dyanmometer/Release 還是 Release/ 執行皆能獲取最新驅動與主程式)
+$rootReleaseDir = "c:\Users\peter\OneDrive\Desktop\AI_Projects\Release\Dynamometer_HMI_V${Version}_Portable"
+if (!(Test-Path $rootReleaseDir)) { New-Item -ItemType Directory -Path $rootReleaseDir -Force | Out-Null }
+Copy-Item (Join-Path $targetDir "*") $rootReleaseDir -Recurse -Force
+
 Write-Host "🎉 Successfully packaged Release V$Version to:"
 Write-Host "   👉 $targetDir"
+Write-Host "   👉 $rootReleaseDir"
 
 # 4. Auto Git Push to GitHub gh-pages
 Write-Host ""
@@ -123,8 +173,77 @@ if (!$gitExe) {
             $appVerMatch = [regex]::Match((Get-Content $webServerCs -Raw), 'APP_VERSION\s*=\s*"([^"]+)"')
             $appVer = if ($appVerMatch.Success) { $appVerMatch.Groups[1].Value } else { $Version }
 
-            # Pure ASCII Unicode-escaped notes to eliminate PowerShell code-page corruption
-            $notesEscaped = "1. TN \u7a69\u5b9a\u5224\u5b9a\u5408\u7406\u5316 (\u7b49\u5f85\u8f49\u901f\u9589\u8ff4\u8def\u88dc\u511f\u5230\u4f4d\u624d\u555f\u52d5\u5012\u6578)\n2. \u540c\u8f49\u901f\u63db\u9805\u76f4\u63a5\u5e73\u7a69\u8abf\u626d\uff0c\u4e0d\u964d\u8f09\u4e0d\u8b8a\u901f\n3. \u7570\u901f\u63db\u9805 3 \u6b65\u5e73\u7a69\u968e\u68af\u964d\u8f09\u81f3 25% \u518d\u8b8a\u901f\uff0c\u7b49\u901f\u5ea6\u5230\u4f4d\u518d\u905e\u589e\u52a0\u8f09\n4. \u7dda\u4e0a\u66f4\u65b0\u65e5\u8a8c Unicode \u9632\u4e82\u78bc\u6a5f\u5236"
+            # 5-1. Dynamically extract the latest release notes from CHANGELOG.md
+            $changelogPath = Join-Path $baseDir "CHANGELOG.md"
+            $latestNotes = ""
+            if (Test-Path $changelogPath) {
+                $clContent = [System.IO.File]::ReadAllLines($changelogPath, [System.Text.Encoding]::UTF8)
+                $inSection = $false
+                $h3Count = 0
+                $notesList = New-Object System.Collections.ArrayList
+                $secTitle = ""
+                for ($i = 0; $i -lt $clContent.Length; $i++) {
+                    $line = $clContent[$i]
+                    if ($line -match '^##\s*\[(V[^\]]+)\]') {
+                        if ($inSection) { break }
+                        $inSection = $true
+                        $secTitle = $matches[1]
+                        continue
+                    }
+                    if ($inSection) {
+                        if ($line -match '^##\s*\[V') { break }
+                        if ($line -match '^###\s*') {
+                            $h3Count++
+                            continue
+                        }
+                        # Section H3 #3 is always the solution section (Rule 5)
+                        if ($h3Count -ge 3) {
+                            if ($line -match '^\s*[\d]+\.\s*\*\*(.+?)\*\*[:\uFF1A]?\s*(.*)') {
+                                $curTitle = $matches[1].Replace('`', '').Replace('"', '').Trim()
+                                $curDesc = $matches[2].Replace('`', '').Replace('"', '').Trim()
+                                if ([string]::IsNullOrEmpty($curDesc) -and ($i + 1) -lt $clContent.Length) {
+                                    $nextLine = $clContent[$i + 1]
+                                    if ($nextLine -match '^\s*-\s*(.+)') {
+                                        $curDesc = $matches[1].Replace('`', '').Replace('"', '').Trim()
+                                    }
+                                }
+                                if ($curDesc.Length -gt 80) { $curDesc = $curDesc.Substring(0, 80) + "..." }
+                                $lineStr = if (![string]::IsNullOrEmpty($curDesc)) { ($curTitle + ": " + $curDesc) } else { $curTitle }
+                                [void]$notesList.Add(($notesList.Count + 1).ToString() + ". " + $lineStr)
+                            }
+                        }
+                    }
+                }
+                if ($notesList.Count -gt 0) {
+                    $headerStr = if (![string]::IsNullOrEmpty($secTitle)) { ("[" + $secTitle + "]") } else { "[Release Notes]" }
+                    $latestNotes = $headerStr + "`n" + ($notesList -join "`n")
+                }
+            }
+
+            if ([string]::IsNullOrEmpty($latestNotes)) {
+                $latestNotes = "V" + $appVer + " Update Completed."
+            }
+
+            # Convert all non-ASCII characters to \uXXXX Unicode escapes to eliminate PowerShell codepage corruption
+            $sbNotes = New-Object System.Text.StringBuilder
+            foreach ($ch in $latestNotes.ToCharArray()) {
+                $code = [int][char]$ch
+                if ($code -gt 127) {
+                    [void]$sbNotes.Append("\u" + $code.ToString("x4"))
+                } elseif ($ch -eq "`n") {
+                    [void]$sbNotes.Append("\n")
+                } elseif ($ch -eq "`r") {
+                    # skip CR
+                } elseif ($ch -eq '"') {
+                    [void]$sbNotes.Append('\"')
+                } elseif ($ch -eq '\') {
+                    [void]$sbNotes.Append('\\')
+                } else {
+                    [void]$sbNotes.Append($ch)
+                }
+            }
+            $notesEscaped = $sbNotes.ToString()
+
             $manifestJson = "{`"version`":`"$appVer`",`"release_date`":`"$releaseDate`",`"download_url`":`"$dlUrl`",`"notes`":`"$notesEscaped`"}"
             $firebaseUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/update/version.json"
             try {
