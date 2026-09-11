@@ -29,8 +29,7 @@ namespace DynamometerHMI
             splitDuty.Panel1.BackColor = Color.FromArgb(248, 250, 252);
             splitDuty.Panel2.AutoScroll = true;
             splitDuty.Panel2.BackColor = Color.White;
-            splitDuty.SplitterMoved += (s, e) => { layoutSplitters["DutyMain"] = splitDuty.SplitterDistance; SaveLayoutConfig(); };
-            SafeSetupSplitContainer(splitDuty, 550, 150, 100);
+            SafeSetupSplitContainer(splitDuty, "DutyMain", 550, 150, 100);
 
             splitDutyTop = new SplitContainer()
             {
@@ -43,8 +42,7 @@ namespace DynamometerHMI
             splitDutyTop.Panel1.BackColor = Color.FromArgb(248, 250, 252);
             splitDutyTop.Panel2.AutoScroll = true;
             splitDutyTop.Panel2.BackColor = Color.FromArgb(248, 250, 252);
-            splitDutyTop.SplitterMoved += (s, e) => { layoutSplitters["DutyTop"] = splitDutyTop.SplitterDistance; SaveLayoutConfig(); };
-            SafeSetupSplitContainer(splitDutyTop, 880, 250, 150);
+            SafeSetupSplitContainer(splitDutyTop, "DutyTop", 880, 250, 150);
 
             // -------------------------------------------------------------
             // 左側：控制參數、KEB全自動模式連鎖與 V/F 雙重定錨/S2錨點設定群組
@@ -556,7 +554,7 @@ namespace DynamometerHMI
             {
                 Dock = DockStyle.Fill,
                 BackgroundColor = Color.White,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
                 RowHeadersVisible = false,
                 AllowUserToAddRows = false,
                 RowTemplate = { Height = 32 },
@@ -572,6 +570,14 @@ namespace DynamometerHMI
             dgvDuty.Columns.Add("Eff", "效率 (%)");
             dgvDuty.Columns.Add("Temp", "馬達溫度 (°C)");
             dgvDuty.Columns.Add("Thermal", "熱平衡判定");
+            dgvDuty.Columns[0].Width = 110;
+            dgvDuty.Columns[1].Width = 90;
+            dgvDuty.Columns[2].Width = 110;
+            dgvDuty.Columns[3].Width = 110;
+            dgvDuty.Columns[4].Width = 110;
+            dgvDuty.Columns[5].Width = 90;
+            dgvDuty.Columns[6].Width = 120;
+            dgvDuty.Columns[7].Width = 120;
             dgvDuty.ColumnWidthChanged += (s, e) => SaveLayoutConfig();
 
             splitDuty.Panel2.Controls.Add(dgvDuty);

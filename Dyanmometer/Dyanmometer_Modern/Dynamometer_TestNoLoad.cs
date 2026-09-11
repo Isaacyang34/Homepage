@@ -122,8 +122,7 @@ namespace DynamometerHMI
             splitNoLoadMain.Panel1.BackColor = Color.FromArgb(248, 250, 252);
             splitNoLoadMain.Panel2.AutoScroll = true;
             splitNoLoadMain.Panel2.BackColor = Color.White;
-            splitNoLoadMain.SplitterMoved += (s, e) => { layoutSplitters["NoLoadMain"] = splitNoLoadMain.SplitterDistance; SaveLayoutConfig(); };
-            SafeSetupSplitContainer(splitNoLoadMain, 460, 250, 150);
+            SafeSetupSplitContainer(splitNoLoadMain, "NoLoadMain", 460, 250, 150);
 
             // -------------------------------------------------------------
             // 上半部：主參數面板 (採用 TableLayoutPanel 彈性排版，杜絕遮擋)
@@ -435,8 +434,7 @@ namespace DynamometerHMI
             splitNoLoadBottom.Panel1.BackColor = Color.White;
             splitNoLoadBottom.Panel2.AutoScroll = true;
             splitNoLoadBottom.Panel2.BackColor = Color.White;
-            splitNoLoadBottom.SplitterMoved += (s, e) => { layoutSplitters["NoLoadBottom"] = splitNoLoadBottom.SplitterDistance; SaveLayoutConfig(); };
-            SafeSetupSplitContainer(splitNoLoadBottom, 580, 200, 200);
+            SafeSetupSplitContainer(splitNoLoadBottom, "NoLoadBottom", 580, 200, 200);
 
             // Panel1: 專屬即時溫度趨勢圖 (多通道各別彩色波形與端點即時標籤)
             grpNoLoadChart = new GroupBox()
@@ -471,9 +469,8 @@ namespace DynamometerHMI
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                 BackgroundColor = Color.White,
                 BorderStyle = BorderStyle.None,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
             };
-            dgvNoLoad.ColumnWidthChanged += (s, e) => SaveLayoutConfig();
             dgvNoLoad.ColumnHeadersDefaultCellStyle.Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold);
             dgvNoLoad.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(241, 245, 249);
             dgvNoLoad.DefaultCellStyle.Font = new Font("微軟正黑體", 10f);
@@ -486,15 +483,15 @@ namespace DynamometerHMI
             dgvNoLoad.Columns.Add("MaxTemp", "軸承最高溫(℃)");
             dgvNoLoad.Columns.Add("DeltaT", "30min溫差(℃)");
             dgvNoLoad.Columns.Add("Event", "事件與判定");
-
-            dgvNoLoad.Columns["Time"].FillWeight = 85;
-            dgvNoLoad.Columns["Elapsed"].FillWeight = 80;
-            dgvNoLoad.Columns["Phase"].FillWeight = 110;
-            dgvNoLoad.Columns["TargetSpd"].FillWeight = 110;
-            dgvNoLoad.Columns["ActSpd"].FillWeight = 110;
-            dgvNoLoad.Columns["MaxTemp"].FillWeight = 115;
-            dgvNoLoad.Columns["DeltaT"].FillWeight = 115;
-            dgvNoLoad.Columns["Event"].FillWeight = 200;
+            dgvNoLoad.Columns[0].Width = 85;
+            dgvNoLoad.Columns[1].Width = 80;
+            dgvNoLoad.Columns[2].Width = 100;
+            dgvNoLoad.Columns[3].Width = 110;
+            dgvNoLoad.Columns[4].Width = 110;
+            dgvNoLoad.Columns[5].Width = 115;
+            dgvNoLoad.Columns[6].Width = 115;
+            dgvNoLoad.Columns[7].Width = 180;
+            dgvNoLoad.ColumnWidthChanged += (s, e) => SaveLayoutConfig();
 
             // 頂部操作工具列 (雙標記點聚焦與匯出日誌)
             Panel pnlTableTop = new Panel()

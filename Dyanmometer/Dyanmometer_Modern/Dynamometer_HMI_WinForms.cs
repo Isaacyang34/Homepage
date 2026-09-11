@@ -400,6 +400,26 @@ namespace DynamometerHMI
         public SplitContainer splitEff;
 
         // 跨分頁版面分割條永久記憶字典 (避免隱藏分頁 Height/Width=0 導致已存設定被覆蓋抹除)
+        private bool isApplyingSplitterLayout = false;
+        private static readonly Dictionary<string, int> DefaultSplitterDistances = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "MainVertical", 436 },
+            { "Drives", 521 },
+            { "Drive1", 408 },
+            { "Drive2", 817 },
+            { "Bottom", 1240 },
+            { "Param1", 160 },
+            { "Param2", 160 },
+            { "TnMain", 210 },
+            { "TnMainMulti", 325 },
+            { "TnBottom", 650 },
+            { "TnRight", 280 },
+            { "DutyMain", 550 },
+            { "DutyTop", 880 },
+            { "EffMain", 550 },
+            { "NoLoadMain", 460 },
+            { "NoLoadBottom", 580 }
+        };
         private readonly Dictionary<string, int> layoutSplitters = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private int loadedActiveTab = -1;
 
@@ -1863,7 +1883,7 @@ namespace DynamometerHMI
 
         public void SaveLayoutConfig()
         {
-            if (!isLayoutLoaded) return; // 避免初始化階段觸發欄寬/分割條事件覆蓋已存設定
+            if (!isLayoutLoaded || isApplyingSplitterLayout) return; // 避免初始化或程式化套用階段觸發欄寬/分割條事件覆蓋已存設定
             try
             {
                 // 先行讀取現有 INI 檔中未由 SaveLayoutConfig() 直接接管之其他區段 (例如 [ReportManager], [GitHub], [GoogleDrive])
@@ -1874,7 +1894,8 @@ namespace DynamometerHMI
                     var managedSecSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
                         "Window", "Splitters", "Workbench", "DgvKebRu1", "DgvKebRu2", "DgvTelemetry",
                         "DgvTnMultiPoints", "DgvTnPoints", "DgvDuty", "DgvNoLoad", "DgvReports",
-                        "Polling", "Gl820Names", "KebMonitors1", "KebMonitors2", "NoLoadTest", "Logging"
+                        "Polling", "Gl820Names", "KebMonitors1", "KebMonitors2", "NoLoadTest", "Logging",
+                        "TnTest", "DutyTest"
                     };
                     string curSec = null;
                     foreach (var rawLine in File.ReadAllLines(currentIniPath, Encoding.UTF8))
@@ -1923,7 +1944,11 @@ namespace DynamometerHMI
                 if (splitParam1 != null && splitParam1.Height > 0) layoutSplitters["Param1"] = splitParam1.SplitterDistance;
                 if (splitParam2 != null && splitParam2.Height > 0) layoutSplitters["Param2"] = splitParam2.SplitterDistance;
 
-                if (splitTnMain != null && splitTnMain.Height > 0) layoutSplitters["TnMain"] = splitTnMain.SplitterDistance;
+                if (splitTnMain != null && splitTnMain.Height > 0)
+                {
+                    string k = (cmbTnMode != null && cmbTnMode.SelectedIndex == 1) ? "TnMainMulti" : "TnMain";
+                    layoutSplitters[k] = splitTnMain.SplitterDistance;
+                }
                 if (splitTnBottom != null && splitTnBottom.Width > 0) layoutSplitters["TnBottom"] = splitTnBottom.SplitterDistance;
                 if (splitTnRight != null && splitTnRight.Height > 0) layoutSplitters["TnRight"] = splitTnRight.SplitterDistance;
 
@@ -1952,6 +1977,22 @@ namespace DynamometerHMI
                 SaveDgvColWidths(sb, "DgvDuty", dgvDuty);
                 SaveDgvColWidths(sb, "DgvNoLoad", dgvNoLoad);
                 SaveDgvColWidths(sb, "DgvReports", dgvReports);
+
+                if (cmbTnMode != null)
+                {
+                    sb.AppendLine("[TnTest]");
+                    sb.AppendLine("Mode=" + cmbTnMode.SelectedIndex);
+                    if (cmbTnRole != null) sb.AppendLine("Role=" + cmbTnRole.SelectedIndex);
+                    if (cmbTnTimeSpan != null) sb.AppendLine("TimeSpan=" + cmbTnTimeSpan.SelectedIndex);
+                }
+
+                if (cmbDutyMode != null)
+                {
+                    sb.AppendLine("[DutyTest]");
+                    sb.AppendLine("Mode=" + cmbDutyMode.SelectedIndex);
+                    if (cmbDutyRole != null) sb.AppendLine("Role=" + cmbDutyRole.SelectedIndex);
+                    if (cmbDutyTimeSpan != null) sb.AppendLine("TimeSpan=" + cmbDutyTimeSpan.SelectedIndex);
+                }
 
                 if (numUnifiedInterval != null)
                 {
@@ -2289,7 +2330,11 @@ namespace DynamometerHMI
                 if (map.ContainsKey("RawData.RecordKebRu")) recordKebRuParams = map["RawData.RecordKebRu"] == "1";
                 if (map.ContainsKey("RawData.RecordIntervalMs")) int.TryParse(map["RawData.RecordIntervalMs"], out rawDataIntervalMs);
 
-                // Splitters: 完整讀入字典，杜絕跨分頁未渲染容器被抹除
+                // Splitters: 先行填入預設配置，再以 INI 儲存之客製化座標覆蓋，確保全分頁永不遺漏
+                foreach (var kv in DefaultSplitterDistances)
+                {
+                    if (!layoutSplitters.ContainsKey(kv.Key)) layoutSplitters[kv.Key] = kv.Value;
+                }
                 foreach (var kvp in map)
                 {
                     if (kvp.Key.StartsWith("Splitters.", StringComparison.OrdinalIgnoreCase))
@@ -2303,6 +2348,58 @@ namespace DynamometerHMI
                     }
                 }
                 ApplyTabSplitters(tabControl != null ? tabControl.SelectedIndex : 0);
+
+                // TN 測試排版與選項還原 (TnTest)
+                if (map.ContainsKey("TnTest.Mode") && cmbTnMode != null)
+                {
+                    int m;
+                    if (int.TryParse(map["TnTest.Mode"], out m) && m >= 0 && m < cmbTnMode.Items.Count)
+                    {
+                        cmbTnMode.SelectedIndex = m;
+                    }
+                }
+                if (map.ContainsKey("TnTest.Role") && cmbTnRole != null)
+                {
+                    int r;
+                    if (int.TryParse(map["TnTest.Role"], out r) && r >= 0 && r < cmbTnRole.Items.Count)
+                    {
+                        cmbTnRole.SelectedIndex = r;
+                    }
+                }
+                if (map.ContainsKey("TnTest.TimeSpan") && cmbTnTimeSpan != null)
+                {
+                    int ts;
+                    if (int.TryParse(map["TnTest.TimeSpan"], out ts) && ts >= 0 && ts < cmbTnTimeSpan.Items.Count)
+                    {
+                        cmbTnTimeSpan.SelectedIndex = ts;
+                    }
+                }
+
+                // Duty 工作制測試排版與選項還原 (DutyTest)
+                if (map.ContainsKey("DutyTest.Mode") && cmbDutyMode != null)
+                {
+                    int m;
+                    if (int.TryParse(map["DutyTest.Mode"], out m) && m >= 0 && m < cmbDutyMode.Items.Count)
+                    {
+                        cmbDutyMode.SelectedIndex = m;
+                    }
+                }
+                if (map.ContainsKey("DutyTest.Role") && cmbDutyRole != null)
+                {
+                    int r;
+                    if (int.TryParse(map["DutyTest.Role"], out r) && r >= 0 && r < cmbDutyRole.Items.Count)
+                    {
+                        cmbDutyRole.SelectedIndex = r;
+                    }
+                }
+                if (map.ContainsKey("DutyTest.TimeSpan") && cmbDutyTimeSpan != null)
+                {
+                    int ts;
+                    if (int.TryParse(map["DutyTest.TimeSpan"], out ts) && ts >= 0 && ts < cmbDutyTimeSpan.Items.Count)
+                    {
+                        cmbDutyTimeSpan.SelectedIndex = ts;
+                    }
+                }
 
                 // 空載測試參數記憶還原 (NoLoadTest)
                 if (map.ContainsKey("NoLoadTest.DriveRole") && cmbNoLoadRole != null)
@@ -2505,7 +2602,7 @@ namespace DynamometerHMI
             }
         }
 
-        public static void SafeSetupSplitContainer(SplitContainer split, int defaultDistance, int p1Min = 30, int p2Min = 30)
+        public void SafeSetupSplitContainer(SplitContainer split, string key, int defaultDistance, int p1Min = 30, int p2Min = 30)
         {
             if (split == null) return;
             try
@@ -2513,39 +2610,31 @@ namespace DynamometerHMI
                 split.Panel1MinSize = p1Min;
                 split.Panel2MinSize = p2Min;
 
-                bool initialized = false;
-                Action tryApplyDefault = () => {
-                    if (initialized) return;
-                    try
-                    {
-                        int total = (split.Orientation == Orientation.Horizontal) ? split.Height : split.Width;
-                        if (total > (p1Min + p2Min + split.SplitterWidth))
-                        {
-                            int maxDist = total - p2Min - split.SplitterWidth;
-                            int target = Math.Max(p1Min, Math.Min(maxDist, defaultDistance));
-                            split.SplitterDistance = target;
-                            initialized = true;
-                        }
-                    }
-                    catch { }
+                // 綁定 SplitterMoved 事件，僅在使用者手動拖曳時儲存設定
+                split.SplitterMoved += (s, e) => {
+                    if (!isLayoutLoaded || isApplyingSplitterLayout) return;
+                    layoutSplitters[key] = split.SplitterDistance;
+                    SaveLayoutConfig();
                 };
 
+                // 當容器尺寸就緒時安全套用設定值
+                EventHandler onSize = null;
+                onSize = (s, e) => {
+                    int total = (split.Orientation == Orientation.Horizontal) ? split.Height : split.Width;
+                    if (total > (p1Min + p2Min + split.SplitterWidth))
+                    {
+                        ApplySplitterDistanceSafe(split, key, defaultDistance, p1Min, p2Min);
+                        try { split.SizeChanged -= onSize; } catch { }
+                    }
+                };
+                split.SizeChanged += onSize;
+
+                // 若目前尺寸已經具備有效寬高，立即嘗試套用
                 int curTotal = (split.Orientation == Orientation.Horizontal) ? split.Height : split.Width;
                 if (curTotal > (p1Min + p2Min + split.SplitterWidth))
                 {
-                    tryApplyDefault();
-                }
-                else
-                {
-                    EventHandler onSize = null;
-                    onSize = (s, e) => {
-                        tryApplyDefault();
-                        if (initialized)
-                        {
-                            try { split.SizeChanged -= onSize; } catch { }
-                        }
-                    };
-                    split.SizeChanged += onSize;
+                    ApplySplitterDistanceSafe(split, key, defaultDistance, p1Min, p2Min);
+                    try { split.SizeChanged -= onSize; } catch { }
                 }
             }
             catch { }
@@ -2561,7 +2650,7 @@ namespace DynamometerHMI
                     return false; // 面板尚未完成排版或處於隱藏狀態 (Total <= 0)
 
                 int desired;
-                if (!layoutSplitters.TryGetValue(key, out desired))
+                if (!layoutSplitters.TryGetValue(key, out desired) || desired <= 0)
                 {
                     desired = (defaultFallback > 0) ? defaultFallback : split.SplitterDistance;
                 }
@@ -2572,11 +2661,20 @@ namespace DynamometerHMI
                     split.Panel2MinSize = p2Min;
                     int maxDist = total - p2Min - split.SplitterWidth;
                     int clamped = Math.Max(p1Min, Math.Min(maxDist, desired));
-                    if (split.SplitterDistance != clamped)
+
+                    isApplyingSplitterLayout = true;
+                    try
                     {
-                        split.SplitterDistance = clamped;
+                        if (split.SplitterDistance != clamped)
+                        {
+                            split.SplitterDistance = clamped;
+                        }
                     }
-                    layoutSplitters[key] = clamped;
+                    finally
+                    {
+                        isApplyingSplitterLayout = false;
+                    }
+                    // 保留使用者設定的原始 desired 數值，絕不覆寫為臨時之 clamped
                     return true;
                 }
             }
@@ -2590,19 +2688,21 @@ namespace DynamometerHMI
             {
                 if (tabIndex == 0) // 即時綜合監控
                 {
-                    ApplySplitterDistanceSafe(splitMainVertical, "MainVertical", 330, 80, 80);
-                    ApplySplitterDistanceSafe(splitDrives, "Drives", 450, 80, 80);
-                    ApplySplitterDistanceSafe(splitDrive1, "Drive1", 280, 80, 80);
-                    ApplySplitterDistanceSafe(splitDrive2, "Drive2", 280, 80, 80);
-                    ApplySplitterDistanceSafe(splitBottomHorizontal, "Bottom", 520, 80, 80);
+                    ApplySplitterDistanceSafe(splitMainVertical, "MainVertical", 436, 80, 80);
+                    ApplySplitterDistanceSafe(splitDrives, "Drives", 521, 80, 80);
+                    ApplySplitterDistanceSafe(splitDrive1, "Drive1", 408, 80, 80);
+                    ApplySplitterDistanceSafe(splitDrive2, "Drive2", 817, 80, 80);
+                    ApplySplitterDistanceSafe(splitBottomHorizontal, "Bottom", 1240, 80, 80);
                     ApplySplitterDistanceSafe(splitParam1, "Param1", 160, 50, 20);
                     ApplySplitterDistanceSafe(splitParam2, "Param2", 160, 50, 20);
                 }
                 else if (tabIndex == 1) // 多段 T-N 測試
                 {
-                    ApplySplitterDistanceSafe(splitTnMain, "TnMain", 190, 80, 80);
-                    ApplySplitterDistanceSafe(splitTnBottom, "TnBottom", 600, 150, 150);
-                    ApplySplitterDistanceSafe(splitTnRight, "TnRight", 260, 120, 120);
+                    string tnKey = (cmbTnMode != null && cmbTnMode.SelectedIndex == 1) ? "TnMainMulti" : "TnMain";
+                    int defTn = (cmbTnMode != null && cmbTnMode.SelectedIndex == 1) ? 325 : 210;
+                    ApplySplitterDistanceSafe(splitTnMain, tnKey, defTn, 80, 80);
+                    ApplySplitterDistanceSafe(splitTnBottom, "TnBottom", 650, 150, 150);
+                    ApplySplitterDistanceSafe(splitTnRight, "TnRight", 280, 120, 120);
                 }
                 else if (tabIndex == 2) // 工作制測試 Duty
                 {
@@ -3475,7 +3575,11 @@ namespace DynamometerHMI
             splitParam1.Panel1.Controls.Add(pnlLeft1);
             splitParam1.Panel2.Controls.Add(pnlParamsBox1);
             splitParam1.SplitterDistance = 245; // 預設高度
-            splitParam1.SplitterMoved += (s, e) => SaveLayoutConfig();
+            splitParam1.SplitterMoved += (s, e) => {
+                if (!isLayoutLoaded || isApplyingSplitterLayout) return;
+                layoutSplitters["Param1"] = splitParam1.SplitterDistance;
+                SaveLayoutConfig();
+            };
 
             Control pnlRuContainer1 = CreateKebRuPanelWithToolbar(1, "A載台數值", out dgvKebRu1);
 
@@ -3494,7 +3598,11 @@ namespace DynamometerHMI
             splitDrive1.Panel1.Controls.Add(splitParam1);
             splitDrive1.Panel2.Controls.Add(pnlRuContainer1);
             splitDrive1.SplitterDistance = 420;
-            splitDrive1.SplitterMoved += (s, e) => SaveLayoutConfig();
+            splitDrive1.SplitterMoved += (s, e) => {
+                if (!isLayoutLoaded || isApplyingSplitterLayout) return;
+                layoutSplitters["Drive1"] = splitDrive1.SplitterDistance;
+                SaveLayoutConfig();
+            };
 
             grpD1.Controls.Add(splitDrive1);
             splitDrives.Panel1.Controls.Add(grpD1);
@@ -3878,7 +3986,11 @@ namespace DynamometerHMI
             splitParam2.Panel1.Controls.Add(pnlLeft2);
             splitParam2.Panel2.Controls.Add(pnlParamsBox2);
             splitParam2.SplitterDistance = 245; // 預設高度
-            splitParam2.SplitterMoved += (s, e) => SaveLayoutConfig();
+            splitParam2.SplitterMoved += (s, e) => {
+                if (!isLayoutLoaded || isApplyingSplitterLayout) return;
+                layoutSplitters["Param2"] = splitParam2.SplitterDistance;
+                SaveLayoutConfig();
+            };
 
             Control pnlRuContainer2 = CreateKebRuPanelWithToolbar(2, "B載台數值", out dgvKebRu2);
 
@@ -3897,7 +4009,11 @@ namespace DynamometerHMI
             splitDrive2.Panel1.Controls.Add(splitParam2);
             splitDrive2.Panel2.Controls.Add(pnlRuContainer2);
             splitDrive2.SplitterDistance = 420;
-            splitDrive2.SplitterMoved += (s, e) => SaveLayoutConfig();
+            splitDrive2.SplitterMoved += (s, e) => {
+                if (!isLayoutLoaded || isApplyingSplitterLayout) return;
+                layoutSplitters["Drive2"] = splitDrive2.SplitterDistance;
+                SaveLayoutConfig();
+            };
 
             grpD2.Controls.Add(splitDrive2);
             splitDrives.Panel2.Controls.Add(grpD2);
@@ -3924,7 +4040,11 @@ namespace DynamometerHMI
                 btnRF2, btnRR2, btnSetSpd2, btnSetTrq2
             });
 
-            splitDrives.SplitterMoved += (s, e) => SaveLayoutConfig();
+            splitDrives.SplitterMoved += (s, e) => {
+                if (!isLayoutLoaded || isApplyingSplitterLayout) return;
+                layoutSplitters["Drives"] = splitDrives.SplitterDistance;
+                SaveLayoutConfig();
+            };
             pnlKebSection.Controls.Add(splitDrives);
 
             // -------------------------------------------------------------
@@ -4088,8 +4208,16 @@ namespace DynamometerHMI
             splitMainVertical.SplitterDistance = 330;
             splitMainVertical.Panel1MinSize = 120;
             splitMainVertical.Panel2MinSize = 120;
-            splitMainVertical.SplitterMoved += (s, e) => SaveLayoutConfig();
-            splitBottomHorizontal.SplitterMoved += (s, e) => SaveLayoutConfig();
+            splitMainVertical.SplitterMoved += (s, e) => {
+                if (!isLayoutLoaded || isApplyingSplitterLayout) return;
+                layoutSplitters["MainVertical"] = splitMainVertical.SplitterDistance;
+                SaveLayoutConfig();
+            };
+            splitBottomHorizontal.SplitterMoved += (s, e) => {
+                if (!isLayoutLoaded || isApplyingSplitterLayout) return;
+                layoutSplitters["Bottom"] = splitBottomHorizontal.SplitterDistance;
+                SaveLayoutConfig();
+            };
 
             tableManual.Controls.Add(splitMainVertical, 0, 1);
 

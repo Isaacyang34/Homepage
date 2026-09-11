@@ -8,7 +8,52 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.87 (beta) | v2.10.47 | 2026-09-11 | 全分頁 (TN / Duty S1/S2/S6 / 效率熱力圖 / 空載測試) 排版與分割條 (Splitter) 記憶深度修復：(1)徹底根除 WinForms SizeChanged 事件中未受保護之 SplitterMoved 回饋覆蓋迴圈與非活動分頁尺寸未就緒 (Height/Width <= 0) 抹除已存座標之致命缺陷；(2)建立 isApplyingSplitterLayout 遞迴防護鎖與 DefaultSplitterDistances 15 組全域預設基線；(3)TN 分頁細分 single-step ("TnMain") 與 multi-point ("TnMainMulti") 雙態分割條記憶，並支援 DutyMain, DutyTop, EffMain, NoLoadMain, NoLoadBottom 完整持久化；(4)解除 DataGridView AutoSizeColumnsMode.Fill 鎖定改為 None，完整記憶 TN, Duty, NoLoad 每一欄手動調整寬度；(5)記憶 TN 與 Duty 測試模式、角色與時間跨度下拉選項 ([TnTest], [DutyTest]) |
 | V2.86 (beta) | v2.10.46 | 2026-09-11 | 動力計測試報告自動解析與 Excel 數據提取工具 (Motor Report Extractor Pro)：(1)打造專屬獨立桌面 WinForms 工具 (`Motor_Report_Extractor.exe`) 與 Web 互動應用 (`motor_report_extractor.html`)，支援報告 ZIP 壓縮檔與測試資料夾一鍵拖曳 (Drag & Drop) 自動解壓與解析；(2)實裝「電機廠報告與驗收規範」Excel 儲存格座標全對照引擎，精準映射 9. 溫升測試、10. S1 額定特性、11. S2 短時過載、12. S6 週期反覆、13. 等效參數、14. 轉差率、15. 激磁電流與 16. Max acc. 瞬態極限；(3)實裝 IEEE Std 112 感應馬達單相等效電路自動求解器 (R1, X1, Xm, Rc, R2', X2', Zk, Tmax)；(4)實裝「📋 一鍵複製為 Excel 格式 (TSV)」與「💾 匯出 Excel CSV」功能；(5)支援一鍵從 GitHub 雲端自動抓取最新測試報告封包 |
+
+## [V2.87 beta / v2.10.47] - 2026-09-11
+
+### 🎯 現象與佐證 (Log-First Verbatim Excerpts)
+1. **使用者回報現象**：
+   - 使用者回報：「先前有提過TN跟S1/S2/S6......等其他分頁的排版都要能記憶，目前並沒有這功能」。
+   - 實測發現：當使用者在 TN 特性測試、Duty 工作制 (S1/S2/S6)、效率熱力圖 (EffMap)、空載測試 (NoLoad) 分頁手動調整分割條 (SplitterDistance) 或表格欄寬後，切換分頁或重新啟動程式，畫面排版又恢復為預設或被擠壓為過小尺寸；且手動拉伸之 DataGridView 欄寬未被有效固定。
+2. **源碼與行為追蹤佐證**：
+   - 追蹤 `SafeSetupSplitContainer`：原先在 `split.SizeChanged` 事件中，無條件執行 `split.SplitterDistance = defaultDistance;`，觸發了 `SplitterMoved` 事件，將 hardcoded defaultDistance 寫回 `layoutSplitters`，直接摧毀了使用者由 INI 載入的自訂排版；
+   - 追蹤 `ApplySplitterDistanceSafe`：原先包含 `layoutSplitters[key] = clamped;`，當視窗最小化、Tab 切換或中間排版階段容器尺寸短暫縮小時，clamped 數值被永久回寫字典，導致儲存的數值被不可逆地縮小；
+   - 缺乏 `isApplyingSplitterLayout` 防護：WinForms 在以程式碼指派 `SplitterDistance` 時必然觸發 `SplitterMoved`，進而引發 `SaveLayoutConfig()` 迴圈與多餘覆蓋；
+   - 表格模式限制：`dgvDuty` 與 `dgvNoLoad` 設為 `AutoSizeColumnsMode = Fill`，導致手動拉欄無效或在欄寬還原時被自動重算覆寫。
+
+---
+
+### 💡 致命根因 (Root Cause Analysis)
+1. **SafeSetupSplitContainer 在 SizeChanged 時的無條件覆寫**：
+   - 原先在控制項大小改變時無條件將 `SplitterDistance` 重設為 `defaultDistance`，且未區分是否已由 INI 載入使用者座標，造成每次分頁渲染時使用者自訂排版被預設值洗掉；
+2. **ApplySplitterDistanceSafe 破壞性截斷字典值**：
+   - 在計算 `clamped` 後直接執行 `layoutSplitters[key] = clamped`，只要分頁在隱藏或縮放瞬間寬高不足，記憶值就會被硬性削平，重開機後無法復原大視窗下的真實寬度；
+3. **欠缺程式化套用狀態鎖 (`isApplyingSplitterLayout`)**：
+   - 載入設定或動態調整排版時，沒有旗標阻擋 `SplitterMoved` 與 `ColumnWidthChanged` 事件，造成載入動作反而觸發儲存覆寫；
+4. **表格欄寬受限於 Fill 模式**：
+   - TN、Duty 與 NoLoad 表格使用 `Fill` 模式，禁止了欄寬自訂拉伸與精確像素還原。
+
+---
+
+### 🚀 精確修復方案 (Accurate Solution & Release Verifications)
+1. **重構 SplitContainer 安全初始化與套用機制 (`Dynamometer_HMI_WinForms.cs`)**：
+   - 新增 `isApplyingSplitterLayout` 遞迴防護旗標，所有程式化指派 `SplitterDistance` 前後嚴格鎖定；
+   - 建立 `DefaultSplitterDistances` 涵蓋 15 組全域分割條基線：`MainVertical` (436), `Drives` (521), `Drive1` (408), `Drive2` (817), `Bottom` (1240), `Param1` (160), `Param2` (160), `TnMain` (210), `TnMainMulti` (325), `TnBottom` (650), `TnRight` (280), `DutyMain` (550), `DutyTop` (880), `EffMain` (550), `NoLoadMain` (460), `NoLoadBottom` (580)；
+   - 重構 `SafeSetupSplitContainer(split, key, defaultDistance, p1Min, p2Min)`：自動綁定帶安全守衛之 `SplitterMoved`，並在尺寸就緒後僅套用一次；
+   - 修正 `ApplySplitterDistanceSafe`：移除破壞性 `layoutSplitters[key] = clamped;`，僅調整畫面顯示，保護原始儲存值不被暫態尺寸破壞；
+   - 擴充 `ApplyTabSplitters`：切換至 TN (1)、Duty (2)、Eff (3)、NoLoad (4) 時自動喚醒並套用該分頁專屬分割條設定。
+2. **全測試分頁全面對接排版持久化**：
+   - `Dynamometer_TestTN.cs`：全面對接 `TnMain`、`TnMainMulti`、`TnBottom`、`TnRight`，表格改為 `AutoSizeColumnsMode = None`；
+   - `Dynamometer_TestDuty.cs`：全面對接 `DutyMain`、`DutyTop`，`dgvDuty` 改為 `AutoSizeColumnsMode = None` 並設定預設欄寬與欄寬變更即時儲存；
+   - `Dynamometer_TestEffMap.cs`：全面對接 `EffMain`；
+   - `Dynamometer_TestNoLoad.cs`：全面對接 `NoLoadMain`、`NoLoadBottom`，`dgvNoLoad` 改為 `AutoSizeColumnsMode = None` 並設定欄寬即時儲存。
+3. **擴充 INI 設定結構與還原邏輯**：
+   - `SaveLayoutConfig` 與 `LoadLayoutConfig` 新增 `[TnTest]` (Mode, Role, TimeSpan) 與 `[DutyTest]` (Mode, Role, TimeSpan) 測試下拉選項之雙向儲存與恢復；
+   - 更新 `dynamometer_layout.ini` 模板，確保全 15 組分割條與測試配置預載就緒。
+4. **編譯打包與發布同動**：
+   - 執行 `package_release.ps1 -Version 2.5.0`，驗證無編譯警告，發布便攜封包並同步至 GitHub 與 Firebase。
 | V2.85 (beta) | v2.10.45 | 2026-09-11 | 高科技專屬應用程式圖示 (Neon "D" Brand Emblem) 與 WinForms/工作列/Web 全息綁定：(1)打造旗艦高科技「D」字馬達轉子與測功扭矩儀表品牌圖示 (Neon Cyan / Electric Amber)；(2)編譯流程 (package_release.ps1 / build.bat) 強制注入 /win32icon 參數，產出具備原生高解析度 Win32 圖示之 Dynamometer_HMI_Pro.exe；(3)WinForms MainForm 與四合一連線工具箱 TesterForm 建構函式全面綁定 this.Icon，確保視窗左上角與 Windows 系統工作列高科技識別；(4)內嵌輕量 WebServer 新增 /favicon.ico 路由處理，WebMonitor.html 與 Motor_Characteristics_Viewer.html 同步注入專屬網頁 Favicon |
 | V2.84 (beta) | v2.10.44 | 2026-09-11 | 感應馬達 IEEE 112 等效電路計算與自動數據採集系統：(1)新增全新「⚡ 等效電路」專屬分頁，支援空載、額定 (不補轉差)、堵轉三段式測試採集；(2)實裝 KEB uf.09 (0x0509) 堵轉降壓限制寫入、即時監控與預設值自動復原安全機制；(3)建立馬達指紋判定引擎 (以 KEB dr 參數為基準，無變更時記憶空載與額定數據等待堵轉測試)；(4)實裝 B 載台 dr 參數異動即時監控，主動彈窗提示同步修正 RAW DATA 馬達型號名稱；(5)實裝向量等效電路圖動態 GDI+ 繪製、精確參數求解器 (R1, X1, Xm, Rc, R2', X2', Zk) 與 INI 斷電佈局記憶 |
 | V2.83 (beta) | v2.10.43 | 2026-09-11 | 線上自動熱更新版本發布與雲端清單同步：(1)發布最新雲端熱更新二進位封包至 GitHub gh-pages 與 Releases；(2)同步 Firebase RTDB /update/version.json 雲端版本清單至 v2.10.43，使現役機台開機或手動點擊「線上更新」時精準觸發「有新版本」提示；(3)驗證二進位串流下載、PE 標頭結構校驗與免重開熱替換重啟流程 |
