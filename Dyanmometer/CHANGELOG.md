@@ -8,7 +8,7 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
-| V2.90 (beta) | v2.10.48 | 2026-09-11 | 軟體專屬企業級識別徽標 (App Icon) 雙規指針儀表版全面導入：(1)主視覺明確以大寫字母「D」為純物件外框輪廓（無外框底盒、完全透空透明 Alpha=0），「D」字體筆觸更為剛毅鮮明；(2)「D」字正核心嵌入高擬真馬達定轉子矽鋼片 (Silicon Steel Laminations) 疊片、齒槽銅線圈繞組與旋轉傳動軸；(3)簡化並稀疏化磁通力線 (Magnetic Flux Lines)，避免過度密集，改採青藍至紫紅轉琥珀黃的流暢光弧漸層穿透矽鋼片；(4)「D」字弧形右側邊框精確劃分雙半部量錶指針：上半部為轉速計 (Speed / RPM) 搭配青藍刻度與發光指針，下半部為扭力量錶 (Torque / Nm) 搭配琥珀橙刻度與發光指針；(5)生成完整 256/128/64/48/32/16 多解析度 Windows XP 物理相容 (32-bit DIB) 與現代 ICO 檔案，注入 Dynamometer_HMI_Pro.exe Win32 資源、Form.Icon 及 WebServer favicon。 |
+| V2.90 (beta) | v2.10.48 | 2026-09-11 | 軟體專屬企業級識別徽標 (App Icon) 經典 Neon 矽鋼片核心旗艦版全面導入：(1)主視覺完全傳承深受好評的經典 Neon 旗艦風格（深鈦金屬倒角外框、極致青藍與琥珀霓虹發光燈管、右側高精度動力計量錶圓弧與指示指針）；(2)正中央風扇葉片精確替換為高擬真電機定轉子矽鋼片 (Silicon Steel Laminations) 疊片、齒槽絕緣純銅線圈繞組與中央金屬傳動轉軸滾珠軸承；(3)徹底去除外部方框與背景襯底，保留純「D」字本體與量錶外廓，全背景透空透明 (Alpha = 0)；(4)生成完整 256/128/64/48/32/16 多解析度 Windows XP 物理相容 (32-bit DIB) 與現代 ICO 檔案，全面注入主程式 Win32 資源、視窗 Icon 與 WebServer favicon。 |
 | V2.89 (beta) | v2.10.48 | 2026-09-11 | TN / Duty (S1/S2/S6) 各分頁排版記憶徹底根治修復（排版設定檔存放於執行檔目錄 `dynamometer_layout.ini`）：(1)根絕 INI 寫入漏列 managedSecSet 導致 [UI]、[Safety] 等區段無限重複疊加膨脹至 4484 行之腐蝕缺陷；(2)修復 SaveLayoutConfig() 跨分頁盲目讀取背景未呈現 Splitter 導致以預設值覆寫使用者已調整設定之破壞迴圈，嚴格限縮僅同步目前活動中之分頁 (curTab)；(3)移除 tabControl.SelectedIndexChanged 提前存檔之未就緒寫入；(4)解除 TN 測試手動重複繫結 SplitterMoved 雙重覆寫問題，確保 multi-point 與 single-step 獨立記憶；(5)Duty 工作制 S1/S2/S6 三大模式獨立分立 DutyMain_S1, DutyMain_S2, DutyMain_S6 記憶鍵值，模式切換即時動態無縫復原。 |
 | V2.88 (beta) | v2.10.48 | 2026-09-11 | WEB_GBD (GBD_Viewer.html & GBD_Editor.html) 通道觀看預設勾選邏輯升級：(1)廢除舊有固定寫死 CH1, CH5, CH8, CH10 之限制，全面同步對齊 Dynamometer 實測有效通道辨識引擎 (DetectActiveGbdChannels)；(2)開檔載入 (onLoaded) 時自動動態掃描並識別具備合法溫度數據 (-40℃ ~ 350℃ 且非 0、非 999、非 32767 斷線碼) 之通道進行自動勾選顯示，無資料時自適應 fallback 前 4 點；(3)左側通道列表新增「⚡ 實測」按鈕，支援隨時一鍵重新依實測數據勾選；(4)正式將 WEB_GBD 溫度資料檢視器加入全案入口導覽首頁 (index.html)。 |
 | V2.87 (beta) | v2.10.47 | 2026-09-11 | 全分頁 (TN / Duty S1/S2/S6 / 效率熱力圖 / 空載測試) 排版與分割條 (Splitter) 記憶深度修復：(1)徹底根除 WinForms SizeChanged 事件中未受保護之 SplitterMoved 回饋覆蓋迴圈與非活動分頁尺寸未就緒 (Height/Width <= 0) 抹除已存座標之致命缺陷；(2)建立 isApplyingSplitterLayout 遞迴防護鎖與 DefaultSplitterDistances 15 組全域預設基線；(3)TN 分頁細分 single-step ("TnMain") 與 multi-point ("TnMainMulti") 雙態分割條記憶，並支援 DutyMain, DutyTop, EffMain, NoLoadMain, NoLoadBottom 完整持久化；(4)解除 DataGridView AutoSizeColumnsMode.Fill 鎖定改為 None，完整記憶 TN, Duty, NoLoad 每一欄手動調整寬度；(5)記憶 TN 與 Duty 測試模式、角色與時間跨度下拉選項 ([TnTest], [DutyTest]) |
@@ -17,19 +17,15 @@
 
 ### 🎯 現象與需求 (User Request & Aesthetic Refinement)
 1. **使用者需求與迭代指示**：
-   - 「矽鋼片還是做在D字母的中間，磁力線可以少一點，太多太密集不好看，D的文字要在更明確，留下指針的部分，分上上下半部，上半部速度，下半部扭力。」
-   - 圖示必須為純物件外框（純大寫字母 D 造型），徹底去除任何外方框、外框背景或黑色襯底（完全透明背景 `Alpha = 0`）。
+   - 使用者明確要求完全回歸深受好評的「Neon 經典旗艦風格」，並將正中央原有的散熱風扇直接替換為專業「定轉子矽鋼片疊片 + 繞組線圈」，維持頂級精緻立體感，去除方形外框與背景，呈現純透空圖示。
 2. **視覺構成要件落實**：
-   - **核心定轉子矽鋼片 (Silicon Steel Laminations)**：位於「D」字母之正中央，展現精細之鋼片沖壓疊片、齒槽絕緣線圈繞組與中央金屬傳動轉軸。
-   - **精簡磁力線 (Streamlined Magnetic Flux Lines)**：去除了過度繁雜密集的多重網狀線條，精煉為青藍色 (Cyan) 至紫羅蘭 (Violet) 再到琥珀暖橙 (Amber) 的光弧漸層磁通力線，呈現科技感與專業電動力學語彙。
-   - **「D」字母輪廓與雙量錶指針 (Dual-Gauge Arc)**：
-     - 大寫「D」文字骨架更加剛毅明確。
-     - 右側圓弧刻意劃分為上下雙半部量錶：
-       * **上半部**：動力計轉速 (Speed / RPM) 刻度表，配備青藍色發光指針。
-       * **下半部**：動力計扭矩 (Torque / Nm) 刻度表，配備琥珀橙色發光指針。
+   - **100% Neon 經典質感復刻**：沿用 Plan A 原生極致立體深鈦金屬倒角外框、冷光青藍 (Cyan) 直脊與弧形暖橙 (Amber) 霓虹發光管嵌槽。
+   - **核心定轉子矽鋼片 (Silicon Steel Laminations)**：位於「D」字母之正中央，完美替換原風扇葉片，展現精密沖壓矽鋼片疊片層次、齒槽純銅繞組線圈與金屬傳動旋轉軸心。
+   - **精密量錶指針圓弧 (Dynamometer Gauge Arc)**：精準保留右側青藍色動態轉速刻度表、高科技同心外框與精密發光指針。
+   - **純物件透空 (Pure Transparent Cutout)**：去除周圍深灰方形基座與背景，保留「D」與儀表本體，背景完全透明 (`Alpha = 0`)。
 3. **技術資產與相容性建置**：
    - 生成 256x256、128x128、64x64、48x48、32x32、16x16 完整多解析度圖示。
-   - 遵照 **Rule 6 (Windows XP Legacy Compatibility)**：圖示封裝為標準 32-bit DIB（BITMAPINFOHEADER + XOR + AND 掩碼），100% 避免 Windows XP 讀取高解析度 PNG 壓縮圖示引發的當機缺陷。
+   - 遵照 **Rule 6 (Windows XP Legacy Compatibility)**：圖示封裝為標準 32-bit DIB，100% 相容 Windows XP 與現代 Windows。
    - 注入 `Dynamometer_HMI_Pro.exe` 本地原生 win32icon、WinForms `MainForm.Icon`、`TesterForm.Icon` 及內建 WebServer 的 `/favicon.ico`。
 
 ---
