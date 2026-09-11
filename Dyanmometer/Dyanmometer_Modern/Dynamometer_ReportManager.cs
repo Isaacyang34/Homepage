@@ -1003,6 +1003,8 @@ namespace DynamometerHMI
         {
             int selectedCount = 0;
             long totalBytes = 0;
+            string singleZipName = null;
+            bool hasNonZip = false;
 
             foreach (DataGridViewRow row in dgvReports.Rows)
             {
@@ -1015,8 +1017,22 @@ namespace DynamometerHMI
                     {
                         selectedCount++;
                         totalBytes += item.SizeBytes;
+                        if (item.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                        {
+                            singleZipName = item.FileName;
+                        }
+                        else
+                        {
+                            hasNonZip = true;
+                        }
                     }
                 }
+            }
+
+            // 若僅選取單一 ZIP 檔案，自動將目標封包名稱同步為該 ZIP 檔名
+            if (selectedCount == 1 && !hasNonZip && !string.IsNullOrEmpty(singleZipName) && txtReportZipName != null)
+            {
+                txtReportZipName.Text = singleZipName;
             }
 
             string sizeStr;
@@ -1024,7 +1040,12 @@ namespace DynamometerHMI
             else if (totalBytes < 1024 * 1024) sizeStr = (totalBytes / 1024.0).ToString("F1") + " KB";
             else sizeStr = (totalBytes / (1024.0 * 1024.0)).ToString("F2") + " MB";
 
-            lblReportSelectionInfo.Text = string.Format("已選取: {0} 個檔案 (總計: {1})", selectedCount, sizeStr);
+            string desc = string.Format("已選取: {0} 個檔案 (總計: {1})", selectedCount, sizeStr);
+            if (selectedCount > 0 && !hasNonZip)
+            {
+                desc += " [已是 ZIP 封包，上傳將跳過二次壓縮]";
+            }
+            lblReportSelectionInfo.Text = desc;
             if (selectedCount > 0)
             {
                 lblReportSelectionInfo.ForeColor = Color.FromArgb(16, 185, 129);
@@ -1037,6 +1058,7 @@ namespace DynamometerHMI
 
         /// <summary>
         /// 執行壓縮與上傳動作 (非同步背景執行，UI 不凍結)
+        /// 若檔案已全為 ZIP 封包，則跳過本機二次壓縮直接上傳；除非清單中包含非 ZIP 檔案。
         /// </summary>
         public void ExecuteCompressAndUpload()
         {
@@ -1072,11 +1094,33 @@ namespace DynamometerHMI
                 return;
             }
 
+            // 判斷選取清單是否包含非 ZIP 檔案 (如 CSV, LOG, XLSX)
+            bool hasNonZip = false;
+            foreach (string path in selectedFiles)
+            {
+                if (!path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasNonZip = true;
+                    break;
+                }
+            }
+
+            // 依指示：如果已經是 zip 檔就不用再壓縮一次，除非有包括到非 zip 檔
+            bool needCompress = hasNonZip;
+
             // 鎖定按鈕防止連點
             btnExecuteUpload.Enabled = false;
             prgReportTask.Value = 10;
-            lblReportStatus.Text = "⏳ 正在本機壓縮檔案中...";
-            WriteReportLog(string.Format("開始壓縮 {0} 個檔案為 {1}...", selectedFiles.Count, zipName));
+            if (needCompress)
+            {
+                lblReportStatus.Text = "⏳ 正在本機壓縮檔案中...";
+                WriteReportLog(string.Format("選取項目包含非 ZIP 檔案，開始壓縮 {0} 個檔案為 {1}...", selectedFiles.Count, zipName));
+            }
+            else
+            {
+                lblReportStatus.Text = "⚡ 已是 ZIP 檔案，略過本機壓縮直接上傳...";
+                WriteReportLog(string.Format("選取檔案均為 ZIP 封包 ({0} 個)，略過本機重複壓縮，直接執行上傳...", selectedFiles.Count));
+            }
 
             // 保存使用者偏好設定
             SaveConfigKey("GoogleDrive", "WebhookUrl", gasUrl);
@@ -1084,184 +1128,208 @@ namespace DynamometerHMI
             SaveConfigKey("ReportManager", "NasPath", nasPath);
 
             ThreadPool.QueueUserWorkItem(state => {
-                string tempZipPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs", zipName);
                 try
                 {
-                    // 步驟 1: 執行 ZIP 壓縮 (優先使用本機 7-Zip，若無則切換內建純 C# 引擎)
-                    string sevenZipExe = LightweightZipHelper.Find7ZipExecutable();
-                    bool used7z = false;
+                    List<string> targetZipPaths = new List<string>();
 
-                    if (!string.IsNullOrEmpty(sevenZipExe))
+                    if (needCompress)
                     {
+                        string tempZipPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs", zipName);
+
+                        // 步驟 1: 執行 ZIP 壓縮 (優先使用本機 7-Zip，若無則切換內建純 C# 引擎)
+                        string sevenZipExe = LightweightZipHelper.Find7ZipExecutable();
+                        bool used7z = false;
+
+                        if (!string.IsNullOrEmpty(sevenZipExe))
+                        {
+                            this.BeginInvoke((Action)(() => {
+                                lblReportStatus.Text = "⏳ 偵測到本機 7-Zip，正在調用 7z.exe 極速壓縮中...";
+                                WriteReportLog("偵測到本機 7-Zip 引擎: " + sevenZipExe);
+                                prgReportTask.Value = 25;
+                            }));
+
+                            string err7z;
+                            if (LightweightZipHelper.TryCompressWith7Zip(tempZipPath, selectedFiles, out err7z))
+                            {
+                                used7z = true;
+                                this.BeginInvoke((Action)(() => {
+                                    WriteReportLog("✅ 7-Zip 引擎壓縮完成！");
+                                }));
+                            }
+                            else
+                            {
+                                this.BeginInvoke((Action)(() => {
+                                    WriteReportLog("⚠️ 7-Zip 呼叫未完成 (" + err7z + ")，無縫切換為內建 PKZip 引擎繼續壓縮...");
+                                }));
+                            }
+                        }
+
+                        if (!used7z)
+                        {
+                            LightweightZipHelper.CreateZipArchive(tempZipPath, selectedFiles, (curr, total, name) => {
+                                this.BeginInvoke((Action)(() => {
+                                    int pct = 10 + (int)((double)curr / total * 30);
+                                    if (pct > 40) pct = 40;
+                                    prgReportTask.Value = pct;
+                                    lblReportStatus.Text = string.Format("壓縮中 ({0}/{1}): {2}", curr, total, name);
+                                }));
+                            });
+                        }
+
+                        FileInfo zipFi = new FileInfo(tempZipPath);
+                        long zipSize = zipFi.Length;
+                        string zipSizeStr = (zipSize / 1024.0).ToString("F1") + " KB";
                         this.BeginInvoke((Action)(() => {
-                            lblReportStatus.Text = "⏳ 偵測到本機 7-Zip，正在調用 7z.exe 極速壓縮中...";
-                            WriteReportLog("偵測到本機 7-Zip 引擎: " + sevenZipExe);
-                            prgReportTask.Value = 25;
+                            prgReportTask.Value = 50;
+                            lblReportStatus.Text = string.Format("壓縮完成: {0} ({1})", zipName, zipSizeStr);
+                            WriteReportLog(string.Format("✅ 壓縮成功: {0} (大小: {1})", zipName, zipSizeStr));
                         }));
 
-                        string err7z;
-                        if (LightweightZipHelper.TryCompressWith7Zip(tempZipPath, selectedFiles, out err7z))
-                        {
-                            used7z = true;
-                            this.BeginInvoke((Action)(() => {
-                                WriteReportLog("✅ 7-Zip 引擎壓縮完成！");
-                            }));
-                        }
-                        else
-                        {
-                            this.BeginInvoke((Action)(() => {
-                                WriteReportLog("⚠️ 7-Zip 呼叫未完成 (" + err7z + ")，無縫切換為內建 PKZip 引擎繼續壓縮...");
-                            }));
-                        }
+                        targetZipPaths.Add(tempZipPath);
                     }
-
-                    if (!used7z)
+                    else
                     {
-                        LightweightZipHelper.CreateZipArchive(tempZipPath, selectedFiles, (curr, total, name) => {
-                            this.BeginInvoke((Action)(() => {
-                                int pct = 10 + (int)((double)curr / total * 30);
-                                if (pct > 40) pct = 40;
-                                prgReportTask.Value = pct;
-                                lblReportStatus.Text = string.Format("壓縮中 ({0}/{1}): {2}", curr, total, name);
-                            }));
-                        });
+                        // 已經是 ZIP 檔案，直接使用既有 ZIP 路徑
+                        targetZipPaths.AddRange(selectedFiles);
+                        this.BeginInvoke((Action)(() => {
+                            prgReportTask.Value = 50;
+                            lblReportStatus.Text = string.Format("已確認 {0} 個現有 ZIP 封包，直接啟動上傳...", targetZipPaths.Count);
+                        }));
                     }
-
-                    FileInfo zipFi = new FileInfo(tempZipPath);
-                    long zipSize = zipFi.Length;
-                    string zipSizeStr = (zipSize / 1024.0).ToString("F1") + " KB";
-                    this.BeginInvoke((Action)(() => {
-                        prgReportTask.Value = 50;
-                        lblReportStatus.Text = string.Format("壓縮完成: {0} ({1})", zipName, zipSizeStr);
-                        WriteReportLog(string.Format("✅ 壓縮成功: {0} (大小: {1})", zipName, zipSizeStr));
-                    }));
 
                     // 步驟 2: 依目標執行上傳
-                    if (targetMode == 0) // Google Apps Script Webhook
+                    for (int fIdx = 0; fIdx < targetZipPaths.Count; fIdx++)
                     {
-                        this.BeginInvoke((Action)(() => {
-                            prgReportTask.Value = 60;
-                            lblReportStatus.Text = "🚀 正在發送至 Google 雲端 Webhook...";
-                            WriteReportLog("正在透過 Managed TLS 1.2 連線 Google Apps Script 雲端端點...");
-                        }));
+                        string currentZipPath = targetZipPaths[fIdx];
+                        string currentZipName = Path.GetFileName(currentZipPath);
+                        int progressBase = 50 + (int)((double)fIdx / targetZipPaths.Count * 45);
 
-                        byte[] zipBytes = File.ReadAllBytes(tempZipPath);
-                        string base64Zip = Convert.ToBase64String(zipBytes);
-
-                        // 建立 JSON 負載
-                        StringBuilder sbJson = new StringBuilder();
-                        sbJson.Append("{");
-                        sbJson.AppendFormat("\"filename\": \"{0}\",", EscapeJson(zipName));
-                        sbJson.AppendFormat("\"folder\": \"{0}\",", EscapeJson(gasFolder));
-                        sbJson.AppendFormat("\"email\": \"{0}\",", EscapeJson(gasEmail));
-                        sbJson.AppendFormat("\"size\": {0},", zipBytes.Length);
-                        sbJson.AppendFormat("\"data\": \"{0}\"", base64Zip);
-                        sbJson.Append("}");
-
-                        int statusCode;
-                        string resp = SendHttpRequest("POST", gasUrl, sbJson.ToString(), null, 60000, out statusCode);
-
-                        bool isSuccess = (statusCode == 200 || statusCode == 302) ||
-                                         (!string.IsNullOrEmpty(resp) && (resp.Contains("\"status\":\"success\"") || resp.Contains("drive.google.com")));
-
-                        if (!isSuccess && statusCode >= 400)
+                        if (targetMode == 0) // Google Apps Script Webhook
                         {
-                            throw new Exception(string.Format("Google 雲端回應 HTTP {0}: {1}", statusCode, resp));
-                        }
+                            this.BeginInvoke((Action)(() => {
+                                prgReportTask.Value = progressBase + 10;
+                                lblReportStatus.Text = string.Format("🚀 正在發送 {0} 至 Google 雲端 Webhook...", currentZipName);
+                                WriteReportLog(string.Format("正在透過 Managed TLS 1.2 發送 {0} 至 Google Apps Script...", currentZipName));
+                            }));
 
-                        // 嘗試解析 Google 雲端硬碟檔案網址
-                        string fileUrl = "";
-                        if (!string.IsNullOrEmpty(resp) && resp.Contains("fileUrl"))
-                        {
-                            int idx = resp.IndexOf("\"fileUrl\":");
-                            if (idx >= 0)
+                            byte[] zipBytes = File.ReadAllBytes(currentZipPath);
+                            string base64Zip = Convert.ToBase64String(zipBytes);
+
+                            // 建立 JSON 負載
+                            StringBuilder sbJson = new StringBuilder();
+                            sbJson.Append("{");
+                            sbJson.AppendFormat("\"filename\": \"{0}\",", EscapeJson(currentZipName));
+                            sbJson.AppendFormat("\"folder\": \"{0}\",", EscapeJson(gasFolder));
+                            sbJson.AppendFormat("\"email\": \"{0}\",", EscapeJson(gasEmail));
+                            sbJson.AppendFormat("\"size\": {0},", zipBytes.Length);
+                            sbJson.AppendFormat("\"data\": \"{0}\"", base64Zip);
+                            sbJson.Append("}");
+
+                            int statusCode;
+                            string resp = SendHttpRequest("POST", gasUrl, sbJson.ToString(), null, 60000, out statusCode);
+
+                            bool isSuccess = (statusCode == 200 || statusCode == 302) ||
+                                             (!string.IsNullOrEmpty(resp) && (resp.Contains("\"status\":\"success\"") || resp.Contains("drive.google.com")));
+
+                            if (!isSuccess && statusCode >= 400)
                             {
-                                int startQuote = resp.IndexOf('"', idx + 10);
-                                if (startQuote >= 0)
+                                throw new Exception(string.Format("Google 雲端回應 HTTP {0}: {1}", statusCode, resp));
+                            }
+
+                            // 嘗試解析 Google 雲端硬碟檔案網址
+                            string fileUrl = "";
+                            if (!string.IsNullOrEmpty(resp) && resp.Contains("fileUrl"))
+                            {
+                                int idx = resp.IndexOf("\"fileUrl\":");
+                                if (idx >= 0)
                                 {
-                                    int endQuote = resp.IndexOf('"', startQuote + 1);
-                                    if (endQuote > startQuote)
+                                    int startQuote = resp.IndexOf('"', idx + 10);
+                                    if (startQuote >= 0)
                                     {
-                                        fileUrl = resp.Substring(startQuote + 1, endQuote - startQuote - 1).Replace("\\/", "/");
+                                        int endQuote = resp.IndexOf('"', startQuote + 1);
+                                        if (endQuote > startQuote)
+                                        {
+                                            fileUrl = resp.Substring(startQuote + 1, endQuote - startQuote - 1).Replace("\\/", "/");
+                                        }
                                     }
                                 }
                             }
+
+                            this.BeginInvoke((Action)(() => {
+                                prgReportTask.Value = 100;
+                                lblReportStatus.Text = "🎉 Google Drive 上傳成功！";
+                                WriteReportLog("🎉 Google Drive 回應: " + (string.IsNullOrEmpty(resp) ? "已接收並確認建檔 (HTTP " + statusCode + ")" : resp));
+                                string msg = "🎉 測試報告已成功上傳至 Google 雲端硬碟！\n檔案名稱: " + currentZipName;
+                                if (!string.IsNullOrEmpty(fileUrl))
+                                {
+                                    msg += "\n\n檔案連結:\n" + fileUrl;
+                                }
+                                if (!string.IsNullOrEmpty(gasEmail))
+                                {
+                                    msg += "\n\n同時已自動透過 Email 寄出附件至: " + gasEmail;
+                                }
+                                MessageBox.Show(msg, "上傳完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            }));
                         }
+                        else if (targetMode == 1) // Firebase 雲端中心
+                        {
+                            this.BeginInvoke((Action)(() => {
+                                prgReportTask.Value = progressBase + 15;
+                                lblReportStatus.Text = string.Format("🚀 正在同步 {0} 至 Firebase 雲端中心...", currentZipName);
+                                WriteReportLog(string.Format("正在將報告 {0} 寫入 Firebase RTDB (/reports/latest.json)...", currentZipName));
+                            }));
 
-                        this.BeginInvoke((Action)(() => {
-                            prgReportTask.Value = 100;
-                            lblReportStatus.Text = "🎉 Google Drive 上傳成功！";
-                            WriteReportLog("🎉 Google Drive 回應: " + (string.IsNullOrEmpty(resp) ? "已接收並確認建檔 (HTTP " + statusCode + ")" : resp));
-                            string msg = "🎉 測試報告已成功上傳至 Google 雲端硬碟！\n檔案名稱: " + zipName;
-                            if (!string.IsNullOrEmpty(fileUrl))
-                            {
-                                msg += "\n\n檔案連結:\n" + fileUrl;
-                            }
-                            if (!string.IsNullOrEmpty(gasEmail))
-                            {
-                                msg += "\n\n同時已自動透過 Email 寄出附件至: " + gasEmail;
-                            }
-                            MessageBox.Show(msg, "上傳完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        }));
-                    }
-                    else if (targetMode == 1) // Firebase 雲端中心
-                    {
-                        this.BeginInvoke((Action)(() => {
-                            prgReportTask.Value = 65;
-                            lblReportStatus.Text = "🚀 正在同步至 Firebase 雲端中心...";
-                            WriteReportLog("正在將報告資訊與 Base64 寫入 Firebase RTDB (/reports/latest.json)...");
-                        }));
+                            byte[] zipBytes = File.ReadAllBytes(currentZipPath);
+                            string base64Zip = Convert.ToBase64String(zipBytes);
 
-                        byte[] zipBytes = File.ReadAllBytes(tempZipPath);
-                        string base64Zip = Convert.ToBase64String(zipBytes);
+                            StringBuilder sbReportJson = new StringBuilder();
+                            sbReportJson.Append("{");
+                            sbReportJson.AppendFormat("\"filename\": \"{0}\",", EscapeJson(currentZipName));
+                            sbReportJson.AppendFormat("\"timestamp\": \"{0}\",", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                            sbReportJson.AppendFormat("\"sizeBytes\": {0},", zipBytes.Length);
+                            sbReportJson.AppendFormat("\"filesCount\": {0},", needCompress ? selectedFiles.Count : 1);
+                            sbReportJson.AppendFormat("\"data\": \"{0}\"", base64Zip);
+                            sbReportJson.Append("}");
 
-                        StringBuilder sbReportJson = new StringBuilder();
-                        sbReportJson.Append("{");
-                        sbReportJson.AppendFormat("\"filename\": \"{0}\",", EscapeJson(zipName));
-                        sbReportJson.AppendFormat("\"timestamp\": \"{0}\",", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
-                        sbReportJson.AppendFormat("\"sizeBytes\": {0},", zipBytes.Length);
-                        sbReportJson.AppendFormat("\"filesCount\": {0},", selectedFiles.Count);
-                        sbReportJson.AppendFormat("\"data\": \"{0}\"", base64Zip);
-                        sbReportJson.Append("}");
+                            string fbUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/reports/latest.json";
+                            int fbStatus;
+                            SendHttpRequest("PUT", fbUrl, sbReportJson.ToString(), null, 40000, out fbStatus);
 
-                        string fbUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/reports/latest.json";
-                        int fbStatus;
-                        SendHttpRequest("PUT", fbUrl, sbReportJson.ToString(), null, 40000, out fbStatus);
+                            this.BeginInvoke((Action)(() => {
+                                prgReportTask.Value = 100;
+                                lblReportStatus.Text = "🎉 Firebase 雲端中心同步完成！";
+                                WriteReportLog("🎉 報告已推送至 Firebase 雲端中心，WebMonitor.html 可立即下載！");
+                                MessageBox.Show("🎉 測試報告已同步至 Firebase 雲端中心！\n\n遠端監看儀表板 (WebMonitor.html) 或手機端已可即時一鍵下載此 ZIP 封包。",
+                                    "同步完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            }));
+                        }
+                        else if (targetMode == 2) // NAS
+                        {
+                            this.BeginInvoke((Action)(() => {
+                                prgReportTask.Value = progressBase + 20;
+                                lblReportStatus.Text = string.Format("🚀 正在複製 {0} 至 NAS 共享目錄...", currentZipName);
+                            }));
 
-                        this.BeginInvoke((Action)(() => {
-                            prgReportTask.Value = 100;
-                            lblReportStatus.Text = "🎉 Firebase 雲端中心同步完成！";
-                            WriteReportLog("🎉 報告已推送至 Firebase 雲端中心，WebMonitor.html 可立即下載！");
-                            MessageBox.Show("🎉 測試報告已同步至 Firebase 雲端中心！\n\n遠端監看儀表板 (WebMonitor.html) 或手機端已可即時一鍵下載此 ZIP 封包。",
-                                "同步完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        }));
-                    }
-                    else if (targetMode == 2) // NAS
-                    {
-                        this.BeginInvoke((Action)(() => {
-                            prgReportTask.Value = 70;
-                            lblReportStatus.Text = "🚀 正在複製至 NAS 共享目錄...";
-                        }));
+                            if (!Directory.Exists(nasPath)) Directory.CreateDirectory(nasPath);
+                            string destZip = Path.Combine(nasPath, currentZipName);
+                            File.Copy(currentZipPath, destZip, true);
 
-                        if (!Directory.Exists(nasPath)) Directory.CreateDirectory(nasPath);
-                        string destZip = Path.Combine(nasPath, zipName);
-                        File.Copy(tempZipPath, destZip, true);
-
-                        this.BeginInvoke((Action)(() => {
-                            prgReportTask.Value = 100;
-                            lblReportStatus.Text = "🎉 已備份至 NAS 共享目錄！";
-                            WriteReportLog("✅ 成功複製報告至: " + destZip);
-                            MessageBox.Show("✅ 測試報告已成功備份至指定網路路徑：\n" + destZip, "備份成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        }));
-                    }
-                    else if (targetMode == 3) // 本機 ZIP
-                    {
-                        this.BeginInvoke((Action)(() => {
-                            prgReportTask.Value = 100;
-                            lblReportStatus.Text = "🎉 本機 ZIP 壓縮完成！";
-                            WriteReportLog("✅ 本機 ZIP 已建立: " + tempZipPath);
-                            MessageBox.Show("✅ 測試報告已於 logs/ 目錄封裝完成：\n" + tempZipPath, "壓縮完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        }));
+                            this.BeginInvoke((Action)(() => {
+                                prgReportTask.Value = 100;
+                                lblReportStatus.Text = "🎉 已備份至 NAS 共享目錄！";
+                                WriteReportLog("✅ 成功複製報告至: " + destZip);
+                                MessageBox.Show("✅ 測試報告已成功備份至指定網路路徑：\n" + destZip, "備份成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            }));
+                        }
+                        else if (targetMode == 3) // 本機 ZIP
+                        {
+                            this.BeginInvoke((Action)(() => {
+                                prgReportTask.Value = 100;
+                                lblReportStatus.Text = "🎉 本機 ZIP 準備完成！";
+                                WriteReportLog("✅ 本機 ZIP: " + currentZipPath);
+                                MessageBox.Show("✅ 測試報告已於 logs/ 目錄備妥：\n" + currentZipPath, "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            }));
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -1283,7 +1351,6 @@ namespace DynamometerHMI
                 }
             });
         }
-
 
         public void WriteReportLog(string message)
         {
