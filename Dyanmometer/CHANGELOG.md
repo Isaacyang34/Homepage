@@ -8,7 +8,58 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.79 (beta) | v2.10.39 | 2026-09-11 | S6 週期工作制溫升極值監控、平衡週期預估與 +1 追加確認週期雙保險引擎：(1)週期雙極溫全息監控：即時追蹤 T1 加載結束之「最高溫 (Peak)」與 T2 空載冷卻結束之「冷卻最後低溫 (Trough)」；(2)平衡週期預估演算：導入一階熱動態動態模型，依據週期峰值漂移率或滑動斜率精準預估約需幾次週期才能達成平衡；(3)30 分鐘穩定判定後 +1 追加確認週期：初達 30 分鐘穩定門檻時不驟停，自動追加 1 個確認週期進行複核；若確認週期溫差 <= 1.0℃ 則圓滿確立停機，若否則自動延展週期繼續測試；(4)WinForms HMI 狀態列與 Web 特性分析儀工作制面板全息雙軌實裝 |
 | V2.78 (beta) | v2.10.38 | 2026-09-11 | S1 與 S2 工作制溫升斜率 (dT/dt) 即時計算與一階熱動態預測引擎：(1)實裝 IEC 60034-1 / CNS 14400 最小平方法即時溫升斜率 ($dT/dt$, °C/min 及 °C/30min 折算)；(2)S1 連續工作制實裝熱平衡預估完成時間演算 ($t_{\text{rem}} = \tau \ln(S / 0.0333)$，預測到達 ≤1.0°C/30min 之時長與時刻)；(3)S2 短時工作制同步採用一階熱動態衰減模型預估到達設定時長 (如 30m) 之最終溫度與超溫告警 ($\Delta T_{\text{rem}} = S \cdot \tau (1 - e^{-\Delta t/\tau})$)；(4)HMI WinForms 雙向即時標題、狀態列與 Web 特性分析儀工作制專屬診斷面板全息實裝 |
+
+---
+
+## [V2.79 beta / v2.10.39] - 2026-09-11
+
+### 🎯 現象與佐證 (Log-First Verbatim Excerpts)
+1. **使用者回報指示**：
+   - 「S6也套用相同的方法來預估大約在幾次才會平衡」
+   - 「S6應該要監控最高溫以及相對低溫，冷卻時間的最後低溫。」
+   - 「另外S6的30分鐘穩定判定，再判定穩定後再多做一個周期來再次確認，若沒有就再繼續測試」
+2. **實機與源碼架構佐證**：
+   - 檢視 `Dynamometer_TestDuty.cs` 原始邏輯：S6 測試時僅記錄單一全域最高溫 (`s6CurrentCyclePeakTemp`)，缺乏對 T2 空載自冷階段結束瞬間「冷卻時間最後低溫 (End-of-Cooling Trough)」的精確採樣與歷史追蹤；
+   - S6 原始熱平衡判定於累積達 30 分鐘（連續 3 個 10 分鐘週期）且峰值溫差小於等於 1.0℃ 時便立即停機，缺乏防誤判之「+1 追加確認週期」複核機制，易因偶發性溫度波動或載台動態暫態造成熱平衡過早誤判；
+   - 缺乏將 S1/S2 之一階熱動態模型映射至 S6 週期次數之預估算法，測試人員無法預期還需運轉幾次週期才能達到熱平衡；
+   - 檢視 `Motor_Characteristics_Viewer.html`：工作制診斷面板未將 S6 週期最高溫與冷卻最後低溫獨立標註，動態預測欄位亦未呈現預計平衡週期數與追加確認狀態。
+
+---
+
+### 💡 致命根因 (Root Cause Analysis)
+1. **缺乏冷卻結束瞬態極值採樣隊列 (Cooling-End Trough Tracking Queue)**：
+   - 在週期交替瞬間（`s6CycleElapsedSec >= totalCycleSec`），溫度正處於 T2 空載自冷之最低波谷點；原系統未將此時點溫度提取為 `finalCoolingTrough` 並存入歷程佇列，導致馬達在負載與空載循環下的發熱/散熱振幅 ($\Delta T = T_{\text{peak}} - T_{\text{trough}}$) 無從評估。
+2. **缺乏帶有追加複核狀態的雙階穩定狀態機 (Two-Stage Verification State Machine)**：
+   - 原熱平衡判定採用單步阻斷式邏輯，一旦檢驗 `diff1 <= 1.0 && diff2 <= 1.0` 即刻呼叫 `StartGradualAutoStop`，無法在初次達標後多運轉 1 個週期進行二次確認，亦無確認失敗時自動延展總週期以繼續測試的自適應調度機制。
+3. **缺乏週期步長與熱時間常數之離散週期預估映射**：
+   - S6 週期長度為 $T_{\text{cycle}}$（例如 10 分鐘）；各週期峰值漂移率為 $S_{\text{peak}} = \Delta P / T_{\text{cycle}}$；原系統未將連續時間剩餘預估 $t_{\text{rem}} = \tau \ln(S / 0.0333)$ 離散化為週期數 $\lceil t_{\text{rem}} / T_{\text{cycle}} \rceil$。
+
+---
+
+### 🚀 精確修復方案 (Accurate Solution & Release Verifications)
+1. **實裝 S6 雙極溫監控引擎 (`Dynamometer_TestDuty.cs` & `Dynamometer_HMI_WinForms.cs`)**：
+   - 新增 `s6TroughTempHistory`、`s6CurrentCycleTroughTemp`、`s6LastCyclePeakTemp` 與 `s6LastCycleTroughTemp`；
+   - 於 T1 加載與 T2 冷卻期間連續追蹤極值；在週期交替瞬間精確鎖定 `finalCoolingTrough`，記錄於統一日誌 `S6_CYCLE_TEMP`，並於 UI 即時呈現：`週期最高: XX.X℃ | 冷卻最後: YY.Y℃ (溫差幅 ΔT: ZZ.Z℃)`。
+2. **實裝 S6 熱平衡預估週期數演算法**：
+   - 提取相鄰週期峰值溫升率 $S_{\text{peak}} = (P_k - P_{k-1}) / T_{\text{cycle}}$（或初期 120s 滑動斜率）；
+   - 以馬達熱動態時間常數 $\tau \approx 30.0\text{ min}$ 演算剩餘時長 $t_{\text{rem}} = \tau \ln(S / 0.0333)$，精確折算剩餘週期數 $\text{remCycles} = \max(1, \lceil t_{\text{rem}} / T_{\text{cycle}} \rceil)$ 與預計平衡週期 $\text{estBalanceCycle} = \text{cycleIndex} + \text{remCycles}$。
+3. **實裝 30 分鐘穩定判定後 +1 追加確認週期雙保險機制**：
+   - 導入 `s6IsVerifyingConfirmationCycle` 與 `s6ConfirmationCycleIndex` 狀態變數；
+   - **第一階段 (初達 30 分鐘穩定)**：當累積 30 分鐘之峰值溫差均 $\le 1.0^\circ\text{C}$ 時，不立即停機，切換進入追加確認狀態，自動擴展 `totalFormalCycles = Math.Max(totalFormalCycles, s6ConfirmationCycleIndex)`，UI 提示：`⏳ 30分已穩定！追加第 X 週期覆核中 (需溫差 <= 1.0℃)`；
+   - **第二階段 (追加確認週期驗證)**：
+     - **確認通過 ($|P_{\text{confirm}} - P_{\text{prev}}| \le 1.0^\circ\text{C}$)**：記錄 `S6_CONFIRM_PASS`，宣告熱平衡正式確立並自動平滑卸載停機；
+     - **確認未過 ($|P_{\text{confirm}} - P_{\text{prev}}| > 1.0^\circ\text{C}$)**：記錄 `S6_CONFIRM_FAIL`，解除確認狀態，自動展延總週期數（`totalFormalCycles = current + 3`），繼續測試累積週期直到下一次重新穩定！
+4. **Web 特性分析儀與示範資料庫同步升級 (`Motor_Characteristics_Viewer.html`)**：
+   - `parseDynamometerDutyCsv` 內建週期切割器，精確解析各週期 $T_{\text{peak}}$ 與冷卻最後 $T_{\text{trough}}$，動態推算預估平衡週期數與 30 分鐘穩定+追加確認狀態；
+   - 工作制診斷橫幅動態呈現 S6 最高溫、冷卻最後低溫與追加確認標籤；
+   - 經瀏覽器自動化測試實測驗證：即時斜率 $+0.475^\circ\text{C}/\text{min}$、預估約 2 週期後達平衡 (第 3 週期)、週期最高 58.0°C、冷卻最後 53.7°C。
+5. **編譯打包與發布驗證**：
+   - 經由 `csc.exe` (x86 .NET 4.0 WinXP 相容模式) 編譯無誤；
+   - 執行 `package_release.ps1 -Version 2.5.0` 完成打包發布至 `Release/Dynamometer_HMI_V2.5.0_Portable/`，自動滾動備份舊版並推播至 GitHub `gh-pages`。
+
+---
 | V2.77 (beta) | v2.10.37 | 2026-09-11 | TN 與 DUTY 溫度監控介面時間軸控制列全面實裝與雙向聯動：(1)於 T-N 測試頁頂部 `pnlTnTempHeader` 與 Duty 工作制測試頁頂部 `pnlTempHeader` 實裝專屬 `⏱️ 時間軸: [➖] [下拉選單] [➕]` 控制列；(2)擴充時間長度檔位至 30s、1m、2m、5m、10m、30m、1h、2h 與「全程 (全部)」，並建立 24 小時連續取樣記憶體保護機制 (86,400 點)；(3)重構 `GbdTemperatureTrendControl` 繪圖引擎支援自適應動態跨度，根治分母為 0 與歷史樣本遭強行修剪之缺陷；(4)全域 `sharedTestTempTrend` 與各分頁時間軸控制項雙向全息即時同步 (TimeSpanChanged) |
 
 ---
