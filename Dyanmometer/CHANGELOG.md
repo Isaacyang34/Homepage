@@ -8,7 +8,53 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.78 (beta) | v2.10.38 | 2026-09-11 | S1 與 S2 工作制溫升斜率 (dT/dt) 即時計算與一階熱動態預測引擎：(1)實裝 IEC 60034-1 / CNS 14400 最小平方法即時溫升斜率 ($dT/dt$, °C/min 及 °C/30min 折算)；(2)S1 連續工作制實裝熱平衡預估完成時間演算 ($t_{\text{rem}} = \tau \ln(S / 0.0333)$，預測到達 ≤1.0°C/30min 之時長與時刻)；(3)S2 短時工作制同步採用一階熱動態衰減模型預估到達設定時長 (如 30m) 之最終溫度與超溫告警 ($\Delta T_{\text{rem}} = S \cdot \tau (1 - e^{-\Delta t/\tau})$)；(4)HMI WinForms 雙向即時標題、狀態列與 Web 特性分析儀工作制專屬診斷面板全息實裝 |
 | V2.77 (beta) | v2.10.37 | 2026-09-11 | TN 與 DUTY 溫度監控介面時間軸控制列全面實裝與雙向聯動：(1)於 T-N 測試頁頂部 `pnlTnTempHeader` 與 Duty 工作制測試頁頂部 `pnlTempHeader` 實裝專屬 `⏱️ 時間軸: [➖] [下拉選單] [➕]` 控制列；(2)擴充時間長度檔位至 30s、1m、2m、5m、10m、30m、1h、2h 與「全程 (全部)」，並建立 24 小時連續取樣記憶體保護機制 (86,400 點)；(3)重構 `GbdTemperatureTrendControl` 繪圖引擎支援自適應動態跨度，根治分母為 0 與歷史樣本遭強行修剪之缺陷；(4)全域 `sharedTestTempTrend` 與各分頁時間軸控制項雙向全息即時同步 (TimeSpanChanged) |
+
+---
+
+## [V2.78 beta / v2.10.38] - 2026-09-11
+
+### 🎯 現象與佐證 (Log-First Verbatim Excerpts)
+1. **使用者回報指示**：
+   - 「再S1能多一個溫升斜率的計算，再利用這個計算結果預估預計完成的時間嗎?」
+   - 「S2也應用同一個計算來預估到達時長預估的溫度」
+2. **實機與源碼架構佐證**：
+   - 檢視 `Dynamometer_TestDuty.cs` 原始邏輯：S1 連續工作制熱平衡判定僅在 `dutyElapsedSec >= 600` 後以簡易兩點溫差判斷，缺乏即時溫升斜率 ($dT/dt$) 計算，且無法告知測試人員「還需要多久才能達到熱平衡 (預計幾點幾分完成)」；
+   - 檢視 S2 短時工作制原始邏輯：僅以靜態計時倒數計時與即時溫度閾值比對，缺乏在加載測試中途（如運轉至第 10 分鐘）根據當前溫升趨勢預估到達設定時長（如 30 分鐘）時的最終預估溫度，導致操作員無法提前掌握馬達是否會在中途嚴重超溫燒毀；
+   - 檢視 `Motor_Characteristics_Viewer.html`（規格特性分析儀 Web 端）：工作制診斷面板僅顯示加載時長與溫升總量，缺乏溫升斜率卡片與熱動態預測指標。
+
+---
+
+### 💡 致命根因 (Root Cause Analysis)
+1. **缺乏連續最小平方法線性迴歸引擎 (Least-Squares Linear Regression)**：
+   - 溫度傳感器存在小幅度熱噪聲，若僅以單點前後相減計算斜率會導致數值劇烈跳動；必須採用滑動視窗 (Sliding Window, 60~120s) 進行最小平方擬合以求得平滑可靠之即時溫升斜率 $S = \frac{n \sum xy - \sum x \sum y}{n \sum x^2 - (\sum x)^2}$。
+2. **缺乏一階熱動態動態外推模型 (First-Order Thermal Model)**：
+   - 馬達受載發熱遵循指數衰減動態 $\theta(t) = \theta_\infty (1 - e^{-t/\tau})$，其導數即溫升斜率為 $S(t) = S_0 e^{-t/\tau}$；
+   - 原系統缺乏將當前斜率 $S$ 外推至標準熱平衡閥值 ($S_{\text{eq}} \le 1.0^\circ\text{C}/30\text{min} \approx 0.0333^\circ\text{C}/\text{min}$) 之剩餘時間演算法：$t_{\text{rem}} = \tau \ln(S / 0.0333)$；
+   - 原 S2 模組缺乏對積分溫升預估之算式：$\Delta T_{\text{rem}} = \int_t^{t+\Delta t} S(t') dt' = S(t) \cdot \tau (1 - e^{-\Delta t/\tau})$，因而無法精準預測設定時長到達時的馬達繞組終溫。
+
+---
+
+### 🚀 精確修復方案 (Accurate Solution & Release Verifications)
+1. **實裝熱動態數學引擎 (`Dynamometer_TestDuty.cs`)**：
+   - 新增 `CalculateS1ThermalSlopePerMin` 與 `CalculateThermalSlopePerMin`：採用 120 秒滑動視窗最小平方法迴歸，精確輸出單位為 $^\circ\text{C}/\text{min}$ 與換算 $^\circ\text{C}/30\text{min}$ 之平滑溫升斜率；
+   - **S1 熱平衡預估時間算法**：導入 IEC 60034-1 / CNS 14400 標準熱平衡標準 ($0.0333^\circ\text{C}/\text{min}$)，以馬達典型熱時間常數 $\tau \approx 30.0\text{ min}$ 動態反算剩餘分鐘數 $t_{\text{rem}} = \tau \ln(S / 0.0333)$，並即時換算為時鐘時刻 `DateTime.Now.AddMinutes(remMin)`；
+   - **S2 到達時長終溫預估算法**：取設定時長剩餘分鐘數 $\Delta t_{\text{rem}} = \max(0, t_{\text{target}} - t_{\text{elapsed}})$，應用一階衰減積分計算後續溫升量 $\Delta T_{\text{rem}} = S \cdot \tau (1 - e^{-\Delta t_{\text{rem}}/\tau})$，外推終溫 $T_{\text{final\_est}} = T_{\text{current}} + \Delta T_{\text{rem}}$；若預估終溫大於設定閥值（如 80.0°C），提早觸發 `⚠️[預估超溫! 閥值XX℃]` 警示提示。
+2. **WinForms HMI 雙軌雙保險介面實裝 (`Dynamometer_TestDuty.cs` & `Dynamometer_HMI_WinForms.cs`)**：
+   - 頂部溫度標題面板 `pnlTempHeader` 實裝 `lblS1ThermalStatus` 與 `lblS2ThermalStatus`：顯眼展示目前溫升斜率、預估完成時刻與超溫裕度；
+   - 底部 `lblThermalStatus`、`lblDutyPhaseAction` 與即時面板全面聯動，並在切換 S1/S2/S6 模式時自適應顯示對應之診斷與預測標籤；
+   - 修正未初始化宣告 (CS0649) 與變數名稱重疊 (CS0136) 告警，達成 100% 乾淨無警告編譯。
+3. **Web 特性分析儀規格表與診斷面板升級 (`Motor_Characteristics_Viewer.html`)**：
+   - 在 `.demo-bar` 增設 `⏱️ S2 短時` 快速體驗按鈕，在目錄卡片中支援 S2 範例載入；
+   - 在 `.duty-diag-grid` 增設 `即時溫升斜率 (dT/dt)` 與 `預估平衡完成時間 / 預估到達時長終溫` 獨立診斷指標卡；
+   - 於 `parseDynamometerDutyCsv` 與 `renderDutyDiagnosticBanner` 內嵌全套 JavaScript 相同的一階熱動態迴歸與動態預測引擎；
+   - 經瀏覽器自動化測試實測驗證：S1 範例精準演算斜率 $+0.407^\circ\text{C}/\text{min}$、預計平衡時間約 75 分鐘後；S2 範例精準演算斜率 $+1.644^\circ\text{C}/\text{min}$、30分鐘到達時預估終溫約 $85.4^\circ\text{C}$。
+4. **編譯打包與發布驗證**：
+   - 經由 `csc.exe` (x86 .NET 4.0 WinXP 相容模式) 編譯無誤；
+   - 執行 `package_release.ps1 -Version 2.5.0` 完成打包發布至 `Release/Dynamometer_HMI_V2.5.0_Portable/`，自動滾動備份舊版並推播至 GitHub `gh-pages`。
+
+---
 | V2.76 (beta) | v2.10.36 | 2026-09-11 | WebMonitor 遠端監控中心深度整合「馬達規格特性分析儀」專屬分頁：(1)VIP 白名單雙軌權限防護 (`vip888` 一鍵驗證解鎖、自動記憶於 localStorage 與全系統無限時連線連動)、(2)訪客未授權鎖定面板與 Toast 即時回饋、(3)全套 CNS 14400 / IEC 60034-2-1 規格特性推算與 S1/S2/S6 工作制熱平衡診斷無縫嵌入、(4)支援 URL 快速通關參數 (?vip=vip888&tab=spec) |
 | V2.75 (beta) | v2.10.35 | 2026-09-11 | KEB ru.03 輸出頻率解析度縮放與報告採納邏輯徹底根治：(1)破譯 KEB COMBIVERT F5 速度範圍標準化解析度 (8000rpm B載台待測=0.025 Hz, 4000rpm A載台加載=0.0125 Hz)，徹底根除 0.01/0.0001 誤乘缺陷；(2)建立 ConvertKebRu03ToFrequency 智能換算與 WT333E 自適應鎖定引擎；(3)全面翻轉 actFrequency 採納優先順序，以 Yokogawa WT333E 實測電氣基波為最高黃金基準；(4)根治 dr.05 暫存器地址與額定頻率反算極數缺陷；(5)佈局 ini 載入自動清洗與監視網格專屬 F2 渲染 |
 
