@@ -170,6 +170,7 @@ namespace DynamometerHMI
             lblS2TempThresh = new Label() { Text = "閥值(°C):", Location = new Point(190, 148), AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
             numS2TempThreshold = CreateNumericUpDown(new Point(270, 144), 75, 20, 150, 80, 1, 0.5m);
             numS2TempThreshold.Font = new Font("微軟正黑體", 12f, FontStyle.Bold);
+            lblS2TempRealtime = new Label() { Text = "實測: --.- ℃", Location = new Point(355, 148), AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold), ForeColor = Color.FromArgb(30, 64, 175) };
             chkS2TempStop.CheckedChanged += (s, e) => {
                 cmbS2TempCh.Enabled = chkS2TempStop.Checked;
                 numS2TempThreshold.Enabled = chkS2TempStop.Checked;
@@ -384,7 +385,7 @@ namespace DynamometerHMI
                 lMode, cmbDutyMode, lRole, cmbDutyRole,
                 lSpd, numDutySpeed, lTrq, numDutyTorque,
                 chkS1ThermalStop, btnS1SelectChannels, lblS1SelectedChHint, lblDutyAbStatus,
-                lblS2Duration, numS2DurationMin, chkS2TempStop, lblS2TempCh, cmbS2TempCh, lblS2TempThresh, numS2TempThreshold,
+                lblS2Duration, numS2DurationMin, chkS2TempStop, lblS2TempCh, cmbS2TempCh, lblS2TempThresh, numS2TempThreshold, lblS2TempRealtime,
                 lblS2AnchorTitle, lblS2AnchorSy52, numS2AnchorSy52, lblS2AnchorCs18, numS2AnchorCs18, btnS2RecordAnchor, btnS2ResetAnchor,
                 lblS6CycleLabel, numS6CycleMin, lblS6EdLabel, numS6Ed, lblS6CyclesLabel, numS6Cycles, lblS6CalcInfo,
                 lblS6TempCh, cmbS6TempCh, lblS6TempChHint,
@@ -422,6 +423,24 @@ namespace DynamometerHMI
                 AutoSize = true,
                 Font = new Font("微軟正黑體", 13.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(30, 64, 175)
+            };
+            lblS1ThermalStatus = new Label()
+            {
+                Text = "S1 溫升斜率: 採樣中 | 預估熱平衡: 採樣中...",
+                Location = new Point(220, 30),
+                AutoSize = true,
+                Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold),
+                ForeColor = Color.DarkOrange,
+                Visible = false
+            };
+            lblS2ThermalStatus = new Label()
+            {
+                Text = "S2 溫升斜率: 採樣中 | 設定時長預估終溫: 採樣中...",
+                Location = new Point(220, 30),
+                AutoSize = true,
+                Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(30, 64, 175),
+                Visible = false
             };
             lblS6ThermalStatus = new Label()
             {
@@ -505,7 +524,7 @@ namespace DynamometerHMI
 
             pnlDutyTimeSpan.Controls.AddRange(new Control[] { lblDutyTimeTitle, btnDutyTimeMinus, cmbDutyTimeSpan, btnDutyTimePlus });
             pnlTempHeader.Controls.Add(pnlDutyTimeSpan);
-            pnlTempHeader.Controls.AddRange(new Control[] { lblDutyTempTrendTitle, lblDutyTempRealtimeVal, lblS6ThermalStatus, lblDutyAllChTempsDisp });
+            pnlTempHeader.Controls.AddRange(new Control[] { lblDutyTempTrendTitle, lblDutyTempRealtimeVal, lblS1ThermalStatus, lblS2ThermalStatus, lblS6ThermalStatus, lblDutyAllChTempsDisp });
 
             // 專屬動態溫度曲線：與 TN / 空載 共用 sharedTestTempTrend，當使用者切換至此分頁時由 AttachSharedTempTrendTo 動態掛載
 
@@ -720,20 +739,30 @@ namespace DynamometerHMI
             if (btnS6ResetAnchor != null) btnS6ResetAnchor.Visible = isS6;
             if (lblS6AnchorStatus != null) lblS6AnchorStatus.Visible = isS6;
 
-            // 右側溫度波形指示與 S6 專屬超溫/熱平衡面板顯隱
+            // 右側溫度波形指示與 S1/S2/S6 專屬超溫/熱平衡面板顯隱
+            if (lblS1ThermalStatus != null) lblS1ThermalStatus.Visible = isS1;
+            if (lblS2ThermalStatus != null) lblS2ThermalStatus.Visible = isS2;
             if (lblS6ThermalStatus != null) lblS6ThermalStatus.Visible = isS6;
             if (pnlS6Overtemp != null) pnlS6Overtemp.Visible = isS6;
+
+            if (lblThermalStatus != null)
+            {
+                if (isS1) lblThermalStatus.Text = "S1 熱平衡判定: 準備中 (30m溫差 < 1.0℃ 自動停機，含即時溫升斜率與完成時間預估)";
+                else if (isS2) lblThermalStatus.Text = "S2 溫升預估: 準備中 (依一階熱模型即時預估到達設定時長時之最終溫度)";
+                else if (isS6) lblThermalStatus.Text = "S6 熱平衡判定: 準備中 (連續 3 週期峰值溫差 <= 1.0℃ 自動停機)";
+                lblThermalStatus.ForeColor = Color.FromArgb(71, 85, 105);
+            }
 
             if (lblDutyTempTrendTitle != null)
             {
                 if (isS1)
                 {
-                    lblDutyTempTrendTitle.Text = "目前監控: S1 多通道最高溫 (熱平衡判定: 30min溫差<1.0℃)";
+                    lblDutyTempTrendTitle.Text = "目前監控: S1 多通道最高溫 (熱平衡判定: 30min溫差<1.0℃，含預估完成時間)";
                 }
                 else if (isS2)
                 {
                     int ch = (cmbS2TempCh != null && cmbS2TempCh.SelectedIndex >= 0) ? cmbS2TempCh.SelectedIndex + 1 : 1;
-                    lblDutyTempTrendTitle.Text = string.Format("目前監控: S2 通道 {0} (純趨勢波形，不判定熱平衡)", ch);
+                    lblDutyTempTrendTitle.Text = string.Format("目前監控: S2 通道 {0} (短時運轉，含溫升斜率與到達時長預估終溫)", ch);
                 }
                 else if (isS6)
                 {
@@ -1394,6 +1423,7 @@ namespace DynamometerHMI
             StartAutoRawRecordingWithTag(dutyTag);
 
             if (s1TempHistory != null) s1TempHistory.Clear();
+            if (s2TempHistory != null) s2TempHistory.Clear();
 
             double targetSpd = (numDutySpeed != null && numDutySpeed.Value > 0) ? (double)numDutySpeed.Value : 1000.0;
             double targetTrq = (numDutyTorque != null && numDutyTorque.Value > 0) ? (double)numDutyTorque.Value : 15.0;
@@ -1567,6 +1597,75 @@ namespace DynamometerHMI
             webRemotePhaseText  = lblDutyPhaseAction.Text;
 
             dutyTimer.Start();
+        }
+
+        /// <summary>
+        /// 計算 S1 所有勾選監測通道最高溫在最近 windowSec 秒內的溫升斜率 (°C/min)
+        /// </summary>
+        private double CalculateS1ThermalSlopePerMin(List<KeyValuePair<DateTime, double[]>> history, bool[] monitoredChs, int windowSec)
+        {
+            if (history == null || history.Count < 2) return 0.0;
+            DateTime now = history[history.Count - 1].Key;
+            DateTime cutoff = now.AddSeconds(-windowSec);
+            var window = history.Where(x => x.Key >= cutoff).OrderBy(x => x.Key).ToList();
+            if (window.Count < 2) return 0.0;
+
+            int n = window.Count;
+            double sumT = 0, sumY = 0, sumTY = 0, sumT2 = 0;
+            for (int i = 0; i < n; i++)
+            {
+                double t = (window[i].Key - cutoff).TotalSeconds;
+                double maxT = double.MinValue;
+                double[] arr = window[i].Value;
+                if (arr != null)
+                {
+                    for (int ch = 0; ch < 20 && ch < arr.Length; ch++)
+                    {
+                        if (monitoredChs != null && ch < monitoredChs.Length && monitoredChs[ch])
+                        {
+                            if (arr[ch] > maxT) maxT = arr[ch];
+                        }
+                    }
+                }
+                if (maxT == double.MinValue) maxT = 0;
+                double y = maxT;
+                sumT += t;
+                sumY += y;
+                sumTY += t * y;
+                sumT2 += t * t;
+            }
+            double denom = n * sumT2 - sumT * sumT;
+            if (Math.Abs(denom) < 1e-9) return 0.0;
+            double slopePerSec = (n * sumTY - sumT * sumY) / denom;
+            return slopePerSec * 60.0; // °C/min
+        }
+
+        /// <summary>
+        /// 計算單通道溫度歷史佇列在最近 windowSec 秒內的溫升斜率 (°C/min)
+        /// </summary>
+        private double CalculateThermalSlopePerMin(List<KeyValuePair<DateTime, double>> history, int windowSec)
+        {
+            if (history == null || history.Count < 2) return 0.0;
+            DateTime now = history[history.Count - 1].Key;
+            DateTime cutoff = now.AddSeconds(-windowSec);
+            var window = history.Where(x => x.Key >= cutoff).OrderBy(x => x.Key).ToList();
+            if (window.Count < 2) return 0.0;
+
+            int n = window.Count;
+            double sumT = 0, sumY = 0, sumTY = 0, sumT2 = 0;
+            for (int i = 0; i < n; i++)
+            {
+                double t = (window[i].Key - cutoff).TotalSeconds;
+                double y = window[i].Value;
+                sumT += t;
+                sumY += y;
+                sumTY += t * y;
+                sumT2 += t * t;
+            }
+            double denom = n * sumT2 - sumT * sumT;
+            if (Math.Abs(denom) < 1e-9) return 0.0;
+            double slopePerSec = (n * sumTY - sumT * sumY) / denom;
+            return slopePerSec * 60.0; // °C/min
         }
 
         private void DutyTimer_Tick(object sender, EventArgs e)
@@ -2448,12 +2547,46 @@ namespace DynamometerHMI
                         }
                     }
 
+                    // ── S1 即時溫升斜率與預估完成時間演算 ──
+                    double s1Slope = CalculateS1ThermalSlopePerMin(s1TempHistory, s1MonitoredChannels, 120);
+                    double s1DeltaT30m = s1Slope * 30.0;
+                    string s1EstText = "";
+                    if (dutyElapsedSec < 60)
+                    {
+                        s1EstText = "預估熱平衡: 採樣建立中...";
+                    }
+                    else if (s1Slope <= 0.0333)
+                    {
+                        if (dutyElapsedSec >= 1800)
+                        {
+                            s1EstText = "★已達熱平衡 (30m溫差<1℃)";
+                        }
+                        else
+                        {
+                            int remTo30m = (1800 - dutyElapsedSec) / 60;
+                            s1EstText = string.Format("斜率已達標，滿30m確認 (剩餘 {0} 分鐘)", Math.Max(1, remTo30m));
+                        }
+                    }
+                    else
+                    {
+                        // 依一階熱模型 S(t) = S0 * exp(-t/tau)，熱平衡點 S_eq = 0.0333 ℃/min
+                        double tau = 30.0; // 分鐘
+                        double remMin = Math.Max(1.0, Math.Min(300.0, tau * Math.Log(s1Slope / 0.0333)));
+                        DateTime estComplete = DateTime.Now.AddMinutes(remMin);
+                        s1EstText = string.Format("預估熱平衡: 約 {0:F0} 分鐘後 ({1:HH:mm})", remMin, estComplete);
+                    }
+
                     if (dutyElapsedSec < 1800 || baselineSample.Value == null)
                     {
-                        string warmUpMsg = string.Format("熱平衡判定: 採樣累積中 ({0:D2}:{1:D2}/30:00，滿 30 分鐘後開始溫差比對)", elapsedMins, elapsedSecs);
+                        string warmUpMsg = string.Format("S1 熱平衡: 採樣中 ({0:D2}:{1:D2}/30:00) | 斜率: {2:+0.00;-0.00}℃/m (30m: {3:+0.1;-0.1}℃) | {4}",
+                            elapsedMins, elapsedSecs, s1Slope, s1DeltaT30m, s1EstText);
                         lblThermalStatus.Text = warmUpMsg;
                         lblThermalStatus.ForeColor = Color.DarkOrange;
-                        if (lblS1ThermalStatus != null) lblS1ThermalStatus.Text = string.Format("熱平衡: 累積 {0}m / 需 30m 比對", elapsedMins);
+                        if (lblS1ThermalStatus != null)
+                        {
+                            lblS1ThermalStatus.Text = string.Format("溫升斜率: {0:+0.00;-0.00}℃/m (30m: {1:+0.1;-0.1}℃) | {2}", s1Slope, s1DeltaT30m, s1EstText);
+                            lblS1ThermalStatus.ForeColor = (s1Slope <= 0.0333) ? Color.SeaGreen : Color.DarkOrange;
+                        }
                     }
                     else
                     {
@@ -2482,12 +2615,16 @@ namespace DynamometerHMI
                             }
                         }
 
-                        string thermalSummary = string.Format("熱平衡判定: 最大ΔT = {0:F2}℃ (CH{1}) | 判定: {2}",
-                            maxDeltaT, maxCh + 1, allPass ? "★ 全通道已達標 (<1.0℃)" : "升溫中 (>=1.0℃)");
+                        string thermalSummary = string.Format("S1 熱平衡: 實測30m最大ΔT = {0:F2}℃ (CH{1}) | 斜率: {2:+0.00;-0.00}℃/m | {3}",
+                            maxDeltaT, maxCh + 1, s1Slope, allPass ? "★ 全通道已達標 (<1.0℃)" : s1EstText);
                         lblThermalStatus.Text = thermalSummary;
                         lblThermalStatus.ForeColor = allPass ? Color.SeaGreen : Color.DarkOrange;
                         if (lblS1ThermalStatus != null)
-                            lblS1ThermalStatus.Text = string.Format("熱平衡: 最大ΔT={0:F1}℃ (CH{1}) {2}", maxDeltaT, maxCh + 1, allPass ? "★達標" : "比對中");
+                        {
+                            lblS1ThermalStatus.Text = string.Format("溫升斜率: {0:+0.00;-0.00}℃/m (30m實測: {1:F1}℃) | {2}",
+                                s1Slope, maxDeltaT, allPass ? "★全通道達標" : s1EstText);
+                            lblS1ThermalStatus.ForeColor = allPass ? Color.SeaGreen : Color.DarkOrange;
+                        }
 
                         if (allPass)
                         {
@@ -2703,9 +2840,63 @@ namespace DynamometerHMI
                     if (lblS2TempRealtime != null)
                         lblS2TempRealtime.Text = string.Format("實測: {0:F1} ℃", currentChTemp);
 
+                    // 記錄 S2 溫度歷史 (保留 45 分鐘)
+                    if (s2TempHistory != null)
+                    {
+                        s2TempHistory.Add(new KeyValuePair<DateTime, double>(now, currentChTemp));
+                        DateTime expireS2 = now.AddMinutes(-45);
+                        s2TempHistory.RemoveAll(x => x.Key < expireS2);
+                    }
+
+                    // ── S2 即時溫升斜率與到達時長終溫預估演算 ──
+                    double s2Slope = CalculateThermalSlopePerMin(s2TempHistory, 120);
+                    double targetDurMin = (numS2DurationMin != null) ? (double)numS2DurationMin.Value : 30.0;
+                    double elapsedMin = dutyElapsedSec / 60.0;
+                    double remMin = Math.Max(0.0, targetDurMin - elapsedMin);
+                    double threshold = (numS2TempThreshold != null) ? (double)numS2TempThreshold.Value : 80.0;
+
+                    // 依據與 S1 相同之一階熱動態衰減模型：
+                    // deltaTRem = slope * tau * (1 - exp(-remMin / tau))
+                    double tauS2 = 30.0; // 分鐘
+                    double deltaTRem = (s2Slope > 0) ? (s2Slope * tauS2 * (1.0 - Math.Exp(-remMin / tauS2))) : 0.0;
+                    double estFinalTemp = currentChTemp + deltaTRem;
+                    bool willOverheat = (chkS2TempStop != null && chkS2TempStop.Checked && estFinalTemp >= threshold);
+
+                    if (lblS2ThermalStatus != null)
+                    {
+                        if (dutyElapsedSec < 30)
+                        {
+                            lblS2ThermalStatus.Text = string.Format("S2 溫升斜率: 採樣中 ({0}s) | 時長 {1:F0}m 預估終溫: 計算中...", dutyElapsedSec, targetDurMin);
+                            lblS2ThermalStatus.ForeColor = Color.FromArgb(30, 64, 175);
+                        }
+                        else
+                        {
+                            string hint = willOverheat ? string.Format(" ⚠️[預估超溫! 閥值{0:F1}℃]", threshold) : string.Format(" (閥值{0:F1}℃·安全)", threshold);
+                            lblS2ThermalStatus.Text = string.Format("溫升斜率: {0:+0.00;-0.00}℃/m | 時長 {1:F0}m 預估終溫: {2:F1}℃{3}",
+                                s2Slope, targetDurMin, estFinalTemp, hint);
+                            lblS2ThermalStatus.ForeColor = willOverheat ? Color.FromArgb(220, 38, 38) : Color.FromArgb(30, 64, 175);
+                        }
+                    }
+
+                    if (lblThermalStatus != null)
+                    {
+                        if (dutyElapsedSec < 30)
+                        {
+                            lblThermalStatus.Text = string.Format("S2 溫升預估: 採樣中 ({0}s) | 目標時長: {1:F0} 分鐘", dutyElapsedSec, targetDurMin);
+                        }
+                        else
+                        {
+                            lblThermalStatus.Text = string.Format("S2 溫升預估: 斜率 {0:+0.00;-0.00}℃/m | 時長 {1:F0}m 預估終溫: {2:F1}℃ {3}",
+                                s2Slope, targetDurMin, estFinalTemp, willOverheat ? "⚠️[預估超溫]" : "✓[安全]");
+                            lblThermalStatus.ForeColor = willOverheat ? Color.FromArgb(220, 38, 38) : Color.FromArgb(30, 64, 175);
+                        }
+                    }
+
+                    lblDutyPhaseAction.Text = string.Format("【恆定加載】加載輸出 {0:F1}%, 實測轉速 {1:F0} rpm | 預估終溫: {2:F1}℃{3}",
+                        s6AdaptedTorquePct, actAbsSpd, estFinalTemp, willOverheat ? " ⚠️注意超溫" : "");
+
                     if (chkS2TempStop != null && chkS2TempStop.Checked)
                     {
-                        double threshold = (numS2TempThreshold != null) ? (double)numS2TempThreshold.Value : 80.0;
                         if (currentChTemp >= threshold)
                         {
                             dutyTimer.Stop();

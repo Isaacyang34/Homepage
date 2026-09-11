@@ -964,6 +964,7 @@
                 <span style="font-size: 12px; color: var(--text-muted); display: flex; align-items: center;">| 快速體驗實測：</span>
                 <button class="btn-modern btn-primary" id="btnDemoTN" style="font-size: 12px; padding: 6px 12px;">📈 T-N 階梯</button>
                 <button class="btn-modern btn-success" id="btnDemoDutyS1" style="font-size: 12px; padding: 6px 12px;">⏱️ S1 連續</button>
+                <button class="btn-modern" id="btnDemoDutyS2" style="font-size: 12px; padding: 6px 12px; color: var(--amber); border-color: rgba(245,158,11,0.4);">⏱️ S2 短時</button>
                 <button class="btn-modern" id="btnDemoDutyS6" style="font-size: 12px; padding: 6px 12px; color: var(--purple); border-color: rgba(192,132,252,0.4);">⏱️ S6 週期</button>
                 <button class="btn-modern" id="btnDemoEffMap" style="font-size: 12px; padding: 6px 12px; color: var(--blue); border-color: rgba(59,130,246,0.4);">🗺️ 2D 效率圖</button>
                 <button class="btn-modern" id="btnDemoTelemetry" style="font-size: 12px; padding: 6px 12px; color: var(--rose); border-color: rgba(244,63,94,0.4);">📊 全參數遙測</button>
@@ -1001,6 +1002,16 @@
                 <span class="duty-diag-label">總加載運行時長</span>
                 <span class="duty-diag-val" id="diagTotalDuration">--</span>
                 <span class="duty-diag-sub" id="diagTotalDurationSub">秒數 / 分鐘數</span>
+            </div>
+            <div class="duty-diag-item" id="diagThermalSlopeItem">
+                <span class="duty-diag-label">即時溫升斜率 (dT/dt)</span>
+                <span class="duty-diag-val" id="diagThermalSlope" style="color: var(--amber);">-- °C/min</span>
+                <span class="duty-diag-sub" id="diagThermalSlopeSub">30分鐘溫升折算: -- °C/30m</span>
+            </div>
+            <div class="duty-diag-item" id="diagPredictionItem">
+                <span class="duty-diag-label" id="diagPredictionLabel">預估平衡完成時間</span>
+                <span class="duty-diag-val" id="diagPredictionVal" style="color: var(--cyan);">--</span>
+                <span class="duty-diag-sub" id="diagPredictionSub">以一階熱動態模型預測</span>
             </div>
             <div class="duty-diag-item">
                 <span class="duty-diag-label">熱平衡狀態判定</span>
@@ -1385,6 +1396,10 @@
         function initButtons() {
             document.getElementById("btnDemoTN").addEventListener("click", (e) => { e.stopPropagation(); loadDemoTNData(); });
             document.getElementById("btnDemoDutyS1").addEventListener("click", (e) => { e.stopPropagation(); loadDemoDutyS1Data(); });
+            const btnDemoDutyS2 = document.getElementById("btnDemoDutyS2");
+            if (btnDemoDutyS2) {
+                btnDemoDutyS2.addEventListener("click", (e) => { e.stopPropagation(); loadDemoDutyS2Data(); });
+            }
             document.getElementById("btnDemoDutyS6").addEventListener("click", (e) => { e.stopPropagation(); loadDemoDutyS6Data(); });
             document.getElementById("btnDemoEffMap").addEventListener("click", (e) => { e.stopPropagation(); loadDemoEffMapData(); });
             document.getElementById("btnDemoTelemetry").addEventListener("click", (e) => { e.stopPropagation(); loadDemoTelemetryData(); });
@@ -1736,7 +1751,65 @@
 
             const totalSec = parsedData.samples.length;
             const deltaT = (maxTemp > startTemp) ? (maxTemp - startTemp) : 0;
-            const isEquilibrium = (dutyMode === "S1" && totalSec >= 600) || (totalSec >= 1200);
+            
+            // 計算溫升斜率 (dT/dt) 與熱平衡預測
+            const thermalCalc = calculateDutyThermalSlope(parsedData.samples, 120);
+            const slopeMin = thermalCalc.slopePerMin;
+            const slope30m = thermalCalc.slopePer30m;
+
+            // 熱平衡判定標準：IEC 60034-1 / CNS 14400: 30分鐘溫升不大於 1.0°C (即 <= 0.0333 °C/min)
+            const isEquilibrium = (dutyMode === "S1")
+                ? (slopeMin <= 0.0334 && totalSec >= 300)
+                : (totalSec >= 1200);
+
+            // 一階熱動態動態預測 (τ = 30 min)
+            const tauMin = 30.0;
+            const elapsedMin = totalSec / 60.0;
+            let predictionText = "--";
+            let predictionSub = "--";
+
+            if (dutyMode === "S1") {
+                if (isEquilibrium) {
+                    predictionText = "✅ 已達熱平衡";
+                    predictionSub = `達標: 30分鐘溫升 ≤ 1.0°C (現時折算: ${slope30m.toFixed(2)}°C/30m)`;
+                } else if (slopeMin > 0.0334) {
+                    // t_rem = tau * ln(S / 0.0333)
+                    const remMin = tauMin * Math.log(slopeMin / 0.03333);
+                    if (remMin > 0 && isFinite(remMin)) {
+                        const estTotalMin = elapsedMin + remMin;
+                        predictionText = `約 ${Math.round(remMin)} 分鐘後`;
+                        predictionSub = `預計總耗時約 ${Math.round(estTotalMin)} 分鐘達平衡 (τ=30m)`;
+                    } else {
+                        predictionText = "溫升趨緩中";
+                        predictionSub = "即將達熱平衡標準";
+                    }
+                } else {
+                    predictionText = "溫度平穩/下降";
+                    predictionSub = `斜率 ${slopeMin.toFixed(3)}°C/min ≤ 0.033°C/min`;
+                }
+            } else if (dutyMode === "S2") {
+                // S2 短時工作制: 預估達到設定時長時的最終溫度
+                let targetDurationMin = 30;
+                if (parsedData.fileName) {
+                    const mMatch = parsedData.fileName.match(/ShortTime(\d+)m/i);
+                    if (mMatch) targetDurationMin = parseInt(mMatch[1]);
+                }
+                const remMin = Math.max(0, targetDurationMin - elapsedMin);
+                const currentTemp = (parsedData.samples.length > 0 && parsedData.samples[parsedData.samples.length - 1].temp) 
+                    ? parsedData.samples[parsedData.samples.length - 1].temp 
+                    : maxTemp;
+                
+                if (remMin > 0 && slopeMin > 0) {
+                    // ΔT_rem = S * τ * (1 - e^(-t_rem / τ))
+                    const deltaTRem = slopeMin * tauMin * (1.0 - Math.exp(-remMin / tauMin));
+                    const estFinalTemp = currentTemp + deltaTRem;
+                    predictionText = `約 ${estFinalTemp.toFixed(1)} °C`;
+                    predictionSub = `到達 ${targetDurationMin}分時 (餘 ${remMin.toFixed(1)}分, 預估溫升 +${deltaTRem.toFixed(1)}°C)`;
+                } else {
+                    predictionText = `實測 ${currentTemp.toFixed(1)} °C`;
+                    predictionSub = `已達預定運轉時長 (${targetDurationMin} 分鐘)`;
+                }
+            }
 
             parsedData.dutyInfo = {
                 mode: dutyMode,
@@ -1745,11 +1818,41 @@
                 maxTemp,
                 deltaT,
                 isEquilibrium,
+                slopeMin,
+                slope30m,
+                predictionText,
+                predictionSub,
                 cycleEd: dutyMode === "S6" ? 60 : 100
             };
 
             extractDutyStepsToSummary(dutyMode);
             parsedData.timeRange = `運轉 ${totalSec} 秒 (${(totalSec/60).toFixed(1)} 分鐘)`;
+        }
+
+        // ── 計算溫升斜率 (dT/dt) 與熱平衡預測 ───────────────────────────
+        function calculateDutyThermalSlope(samples, windowSec = 120) {
+            if (!samples || samples.length < 5) return { slopePerMin: 0, slopePer30m: 0 };
+            const valid = samples.filter(s => s.temp != null && !isNaN(s.temp) && s.temp > 0);
+            if (valid.length < 5) return { slopePerMin: 0, slopePer30m: 0 };
+
+            // 取尾端視窗 (預設最多 120 秒，若少於 120 秒則取全量)
+            const slice = valid.slice(-Math.min(valid.length, windowSec));
+            let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+            const n = slice.length;
+            const t0 = slice[0].sec;
+            for (let i = 0; i < n; i++) {
+                const x = slice[i].sec - t0;
+                const y = slice[i].temp;
+                sumX += x;
+                sumY += y;
+                sumXY += x * y;
+                sumXX += x * x;
+            }
+            const denom = (n * sumXX - sumX * sumX);
+            const slopePerSec = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0;
+            const slopePerMin = slopePerSec * 60.0;
+            const slopePer30m = slopePerMin * 30.0;
+            return { slopePerMin, slopePer30m };
         }
 
         function extractDutyStepsToSummary(dutyMode) {
@@ -2253,6 +2356,44 @@
                 thermalElem.textContent = "⚠️ 溫升持續爬升中";
                 thermalElem.style.color = "var(--amber)";
                 document.getElementById("diagThermalStateSub").textContent = "尚未滿足熱平衡判定條件";
+            }
+
+            // 溫升斜率顯示 (dT/dt)
+            const slopeElem = document.getElementById("diagThermalSlope");
+            const slopeSubElem = document.getElementById("diagThermalSlopeSub");
+            if (slopeElem && slopeSubElem) {
+                if (info.slopeMin !== undefined) {
+                    slopeElem.textContent = `${info.slopeMin >= 0 ? "+" : ""}${info.slopeMin.toFixed(3)} °C/min`;
+                    slopeSubElem.textContent = `30分鐘溫升折算: ${(info.slope30m !== undefined ? info.slope30m.toFixed(2) : (info.slopeMin*30).toFixed(2))} °C/30m`;
+                    slopeElem.style.color = (info.slopeMin <= 0.0334) ? "var(--emerald)" : "var(--amber)";
+                } else {
+                    slopeElem.textContent = "-- °C/min";
+                    slopeSubElem.textContent = "30分鐘折算: --";
+                }
+            }
+
+            // 動態預測顯示 (S1 預估完成時長 / S2 預估到達時長終溫)
+            const predLabel = document.getElementById("diagPredictionLabel");
+            const predVal = document.getElementById("diagPredictionVal");
+            const predSub = document.getElementById("diagPredictionSub");
+            if (predLabel && predVal && predSub) {
+                if (info.mode === "S1") {
+                    predLabel.textContent = "預計平衡完成時間 (S1)";
+                    predVal.textContent = info.predictionText || "--";
+                    predSub.textContent = info.predictionSub || "達標條件: 30分鐘溫升 ≤ 1.0°C";
+                    predVal.style.color = info.isEquilibrium ? "var(--emerald)" : "var(--cyan)";
+                } else if (info.mode === "S2") {
+                    predLabel.textContent = "預估到達時長終溫 (S2)";
+                    predVal.textContent = info.predictionText || "--";
+                    predSub.textContent = info.predictionSub || "一階熱動態模型預測";
+                    const estTempNum = parseFloat(info.predictionText ? info.predictionText.replace(/[^0-9.]/g, "") : "0");
+                    predVal.style.color = (estTempNum >= 80.0) ? "var(--rose)" : "var(--amber)";
+                } else {
+                    predLabel.textContent = "週期熱動態狀態 (S6)";
+                    predVal.textContent = "連續交替加載";
+                    predSub.textContent = `負載率 ED ${info.cycleEd || 60}% 週期循環`;
+                    predVal.style.color = "var(--purple)";
+                }
             }
 
             document.getElementById("diagMaxDeltaT").textContent = `+${info.deltaT.toFixed(1)} °C`;
@@ -2765,16 +2906,16 @@ Point,SampleSec,Speed_rpm,Frequency_Hz,Torque_Nm,Voltage_U1_V,Voltage_U2_V,Volta
             parseDynamometerCsv(csv, "Report_Duty_Cycle_S1_Continuous_20260910_140000.csv");
         }
 
-        // 範例 3: S2 短時工作制 (短時 30 分鐘加載隨後降溫)
+        // 範例 3: S2 短時工作制 (短時 30 分鐘額定，目前運轉至第 15 分鐘，進行到達 30 分鐘之終溫動態預估)
         function loadDemoDutyS2Data() {
             let csv = "TimeSec,Speed_rpm,Torque_Nm,MechPower_kW,Efficiency_pct,Temp_C\r\n";
-            for (let m = 1; m <= 30; m++) {
+            for (let m = 1; m <= 15; m++) {
                 const sec = m * 60;
                 const speed = 1440 - (Math.random() * 3);
                 const torque = 45.0 + (Math.random() * 0.4);
                 const mechPwr = (speed * torque) / 9549.3;
                 const eff = 84.5;
-                const temp = 28.0 + (62.0 - 28.0) * (1 - Math.exp(-m / 12));
+                const temp = 28.0 + (65.0 - 28.0) * (1 - Math.exp(-m / 12));
                 csv += `${sec},${speed.toFixed(1)},${torque.toFixed(2)},${mechPwr.toFixed(2)},${eff.toFixed(1)},${temp.toFixed(1)}\r\n`;
             }
             parseDynamometerCsv(csv, "Report_Duty_Cycle_S2_ShortTime30m_20260910_160000.csv");

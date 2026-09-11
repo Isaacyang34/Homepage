@@ -320,10 +320,11 @@ namespace DynamometerHMI
         public bool[] s1MonitoredChannels = new bool[20] { true, true, true, true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false };
         private List<KeyValuePair<DateTime, double[]>> s1TempHistory = new List<KeyValuePair<DateTime, double[]>>();
 
-        private Label lblS2Duration, lblS2TempCh, lblS2TempThresh, lblS2TempRealtime;
+        private Label lblS2Duration, lblS2TempCh, lblS2TempThresh, lblS2TempRealtime, lblS2ThermalStatus;
         private NumericUpDown numS2DurationMin, numS2TempThreshold;
         private CheckBox chkS2TempStop;
         private ComboBox cmbS2TempCh;
+        private List<KeyValuePair<DateTime, double>> s2TempHistory = new List<KeyValuePair<DateTime, double>>();
 
         // S2 錨點測試相關欄位 (速度控制數據 SY52 / 扭力控制數據 CS18)
         private Label lblKebAutoModeHint;
