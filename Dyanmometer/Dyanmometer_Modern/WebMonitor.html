@@ -907,7 +907,8 @@
             <div id="whitelistBadge" class="status-pill" style="display:none; background:rgba(234,179,8,0.15); border-color:rgba(234,179,8,0.4); color:#facc15; cursor:pointer;" onclick="openWhitelistModal()" title="已取得白名單授權，點擊管理">👑 VIP 無限時</div>
             <!-- 訪客 5 分鐘倒數計時膠囊 -->
             <div id="guestTimerPill" class="status-pill" style="background:rgba(244,63,94,0.15); border-color:rgba(244,63,94,0.4); color:#fda4af; cursor:pointer;" onclick="openWhitelistModal()" title="一般訪客限時 5 分鐘，點擊輸入金鑰解鎖">⏱️ <span id="guestTimerText">05:00</span> <span style="font-size:10px; color:#fb7185; text-decoration:underline; margin-left:2px;">解鎖</span></div>
-            <button class="btn-action" id="btnSpecViewer" onclick="switchMainTab('spec')" style="display:inline-flex; align-items:center; gap:4px; background: rgba(16,185,129,0.15); border-color: rgba(16,185,129,0.4); color: var(--emerald); cursor:pointer;" title="切換至馬達規格特性分析儀 (VIP 專屬)">📑 馬達規格特性分析</button>
+            <button class="btn-action" id="btnSpecViewer" onclick="switchMainTab('spec')" style="display:inline-flex; align-items:center; gap:4px; background: rgba(16,185,129,0.15); border-color: rgba(16,185,129,0.4); color: var(--emerald); cursor:pointer;" title="切換至馬達規格特性分析儀">📑 馬達規格特性分析</button>
+            <a href="Motor_Characteristics_Viewer.html" target="_blank" class="btn-action" style="text-decoration:none; display:inline-flex; align-items:center; gap:4px; background: rgba(56,189,248,0.15); border: 1px solid rgba(56,189,248,0.3); color: var(--cyan);" title="在新分頁獨立開啟分析儀">⛶ 新分頁開啟 ↗</a>
             <button class="btn-action" id="btnVisitors" onclick="openVisitorAuditModal()" style="background: rgba(56,189,248,0.15); border-color: rgba(56,189,248,0.3); color: var(--cyan);">👥 訪客足跡</button>
             <button class="btn-action" id="btnFullscreen" onclick="toggleFullscreen()">⛶ 全螢幕</button>
         </div>
@@ -926,7 +927,7 @@
         <button class="main-tab-btn" id="tabBtnSpec" onclick="switchMainTab('spec')">
             <span class="tab-icon">📑</span>
             <span>馬達規格特性分析儀 (Specs & Duty)</span>
-            <span class="tab-vip-lock-badge" id="tabSpecVipBadge">🔒 VIP</span>
+            <span class="tab-vip-lock-badge unlocked" id="tabSpecVipBadge">📊 PRO</span>
         </button>
     </div>
 
@@ -1302,12 +1303,7 @@
                 if (viewLive) viewLive.style.display = "none";
                 if (viewSpec) viewSpec.style.display = "flex";
                 updateSpecTabAccess();
-                if (!_isVipUser) {
-                    setTimeout(() => {
-                        const inp = document.getElementById("txtSpecVipKey");
-                        if (inp) inp.focus();
-                    }, 150);
-                }
+                window.scrollTo({ top: 0, behavior: 'smooth' });
             } else {
                 if (tabSpec) tabSpec.classList.remove("active");
                 if (tabLive) tabLive.classList.add("active");
@@ -1321,18 +1317,14 @@
             const frameWrapper = document.getElementById("specViewerFrameWrapper");
             const frame = document.getElementById("specViewerFrame");
 
-            if (_isVipUser) {
-                if (lockCard) lockCard.style.display = "none";
-                if (frameWrapper) frameWrapper.style.display = "block";
-                if (frame) {
-                    const currentSrc = frame.getAttribute("src") || "";
-                    if (!currentSrc || currentSrc === "about:blank") {
-                        frame.src = "Motor_Characteristics_Viewer.html";
-                    }
+            // ★ 零阻礙直通：徹底解除密碼鎖定，點擊分頁即刻呈現全功能分析儀！
+            if (lockCard) lockCard.style.display = "none";
+            if (frameWrapper) frameWrapper.style.display = "block";
+            if (frame) {
+                const currentSrc = frame.getAttribute("src") || "";
+                if (!currentSrc || currentSrc === "about:blank" || currentSrc.indexOf("Motor_Characteristics_Viewer") === -1) {
+                    frame.src = "Motor_Characteristics_Viewer.html";
                 }
-            } else {
-                if (lockCard) lockCard.style.display = "flex";
-                if (frameWrapper) frameWrapper.style.display = "none";
             }
         }
 

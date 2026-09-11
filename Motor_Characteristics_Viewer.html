@@ -1460,6 +1460,13 @@
             initFirebaseModal();
             initExcelReportModal();
             initCharts();
+
+            // ★ 若尚未載入自訂檔案，預設立即載入真實實測示範資料，確保頁面一打開即有完整圖表、CNS 14400 規格判定與工作制分析，絕不空白！
+            setTimeout(() => {
+                if (!parsedData.summaryPoints || parsedData.summaryPoints.length === 0) {
+                    loadDemoTNData();
+                }
+            }, 60);
         });
 
         // ── 說明手冊折疊切換 ───────────────────────────────────────────
