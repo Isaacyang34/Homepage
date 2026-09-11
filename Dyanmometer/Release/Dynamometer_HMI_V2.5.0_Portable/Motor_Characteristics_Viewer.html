@@ -1809,21 +1809,130 @@
                     predictionText = `實測 ${currentTemp.toFixed(1)} °C`;
                     predictionSub = `已達預定運轉時長 (${targetDurationMin} 分鐘)`;
                 }
+            } else if (dutyMode === "S6") {
+                // S6 週期工作制：監控各週期最高溫 (T1) 與冷卻最後低溫 (T2)、預估幾次平衡、30分鐘穩定 + 1週期再次確認
+                let cycleMin = 10;
+                if (parsedData.fileName && parsedData.fileName.includes("Periodic")) {
+                    const pMatch = parsedData.fileName.match(/Periodic(\d+)m/i);
+                    if (pMatch) cycleMin = Math.max(1, parseInt(pMatch[1]));
+                }
+                const cycleSec = cycleMin * 60;
+                const numCycles = Math.max(1, Math.floor(totalSec / cycleSec));
+
+                // 提取各週期的最高溫 (Peak) 與冷卻時間最後低溫 (Trough)
+                const cyclePeaks = [];
+                const cycleTroughs = [];
+
+                for (let c = 0; c < numCycles; c++) {
+                    const startIdx = c * cycleSec;
+                    const endIdx = Math.min(totalSec, (c + 1) * cycleSec);
+                    const cycleSlice = parsedData.samples.slice(startIdx, endIdx);
+                    if (cycleSlice.length > 0) {
+                        let cMax = -999;
+                        let cLastCooling = cycleSlice[cycleSlice.length - 1].temp || 0;
+                        for (const s of cycleSlice) {
+                            if (s.temp != null && !isNaN(s.temp) && s.temp > cMax) {
+                                cMax = s.temp;
+                            }
+                        }
+                        cyclePeaks.push(cMax > -100 ? cMax : 0);
+                        cycleTroughs.push(cLastCooling);
+                    }
+                }
+
+                const latestPeak = cyclePeaks.length > 0 ? cyclePeaks[cyclePeaks.length - 1] : maxTemp;
+                const latestTrough = cycleTroughs.length > 0 ? cycleTroughs[cycleTroughs.length - 1] : startTemp;
+                
+                // 計算週期峰值溫升斜率或即時斜率
+                let s6EffectiveSlope = slopeMin;
+                if (cyclePeaks.length >= 2) {
+                    const dPeak = Math.max(0, cyclePeaks[cyclePeaks.length - 1] - cyclePeaks[cyclePeaks.length - 2]);
+                    s6EffectiveSlope = dPeak / cycleMin;
+                }
+
+                // 預估大約在幾次才會平衡
+                let remCycles = 1;
+                let estBalanceCycle = numCycles + 1;
+                if (s6EffectiveSlope > 0.0333) {
+                    const remMin = tauMin * Math.log(s6EffectiveSlope / 0.03333);
+                    remCycles = Math.max(1, Math.ceil(remMin / cycleMin));
+                    estBalanceCycle = numCycles + remCycles;
+                }
+
+                // 30分鐘穩定判定 + 1週期再次確認
+                const reqCycles30m = Math.max(3, Math.ceil(30.0 / cycleMin));
+                let stable30m = false;
+                let isConfirmed = false;
+
+                if (cyclePeaks.length >= reqCycles30m) {
+                    stable30m = true;
+                    const nP = cyclePeaks.length;
+                    for (let i = nP - reqCycles30m; i < nP - 1; i++) {
+                        if (Math.abs(cyclePeaks[i + 1] - cyclePeaks[i]) > 1.0) {
+                            stable30m = false;
+                            break;
+                        }
+                    }
+
+                    // 若滿足30分鐘穩定，檢驗是否已經多做了一個確認週期再次驗證
+                    if (stable30m && cyclePeaks.length >= reqCycles30m + 1) {
+                        const confirmDiff = Math.abs(cyclePeaks[nP - 1] - cyclePeaks[nP - 2]);
+                        if (confirmDiff <= 1.0) {
+                            isConfirmed = true;
+                            isEquilibrium = true;
+                        }
+                    }
+                }
+
+                if (isConfirmed) {
+                    predictionText = `✅ 熱平衡達成 (追加覆核確認)`;
+                    predictionSub = `共 ${numCycles} 週期 | 峰值: ${latestPeak.toFixed(1)}°C, 冷卻最後: ${latestTrough.toFixed(1)}°C`;
+                } else if (stable30m) {
+                    predictionText = `⏳ 30分已穩定·執行追加確認中`;
+                    predictionSub = `正進行第 ${numCycles + 1} 週期覆核確認 (溫差需 ≤ 1.0°C)`;
+                } else {
+                    predictionText = `約 ${remCycles} 週期後達平衡`;
+                    predictionSub = `預計第 ${estBalanceCycle} 週期平衡 (峰值: ${latestPeak.toFixed(1)}°C, 冷卻最後: ${latestTrough.toFixed(1)}°C)`;
+                }
+
+                parsedData.dutyInfo = {
+                    mode: dutyMode,
+                    totalSec,
+                    startTemp,
+                    maxTemp,
+                    deltaT,
+                    isEquilibrium,
+                    slopeMin,
+                    slope30m,
+                    predictionText,
+                    predictionSub,
+                    latestPeak,
+                    latestTrough,
+                    cyclePeaks,
+                    cycleTroughs,
+                    isConfirmed,
+                    stable30m,
+                    remCycles,
+                    estBalanceCycle,
+                    cycleEd: 60
+                };
             }
 
-            parsedData.dutyInfo = {
-                mode: dutyMode,
-                totalSec,
-                startTemp,
-                maxTemp,
-                deltaT,
-                isEquilibrium,
-                slopeMin,
-                slope30m,
-                predictionText,
-                predictionSub,
-                cycleEd: dutyMode === "S6" ? 60 : 100
-            };
+            if (!parsedData.dutyInfo) {
+                parsedData.dutyInfo = {
+                    mode: dutyMode,
+                    totalSec,
+                    startTemp,
+                    maxTemp,
+                    deltaT,
+                    isEquilibrium,
+                    slopeMin,
+                    slope30m,
+                    predictionText,
+                    predictionSub,
+                    cycleEd: dutyMode === "S6" ? 60 : 100
+                };
+            }
 
             extractDutyStepsToSummary(dutyMode);
             parsedData.timeRange = `運轉 ${totalSec} 秒 (${(totalSec/60).toFixed(1)} 分鐘)`;
@@ -2389,15 +2498,31 @@
                     const estTempNum = parseFloat(info.predictionText ? info.predictionText.replace(/[^0-9.]/g, "") : "0");
                     predVal.style.color = (estTempNum >= 80.0) ? "var(--rose)" : "var(--amber)";
                 } else {
-                    predLabel.textContent = "週期熱動態狀態 (S6)";
-                    predVal.textContent = "連續交替加載";
-                    predSub.textContent = `負載率 ED ${info.cycleEd || 60}% 週期循環`;
-                    predVal.style.color = "var(--purple)";
+                    predLabel.textContent = "預計平衡週期數 (S6)";
+                    predVal.textContent = info.predictionText || "--";
+                    predSub.textContent = info.predictionSub || "一階熱動態動態預測";
+                    if (info.isConfirmed || info.isEquilibrium) {
+                        predVal.style.color = "var(--emerald)";
+                        thermalElem.textContent = "✅ 已達熱平衡 (追加確認覆核通過)";
+                        thermalElem.style.color = "var(--emerald)";
+                        document.getElementById("diagThermalStateSub").textContent = "30分穩定 + 追加1週期覆核溫差 ≤ 1.0°C";
+                    } else if (info.stable30m) {
+                        predVal.style.color = "var(--cyan)";
+                        thermalElem.textContent = "⏳ 30分已穩定·進行追加確認";
+                        thermalElem.style.color = "var(--cyan)";
+                        document.getElementById("diagThermalStateSub").textContent = "正在執行額外 1 週期再次覆核判定";
+                    } else {
+                        predVal.style.color = "var(--amber)";
+                    }
                 }
             }
 
             document.getElementById("diagMaxDeltaT").textContent = `+${info.deltaT.toFixed(1)} °C`;
-            document.getElementById("diagMaxTempAbs").textContent = `最高溫度: ${info.maxTemp.toFixed(1)} °C (起始: ${info.startTemp.toFixed(1)} °C)`;
+            if (info.mode === "S6" && info.latestPeak !== undefined && info.latestTrough !== undefined) {
+                document.getElementById("diagMaxTempAbs").textContent = `週期最高: ${info.latestPeak.toFixed(1)} °C | 冷卻最後: ${info.latestTrough.toFixed(1)} °C`;
+            } else {
+                document.getElementById("diagMaxTempAbs").textContent = `最高溫度: ${info.maxTemp.toFixed(1)} °C (起始: ${info.startTemp.toFixed(1)} °C)`;
+            }
 
             const edItem = document.getElementById("diagDutyCycleItem");
             if (info.mode === "S6") {
@@ -2921,10 +3046,9 @@ Point,SampleSec,Speed_rpm,Frequency_Hz,Torque_Nm,Voltage_U1_V,Voltage_U2_V,Volta
             parseDynamometerCsv(csv, "Report_Duty_Cycle_S2_ShortTime30m_20260910_160000.csv");
         }
 
-        // 範例 4: S6 連續週期工作制 (加載 6m / 空載 4m 循環)
+        // 範例 4: S6 連續週期工作制 (加載 6m / 空載 4m 循環，第 4 週期為追加確認週期)
         function loadDemoDutyS6Data() {
             let csv = "TimeSec,Speed_rpm,Torque_Nm,MechPower_kW,Efficiency_pct,Temp_C\r\n";
-            let curTemp = 30.0;
             for (let m = 1; m <= 40; m++) {
                 const sec = m * 60;
                 const inCycleMinute = (m - 1) % 10;
@@ -2935,8 +3059,10 @@ Point,SampleSec,Speed_rpm,Frequency_Hz,Torque_Nm,Voltage_U1_V,Voltage_U2_V,Volta
                 const mechPwr = (speed * torque) / 9549.3;
                 const eff = isLoaded ? 85.5 : 28.0;
 
-                if (isLoaded) curTemp += 1.2;
-                else curTemp -= 0.8;
+                // 物理一階熱動態溫升模型 (環境 28℃，飽和漸近線約 58℃，加上 6m 加載發熱 / 4m 冷卻自冷之鋸齒波)
+                const baseRise = 28.0 + 26.0 * (1.0 - Math.exp(-m / 9.0));
+                const ripple = isLoaded ? (inCycleMinute * 0.9) : (5.4 - (inCycleMinute - 5) * 1.35);
+                const curTemp = baseRise + ripple;
 
                 csv += `${sec},${speed.toFixed(1)},${torque.toFixed(2)},${mechPwr.toFixed(2)},${eff.toFixed(1)},${curTemp.toFixed(1)}\r\n`;
             }
