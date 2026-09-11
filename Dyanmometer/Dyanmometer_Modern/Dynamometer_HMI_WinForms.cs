@@ -1477,19 +1477,19 @@ namespace DynamometerHMI
                 }
             };
             this.FormClosing += (s, e) => {
-                // 1. 視覺秒隱藏：0 毫秒極速視覺反饋，視窗立刻從螢幕與工作列消失
+                // 1. 同步安全持久化介面與視圖設定檔 (確保在視窗隱藏前即時抓取所有渲染完成之座標與欄寬)
+                try { SaveLayoutConfig(); } catch { }
+
+                // 2. 視覺秒隱藏：0 毫秒極速視覺反饋，視窗立刻從螢幕與工作列消失
                 try { this.Hide(); } catch { }
 
-                // 2. 立即終止所有運轉標誌與前景計時器
+                // 3. 立即終止所有運轉標誌與前景計時器
                 isRunning = false;
                 isWorkerRunning = false;
                 if (motorTempTimer != null) { try { motorTempTimer.Stop(); } catch { } }
                 if (mainTimer != null) { try { mainTimer.Stop(); } catch { } }
                 if (noLoadTimer != null) { try { noLoadTimer.Stop(); } catch { } }
                 if (isViewerMode) { try { StopViewerClientSync(); } catch { } }
-
-                // 3. 同步安全持久化介面與視圖設定檔 (耗時 < 2ms，確保配置絕對不丟失)
-                try { SaveLayoutConfig(); } catch { }
 
                 // 4. 【雙重保險核心：強制自毀超時看門狗 (Watchdog)】
                 // 給予背景執行緒最多 1.2 秒優雅關閉硬體與網路。若超時 (例如底層驅動 DLL 阻塞或 COM 埠卡死)，
@@ -1880,7 +1880,19 @@ namespace DynamometerHMI
 
         private string GetLayoutConfigPath()
         {
-            return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "dynamometer_layout.ini");
+            string rootPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "dynamometer_layout.ini");
+            string subPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ini", "dynamometer_layout.ini");
+            bool rootExists = File.Exists(rootPath);
+            bool subExists = File.Exists(subPath);
+
+            if (rootExists && subExists)
+            {
+                DateTime rootTime = File.GetLastWriteTimeUtc(rootPath);
+                DateTime subTime = File.GetLastWriteTimeUtc(subPath);
+                return (subTime > rootTime) ? subPath : rootPath;
+            }
+            if (subExists) return subPath;
+            return rootPath;
         }
 
         public void SaveLayoutConfig()
@@ -2152,7 +2164,21 @@ namespace DynamometerHMI
                     }
                 }
 
-                File.WriteAllText(GetLayoutConfigPath(), sb.ToString(), Encoding.UTF8);
+                string outContent = sb.ToString();
+                string rootPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "dynamometer_layout.ini");
+                string iniDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ini");
+                string subPath = Path.Combine(iniDir, "dynamometer_layout.ini");
+
+                try { File.WriteAllText(rootPath, outContent, Encoding.UTF8); } catch { }
+                try
+                {
+                    if (Directory.Exists(iniDir) || File.Exists(subPath))
+                    {
+                        if (!Directory.Exists(iniDir)) Directory.CreateDirectory(iniDir);
+                        File.WriteAllText(subPath, outContent, Encoding.UTF8);
+                    }
+                }
+                catch { }
             }
             catch {}
         }

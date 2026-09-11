@@ -8,10 +8,52 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.91 (beta) | v2.10.49 | 2026-09-11 | 雙目錄 (`ini/` 子目錄與根目錄) 自動識別與雙向無縫同步存檔架構（徹底解決使用者改變排版卻未反映於 `ini` 資料夾檔案之根因）：(1)根因剖析：程式底層原先寫死僅讀寫根目錄 `dynamometer_layout.ini`，而使用者在 `ini/` 資料夾內進行檢視與備份，兩者實體檔案脫節，造成使用者查看 `ini/` 時發現數值未更新；(2)實裝雙目錄自適應載入引擎 (Intelligent Dual-Path Loader)：啟動時同時檢測根目錄與 `ini/dynamometer_layout.ini`，自動以修改時間最新 (Newest LastWriteTime) 之檔案優先載入，即刻繼承使用者在 `ini/` 調校之最佳座標；(3)實裝雙向同步存檔 (Dual-Path Synchronous Saver)：排版變更與視窗關閉時，同時寫入根目錄與 `ini/` 子目錄，確保雙端檔案內容 100% 同動一致；(4)修正關閉視窗 (FormClosing) 執行順序：將 SaveLayoutConfig() 移至 this.Hide() 之前執行，杜絕控制項在視窗隱藏時座標失效。 |
 | V2.90 (beta) | v2.10.48 | 2026-09-11 | 軟體專屬企業級識別徽標 (App Icon) 經典 Neon 矽鋼片核心旗艦版全面導入：(1)主視覺完全傳承深受好評的經典 Neon 旗艦風格（深鈦金屬倒角外框、極致青藍與琥珀霓虹發光燈管、右側高精度動力計量錶圓弧與指示指針）；(2)正中央風扇葉片精確替換為高擬真電機定轉子矽鋼片 (Silicon Steel Laminations) 疊片、齒槽絕緣純銅線圈繞組與中央金屬傳動轉軸滾珠軸承；(3)徹底去除外部方框與背景襯底，保留純「D」字本體與量錶外廓，全背景透空透明 (Alpha = 0)；(4)生成完整 256/128/64/48/32/16 多解析度 Windows XP 物理相容 (32-bit DIB) 與現代 ICO 檔案，全面注入主程式 Win32 資源、視窗 Icon 與 WebServer favicon。 |
 | V2.89 (beta) | v2.10.48 | 2026-09-11 | TN / Duty (S1/S2/S6) 各分頁排版記憶徹底根治修復（排版設定檔存放於執行檔目錄 `dynamometer_layout.ini`）：(1)根絕 INI 寫入漏列 managedSecSet 導致 [UI]、[Safety] 等區段無限重複疊加膨脹至 4484 行之腐蝕缺陷；(2)修復 SaveLayoutConfig() 跨分頁盲目讀取背景未呈現 Splitter 導致以預設值覆寫使用者已調整設定之破壞迴圈，嚴格限縮僅同步目前活動中之分頁 (curTab)；(3)移除 tabControl.SelectedIndexChanged 提前存檔之未就緒寫入；(4)解除 TN 測試手動重複繫結 SplitterMoved 雙重覆寫問題，確保 multi-point 與 single-step 獨立記憶；(5)Duty 工作制 S1/S2/S6 三大模式獨立分立 DutyMain_S1, DutyMain_S2, DutyMain_S6 記憶鍵值，模式切換即時動態無縫復原。 |
 | V2.88 (beta) | v2.10.48 | 2026-09-11 | WEB_GBD (GBD_Viewer.html & GBD_Editor.html) 通道觀看預設勾選邏輯升級：(1)廢除舊有固定寫死 CH1, CH5, CH8, CH10 之限制，全面同步對齊 Dynamometer 實測有效通道辨識引擎 (DetectActiveGbdChannels)；(2)開檔載入 (onLoaded) 時自動動態掃描並識別具備合法溫度數據 (-40℃ ~ 350℃ 且非 0、非 999、非 32767 斷線碼) 之通道進行自動勾選顯示，無資料時自適應 fallback 前 4 點；(3)左側通道列表新增「⚡ 實測」按鈕，支援隨時一鍵重新依實測數據勾選；(4)正式將 WEB_GBD 溫度資料檢視器加入全案入口導覽首頁 (index.html)。 |
 | V2.87 (beta) | v2.10.47 | 2026-09-11 | 全分頁 (TN / Duty S1/S2/S6 / 效率熱力圖 / 空載測試) 排版與分割條 (Splitter) 記憶深度修復：(1)徹底根除 WinForms SizeChanged 事件中未受保護之 SplitterMoved 回饋覆蓋迴圈與非活動分頁尺寸未就緒 (Height/Width <= 0) 抹除已存座標之致命缺陷；(2)建立 isApplyingSplitterLayout 遞迴防護鎖與 DefaultSplitterDistances 15 組全域預設基線；(3)TN 分頁細分 single-step ("TnMain") 與 multi-point ("TnMainMulti") 雙態分割條記憶，並支援 DutyMain, DutyTop, EffMain, NoLoadMain, NoLoadBottom 完整持久化；(4)解除 DataGridView AutoSizeColumnsMode.Fill 鎖定改為 None，完整記憶 TN, Duty, NoLoad 每一欄手動調整寬度；(5)記憶 TN 與 Duty 測試模式、角色與時間跨度下拉選項 ([TnTest], [DutyTest]) |
+
+## [V2.91 beta / v2.10.49] - 2026-09-11
+
+### 🎯 現象與佐證 (Log-First Verbatim Excerpts)
+1. **使用者回報現象**：
+   - 使用者回報：「聽起來改進很多，但就是不會儲存這是為什麼?」、「你分析資料夾ini裡面的兩個檔案，告訴我哪裡不同」。
+   - 使用者反映在介面上調整了排版與分割條尺寸，然而重啟程式或檢視設定檔時，卻發現設定沒有如預期被儲存。
+2. **實體目錄與檔案追蹤佐證**：
+   - 提取實體目錄檔案結構佐證：
+     * 發現可攜發布目錄下同時存在兩處設定檔：
+       1. 根目錄：`Release/Dynamometer_HMI_V2.5.0_Portable/dynamometer_layout.ini`（舊有固定路徑）；
+       2. 子目錄：`Release/Dynamometer_HMI_V2.5.0_Portable/ini/dynamometer_layout.ini`（使用者檢視與放置調整後檔案之目錄）。
+     * 交叉比對實體檔案內容：
+       - `ini/dynamometer_layout.ini` 包含使用者調整後的真實座標：`ActiveTab=1`, `TnMain=232`, `TnBottom=732`, `TnRight=444`, `DutyMain_S1=539`, `DutyTop=905`, `NoLoadMain=509`, `NoLoadBottom=1223`；
+       - 但程式內部 `GetLayoutConfigPath()` 過去寫死只讀寫根目錄 `dynamometer_layout.ini`，導致啟動時完全無視 `ini/` 資料夾，依然載入了根目錄之預設座標 (`ActiveTab=6`, `TnMain=190`, `DutyMain=550`)；
+       - 存檔時，程式也只回寫根目錄，使用者查看 `ini/` 資料夾時便發現檔案數值始終沒有變化；
+       - 追蹤 `FormClosing` 事件：原程式在視窗關閉時先執行 `this.Hide()`，再呼叫 `SaveLayoutConfig()`。視窗隱藏後可能導致部分控制項尺寸失效，無法準確記錄關閉前之視圖座標。
+
+---
+
+### 💡 致命根因 (Root Cause Analysis)
+1. **設定檔路徑脫節 (Path Disconnect)**：
+   - 程式內部寫死以根目錄 `dynamometer_layout.ini` 為唯一讀寫目標，而使用者在 `ini/` 子目錄內操作與檢視，造成兩端資料完全脫節。
+2. **FormClosing 執行時序不當**：
+   - 先 `Hide()` 再 `SaveLayoutConfig()` 違反 WinForms 生命週期，視窗隱藏後元件座標與尺寸可能已被釋放或歸零。
+
+---
+
+### 🚀 精確修復方案 (Accurate Solution & Release Verifications)
+1. **實裝雙目錄自適應載入引擎 (Intelligent Dual-Path Loader)**：
+   - 重構 `GetLayoutConfigPath()`：同時偵測根目錄 `dynamometer_layout.ini` 與子目錄 `ini/dynamometer_layout.ini`；
+   - 若兩者皆存在，自動比較 `LastWriteTimeUtc`，優先載入修改時間最新者，即刻繼承使用者在 `ini/` 所調校之座標！
+2. **實裝雙向同步存檔架構 (Dual-Path Synchronous Saver)**：
+   - 在 `SaveLayoutConfig()` 中，儲存時同時寫入根目錄與 `ini/` 子目錄（若 `ini/` 目錄存在）；
+   - 確保使用者無論查看根目錄或 `ini/` 子目錄，兩端檔案內容隨時 100% 同動一致。
+3. **調準視窗關閉持久化時序**：
+   - 在 `FormClosing` 中將 `SaveLayoutConfig()` 移至 `this.Hide()` 之前執行，確保在所有控制項處於活動渲染狀態下精準擷取最後尺寸。
+4. **即時同步實測排版**：
+   - 將 `ini/dynamometer_layout.ini` 內之最佳實測數據 (`TnMain=232`, `TnBottom=732`, `DutyMain_S1=539`...) 雙向同步，使用者立即開機即用。
+
+---
 
 ## [V2.90 beta / v2.10.48] - 2026-09-11
 
