@@ -834,6 +834,7 @@ namespace DynamometerHMI
                     defDist = saved;
                 }
                 ApplySplitterDistanceSafe(splitDuty, dutyModeKey, defDist, 150, 80);
+                UpdateTabHudStatus();
             }
         }
 

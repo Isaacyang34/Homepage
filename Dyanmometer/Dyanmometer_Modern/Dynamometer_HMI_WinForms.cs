@@ -426,6 +426,12 @@ namespace DynamometerHMI
         private readonly Dictionary<string, int> layoutSplitters = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private int loadedActiveTab = -1;
 
+        // 分頁列右側排版即時數值與快捷 HUD 控制器
+        private Panel pnlTabHud;
+        private Label lblTabHudCoords;
+        private Button btnSaveHud, btnOpenIni, btnReloadHud;
+        private ToolTip ttTabHud;
+
         // DUTY 分頁專屬即時溫度波形與 S6 熱平衡/兩段式超溫防護欄位 (已由 sharedTestTempTrend 統一代理)
         private Label lblDutyTempTrendTitle, lblDutyTempRealtimeVal;
         private Label lblDutyAllChTempsDisp;
@@ -1341,8 +1347,7 @@ namespace DynamometerHMI
             {
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 11f, FontStyle.Bold),
-                ItemSize = new Size(155, 38),
-                SizeMode = TabSizeMode.Fixed,
+                Padding = new Point(8, 4),
                 Margin = new Padding(4)
             };
 
@@ -1395,6 +1400,9 @@ namespace DynamometerHMI
             rootTable.Controls.Add(tabControl, 0, 1);
             this.Controls.Add(rootTable);
 
+            // 分頁列右側排版即時數值與快捷 HUD 控制器 (直接顯示分割條數值、一鍵存檔、記事本開啟)
+            BuildTabHud();
+
             // 雙向全息即時同步：切換分頁時，刷新圖解面板與模式排版，並依需求將共用溫度趨勢圖動態停泊 (Dynamic Re-Parenting)
             tabControl.SelectedIndexChanged += (s, e) => {
                 if (tabControl.SelectedIndex == 1) // 切換至 T-N 曲線測試分頁
@@ -1430,7 +1438,15 @@ namespace DynamometerHMI
                 int currentTab = tabControl.SelectedIndex;
                 this.BeginInvoke(new Action(() => {
                     ApplyTabSplitters(currentTab);
+                    UpdateTabHudStatus();
                 }));
+            };
+
+            this.Resize += (s, e) => {
+                if (pnlTabHud != null)
+                {
+                    pnlTabHud.Location = new Point(this.ClientSize.Width - pnlTabHud.Width - 8, 54);
+                }
             };
 
             // 視窗大小/位置拖曳調整結束時自動儲存視窗座標與分割條
@@ -2650,6 +2666,7 @@ namespace DynamometerHMI
             finally
             {
                 isLayoutLoaded = true;
+                UpdateTabHudStatus();
             }
         }
 
@@ -2675,6 +2692,7 @@ namespace DynamometerHMI
                     layoutSplitters[actualKey] = split.SplitterDistance;
                     if (key == "DutyMain") layoutSplitters["DutyMain"] = split.SplitterDistance;
                     SaveLayoutConfig();
+                    UpdateTabHudStatus();
                 };
 
                 // 當容器尺寸就緒時安全套用設定值
@@ -2803,6 +2821,203 @@ namespace DynamometerHMI
                 }
             }
             catch { }
+        }
+
+        private void BuildTabHud()
+        {
+            pnlTabHud = new Panel()
+            {
+                Height = 32,
+                Width = 385,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                BackColor = Color.FromArgb(248, 250, 252),
+                BorderStyle = BorderStyle.FixedSingle,
+                Cursor = Cursors.Default
+            };
+            pnlTabHud.Location = new Point(Math.Max(50, this.ClientSize.Width - pnlTabHud.Width - 8), 54);
+
+            ttTabHud = new ToolTip() { InitialDelay = 150, AutoPopDelay = 15000 };
+
+            lblTabHudCoords = new Label()
+            {
+                Text = "📐 載入排版中...",
+                Location = new Point(4, 5),
+                AutoSize = false,
+                Width = 225,
+                Height = 20,
+                Font = new Font("Consolas", 9f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(15, 23, 42),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+
+            btnSaveHud = new Button()
+            {
+                Text = "💾存",
+                Location = new Point(232, 2),
+                Size = new Size(44, 26),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(37, 99, 235),
+                ForeColor = Color.White,
+                Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnSaveHud.FlatAppearance.BorderSize = 0;
+            ttTabHud.SetToolTip(btnSaveHud, "立即強制將目前排版儲存至 dynamometer_layout.ini");
+
+            btnOpenIni = new Button()
+            {
+                Text = "📝改",
+                Location = new Point(278, 2),
+                Size = new Size(48, 26),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(226, 232, 240),
+                ForeColor = Color.FromArgb(30, 41, 59),
+                Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnOpenIni.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
+            ttTabHud.SetToolTip(btnOpenIni, "直接開啟 Windows 記事本手動修改 dynamometer_layout.ini");
+
+            btnReloadHud = new Button()
+            {
+                Text = "🔄載",
+                Location = new Point(328, 2),
+                Size = new Size(48, 26),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(226, 232, 240),
+                ForeColor = Color.FromArgb(30, 41, 59),
+                Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnReloadHud.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
+            ttTabHud.SetToolTip(btnReloadHud, "手動修改記事本後，點擊立即重新載入並套用");
+
+            btnSaveHud.Click += (s, e) => {
+                try
+                {
+                    SaveLayoutConfig();
+                    UpdateTabHudStatus();
+                    lblTabHudCoords.ForeColor = Color.DarkGreen;
+                    System.Windows.Forms.Timer tmr = new System.Windows.Forms.Timer() { Interval = 1500 };
+                    tmr.Tick += (st, et) => {
+                        try { lblTabHudCoords.ForeColor = Color.FromArgb(15, 23, 42); } catch { }
+                        tmr.Stop();
+                        tmr.Dispose();
+                    };
+                    tmr.Start();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "儲存失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+
+            btnOpenIni.Click += (s, e) => {
+                try
+                {
+                    string iniPath = GetLayoutConfigPath();
+                    Process.Start("notepad.exe", "\"" + iniPath + "\"");
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "開啟記事本失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+
+            btnReloadHud.Click += (s, e) => {
+                try
+                {
+                    LoadLayoutConfig();
+                    int cur = (tabControl != null) ? tabControl.SelectedIndex : 0;
+                    ApplyTabSplitters(cur);
+                    UpdateTabHudStatus();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "重新載入失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+
+            pnlTabHud.Controls.AddRange(new Control[] { lblTabHudCoords, btnSaveHud, btnOpenIni, btnReloadHud });
+            this.Controls.Add(pnlTabHud);
+            pnlTabHud.BringToFront();
+        }
+
+        public void UpdateTabHudStatus()
+        {
+            if (lblTabHudCoords == null) return;
+            try
+            {
+                int curTab = (tabControl != null) ? tabControl.SelectedIndex : 0;
+                string info = "";
+                if (curTab == 0) // 即時綜合監控
+                {
+                    int mv = (splitMainVertical != null) ? splitMainVertical.SplitterDistance : GetSavedSplitter("MainVertical", 295);
+                    int bt = (splitBottomHorizontal != null) ? splitBottomHorizontal.SplitterDistance : GetSavedSplitter("Bottom", 464);
+                    int d1 = (splitDrive1 != null) ? splitDrive1.SplitterDistance : GetSavedSplitter("Drive1", 328);
+                    info = string.Format("📐 監控:縱{0} 底{1} 驅{2}", mv, bt, d1);
+                }
+                else if (curTab == 1) // 多段 T-N 測試
+                {
+                    bool isMulti = (cmbTnMode != null && cmbTnMode.SelectedIndex == 1);
+                    string key = isMulti ? "TnMainMulti" : "TnMain";
+                    int top = (splitTnMain != null) ? splitTnMain.SplitterDistance : GetSavedSplitter(key, isMulti ? 325 : 232);
+                    int bot = (splitTnBottom != null) ? splitTnBottom.SplitterDistance : GetSavedSplitter("TnBottom", 732);
+                    int rgt = (splitTnRight != null) ? splitTnRight.SplitterDistance : GetSavedSplitter("TnRight", 444);
+                    info = string.Format("📐 TN:上{0} 左{1} 溫{2}", top, bot, rgt);
+                }
+                else if (curTab == 2) // 工作制 Duty
+                {
+                    int m = (cmbDutyMode != null) ? cmbDutyMode.SelectedIndex : 0;
+                    string modeTag = (m == 0) ? "S1" : (m == 1 ? "S2" : "S6");
+                    string key = (m == 0) ? "DutyMain_S1" : (m == 1 ? "DutyMain_S2" : "DutyMain_S6");
+                    int top = (splitDuty != null) ? splitDuty.SplitterDistance : GetSavedSplitter(key, 539);
+                    int rgt = (splitDutyTop != null) ? splitDutyTop.SplitterDistance : GetSavedSplitter("DutyTop", 905);
+                    info = string.Format("📐 Duty({0}):主{1} 頂{2}", modeTag, top, rgt);
+                }
+                else if (curTab == 3) // 效率地圖
+                {
+                    int eff = (splitEff != null) ? splitEff.SplitterDistance : GetSavedSplitter("EffMain", 1018);
+                    info = string.Format("📐 效率:分割{0}", eff);
+                }
+                else if (curTab == 4) // 空載溫升
+                {
+                    int top = (splitNoLoadMain != null) ? splitNoLoadMain.SplitterDistance : GetSavedSplitter("NoLoadMain", 509);
+                    int bot = (splitNoLoadBottom != null) ? splitNoLoadBottom.SplitterDistance : GetSavedSplitter("NoLoadBottom", 1223);
+                    info = string.Format("📐 空載:主{0} 底{1}", top, bot);
+                }
+                else
+                {
+                    info = string.Format("📐 視圖: Tab {0}", curTab);
+                }
+
+                lblTabHudCoords.Text = info;
+
+                // 同步更新 ToolTip 顯示完整 INI 內容
+                var sbAll = new StringBuilder();
+                sbAll.AppendLine("【全域排版記憶座標 (dynamometer_layout.ini)】");
+                foreach (var kvp in layoutSplitters)
+                {
+                    sbAll.AppendLine(string.Format("{0} = {1}", kvp.Key, kvp.Value));
+                }
+                sbAll.AppendLine("\n點擊 [💾存] 立即強制寫入 INI");
+                sbAll.AppendLine("點擊 [📝改] 直接開啟記事本手動修改");
+                sbAll.AppendLine("點擊 [🔄載] 立即重新載入並套用");
+                if (ttTabHud != null)
+                {
+                    string tip = sbAll.ToString();
+                    ttTabHud.SetToolTip(lblTabHudCoords, tip);
+                    ttTabHud.SetToolTip(pnlTabHud, tip);
+                }
+            }
+            catch { }
+        }
+
+        private int GetSavedSplitter(string key, int defVal)
+        {
+            int v;
+            if (layoutSplitters.TryGetValue(key, out v) && v > 0) return v;
+            return defVal;
         }
 
         private void SaveDgvColWidths(StringBuilder sb, string sectionName, DataGridView dgv)

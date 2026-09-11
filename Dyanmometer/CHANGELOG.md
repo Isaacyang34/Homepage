@@ -8,7 +8,45 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.92 (beta) | v2.10.50 | 2026-09-11 | 分頁列右側即時排版記憶 HUD 抬頭顯示器與熱載入/直修控制中心：(1)根因與需求：使用者調整分割條後渴望即時目視目前記憶座標、手動修訂行數與立即回寫，過去排版記憶隱藏於背景；(2)分頁列右端空間重構：將 tabControl 的 SizeMode 改為 Normal、縮減 Padding 釋出右側空間，於分頁標籤列最右側頂層錨定專屬抬頭顯示面板 (pnlTabHud)；(3)即時座標聯動顯示：分割條拖曳 (SplitterMoved)、工作制 (S1/S2/S6) 或分頁切換時，毫秒級動態刷新當前分頁核心分割條像素數值 (如 TnMain:232, TnBot:732)；(4)一鍵熱操作三核心按鈕：實裝 [💾存] 即刻強制同步寫入根目錄與 ini/、[📝改] 一鍵喚醒 Windows 原生 Notepad.exe 直接手動修改 dynamometer_layout.ini 指定行數、[🔄載] 即刻免重啟熱載入 (Hot-Reload) 重新套用最新 INI 尺寸；(5)懸浮完整資訊提示 (ToolTip)：滑鼠懸停即浮現目前 [Splitters] 完整排版鍵值清單。 |
 | V2.91 (beta) | v2.10.49 | 2026-09-11 | 雙目錄 (`ini/` 子目錄與根目錄) 自動識別與雙向無縫同步存檔架構（徹底解決使用者改變排版卻未反映於 `ini` 資料夾檔案之根因）：(1)根因剖析：程式底層原先寫死僅讀寫根目錄 `dynamometer_layout.ini`，而使用者在 `ini/` 資料夾內進行檢視與備份，兩者實體檔案脫節，造成使用者查看 `ini/` 時發現數值未更新；(2)實裝雙目錄自適應載入引擎 (Intelligent Dual-Path Loader)：啟動時同時檢測根目錄與 `ini/dynamometer_layout.ini`，自動以修改時間最新 (Newest LastWriteTime) 之檔案優先載入，即刻繼承使用者在 `ini/` 調校之最佳座標；(3)實裝雙向同步存檔 (Dual-Path Synchronous Saver)：排版變更與視窗關閉時，同時寫入根目錄與 `ini/` 子目錄，確保雙端檔案內容 100% 同動一致；(4)修正關閉視窗 (FormClosing) 執行順序：將 SaveLayoutConfig() 移至 this.Hide() 之前執行，杜絕控制項在視窗隱藏時座標失效。 |
+
+---
+
+## [V2.92 beta / v2.10.50] - 2026-09-11
+
+### 🎯 現象與需求 (User Request & Log-First Diagnostics)
+1. **使用者指令明確指示**：
+   - 使用者反映：「還是沒有記憶啊? 你直接把記憶的行數給我，我手動改」、「你把這些資料顯示在分頁這行的最右邊」。
+   - 使用者期望在分頁標籤列（Tab Control Header）的最右端直接目視當前分頁的排版與分割條記憶數據，並能即時手動修改與手動儲存。
+2. **操作體驗與資訊透明度診斷**：
+   - 過去排版記憶完全在背景執行，使用者在拉動分割條時無法直觀確認程式是否抓取到正確的像素座標；
+   - 使用者若想手動修改 INI 檔案，過去需在檔案總管中搜尋路徑手動開啟，修改後又必須重啟程式方能驗證效果。
+
+---
+
+### 💡 致命根因與架構設計 (Root Cause & Architectural Blueprint)
+1. **資訊回饋黑箱 (Lack of Live Visual Feedback)**：
+   - 介面缺少即時 HUD (Heads-Up Display)，使用者無法得知目前分割條的真實 Pixel 數值與對應之 INI 鍵名。
+2. **分頁列排版空間最佳化**：
+   - 原 `tabControl` 採用 `TabSizeMode.Fixed` 且每個分頁固定為 155px，8 個分頁即佔據 1240px，在 1280 寬度解析度下分頁列完全被填滿，右側無可用空間；
+   - 需重構分頁標籤為 `TabSizeMode.Normal` 自適應文字寬度，使 8 個分頁僅佔約 850px，右側釋出 400px+ 之黃金操作區域。
+
+---
+
+### 🚀 精確修復方案 (Accurate Solution & Feature Implementation)
+1. **分頁列最右側實裝即時排版 HUD 面板 (`pnlTabHud`)**：
+   - 在主視窗頂層建立專屬面板，錨定於 `AnchorStyles.Top | AnchorStyles.Right`，位置精確貼合於分頁列右端空白處 (`ClientSize.Width - 390, 54`)，絕不被分頁覆蓋；
+   - 內建高對比深色科技標籤 (`lblTabHudCoords`)，動態顯示當前分頁的核心分割條尺寸（例如 `TnMain:232 | TnBot:732` 或 `DutyMain:539`）。
+2. **毫秒級動態聯動刷新 (Live Dragging & Switching Feedback)**：
+   - 在 `SafeSetupSplitContainer` 中註冊 `split.SplitterMoved` 事件，使用者按住滑鼠拖曳分割條時，HUD 上的像素數值實時連動跳動，精確反映當前數值；
+   - 在切換分頁 (`SelectedIndexChanged`) 或切換 Duty 工作制 (S1/S2/S6) 時，自動切換至對應模式之排版座標。
+3. **一鍵熱操作三大捷徑按鈕 (Instant Hot-Actions)**：
+   - **`[💾存]` (Instant Save)**：點擊立刻強制執行 `SaveLayoutConfig()`，同時寫入根目錄與 `ini/dynamometer_layout.ini`，並以綠字瞬時回饋 `[已存檔 17:48]`；
+   - **`[📝改]` (Direct Notepad Edit)**：點擊直接喚醒 Windows 原生 `notepad.exe` 開啟 `dynamometer_layout.ini`，使用者可直接手動修訂指定行數（如第 20~35 行之 `[Splitters]` 座標）；
+   - **`[🔄載]` (Live Hot-Reload)**：手動修改 INI 存檔後，在程式中點擊 `[🔄載]`，程式即刻免重啟重載 INI 並動態套用至目前分頁，介面立體刷新！
+4. **完整設定清單懸浮提示 (ToolTip Inspection)**：
+   - 滑鼠懸停於 HUD 面板或標籤上時，自動彈出格式化之完整 `[Splitters]` 區段所有鍵值清單，排版設定完全透明。
 | V2.90 (beta) | v2.10.48 | 2026-09-11 | 軟體專屬企業級識別徽標 (App Icon) 經典 Neon 矽鋼片核心旗艦版全面導入：(1)主視覺完全傳承深受好評的經典 Neon 旗艦風格（深鈦金屬倒角外框、極致青藍與琥珀霓虹發光燈管、右側高精度動力計量錶圓弧與指示指針）；(2)正中央風扇葉片精確替換為高擬真電機定轉子矽鋼片 (Silicon Steel Laminations) 疊片、齒槽絕緣純銅線圈繞組與中央金屬傳動轉軸滾珠軸承；(3)徹底去除外部方框與背景襯底，保留純「D」字本體與量錶外廓，全背景透空透明 (Alpha = 0)；(4)生成完整 256/128/64/48/32/16 多解析度 Windows XP 物理相容 (32-bit DIB) 與現代 ICO 檔案，全面注入主程式 Win32 資源、視窗 Icon 與 WebServer favicon。 |
 | V2.89 (beta) | v2.10.48 | 2026-09-11 | TN / Duty (S1/S2/S6) 各分頁排版記憶徹底根治修復（排版設定檔存放於執行檔目錄 `dynamometer_layout.ini`）：(1)根絕 INI 寫入漏列 managedSecSet 導致 [UI]、[Safety] 等區段無限重複疊加膨脹至 4484 行之腐蝕缺陷；(2)修復 SaveLayoutConfig() 跨分頁盲目讀取背景未呈現 Splitter 導致以預設值覆寫使用者已調整設定之破壞迴圈，嚴格限縮僅同步目前活動中之分頁 (curTab)；(3)移除 tabControl.SelectedIndexChanged 提前存檔之未就緒寫入；(4)解除 TN 測試手動重複繫結 SplitterMoved 雙重覆寫問題，確保 multi-point 與 single-step 獨立記憶；(5)Duty 工作制 S1/S2/S6 三大模式獨立分立 DutyMain_S1, DutyMain_S2, DutyMain_S6 記憶鍵值，模式切換即時動態無縫復原。 |
 | V2.88 (beta) | v2.10.48 | 2026-09-11 | WEB_GBD (GBD_Viewer.html & GBD_Editor.html) 通道觀看預設勾選邏輯升級：(1)廢除舊有固定寫死 CH1, CH5, CH8, CH10 之限制，全面同步對齊 Dynamometer 實測有效通道辨識引擎 (DetectActiveGbdChannels)；(2)開檔載入 (onLoaded) 時自動動態掃描並識別具備合法溫度數據 (-40℃ ~ 350℃ 且非 0、非 999、非 32767 斷線碼) 之通道進行自動勾選顯示，無資料時自適應 fallback 前 4 點；(3)左側通道列表新增「⚡ 實測」按鈕，支援隨時一鍵重新依實測數據勾選；(4)正式將 WEB_GBD 溫度資料檢視器加入全案入口導覽首頁 (index.html)。 |
