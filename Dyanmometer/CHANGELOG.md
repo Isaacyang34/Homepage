@@ -20,11 +20,13 @@
 1. **使用者回報指示**：
    - 「上傳到googlDrive 失敗你能從LOG查問題嗎?」
    - 「no close_notify alert received before connection closed」
+   - 「另外修改一下報告上傳功能 如果已經是zip檔就不用再壓縮一次了，除非有包括到非zip檔。」
 2. **實機與源碼架構佐證**：
    - 檢視 `Dynamometer_ReportManager.cs` 原始邏輯：`WriteReportLog` 僅將上傳日誌顯示於 UI 控制項 `txtReportLogs`，未寫入核心 `Dynamometer_Telemetry.Log`，導致日誌檔與 Firebase 均查無報告傳輸異常紀錄；
    - 實測連線 Google Apps Script Webhook 端點發現：GAS 接收 POST 請求並執行完成後，回傳 `HTTP/1.1 302 Found` (附帶 `Location: https://script.googleusercontent.com/macros/echo?...`)，隨即發送 TCP FIN 斷開連線，未依照 TLS 協定發送 `close_notify` 警報；
    - 原始 `Dynamometer_WebServer.SendHttpRequest` 於 `StreamReader.ReadToEnd()` 讀取結尾時直接拋出 `Org.BouncyCastle.Crypto.Tls.TlsNoCloseNotifyException: No close_notify alert received before connection closed`，造成 HMI 捕捉為失敗；
-   - 原始連線引擎未實作 HTTP 302 重定向自動跟隨與 `Transfer-Encoding: chunked` 解碼，無法取得 Google 建立檔案後回傳的 JSON 狀態與 `fileUrl`。
+   - 原始連線引擎未實作 HTTP 302 重定向自動跟隨與 `Transfer-Encoding: chunked` 解碼，無法取得 Google 建立檔案後回傳的 JSON 狀態與 `fileUrl`；
+   - 原始 `ExecuteCompressAndUpload` 無差別對選取的項目調用 7-Zip / PKZip 重複封包，當使用者勾選先前已封裝的 `.zip` 測試報告時，會造成 ZIP 檔案內嵌套 ZIP 檔案之無效二次壓縮。
 
 ---
 
@@ -34,7 +36,9 @@
 2. **缺乏 HTTP 轉址自動跟隨 (Redirect Following)**：
    - Google Apps Script 規範中，所有 `doPost` 回傳一律經由 302 導向至 `script.googleusercontent.com` 取得回應內文。
 3. **報告管理器日誌未統流 (Isolated UI Logging)**：
-   - `Dynamometer_ReportManager.cs` 僅有控制項字串追加，未呼叫 `Dynamometer_Telemetry.Log`。
+   - `Dynamometer_ReportManager.cs` 僅有控制項字串追加，未呼叫 `MainForm.WriteHmiLog`。
+4. **缺乏 ZIP 類型偵測與透傳機制 (Redundant Compression on Existing Archives)**：
+   - 未檢驗勾選檔案副檔名，導致已有 ZIP 檔時仍重複觸發本機壓縮流程。
 
 ---
 
@@ -46,11 +50,13 @@
    - 於接收到 301/302/303/307 且具備 `Location` 標頭時，自動以 GET 跟隨轉址（支援最多 5 跳）；
    - 新增 `UnchunkHttpBody` 函式，解析十六進位 chunk 標記，取得乾淨 JSON 內文。
 3. **全面接入統一日誌軌道 (`Dynamometer_ReportManager.cs`)**：
-   - `WriteReportLog` 同步呼叫 `Dynamometer_Telemetry.Log("REPORT", message)`；
-   - 捕捉任何異常時同步寫入 `Dynamometer_Telemetry.Log("REPORT_ERR", ...)`；
+   - `WriteReportLog` 同步呼叫 `MainForm.WriteHmiLog("REPORT", message)`；
+   - 捕捉任何異常時同步寫入 `MainForm.WriteHmiLog("REPORT_ERR", ...)`；
    - 自動解析 Google Drive 回傳之 `fileUrl` 並於提示對話框中完整呈現。
-4. **實測驗證**：
-   - 透過獨立測試程式實際發送封包至 Google Apps Script，確認自動轉址成功取得 `HTTP 200 OK` 與 Google Drive 檔案連結 `fileUrl`，傳輸零拋錯。
+4. **實裝現有 ZIP 智能直通透傳、免二次壓縮機制 (`Dynamometer_ReportManager.cs`)**：
+   - 於勾選清單與統計時自動掃描檔案類型：若選取之項目**全數皆為 `.zip` 檔案**（例如勾選已封裝好的 `Report_xxx.zip`），系統自動跳過本機 7-Zip/PKZip 壓縮流程，直接以原生 ZIP 直通發送至雲端 Webhook、Firebase 或 NAS；
+   - **安全判定**：僅當清單中**包括到非 ZIP 檔案**（如原始 `.csv`、`.log`、`.xlsx`）或混合選擇時，才執行打包壓縮，徹底杜絕「ZIP 內包 ZIP」之冗餘行為；
+   - 於 UI 統計標籤同步提示：`已選取: 1 個檔案 (總計: 1.2 MB) [已是 ZIP 封包，上傳將跳過二次壓縮]`，檔名輸入框自動同步為該 ZIP 檔名。
 5. **編譯打包與發布驗證**：
    - 經由 `csc.exe` (x86 .NET 4.0 WinXP 相容模式) 編譯無誤；
    - 執行 `package_release.ps1 -Version 2.5.0` 完成打包發布至 `Release/Dynamometer_HMI_V2.5.0_Portable/`。
