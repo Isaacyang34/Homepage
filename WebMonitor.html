@@ -611,191 +611,6 @@
             background: rgba(255, 255, 255, 0.15);
             border-color: var(--cyan);
         }
-
-        /* ====== 主導航分頁列 (Main Tabs Navigation) ====== */
-        .main-tabs-bar {
-            display: flex;
-            gap: 12px;
-            background: var(--bg-card);
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 8px 12px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.25);
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .main-tab-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 9px;
-            background: transparent;
-            border: 1px solid transparent;
-            color: var(--text-secondary);
-            padding: 9px 18px;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.22s ease;
-            user-select: none;
-        }
-
-        .main-tab-btn:hover {
-            color: var(--text-primary);
-            background: rgba(255, 255, 255, 0.05);
-            border-color: rgba(255, 255, 255, 0.1);
-        }
-
-        .main-tab-btn.active {
-            background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(99, 102, 241, 0.18));
-            border-color: rgba(56, 189, 248, 0.5);
-            color: #fff;
-            box-shadow: 0 4px 14px rgba(56, 189, 248, 0.2);
-        }
-
-        .main-tab-btn.active .tab-icon {
-            transform: scale(1.15);
-            filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.6));
-        }
-
-        .tab-badge-live {
-            background: rgba(16, 185, 129, 0.2);
-            border: 1px solid rgba(16, 185, 129, 0.5);
-            color: var(--emerald);
-            font-size: 10px;
-            font-weight: 800;
-            padding: 2px 6px;
-            border-radius: 10px;
-            letter-spacing: 0.5px;
-        }
-
-        .tab-vip-lock-badge {
-            background: rgba(234, 179, 8, 0.15);
-            border: 1px solid rgba(234, 179, 8, 0.4);
-            color: #facc15;
-            font-size: 11px;
-            font-weight: 700;
-            padding: 2px 8px;
-            border-radius: 10px;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            transition: all 0.2s;
-        }
-
-        .tab-vip-lock-badge.unlocked {
-            background: rgba(16, 185, 129, 0.15);
-            border-color: rgba(16, 185, 129, 0.4);
-            color: var(--emerald);
-        }
-
-        /* ====== VIP 權限鎖定卡片 (Spec VIP Lock Container) ====== */
-        .spec-vip-lock-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 560px;
-            padding: 40px 20px;
-            animation: fadeInUp 0.35s ease;
-        }
-
-        .spec-lock-box {
-            background: linear-gradient(145deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.9));
-            border: 1px solid rgba(234, 179, 8, 0.45);
-            box-shadow: 0 0 50px rgba(234, 179, 8, 0.15), 0 20px 40px rgba(0, 0, 0, 0.7);
-            border-radius: 20px;
-            max-width: 580px;
-            width: 100%;
-            padding: 36px 32px;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 16px;
-        }
-
-        .spec-lock-icon {
-            font-size: 48px;
-            margin-bottom: -4px;
-            filter: drop-shadow(0 0 18px rgba(234, 179, 8, 0.6));
-            animation: pulse-ring 2.5s infinite ease-in-out;
-        }
-
-        .spec-lock-badge {
-            background: rgba(234, 179, 8, 0.15);
-            border: 1px solid rgba(234, 179, 8, 0.4);
-            color: #facc15;
-            padding: 4px 14px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-        }
-
-        .spec-lock-box h2 {
-            font-size: 20px;
-            font-weight: 800;
-            color: var(--text-primary);
-            margin: 0;
-        }
-
-        .spec-lock-box p {
-            font-size: 13px;
-            color: var(--text-secondary);
-            line-height: 1.7;
-            margin: 0;
-        }
-
-        .spec-lock-input-group {
-            display: flex;
-            gap: 10px;
-            width: 100%;
-            max-width: 420px;
-            margin-top: 6px;
-        }
-
-        .spec-lock-input-group input {
-            flex: 1;
-            background: rgba(10, 15, 29, 0.85);
-            border: 1px solid rgba(234, 179, 8, 0.4);
-            color: #facc15;
-            font-family: Consolas, monospace;
-            font-size: 15px;
-            font-weight: bold;
-            padding: 10px 14px;
-            border-radius: 10px;
-            outline: none;
-            text-align: center;
-            letter-spacing: 1px;
-        }
-
-        .spec-lock-input-group input:focus {
-            border-color: #facc15;
-            box-shadow: 0 0 14px rgba(234, 179, 8, 0.35);
-        }
-
-        .spec-lock-hint {
-            font-size: 11px;
-            color: var(--text-muted);
-            line-height: 1.5;
-        }
-
-        /* 內嵌分析儀頂部快捷工具列 */
-        .spec-toolbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 18px;
-            background: rgba(15, 23, 42, 0.85);
-            border-bottom: 1px solid var(--border);
-            border-top-left-radius: 16px;
-            border-top-right-radius: 16px;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
     </style>
 </head>
 <body>
@@ -912,22 +727,8 @@
     <!-- 致命異常與崩潰緊急警報廣播橫幅 -->
     <div id="alertBanner" style="display:none; background:rgba(239, 68, 68, 0.25); border:1px solid rgba(239, 68, 68, 0.6); color:#fca5a5; padding:10px 16px; border-radius:12px; font-weight:600; font-size:13px; align-items:center; gap:8px;"></div>
 
-    <!-- 主導航分頁列 (Main Navigation Tabs) -->
-    <div class="main-tabs-bar">
-        <button class="main-tab-btn active" id="tabBtnLive" onclick="switchMainTab('live')">
-            <span class="tab-icon">⚡</span>
-            <span>雲端即時監控中心 (Live Monitor)</span>
-            <span class="tab-badge-live">LIVE</span>
-        </button>
-        <button class="main-tab-btn" id="tabBtnSpec" onclick="switchMainTab('spec')">
-            <span class="tab-icon">📑</span>
-            <span>馬達規格特性分析儀 (Specs & Duty)</span>
-            <span class="tab-vip-lock-badge unlocked" id="tabSpecVipBadge">📊 PRO</span>
-        </button>
-    </div>
-
-    <!-- ── 分頁 1: 雲端即時監控中心 ── -->
-    <div id="tabContentLive" class="tab-content-pane" style="display: flex; flex-direction: column; gap: 16px;">
+    <!-- 即時遙測儀表內容 -->
+    <div style="display: flex; flex-direction: column; gap: 16px;">
     <!-- 核心動力四大 KPI -->
     <div class="grid-kpis">
         <div class="card-kpi kpi-speed">
@@ -1101,47 +902,6 @@
         </div>
     </div>
     </div>
-    <!-- ── 分頁 1 結束 ── -->
-
-    <!-- ── 分頁 2: 馬達規格特性分析儀 (VIP 專屬) ── -->
-    <div id="tabContentSpec" class="tab-content-pane" style="display:none; flex-direction: column; gap: 16px;">
-        <!-- VIP 未解鎖時顯示的鎖定卡片 -->
-        <div id="specVipLockCard" class="spec-vip-lock-container">
-            <div class="spec-lock-box">
-                <div class="spec-lock-icon">👑🔒</div>
-                <div class="spec-lock-badge">VIP 專屬工程分析中心</div>
-                <h2>馬達動力計規格特性分析儀</h2>
-                <p>
-                    本模組提供 <b>CNS 14400 / IEC 60034-2-1</b> 馬達規格特性自動推算判定表、<b>S1 / S2 / S6 工作制熱平衡診斷</b>、<b>2D 效率雲圖</b> 與 <b>Firebase 雲端報表 ZIP 一鍵解包分析</b>。<br>
-                    此功能受 VIP 權限保護，請輸入工程通行金鑰驗證解鎖。
-                </p>
-                <div class="spec-lock-input-group">
-                    <input type="password" id="txtSpecVipKey" placeholder="請輸入通行金鑰 (例如: vip888)" onkeydown="if(event.key==='Enter') unlockSpecTabWithKey();" />
-                    <button class="btn-vip-gold" onclick="unlockSpecTabWithKey()">驗證解鎖</button>
-                </div>
-                <div class="spec-lock-hint">
-                    💡 提示：輸入通行金鑰 <code>vip888</code> 即可立即解鎖此分析儀與全系統 VIP 無限時連續監控權限。
-                </div>
-            </div>
-        </div>
-
-        <!-- VIP 已解鎖時顯示的內嵌分析儀 -->
-        <div id="specViewerFrameWrapper" style="display:none; width:100%; height:calc(100vh - 150px); min-height:860px; border-radius:16px; overflow:hidden; border:1px solid var(--border); box-shadow:0 10px 30px rgba(0,0,0,0.5); background:var(--bg-primary);">
-            <div class="spec-toolbar">
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <span style="font-size:16px;">📑</span>
-                    <span style="font-size:13px; font-weight:700; color:var(--text-primary);">馬達動力計規格特性分析儀 (CNS 14400 / IEC 60034-2-1 / S1·S2·S6)</span>
-                </div>
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <span style="font-size:12px; color:#facc15; font-weight:bold; background:rgba(234,179,8,0.15); padding:4px 10px; border-radius:8px; border:1px solid rgba(234,179,8,0.3);">👑 VIP 已授權</span>
-                    <button onclick="reloadSpecIframe()" class="btn-ghost" style="padding:4px 10px; font-size:12px;">🔄 重新載入</button>
-                    <a href="Motor_Characteristics_Viewer.html" target="_blank" class="btn-ghost" style="text-decoration:none; padding:4px 10px; font-size:12px; color:var(--cyan); border-color:rgba(56,189,248,0.4);">⛶ 獨立新分頁開啟 ↗</a>
-                </div>
-            </div>
-            <iframe id="specViewerFrame" src="" style="width:100%; height:calc(100% - 46px); border:none; background:transparent;"></iframe>
-        </div>
-    </div>
-    <!-- ── 分頁 2 結束 ── -->
 
     <footer>
         動力計雲端遠端監控系統 &copy; 2026 | 全端純唯讀架構 | 自動適配手機、平板與桌上型電腦
@@ -1231,9 +991,9 @@
 
             updateAccessTierUI();
 
-            // 3. 若網址指定了分頁 (例如 ?tab=spec)，直接切換
+            // 3. 若網址指定了分頁 (例如 ?tab=spec)，直接轉向獨立分析頁面
             if (urlParams.get("tab") === "spec") {
-                switchMainTab("spec");
+                window.location.href = "馬達規格特性分析.html";
             }
         }
 
@@ -1242,17 +1002,12 @@
             const pillGuest = document.getElementById("guestTimerPill");
             const formBody = document.getElementById("whitelistFormBody");
             const activeBody = document.getElementById("whitelistActiveBody");
-            const tabSpecBadge = document.getElementById("tabSpecVipBadge");
 
             if (_isVipUser) {
                 if (badgeVip) badgeVip.style.display = "flex";
                 if (pillGuest) pillGuest.style.display = "none";
                 if (formBody) formBody.style.display = "none";
                 if (activeBody) activeBody.style.display = "flex";
-                if (tabSpecBadge) {
-                    tabSpecBadge.textContent = "👑 VIP (已解鎖)";
-                    tabSpecBadge.className = "tab-vip-lock-badge unlocked";
-                }
                 if (_guestCountdownTimer) {
                     clearInterval(_guestCountdownTimer);
                     _guestCountdownTimer = null;
@@ -1269,91 +1024,6 @@
                 startGuestCountdown();
             }
 
-            updateSpecTabAccess();
-        }
-
-        // ================================================================
-        //  主導航分頁切換與 VIP 馬達規格分析儀連動控制
-        // ================================================================
-        let _activeMainTab = "live";
-
-        function switchMainTab(target) {
-            _activeMainTab = target;
-            const tabLive = document.getElementById("tabBtnLive");
-            const tabSpec = document.getElementById("tabBtnSpec");
-            const viewLive = document.getElementById("tabContentLive");
-            const viewSpec = document.getElementById("tabContentSpec");
-
-            if (target === "spec") {
-                if (tabLive) tabLive.classList.remove("active");
-                if (tabSpec) tabSpec.classList.add("active");
-                if (viewLive) viewLive.style.display = "none";
-                if (viewSpec) viewSpec.style.display = "flex";
-                updateSpecTabAccess();
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            } else {
-                if (tabSpec) tabSpec.classList.remove("active");
-                if (tabLive) tabLive.classList.add("active");
-                if (viewSpec) viewSpec.style.display = "none";
-                if (viewLive) viewLive.style.display = "flex";
-            }
-        }
-
-        function updateSpecTabAccess() {
-            const lockCard = document.getElementById("specVipLockCard");
-            const frameWrapper = document.getElementById("specViewerFrameWrapper");
-            const frame = document.getElementById("specViewerFrame");
-
-            // ★ 零阻礙直通：徹底解除密碼鎖定，點擊分頁即刻呈現全功能分析儀！
-            if (lockCard) lockCard.style.display = "none";
-            if (frameWrapper) frameWrapper.style.display = "block";
-            if (frame) {
-                const currentSrc = frame.getAttribute("src") || "";
-                if (!currentSrc || currentSrc === "about:blank" || currentSrc.indexOf("Motor_Characteristics_Viewer") === -1) {
-                    frame.src = "Motor_Characteristics_Viewer.html";
-                }
-            }
-        }
-
-        function unlockSpecTabWithKey() {
-            const input = document.getElementById("txtSpecVipKey");
-            const key = input ? input.value.trim() : "";
-            if (!key) {
-                showToast("請輸入白名單通行金鑰 (例如: vip888)", "warning");
-                return;
-            }
-
-            if (isValidKey(key)) {
-                localStorage.setItem("dyn_whitelist_token", key);
-                _isVipUser = true;
-                const overlay = document.getElementById("guestTimeoutOverlay");
-                if (overlay) overlay.style.display = "none";
-                updateAccessTierUI();
-                connectFirebaseSSE();
-                if (!pollTimer) pollTimer = setInterval(fetchPollingFallback, 800);
-                showToast("👑 VIP 驗證成功！已解鎖馬達規格特性分析儀與全系統無限時連線", "success");
-
-                // 更新審計狀態
-                if (_currentVisitorSession) {
-                    _currentVisitorSession.is_vip = true;
-                    _currentVisitorSession.tier = "👑 VIP 白名單";
-                    fetch(`${FB_BASE}/audit/latest_visitor.json`, {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(_currentVisitorSession)
-                    }).catch(() => {});
-                }
-            } else {
-                showToast("❌ 通行金鑰不正確 (提示: vip888)", "error");
-            }
-        }
-
-        function reloadSpecIframe() {
-            const frame = document.getElementById("specViewerFrame");
-            if (frame) {
-                frame.src = "Motor_Characteristics_Viewer.html?t=" + Date.now();
-                showToast("🔄 分析儀已重新整理", "info");
-            }
         }
 
         function startGuestCountdown() {
