@@ -903,12 +903,7 @@
                 <span id="statusText">即時串流中 (SSE)</span>
                 <span id="pingText" style="color: var(--cyan); font-size: 11px;">-- ms</span>
             </div>
-            <!-- 白名單無限時徽章 (VIP) -->
-            <div id="whitelistBadge" class="status-pill" style="display:none; background:rgba(234,179,8,0.15); border-color:rgba(234,179,8,0.4); color:#facc15; cursor:pointer;" onclick="openWhitelistModal()" title="已取得白名單授權，點擊管理">👑 VIP 無限時</div>
-            <!-- 訪客 5 分鐘倒數計時膠囊 -->
-            <div id="guestTimerPill" class="status-pill" style="background:rgba(244,63,94,0.15); border-color:rgba(244,63,94,0.4); color:#fda4af; cursor:pointer;" onclick="openWhitelistModal()" title="一般訪客限時 5 分鐘，點擊輸入金鑰解鎖">⏱️ <span id="guestTimerText">05:00</span> <span style="font-size:10px; color:#fb7185; text-decoration:underline; margin-left:2px;">解鎖</span></div>
-            <button class="btn-action" id="btnSpecViewer" onclick="switchMainTab('spec')" style="display:inline-flex; align-items:center; gap:4px; background: rgba(16,185,129,0.15); border-color: rgba(16,185,129,0.4); color: var(--emerald); cursor:pointer;" title="切換至馬達規格特性分析儀">📑 馬達規格特性分析</button>
-            <a href="Motor_Characteristics_Viewer.html" target="_blank" class="btn-action" style="text-decoration:none; display:inline-flex; align-items:center; gap:4px; background: rgba(56,189,248,0.15); border: 1px solid rgba(56,189,248,0.3); color: var(--cyan);" title="在新分頁獨立開啟分析儀">⛶ 新分頁開啟 ↗</a>
+            <a href="Motor_Characteristics_Viewer.html" target="_blank" class="btn-action" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; background: rgba(16,185,129,0.18); border: 1px solid rgba(16,185,129,0.5); color: #34d399; font-weight:700; padding:6px 14px; border-radius:8px;" title="前往獨立馬達規格特性分析儀 (S1/S2/S6、T-N與Excel匯出)">📑 馬達規格特性分析 ↗</a>
             <button class="btn-action" id="btnVisitors" onclick="openVisitorAuditModal()" style="background: rgba(56,189,248,0.15); border-color: rgba(56,189,248,0.3); color: var(--cyan);">👥 訪客足跡</button>
             <button class="btn-action" id="btnFullscreen" onclick="toggleFullscreen()">⛶ 全螢幕</button>
         </div>
@@ -1168,14 +1163,9 @@
         const FB_BASE = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app";
 
         // ================================================================
-        //  白名單權限與訪客 5 分鐘逾時控制系統 (Whitelist & Access Tier Engine)
+        //  全端無限時即時連線監控引擎 (Unlimited Access Engine)
         // ================================================================
-        const GUEST_TIME_LIMIT_SEC = 300; // 5 分鐘 (300 秒)
-        let _guestRemainingSec = GUEST_TIME_LIMIT_SEC;
-        let _guestCountdownTimer = null;
-        let _isVipUser = false;
-        let _remoteWhitelistKey = "dyn888";
-        const DEFAULT_VIP_KEYS = ["dyn888", "dyn2026", "vip888", "admin888"];
+        let _isVipUser = true; // 所有人預設享有 24 小時無限時即時連線，無密碼卡控與時限
 
         // Toast 訊息提示元件
         function showToast(msg, type = "info") {
@@ -1204,10 +1194,7 @@
         }
 
         function isValidKey(key) {
-            if (!key) return false;
-            const k = key.trim().toLowerCase();
-            if (k === _remoteWhitelistKey.toLowerCase()) return true;
-            return DEFAULT_VIP_KEYS.some(dk => dk.toLowerCase() === k);
+            return true;
         }
 
         async function fetchRemoteWhitelistKey() {
