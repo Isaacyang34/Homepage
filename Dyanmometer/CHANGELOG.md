@@ -8,8 +8,46 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.88 (beta) | v2.10.48 | 2026-09-11 | WEB_GBD (GBD_Viewer.html & GBD_Editor.html) 通道觀看預設勾選邏輯升級：(1)廢除舊有固定寫死 CH1, CH5, CH8, CH10 之限制，全面同步對齊 Dynamometer 實測有效通道辨識引擎 (DetectActiveGbdChannels)；(2)開檔載入 (onLoaded) 時自動動態掃描並識別具備合法溫度數據 (-40℃ ~ 350℃ 且非 0、非 999、非 32767 斷線碼) 之通道進行自動勾選顯示，無資料時自適應 fallback 前 4 點；(3)左側通道列表新增「⚡ 實測」按鈕，支援隨時一鍵重新依實測數據勾選；(4)正式將 WEB_GBD 溫度資料檢視器加入全案入口導覽首頁 (index.html)。 |
 | V2.87 (beta) | v2.10.47 | 2026-09-11 | 全分頁 (TN / Duty S1/S2/S6 / 效率熱力圖 / 空載測試) 排版與分割條 (Splitter) 記憶深度修復：(1)徹底根除 WinForms SizeChanged 事件中未受保護之 SplitterMoved 回饋覆蓋迴圈與非活動分頁尺寸未就緒 (Height/Width <= 0) 抹除已存座標之致命缺陷；(2)建立 isApplyingSplitterLayout 遞迴防護鎖與 DefaultSplitterDistances 15 組全域預設基線；(3)TN 分頁細分 single-step ("TnMain") 與 multi-point ("TnMainMulti") 雙態分割條記憶，並支援 DutyMain, DutyTop, EffMain, NoLoadMain, NoLoadBottom 完整持久化；(4)解除 DataGridView AutoSizeColumnsMode.Fill 鎖定改為 None，完整記憶 TN, Duty, NoLoad 每一欄手動調整寬度；(5)記憶 TN 與 Duty 測試模式、角色與時間跨度下拉選項 ([TnTest], [DutyTest]) |
-| V2.86 (beta) | v2.10.46 | 2026-09-11 | 動力計測試報告自動解析與 Excel 數據提取工具 (Motor Report Extractor Pro)：(1)打造專屬獨立桌面 WinForms 工具 (`Motor_Report_Extractor.exe`) 與 Web 互動應用 (`motor_report_extractor.html`)，支援報告 ZIP 壓縮檔與測試資料夾一鍵拖曳 (Drag & Drop) 自動解壓與解析；(2)實裝「電機廠報告與驗收規範」Excel 儲存格座標全對照引擎，精準映射 9. 溫升測試、10. S1 額定特性、11. S2 短時過載、12. S6 週期反覆、13. 等效參數、14. 轉差率、15. 激磁電流與 16. Max acc. 瞬態極限；(3)實裝 IEEE Std 112 感應馬達單相等效電路自動求解器 (R1, X1, Xm, Rc, R2', X2', Zk, Tmax)；(4)實裝「📋 一鍵複製為 Excel 格式 (TSV)」與「💾 匯出 Excel CSV」功能；(5)支援一鍵從 GitHub 雲端自動抓取最新測試報告封包 |
+
+## [V2.88 beta / v2.10.48] - 2026-09-11
+
+### 🎯 現象與佐證 (Log-First Verbatim Excerpts)
+1. **使用者回報現象**：
+   - 使用者回報：「WEB_GBD 專案內的預設勾選觀看CH邏輯同 Dyanmometer 自動判讀有資料的CH然勾選顯示」、「將WEB_GBD也推上github且放入index頁面」。
+2. **實測數據與行為追蹤佐證**：
+   - 提取實測 GBD 檔案佐證（如 `SIMW132N-15-08_S6_20260908_083725_NoLoad.gbd`）：
+     * CH1 ~ CH9 實測溫度約 27.2℃ ~ 27.6℃（為現場實際連接熱電偶之有效通道）；
+     * CH10 ~ CH15 原始數值均為 32765（對應 3276.5℃，為斷線與未插熱電偶之標記值）；
+     * 檢視舊版 `WEB_GBD/GBD_Viewer.html` 與 `GBD_Editor.html` 源碼：內部寫死 `let visCh = new Set([0,4,7,9]);`（固定勾選 CH1, CH5, CH8, CH10），且在 `onLoaded` 流程中從未對實際數據進行判讀；
+     * 造成使用者在開檔後，明明未接線的 CH10 被畫出破版異常高溫直線，而現場真正有測量的 CH2, CH3, CH4, CH6, CH7, CH9 卻被預設隱藏，必須手動逐一勾選；
+     * 側邊欄通道標題列僅有「全」與「無」，缺乏如 Dynamometer 系統之「⚡ 依實測選取」快速按鈕；
+     * 全案入口導覽首頁 `index.html` 尚未列入 WEB_GBD 工具連結。
+
+---
+
+### 💡 致命根因 (Root Cause Analysis)
+1. **靜態寫死通道集合**：
+   - `GBD_Viewer.html` 與 `GBD_Editor.html` 之 `visCh` 初始宣告固定為 `new Set([0,4,7,9])`，且 `loadFile()` / `onLoaded()` 載入完成後直接沿用該靜態集合，未根據解析出之 `gbd.records` 動態分析通道實測數據；
+2. **缺乏實測通道識別演算法**：
+   - 舊有 `parseGBD` 僅有 `val < 30000 && val > -30000` 之寬鬆過濾，在 GBD 標頭未啟用或全為 0 的通道會被誤判為 active；欠缺 Dynamometer 所使用的 `-40℃ ~ 350℃ 且 |t| > 0.05 且 t != 999.0` 精確有效溫度判讀準則。
+
+---
+
+### 🚀 精確修復方案 (Accurate Solution & Release Verifications)
+1. **實裝實測有效通道動態識別引擎 (`detectActiveChannels`)**：
+   - 在 `GBD_Viewer.html` 與 `GBD_Editor.html` 中實裝 `detectActiveChannels(targetGbd)`：
+     * 掃描全體記錄，逐一檢驗通道溫度 $t = \frac{\text{raw}}{10.0}$；
+     * 符合 `-40.0 < t < 350.0` 且 `Math.abs(t) > 0.05` 且 `t !== 999.0` 且 `raw < 30000 && raw > -30000` 之筆數達到門檻（至少 3 筆，防止雜訊毛刺干擾），即標定為實測有效通道；
+     * 若全檔所有通道皆無實測資料（如全斷線或空資料），依循 Dynamometer 規則自適應 fallback 預設選取前 4 點 (CH1~4)；
+2. **開檔流程自動同步與 UI 升級**：
+   - 在 `onLoaded()` 中整合自動判讀：`visCh = new Set(detectActiveChannels());`，使任何 GBD 檔案一開啟即刻以最佳視角呈現真正有數值的實測曲線；
+   - 側邊欄通道標題區新增 `<button class="btn btn-xs btn-p" onclick="selActive()">⚡ 實測</button>`，支援隨時一鍵重新依實測識別；
+   - 實測檔案驗證：`SIMW132N-15-08_S6_NoLoad.gbd` 自動識別出 CH1~9；`260826-162120_UG.GBD` 自動識別出 CH1~15；`260812-080449_UG.GBD` 自動識別出 CH1~2，判定準確率 100%；
+3. **首頁整合與版本同動**：
+   - 更新 `index.html`，正式新增「🌡️ GBD 溫度資料檢視器 (WEB_GBD)」快速連結；
+   - 保持 `GBD_Viewer.html` 與 `GBD_Editor.html` 雙檔 SHA-256 Hash 100% 一致。| V2.86 (beta) | v2.10.46 | 2026-09-11 | 動力計測試報告自動解析與 Excel 數據提取工具 (Motor Report Extractor Pro)：(1)打造專屬獨立桌面 WinForms 工具 (`Motor_Report_Extractor.exe`) 與 Web 互動應用 (`motor_report_extractor.html`)，支援報告 ZIP 壓縮檔與測試資料夾一鍵拖曳 (Drag & Drop) 自動解壓與解析；(2)實裝「電機廠報告與驗收規範」Excel 儲存格座標全對照引擎，精準映射 9. 溫升測試、10. S1 額定特性、11. S2 短時過載、12. S6 週期反覆、13. 等效參數、14. 轉差率、15. 激磁電流與 16. Max acc. 瞬態極限；(3)實裝 IEEE Std 112 感應馬達單相等效電路自動求解器 (R1, X1, Xm, Rc, R2', X2', Zk, Tmax)；(4)實裝「📋 一鍵複製為 Excel 格式 (TSV)」與「💾 匯出 Excel CSV」功能；(5)支援一鍵從 GitHub 雲端自動抓取最新測試報告封包 |
 
 ## [V2.87 beta / v2.10.47] - 2026-09-11
 

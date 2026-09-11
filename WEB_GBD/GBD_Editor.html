@@ -1,0 +1,1796 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>GBD 溫度資料閱讀器 (Viewer)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#070b16;--bg2:#0d1426;--bg3:#111827;
+  --surface:rgba(255,255,255,0.04);--surface2:rgba(255,255,255,0.07);
+  --border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.13);
+  --accent:#6366f1;--accent2:#8b5cf6;--accentG:linear-gradient(135deg,#6366f1,#8b5cf6);
+  --text:#e2e8f0;--text-muted:#64748b;--text-dim:#94a3b8;
+  --green:#10b981;--yellow:#f59e0b;--red:#ef4444;--blue:#38bdf8;
+  --r:8px;
+}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-size:13px;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+
+/* ── HEADER ── */
+#app-header{display:flex;align-items:center;padding:0 18px;height:50px;background:var(--bg2);border-bottom:1px solid var(--border);gap:10px;flex-shrink:0;backdrop-filter:blur(12px)}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-badge{width:30px;height:30px;background:var(--accentG);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 0 20px rgba(99,102,241,.4)}
+.logo-text{font-weight:700;font-size:14px;background:var(--accentG);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+#header-sub{margin-left:auto;color:var(--text-muted);font-size:11px;font-family:'JetBrains Mono',monospace}
+
+/* ── LAYOUT ── */
+#layout{display:flex;flex:1;overflow:hidden}
+
+/* ── SIDEBAR ── */
+#sidebar{width:232px;min-width:232px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+#sidebar-inner{flex:1;overflow-y:auto}
+
+/* Drop zone */
+#drop-zone{margin:12px;border:2px dashed var(--border2);border-radius:var(--r);padding:18px 10px;text-align:center;cursor:pointer;transition:all .2s;user-select:none}
+#drop-zone:hover,#drop-zone.over{border-color:var(--accent);background:rgba(99,102,241,.06)}
+#drop-zone .dz-icon{font-size:26px;margin-bottom:6px}
+#drop-zone .dz-title{font-weight:600;font-size:12px;margin-bottom:3px}
+#drop-zone .dz-sub{font-size:10px;color:var(--text-muted)}
+
+/* Section headers */
+.sec{padding:8px 12px 4px;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;border-top:1px solid var(--border);margin-top:4px}
+
+/* Info rows */
+.info-panel{padding:4px 12px 8px}
+.ir{display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:11px}
+.ir-l{color:var(--text-muted)}
+.ir-v{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);font-weight:500}
+
+/* Channel list */
+#ch-list{padding:4px 8px 8px;display:flex;flex-direction:column;gap:1px}
+.chi{display:flex;align-items:center;gap:7px;padding:5px 6px;border-radius:6px;cursor:pointer;transition:background .12s}
+.chi:hover{background:var(--surface2)}
+.chi.on{background:var(--surface)}
+.chi-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.chi-label{flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chi-val{font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--text-muted);min-width:50px;text-align:right}
+.chi-cb{accent-color:var(--accent);cursor:pointer;flex-shrink:0}
+
+/* Sidebar bottom */
+#sidebar-bottom{padding:8px 12px;border-top:1px solid var(--border);display:flex;gap:6px;flex-shrink:0}
+
+/* ── MAIN ── */
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+
+/* Toolbar */
+#toolbar{display:flex;align-items:center;gap:8px;padding:7px 14px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+#range-txt{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text-muted)}
+.tbar-sep{width:1px;height:18px;background:var(--border);margin:0 2px}
+
+/* Chart */
+#chart-wrap{flex:1;position:relative;min-height:0;padding:12px 16px 8px}
+#chart-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--text-muted);pointer-events:none}
+#chart-empty .e-icon{font-size:52px;opacity:.2}
+#chart-empty .e-title{font-size:16px;font-weight:600;opacity:.5}
+#chart-empty .e-sub{font-size:12px;opacity:.35}
+canvas#myChart{display:none;width:100%!important;height:100%!important}
+
+/* ── EDIT PANEL ── */
+#edit-panel{background:var(--bg2);border-top:1px solid var(--border);flex-shrink:0;display:none}
+.tabs-row{display:flex;border-bottom:1px solid var(--border)}
+.tb{padding:9px 18px;font-size:12px;font-weight:500;color:var(--text-muted);cursor:pointer;background:none;border:none;border-bottom:2px solid transparent;transition:all .15s;font-family:'Inter',sans-serif}
+.tb:hover{color:var(--text)}
+.tb.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tc{display:none;padding:10px 16px;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.tc.on{display:flex}
+
+/* Form */
+.fg{display:flex;flex-direction:column;gap:4px}
+.fl{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em}
+input[type=text],input[type=number],input[type=password],select{
+  background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:6px;
+  color:var(--text);padding:5px 9px;font-size:12px;font-family:'Inter',sans-serif;
+  outline:none;transition:border-color .15s;min-width:80px
+}
+input:focus,select:focus{border-color:var(--accent)}
+select option{background:#1e293b}
+
+/* Channel tags */
+.ch-tags{display:flex;flex-wrap:wrap;gap:3px;max-width:400px}
+.ct{padding:2px 8px;border-radius:4px;border:1px solid var(--border);cursor:pointer;font-size:11px;
+    transition:all .12s;color:var(--text-muted);background:transparent;white-space:nowrap}
+.ct.on{background:rgba(99,102,241,.18);border-color:var(--accent);color:var(--text)}
+
+/* Buttons */
+.btn{padding:6px 14px;border-radius:6px;border:none;cursor:pointer;font-size:12px;font-weight:500;
+     font-family:'Inter',sans-serif;transition:all .15s;white-space:nowrap}
+.btn-p{background:var(--accentG);color:#fff;box-shadow:0 0 16px rgba(99,102,241,.3)}
+.btn-p:hover{opacity:.85;box-shadow:0 0 24px rgba(99,102,241,.45)}
+.btn-g{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+.btn-g:hover{background:var(--surface2)}
+.btn-d{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.25)}
+.btn-d:hover{background:rgba(239,68,68,.2)}
+.btn-sm{padding:4px 10px;font-size:11px}
+.btn-xs{padding:3px 7px;font-size:10px}
+
+/* Status bar */
+#status{height:26px;background:var(--bg2);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:14px;font-size:11px;color:var(--text-muted);flex-shrink:0}
+#st-msg{color:var(--text)}
+.st-sep{opacity:.3}
+
+/* Toast */
+#toast{position:fixed;bottom:36px;left:50%;transform:translateX(-50%) translateY(12px);
+  background:rgba(13,20,38,.97);border:1px solid var(--border);border-radius:8px;
+  padding:9px 18px;font-size:12px;opacity:0;transition:all .25s;pointer-events:none;
+  white-space:nowrap;backdrop-filter:blur(16px);z-index:999}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.ok{border-color:var(--green);color:var(--green)}
+#toast.err{border-color:var(--red);color:var(--red)}
+#toast.info{border-color:var(--accent);color:#a5b4fc}
+
+/* Loading */
+#loading{display:none;position:fixed;inset:0;background:rgba(7,11,22,.75);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+#loading.show{display:flex}
+.spin{width:38px;height:38px;border:3px solid rgba(99,102,241,.2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
+
+/* Stats bar */
+#stats-bar{display:flex;gap:16px;padding:2px 12px 6px;flex-wrap:wrap}
+.stat-chip{display:flex;align-items:center;gap:5px;font-size:10px}
+.stat-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.stat-vals{color:var(--text-muted)}
+.stat-vals b{color:var(--text);font-weight:500}
+
+/* Vertical separator */
+.vsep{color:var(--text-muted);opacity:.3}
+
+/* Pick mode */
+.pick-btn{padding:3px 7px;font-size:13px;line-height:1;transition:all .15s}
+.pick-btn.active{background:rgba(99,102,241,.35)!important;border-color:var(--accent)!important;color:#fff!important;box-shadow:0 0 12px rgba(99,102,241,.5);animation:pulse-pick .8s infinite}
+@keyframes pulse-pick{0%,100%{box-shadow:0 0 8px rgba(99,102,241,.4)}50%{box-shadow:0 0 18px rgba(99,102,241,.8)}}
+#pick-banner{display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(99,102,241,.2);border:1px solid var(--accent);border-radius:20px;padding:4px 16px;font-size:11px;color:#a5b4fc;pointer-events:none;z-index:10;backdrop-filter:blur(8px);white-space:nowrap}
+#pick-banner.show{display:block}
+/* Marker time badges */
+.mtime{font-size:10px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;white-space:nowrap}
+
+/* AB measurement cards & table */
+#right-panel{width:330px;min-width:330px;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.ab-card{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:6px;padding:8px 12px;display:flex;flex-direction:column;gap:4px;min-width:170px}
+.ab-title{font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px}
+.ab-badge-a{background:rgba(239,68,68,0.2);color:#f87171;border:1px solid rgba(239,68,68,0.4);border-radius:4px;padding:1px 5px;font-size:10px}
+.ab-badge-b{background:rgba(6,182,212,0.2);color:#22d3ee;border:1px solid rgba(6,182,212,0.4);border-radius:4px;padding:1px 5px;font-size:10px}
+.ab-val-row{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text-dim)}
+.ab-table{width:100%;border-collapse:collapse;font-size:11px;text-align:left}
+.ab-table th{padding:7px 8px;background:rgba(255,255,255,0.04);color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border);position:sticky;top:0;backdrop-filter:blur(8px)}
+.ab-table td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.03);font-family:'JetBrains Mono',monospace}
+.ab-table tr:hover{background:var(--surface2)}
+.ab-table .ch-cell{font-family:'Inter',sans-serif;font-weight:500;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:115px}
+.ab-table .val-num{text-align:right}
+.ab-table .val-num.pos{color:var(--red);font-weight:600}
+.ab-table .val-num.neg{color:var(--blue);font-weight:600}
+.ab-table .val-num.zero{color:var(--text-muted)}
+.ab-table .val-unit{color:var(--text-muted);font-size:10px;text-align:center}
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spin"></div></div>
+<div id="toast"></div>
+
+<!-- Password Auth Modal -->
+<div id="pwd-modal" style="display:none;position:fixed;inset:0;background:rgba(7,11,22,0.88);z-index:999999;align-items:center;justify-content:center;backdrop-filter:blur(8px)" onclick="if(event.target===this)closePwdModal()">
+  <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:26px 30px;width:380px;display:flex;flex-direction:column;gap:16px;box-shadow:0 20px 50px rgba(0,0,0,0.6)">
+    <div style="font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px">
+      <span>🔐</span> <span>請輸入解鎖密碼</span>
+    </div>
+    <div style="font-size:12px;color:var(--text-dim);line-height:1.5">
+      目前為資料閱讀模式。請輸入管理員密碼解鎖進階數據修改與時間延伸功能。
+    </div>
+    <form id="pwd-form" onsubmit="event.preventDefault();verifyPassword();return false;" style="margin:0;padding:0">
+      <div class="fg">
+        <div style="display:flex;gap:8px;align-items:center;width:100%">
+          <div style="position:relative;flex:1;display:flex;align-items:center">
+            <input type="password" id="pwd-input" placeholder="請輸入解鎖密碼" autocomplete="current-password" tabindex="1" style="width:100%;padding:9px 36px 9px 12px;font-size:14px;font-family:'JetBrains Mono',monospace;letter-spacing:1px;background:var(--bg);color:var(--text);border:1px solid var(--border2);border-radius:6px;outline:none;user-select:text!important;-webkit-user-select:text!important">
+            <button type="button" onclick="togglePwdVisibility()" style="position:absolute;right:10px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px" title="顯示/隱藏密碼">👁️</button>
+          </div>
+          <button type="submit" class="btn btn-p" style="flex-shrink:0;padding:9px 16px;font-size:13px;font-weight:600">確認</button>
+        </div>
+      </div>
+    </form>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px">
+      <span id="pwd-err" style="color:var(--red);font-size:12px;font-weight:600;display:none">❌ 密碼不正確</span>
+      <button type="button" class="btn btn-xs btn-g" style="margin-left:auto;padding:5px 12px;font-size:12px" onclick="closePwdModal()">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div id="app-header">
+  <div class="logo">
+    <div class="logo-badge">📊</div>
+    <div class="logo-text">GBD 資料閱讀器</div>
+  </div>
+  <div id="header-sub">載入 .GBD 檔案以開始</div>
+</div>
+
+<!-- LAYOUT -->
+<div id="layout">
+
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div id="sidebar-inner">
+
+      <!-- Drop zone -->
+      <div id="drop-zone" onclick="document.getElementById('fi').click()">
+        <input type="file" id="fi" accept=".GBD,.gbd" style="display:none" onchange="handleInput(this)">
+        <div class="dz-icon">📂</div>
+        <div class="dz-title">拖曳或點擊開啟</div>
+        <div class="dz-sub">.GBD 格式 (GRAPHTEC GL820)</div>
+      </div>
+
+      <!-- File info -->
+      <div id="info-sec" style="display:none">
+        <div class="sec">檔案資訊</div>
+        <div class="info-panel" id="info-panel"></div>
+      </div>
+
+      <!-- Channel list -->
+      <div id="ch-sec" style="display:none">
+        <div class="sec" style="display:flex;align-items:center">
+          <span>通道</span>
+          <button class="btn btn-xs btn-p" style="margin-left:auto;margin-right:4px" onclick="selActive()" title="依實測數據自動勾選有資料的通道">⚡ 實測</button>
+          <button class="btn btn-xs btn-g" style="margin-right:4px" onclick="selAll()">全</button>
+          <button class="btn btn-xs btn-g" onclick="clrAll()">無</button>
+        </div>
+        <div id="stats-bar"></div>
+        <div id="ch-list"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+
+    <!-- Toolbar -->
+    <div id="toolbar" style="display:none">
+      <span id="range-txt">—</span>
+      <div class="tbar-sep"></div>
+      <button class="btn btn-g btn-sm" onclick="resetZoom()">⟲ 重置視圖</button>
+      <button class="btn btn-g btn-sm" id="scale-btn" onclick="toggleScale()">°C 模式</button>
+      <button class="btn btn-g btn-sm" id="ab-panel-btn" onclick="toggleRightPanel()">🚩 AB 測量板</button>
+      <button class="btn btn-p btn-sm" id="unlock-btn" onclick="toggleUnlock()">🔓 解鎖進階功能</button>
+      <div style="margin-left:auto;display:flex;gap:7px">
+        <button class="btn btn-g btn-sm" onclick="undoLast()" id="undo-btn" style="display:none">↩ 復原</button>
+        <button class="btn btn-p btn-sm" onclick="doExport()">💾 匯出 GBD</button>
+      </div>
+    </div>
+
+    <!-- Chart -->
+    <div id="chart-wrap">
+      <div id="pick-banner"></div>
+      <div id="chart-empty">
+        <div class="e-icon">📈</div>
+        <div class="e-title">尚未載入資料</div>
+        <div class="e-sub">請從左側拖曳或開啟 .GBD 檔案</div>
+      </div>
+      <canvas id="myChart"></canvas>
+    </div>
+
+    <!-- Edit panel -->
+    <div id="edit-panel">
+      <div class="tabs-row">
+        <button class="tb on" id="tb-abmeasure" onclick="switchTab('abmeasure',this)">🚩 AB點測量</button>
+        <button class="tb"    id="tb-trunc"     onclick="switchTab('trunc',this)">✂️ 截斷</button>
+        <button class="tb lock-feature" id="tb-offset"   onclick="switchTab('offset',this)"   style="display:none">⊕ 數值偏移</button>
+        <button class="tb lock-feature" id="tb-extend"   onclick="switchTab('extend',this)"   style="display:none">📐 時間延伸</button>
+        <button class="tb lock-feature" id="tb-datetime" onclick="switchTab('datetime',this)" style="display:none">🗓️ 時間修改</button>
+      </div>
+
+      <!-- Tab: Offset -->
+      <div class="tc" id="tab-offset">
+        <div class="fg">
+          <div class="fl">選擇通道</div>
+          <div class="ch-tags" id="off-chs"></div>
+        </div>
+        <div class="fg">
+          <div class="fl">偏移量 (°C)</div>
+          <input type="number" id="off-val" placeholder="-5.0" step="0.1" style="width:90px">
+        </div>
+        <div class="fg">
+          <div class="fl">時間範圍</div>
+          <select id="off-rng" style="width:110px" onchange="toggleOffRange()">
+            <option value="all">全部時間</option>
+            <option value="custom">自訂範圍</option>
+          </select>
+        </div>
+        <div class="fg" id="off-rng-cust" style="display:none">
+          <div class="fl">起始 ~ 結束</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="text" id="off-t0" placeholder="HH:mm:ss" style="width:82px">
+            <span class="vsep">~</span>
+            <input type="text" id="off-t1" placeholder="HH:mm:ss" style="width:82px">
+          </div>
+        </div>
+        <div class="fg" style="align-self:flex-end">
+          <button class="btn btn-p" onclick="applyOffset()">套用偏移</button>
+        </div>
+      </div>
+
+      <!-- Tab: Extend -->
+      <div class="tc" id="tab-extend">
+        <div class="fg">
+          <div class="fl">參考起點 T0 <span class="mtime" id="mt0"></span></div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <input type="text" id="ext-t0" placeholder="HH:mm:ss" style="width:82px" oninput="syncMarker('t0',this.value)">
+            <button class="btn btn-g pick-btn" id="pbtn-t0" onclick="startPick('t0')" title="點圖選擇時間">📍</button>
+          </div>
+        </div>
+        <div class="fg">
+          <div class="fl">原始終點 / 目標值 T1 <span class="mtime" id="mt1"></span></div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <input type="text" id="ext-t1" placeholder="HH:mm:ss" style="width:82px" oninput="syncMarker('t1',this.value)">
+            <button class="btn btn-g pick-btn" id="pbtn-t1" onclick="startPick('t1')" title="點圖選擇時間">📍</button>
+          </div>
+        </div>
+        <div class="fg">
+          <div class="fl">新延伸終點 T2 <span class="mtime" id="mt2"></span></div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <input type="text" id="ext-t2" placeholder="HH:mm:ss" style="width:82px" oninput="syncMarker('t2',this.value)">
+            <button class="btn btn-g pick-btn" id="pbtn-t2" onclick="startPick('t2')" title="點圖選擇時間">📍</button>
+          </div>
+        </div>
+        <div class="fg">
+          <div class="fl">曲線模式</div>
+          <select id="ext-curve" style="width:210px">
+            <optgroup label="── 跟隨原始波形 ──">
+              <option value="stretch" selected>時間拉伸 (T0→T1 波形拉長至 T2)</option>
+              <option value="cycle">循環重複 (T0→T1 波形重複延伸)</option>
+            </optgroup>
+            <optgroup label="── 數學插值 ──">
+              <option value="linear">線性 (等斜率)</option>
+              <option value="quad">二次飽和 (初高後低)</option>
+              <option value="cubic">三次飽和 (更強後段)</option>
+              <option value="sqrt">平方根 (初極陡後緩)</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="fg" style="align-self:flex-end">
+          <button class="btn btn-p" onclick="applyExtend()">套用延伸</button>
+        </div>
+        <div class="fg" style="align-self:center">
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12px;padding:4px 0">
+            <input type="checkbox" id="ext-append-tail" checked style="accent-color:var(--accent);width:14px;height:14px;cursor:pointer">
+            <span>T1 之後的原始資料<br><span style="color:var(--text-muted);font-size:10px">剪下並接在新 T2 之後</span></span>
+          </label>
+        </div>
+        <div style="font-size:10px;color:var(--text-muted);align-self:flex-start;max-width:180px;line-height:1.6">
+          📍 點擊按鈕後<br>再點圖上位置選時間<br><br>
+          🔵<b>T0</b> 起點 &nbsp;🟢<b>T1</b> 終點目標<br>🟡<b>T2</b> 延伸到此
+        </div>
+      </div>
+
+      <!-- Tab: Truncate & Crop -->
+      <div class="tc" id="tab-trunc">
+        <div class="fg">
+          <div class="fl">保留起始時間 <span class="mtime" id="mtr0"></span></div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <input type="text" id="trunc-t0" placeholder="HH:mm:ss (開頭)" style="width:95px" oninput="syncMarker('tr0',this.value)">
+            <button class="btn btn-g pick-btn" id="pbtn-tr0" onclick="startPick('tr0')" title="點圖選擇保留起點">📍</button>
+          </div>
+        </div>
+        <div class="fg">
+          <div class="fl">保留結束時間 <span class="mtime" id="mtr1"></span></div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <input type="text" id="trunc-t1" placeholder="HH:mm:ss (結尾)" style="width:95px" oninput="syncMarker('tr1',this.value)">
+            <button class="btn btn-g pick-btn" id="pbtn-tr1" onclick="startPick('tr1')" title="點圖選擇保留終點">📍</button>
+          </div>
+        </div>
+        <div class="fg" style="align-self:flex-end">
+          <button class="btn btn-d" onclick="applyTrunc()">✂️ 裁切並保留指定區間</button>
+        </div>
+        <div style="font-size:10px;color:var(--text-muted);align-self:flex-start;max-width:200px;line-height:1.5">
+          📍 點選保留起點與終點<br>
+          🟡<b>黃色陰影</b> 即為保留數據區間<br>
+          <span style="color:var(--yellow)">⚠️ 區間外數據將被剪裁（可↩復原）</span>
+        </div>
+      </div>
+
+      <!-- Tab: DateTime Edit -->
+      <div class="tc" id="tab-datetime">
+        <div class="fg">
+          <div class="fl">起始日期時間 (YYYY-MM-DD HH:mm:ss)</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="text" id="dt-start-input" placeholder="2026-07-08 10:52:52" style="width:170px" oninput="previewCalcStop()">
+            <button class="btn btn-p" onclick="applyDateTime()">套用日期時間</button>
+          </div>
+        </div>
+        <div class="fg" style="align-self:center">
+          <div style="font-size:11px;color:var(--text-dim)">
+            預估結束時間：<b id="dt-calc-stop" style="color:var(--text);font-family:'JetBrains Mono',monospace">—</b>
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--text-muted);align-self:center;max-width:260px;line-height:1.5">
+          ⓘ 僅修改檔案標頭中的起始/結束日期時間，原本的量測數據與溫度曲線100%保持不變。
+        </div>
+      </div>
+
+      <!-- Tab: AB Measurement -->
+      <div class="tc on" id="tab-abmeasure">
+        <div class="fg" style="align-self:center">
+          <span style="font-size:12px;color:var(--text-dim)">
+            🚩 完整的 <b>AB 點相減數據表格</b> 已呈現於右側面板。
+          </span>
+        </div>
+        <div style="display:flex;gap:8px;align-self:center">
+          <button class="btn btn-p btn-sm" onclick="swapAB()">⇄ 快速對調 A/B 點</button>
+          <button class="btn btn-g btn-sm" onclick="clearABMarkers()">🗑️ 清空 AB 點</button>
+          <button class="btn btn-g btn-sm" onclick="toggleRightPanel()">👁️ 開啟/關閉右側面板</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT PANEL: AB Measurement Dashboard -->
+  <div id="right-panel" style="display:none">
+    <div class="sec" style="display:flex;align-items:center;padding:10px 12px 6px">
+      <span>🚩 AB 點相減測量</span>
+      <button class="btn btn-xs btn-g" style="margin-left:auto;margin-right:4px" onclick="swapAB()" title="快速對調 A 點與 B 點">⇄ 對調</button>
+      <button class="btn btn-xs btn-g" onclick="clearABMarkers()" title="重置">清空</button>
+    </div>
+
+    <!-- Controls Row -->
+    <div style="padding:6px 12px 8px;display:flex;flex-direction:column;gap:6px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;gap:6px;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:4px">
+          <span class="ab-badge-a">A 點</span>
+          <input type="text" id="ab-ta" placeholder="HH:mm:ss" style="width:72px;font-size:11px" oninput="syncMarker('ptA',this.value);calcABDelta()">
+          <button class="btn btn-g pick-btn" id="pbtn-ptA" onclick="startPick('ptA')" title="點圖選擇A點">📍</button>
+        </div>
+        <span class="mtime" id="mptA">未設定</span>
+      </div>
+
+      <div style="display:flex;gap:6px;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:4px">
+          <span class="ab-badge-b">B 點</span>
+          <input type="text" id="ab-tb" placeholder="HH:mm:ss" style="width:72px;font-size:11px" oninput="syncMarker('ptB',this.value);calcABDelta()">
+          <button class="btn btn-g pick-btn" id="pbtn-ptB" onclick="startPick('ptB')" title="點圖選擇B點">📍</button>
+        </div>
+        <span class="mtime" id="mptB">未設定</span>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px">
+        <span style="font-size:10px;color:var(--text-muted)">時間差 Δt</span>
+        <span id="ab-dt-txt" style="color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600">—</span>
+      </div>
+    </div>
+
+    <!-- Results Table Section -->
+    <div style="flex:1;overflow-y:auto;padding:0">
+      <table class="ab-table">
+        <thead>
+          <tr>
+            <th style="width:38%">通道</th>
+            <th style="width:18%;text-align:right">A</th>
+            <th style="width:18%;text-align:right">B</th>
+            <th style="width:20%;text-align:right">Δ</th>
+            <th style="width:6%;text-align:center">單位</th>
+          </tr>
+        </thead>
+        <tbody id="ab-table-body">
+          <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px 0">請點擊 📍 設定 A 點與 B 點</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div id="status">
+  <span id="st-msg">就緒</span>
+  <span class="st-sep">|</span>
+  <span id="st-hover">游標：—</span>
+  <span class="st-sep">|</span>
+  <span id="st-counts">—</span>
+</div>
+
+<script>
+'use strict';
+if (typeof Chart !== 'undefined') {
+  if (typeof ChartZoom !== 'undefined') {
+    try { Chart.register(ChartZoom); } catch(_) {}
+  } else if (typeof window['chartjs-plugin-zoom'] !== 'undefined') {
+    try { Chart.register(window['chartjs-plugin-zoom']); } catch(_) {}
+  }
+}
+// ══════════════════════════════════════════════════
+// CONSTANTS
+// ══════════════════════════════════════════════════
+const HEADER_SIZE   = 12288;
+const BYTES_PER_REC = 36;    // 18 ch × 2 bytes
+const NUM_CH_ALL    = 18;
+const NUM_CH_DISP   = 15;    // CH1~CH15
+
+const CH_COLORS = [
+  '#f87171','#60a5fa','#4ade80','#facc15','#c084fc',
+  '#38bdf8','#fb923c','#f472b6','#34d399','#818cf8',
+  '#a78bfa','#fbbf24','#2dd4bf','#86efac','#94a3b8'
+];
+
+// ══════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════
+let gbd      = null;
+let chart    = null;
+let showRaw  = false;
+let visCh      = new Set([0, 1, 2, 3]);
+const UNDO_MAX = 10;        // 最大復原層數
+let undoStack  = [];        // 多層 undo stack（最多 UNDO_MAX 個）
+let isUnlocked = false;    // Feature unlock state (false = Viewer mode)
+let failedAttempts = 0;   // Brute-force lockout tracker
+let isTampered = false;    // System security lockdown state
+let pickMode = null;       // 't0'|'t1'|'t2'|'ptA'|'ptB'|'tr0'|'tr1'|null
+let hovRecIdx = 0;         // currently hovered record index
+// Ext marker record indices for vertical lines
+const extMk = { t0: null, t1: null, t2: null, ptA: null, ptB: null, tr0: null, tr1: null };
+
+// ── Vertical Marker Plugin ──────────────────────
+const vMarkPlugin = {
+  id: 'vmark',
+  afterDraw(c) {
+    if (!gbd) return;
+    const { ctx, chartArea: ca, scales: { x } } = c;
+    const total = gbd.counts;
+    const step  = Math.max(1, Math.floor(total / 2500));
+
+    // Shade area between A and B if both are set
+    if (extMk.ptA != null && extMk.ptB != null) {
+      const liA = Math.round(extMk.ptA / step);
+      const liB = Math.round(extMk.ptB / step);
+      const pxA = x.getPixelForValue(liA);
+      const pxB = x.getPixelForValue(liB);
+      ctx.save();
+      ctx.fillStyle = 'rgba(99, 102, 241, 0.08)';
+      ctx.fillRect(Math.min(pxA, pxB), ca.top, Math.abs(pxB - pxA), ca.bottom - ca.top);
+      ctx.restore();
+    }
+
+    // Shade area between tr0 and tr1 (Truncate keep range)
+    if (extMk.tr0 != null && extMk.tr1 != null) {
+      const liA = Math.round(extMk.tr0 / step);
+      const liB = Math.round(extMk.tr1 / step);
+      const pxA = x.getPixelForValue(liA);
+      const pxB = x.getPixelForValue(liB);
+      ctx.save();
+      ctx.fillStyle = 'rgba(245, 158, 11, 0.12)';
+      ctx.fillRect(Math.min(pxA, pxB), ca.top, Math.abs(pxB - pxA), ca.bottom - ca.top);
+      ctx.restore();
+    }
+
+    const defs  = [
+      { key:'t0', color:'#6366f1', label:'T0' },
+      { key:'t1', color:'#10b981', label:'T1' },
+      { key:'t2', color:'#f59e0b', label:'T2' },
+      { key:'ptA', color:'#ef4444', label:'🚩 A' },
+      { key:'ptB', color:'#06b6d4', label:'🚩 B' },
+      { key:'tr0', color:'#f59e0b', label:'✂️ 保留起點' },
+      { key:'tr1', color:'#f59e0b', label:'✂️ 保留終點' },
+    ];
+    defs.forEach(({ key, color, label }) => {
+      const rec = extMk[key];
+      if (rec == null) return;
+      const li  = Math.round(rec / step);
+      const px  = x.getPixelForValue(li);
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = 1.5;
+      ctx.setLineDash([5, 3]);
+      ctx.globalAlpha = 0.85;
+      ctx.beginPath(); ctx.moveTo(px, ca.top); ctx.lineTo(px, ca.bottom); ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle   = color;
+      ctx.font        = 'bold 10px Inter';
+      let tagText = label;
+      if (key.startsWith('pt')) {
+        const valText = getRecValStr(rec, 1);
+        tagText = `${label} (${valText})`;
+      }
+      ctx.fillText(tagText, px + 3, ca.top + (key.startsWith('pt') ? 26 : 13));
+      ctx.restore();
+    });
+  }
+};
+
+// ══════════════════════════════════════════════════
+// GBD PARSER
+// ══════════════════════════════════════════════════
+function parseGBD(buf, filename = '') {
+  const u8   = new Uint8Array(buf);
+  const view = new DataView(buf);
+
+  // Dynamic HeaderSiz detection (e.g. 8192 for GL240/10CH, 12288 for GL820/20CH)
+  const headSnippet = new TextDecoder('ascii').decode(u8.slice(0, Math.min(u8.length, 16384))).replace(/\0/g, '');
+  const hsM = headSnippet.match(/HeaderSiz\s*=\s*(\d+)/);
+  let headerSize = hsM ? parseInt(hsM[1]) : HEADER_SIZE;
+
+  let hdr = new TextDecoder('ascii').decode(u8.slice(0, headerSize)).replace(/\0/g,'');
+
+  // 1. 偵測是否為「全 0x00 標頭」 (機台未按 STOP 拔除隨身碟或異常斷電)
+  let isRepaired = false;
+  if (!hdr.includes('$Common') || hdr.trim().length === 0) {
+    isRepaired = true;
+    headerSize = 12288; // GL820 標準 12KB 標頭
+  }
+
+  const calcCounts = Math.max(0, Math.floor((buf.byteLength - headerSize) / BYTES_PER_REC));
+
+  let counts   = 0;
+  let startT   = new Date();
+  let stopT    = new Date();
+  let sample   = 1;
+  let vendor   = "GRAPHTEC Corporation";
+  let model    = "GL820";
+
+  if (isRepaired) {
+    counts = calcCounts;
+    // 嘗試從檔名解析起始時間，例如 SIMW132N-15-08_S6_20260908_083725_NoLoad.gbd
+    const nameMatch = (filename || '').match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+    if (nameMatch) {
+      startT = new Date(`${nameMatch[1]}-${nameMatch[2]}-${nameMatch[3]}T${nameMatch[4]}:${nameMatch[5]}:${nameMatch[6]}`);
+    } else {
+      startT = new Date();
+    }
+    stopT = new Date(startT.getTime() + Math.max(0, counts - 1) * sample * 1000);
+
+    // 自動合成標準 GL820 標頭字串供後續匯出與檢視
+    hdr = `$Common\r\n  ID        = 29071020\r\n  Volume    = 1, 1\r\n  HeaderSiz = 12288\r\n  Vendor    = "GRAPHTEC Corporation"\r\n  Model     = "GL820"\r\n  Suffix    = "      "\r\n  User      = "Guest"\r\n  Stat      = "Guest"\r\n  UserSel   = 1\r\n  CH        = 20CH\r\n  Option    = None\r\n  Format    = "Ver1.00"\r\n  Hardware  = "Ver1.00"\r\n  Firmware  = "Ver1.08  "\r\n  OS        = "Ver4.00", "Ver3.10"\r\n  Software  = "       "\r\n$$Data\r\n  Format    = BinaryData\r\n  Type      = BigEndian, Short, Setup\r\n  Order     = CH1  , CH2  , CH3  , CH4  , CH5  , CH6  , CH7  , CH8  , CH9  , CH10 , CH11 , CH12 , CH13 , CH14 , CH15 , Alarm1 , Alarm2 , AlarmOut\r\n  Sample    = 1s\r\n  Counts    =      ${String(counts).padStart(6)}\r\n$$Time\r\n  Start     = ${fmtGBDDate(startT)}\r\n  Stop      = ${fmtGBDDate(stopT)}\r\n$EndHeader\r\n`;
+  } else {
+    const numM  = hdr.match(/Counts\s*=\s*(\d+)/);
+    const stM   = hdr.match(/Start\s*=\s*([\d-]+),([\d:]+)/);
+    const enM   = hdr.match(/Stop\s*=\s*([\d-]+),([\d:]+)/);
+    const samM  = hdr.match(/Sample\s*=\s*(\d+)s/);
+    const venM  = hdr.match(/Vendor\s*=\s*"([^"]+)"/);
+    const modM  = hdr.match(/Model\s*=\s*"([^"]+)"/);
+
+    counts = parseInt(numM?.[1] || '0');
+    // 若 Counts 為 0 但檔案二進位資料區長度大於 0，自動以實體二進位長度逆推 Counts
+    if (counts === 0 && calcCounts > 0) {
+      counts = calcCounts;
+    }
+    startT = stM ? new Date(`${stM[1]}T${stM[2]}`) : new Date();
+    sample = samM ? parseInt(samM[1]) : 1;
+    stopT  = enM ? new Date(`${enM[1]}T${enM[2]}`) : new Date(startT.getTime() + Math.max(0, counts - 1) * sample * 1000);
+    vendor = venM?.[1] || 'GRAPHTEC Corporation';
+    model  = modM?.[1] || 'GL820';
+  }
+
+  // Annotations
+  const ann = new Array(NUM_CH_DISP).fill('');
+  const as  = hdr.match(/\$Annotation([\s\S]*?)(?=\$[A-Z]|\$End|$)/);
+  if (as) {
+    let m, re = /CH(\d+)\s*=\s*"([^"]+)"/g;
+    while ((m = re.exec(as[1])) !== null) {
+      const i = parseInt(m[1]) - 1;
+      if (i >= 0 && i < NUM_CH_DISP) ann[i] = m[2];
+    }
+  }
+
+  // Channel Order Parsing (e.g. Order = CH5, CH6, CH7 ...)
+  const chMap = new Array(NUM_CH_DISP).fill(-1); // UI CH (0..14) -> binary col index
+  const orderM = hdr.match(/Order\s*=\s*([^\r\n]+)/);
+  if (orderM) {
+    const list = orderM[1].split(',').map(s => s.trim());
+    list.forEach((name, colIdx) => {
+      const m = name.match(/^CH(\d+)$/i);
+      if (m) {
+        const chIdx = parseInt(m[1]) - 1;
+        if (chIdx >= 0 && chIdx < NUM_CH_DISP) {
+          chMap[chIdx] = colIdx;
+        }
+      }
+    });
+  } else {
+    for (let c = 0; c < NUM_CH_DISP; c++) chMap[c] = c;
+  }
+
+  // Binary records normalized to UI channels
+  const records = [];
+  const activeChSet = new Set();
+
+  for (let i = 0; i < counts; i++) {
+    const base = headerSize + i * BYTES_PER_REC;
+    if (base + BYTES_PER_REC > buf.byteLength) break;
+    const rec = new Array(NUM_CH_ALL).fill(32765);
+    for (let c = 0; c < NUM_CH_DISP; c++) {
+      const colIdx = chMap[c];
+      if (colIdx !== -1 && colIdx < NUM_CH_ALL) {
+        const val = view.getInt16(base + colIdx * 2, false);
+        rec[c] = val;
+        if (val < 30000 && val > -30000) {
+          activeChSet.add(c);
+        }
+      }
+    }
+    // Copy alarm channels (cols 15..17)
+    for (let col = 15; col < NUM_CH_ALL; col++) {
+      rec[col] = view.getInt16(base + col * 2, false);
+    }
+    records.push(rec);
+  }
+
+  return { hdr, headerSize, counts: records.length, startT, stopT, sample,
+           vendor, model, isRepaired,
+           ann, records, activeChSet: Array.from(activeChSet), filename: '' };
+}
+
+// ══════════════════════════════════════════════════
+// FILE LOADING
+// ══════════════════════════════════════════════════
+function handleInput(inp) { if (inp.files[0]) loadFile(inp.files[0]); }
+
+function loadFile(file) {
+  showLoad(true);
+  const fr = new FileReader();
+  fr.onload = e => {
+    try {
+      gbd = parseGBD(e.target.result, file.name);
+      gbd.filename = file.name;
+      onLoaded();
+      if (gbd.isRepaired) {
+        toast(`⚠️ 偵測到機台未按 STOP 拔除隨身碟 (標頭全為 0x00)，已自動自適應救援還原 ${gbd.counts} 筆數據！`, 'ok');
+      } else {
+        toast('載入成功：' + file.name, 'ok');
+      }
+    } catch(ex) {
+      toast('解析失敗：' + ex.message, 'err');
+    }
+    showLoad(false);
+  };
+  fr.readAsArrayBuffer(file);
+}
+
+function onLoaded() {
+  // 自動判讀有資料的通道並預設勾選 (同 Dynamometer 自動識別機制)
+  const active = detectActiveChannels();
+  visCh = new Set(active);
+
+  buildInfo();
+  buildChList();
+  buildOffsetChTags();
+  initDateTimeInputs();
+  renderChart();
+  document.getElementById('info-sec').style.display    = 'block';
+  document.getElementById('ch-sec').style.display      = 'block';
+  document.getElementById('toolbar').style.display     = 'flex';
+  document.getElementById('edit-panel').style.display  = 'block';
+  document.getElementById('right-panel').style.display = 'flex';
+  document.getElementById('chart-empty').style.display = 'none';
+  document.getElementById('myChart').style.display     = 'block';
+  document.getElementById('header-sub').textContent    =
+    `${gbd.filename}  ·  ${gbd.model}  ·  ${gbd.counts} 筆`;
+  setStatus('已載入：' + gbd.filename);
+  updStatusCounts();
+  updRange();
+}
+
+// ══════════════════════════════════════════════════
+// INFO PANEL
+// ══════════════════════════════════════════════════
+function buildInfo() {
+  const ts = t => t.toLocaleString('zh-TW',{hour12:false}).replace(/\//g,'-');
+  document.getElementById('info-panel').innerHTML = `
+    <div class="ir"><span class="ir-l">裝置</span><span class="ir-v">${gbd.model}</span></div>
+    <div class="ir"><span class="ir-l">開始</span><span class="ir-v">${ts(gbd.startT)}</span></div>
+    <div class="ir"><span class="ir-l">結束</span><span class="ir-v">${ts(gbd.stopT)}</span></div>
+    <div class="ir"><span class="ir-l">筆數</span><span class="ir-v">${gbd.counts}</span></div>
+    <div class="ir"><span class="ir-l">取樣</span><span class="ir-v">${gbd.sample}s</span></div>
+  `;
+}
+
+// ══════════════════════════════════════════════════
+// CHANNEL LIST
+// ══════════════════════════════════════════════════
+function buildChList() {
+  const el = document.getElementById('ch-list');
+  el.innerHTML = '';
+  for (let c = 0; c < NUM_CH_DISP; c++) {
+    const name = gbd.ann[c] || `CH${c+1}`;
+    const on   = visCh.has(c);
+    const div  = document.createElement('div');
+    div.className = 'chi' + (on ? ' on' : '');
+    div.id = `chi${c}`;
+    div.innerHTML = `
+      <div class="chi-dot" style="background:${CH_COLORS[c]}"></div>
+      <span class="chi-label" title="CH${c+1} ${name}">CH${c+1} ${name}</span>
+      <span class="chi-val" id="chv${c}">—</span>
+      <input type="checkbox" class="chi-cb" ${on?'checked':''} data-c="${c}" onclick="cbClick(event,${c})">
+    `;
+    div.onclick = e => { if(e.target.type==='checkbox') return; const cb=div.querySelector('.chi-cb'); cb.checked=!cb.checked; toggleCh(c,cb.checked); };
+    el.appendChild(div);
+  }
+  updStats();
+}
+
+function cbClick(e, c) { e.stopPropagation(); toggleCh(c, e.target.checked); }
+
+function toggleCh(c, on) {
+  if (on) visCh.add(c); else visCh.delete(c);
+  const el = document.getElementById(`chi${c}`);
+  if (el) el.classList.toggle('on', on);
+  updDatasets();
+}
+
+function selAll() { for(let c=0;c<NUM_CH_DISP;c++) visCh.add(c); buildChList(); updDatasets(); }
+function clrAll() { visCh.clear(); buildChList(); updDatasets(); }
+
+// ══════════════════════════════════════════════════
+// DETECT ACTIVE CHANNELS (同 Dynamometer 判定邏輯)
+// ══════════════════════════════════════════════════
+function detectActiveChannels(targetGbd = gbd) {
+  if (!targetGbd || !targetGbd.records || targetGbd.records.length === 0) {
+    return [0, 1, 2, 3].filter(c => c < NUM_CH_DISP);
+  }
+
+  const detected = [];
+  const records = targetGbd.records;
+  // 最少有效筆數門檻：以 3 筆或總筆數 1% 為門檻，防止孤立毛刺雜訊
+  const minValidCount = Math.min(3, Math.max(1, Math.floor(records.length * 0.01)));
+
+  for (let c = 0; c < NUM_CH_DISP; c++) {
+    let validCount = 0;
+    for (let i = 0; i < records.length; i++) {
+      const raw = records[i][c];
+      // 排除 0x7FFF / 32767 / 32765 等斷線代碼與超出 signed 16-bit 異常值
+      if (raw >= 30000 || raw <= -30000) continue;
+      const t = raw / 10.0;
+      // 正常熱電偶/PT100 實測溫度介於 -40℃ 至 350℃，且非 0.0、非 -999、非 999 (同 Dynamometer 規則)
+      if (t > -40.0 && t < 350.0 && Math.abs(t) > 0.05 && t !== 999.0 && t !== -999.0) {
+        validCount++;
+        if (validCount >= minValidCount) {
+          detected.push(c);
+          break;
+        }
+      }
+    }
+  }
+
+  // 若完全無有效實測數據，則依照 Dynamometer 邏輯 fallback 預設勾選前 4 點 (CH1~4)
+  if (detected.length === 0) {
+    return [0, 1, 2, 3].filter(c => c < NUM_CH_DISP);
+  }
+
+  return detected;
+}
+
+function selActive() {
+  if (!gbd) return;
+  const active = detectActiveChannels();
+  visCh = new Set(active);
+  buildChList();
+  updDatasets();
+  const chNames = active.map(c => (gbd.ann[c] ? `CH${c+1}(${gbd.ann[c]})` : `CH${c+1}`));
+  toast(`⚡ 已自動選取實測有效通道 (${active.length} 點)：${chNames.join(', ')}`, 'ok');
+}
+
+function updStats() {
+  if (!gbd) return;
+  const bar = document.getElementById('stats-bar');
+  bar.innerHTML = '';
+  visCh.forEach(c => {
+    let mn=Infinity, mx=-Infinity, hasValid=false;
+    for(const r of gbd.records){
+      const v=r[c];
+      if (v < 30000 && v > -30000) {
+        if(v<mn) mn=v;
+        if(v>mx) mx=v;
+        hasValid=true;
+      }
+    }
+    const name = gbd.ann[c]||`CH${c+1}`;
+    const chip = document.createElement('div');
+    chip.className = 'stat-chip';
+    const rangeTxt = hasValid ? `${(mn/10).toFixed(1)}~${(mx/10).toFixed(1)}°C` : 'NC';
+    chip.innerHTML = `<div class="stat-dot" style="background:${CH_COLORS[c]}"></div>
+      <span class="stat-vals"><b>${name}</b>: ${rangeTxt}</span>`;
+    bar.appendChild(chip);
+
+    // update live value column
+    const last = (gbd.counts > 0 && gbd.records && gbd.records[gbd.counts-1]) ? gbd.records[gbd.counts-1][c] : undefined;
+    const vEl  = document.getElementById(`chv${c}`);
+    if (vEl) vEl.textContent = (last !== undefined && last < 30000 && last > -30000) ? (last/10).toFixed(1)+'°' : 'NC';
+  });
+}
+
+// ══════════════════════════════════════════════════
+// CHART
+// ══════════════════════════════════════════════════
+function fmtTime(recIdx) {
+  const ms = gbd.startT.getTime() + recIdx * gbd.sample * 1000;
+  const d  = new Date(ms);
+  return [d.getHours(),d.getMinutes(),d.getSeconds()].map(n=>String(n).padStart(2,'0')).join(':');
+}
+
+function val(raw) {
+  if (raw >= 30000 || raw <= -30000) return null;
+  return showRaw ? raw : +(raw/10).toFixed(1);
+}
+
+function buildDatasets() {
+  const total  = gbd.counts;
+  const maxPts = 2500;
+  const step   = Math.max(1, Math.floor(total / maxPts));
+
+  const labels = [];
+  for (let i = 0; i < total; i += step) labels.push(fmtTime(i));
+
+  const datasets = [];
+  visCh.forEach(c => {
+    const data = [];
+    for (let i = 0; i < total; i += step) data.push(val(gbd.records[i][c]));
+    const name = gbd.ann[c]||`CH${c+1}`;
+    datasets.push({
+      label: `CH${c+1} ${name}`,
+      data, borderColor: CH_COLORS[c],
+      backgroundColor: CH_COLORS[c]+'18',
+      borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 4,
+      tension: 0.1, fill: false
+    });
+  });
+  return { labels, datasets };
+}
+
+function renderChart() {
+  const cv = document.getElementById('myChart');
+  const { labels, datasets } = buildDatasets();
+  if (chart) { chart.destroy(); chart = null; }
+  chart = new Chart(cv, {
+    type: 'line',
+    data: { labels, datasets },
+    plugins: [vMarkPlugin],
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 400 },
+      interaction: { mode:'index', intersect:false },
+      plugins: {
+        legend: { display:false },
+        tooltip: {
+          enabled: () => !pickMode,
+          backgroundColor:'rgba(7,11,22,.96)',
+          borderColor:'rgba(255,255,255,.1)', borderWidth:1,
+          titleColor:'#94a3b8', bodyColor:'#e2e8f0', padding:10,
+          callbacks: {
+            title: items => `⏱ ${items[0].label}`,
+            label: item  => ` ${item.dataset.label}: ${showRaw ? item.raw : item.raw.toFixed(1)+'°C'}`
+          }
+        },
+        zoom: {
+          zoom:{ wheel:{enabled:true}, pinch:{enabled:true}, mode:'x' },
+          pan: { enabled:() => !pickMode, mode:'x' }
+        }
+      },
+      scales: {
+        x:{ grid:{color:'rgba(255,255,255,.03)'}, ticks:{color:'#475569',maxTicksLimit:14,maxRotation:0,font:{size:10,family:'JetBrains Mono'}} },
+        y:{ grid:{color:'rgba(255,255,255,.03)'}, ticks:{color:'#475569',font:{size:10},callback: v => showRaw?v:v.toFixed(1)+'°C'} }
+      },
+      onHover: (event) => {
+        if (!gbd || !chart) return;
+        const xsc = chart.scales.x;
+        if (!xsc || event.x == null) return;
+        const rawI = xsc.getValueForPixel(event.x);
+        if (rawI == null) return;
+        const li   = Math.max(0, Math.min(Math.round(rawI), chart.data.labels.length - 1));
+        const step = Math.max(1, Math.floor(gbd.counts / 2500));
+        hovRecIdx  = clamp(li * step, 0, gbd.counts - 1);
+        const tstr = fmtTime(hovRecIdx);
+        const curVals = getRecValStr(hovRecIdx, 2);
+        document.getElementById('st-hover').textContent = `游標：${tstr}${curVals ? ' | ' + curVals : ''}`;
+
+        // In pick mode: live preview in input & banner
+        if (pickMode) {
+          const elId = pickMode.startsWith('pt') ? `ab-${pickMode.toLowerCase().replace('pt','t')}`
+                     : (pickMode.startsWith('tr') ? `trunc-t${pickMode.slice(2)}`
+                     : `ext-${pickMode}`);
+          const el = document.getElementById(elId);
+          if (el) el.value = tstr;
+
+          const banner = document.getElementById('pick-banner');
+          if (banner) {
+            const fieldName = pickMode.startsWith('pt') ? (pickMode === 'ptA' ? '🚩 A 點' : '🚩 B 點')
+                            : (pickMode.startsWith('tr') ? (pickMode === 'tr0' ? '✂️ 保留起點' : '✂️ 保留終點')
+                            : pickMode.toUpperCase());
+            const allVals = getRecValStr(hovRecIdx, 3);
+            banner.textContent = `📍 選擇 ${fieldName} (${tstr}) ${allVals ? '➜ ' + allVals : ''}`;
+          }
+        }
+      },
+      onClick: (event) => {
+        if (!pickMode || !gbd || !chart) return;
+        const xsc = chart.scales.x;
+        if (!xsc) return;
+        const rawI = xsc.getValueForPixel(event.x);
+        if (rawI == null) return;
+        const li   = Math.max(0, Math.min(Math.round(rawI), chart.data.labels.length - 1));
+        const step = Math.max(1, Math.floor(gbd.counts / 2500));
+        const rec  = clamp(li * step, 0, gbd.counts - 1);
+        const tstr = fmtTime(rec);
+        const elId = pickMode.startsWith('pt') ? `ab-${pickMode.toLowerCase().replace('pt','t')}`
+                   : (pickMode.startsWith('tr') ? `trunc-t${pickMode.slice(2)}`
+                   : `ext-${pickMode}`);
+        const el   = document.getElementById(elId);
+        if (el) el.value = tstr;
+
+        extMk[pickMode] = rec;
+        const badgeEl = document.getElementById(`m${pickMode}`);
+        if (badgeEl) {
+          const valText = getRecValStr(rec, 1);
+          badgeEl.textContent = `${tstr} (${valText})`;
+        }
+
+        chart.update('none');
+        toast(`✓ ${pickMode.toUpperCase()} → ${tstr}`, 'ok');
+
+        if (pickMode.startsWith('pt')) calcABDelta();
+        endPick();
+      }
+    }
+  });
+  updRange();
+}
+
+// ── Pick Mode ──────────────────────────────────
+function startPick(field) {
+  if (pickMode) endPick();
+  pickMode = field;
+  document.getElementById(`pbtn-${field}`).classList.add('active');
+  document.getElementById('myChart').style.cursor = 'crosshair';
+  const banner = document.getElementById('pick-banner');
+  banner.textContent = `📍 點圖選擇 ${field.toUpperCase()} 時間，或按 ESC 取消`;
+  banner.classList.add('show');
+}
+function endPick() {
+  if (pickMode) document.getElementById(`pbtn-${pickMode}`)?.classList.remove('active');
+  pickMode = null;
+  document.getElementById('myChart').style.cursor = 'default';
+  document.getElementById('pick-banner').classList.remove('show');
+}
+function syncMarker(field, val) {
+  if (!gbd) return;
+  try {
+    const r = timeStrToRec(val);
+    if (r >= 0 && r < gbd.counts) {
+      extMk[field] = r;
+      const badgeEl = document.getElementById(`m${field}`);
+      if (badgeEl) {
+        const valText = getRecValStr(r, 1);
+        badgeEl.textContent = `${fmtTime(r)} (${valText})`;
+      }
+      chart?.update('none');
+    }
+  } catch(_) {}
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') endPick(); });
+
+function updDatasets() {
+  if (!chart||!gbd) return;
+  const { labels, datasets } = buildDatasets();
+  chart.data.labels   = labels;
+  chart.data.datasets = datasets;
+  chart.update('none');
+  updStats();
+}
+
+function resetZoom()   { chart?.resetZoom(); }
+function toggleScale() {
+  showRaw = !showRaw;
+  document.getElementById('scale-btn').textContent = showRaw ? 'Raw 模式' : '°C 模式';
+  updDatasets();
+}
+
+function updRange() {
+  if (!gbd) return;
+  document.getElementById('range-txt').textContent =
+    `${fmtTime(0)} ~ ${fmtTime(gbd.counts-1)}  (${gbd.counts} 筆)`;
+}
+
+// ══════════════════════════════════════════════════
+// HELPERS: TIME ↔ RECORD
+// ══════════════════════════════════════════════════
+function timeStrToRec(s) {
+  const parts = s.trim().split(':').map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) throw new Error(`時間格式錯誤: ${s}`);
+  const [h,m,sec] = parts;
+  const tms  = (h*3600+m*60+sec)*1000;
+  const sms  = (gbd.startT.getHours()*3600+gbd.startT.getMinutes()*60+gbd.startT.getSeconds())*1000;
+  return Math.round((tms-sms)/1000);
+}
+
+function clamp(v,lo,hi) { return v<lo?lo:v>hi?hi:v; }
+
+// ══════════════════════════════════════════════════
+// UNDO SNAPSHOT  (最多 UNDO_MAX 層)
+// ══════════════════════════════════════════════════
+function saveSnap() {
+  undoStack.push({
+    records: gbd.records.map(r => r.slice()),
+    counts:  gbd.counts,
+    startT:  new Date(gbd.startT),
+    stopT:   new Date(gbd.stopT)
+  });
+  if (undoStack.length > UNDO_MAX) undoStack.shift(); // 超過上限移除最舊
+  const btn = document.getElementById('undo-btn');
+  if (btn) { btn.style.display = 'inline-block'; btn.title = `可復原 ${undoStack.length} 步`; }
+}
+
+function undoLast() {
+  if (!undoStack.length) return;
+  const snap = undoStack.pop();
+  gbd.records = snap.records;
+  gbd.counts  = snap.counts;
+  gbd.startT  = snap.startT;
+  gbd.stopT   = snap.stopT;
+  const btn = document.getElementById('undo-btn');
+  if (btn) {
+    if (!undoStack.length) btn.style.display = 'none';
+    else btn.title = `可復原 ${undoStack.length} 步`;
+  }
+  initDateTimeInputs();  // 同步更新時間修改 UI
+  buildInfo(); updDatasets(); updRange(); updStatusCounts();
+  toast(`已復原，還剩 ${undoStack.length} 步可復原`, 'ok');
+}
+
+// ══════════════════════════════════════════════════
+// EDIT: OFFSET
+// ══════════════════════════════════════════════════
+function buildOffsetChTags() {
+  const el = document.getElementById('off-chs');
+  if (!el) return;
+  el.innerHTML = '';
+  for (let c = 0; c < NUM_CH_DISP; c++) {
+    const name = gbd?.ann[c]||`CH${c+1}`;
+    const tag  = document.createElement('div');
+    tag.className = 'ct' + (c===4?' on':'');
+    tag.dataset.c = c;
+    tag.style.borderLeftColor = CH_COLORS[c];
+    tag.textContent = name||`CH${c+1}`;
+    tag.onclick = () => tag.classList.toggle('on');
+    el.appendChild(tag);
+  }
+}
+
+function toggleOffRange() {
+  document.getElementById('off-rng-cust').style.display =
+    document.getElementById('off-rng').value === 'custom' ? 'block' : 'none';
+}
+
+function applyOffset() {
+  if (!gbd) return toast('請先載入檔案','err');
+  if (!isUnlocked) return openPwdModal();
+  if (typeof window._realApplyOffset === 'function') return window._realApplyOffset();
+  toast('🔒 數據修改模組尚未解密！請輸入密碼解鎖', 'err');
+}
+function _plainApplyOffset() {
+  const chs = [...document.querySelectorAll('#off-chs .ct.on')].map(t=>+t.dataset.c);
+  if (!chs.length) return toast('請選擇通道','err');
+  const deg = parseFloat(document.getElementById('off-val').value);
+  if (isNaN(deg)) return toast('請輸入偏移量 (°C)','err');
+  const raw = Math.round(deg * 10);
+
+  let r0=0, r1=gbd.counts-1;
+  if (document.getElementById('off-rng').value === 'custom') {
+    try {
+      const s0 = document.getElementById('off-t0').value;
+      const s1 = document.getElementById('off-t1').value;
+      if (s0) r0 = clamp(timeStrToRec(s0), 0, gbd.counts-1);
+      if (s1) r1 = clamp(timeStrToRec(s1), 0, gbd.counts-1);
+    } catch(e) { return toast(e.message,'err'); }
+  }
+
+  saveSnap();
+  for (let i=r0; i<=r1; i++)
+    for (const c of chs)
+      gbd.records[i][c] = clamp(gbd.records[i][c] + raw, -32768, 32767);
+
+  updDatasets();
+  toast(`✓ ${chs.length} 通道 × ${r1-r0+1} 筆  偏移 ${deg>0?'+':''}${deg}°C`, 'ok');
+  setStatus(`偏移完成，${(r1-r0+1)*chs.length} 個數值更新`);
+}
+
+// ══════════════════════════════════════════════════
+// EDIT: CURVE EXTENSION
+// ══════════════════════════════════════════════════
+function mathFx(x, type) {
+  switch(type) {
+    case 'linear': return x;
+    case 'quad':   return 1 - Math.pow(1-x, 2);
+    case 'cubic':  return 1 - Math.pow(1-x, 3);
+    case 'sqrt':   return Math.sqrt(x);
+    default:       return x;
+  }
+}
+
+function recLerp(snap, idxF, ch) {
+  const lo  = Math.floor(idxF);
+  const hi  = Math.min(lo + 1, snap.length - 1);
+  const frac = idxF - lo;
+  return snap[lo][ch] * (1 - frac) + snap[hi][ch] * frac;
+}
+
+function applyExtend() {
+  if (!gbd) return toast('請先載入檔案','err');
+  if (!isUnlocked) return openPwdModal();
+  if (typeof window._realApplyExtend === 'function') return window._realApplyExtend();
+  toast('🔒 曲線延伸模組尚未解密！請輸入密碼解鎖', 'err');
+}
+function _plainApplyExtend() {
+  let r0, r1, r2;
+  try {
+    r0 = timeStrToRec(document.getElementById('ext-t0').value);
+    r1 = timeStrToRec(document.getElementById('ext-t1').value);
+    r2 = timeStrToRec(document.getElementById('ext-t2').value);
+  } catch(e) { return toast(e.message,'err'); }
+
+  if (r0 < 0 || r1 <= r0 || r2 <= r1) return toast('時間順序不正確 (需 T0 < T1 < T2)','err');
+
+  const r0c = clamp(r0, 0, gbd.counts - 1);
+  const r1c = clamp(r1, 0, gbd.counts - 1);
+  const type     = document.getElementById('ext-curve').value;
+  const steps    = r2 - r0;          // total steps for new segment
+  const origSpan = r1c - r0c;        // original span length
+  const newCount = r2 + 1;
+
+  // Snapshot original source data BEFORE saveSnap (safe read)
+  const srcSnap = gbd.records.slice(r0c, r1c + 1).map(r => r.slice());
+  const vS = srcSnap[0];             // start values
+  const vE = srcSnap[srcSnap.length - 1]; // end / target values
+
+  // Capture tail (T1+1 → original end) BEFORE any modification
+  const appendTail = document.getElementById('ext-append-tail').checked;
+  const tailSnap   = appendTail && r1c + 1 < gbd.counts
+    ? gbd.records.slice(r1c + 1).map(r => r.slice())
+    : [];
+
+  saveSnap();
+
+  // Grow records array if needed
+  while (gbd.records.length < newCount)
+    gbd.records.push(new Array(NUM_CH_ALL).fill(0));
+
+  for (let s = 0; s <= steps; s++) {
+    const i = r0 + s;
+    const x = s / steps; // normalized 0→1
+
+    for (let c = 0; c < NUM_CH_DISP; c++) {
+      let v;
+      if (type === 'stretch') {
+        const srcPos = x * origSpan;
+        v = recLerp(srcSnap, srcPos, c);
+      } else if (type === 'cycle') {
+        const cycPos  = (x * steps % origSpan);
+        const baseVal = recLerp(srcSnap, cycPos, c);
+        const delta = baseVal - vS[c];
+        v = vS[c] + delta + (vE[c] - vS[c]) * x;
+      } else {
+        const fx = mathFx(x, type);
+        v = vS[c] + (vE[c] - vS[c]) * fx;
+      }
+      gbd.records[i][c] = clamp(Math.round(v), -32768, 32767);
+    }
+    for (let c = 15; c < NUM_CH_ALL; c++) gbd.records[i][c] = 0;
+  }
+
+  gbd.records.length = newCount;
+  if (tailSnap.length > 0) {
+    for (const rec of tailSnap) gbd.records.push(rec);
+  }
+
+  gbd.counts = gbd.records.length;
+  gbd.stopT  = new Date(gbd.startT.getTime() + (gbd.counts - 1) * gbd.sample * 1000);
+
+  // 套用完成後清除 T0/T1/T2 旗標與輸入欄位，避免下次多旗標混疊
+  extMk.t0 = null; extMk.t1 = null; extMk.t2 = null;
+  ['ext-t0','ext-t1','ext-t2'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  ['mt0','mt1','mt2'].forEach(id => { const el=document.getElementById(id); if(el) el.textContent=''; });
+
+  buildInfo(); updDatasets(); updRange(); updStatusCounts();
+  const tailMsg = tailSnap.length > 0 ? `，接續 ${tailSnap.length} 筆原始尾段` : '';
+  toast(`✓ ${type} 延伸完成，新結束: ${fmtTime(gbd.counts - 1)}${tailMsg}`, 'ok');
+}
+
+// ══════════════════════════════════════════════════
+// EDIT: TRUNCATE & CROP
+// ══════════════════════════════════════════════════
+function applyTrunc() {
+  if (!gbd) return toast('請先載入檔案','err');
+  let r0, r1;
+  const s0 = document.getElementById('trunc-t0').value.trim();
+  const s1 = document.getElementById('trunc-t1').value.trim();
+
+  try {
+    r0 = s0 ? timeStrToRec(s0) : 0;
+    r1 = s1 ? timeStrToRec(s1) : gbd.counts - 1;
+  } catch(e) { return toast(e.message,'err'); }
+
+  if (r0 < 0 || r1 >= gbd.counts) return toast('時間超出記錄範圍','err');
+  if (r1 < r0) return toast('保留起點時間不能大於終點時間','err');
+
+  const oldCounts = gbd.counts;
+  const r0c = clamp(r0, 0, gbd.counts - 1);
+  const r1c = clamp(r1, 0, gbd.counts - 1);
+  const newCount = r1c - r0c + 1;
+
+  saveSnap();
+
+  gbd.records = gbd.records.slice(r0c, r1c + 1);
+  gbd.counts  = newCount;
+
+  gbd.startT = new Date(gbd.startT.getTime() + r0c * gbd.sample * 1000);
+  gbd.stopT  = new Date(gbd.startT.getTime() + (newCount - 1) * gbd.sample * 1000);
+
+  extMk.tr0 = null;
+  extMk.tr1 = null;
+
+  buildInfo();
+  initDateTimeInputs();
+  updDatasets();
+  updRange();
+  updStatusCounts();
+  toast(`✓ 裁切完成：保留 ${newCount} 筆數據 (移除 ${oldCounts - newCount} 筆)`, 'ok');
+}
+
+// ══════════════════════════════════════════════════
+// EXPORT
+// ══════════════════════════════════════════════════
+function doExport() {
+  if (!gbd) return toast('請先載入檔案','err');
+
+  const cnt     = gbd.counts;
+  const hdrSize = gbd.headerSize || HEADER_SIZE;  // 使用解析時偵測到的實際 header 大小
+  const size    = hdrSize + cnt * BYTES_PER_REC;
+  const buf     = new ArrayBuffer(size);
+  const view    = new DataView(buf);
+  const u8      = new Uint8Array(buf);
+
+  let hdr = gbd.hdr;
+  hdr = hdr.replace(/Counts\s*=\s*\d+/, `Counts    =      ${String(cnt).padStart(6)}`);
+  hdr = hdr.replace(/Start\s*=\s*[\d-]+,[\d:]+/, `Start     = ${fmtGBDDate(gbd.startT)}`);
+  hdr = hdr.replace(/Stop\s*=\s*[\d-]+,[\d:]+/, `Stop      = ${fmtGBDDate(gbd.stopT)}`);
+  hdr = hdr.replace(/Trigger\s*=\s*[\d-]+,[\d:]+/, `Trigger   = ${fmtGBDDate(gbd.startT)}`);
+  const enc = new TextEncoder().encode(hdr);
+  const hbuf = new Uint8Array(hdrSize);
+  hbuf.set(enc.slice(0, Math.min(enc.length, hdrSize)));
+  u8.set(hbuf, 0);
+
+  for (let i=0; i<cnt; i++) {
+    const base = hdrSize + i * BYTES_PER_REC;
+    for (let c=0; c<NUM_CH_ALL; c++)
+      view.setInt16(base + c*2, gbd.records[i][c], false);
+  }
+
+  const blob = new Blob([buf], { type:'application/octet-stream' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const name = fmtExportFilename(gbd.startT, gbd.filename);
+  a.href = url; a.download = name; a.click();
+  URL.revokeObjectURL(url);
+
+  const stopStr = fmtFullDateStr(gbd.stopT);
+  toast(`✓ 已匯出：${name} (理論結束時間: ${stopStr})`, 'ok');
+}
+
+function fmtExportFilename(startT, origFilename) {
+  const p = n => String(n).padStart(2, '0');
+  const yy = String(startT.getFullYear()).slice(-2);
+  const mm = p(startT.getMonth() + 1);
+  const dd = p(startT.getDate());
+  const hh = p(startT.getHours());
+  const mi = p(startT.getMinutes());
+  const ss = p(startT.getSeconds());
+
+  let suffix = '_UG';
+  if (origFilename) {
+    const m = origFilename.match(/(_[^.]+)\.(GBD|gbd)$/i);
+    if (m && m[1]) {
+      suffix = m[1];
+    } else {
+      const base = origFilename.replace(/\.(GBD|gbd)$/i, '');
+      const idx = base.indexOf('_');
+      if (idx !== -1) suffix = base.substring(idx);
+    }
+  }
+  return `${yy}${mm}${dd}-${hh}${mi}${ss}${suffix}.GBD`;
+}
+
+function fmtGBDDate(d) {
+  const p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())},${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+function fmtFullDateStr(d) {
+  const p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+// ══════════════════════════════════════════════════
+// DATE TIME EDITING
+// ══════════════════════════════════════════════════
+function initDateTimeInputs() {
+  if (!gbd) return;
+  const str = fmtFullDateStr(gbd.startT);
+  document.getElementById('dt-start-input').value = str;
+  previewCalcStop();
+}
+
+function previewCalcStop() {
+  if (!gbd) return;
+  const str = document.getElementById('dt-start-input').value.trim();
+  try {
+    const d = new Date(str.replace(' ', 'T'));
+    if (isNaN(d.getTime())) throw new Error();
+    const stopMs = d.getTime() + (gbd.counts - 1) * gbd.sample * 1000;
+    const stopD  = new Date(stopMs);
+    document.getElementById('dt-calc-stop').textContent = fmtFullDateStr(stopD);
+  } catch(_) {
+    document.getElementById('dt-calc-stop').textContent = '無效日期格式';
+  }
+}
+
+function applyDateTime() {
+  if (!gbd) return toast('請先載入檔案', 'err');
+  if (!isUnlocked) return openPwdModal();
+  if (typeof window._realApplyDateTime === 'function') return window._realApplyDateTime();
+  toast('🔒 時間修改模組尚未解密！請輸入密碼解鎖', 'err');
+}
+function _plainApplyDateTime() {
+  const str = document.getElementById('dt-start-input').value.trim();
+  let newStart;
+  try {
+    newStart = new Date(str.replace(' ', 'T'));
+    if (isNaN(newStart.getTime())) throw new Error();
+  } catch(_) {
+    return toast('日期時間格式不正確，請用 YYYY-MM-DD HH:mm:ss', 'err');
+  }
+
+  saveSnap();
+  gbd.startT = newStart;
+  gbd.stopT  = new Date(newStart.getTime() + (gbd.counts - 1) * gbd.sample * 1000);
+
+  // 同步更新 gbd.hdr 內的 Start/Stop/Trigger 文字
+  // Trigger 是原廠 GL820 軟體顯示 "Absolute" 時間軸的來源
+  gbd.hdr = gbd.hdr.replace(/Start\s*=\s*[\d-]+,[\d:]+/, `Start     = ${fmtGBDDate(gbd.startT)}`);
+  gbd.hdr = gbd.hdr.replace(/Stop\s*=\s*[\d-]+,[\d:]+/,  `Stop      = ${fmtGBDDate(gbd.stopT)}`);
+  gbd.hdr = gbd.hdr.replace(/Trigger\s*=\s*[\d-]+,[\d:]+/, `Trigger   = ${fmtGBDDate(gbd.startT)}`);
+
+  buildInfo();
+  updDatasets();
+  updRange();
+  toast('✓ 起始日期時間已更新（含 Trigger/Absolute），波形線型保持不變', 'ok');
+}
+
+// ══════════════════════════════════════════════════
+// AB MEASUREMENT CALCULATIONS
+// ══════════════════════════════════════════════════
+function calcABDelta() {
+  if (!gbd) return;
+  const rA = extMk.ptA;
+  const rB = extMk.ptB;
+  const tbody = document.getElementById('ab-table-body');
+  const dtEl  = document.getElementById('ab-dt-txt');
+
+  if (rA == null || rB == null) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px 0">請點擊 📍 設定 A 點與 B 點</td></tr>';
+    if (dtEl) dtEl.textContent = '—';
+    return;
+  }
+
+  const dtSec = (rB - rA) * gbd.sample;
+  const sign  = dtSec >= 0 ? '+' : '-';
+  const absSec = Math.abs(dtSec);
+  const mm = Math.floor(absSec / 60);
+  const ss = absSec % 60;
+  if (dtEl) dtEl.textContent = `${sign}${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')} (${dtSec > 0 ? '+' : ''}${dtSec}s)`;
+
+  let rows = '';
+  const unitStr = showRaw ? 'Raw' : '°C';
+
+  visCh.forEach(c => {
+    const name  = gbd.ann[c] || `CH${c+1}`;
+    const valA  = gbd.records[rA][c];
+    const valB  = gbd.records[rB][c];
+    const diffRaw = valB - valA;
+
+    const vAStr = showRaw ? valA : (valA / 10).toFixed(1);
+    const vBStr = showRaw ? valB : (valB / 10).toFixed(1);
+    const dVal  = showRaw ? diffRaw : (diffRaw / 10).toFixed(1);
+    const dStr  = diffRaw > 0 ? '+' + dVal : dVal;
+
+    const cls = diffRaw > 0 ? 'pos' : (diffRaw < 0 ? 'neg' : 'zero');
+
+    rows += `
+      <tr>
+        <td>
+          <div class="ch-cell">
+            <span class="stat-dot" style="background:${CH_COLORS[c]}"></span>
+            <span title="CH${c+1} ${name}">CH${c+1} ${name}</span>
+          </div>
+        </td>
+        <td class="val-num">${vAStr}</td>
+        <td class="val-num">${vBStr}</td>
+        <td class="val-num ${cls}">${dStr}</td>
+        <td class="val-unit">${unitStr}</td>
+      </tr>
+    `;
+  });
+
+  if (tbody) tbody.innerHTML = rows || '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px 0">未勾選任何通道</td></tr>';
+}
+
+function swapAB() {
+  if (!gbd) return;
+  const tempRec = extMk.ptA;
+  extMk.ptA = extMk.ptB;
+  extMk.ptB = tempRec;
+
+  const inputA = document.getElementById('ab-ta');
+  const inputB = document.getElementById('ab-tb');
+  const tempVal = inputA.value;
+  inputA.value = inputB.value;
+  inputB.value = tempVal;
+
+  const tAStr = extMk.ptA != null ? fmtTime(extMk.ptA) : '';
+  const tBStr = extMk.ptB != null ? fmtTime(extMk.ptB) : '';
+  const badgeA = document.getElementById('mptA');
+  const badgeB = document.getElementById('mptB');
+  if (badgeA) badgeA.textContent = extMk.ptA != null ? `${tAStr} (${getRecValStr(extMk.ptA, 1)})` : '未設定';
+  if (badgeB) badgeB.textContent = extMk.ptB != null ? `${tBStr} (${getRecValStr(extMk.ptB, 1)})` : '未設定';
+
+  calcABDelta();
+  chart?.update('none');
+  toast('✓ A 點與 B 點已快速對調', 'ok');
+}
+
+function getRecValStr(rec, maxCh = 3) {
+  if (!gbd || rec == null || rec < 0 || rec >= gbd.counts) return '';
+  const parts = [];
+  const recData = gbd.records[rec];
+  visCh.forEach(c => {
+    if (parts.length >= maxCh) return;
+    const name = gbd.ann[c] || `CH${c+1}`;
+    const v = recData[c];
+    const vStr = (v >= 30000 || v <= -30000) ? 'NC' : (showRaw ? v : (v / 10).toFixed(1) + '°C');
+    parts.push(`${name}: ${vStr}`);
+  });
+  return parts.join(' | ');
+}
+
+function clearABMarkers() {
+  extMk.ptA = null;
+  extMk.ptB = null;
+  document.getElementById('ab-ta').value = '';
+  document.getElementById('ab-tb').value = '';
+  const badgeA = document.getElementById('mptA');
+  const badgeB = document.getElementById('mptB');
+  if (badgeA) badgeA.textContent = '未設定';
+  if (badgeB) badgeB.textContent = '未設定';
+  calcABDelta();
+  chart?.update('none');
+  toast('已重置 AB 測量點', 'info');
+}
+
+function toggleRightPanel() {
+  const panel = document.getElementById('right-panel');
+  if (!panel) return;
+  const isVis = panel.style.display !== 'none';
+  panel.style.display = isVis ? 'none' : 'flex';
+  document.getElementById('ab-panel-btn')?.classList.toggle('btn-p', !isVis);
+}
+
+// Salted SHA-256 Hash of management password "e799c2fbe2" (No plaintext password stored)
+const UNLOCK_HASH = 'e604c5ff8762a4bcfd6d49ee98e5a3ef7435a43e27f3f82e6e3365a906f9dfd1';
+const SALT = '_GBD_SALT_2026';
+
+async function sha256(str) {
+  const enc = new TextEncoder().encode(str + SALT);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function toggleUnlock() {
+  if (isUnlocked) {
+    setUnlockState(false);
+    toast('🔒 已重置為資料閱讀模式', 'info');
+  } else {
+    openPwdModal();
+  }
+}
+
+function openPwdModal() {
+  const modal = document.getElementById('pwd-modal');
+  const input = document.getElementById('pwd-input');
+  const err   = document.getElementById('pwd-err');
+  if (err) err.style.display = 'none';
+  if (input) { input.value = ''; }
+  if (modal) modal.style.display = 'flex';
+  setTimeout(() => {
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  }, 50);
+}
+
+function closePwdModal() {
+  const modal = document.getElementById('pwd-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function togglePwdVisibility() {
+  const inp = document.getElementById('pwd-input');
+  if (!inp) return;
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+async function verifyPassword() {
+  const input = document.getElementById('pwd-input');
+  const pwd   = input ? input.value.trim() : '';
+  if (!pwd) return toast('請輸入密碼', 'err');
+
+  const ok = await decryptAndInjectModule(pwd);
+  if (ok) {
+    failedAttempts = 0;
+    closePwdModal();
+    setUnlockState(true);
+    toast('✓ 密碼驗證成功，編輯模組已動態解密注入！', 'ok');
+  } else {
+    failedAttempts++;
+    if (failedAttempts >= 5) {
+      closePwdModal();
+      toast('❌ 連續密碼錯誤 5 次，請重試', 'err');
+      return;
+    }
+    const err = document.getElementById('pwd-err');
+    if (err) {
+      err.textContent = `❌ 密碼錯誤 (已嘗試 ${failedAttempts}/5 次)`;
+      err.style.display = 'block';
+    }
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+    toast(`❌ 密碼錯誤 (剩餘 ${5 - failedAttempts} 次嘗試機會)`, 'err');
+  }
+}
+
+function setUnlockState(state) {
+  isUnlocked = state;
+  document.querySelectorAll('.lock-feature').forEach(el => {
+    el.style.display = isUnlocked ? 'inline-block' : 'none';
+  });
+  const btn = document.getElementById('unlock-btn');
+  if (btn) {
+    btn.innerHTML = isUnlocked ? '🔒 鎖定閱讀模式' : '🔓 解鎖進階功能';
+    btn.classList.toggle('btn-p', !isUnlocked);
+  }
+  if (!isUnlocked) {
+    const activeTab = document.querySelector('.tb.on');
+    if (activeTab && activeTab.classList.contains('lock-feature')) {
+      switchTab('abmeasure', document.getElementById('tb-abmeasure'));
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════
+// UI HELPERS
+// ══════════════════════════════════════════════════
+function switchTab(name, btn) {
+  document.querySelectorAll('.tb').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('.tc').forEach(c=>c.classList.remove('on'));
+  btn.classList.add('on');
+  document.getElementById('tab-'+name).classList.add('on');
+}
+
+function showLoad(v) { document.getElementById('loading').classList.toggle('show',v); }
+
+let _tt;
+function toast(msg, type='info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = 'show ' + type;
+  clearTimeout(_tt); _tt = setTimeout(()=>el.className='', 3200);
+}
+
+function setStatus(msg) { document.getElementById('st-msg').textContent = msg; }
+function updStatusCounts() { document.getElementById('st-counts').textContent = `${gbd?.counts||0} 筆`; }
+
+// ══════════════════════════════════════════════════
+// DRAG & DROP
+// ══════════════════════════════════════════════════
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('over');
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+document.body.addEventListener('dragover', e => e.preventDefault());
+document.body.addEventListener('drop', e => {
+  e.preventDefault();
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+
+// ══════════════════════════════════════════════════
+// TRIPLE PROTECTION: AES-256 PAYLOAD & SECURITY GUARDS
+// ══════════════════════════════════════════════════
+const ENCRYPTED_EDIT_MODULE = {
+  "iv": "4e941d6ffc12d9a57fe1c5c0",
+  "tag": "15d1b1736368afc06f99e5c6f43c60b8",
+  "cipher": "627caf3fa4c982004afa3c4611e114707d2a7af7696266319143b9efdcc23a9956746495a582afcd2a32ddbe36b87f5c1908cb7623efc0b5e9ec2217e54cc882f6bc9fffef1966263c925b8756e4e800c201f447efe3d7c78eb989982f2c2419719c7be610f165b94db9381ca7a9edb9daef2bc4672ed74b7ca4b562b6f29e2ab6ff16de0095ad3677242c56e83aa22d4debacb714a8090ee8ae753754bd929d46773aa5a8b318d9fe1e315de868c12123a6a276432a02f17e119e29ed2fe9d1b5d32488fa48079177cdbcf2a952a1a5ad051e645fd205f0b26dae6b43068a488e9171da096166f54c763fefb5c0aa1e5038cb5fb7bb86e8c67ad790e2e155d3b4f71981bb906016673300c3974a07c3b6330ff7d5eaead3d2dc3e64427189f6f5bac13f0aaf7cff8dfc7ec03a84abf6b2c0e061b03fca80eeb95cac18f62641cff84d2842c0acf750462a689ec88ffe074a89fbed5ba9adfb5ad0f724ae3c0f1a3920952b30ac442d8c44bcdb23334db6b0c6b2b483eb212043f48bdfbef25f8b3a73ff6dbf915e91c2c7c4a4939ef7f1755853af5d509efafdf413995b0e2f084a3d5c5526b7e0e3b4e7abf478f50291b7b1c593b39f48fbf0a63afe4e4462e89a53cd82a0d9d548c687a50f616ae84bb7852d4fc7fdd3e896c08d00466dac1868ae45b22df00ee3146ff65b198ca233103e68287e822ce70959d57bcc1b82088b49f4b51446046284a1b7afd678b74c99d0dd6b0d6dc7de3999ee9d19454c41edb51e6209d45bc18ee723695bc1ce5b6f7e6662e742cd01be79d92e2d437235b3718111ff8cee9f2fea741ac76baedea4a617a292eb24b576888bf1edde7781ffb8b67738c5d8998868acb47051ddf95765ccba7b1d61a4ecf3d1600079512504c3073d37c7d8467a344326a977cc8b449ac6105d6a71786eab00e693ede0900cd05ac187fe971aa9dd865e573b1a427408125c4a56d0d9b965f5ea5947ddb15775fb3907fd439fce7a02d0bcad1ee802a35e871a677a312bc091999d1655367165cb891bc6edd72576003967c9dedb1d44bdb24265a56a194a32f619953147b9abbb1d34f8f209dc422ee97cedf2179f155baef07595dae3a0cd099d469c79cd9a4e07bf29cac6367ea7c2db66d68ef67c70c52c5e71cb16120cf7af9b06b830926e13b10a75d2fbc80923dca41e8c805cc6183bad5f1bff119dae245b46d27662c977e7274e3cbb4c2fc1e2482b0ec094eff97272a578f286571be7bc64317e8089f348d9bd4b07040cc2d29b3ba37d8b19231d007ce296de246e9407292886f43796a601f7d2c10333a5415b0cc9cb85c53946d91ad04e7f75d0a386e08ceb01bde89f3280245b3e1f09254301c4137388384f04776dada42cfa726d9e3a3bc33600706a67961672cf4e871aaa8849d67772c4873d05d870e2110bd21da56c2e585e364b61db5bb6e1b3d4e8a5a975597da456ac1dd68fd775e238a578a287e4069bf124aeac2f18831b498cab22a2ab2e22d390f9fb59da8c7f01f726a13067b9882767b0ecb9639f15957315fe65e7c37bff5b99340ca64abfbc8684cd6e4d3f526108eb4f1d11150c7c729770adf6c2c961385e2d810b7a2eba3a199306e0561d437506748da8f4b0f33770bf602c75f78b9aaf4865f3e6cc70df1f3a3d5864dc69aa71cb7600a96d2b945f89a62e03671f39268e515078034c16a60be17e9f7df1b607c333e68e99f7c6aa2058fceacae1512fd48fd0b85144d8750c6bb1218567aa1b648f8b88cc4fdc1cf0ca609c33c37f552ef919084b932a354d4cc49bd1e81d0da9a87ebd1771306454a3a97e17441d104182f6b6317e02a8ec5b5c537e0e482a9626ebe97b6e2a808c8d0f5b11daf583e9058923eab7823c64ad9e2bfd632b231d420b13ec527d9549e9d215a057afd6a920ffbd900b239718d6d1572beb092578ade02d4f6cec669626a926eaabf9a021f1b131d364195c8773650f1aa209faed1bd333371791c0172a6114754b86cca365bdca953b8f6533a20d74c22b4a421b72f3b1866a200cd248e59638696d29fc591ca83d589b772a3877b1138367a8666bb5dfcd1473683a679849a8296896262e6ffa29906ee873402f403cdb8b38e8283d203452ecb09a8296d8f63039c47745fee5b15eec9ef5f88200efbb5a11a8f4d1160498052010db3a2154427c527ea7d8a14a1bf5674bfdfe5de592aabd6465d8362e74c7d9c4ed4a09d115f441faecb62f2eb6fb27c49e7576bd605179c0be0c06dc00dbe5bc916237eac2174746f504e5e1cadae43df92befd6501e6e59db92505a588f3d048ed25bb6550fe332b095636514899521763b3dd6c4374784fd38a7b8fd62f4e876cf86c837a150b7a4d35f19fc9f4677502959a178577b66ff6c71970a879c4404e57aab78ba00fbde7a5946e5d41c2b76abead6dde10f850d44189bd2e9081b7d5e4cbb92d8edb2bacfc00b335846e689a71e174066b3b31f590706b1f1e1b072822ca29666df4dcffa66482cb0bc72620a8c271519e21ac4b21d8ba49572618e3b523d4f962fea15119642eba9551d6cc50d0eb4ca9cfb86287892b6fdfed6086f51009348e90acd6df57edd80f0593ccfd27b48e90175a6f21192da7034c2ce113a9c8ddd7363aa790baa67062b5bffcff0cef468074c06027ac3488b693368cde9c540cf0c49c52669fc69bfeced2ba1b87ecfe86e011d6405ca6253a4aa34bb1c6b3d2368150fbc69e2cfa1906789689d77480be6e054de63551c170e8c7664cb600a925ae4fb10eb99df9d250b7bff7122ac2a078b73d1cf2ca98bd918fb3564b43bd77805e39c6ac53219293031bc79008243e705b2e399d807565b99ad93d33331b6d14516987b50701a69b686f5e628f2ae795fe85b3550999a3254736ae6bd8715b5567e73c55cfd274ab0c25d812564c95c61894d2eb687dd2d82500a4536e0e783827ac17c203a57008161b61fa82bd6c4facf110536af821818978d8801dc499fc5f9a55c04ede3f702f48971ff36c710e460d0230b91dbcf4d9b083a230408e2c1add7f76a7cfaab2638b44657d51d38bf4f33297a02dc66ef7f3f1748ba6afb65ea2ed92e08cf8eab947bfb782a35e7782c3ee348c70ff91e8aca393c49a8b668c8c2068042280a0501b6788a02b4582e51bf2cec55b5cbe8086df8dc7ec00437feb1e7affab879c16f5b967b0db86d62c8666075aa1fd566100d13c3c5870a7ea6a77ea8582fcabff028a6c96f78b5b52b51a9e2914574bbe3118ba9ed8f87fb75b794f223a09c51a366d480f6beec7fa8b05466c9efd1832042608cb49a248d0507e9ff112b3276feaaf578c86e51cbda5049a863b480f7359a775259c146af34b4388990eb3011d427218cf57e6d2c3d375a200f71f61d26a9e40b83c1796ac19ddb6d73beb39a0164c4e10ea4c0814b33ba7e2d0bca715fe0207d3fd2986b1e4f46394918aa82588a5e3294255f224a378019fd3492d17f200a526618101baf886083f610d289c6534b99913530fc8203f8b97c832f2b7aa0ee96346608964f4a72e6f1d2d75076ade9555464395af3d038652b74099c14f8fc99ed103453739dda6c1b102e9e17bf81b961fef965137d3e6403977ca6c634c8478c3c51b2f3867ece444743741ca659bca3606317ccf3c9adf02d6cba4091d59d1525f287d5b3901cd666e57b4c6af94096587955d3f964b99c1cb723ac85e0d0991276c55afe70a5213434383846b19d400be905482c510dff7acc7fb6c8a9ea44ce8e038f12485d4a0446d1e79384b788fbd3f014c3508033bcae03fed37ff58b6cb9edec4b639185d596726eb023bfd62e6bc4573ebfcf75bab5850799cd21a0dc1ca3d7d60af42fe4b653b8ab48a956fdb02e16bf2c1623893fd395888c1efe599e9e8693c72da987c7f08e17c91b68cadb9afea1c5feddee44647c3b93bcfb97bc499c4dc54b08e71a2d3321b26589457c563810fec1ab00209619d7d2db2d9b62cb417de1857b83e11e4ea40586325e743edff662fef65a14d542ff2c436c7ed33e1a516640c1387400b91c4ea1f28342a47189c07846146cac5b5221b089d5846f730fddc44af43ed6fc195113ea69fdd08778460537531f3dd4951d3c7b2b1db1724178644123a4adc852284903bb01769fb609ed2162294d3c8ae2fb0616f401bbac762bf688b3783dbf960231d3878da75aaf276e05900ae9f09020bf21d6e366b285ebc9f26b3d66f9a1279bdcb88679db0f565d6ce8f20118c01870f46e4b171a8be9171ffb43313df96cb2878b0f31b03e55c3cedb6b143f41fe134ea3e18ba7e611128a1db60019f08165cef6e1d93e2a0156f42e0e5e5676f3174b71abc54c9269737010c1699f3696ae172a7c6e24f9eba52ddd225bd31fccc2551f8d53bbb5289d377cd16fcd34103d3d32b2941f04063bd15535ac189d06e4aa2573685ff99aad02db39e79c85d5a2424b4540dc0ea54770d931d1f6dd7626988eecd5f465526066e370ab52cfa45a153a4acda6966c519cf38dbc81d8f9482b2df48144787c11af11bad3b40e35f3b31b7091c034559670d5e313d9707ce35822c21d6c8aa7b1d512f46f60e4323d0b1e621764de90f5d2d55000e81a867b702813c18dfae74aae3691756ed6a7bb1eed2ec2af3a909740bd47fb5cc140018ca2a055940a9bf770ea1e9d023fab8c56940a9dcc2ebc58f1e81d1ed6e00519c768053927fc2cac9c0ce867aedd81fc09b7a6231ad4fdc8376719fc366fe6c009eff8f409940f8ff9fe67353995d7edda1f6cea1f5a9556cc3afd85e5f45c1a2f6e8087ac43617c86b4d715c9fe7029536a91e40b50bbe2afde7788004139fd1924b8f7e37beb7cef57acc9e863ad8c8f452c1f1e23bd20ab3bf68ad7d6a1d0ebcd9fa84eeac0cca0cfc9d1bfd5ae1ed4f0a5e52389841e44f6390ab49eba607cf6e967476fb6764c32431103a45e16908488aa96f97106aa33277cbadfd2cb3a1ddcd0ecd097dc9e77b2adfb820e0d4033a3e143d4f611d4797abd4ca11d0589cd1777f6f571657118f03fcffc91837668b689d3a9c26c18db7bb9b0ca595062fe8b45c9711aea2fcf1a3c6b0a207a2772070be09bbbc5abfc564c5b4da40772b2af6a1c4dc9882e8bb56b83080bffbd402460ab160b62c172ba34f87c838788cb01af55d95823d262c96fe8a10aa4132b9329f84cea264ec991d9bd261fcd72f5b3ba89eb287697efd520e3f14ac41e4287c44c3fabe4a6bb93454880dbe4b81035d85eed828fea0209e56c4222d334f242fcf9bbcc5908b423b398bb3cca76b23d167aa94831decf60d4ccdf9c158599e6761b78992fda5c39ec24139ccbea18c40fe6dc42039515a833c7d0f17b4ffeb4540160341cf9f5cbb89c723194f275049b4072156fd723a3783604634be9a87cf35769d75739ed5fab536079e4bb063e7344543d0c07551e4fb4eb4314ed56f62412cfe7d381f1ddc84c88369091d72460d3f7cc0fbbcce9835aee2542be28bdc1c5f52e49933f805c3130ab96bcbebbe7b1d65e7f057fae7367137316ea643e8ff7ad169bb79e883751adea86782485e78653e1a19012d370662d3deac63773e3b39b8d1df78d98ba0d9816af296a43431009fd2b79b3711f131892cc9802fd617990ac5d3db5edfe7ce1ed1bd050c2c5bfc01d86b105bc225ad353122d9beb3ac1f29f7e661c546383920cbab6e414ba7ddf30cd5e163ff43a65c6d090464225ffa97d92a79d6c4972e427ca556543dbb6133695a07cd6d4c0b1fe2ee33b5e2e9da22c33a282c40ebdcc4d27fd286ac4e40250422bde60f9f2ded5bd58f29fac207445e75ab5139deedab55f060c1ee0b8b54b71d2bcbdfe8d8c96d4386d8205a299bc852e5227414dfc"
+};
+
+function hexToBytes(hex) {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+  return bytes;
+}
+
+async function decryptAndInjectModule(pwd) {
+  try {
+    const enc = new TextEncoder().encode(pwd + SALT);
+    const keyBuf = await crypto.subtle.digest('SHA-256', enc);
+    const aesKey = await crypto.subtle.importKey('raw', keyBuf, { name: 'AES-GCM' }, false, ['decrypt']);
+
+    const iv = hexToBytes(ENCRYPTED_EDIT_MODULE.iv);
+    const tag = hexToBytes(ENCRYPTED_EDIT_MODULE.tag);
+    const cipher = hexToBytes(ENCRYPTED_EDIT_MODULE.cipher);
+
+    const ciphertext = new Uint8Array(cipher.length + tag.length);
+    ciphertext.set(cipher);
+    ciphertext.set(tag, cipher.length);
+
+    const decryptedBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, aesKey, ciphertext);
+    const codeStr = new TextDecoder().decode(decryptedBuf);
+
+    new Function(codeStr)();
+    return true;
+  } catch(e) {
+    return false;
+  }
+}
+
+// Security Guards (Anti-Save & Anti-RightClick)
+document.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('keydown', e => {
+  const tag = e.target ? e.target.tagName : '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+  const k = e.key ? e.key.toUpperCase() : '';
+  const ctrl = e.ctrlKey || e.metaKey;
+  const shift = e.shiftKey;
+
+  if (e.key === 'F12' || (ctrl && shift && (k === 'I' || k === 'J' || k === 'C')) || (ctrl && (k === 'U' || k === 'S' || k === 'P'))) {
+    e.preventDefault();
+    e.stopPropagation();
+    toast('⚠️ 系統安全防護中：禁止檢視原始碼與另存新檔', 'err');
+    return false;
+  }
+});
+</script>
+</body>
+</html>
