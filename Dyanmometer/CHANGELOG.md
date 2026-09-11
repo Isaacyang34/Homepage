@@ -8,12 +8,60 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.84 (beta) | v2.10.44 | 2026-09-11 | 感應馬達 IEEE 112 等效電路計算與自動數據採集系統：(1)新增全新「⚡ 等效電路」專屬分頁，支援空載、額定 (不補轉差)、堵轉三段式測試採集；(2)實裝 KEB uf.09 (0x0509) 堵轉降壓限制寫入、即時監控與預設值自動復原安全機制；(3)建立馬達指紋判定引擎 (以 KEB dr 參數為基準，無變更時記憶空載與額定數據等待堵轉測試)；(4)實裝 B 載台 dr 參數異動即時監控，主動彈窗提示同步修正 RAW DATA 馬達型號名稱；(5)實裝向量等效電路圖動態 GDI+ 繪製、精確參數求解器 (R1, X1, Xm, Rc, R2', X2', Zk) 與 INI 斷電佈局記憶 |
 | V2.83 (beta) | v2.10.43 | 2026-09-11 | 線上自動熱更新版本發布與雲端清單同步：(1)發布最新雲端熱更新二進位封包至 GitHub gh-pages 與 Releases；(2)同步 Firebase RTDB /update/version.json 雲端版本清單至 v2.10.43，使現役機台開機或手動點擊「線上更新」時精準觸發「有新版本」提示；(3)驗證二進位串流下載、PE 標頭結構校驗與免重開熱替換重啟流程 |
 | V2.82 (beta) | v2.10.42 | 2026-09-11 | GitHub Release 雲端報告發布與大檔 (2GB) 直通下載系統：(1)報告管理器新增「1. GitHub Release 雲端」發布目標，支援單檔最高 2.0 GB 直通下載；(2)擴充 BouncyCastle TLS 1.2 連線引擎 (`SendHttpRequestRaw`) 支援自訂標頭與大檔案分塊串流傳輸，相容 Windows XP / .NET 4.0；(3)實裝 Release 自動查詢與自動建檔 (`/releases/tags/{tag}` 與 `/releases`)、同名資產覆蓋防護 (`DELETE /assets/{id}`) 與二進位直傳 uploads.github.com；(4)上傳成功自動解析 `browser_download_url` 並拷貝至系統剪貼簿；(5)實裝 30 秒快速取得 GitHub PAT 權杖圖文教學對話框與瀏覽器 Releases 直通按鈕；(6)儲存庫與 Token 偏好自動持久化至 `dynamometer_layout.ini` |
 | V2.81 (beta) | v2.10.41 | 2026-09-11 | 全分頁視窗佈局、Splitter 與表格寬度全息記憶持久化系統：(1)修復 WinForms 背景 TabPage 尺寸未渲染回報 0 造成佈局失效與設定覆蓋之致命缺陷，實裝 `layoutSplitters` 記憶體中繼快取與 `ApplySplitterDistanceSafe` 動態防夾機制；(2)全 7 大 TabPage (即時綜合監控、TN 特性測試、Duty 工作制測試、效率曲線、空載測試、報告管理器、系統參數) 共 15 組 SplitContainer 全面接入 `dynamometer_layout.ini` 雙向儲存與恢復；(3)實裝視窗座標 (`Window.X, Y`)、視窗尺寸 (`Width, Height`)、視窗狀態 (`WindowState`) 與上次離開分頁 (`ActiveTab`) 之安全多螢幕邊界檢查復原；(4)實裝 8 大 DataGridView 表格欄寬動態自動記憶；(5)修復 `SafeSetupSplitContainer` 在視窗縮放時重複重設預設值之死迴圈 |
 | V2.80 (beta) | v2.10.40 | 2026-09-11 | Google Drive / GAS Webhook 傳輸韌性與 TLS 連線中斷容錯升級：(1)修復 Google Apps Script 無預警關閉連線所引發之 `TlsNoCloseNotifyException: No close_notify alert received before connection closed` 例外，改為緩衝讀取並將具備 HTTP 狀態碼之非預警關閉視為正常完成；(2)實裝 HTTP 301/302/303/307 重定向自動跟隨 (Redirect Follower) 與 HTTP Chunked 分塊解碼 (Unchunk)，完美解析 Google Apps Script 回傳之 `script.googleusercontent.com` 執行結果與 Drive 檔案網址；(3)報告管理器上傳日誌全面接入 `Dynamometer_Telemetry.Log("REPORT", ...)` 統一日誌軌道，杜絕日誌遺漏 |
 | V2.79 (beta) | v2.10.39 | 2026-09-11 | S6 週期工作制溫升極值監控、平衡週期預估與 +1 追加確認週期雙保險引擎：(1)週期雙極溫全息監控：即時追蹤 T1 加載結束之「最高溫 (Peak)」與 T2 空載冷卻結束之「冷卻最後低溫 (Trough)」；(2)平衡週期預估演算：導入一階熱動態動態模型，依據週期峰值漂移率或滑動斜率精準預估約需幾次週期才能達成平衡；(3)30 分鐘穩定判定後 +1 追加確認週期：初達 30 分鐘穩定門檻時不驟停，自動追加 1 個確認週期進行複核；若確認週期溫差 <= 1.0℃ 則圓滿確立停機，若否則自動延展週期繼續測試；(4)WinForms HMI 狀態列與 Web 特性分析儀工作制面板全息雙軌實裝 |
 | V2.78 (beta) | v2.10.38 | 2026-09-11 | S1 與 S2 工作制溫升斜率 (dT/dt) 即時計算與一階熱動態預測引擎：(1)實裝 IEC 60034-1 / CNS 14400 最小平方法即時溫升斜率 ($dT/dt$, °C/min 及 °C/30min 折算)；(2)S1 連續工作制實裝熱平衡預估完成時間演算 ($t_{\text{rem}} = \tau \ln(S / 0.0333)$，預測到達 ≤1.0°C/30min 之時長與時刻)；(3)S2 短時工作制同步採用一階熱動態衰減模型預估到達設定時長 (如 30m) 之最終溫度與超溫告警 ($\Delta T_{\text{rem}} = S \cdot \tau (1 - e^{-\Delta t/\tau})$)；(4)HMI WinForms 雙向即時標題、狀態列與 Web 特性分析儀工作制專屬診斷面板全息實裝 |
+
+---
+
+## [V2.84 beta / v2.10.44] - 2026-09-11
+
+### 🎯 現象與佐證 (Log-First Verbatim Excerpts)
+1. **使用者需求指示**：
+   - 「剛才有做一個excel的內容分析，我想增加等效電路計算的部分」
+   - 「這部分目前需要的資訊有：1.空載運轉 數據；2.額定運轉 數據(不補轉差)；3.堵轉 數據」
+   - 「1,2項目應該能在原本功能中就可以擷取了；3.測試必須要改KEB的uf09參數且配合實際上機構的堵轉」
+   - 「先多一個分頁增加以上項目，目前要確認是否同一顆馬達測試主要還是看dr參數的變化，若沒改變則等於原馬達所以這個分頁的1.2項次就記憶住，等待3項測試，另一個分析方法就是看RAW DATA的馬達名稱是否有修改」
+   - 「這邊額外偵測一下B載台的dr參數若有異動則提醒RAW DATA的馬達名稱是否要修正」
+2. **實機與架構分析佐證**：
+   - 原系統僅提供即時監控與標準負載 T-N 特性測試，缺乏 IEEE Std 112 / IEC 60034-28 規範之感應馬達單相 T 型等效電路參數 ($R_1, X_1, X_m, R_c, R_2', X_2'$) 解析能力；
+   - 堵轉測試需在低電壓下進行以防止過電流燒毀或跳脫，需藉由 KEB 變頻器 `uf.09` (位址 `0x0509`) 進行電壓抑制控制；
+   - 實體測試中三項數據往往分步完成，需依賴 B 載台馬達特徵指紋 ($dr.00 \sim dr.05$) 與 RAW DATA 名稱比對，在未更換馬達時自動持久化保留第 1、2 項採集數據；
+   - 現場常發生更換受測馬達後未同步更新 RAW DATA 馬達型號名稱之情事，需主動即時防呆提示。
+
+---
+
+### 💡 致命根因 (Root Cause Analysis)
+1. **缺乏專屬等效電路分析流程與採集架構**：
+   - 原先測試流程未整合「空載測試」、「額定負載測試」與「堵轉測試」之關聯計算模型。
+2. **缺乏 KEB 堵轉電壓控制介面**：
+   - 缺乏對 KEB 變頻器 `uf.09` (`0x0509`) 之讀取、設定與復原安全機制。
+3. **無受測馬達特徵指紋追蹤機制**：
+   - 馬達更換未被主動感知，導致測試數據混用或 RAW DATA 型號名稱未同步修改。
+
+---
+
+### 🚀 精確修復方案 (Accurate Solution & Release Verifications)
+1. **新增全新等效電路專屬分析分頁 (`Dynamometer_TestEquivCircuit.cs`)**：
+   - 新增 `tabEquiv` (⚡ 等效電路) 分頁，包含三段式採集卡片 (空載運轉、額定運轉、堵轉運轉)、計算結果看板與 T 型向量等效電路圖；
+   - 實裝「從現有分頁擷取」、「從當前即時數據擷取」與「手動調整」功能；
+   - 實裝 IEEE Std 112 感應馬達單相 T 型等效電路求解演算法 ($R_1, X_1, X_m, R_c, R_2', X_2', Z_k, s_N, T_{st}, T_{max}, \eta$)；
+   - 實裝向量繪圖引擎 (`pnlCircuit_Paint`)，即時將計算出之阻抗與參數標註於電路元件旁；
+   - 支援將計算數據一鍵複製至剪貼簿與匯出至標準 CSV。
+2. **KEB `uf.09` 堵轉電壓控制與安全復原機制 (`Dynamometer_KebComm.cs`)**：
+   - 新增 `KebReadUf09(int driveId)` 與 `KebWriteUf09(int driveId, int voltVal)` 函式，對應 KEB 內部參數位址 `0x0509`；
+   - 進入堵轉模式時自動備份原始 `uf.09` 設定值，並提供安全設定 (建議 15%~25% 額定電壓) 與一鍵復原機制。
+3. **馬達特徵指紋追蹤與 B 載台異動提醒 (`Dynamometer_KebComm.cs`)**：
+   - 建立 `MotorFingerprint` 機制，以 $dr.00 \sim dr.05$ (額定頻率、轉速、電壓、電流、功率因數、額定功率) 與受測名稱構成指紋；
+   - 指紋一致時持久化保留第 1、2 項採集數據；
+   - 在 B 載台初始讀取或即時刷新偵測到 $dr$ 參數異動時，主動觸發確認對話框提示操作員修正 RAW DATA 馬達型號名稱。
+4. **全息持久化與多平台相容**：
+   - 接入 `SaveEquivCircuitConfig` 與 `LoadEquivCircuitConfig`，於 `dynamometer_layout.ini` 的 `[EquivCircuit]` 區段自動儲存採集與計算數據；
+   - 完全採用 .NET 4.0 GDI+ 與 WinForms 原生控制項，100% 相容現場 Windows XP 環境。
 
 ---
 

@@ -40,7 +40,6 @@ namespace DynamometerHMI
         private NumericUpDown numEquivVn;
         private NumericUpDown numEquivIn;
         private NumericUpDown numEquivPn;
-        private NumericUpDown numEquivPout;
         private NumericUpDown numEquivPfn;
         private NumericUpDown numEquivSlip;
         private Button btnEquivLoadRatedFromTn;
@@ -381,6 +380,7 @@ namespace DynamometerHMI
             numEquivIn = AddCardField(tlp, 5, "額定線流 IN (A):", 32.3m, 2, 0, 500);
             numEquivPn = AddCardField(tlp, 6, "輸入電功率 (kW):", 12.8m, 3, 0, 500);
             numEquivPfn = AddCardField(tlp, 7, "功率因數 PFN:", 0.86m, 3, 0, 1);
+            numEquivSlip = AddCardField(tlp, 8, "實測轉差率 s (%):", 2.33m, 2, 0, 100);
 
             // 操作按鈕行
             TableLayoutPanel tlpBtns = new TableLayoutPanel()
@@ -421,7 +421,7 @@ namespace DynamometerHMI
             tlpBtns.Controls.Add(btnEquivCaptureLiveRated, 1, 0);
 
             tlp.SetColumnSpan(tlpBtns, 2);
-            tlp.Controls.Add(tlpBtns, 0, 8);
+            tlp.Controls.Add(tlpBtns, 0, 9);
 
             card.Controls.Add(tlp);
             return card;
