@@ -1350,6 +1350,10 @@ namespace DynamometerHMI
             BuildReportTab(tabReport);
             tabControl.TabPages.Add(tabReport);
 
+            tabEquiv = new TabPage("⚡ 等效電路") { BackColor = Color.White };
+            BuildEquivCircuitTab(tabEquiv);
+            tabControl.TabPages.Add(tabEquiv);
+
             rootTable.Controls.Add(tabControl, 0, 1);
             this.Controls.Add(rootTable);
 
@@ -1378,6 +1382,10 @@ namespace DynamometerHMI
                 else if (tabControl.SelectedTab == tabReport) // 切換至 報告管理與雲端上傳分頁
                 {
                     RefreshReportFileList();
+                }
+                else if (tabControl.SelectedTab == tabEquiv) // 切換至 等效電路計算分頁
+                {
+                    RefreshEquivMotorStatus();
                 }
 
                 // 立即安全還原該分頁之視窗分割條佈局 (非同步排入訊息隊列確保容器尺寸已由 GDI+ 完成計算排版)
@@ -2050,6 +2058,9 @@ namespace DynamometerHMI
                 sb.AppendLine("CloudLogMaxDays=" + cloudLogMaxDays);
                 sb.AppendLine("LocalLogMaxCount=" + localLogMaxHistoryCount);
 
+                // 等效電路參數與採樣數據記憶
+                SaveEquivCircuitConfig(sb);
+
                 // 完整寫回所有未接管之外部模組區段 (包含 [ReportManager], [GitHub], [GoogleDrive] 等)
                 foreach (var kvp in unmanagedSections)
                 {
@@ -2363,6 +2374,9 @@ namespace DynamometerHMI
                 LoadDgvColWidths(map, "DgvDuty", dgvDuty);
                 LoadDgvColWidths(map, "DgvNoLoad", dgvNoLoad);
                 LoadDgvColWidths(map, "DgvReports", dgvReports);
+
+                // 等效電路參數記憶還原
+                LoadEquivCircuitConfig(map);
 
                 // 載入 A/B 載台自訂監控參數清單 (記憶功能)
                 if (map.ContainsKey("KebMonitors1.Count"))

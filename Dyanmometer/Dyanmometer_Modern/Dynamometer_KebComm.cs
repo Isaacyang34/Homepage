@@ -1161,6 +1161,7 @@ namespace DynamometerHMI
                         kebMotorPoles2 = motorPoles;
                         if (drSpeed > 0) kebDrSpeed2 = drSpeed;
                         if (drFreq > 0) kebDrFreq2 = drFreq;
+                        CheckBStageDrChange(r_dr00, r_dr01, r_dr02, r_dr03, r_dr04, r_dr05);
                     }
                     else
                     {
@@ -2494,5 +2495,225 @@ namespace DynamometerHMI
                 return false;
             }
         }
+
+        #region KEB uf09 調控與 B載台 dr 銘牌異動偵測提醒
+
+        public string lastKnownB_DrFingerprint = "";
+        public int? lastB_Dr00, lastB_Dr01, lastB_Dr02, lastB_Dr03, lastB_Dr04, lastB_Dr05;
+
+        public int? KebReadUf09(int driveId)
+        {
+            try
+            {
+                int com = GetHmiKebComIdx(driveId);
+                int baud = GetHmiKebBaudIdx(driveId);
+                int node = (driveId == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
+                // uf.09: 0x0509
+                return KebReadParamWithDll(com, baud, node, 0x0509, 1) ?? KebReadParamWithDll(com, baud, node, 0x0509, 0);
+            }
+            catch (Exception ex)
+            {
+                WriteHmiLog("KEB_ERR", "KebReadUf09 例外: " + ex.Message);
+                return null;
+            }
+        }
+
+        public bool KebWriteUf09(int driveId, int voltVal)
+        {
+            try
+            {
+                int com = GetHmiKebComIdx(driveId);
+                int baud = GetHmiKebBaudIdx(driveId);
+                int node = (driveId == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
+                string dName = (driveId == 1) ? "A載台" : "B載台";
+                bool ok = KebWriteParamWithDll(com, baud, node, 0x0509, voltVal, 1);
+                if (ok)
+                {
+                    WriteHmiLog("KEB_UF09", string.Format("【{0} uf.09 寫入成功】設定輸出電壓值為 {1} V (0x0509)", dName, voltVal));
+                }
+                else
+                {
+                    WriteHmiLog("KEB_UF09", string.Format("【{0} uf.09 寫入失敗】目標值 {1} V 未獲變頻器確認", dName, voltVal));
+                }
+                return ok;
+            }
+            catch (Exception ex)
+            {
+                WriteHmiLog("KEB_ERR", "KebWriteUf09 例外: " + ex.Message);
+                return false;
+            }
+        }
+
+        public string FormatDrSummary(int? dr00, int? dr01, int? dr02, int? dr03, int? dr04, int? dr05)
+        {
+            return string.Format("dr01={0}rpm, dr00={1}A, dr02={2}V, dr05={3}Hz",
+                dr01.HasValue ? dr01.Value.ToString() : "--",
+                dr00.HasValue ? (dr00.Value * 0.1).ToString("F1") : "--",
+                dr02.HasValue ? dr02.Value.ToString() : "--",
+                dr05.HasValue ? (dr05.Value * 0.1).ToString("F1") : "--");
+        }
+
+        public void CheckBStageDrChange(int? r_dr00, int? r_dr01, int? r_dr02, int? r_dr03, int? r_dr04, int? r_dr05)
+        {
+            if (!r_dr01.HasValue && !r_dr00.HasValue && !r_dr05.HasValue) return;
+
+            string currentFingerprint = string.Format("{0}_{1}_{2}_{3}_{4}_{5}",
+                r_dr00.HasValue ? r_dr00.Value.ToString() : "--",
+                r_dr01.HasValue ? r_dr01.Value.ToString() : "--",
+                r_dr02.HasValue ? r_dr02.Value.ToString() : "--",
+                r_dr03.HasValue ? r_dr03.Value.ToString() : "--",
+                r_dr04.HasValue ? r_dr04.Value.ToString() : "--",
+                r_dr05.HasValue ? r_dr05.Value.ToString() : "--");
+
+            if (string.IsNullOrEmpty(lastKnownB_DrFingerprint))
+            {
+                lastKnownB_DrFingerprint = currentFingerprint;
+                lastB_Dr00 = r_dr00; lastB_Dr01 = r_dr01; lastB_Dr02 = r_dr02;
+                lastB_Dr03 = r_dr03; lastB_Dr04 = r_dr04; lastB_Dr05 = r_dr05;
+                try { UpdateEquivMotorFingerprintUI(); } catch { }
+                return;
+            }
+
+            if (lastKnownB_DrFingerprint != currentFingerprint)
+            {
+                string oldSummary = FormatDrSummary(lastB_Dr00, lastB_Dr01, lastB_Dr02, lastB_Dr03, lastB_Dr04, lastB_Dr05);
+                string newSummary = FormatDrSummary(r_dr00, r_dr01, r_dr02, r_dr03, r_dr04, r_dr05);
+
+                lastKnownB_DrFingerprint = currentFingerprint;
+                lastB_Dr00 = r_dr00; lastB_Dr01 = r_dr01; lastB_Dr02 = r_dr02;
+                lastB_Dr03 = r_dr03; lastB_Dr04 = r_dr04; lastB_Dr05 = r_dr05;
+
+                WriteHmiLog("DR_CHANGE", string.Format("【⚠️ 偵測到 B載台 dr 參數異動】舊設定: [{0}] -> 新設定: [{1}]", oldSummary, newSummary));
+
+                try
+                {
+                    this.BeginInvoke((MethodInvoker)delegate {
+                        PromptMotorNameUpdateOnDrChange(oldSummary, newSummary);
+                        UpdateEquivMotorFingerprintUI();
+                    });
+                }
+                catch { }
+            }
+        }
+
+        private void PromptMotorNameUpdateOnDrChange(string oldSummary, string newSummary)
+        {
+            try
+            {
+                using (Form dlg = new Form())
+                {
+                    dlg.Text = "⚠️ B載台馬達 dr 參數異動提醒";
+                    dlg.Size = new Size(520, 310);
+                    dlg.StartPosition = FormStartPosition.CenterParent;
+                    dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
+                    dlg.MaximizeBox = false;
+                    dlg.MinimizeBox = false;
+                    dlg.BackColor = Color.FromArgb(248, 250, 252);
+                    dlg.Font = new Font("微軟正黑體", 10f);
+
+                    TableLayoutPanel tlp = new TableLayoutPanel()
+                    {
+                        Dock = DockStyle.Fill,
+                        Padding = new Padding(16),
+                        RowCount = 5,
+                        ColumnCount = 1
+                    };
+                    tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 32f));
+                    tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 70f));
+                    tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 32f));
+                    tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
+                    tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+
+                    Label lblTitle = new Label()
+                    {
+                        Text = "⚡ 系統偵測到 B載台 (待測端) 馬達銘牌 dr 參數已變更！",
+                        Font = new Font("微軟正黑體", 11f, FontStyle.Bold),
+                        ForeColor = Color.FromArgb(180, 83, 9),
+                        Dock = DockStyle.Fill
+                    };
+                    tlp.Controls.Add(lblTitle, 0, 0);
+
+                    Label lblInfo = new Label()
+                    {
+                        Text = string.Format("舊參數：{0}\r\n新參數：{1}\r\n目前 RAW DATA 馬達名稱：【{2}】",
+                            oldSummary, newSummary, motorModelName),
+                        ForeColor = Color.FromArgb(51, 65, 85),
+                        Dock = DockStyle.Fill
+                    };
+                    tlp.Controls.Add(lblInfo, 0, 1);
+
+                    Label lblPrompt = new Label()
+                    {
+                        Text = "請問是否要同步修正 RAW DATA 馬達名稱？請輸入新名稱：",
+                        Font = new Font("微軟正黑體", 10f, FontStyle.Bold),
+                        ForeColor = Color.FromArgb(15, 23, 42),
+                        Dock = DockStyle.Fill
+                    };
+                    tlp.Controls.Add(lblPrompt, 0, 2);
+
+                    TextBox txtName = new TextBox()
+                    {
+                        Text = motorModelName,
+                        Font = new Font("Consolas", 11f, FontStyle.Bold),
+                        Dock = DockStyle.Fill
+                    };
+                    tlp.Controls.Add(txtName, 0, 3);
+
+                    FlowLayoutPanel flpBtns = new FlowLayoutPanel()
+                    {
+                        Dock = DockStyle.Fill,
+                        FlowDirection = FlowDirection.RightToLeft,
+                        Padding = new Padding(0, 10, 0, 0)
+                    };
+
+                    Button btnCancel = new Button()
+                    {
+                        Text = "保持原有名稱",
+                        DialogResult = DialogResult.Cancel,
+                        Size = new Size(130, 36),
+                        Font = new Font("微軟正黑體", 10f)
+                    };
+
+                    Button btnOk = new Button()
+                    {
+                        Text = "✅ 更新馬達名稱",
+                        DialogResult = DialogResult.OK,
+                        Size = new Size(140, 36),
+                        Font = new Font("微軟正黑體", 10f, FontStyle.Bold),
+                        BackColor = Color.FromArgb(16, 185, 129),
+                        ForeColor = Color.White,
+                        FlatStyle = FlatStyle.Flat
+                    };
+                    btnOk.FlatAppearance.BorderSize = 0;
+
+                    flpBtns.Controls.Add(btnCancel);
+                    flpBtns.Controls.Add(btnOk);
+                    tlp.Controls.Add(flpBtns, 0, 4);
+
+                    dlg.Controls.Add(tlp);
+                    dlg.AcceptButton = btnOk;
+                    dlg.CancelButton = btnCancel;
+
+                    if (dlg.ShowDialog(this) == DialogResult.OK)
+                    {
+                        string newName = txtName.Text.Trim();
+                        if (!string.IsNullOrEmpty(newName) && newName != motorModelName)
+                        {
+                            string oldName = motorModelName;
+                            motorModelName = newName;
+                            WriteHmiLog("MOTOR_NAME", string.Format("【馬達名稱更新】依 B載台 dr 異動將 RAW DATA 馬達名稱由 [{0}] 變更為 [{1}]", oldName, newName));
+                            SaveLayoutConfig();
+                            UpdateEquivMotorFingerprintUI();
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteHmiLog("DR_CHANGE", "提示馬達名稱變更例外: " + ex.Message);
+            }
+        }
+
+        #endregion
     }
 }
