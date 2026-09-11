@@ -2018,6 +2018,14 @@ namespace DynamometerHMI
                     {
                         HandleSse(client, stream);
                     }
+                    else if (path == "/motor_characteristics_viewer.html" || path == "/motor_spec_viewer.html")
+                    {
+                        ServeViewerHtml(client, stream);
+                    }
+                    else if (path.StartsWith("/report/") || path == "/api/report_template")
+                    {
+                        ServeReportTemplate(client, stream, path);
+                    }
                     else
                     {
                         byte[] nf = Encoding.UTF8.GetBytes("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
@@ -2055,6 +2063,102 @@ namespace DynamometerHMI
                     byte[] hBytes = Encoding.UTF8.GetBytes(header);
                     stream.Write(hBytes, 0, hBytes.Length);
                     stream.Write(body, 0, body.Length);
+                    stream.Flush();
+                }
+                catch { }
+                finally
+                {
+                    try { client.Close(); } catch { }
+                }
+            }
+
+            private void ServeViewerHtml(TcpClient client, NetworkStream stream)
+            {
+                try
+                {
+                    string html = null;
+                    string[] candidatePaths = new string[]
+                    {
+                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Motor_Characteristics_Viewer.html"),
+                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Dyanmometer_Modern", "Motor_Characteristics_Viewer.html"),
+                        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "Dyanmometer_Modern", "Motor_Characteristics_Viewer.html")
+                    };
+                    foreach (string p in candidatePaths)
+                    {
+                        if (File.Exists(p)) { html = File.ReadAllText(p, Encoding.UTF8); break; }
+                    }
+                    if (string.IsNullOrEmpty(html))
+                    {
+                        byte[] nf = Encoding.UTF8.GetBytes("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                        stream.Write(nf, 0, nf.Length);
+                        stream.Flush();
+                        return;
+                    }
+                    byte[] body = Encoding.UTF8.GetBytes(html);
+                    string header = "HTTP/1.1 200 OK\r\n" +
+                                    "Content-Type: text/html; charset=utf-8\r\n" +
+                                    "Content-Length: " + body.Length + "\r\n" +
+                                    "Access-Control-Allow-Origin: *\r\n" +
+                                    "Cache-Control: no-cache\r\n" +
+                                    "Connection: close\r\n\r\n";
+                    byte[] hBytes = Encoding.UTF8.GetBytes(header);
+                    stream.Write(hBytes, 0, hBytes.Length);
+                    stream.Write(body, 0, body.Length);
+                    stream.Flush();
+                }
+                catch { }
+                finally
+                {
+                    try { client.Close(); } catch { }
+                }
+            }
+
+            private void ServeReportTemplate(TcpClient client, NetworkStream stream, string rawPath)
+            {
+                try
+                {
+                    string targetFile = null;
+                    string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                    List<string> candidateDirs = new List<string>()
+                    {
+                        Path.Combine(baseDir, "report"),
+                        Path.Combine(baseDir, "..", "report"),
+                        Path.Combine(baseDir, "Dyanmometer", "report")
+                    };
+
+                    foreach (string dir in candidateDirs)
+                    {
+                        if (Directory.Exists(dir))
+                        {
+                            var xlsxFiles = Directory.GetFiles(dir, "*.xlsx");
+                            if (xlsxFiles.Length > 0)
+                            {
+                                targetFile = xlsxFiles[0];
+                                break;
+                            }
+                        }
+                    }
+
+                    if (string.IsNullOrEmpty(targetFile) || !File.Exists(targetFile))
+                    {
+                        byte[] nf = Encoding.UTF8.GetBytes("HTTP/1.1 404 Template Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                        stream.Write(nf, 0, nf.Length);
+                        stream.Flush();
+                        return;
+                    }
+
+                    byte[] fileBytes = File.ReadAllBytes(targetFile);
+                    string fileName = Path.GetFileName(targetFile);
+                    string header = "HTTP/1.1 200 OK\r\n" +
+                                    "Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\r\n" +
+                                    "Content-Length: " + fileBytes.Length + "\r\n" +
+                                    "Content-Disposition: attachment; filename*=UTF-8''" + Uri.EscapeDataString(fileName) + "\r\n" +
+                                    "Access-Control-Allow-Origin: *\r\n" +
+                                    "Cache-Control: no-cache\r\n" +
+                                    "Connection: close\r\n\r\n";
+                    byte[] hBytes = Encoding.UTF8.GetBytes(header);
+                    stream.Write(hBytes, 0, hBytes.Length);
+                    stream.Write(fileBytes, 0, fileBytes.Length);
                     stream.Flush();
                 }
                 catch { }
