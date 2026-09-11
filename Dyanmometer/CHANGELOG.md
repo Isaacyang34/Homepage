@@ -8,12 +8,56 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.82 (beta) | v2.10.42 | 2026-09-11 | GitHub Release 雲端報告發布與大檔 (2GB) 直通下載系統：(1)報告管理器新增「1. GitHub Release 雲端」發布目標，支援單檔最高 2.0 GB 直通下載；(2)擴充 BouncyCastle TLS 1.2 連線引擎 (`SendHttpRequestRaw`) 支援自訂標頭與大檔案分塊串流傳輸，相容 Windows XP / .NET 4.0；(3)實裝 Release 自動查詢與自動建檔 (`/releases/tags/{tag}` 與 `/releases`)、同名資產覆蓋防護 (`DELETE /assets/{id}`) 與二進位直傳 uploads.github.com；(4)上傳成功自動解析 `browser_download_url` 並拷貝至系統剪貼簿；(5)實裝 30 秒快速取得 GitHub PAT 權杖圖文教學對話框與瀏覽器 Releases 直通按鈕；(6)儲存庫與 Token 偏好自動持久化至 `dynamometer_layout.ini` |
 | V2.81 (beta) | v2.10.41 | 2026-09-11 | 全分頁視窗佈局、Splitter 與表格寬度全息記憶持久化系統：(1)修復 WinForms 背景 TabPage 尺寸未渲染回報 0 造成佈局失效與設定覆蓋之致命缺陷，實裝 `layoutSplitters` 記憶體中繼快取與 `ApplySplitterDistanceSafe` 動態防夾機制；(2)全 7 大 TabPage (即時綜合監控、TN 特性測試、Duty 工作制測試、效率曲線、空載測試、報告管理器、系統參數) 共 15 組 SplitContainer 全面接入 `dynamometer_layout.ini` 雙向儲存與恢復；(3)實裝視窗座標 (`Window.X, Y`)、視窗尺寸 (`Width, Height`)、視窗狀態 (`WindowState`) 與上次離開分頁 (`ActiveTab`) 之安全多螢幕邊界檢查復原；(4)實裝 8 大 DataGridView 表格欄寬動態自動記憶；(5)修復 `SafeSetupSplitContainer` 在視窗縮放時重複重設預設值之死迴圈 |
 | V2.80 (beta) | v2.10.40 | 2026-09-11 | Google Drive / GAS Webhook 傳輸韌性與 TLS 連線中斷容錯升級：(1)修復 Google Apps Script 無預警關閉連線所引發之 `TlsNoCloseNotifyException: No close_notify alert received before connection closed` 例外，改為緩衝讀取並將具備 HTTP 狀態碼之非預警關閉視為正常完成；(2)實裝 HTTP 301/302/303/307 重定向自動跟隨 (Redirect Follower) 與 HTTP Chunked 分塊解碼 (Unchunk)，完美解析 Google Apps Script 回傳之 `script.googleusercontent.com` 執行結果與 Drive 檔案網址；(3)報告管理器上傳日誌全面接入 `Dynamometer_Telemetry.Log("REPORT", ...)` 統一日誌軌道，杜絕日誌遺漏 |
 | V2.79 (beta) | v2.10.39 | 2026-09-11 | S6 週期工作制溫升極值監控、平衡週期預估與 +1 追加確認週期雙保險引擎：(1)週期雙極溫全息監控：即時追蹤 T1 加載結束之「最高溫 (Peak)」與 T2 空載冷卻結束之「冷卻最後低溫 (Trough)」；(2)平衡週期預估演算：導入一階熱動態動態模型，依據週期峰值漂移率或滑動斜率精準預估約需幾次週期才能達成平衡；(3)30 分鐘穩定判定後 +1 追加確認週期：初達 30 分鐘穩定門檻時不驟停，自動追加 1 個確認週期進行複核；若確認週期溫差 <= 1.0℃ 則圓滿確立停機，若否則自動延展週期繼續測試；(4)WinForms HMI 狀態列與 Web 特性分析儀工作制面板全息雙軌實裝 |
 | V2.78 (beta) | v2.10.38 | 2026-09-11 | S1 與 S2 工作制溫升斜率 (dT/dt) 即時計算與一階熱動態預測引擎：(1)實裝 IEC 60034-1 / CNS 14400 最小平方法即時溫升斜率 ($dT/dt$, °C/min 及 °C/30min 折算)；(2)S1 連續工作制實裝熱平衡預估完成時間演算 ($t_{\text{rem}} = \tau \ln(S / 0.0333)$，預測到達 ≤1.0°C/30min 之時長與時刻)；(3)S2 短時工作制同步採用一階熱動態衰減模型預估到達設定時長 (如 30m) 之最終溫度與超溫告警 ($\Delta T_{\text{rem}} = S \cdot \tau (1 - e^{-\Delta t/\tau})$)；(4)HMI WinForms 雙向即時標題、狀態列與 Web 特性分析儀工作制專屬診斷面板全息實裝 |
 
 ---
+
+## [V2.82 beta / v2.10.42] - 2026-09-11
+
+### 🎯 現象與佐證 (Log-First Verbatim Excerpts)
+1. **使用者回報指示**：
+   - 「感覺上傳到googledrive很麻煩 分析一下github上的空間限制，感覺這裡比較容易 多一個github選項也不錯」
+   - 「我需要的是能方便下載的空間你覺得哪一個適合?」
+   - 「增加GitHub Release功能」
+2. **實機與源碼架構佐證**：
+   - 傳統 Google Drive (GAS Webhook) 上傳需建立 Google 試算表與部署 Apps Script 網頁應用程式，連線時經常遇到 302 重定向與 TLS close_notify 容錯問題，且下載端為預覽頁面，遇到超過 100MB 檔案會強制彈出病毒掃描阻擋頁，造成下載不便；
+   - 評估 GitHub 空間機制：直接透過 Git Commit 上傳有 50MB/100MB 單檔限制且歷史歷程永久累加會迅速塞爆儲存庫；反觀 **GitHub Release Assets** 單檔上限高達 **2.0 GB**，完全獨立於 Git 歷程之外，且提供全球 CDN 的直通下載連結 (`https://github.com/.../releases/download/...`)，點擊即可直接啟動瀏覽器下載，免除任何登入或權限阻礙；
+   - 檢視 `Dynamometer_WebServer.cs` 原始邏輯：`SendHttpRequest` 原僅支援 JSON 字串與預設標頭，無法傳遞 GitHub API 必備之 `Authorization: token <PAT>`、`User-Agent` 與二進位 `application/zip` 原始位元組串流。
+
+---
+
+### 💡 致命根因 (Root Cause Analysis)
+1. **缺乏免登入、大容量、直通下載之現代化雲端發布管道 (Lack of Direct-Download Cloud Pipeline)**：
+   - 系統原先支援 Google Drive、Firebase、NAS 與本機 ZIP，但缺少一個兼具「單檔超大 (最高 2GB)」、「下載無阻礙 (Direct Link)」與「API 連線極度穩定」的公開發布方案。
+2. **連線引擎缺少自訂 Header 與原始二進位串流傳輸能力 (Rigid HTTP Client)**：
+   - 既有連線方法將 Payload 限制為 UTF-8 字串，無法直接串流發送大型 ZIP 壓縮封包至 `uploads.github.com`。
+
+---
+
+### 🚀 精確修復方案 (Accurate Solution & Release Verifications)
+1. **擴充 BouncyCastle TLS 1.2 連線引擎 (`Dynamometer_WebServer.cs`)**：
+   - 新增 `SendHttpRequestRaw` 函式，支援自訂 HTTP 標頭字典 (`Dictionary<string, string> customHeaders`)，注入 GitHub 必備之 `User-Agent: Dynamometer-HMI`、`Authorization: token <PAT>` 與 `Accept: application/vnd.github.v3+json`；
+   - 支援二進位位元組陣列 (`byte[] rawBody`)，實裝 64KB 分塊安全寫入機制，確保大容量 ZIP 檔案於 Windows XP Socket 緩衝區平穩串流傳輸。
+2. **建置 GitHub Release 雲端發布控制項與設定面板 (`Dynamometer_ReportManager.cs`)**：
+   - 於 `cmbUploadTarget` 首選新增「1. GitHub Release 雲端 (推薦 / 直通下載 / 支援至2GB)」；
+   - 建立 GitHub 專屬設定面板控制項：擁有者 (`txtGhOwner`, 預設 `Isaacyang34`)、儲存庫 (`txtGhRepo`, 預設 `Homepage`)、標籤 (`txtGhTag`, 預設 `Reports-Archive`)、存取權杖 (`txtGhToken`)；
+   - 提供「🔗 檢視 Releases 頁面」與「🔑 取得 Token 教學」快速引導對話框，使用者 30 秒內即可在 GitHub 產生 PAT 並貼入使用；
+   - 實裝 `TargetIndex` 與 GitHub 參數雙向讀寫持久化至 `dynamometer_layout.ini`。
+3. **實裝 GitHub Release 智慧發布狀態機 (`ExecuteCompressAndUpload`)**：
+   - **Release 自動偵測與建置**：呼叫 `GET /repos/{owner}/{repo}/releases/tags/{tag}` 驗證 Release 是否存在；若遇 404 則自動呼叫 `POST /repos/{owner}/{repo}/releases` 自動建立歸檔 Release；
+   - **同名資產覆蓋防護 (Asset Overwrite Protection)**：查詢現有資產列表，若發現同檔名資產，自動調用 `DELETE /repos/{owner}/{repo}/releases/assets/{asset_id}` 刪除舊版，徹底防範 GitHub 422 衝突錯誤；
+   - **二進位極速直傳**：發送原始 ZIP 位元組至 `https://uploads.github.com/repos/{owner}/{repo}/releases/{id}/assets?name={filename}`；
+   - **直通網址提取與剪貼簿連動**：成功後自動解析 `browser_download_url`，日誌印出完整下載短網址，並調用 `Clipboard.SetText` 自動複製到系統剪貼簿，彈出對話框即時提示。
+4. **編譯打包與發布驗證**：
+   - 經由 `csc.exe` (x86 .NET 4.0 WinXP 相容模式) 編譯通過 (Exit Code 0)；
+   - 執行 `package_release.ps1 -Version 2.5.0` 完成打包發布至 `Release/Dynamometer_HMI_V2.5.0_Portable/` 並自動推送至 GitHub `gh-pages`。
+
+---
+
 
 ## [V2.81 beta / v2.10.41] - 2026-09-11
 
