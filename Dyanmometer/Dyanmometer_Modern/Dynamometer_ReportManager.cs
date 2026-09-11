@@ -1161,13 +1161,47 @@ namespace DynamometerHMI
                         int statusCode;
                         string resp = SendHttpRequest("POST", gasUrl, sbJson.ToString(), null, 60000, out statusCode);
 
+                        bool isSuccess = (statusCode == 200 || statusCode == 302) ||
+                                         (!string.IsNullOrEmpty(resp) && (resp.Contains("\"status\":\"success\"") || resp.Contains("drive.google.com")));
+
+                        if (!isSuccess && statusCode >= 400)
+                        {
+                            throw new Exception(string.Format("Google 雲端回應 HTTP {0}: {1}", statusCode, resp));
+                        }
+
+                        // 嘗試解析 Google 雲端硬碟檔案網址
+                        string fileUrl = "";
+                        if (!string.IsNullOrEmpty(resp) && resp.Contains("fileUrl"))
+                        {
+                            int idx = resp.IndexOf("\"fileUrl\":");
+                            if (idx >= 0)
+                            {
+                                int startQuote = resp.IndexOf('"', idx + 10);
+                                if (startQuote >= 0)
+                                {
+                                    int endQuote = resp.IndexOf('"', startQuote + 1);
+                                    if (endQuote > startQuote)
+                                    {
+                                        fileUrl = resp.Substring(startQuote + 1, endQuote - startQuote - 1).Replace("\\/", "/");
+                                    }
+                                }
+                            }
+                        }
+
                         this.BeginInvoke((Action)(() => {
                             prgReportTask.Value = 100;
                             lblReportStatus.Text = "🎉 Google Drive 上傳成功！";
-                            WriteReportLog("🎉 Google Drive 回應: " + resp);
-                            MessageBox.Show("🎉 測試報告已成功上傳至 Google 雲端硬碟！" +
-                                (!string.IsNullOrEmpty(gasEmail) ? "\n\n同時已自動透過 Email 寄出附件至: " + gasEmail : ""),
-                                "上傳完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            WriteReportLog("🎉 Google Drive 回應: " + (string.IsNullOrEmpty(resp) ? "已接收並確認建檔 (HTTP " + statusCode + ")" : resp));
+                            string msg = "🎉 測試報告已成功上傳至 Google 雲端硬碟！\n檔案名稱: " + zipName;
+                            if (!string.IsNullOrEmpty(fileUrl))
+                            {
+                                msg += "\n\n檔案連結:\n" + fileUrl;
+                            }
+                            if (!string.IsNullOrEmpty(gasEmail))
+                            {
+                                msg += "\n\n同時已自動透過 Email 寄出附件至: " + gasEmail;
+                            }
+                            MessageBox.Show(msg, "上傳完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         }));
                     }
                     else if (targetMode == 1) // Firebase 雲端中心
@@ -1232,6 +1266,7 @@ namespace DynamometerHMI
                 }
                 catch (Exception ex)
                 {
+                    try { MainForm.WriteHmiLog("REPORT_ERR", "測試報告打包或上傳異常: " + ex.ToString()); } catch { }
                     this.BeginInvoke((Action)(() => {
                         prgReportTask.Value = 0;
                         lblReportStatus.Text = "❌ 作業失敗: " + ex.Message;
@@ -1252,6 +1287,7 @@ namespace DynamometerHMI
 
         public void WriteReportLog(string message)
         {
+            try { MainForm.WriteHmiLog("REPORT", message); } catch { }
             if (txtReportLogs == null || txtReportLogs.IsDisposed) return;
             string timeStr = DateTime.Now.ToString("HH:mm:ss");
             string line = string.Format("[{0}] {1}\r\n", timeStr, message);

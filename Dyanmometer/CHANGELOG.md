@@ -8,8 +8,52 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.80 (beta) | v2.10.40 | 2026-09-11 | Google Drive / GAS Webhook 傳輸韌性與 TLS 連線中斷容錯升級：(1)修復 Google Apps Script 無預警關閉連線所引發之 `TlsNoCloseNotifyException: No close_notify alert received before connection closed` 例外，改為緩衝讀取並將具備 HTTP 狀態碼之非預警關閉視為正常完成；(2)實裝 HTTP 301/302/303/307 重定向自動跟隨 (Redirect Follower) 與 HTTP Chunked 分塊解碼 (Unchunk)，完美解析 Google Apps Script 回傳之 `script.googleusercontent.com` 執行結果與 Drive 檔案網址；(3)報告管理器上傳日誌全面接入 `Dynamometer_Telemetry.Log("REPORT", ...)` 統一日誌軌道，杜絕日誌遺漏 |
 | V2.79 (beta) | v2.10.39 | 2026-09-11 | S6 週期工作制溫升極值監控、平衡週期預估與 +1 追加確認週期雙保險引擎：(1)週期雙極溫全息監控：即時追蹤 T1 加載結束之「最高溫 (Peak)」與 T2 空載冷卻結束之「冷卻最後低溫 (Trough)」；(2)平衡週期預估演算：導入一階熱動態動態模型，依據週期峰值漂移率或滑動斜率精準預估約需幾次週期才能達成平衡；(3)30 分鐘穩定判定後 +1 追加確認週期：初達 30 分鐘穩定門檻時不驟停，自動追加 1 個確認週期進行複核；若確認週期溫差 <= 1.0℃ 則圓滿確立停機，若否則自動延展週期繼續測試；(4)WinForms HMI 狀態列與 Web 特性分析儀工作制面板全息雙軌實裝 |
 | V2.78 (beta) | v2.10.38 | 2026-09-11 | S1 與 S2 工作制溫升斜率 (dT/dt) 即時計算與一階熱動態預測引擎：(1)實裝 IEC 60034-1 / CNS 14400 最小平方法即時溫升斜率 ($dT/dt$, °C/min 及 °C/30min 折算)；(2)S1 連續工作制實裝熱平衡預估完成時間演算 ($t_{\text{rem}} = \tau \ln(S / 0.0333)$，預測到達 ≤1.0°C/30min 之時長與時刻)；(3)S2 短時工作制同步採用一階熱動態衰減模型預估到達設定時長 (如 30m) 之最終溫度與超溫告警 ($\Delta T_{\text{rem}} = S \cdot \tau (1 - e^{-\Delta t/\tau})$)；(4)HMI WinForms 雙向即時標題、狀態列與 Web 特性分析儀工作制專屬診斷面板全息實裝 |
+
+---
+
+## [V2.80 beta / v2.10.40] - 2026-09-11
+
+### 🎯 現象與佐證 (Log-First Verbatim Excerpts)
+1. **使用者回報指示**：
+   - 「上傳到googlDrive 失敗你能從LOG查問題嗎?」
+   - 「no close_notify alert received before connection closed」
+2. **實機與源碼架構佐證**：
+   - 檢視 `Dynamometer_ReportManager.cs` 原始邏輯：`WriteReportLog` 僅將上傳日誌顯示於 UI 控制項 `txtReportLogs`，未寫入核心 `Dynamometer_Telemetry.Log`，導致日誌檔與 Firebase 均查無報告傳輸異常紀錄；
+   - 實測連線 Google Apps Script Webhook 端點發現：GAS 接收 POST 請求並執行完成後，回傳 `HTTP/1.1 302 Found` (附帶 `Location: https://script.googleusercontent.com/macros/echo?...`)，隨即發送 TCP FIN 斷開連線，未依照 TLS 協定發送 `close_notify` 警報；
+   - 原始 `Dynamometer_WebServer.SendHttpRequest` 於 `StreamReader.ReadToEnd()` 讀取結尾時直接拋出 `Org.BouncyCastle.Crypto.Tls.TlsNoCloseNotifyException: No close_notify alert received before connection closed`，造成 HMI 捕捉為失敗；
+   - 原始連線引擎未實作 HTTP 302 重定向自動跟隨與 `Transfer-Encoding: chunked` 解碼，無法取得 Google 建立檔案後回傳的 JSON 狀態與 `fileUrl`。
+
+---
+
+### 💡 致命根因 (Root Cause Analysis)
+1. **BouncyCastle 對連線非正規關閉之剛性報錯 (Strict TLS Alert Requirement)**：
+   - 現代各大 CDN 與 Google Apps Script 前端伺服器在標頭帶有 `Connection: close` 時，常直接以 TCP FIN 結束串流；BouncyCastle 判定缺少 `close_notify` 拋出例外，將成功的檔案傳輸誤判為崩潰。
+2. **缺乏 HTTP 轉址自動跟隨 (Redirect Following)**：
+   - Google Apps Script 規範中，所有 `doPost` 回傳一律經由 302 導向至 `script.googleusercontent.com` 取得回應內文。
+3. **報告管理器日誌未統流 (Isolated UI Logging)**：
+   - `Dynamometer_ReportManager.cs` 僅有控制項字串追加，未呼叫 `Dynamometer_Telemetry.Log`。
+
+---
+
+### 🚀 精確修復方案 (Accurate Solution & Release Verifications)
+1. **實裝 BouncyCastle TLS CloseNotify 容錯讀取緩衝 (`Dynamometer_WebServer.cs`)**：
+   - 改寫 `SendHttpRequest` 內文讀取迴圈，使用緩衝陣列分批累加至 `StringBuilder`；
+   - 攔截 `TlsNoCloseNotifyException` 與包含 `close_notify` 之例外：若當前已成功取得 HTTP 狀態碼，視為傳輸良性終止，保留已讀取的所有標頭與內容。
+2. **實裝自動轉址跟隨與 Chunked 分塊解碼 (`Dynamometer_WebServer.cs`)**：
+   - 於接收到 301/302/303/307 且具備 `Location` 標頭時，自動以 GET 跟隨轉址（支援最多 5 跳）；
+   - 新增 `UnchunkHttpBody` 函式，解析十六進位 chunk 標記，取得乾淨 JSON 內文。
+3. **全面接入統一日誌軌道 (`Dynamometer_ReportManager.cs`)**：
+   - `WriteReportLog` 同步呼叫 `Dynamometer_Telemetry.Log("REPORT", message)`；
+   - 捕捉任何異常時同步寫入 `Dynamometer_Telemetry.Log("REPORT_ERR", ...)`；
+   - 自動解析 Google Drive 回傳之 `fileUrl` 並於提示對話框中完整呈現。
+4. **實測驗證**：
+   - 透過獨立測試程式實際發送封包至 Google Apps Script，確認自動轉址成功取得 `HTTP 200 OK` 與 Google Drive 檔案連結 `fileUrl`，傳輸零拋錯。
+5. **編譯打包與發布驗證**：
+   - 經由 `csc.exe` (x86 .NET 4.0 WinXP 相容模式) 編譯無誤；
+   - 執行 `package_release.ps1 -Version 2.5.0` 完成打包發布至 `Release/Dynamometer_HMI_V2.5.0_Portable/`。
 
 ---
 

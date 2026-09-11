@@ -38,7 +38,7 @@ namespace DynamometerHMI
         private bool isCloudUploadRunning = false;
 
         // ── 軟體線上熱更新設定 (Online Auto-Update & In-Place Hot Swap) ──────
-        public const string APP_VERSION = "2.7.3";
+        public const string APP_VERSION = "2.7.4";
         public string cloudUpdateManifestUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/update/version.json";
         public Button btnOnlineUpdate = null;
         private bool? lastCloudUploadSuccess = null;
@@ -2471,6 +2471,11 @@ namespace DynamometerHMI
         /// </summary>
         public static string SendHttpRequest(string method, string url, string jsonPayload, string localWifiIp, int timeoutMs, out int statusCode)
         {
+            return SendHttpRequest(method, url, jsonPayload, localWifiIp, timeoutMs, out statusCode, 0);
+        }
+
+        public static string SendHttpRequest(string method, string url, string jsonPayload, string localWifiIp, int timeoutMs, out int statusCode, int redirectHop)
+        {
             if (string.IsNullOrEmpty(url)) throw new ArgumentNullException("url");
             Uri uri = new Uri(url);
             string verb = string.IsNullOrEmpty(method) ? "GET" : method.ToUpper();
@@ -2551,6 +2556,7 @@ namespace DynamometerHMI
                         // 讀取 HTTP Header 直到空行
                         int contentLength = -1;
                         bool isChunked = false;
+                        string location = null;
                         string line;
                         while (!string.IsNullOrEmpty(line = sr.ReadLine()))
                         {
@@ -2562,10 +2568,50 @@ namespace DynamometerHMI
                             {
                                 isChunked = true;
                             }
+                            else if (line.StartsWith("Location:", StringComparison.OrdinalIgnoreCase))
+                            {
+                                location = line.Substring(9).Trim();
+                            }
                         }
 
-                        // 讀取 Response Body
-                        string respBody = sr.ReadToEnd();
+                        // 讀取 Response Body (容許伺服器未送 close_notify 警報即斷開之情境)
+                        StringBuilder sbBody = new StringBuilder();
+                        char[] readBuf = new char[4096];
+                        try
+                        {
+                            int read;
+                            while ((read = sr.Read(readBuf, 0, readBuf.Length)) > 0)
+                            {
+                                sbBody.Append(readBuf, 0, read);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            // 伺服器傳輸完成後未發送 TLS close_notify 即斷開 TCP (如 Google Apps Script 等 CDN)
+                            if (statusCode > 0 && (ex.GetType().Name.Contains("CloseNotify") || ex.Message.Contains("close_notify")))
+                            {
+                                // 良性連線終止，保留已接收數據
+                            }
+                            else
+                            {
+                                throw;
+                            }
+                        }
+
+                        string respBody = sbBody.ToString();
+                        if (isChunked && !string.IsNullOrEmpty(respBody))
+                        {
+                            respBody = UnchunkHttpBody(respBody);
+                        }
+
+                        // 自動跟隨 HTTP 301 / 302 / 303 / 307 轉址 (例如 Google Apps Script POST 轉向 GET echo)
+                        if ((statusCode == 301 || statusCode == 302 || statusCode == 303 || statusCode == 307) &&
+                            !string.IsNullOrEmpty(location) && redirectHop < 5)
+                        {
+                            Uri nextUri = new Uri(uri, location);
+                            return SendHttpRequest("GET", nextUri.AbsoluteUri, null, localWifiIp, timeoutMs, out statusCode, redirectHop + 1);
+                        }
+
                         return respBody;
                     }
                 }
@@ -2622,6 +2668,49 @@ namespace DynamometerHMI
                     }
                     throw;
                 }
+            }
+        }
+
+        private static string UnchunkHttpBody(string data)
+        {
+            if (string.IsNullOrEmpty(data)) return "";
+            try
+            {
+                StringBuilder sb = new StringBuilder();
+                using (StringReader reader = new StringReader(data))
+                {
+                    string line;
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        line = line.Trim();
+                        if (string.IsNullOrEmpty(line)) continue;
+                        int semi = line.IndexOf(';');
+                        if (semi >= 0) line = line.Substring(0, semi).Trim();
+                        int chunkSize = 0;
+                        if (int.TryParse(line, System.Globalization.NumberStyles.HexNumber, null, out chunkSize))
+                        {
+                            if (chunkSize <= 0) break;
+                            char[] buf = new char[chunkSize];
+                            int totalRead = 0;
+                            while (totalRead < chunkSize)
+                            {
+                                int r = reader.Read(buf, totalRead, chunkSize - totalRead);
+                                if (r <= 0) break;
+                                totalRead += r;
+                            }
+                            sb.Append(buf, 0, totalRead);
+                        }
+                        else
+                        {
+                            return data;
+                        }
+                    }
+                }
+                return sb.ToString();
+            }
+            catch
+            {
+                return data;
             }
         }
 
