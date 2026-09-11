@@ -8,8 +8,53 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.77 (beta) | v2.10.37 | 2026-09-11 | TN 與 DUTY 溫度監控介面時間軸控制列全面實裝與雙向聯動：(1)於 T-N 測試頁頂部 `pnlTnTempHeader` 與 Duty 工作制測試頁頂部 `pnlTempHeader` 實裝專屬 `⏱️ 時間軸: [➖] [下拉選單] [➕]` 控制列；(2)擴充時間長度檔位至 30s、1m、2m、5m、10m、30m、1h、2h 與「全程 (全部)」，並建立 24 小時連續取樣記憶體保護機制 (86,400 點)；(3)重構 `GbdTemperatureTrendControl` 繪圖引擎支援自適應動態跨度，根治分母為 0 與歷史樣本遭強行修剪之缺陷；(4)全域 `sharedTestTempTrend` 與各分頁時間軸控制項雙向全息即時同步 (TimeSpanChanged) |
 | V2.76 (beta) | v2.10.36 | 2026-09-11 | WebMonitor 遠端監控中心深度整合「馬達規格特性分析儀」專屬分頁：(1)VIP 白名單雙軌權限防護 (`vip888` 一鍵驗證解鎖、自動記憶於 localStorage 與全系統無限時連線連動)、(2)訪客未授權鎖定面板與 Toast 即時回饋、(3)全套 CNS 14400 / IEC 60034-2-1 規格特性推算與 S1/S2/S6 工作制熱平衡診斷無縫嵌入、(4)支援 URL 快速通關參數 (?vip=vip888&tab=spec) |
 | V2.75 (beta) | v2.10.35 | 2026-09-11 | KEB ru.03 輸出頻率解析度縮放與報告採納邏輯徹底根治：(1)破譯 KEB COMBIVERT F5 速度範圍標準化解析度 (8000rpm B載台待測=0.025 Hz, 4000rpm A載台加載=0.0125 Hz)，徹底根除 0.01/0.0001 誤乘缺陷；(2)建立 ConvertKebRu03ToFrequency 智能換算與 WT333E 自適應鎖定引擎；(3)全面翻轉 actFrequency 採納優先順序，以 Yokogawa WT333E 實測電氣基波為最高黃金基準；(4)根治 dr.05 暫存器地址與額定頻率反算極數缺陷；(5)佈局 ini 載入自動清洗與監視網格專屬 F2 渲染 |
+
+---
+
+## [V2.77 beta / v2.10.37] - 2026-09-11
+
+### 🎯 現象與佐證 (Log-First Verbatim Excerpts)
+1. **使用者回報指示**：
+   - 「另外TN跟DUTY的溫度介面之前也有說要有時間軸的控制，為何還是沒有改?」
+2. **實機與源碼架構佐證**：
+   - 檢視 `Dyanmometer_TestTN.cs` 第 427-465 行：`pnlTnTempHeader` 僅配置了 `btnTnSelectChannels`、`lblTnSelectedChHint` 與 `lblTnTempRealtimeVal`，完全缺乏任何時間軸檔位選單或縮放按鈕；
+   - 檢視 `Dyanmometer_TestDuty.cs` 第 409-442 行：`pnlTempHeader` 僅配置監控標題、實測最高溫、S6 熱平衡狀態與全通道即時值標籤，同樣缺乏時間軸控制列；
+   - 檢視 `Dynamometer_UIControls.cs`：`GbdTemperatureTrendControl` 內部僅有一個寬高僅 24x20 之微型浮動面版 `pnlTimeSpan`，且其 `currentTimeSpanIndex` 為 `private`、無對外事件通知與公開設定接口；當動態重新停泊 (Dynamic Re-Parenting) 時因容器寬度重算或被標題列遮蔽，使用者在 TN 與 Duty 介面上完全看不到或無法操作時間軸；
+   - 原繪圖時間步進陣列 `timeSpanSteps` 最大僅支援至 3600 秒 (1小時)，無「全程/全部」模式；且 `samples.Count > 3600 + 120` 會主動將 1 小時前的歷史溫度資料強制清除，導致長時間測試（如 S1/S6 持續運轉數小時）歷史波形遺失。
+
+---
+
+### 💡 致命根因 (Root Cause Analysis)
+1. **TN 與 DUTY 標題面板遺漏時間軸控制項**：
+   - 在多分頁架構拆分期間，測試主控制列 (`pnlTnTempHeader` 與 `pnlTempHeader`) 未獨立實作顯眼的 `[➖] [下拉選單] [➕]` 時間軸控制組件，僅依賴繪圖畫布右上方內建之微型浮動按鈕，易遭 DPI 縮放破版或視窗裁切遮擋。
+2. **控制項內部狀態封裝過死，缺乏跨分頁雙向聯動機制**：
+   - `currentTimeSpanIndex` 缺乏公開屬性與 `TimeSpanChanged` 事件回呼，外部容器無法讀取或驅動趨勢圖的時間軸縮放，切換分頁時亦無法保持時間跨度同步。
+3. **時間跨度定義與記憶體修剪限制**：
+   - 缺少「全程 (全部)」檢視模式，且 `samples` 記憶體修剪門檻過低 (3600 點)，無法支援長時間工作制熱平衡分析。
+
+---
+
+### 🚀 精確修復方案 (Accurate Solution & Release Verifications)
+1. **升級 `GbdTemperatureTrendControl` 時間軸引擎 (`Dynamometer_UIControls.cs`)**：
+   - 擴充時間檔位：新增 `2小時` 與 `全程 (全部)` 模式：`{ 30, 60, 120, 300, 600, 1800, 3600, 7200, 0 }`；
+   - 開放公開控制介面：新增 `CurrentTimeSpanIndex`、`SetTimeSpanIndex(int idx)` 與 `public event Action<int> TimeSpanChanged` 事件；
+   - 智能動態時間跨度算式：當選取「全程」(`step == 0`) 時，自適應計算 `effectiveSpanSec = Math.Max(10.0, (now - startTime).TotalSeconds)`，杜絕除以零異常並動態標註 `-X.Xh` / `-Xm` / `-Xs` 座標軸刻度；
+   - 擴充長時測試樣本容量至 24 小時 (86,400 點，RAM 僅約 15MB)，保障長時測試數據完整不失真。
+2. **實裝 T-N 測試專屬時間軸控制列 (`Dynamometer_TestTN.cs`)**：
+   - 於 `pnlTnTempHeader` 右側以 `Dock = DockStyle.Right` 實裝 `pnlTnTimeSpan`（含 `⏱️ 時間軸:` 標籤、`➖` 減小按鈕、`cmbTnTimeSpan` 下拉選單、`➕` 增大按鈕）；
+   - 雙向綁定 `sharedTestTempTrend`，支援按鈕步進與下拉選單直選。
+3. **實裝 Duty 測試專屬時間軸控制列 (`Dynamometer_TestDuty.cs`)**：
+   - 於 `pnlTempHeader` 右側以 `Dock = DockStyle.Right` 實裝 `pnlDutyTimeSpan`，高 76px 雙層精準佈局；
+   - 雙向綁定 `sharedTestTempTrend`，與 S1 / S2 / S6 模式無縫聯動。
+4. **全域雙向聯動與分頁掛載同步 (`Dynamometer_HMI_WinForms.cs`)**：
+   - 於 `MainForm` 訂閱 `sharedTestTempTrend.TimeSpanChanged`，無論使用者在 TN、Duty 或畫布內部微型面板切換時間軸，所有分頁控制項 100% 同步更新；
+   - 在 `AttachSharedTempTrendTo` 停泊函式中加入防呆校正，分頁切換當下立即對齊當前時間軸索引。
+5. **編譯打包與發布驗證**：
+   - 經由 `csc.exe` (x86 .NET 4.0 WinXP 相容模式) 重新編譯無誤；
+   - 執行 `package_release.ps1 -Version 2.5.0` 完成打包至 `Release/Dynamometer_HMI_V2.5.0_Portable/`，自動滾動備份舊版並同步推播至 GitHub `gh-pages`。
 
 ---
 
