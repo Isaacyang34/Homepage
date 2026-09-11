@@ -8,6 +8,7 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.85 (beta) | v2.10.45 | 2026-09-11 | 高科技專屬應用程式圖示 (Neon "D" Brand Emblem) 與 WinForms/工作列/Web 全息綁定：(1)打造旗艦高科技「D」字馬達轉子與測功扭矩儀表品牌圖示 (Neon Cyan / Electric Amber)；(2)編譯流程 (package_release.ps1 / build.bat) 強制注入 /win32icon 參數，產出具備原生高解析度 Win32 圖示之 Dynamometer_HMI_Pro.exe；(3)WinForms MainForm 與四合一連線工具箱 TesterForm 建構函式全面綁定 this.Icon，確保視窗左上角與 Windows 系統工作列高科技識別；(4)內嵌輕量 WebServer 新增 /favicon.ico 路由處理，WebMonitor.html 與 Motor_Characteristics_Viewer.html 同步注入專屬網頁 Favicon |
 | V2.84 (beta) | v2.10.44 | 2026-09-11 | 感應馬達 IEEE 112 等效電路計算與自動數據採集系統：(1)新增全新「⚡ 等效電路」專屬分頁，支援空載、額定 (不補轉差)、堵轉三段式測試採集；(2)實裝 KEB uf.09 (0x0509) 堵轉降壓限制寫入、即時監控與預設值自動復原安全機制；(3)建立馬達指紋判定引擎 (以 KEB dr 參數為基準，無變更時記憶空載與額定數據等待堵轉測試)；(4)實裝 B 載台 dr 參數異動即時監控，主動彈窗提示同步修正 RAW DATA 馬達型號名稱；(5)實裝向量等效電路圖動態 GDI+ 繪製、精確參數求解器 (R1, X1, Xm, Rc, R2', X2', Zk) 與 INI 斷電佈局記憶 |
 | V2.83 (beta) | v2.10.43 | 2026-09-11 | 線上自動熱更新版本發布與雲端清單同步：(1)發布最新雲端熱更新二進位封包至 GitHub gh-pages 與 Releases；(2)同步 Firebase RTDB /update/version.json 雲端版本清單至 v2.10.43，使現役機台開機或手動點擊「線上更新」時精準觸發「有新版本」提示；(3)驗證二進位串流下載、PE 標頭結構校驗與免重開熱替換重啟流程 |
 | V2.82 (beta) | v2.10.42 | 2026-09-11 | GitHub Release 雲端報告發布與大檔 (2GB) 直通下載系統：(1)報告管理器新增「1. GitHub Release 雲端」發布目標，支援單檔最高 2.0 GB 直通下載；(2)擴充 BouncyCastle TLS 1.2 連線引擎 (`SendHttpRequestRaw`) 支援自訂標頭與大檔案分塊串流傳輸，相容 Windows XP / .NET 4.0；(3)實裝 Release 自動查詢與自動建檔 (`/releases/tags/{tag}` 與 `/releases`)、同名資產覆蓋防護 (`DELETE /assets/{id}`) 與二進位直傳 uploads.github.com；(4)上傳成功自動解析 `browser_download_url` 並拷貝至系統剪貼簿；(5)實裝 30 秒快速取得 GitHub PAT 權杖圖文教學對話框與瀏覽器 Releases 直通按鈕；(6)儲存庫與 Token 偏好自動持久化至 `dynamometer_layout.ini` |
@@ -15,6 +16,50 @@
 | V2.80 (beta) | v2.10.40 | 2026-09-11 | Google Drive / GAS Webhook 傳輸韌性與 TLS 連線中斷容錯升級：(1)修復 Google Apps Script 無預警關閉連線所引發之 `TlsNoCloseNotifyException: No close_notify alert received before connection closed` 例外，改為緩衝讀取並將具備 HTTP 狀態碼之非預警關閉視為正常完成；(2)實裝 HTTP 301/302/303/307 重定向自動跟隨 (Redirect Follower) 與 HTTP Chunked 分塊解碼 (Unchunk)，完美解析 Google Apps Script 回傳之 `script.googleusercontent.com` 執行結果與 Drive 檔案網址；(3)報告管理器上傳日誌全面接入 `Dynamometer_Telemetry.Log("REPORT", ...)` 統一日誌軌道，杜絕日誌遺漏 |
 | V2.79 (beta) | v2.10.39 | 2026-09-11 | S6 週期工作制溫升極值監控、平衡週期預估與 +1 追加確認週期雙保險引擎：(1)週期雙極溫全息監控：即時追蹤 T1 加載結束之「最高溫 (Peak)」與 T2 空載冷卻結束之「冷卻最後低溫 (Trough)」；(2)平衡週期預估演算：導入一階熱動態動態模型，依據週期峰值漂移率或滑動斜率精準預估約需幾次週期才能達成平衡；(3)30 分鐘穩定判定後 +1 追加確認週期：初達 30 分鐘穩定門檻時不驟停，自動追加 1 個確認週期進行複核；若確認週期溫差 <= 1.0℃ 則圓滿確立停機，若否則自動延展週期繼續測試；(4)WinForms HMI 狀態列與 Web 特性分析儀工作制面板全息雙軌實裝 |
 | V2.78 (beta) | v2.10.38 | 2026-09-11 | S1 與 S2 工作制溫升斜率 (dT/dt) 即時計算與一階熱動態預測引擎：(1)實裝 IEC 60034-1 / CNS 14400 最小平方法即時溫升斜率 ($dT/dt$, °C/min 及 °C/30min 折算)；(2)S1 連續工作制實裝熱平衡預估完成時間演算 ($t_{\text{rem}} = \tau \ln(S / 0.0333)$，預測到達 ≤1.0°C/30min 之時長與時刻)；(3)S2 短時工作制同步採用一階熱動態衰減模型預估到達設定時長 (如 30m) 之最終溫度與超溫告警 ($\Delta T_{\text{rem}} = S \cdot \tau (1 - e^{-\Delta t/\tau})$)；(4)HMI WinForms 雙向即時標題、狀態列與 Web 特性分析儀工作制專屬診斷面板全息實裝 |
+
+---
+
+## [V2.85 beta / v2.10.45] - 2026-09-11
+
+### 🎯 現象與佐證 (Log-First Verbatim Excerpts)
+1. **使用者需求指示**：
+   - 「幫Dynamomter這軟體做一個icon，希望是有科技感」
+   - 「A方案生成一張圖給我看看」
+   - 「檔案位置要給我啊?」
+   - 「OK! 能直接綁定進軟體」
+2. **實機與架構分析佐證**：
+   - 原系統 `Dynamometer_HMI_Pro.exe` 執行檔與 WinForms 主視窗使用 Windows 預設通用圖示，缺乏專業高科技與工業儀表品牌辨識度；
+   - 瀏覽器端之雲端即時監控中心 (`WebMonitor.html`) 與馬達規格特性分析儀 (`Motor_Characteristics_Viewer.html`) 缺乏專屬 Favicon，在多標籤頁下辨識度不足。
+
+---
+
+### 💡 致命根因 (Root Cause Analysis)
+1. **編譯期未傳遞 Win32 圖示指令**：
+   - `package_release.ps1` 與 `build.bat` 呼叫 `csc.exe` 時未指定 `/win32icon:` 參數，使得 Windows PE 標頭中的 Icon Directory 為空，檔案總管中僅顯示系統預設白色視窗圖標。
+2. **WinForms 視窗實體未設定表單 Icon**：
+   - `Dynamometer_HMI_WinForms.cs` (`MainForm`) 與連線工具箱 `Dynamometer_Device_Tester_GUI.cs` (`TesterForm`) 未於建構函式配置 `this.Icon`，導致桌面工作列與視窗左上角無專屬圖示。
+3. **內嵌 WebServer 缺乏 Favicon 路由**：
+   - 內嵌輕量 Socket 伺服器 `DynWebServer` 未處理 `/favicon.ico` 請求，造成瀏覽器連線時回傳 404。
+
+---
+
+### 🚀 精確修復方案 (Accurate Solution & Release Verifications)
+1. **高科技品牌圖示設計與全解析度轉換 (`assets/` & `app.ico`)**：
+   - 打造專屬「Neon "D" Brand Emblem」高科技標誌：結合大寫「D」幾何框架、高能橙金 (Electric Amber) 馬達電樞渦輪葉片、賽博青藍 (Neon Cyan) 測功機 RPM/Torque 同心圓刻度盤與發光指針，置於黑曜石碳鈦 Squircle 圓角基座；
+   - 輸出標準多解析度 `app.ico` (256x256, 128x128, 64x64, 48x48, 32x32, 16x16)，100% 相容 Windows XP 至 Windows 11。
+2. **原生 Win32 編譯參數全面注入 (`package_release.ps1` & `build.bat`)**：
+   - 於 `package_release.ps1` 加入 `/win32icon:"$modernDir\app.ico"` 參數，編譯時直接封裝進 PE 資源段；
+   - 自動將 `app.ico` 拷貝至便攜發布目錄 (`Release/Dynamometer_HMI_V2.5.0_Portable/app.ico`)。
+3. **WinForms 表單雙重安全 Icon 綁定 (`Dynamometer_HMI_WinForms.cs` & `Dynamometer_Device_Tester_GUI.cs`)**：
+   - 實裝雙重圖示載入引擎：優先讀取本地 `app.ico`，若無則自動調用 `Icon.ExtractAssociatedIcon(Application.ExecutablePath)` 從 EXE 本體無損提取；
+   - `MainForm` 與 `TesterForm` 全面套用，確保視窗左上角與系統工作列完美呈現。
+4. **內嵌 WebServer /favicon.ico 路由與 HTML 標籤注入**：
+   - `Dynamometer_WebServer.cs` 新增 `/favicon.ico` 靜態檔案處理器，具備 `image/x-icon` 與 HTTP 快取標頭；
+   - `WebMonitor.html` 與 `Motor_Characteristics_Viewer.html` `<head>` 正式注入 `<link rel="icon" type="image/x-icon" href="/favicon.ico">`。
+5. **版本發布與自動化驗證**：
+   - 執行 `package_release.ps1 -Version 2.5.0`，C# 編譯器 (`csc.exe`) 零 Error 順利完成編譯並生成新 EXE；
+   - 自動完成備份封存 (`backups/`)，同步推送到 GitHub 遠端儲存庫雙分支 (`gh-pages` 與 `master`)；
+   - 同步更新 Firebase RTDB `/update/version.json` 為 `V2.10.45`。
 
 ---
 
