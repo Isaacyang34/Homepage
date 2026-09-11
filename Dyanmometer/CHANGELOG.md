@@ -8,6 +8,7 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.86 (beta) | v2.10.46 | 2026-09-11 | 動力計測試報告自動解析與 Excel 數據提取工具 (Motor Report Extractor Pro)：(1)打造專屬獨立桌面 WinForms 工具 (`Motor_Report_Extractor.exe`) 與 Web 互動應用 (`motor_report_extractor.html`)，支援報告 ZIP 壓縮檔與測試資料夾一鍵拖曳 (Drag & Drop) 自動解壓與解析；(2)實裝「電機廠報告與驗收規範」Excel 儲存格座標全對照引擎，精準映射 9. 溫升測試、10. S1 額定特性、11. S2 短時過載、12. S6 週期反覆、13. 等效參數、14. 轉差率、15. 激磁電流與 16. Max acc. 瞬態極限；(3)實裝 IEEE Std 112 感應馬達單相等效電路自動求解器 (R1, X1, Xm, Rc, R2', X2', Zk, Tmax)；(4)實裝「📋 一鍵複製為 Excel 格式 (TSV)」與「💾 匯出 Excel CSV」功能；(5)支援一鍵從 GitHub 雲端自動抓取最新測試報告封包 |
 | V2.85 (beta) | v2.10.45 | 2026-09-11 | 高科技專屬應用程式圖示 (Neon "D" Brand Emblem) 與 WinForms/工作列/Web 全息綁定：(1)打造旗艦高科技「D」字馬達轉子與測功扭矩儀表品牌圖示 (Neon Cyan / Electric Amber)；(2)編譯流程 (package_release.ps1 / build.bat) 強制注入 /win32icon 參數，產出具備原生高解析度 Win32 圖示之 Dynamometer_HMI_Pro.exe；(3)WinForms MainForm 與四合一連線工具箱 TesterForm 建構函式全面綁定 this.Icon，確保視窗左上角與 Windows 系統工作列高科技識別；(4)內嵌輕量 WebServer 新增 /favicon.ico 路由處理，WebMonitor.html 與 Motor_Characteristics_Viewer.html 同步注入專屬網頁 Favicon |
 | V2.84 (beta) | v2.10.44 | 2026-09-11 | 感應馬達 IEEE 112 等效電路計算與自動數據採集系統：(1)新增全新「⚡ 等效電路」專屬分頁，支援空載、額定 (不補轉差)、堵轉三段式測試採集；(2)實裝 KEB uf.09 (0x0509) 堵轉降壓限制寫入、即時監控與預設值自動復原安全機制；(3)建立馬達指紋判定引擎 (以 KEB dr 參數為基準，無變更時記憶空載與額定數據等待堵轉測試)；(4)實裝 B 載台 dr 參數異動即時監控，主動彈窗提示同步修正 RAW DATA 馬達型號名稱；(5)實裝向量等效電路圖動態 GDI+ 繪製、精確參數求解器 (R1, X1, Xm, Rc, R2', X2', Zk) 與 INI 斷電佈局記憶 |
 | V2.83 (beta) | v2.10.43 | 2026-09-11 | 線上自動熱更新版本發布與雲端清單同步：(1)發布最新雲端熱更新二進位封包至 GitHub gh-pages 與 Releases；(2)同步 Firebase RTDB /update/version.json 雲端版本清單至 v2.10.43，使現役機台開機或手動點擊「線上更新」時精準觸發「有新版本」提示；(3)驗證二進位串流下載、PE 標頭結構校驗與免重開熱替換重啟流程 |
@@ -16,6 +17,47 @@
 | V2.80 (beta) | v2.10.40 | 2026-09-11 | Google Drive / GAS Webhook 傳輸韌性與 TLS 連線中斷容錯升級：(1)修復 Google Apps Script 無預警關閉連線所引發之 `TlsNoCloseNotifyException: No close_notify alert received before connection closed` 例外，改為緩衝讀取並將具備 HTTP 狀態碼之非預警關閉視為正常完成；(2)實裝 HTTP 301/302/303/307 重定向自動跟隨 (Redirect Follower) 與 HTTP Chunked 分塊解碼 (Unchunk)，完美解析 Google Apps Script 回傳之 `script.googleusercontent.com` 執行結果與 Drive 檔案網址；(3)報告管理器上傳日誌全面接入 `Dynamometer_Telemetry.Log("REPORT", ...)` 統一日誌軌道，杜絕日誌遺漏 |
 | V2.79 (beta) | v2.10.39 | 2026-09-11 | S6 週期工作制溫升極值監控、平衡週期預估與 +1 追加確認週期雙保險引擎：(1)週期雙極溫全息監控：即時追蹤 T1 加載結束之「最高溫 (Peak)」與 T2 空載冷卻結束之「冷卻最後低溫 (Trough)」；(2)平衡週期預估演算：導入一階熱動態動態模型，依據週期峰值漂移率或滑動斜率精準預估約需幾次週期才能達成平衡；(3)30 分鐘穩定判定後 +1 追加確認週期：初達 30 分鐘穩定門檻時不驟停，自動追加 1 個確認週期進行複核；若確認週期溫差 <= 1.0℃ 則圓滿確立停機，若否則自動延展週期繼續測試；(4)WinForms HMI 狀態列與 Web 特性分析儀工作制面板全息雙軌實裝 |
 | V2.78 (beta) | v2.10.38 | 2026-09-11 | S1 與 S2 工作制溫升斜率 (dT/dt) 即時計算與一階熱動態預測引擎：(1)實裝 IEC 60034-1 / CNS 14400 最小平方法即時溫升斜率 ($dT/dt$, °C/min 及 °C/30min 折算)；(2)S1 連續工作制實裝熱平衡預估完成時間演算 ($t_{\text{rem}} = \tau \ln(S / 0.0333)$，預測到達 ≤1.0°C/30min 之時長與時刻)；(3)S2 短時工作制同步採用一階熱動態衰減模型預估到達設定時長 (如 30m) 之最終溫度與超溫告警 ($\Delta T_{\text{rem}} = S \cdot \tau (1 - e^{-\Delta t/\tau})$)；(4)HMI WinForms 雙向即時標題、狀態列與 Web 特性分析儀工作制專屬診斷面板全息實裝 |
+
+## [V2.86 beta / v2.10.46] - 2026-09-11
+
+### 🎯 現象與佐證 (Log-First Verbatim Excerpts)
+1. **使用者需求指示**：
+   - 「目前有一個報告的壓縮檔已經上傳到github」
+   - 「你可以分析出同excel所需資料給我嗎?」
+   - 「請做成一個工具可以將檔案放入後就直接解析出數據」
+2. **實測日誌與 GitHub 封包提取佐證**：
+   - GitHub Releases 歸檔標籤 `Reports-Archive` 已成功上傳 `Report_SIMW132L-10-06_20260911_093917.zip` (1,245,435 bytes)；
+   - 提取實測日誌與儀表截圖數據：
+     - `SIMW132S-15-08_20260910_142426_S1.csv` (5,724 筆，113.4 分鐘)：額定 1000 rpm / 143.31 Nm / 14.99 kW，線圈穩態溫度 68.32°C (前 68.32°C, 後 68.19°C)，前軸承 39.45°C，環溫 34.24°C (溫升 34.08 K)，水進 25.43°C，水出 27.55°C，散熱能力 1.45 kW (4,950 BTU/h)，電氣效率 88.77%；
+     - `SIMW132L-10-06_20260911_075454_S2.csv` (1,684 筆，32.0 分鐘)：1000 rpm / 214.87 Nm (150% 額定過載)，線電流 59.77 A，線圈溫度達 114.0°C (達到耐溫極限停止)；
+     - `SIMW132S-15-08_20260910_161843_S6.csv` (2,568 筆，51.0 分鐘)：週期峰值轉矩 307.95 Nm (200% 超載)，峰值電流 88.69 A，電功率 39.01 kW，平衡前線圈最高溫 111.50°C；
+     - `2026-09-10_104631_NoLoad_PM.jpg` (WT333E 截圖)：U0 = 271.58 V, I0 = 20.26 A, P0 = 540 W, f = 33.315 Hz；
+     - `2026-09-11_090020_Rated.jpg` (WT333E 截圖)：VN = 271.70 V, IN = 40.10 A, PN = 16.22 kW, TN = 143.35 Nm, NN = 968 rpm (轉差率 3.20%)；
+     - `2026-09-11_090301_Lock.jpg` (WT333E 截圖)：Vk = 41.11 V, Ik = 40.06 A, Pk = 1420 W, uf.09 = 11%；
+     - `2026-09-11_101939_ACC_360V_546Nm.jpg` (WT333E 截圖)：V = 348.10 V (≦380V), I = 128.89 A, Tmax = 546.09 Nm (@ 906 rpm), Pin = 65.39 kW, Pout = 51.86 kW, PF = 0.8414。
+
+---
+
+### 💡 致命根因 (Root Cause Analysis)
+1. **人工提取 Excel 報告欄位繁雜耗時且易出錯**：
+   - 傳統產出驗收報告需手動開啟多份數千筆之大型 CSV、手動換算溫升、散熱能力與工作制極值，且需手動對照 Excel 範本 (`電機廠報告與驗收規範` 與 `馬達溫升實驗表格`) 之各儲存格座標 (`L27:Z27`, `L29:Z29`, `N34:Z34`, `N44:Z44`, `N58:Z58`, `R70:R74`, `J84:Z84`)；
+2. **缺乏一鍵拖曳即解析的獨立工具**：
+   - 缺乏一個只要把 ZIP 或資料夾丟進去，就能自動解壓、跨檔案關聯比對、執行 IEEE Std 112 求解並直接生成可複製/匯出 Excel 格式的專用工具。
+
+---
+
+### 🚀 精確修復方案 (Accurate Solution & Release Verifications)
+1. **打造專屬獨立桌面 WinForms 工具 (`Motor_Report_Extractor.exe`)**：
+   - 開發原生 C# 跨平台相容工具 (`tools/Motor_Report_Extractor_GUI.cs`)，支援 Windows XP 至 Windows 11 免安裝便攜執行；
+   - 支援拖曳 (Drag & Drop)：直接拖入 `Report_*.zip` 或包含日誌之資料夾，自動於記憶體/暫存解壓並自動偵測 S1, S2, S6, NoLoad 與各儀表截圖；
+   - 內建 4 大專屬分頁：「📋 電機廠報告與驗收規範」、「🌡️ 馬達溫升實驗表格」、「⚡ 等效電路分析 (IEEE Std 112)」、「🚀 Max acc. 極限加速度」；
+   - 提供「📋 複製為 Excel 格式 (TSV)」、「💾 匯出 Excel CSV」與「☁️ 從 GitHub 下載最新」功能。
+2. **打造現代化 Web 版雙向解析器 (`WEB_Excel_Tools/motor_report_extractor.html`)**：
+   - 導入 JSZip 支援純前端離線拖曳解壓，提供即時統計卡片、表格矩陣與圖示牆；
+   - 同步複製至 `Release/Dynamometer_HMI_V2.5.0_Portable/馬達報告數據解析器.html`。
+3. **編譯打包與發布驗證**：
+   - 經 `csc.exe /target:winexe /platform:x86 /win32icon` 編譯產出 `tools/Motor_Report_Extractor.exe` 與發布目錄可執行檔；
+   - 對目前 GitHub 上傳之 `Report_SIMW132L-10-06_20260911_093917.zip` 進行全流程實測解析，數據 100% 精準提取。
 
 ---
 
