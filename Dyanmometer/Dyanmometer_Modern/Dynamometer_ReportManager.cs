@@ -745,7 +745,7 @@ namespace DynamometerHMI
             // === Google Drive / GAS 設定元件 ===
             Label lblWebhook = new Label() { Text = "Webhook 網址:", Location = new Point(8, 10), AutoSize = true, Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold) };
             txtGasWebhookUrl = new TextBox() { Location = new Point(110, 8), Size = new Size(420, 24), Font = new Font("Consolas", 9f, FontStyle.Regular) };
-            txtGasWebhookUrl.Text = LoadConfigKey("GoogleDrive", "WebhookUrl", "");
+            txtGasWebhookUrl.Text = LoadConfigKey("GoogleDrive", "WebhookUrl", "https://script.google.com/macros/s/AKfycbxIsvMF2IuTszl-wlr1wLZmTEGqyuX-ANnmhyrZKerhP3hXa73PPfp3PrIVMH9I14EL/exec");
 
             btnViewGasScript = new Button()
             {
