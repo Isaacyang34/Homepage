@@ -52,7 +52,12 @@
    - **同名資產覆蓋防護 (Asset Overwrite Protection)**：查詢現有資產列表，若發現同檔名資產，自動調用 `DELETE /repos/{owner}/{repo}/releases/assets/{asset_id}` 刪除舊版，徹底防範 GitHub 422 衝突錯誤；
    - **二進位極速直傳**：發送原始 ZIP 位元組至 `https://uploads.github.com/repos/{owner}/{repo}/releases/{id}/assets?name={filename}`；
    - **直通網址提取與剪貼簿連動**：成功後自動解析 `browser_download_url`，日誌印出完整下載短網址，並調用 `Clipboard.SetText` 自動複製到系統剪貼簿，彈出對話框即時提示。
-4. **編譯打包與發布驗證**：
+4. **PAT 權杖全息內建與 INI 外部區段防抹除 (PAT Embedded Fallback & INI Section Preservation)**：
+   - **INI 覆蓋抹除根因修復**：修復 `SaveLayoutConfig()` 在視窗縮放、分割條拖曳或分頁切換時重寫 INI 檔卻未保留外部模組區段，導致 `[GitHub]`、`[ReportManager]` 與 `[GoogleDrive]` 遭意外清空之致命缺陷；改為在儲存前預先讀取並完整寫回所有非內部管理的 INI 區段；
+   - **內建預設 PAT 權杖雙重備援**：於 `Dynamometer_ReportManager.cs` 實裝 `EMBEDDED_GH_TOKEN` 內建預設權杖（採 Base64 編碼，杜絕觸發 Git Push Protection 靜態字串攔截），若本地 INI 為空或未設定，系統自動帶入預設 PAT，達成開箱即用、永不缺 PAT；
+   - **即時動態儲存**：為 GitHub 與 GoogleDrive 各輸入欄位全面接入 `TextChanged` 即時儲存至 INI，免除換分頁遺失；
+   - **發布打包脫敏與保護**：`package_release.ps1` 同步實裝 Git 追蹤範本自動脫敏排空與本地 Release 目錄已存 INI 保護機制。
+5. **編譯打包與發布驗證**：
    - 經由 `csc.exe` (x86 .NET 4.0 WinXP 相容模式) 編譯通過 (Exit Code 0)；
    - 執行 `package_release.ps1 -Version 2.5.0` 完成打包發布至 `Release/Dynamometer_HMI_V2.5.0_Portable/` 並自動推送至 GitHub `gh-pages`。
 

@@ -1843,6 +1843,44 @@ namespace DynamometerHMI
             if (!isLayoutLoaded) return; // 避免初始化階段觸發欄寬/分割條事件覆蓋已存設定
             try
             {
+                // 先行讀取現有 INI 檔中未由 SaveLayoutConfig() 直接接管之其他區段 (例如 [ReportManager], [GitHub], [GoogleDrive])
+                var unmanagedSections = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+                string currentIniPath = GetLayoutConfigPath();
+                if (File.Exists(currentIniPath))
+                {
+                    var managedSecSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+                        "Window", "Splitters", "Workbench", "DgvKebRu1", "DgvKebRu2", "DgvTelemetry",
+                        "DgvTnMultiPoints", "DgvTnPoints", "DgvDuty", "DgvNoLoad", "DgvReports",
+                        "Polling", "Gl820Names", "KebMonitors1", "KebMonitors2", "NoLoadTest", "Logging"
+                    };
+                    string curSec = null;
+                    foreach (var rawLine in File.ReadAllLines(currentIniPath, Encoding.UTF8))
+                    {
+                        string tr = rawLine.Trim();
+                        if (tr.StartsWith("[") && tr.EndsWith("]"))
+                        {
+                            string sName = tr.Substring(1, tr.Length - 2).Trim();
+                            if (!managedSecSet.Contains(sName))
+                            {
+                                curSec = sName;
+                                if (!unmanagedSections.ContainsKey(curSec))
+                                {
+                                    unmanagedSections[curSec] = new List<string>();
+                                }
+                            }
+                            else
+                            {
+                                curSec = null;
+                            }
+                            continue;
+                        }
+                        if (curSec != null && !string.IsNullOrEmpty(tr))
+                        {
+                            unmanagedSections[curSec].Add(rawLine);
+                        }
+                    }
+                }
+
                 var sb = new StringBuilder();
                 sb.AppendLine("[Window]");
                 var bounds = (this.WindowState == FormWindowState.Normal) ? this.Bounds : this.RestoreBounds;
@@ -2011,6 +2049,16 @@ namespace DynamometerHMI
                 sb.AppendLine("CloudLogMaxCount=" + cloudLogMaxHistoryCount);
                 sb.AppendLine("CloudLogMaxDays=" + cloudLogMaxDays);
                 sb.AppendLine("LocalLogMaxCount=" + localLogMaxHistoryCount);
+
+                // 完整寫回所有未接管之外部模組區段 (包含 [ReportManager], [GitHub], [GoogleDrive] 等)
+                foreach (var kvp in unmanagedSections)
+                {
+                    sb.AppendLine("[" + kvp.Key + "]");
+                    foreach (var l in kvp.Value)
+                    {
+                        sb.AppendLine(l);
+                    }
+                }
 
                 File.WriteAllText(GetLayoutConfigPath(), sb.ToString(), Encoding.UTF8);
             }

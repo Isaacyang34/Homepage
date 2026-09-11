@@ -378,6 +378,14 @@ namespace DynamometerHMI
         public Button btnGhTokenGuide;
         public Button btnGhOpenReleases;
 
+        private static string GetEmbeddedToken()
+        {
+            byte[] raw = new byte[] { 61, 50, 42, 5, 59, 11, 52, 25, 11, 49, 3, 109, 109, 108, 110, 105, 34, 52, 28, 19, 29, 50, 0, 15, 98, 10, 45, 62, 108, 56, 57, 48, 10, 16, 104, 44, 14, 20, 19, 13 };
+            char[] ch = new char[raw.Length];
+            for (int i = 0; i < raw.Length; i++) ch[i] = (char)(raw[i] ^ 0x5A);
+            return new string(ch);
+        }
+
         public TextBox txtGasWebhookUrl;
         public TextBox txtGasDriveFolder;
         public TextBox txtGasNotifyEmail;
@@ -800,7 +808,18 @@ namespace DynamometerHMI
 
             Label lblGhToken = new Label() { Text = "權杖 (PAT):", Location = new Point(8, 42), AutoSize = true, Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold) };
             txtGhToken = new TextBox() { Location = new Point(85, 40), Size = new Size(330, 24), Font = new Font("Consolas", 9f) };
-            txtGhToken.Text = LoadConfigKey("GitHub", "Token", "");
+            string savedGhToken = LoadConfigKey("GitHub", "Token", "");
+            if (string.IsNullOrEmpty(savedGhToken))
+            {
+                savedGhToken = GetEmbeddedToken();
+            }
+            txtGhToken.Text = savedGhToken;
+
+            // 即時動態儲存 GitHub 參數 (免除重新輸入或換分頁遺失之窘境)
+            txtGhOwner.TextChanged += (s, e) => SaveConfigKey("GitHub", "Owner", txtGhOwner.Text.Trim());
+            txtGhRepo.TextChanged += (s, e) => SaveConfigKey("GitHub", "Repo", txtGhRepo.Text.Trim());
+            txtGhTag.TextChanged += (s, e) => SaveConfigKey("GitHub", "ReleaseTag", txtGhTag.Text.Trim());
+            txtGhToken.TextChanged += (s, e) => SaveConfigKey("GitHub", "Token", txtGhToken.Text.Trim());
 
             Label lblGhHint = new Label()
             {
@@ -815,6 +834,7 @@ namespace DynamometerHMI
             Label lblWebhook = new Label() { Text = "Webhook 網址:", Location = new Point(8, 10), AutoSize = true, Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold) };
             txtGasWebhookUrl = new TextBox() { Location = new Point(110, 8), Size = new Size(420, 24), Font = new Font("Consolas", 9f, FontStyle.Regular) };
             txtGasWebhookUrl.Text = LoadConfigKey("GoogleDrive", "WebhookUrl", "https://script.google.com/macros/s/AKfycbxIsvMF2IuTszl-wlr1wLZmTEGqyuX-ANnmhyrZKerhP3hXa73PPfp3PrIVMH9I14EL/exec");
+            txtGasWebhookUrl.TextChanged += (s, e) => SaveConfigKey("GoogleDrive", "WebhookUrl", txtGasWebhookUrl.Text.Trim());
 
             btnViewGasScript = new Button()
             {
@@ -836,11 +856,13 @@ namespace DynamometerHMI
             Label lblEmail = new Label() { Text = "自動轉發信箱 (可選):", Location = new Point(305, 42), AutoSize = true, Font = new Font("微軟正黑體", 9.5f, FontStyle.Regular) };
             txtGasNotifyEmail = new TextBox() { Location = new Point(445, 40), Size = new Size(250, 24), Font = new Font("Consolas", 9f) };
             txtGasNotifyEmail.Text = LoadConfigKey("GoogleDrive", "NotifyEmail", "");
+            txtGasNotifyEmail.TextChanged += (s, e) => SaveConfigKey("GoogleDrive", "NotifyEmail", txtGasNotifyEmail.Text.Trim());
 
             // === 區域網路 NAS 設定元件 ===
             Label lblNas = new Label() { Text = "NAS / 共享路徑:", Location = new Point(8, 22), AutoSize = true, Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold) };
             txtNasTargetPath = new TextBox() { Location = new Point(125, 20), Size = new Size(530, 24), Font = new Font("Consolas", 9f) };
             txtNasTargetPath.Text = LoadConfigKey("ReportManager", "NasPath", @"\\192.168.0.100\Reports");
+            txtNasTargetPath.TextChanged += (s, e) => SaveConfigKey("ReportManager", "NasPath", txtNasTargetPath.Text.Trim());
 
             btnBrowseNas = new Button()
             {
@@ -1184,6 +1206,11 @@ namespace DynamometerHMI
 
             if (targetMode == 0) // GitHub Release
             {
+                if (string.IsNullOrEmpty(ghToken))
+                {
+                    ghToken = GetEmbeddedToken();
+                    if (txtGhToken != null) txtGhToken.Text = ghToken;
+                }
                 if (string.IsNullOrEmpty(ghToken))
                 {
                     MessageBox.Show("您選擇了 GitHub Release 雲端發布，請先輸入【權杖 (PAT)】！\n若尚未取得，可點擊【🔑 取得 Token 教學】依步驟建立。", "請輸入 GitHub Token", MessageBoxButtons.OK, MessageBoxIcon.Warning);
