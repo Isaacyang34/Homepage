@@ -1043,7 +1043,7 @@ namespace DynamometerHMI
             isViewerMode = viewerMode;
             if (!string.IsNullOrEmpty(remoteUrl)) viewerTargetUrl = remoteUrl;
 
-            this.Text = isViewerMode ? "Dynamometer HMI Pro [👀 遠端檢視端 - VIEWER Mode (純唯讀)]" : "Dynamometer HMI Pro [🎛️ 現場主控端 - Master Controller]";
+            this.Text = (isViewerMode ? "Dynamometer HMI Pro [👀 遠端檢視端 - VIEWER Mode (純唯讀)]" : "Dynamometer HMI Pro [🎛️ 現場主控端 - Master Controller]") + " v" + APP_VERSION;
             this.Size = new Size(1600, 960);
             this.MinimumSize = new Size(1280, 800);
             this.StartPosition = FormStartPosition.CenterScreen;
