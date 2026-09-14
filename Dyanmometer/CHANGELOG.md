@@ -8,7 +8,50 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.101 (beta) | v2.10.59 | 2026-09-14 | 徹底根絕堵轉看門狗誤判常態運轉與對話框雪崩連發重入漏洞：(1)現象與實測佐證：使用者回傳螢幕截圖指出，當在等效電路分頁查看數據、或馬達在常態測試 (如 S1 額定運轉 1465 rpm / 1500 rpm) 時，系統突發判定「堵轉轉速異常跳脫 (治具脫扣/機械鎖死失效)」，且因 MessageBox.Show 模態泵入事件導致背景定時器每 3 秒無限遞歸彈出超過十層疊加警告視窗，造成畫面癱瘓；(2)致命根因 (Root Cause)：`Dynamometer_TestEquivCircuit.cs` 中 `TmrLockedWatchdog_Tick` 誤將 `bool isEquivTabActive` 納入觸發條件，導致只要切換至等效電路分頁，即便未啟動堵轉測試，看門狗亦將常態運轉轉速視為堵轉治具脫扣；且 `TriggerLockedProtectionTrip` 缺乏重入鎖 (`isLockedTripShowing`)，在彈窗阻塞 UI 期間 Windows 訊息迴圈持續觸發定時器，引發彈窗雪崩；(3)精確修復方案：移除 `isEquivTabActive` 觸發條件，嚴格規定堵轉看門狗僅在 `isAutoTuningUf09` (自動調壓) 或 `isLockedRotorActive` (堵轉測試啟動) 狀態下才進行轉速與電流監測；加入 `isLockedTripShowing` 重入鎖，觸發時立即重設狀態機並鎖定單一彈窗；(4)版本升級與發布：升級至 2.10.59，完成雙分支同動推送。 |
 | V2.100 (beta) | v2.10.58 | 2026-09-14 | 移除頂部工具列「Aa」字體自訂功能與版面精簡重整：(1)現象與使用者需求：使用者指令「Aa這個功能也可以刪掉了」；(2)致命根因與演進分析：過去開發初期為相容不同螢幕解析度測試設計了「Aa」字體客製化彈窗按鈕，但隨著系統全面升級為三段式 Dock 佈局、自適應響應式流式排版以及 1080p 統一高對比度規範後，該手動字體微調按鈕已完全冗餘且佔據頂部工具列精華空間；(3)精確修復方案：移除 btnFontCustomizer ("Aa") 控制項與相關欄位宣告，並自頂部面板 Controls 移除；對齊重整頂部相鄰操作按鈕水平間距 (btnDeviceSettings -> X:398, btnCalibrationSettings -> X:448, btnCrashLogs -> X:498)，使頂部面板視覺與操作流程更為洗鍊整潔；(4)版本升級與發布：升級至 2.10.58，完成雙分支同動推送與發布。 |
+
+---
+
+## [V2.101 beta / v2.10.59] - 2026-09-14
+
+### 🎯 現象與佐證 (Verbatim Excerpts & Requirements)
+1. **使用者實測回報截圖**：
+   - 使用者切換至【等效電路】分頁檢視「2. 額定運轉數據 (不補轉差)」(NN=1465 rpm) 時，畫面上連續彈出十數層「⚠️ 堵轉安全防護跳脫」重疊模態對話框。
+   - 對話框內容顯示：「實測扭力計軸轉速 = 1500 rpm (容許上限 5 rpm)，累計轉動時間 = 3.0 秒 (已達 3 秒跳脫上限)，判定結果：待測馬達機械鎖死治具已脫扣或未能承受堵轉扭力！」
+   - 使用者提問：「這又是在幹甚麼?」
+
+---
+
+### 🔍 致命根因分析 (Root Cause)
+1. **看門狗觸發條件過寬 (致命誤判常態運轉)**：
+   - 檔案：`Dyanmometer_Modern/Dynamometer_TestEquivCircuit.cs`
+   - 函式：`TmrLockedWatchdog_Tick`
+   - 原邏輯：`bool isEquivTabActive = (tabControl != null && tabControl.SelectedTab == tabEquiv); if (!isEquivTabActive && !isAutoTuningUf09 && !isLockedRotorActive) return;`
+   - 當使用者只是切換到「等效電路」分頁查看數值，但馬達正在執行 S1 額定測試或其他常態運轉（轉速約 1465~1500 rpm）時，因 `isEquivTabActive` 為 `true`，看門狗誤以為正處於堵轉測試狀態，將正常的 1500 rpm 判定為「治具脫扣 (> 5 rpm)」，於 3 秒後觸發跳脫！
+2. **缺乏防重入鎖 (Re-entrancy Guard) 引發對話框雪崩**：
+   - 函式：`TriggerLockedProtectionTrip`
+   - `MessageBox.Show` 屬於 Win32 模態對話框，在等待使用者點擊「確定」期間，Windows 訊息迴圈 (`Application.DoEvents`) 仍會持續處理 `WM_TIMER` 訊息。
+   - 由於 `tmrLockedWatchdog` 週期為 500ms，在第一個對話框彈出後，看門狗定時器每隔 3 秒又再度檢測到條件超標，重複呼叫 `TriggerLockedProtectionTrip`，導致短時間內產生大量重疊彈窗，阻礙現場操作。
+
+---
+
+### 🛠️ 精確修復方案 (Exact Implementation)
+1. **嚴格限制堵轉看門狗作用範疇 (`Dynamometer_TestEquivCircuit.cs`)**：
+   - 徹底移除 `isEquivTabActive` 作為看門狗啟動之充分條件。
+   - 強制約束：`if (!isAutoTuningUf09 && !isLockedRotorActive) { lockedOverCurrentTicks = 0; lockedSpeedAnomalyTicks = 0; return; }`
+   - 只有在使用者**明確點擊「🤖 自適應追隨額定流」開始調壓**，或**「⚡ 手動寫入」降壓目標**進行堵轉測試時，保護機制才介入。常態查看分頁或運轉馬達時，看門狗一律處於安全待命狀態（顯示 `🛡️ 堵轉防護待命 (未啟動堵轉測試)`），絕不誤判。
+2. **實作防重入鎖徹底根除彈窗雪崩 (`Dynamometer_TestEquivCircuit.cs`)**：
+   - 新增 `private bool isLockedTripShowing = false;`。
+   - 在 `TriggerLockedProtectionTrip` 開頭檢測：`if (isLockedTripShowing) return;`。
+   - 觸發時第一時間立即將 `isAutoTuningUf09 = false; isLockedRotorActive = false;`，使後續 Timer Tick 瞬間返回，並由 `try { ... } finally { isLockedTripShowing = false; }` 保證**全系統在任何情況下絕不會同時出現超過一個告警對話框**。
+3. **版本同步與發布**：
+   - 內部版本號提升至 `v2.10.59`。
+   - 執行 `package_release.ps1 -Version 2.5.0` 完成打包編譯與雙分支推送。
+
+---
+
+## [V2.100 beta / v2.10.58] - 2026-09-14
 | V2.99 (beta) | v2.10.57 | 2026-09-14 | 離開程式強制切換純手動模式 (AB載台 op01=7, A載台 cs15=1, B載台 op00=5)：(1)現象與使用者需求：使用者要求當離開程式的時候要切換回純手動的模式，參數指定為 AB載台 op01=7, A載台 cs15=1, B載台 op00=5；(2)致命根因：過去程式離開生命週期中，若變頻器處於自動通訊控制（如 op.01=0 數位控制、cs.15=3 過程數據轉矩等），關閉程式時僅依賴備份參數還原，若連線時未完整取得備份或異常退出，變頻器將殘留於上位機通訊接管狀態，現場作業人員無法直接使用箱體實體端子或手動旋鈕進行控制操作；(3)精確修復方案：實作 SwitchToPureManualModeOnExit()，強制向 A 載台寫入 op.01=7 (端子運轉方向控制) 與 cs.15=1 (類比轉矩控制/純手動)，向 B 載台寫入 op.01=7 (端子運轉方向控制) 與 op.00=5 (過程數據/手動頻率控制)，並在 FormClosing (看門狗延長至2.5s)、DisconnectHardware()、ExecuteHotSwapAndRestart() 以及 RestoreHmiKebInitialParams() 等全生命週期關鍵退出點全域注入調用；(4)雙分支發布與版本同動：程式版本升級至 2.10.57，同動推送到 gh-pages 與 master 分支。 |
 
 ---

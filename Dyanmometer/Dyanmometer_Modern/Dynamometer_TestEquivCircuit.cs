@@ -67,6 +67,7 @@ namespace DynamometerHMI
         private Label lblLockedProtStatus;         // 🛡️ 保護監控與閾值狀態指示
         private System.Windows.Forms.Timer tmrLockedWatchdog; // 堵轉看門狗與自適應調壓定時器
         private bool isLockedRotorActive = false;
+        private bool isLockedTripShowing = false; // ★【防彈跳連發重入鎖】保證絕不重複彈出多個 MessageBox
         private int lockedOverCurrentTicks = 0;
         private int lockedSpeedAnomalyTicks = 0;
         private bool isAutoTuningUf09 = false;
@@ -710,6 +711,8 @@ namespace DynamometerHMI
             };
             btnEquivLockedStop.FlatAppearance.BorderColor = Color.FromArgb(254, 202, 202);
             btnEquivLockedStop.Click += (s, e) => {
+                isAutoTuningUf09 = false;
+                isLockedRotorActive = false;
                 TriggerLockedProtectionTrip("使用者手動點擊緊急停止", "操作者於等效電路堵轉面板主動點擊【🛑 緊急停機】按鈕。");
             };
 
@@ -1301,6 +1304,7 @@ namespace DynamometerHMI
                     bool ok = KebWriteUf09(driveId, targetV);
                     if (ok)
                     {
+                        if (targetV <= 60) isLockedRotorActive = true;
                         lblEquivCurUf09.Text = string.Format("uf09: {0} V (已降壓)", targetV);
                         lblEquivCurUf09.ForeColor = Color.FromArgb(180, 83, 9);
                         MessageBox.Show("已成功將 " + dName + " 的 uf09 設定為 " + targetV + " V！\r\n現在可以啟動馬達並進行堵轉測試。", "寫入成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -1325,6 +1329,11 @@ namespace DynamometerHMI
                 int driveId = (cmbEquivKebDrive.SelectedIndex == 1) ? 1 : 2;
                 string dName = (driveId == 1) ? "A載台" : "B載台";
                 int defaultV = (originalUf09Val > 50) ? originalUf09Val : 260;
+
+                isAutoTuningUf09 = false;
+                isLockedRotorActive = false;
+                lockedOverCurrentTicks = 0;
+                lockedSpeedAnomalyTicks = 0;
 
                 bool ok = KebWriteUf09(driveId, defaultV);
                 if (ok)
@@ -1360,6 +1369,10 @@ namespace DynamometerHMI
                 if (pf > 0) numEquivPfk.Value = (decimal)Math.Round(pf, 3);
 
                 isLockedDataReady = true;
+                isAutoTuningUf09 = false;
+                isLockedRotorActive = false;
+                lockedOverCurrentTicks = 0;
+                lockedSpeedAnomalyTicks = 0;
                 lblLockedItemStatus.Text = "🟢 堵轉數據已採樣鎖定 (" + DateTime.Now.ToString("HH:mm:ss") + ")";
                 lblLockedItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
                 WriteHmiLog("EQUIV", string.Format("【等效電路】堵轉數據採樣成功: Vk={0:F1}V, Ik={1:F2}A, Pk={2:F1}W, PFk={3:F3}", v, i, p, pf));
@@ -1378,6 +1391,9 @@ namespace DynamometerHMI
             {
                 // 停止自動調壓
                 isAutoTuningUf09 = false;
+                isLockedRotorActive = false;
+                lockedOverCurrentTicks = 0;
+                lockedSpeedAnomalyTicks = 0;
                 btnEquivAutoTuneUf09.Text = "🤖 自適應追隨額定流";
                 btnEquivAutoTuneUf09.BackColor = Color.FromArgb(238, 242, 255);
                 lblLockedItemStatus.Text = "⚪ 自適應調壓已手動停止";
@@ -1651,10 +1667,17 @@ namespace DynamometerHMI
                     RunAutoTuneUf09Step();
                 }
 
-                // 只有在等效電路分頁被開啟、或堵轉正在調壓/測試時才執行保護監聽
-                bool isEquivTabActive = (tabControl != null && tabControl.SelectedTab == tabEquiv);
-                if (!isEquivTabActive && !isAutoTuningUf09 && !isLockedRotorActive)
+                // ★【極重要鐵律】：堵轉看門狗保護 ONLY 在「正在執行堵轉自適應調壓 (isAutoTuningUf09)」或「明確啟動堵轉測試 (isLockedRotorActive)」時才生效！
+                // 嚴禁在平時使用者只是查看等效電路分頁、或馬達正在運轉其他測試 (例如 S1 測試 1465 rpm) 時誤判！
+                if (!isAutoTuningUf09 && !isLockedRotorActive)
                 {
+                    lockedOverCurrentTicks = 0;
+                    lockedSpeedAnomalyTicks = 0;
+                    if (lblLockedProtStatus != null && !lblLockedProtStatus.Text.Contains("警告") && !lblLockedProtStatus.Text.Contains("跳脫"))
+                    {
+                        lblLockedProtStatus.Text = "🛡️ 堵轉防護待命 (未啟動堵轉測試)";
+                        lblLockedProtStatus.ForeColor = Color.FromArgb(100, 116, 139);
+                    }
                     return;
                 }
 
@@ -1738,6 +1761,8 @@ namespace DynamometerHMI
         // ── 堵轉保護機制緊急跳脫處置函式 ──────────────────────────────
         private void TriggerLockedProtectionTrip(string title, string details)
         {
+            if (isLockedTripShowing) return; // ★ 重入鎖保護：已在顯示對話框時嚴禁重複進入
+            isLockedTripShowing = true;
             try
             {
                 isAutoTuningUf09 = false;
@@ -1798,6 +1823,10 @@ namespace DynamometerHMI
             catch (Exception ex)
             {
                 WriteHmiLog("LOCKED_ERR", "TriggerLockedProtectionTrip 例外: " + ex.Message);
+            }
+            finally
+            {
+                isLockedTripShowing = false;
             }
         }
 
