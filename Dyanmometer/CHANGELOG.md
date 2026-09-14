@@ -8,9 +8,49 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.111 (beta) | v2.10.69 | 2026-09-14 | 徹底根除等效電路點擊「清除重測」後 1.空載、2.額定 數據未歸零之缺陷：(1)現象與佐證：使用者實測回報「按下清除重測，1Noload 2額定 的數據不會被清空」；(2)致命根因 (Root Cause)：在 `Dynamometer_TestEquivCircuit.cs` 中，`ResetEquivDataCards()` 函式在收到清除指令後，未將控制項歸零，而是強制寫入寫死之靜態樣本數據 (V0=260, I0=12, P0=450, TN=70, NN=1465, VN=260 等)；同時 `numEquivF0` 之前設 `Minimum = 1` 阻礙歸零；`RefreshEquivMotorStatus()` 在清空後未判斷 `isNoLoadDataReady` 與 `isRatedDataReady`，在馬達名稱未變時仍盲目顯示 `(1,2項數據已保留)` 誤導使用者；`LoadEquivCircuitConfig()` 在 `NoLoadReady` 為 0 時未將 ready 標誌與狀態標籤重設為待採樣；(3)精確修復方案：在 `ResetEquivDataCards()` 中將 1.空載、2.額定、3.堵轉 共 17 項輸入數值全數徹底歸零清空 (`Value = 0m`)；將 `numEquivF0` 下限開放為 `0m`，Card 1/2/3 預設值全數歸零；`RefreshEquivMotorStatus()` 與 `LoadEquivCircuitConfig()` 依據真實採樣旗標動態切換狀態文字為 `[--] 數據已清空，待採樣 (1.空載 / 2.額定 / 3.堵轉)`；`SaveLayoutConfig()` 同動將全 0 數據寫回 INI；(4)發布與驗證：升版至 2.10.69，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.69 發布。 |
 | V2.110 (beta) | v2.10.68 | 2026-09-14 | 全面導入 KEB 底層 RAW 遙測分析日誌、對話框明細透視與閉環自適應解義機制：(1)現象與痛點：使用者實測回報「同步檢查還是錯啊uf.00=25.8，你要不把參數都放到LOG回去慢慢分析，感覺你搞不定阿，一直瞎猜」；(2)致命根因 (Root Cause)：嚴格杜絕憑空瞎猜！若變頻器內部 uF.00 回傳整數為 1030 (0x0406)，在 0.05 Hz 解析度下為 51.5 Hz，但若以 0.025 Hz 解析則恰為 25.75 (25.8 Hz)；舊程式缺乏將通訊收到的真實原始封包 RAW (DEC/HEX) 暴露於畫面與日誌中，導致使用者與維護者無法一眼看穿變頻器內部真實數值；(3)精確修復方案：在 `Dynamometer_TestEquivCircuit.cs` 的 `CheckAndCollectDrUfParams` 中導入全量 RAW DUMP，記錄 uF.00、dr.05 在 Set0/Set1 的原始 DEC 與 HEX，並在彈出視窗 (MessageBox) 直接明文列印實測 RAW 數值與各 Scale 試算清單；在 `DoHmiKebQuery1`、`DoHmiKebQuery2` 即時輪詢中即時輸出 `KEB_RAW` 日誌；在 `ConvertKebUf00ToFrequency` 導入以已知 `drFreq` 為基準之閉環誤差最小化鎖定與 45~75Hz 常規基頻先驗演算法；(4)發布與驗證：升版至 2.10.68，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.68 發布。 |
 | V2.109 (beta) | v2.10.67 | 2026-09-14 | 徹底根治即時綜合監控 dr05 誤讀 0x0405 顯示為 0.6Hz 之位址誤區：(1)現象與佐證：使用者回報「在即時綜合監控dr05是0.6」；(2)致命根因 (Root Cause)：使用者的 `dynamometer_layout.ini` 繼承了舊版清單設定 `Addr=0405`；當輪詢向變頻器讀取 `0x0405` 時，變頻器該暫存器剛好存放了非零數值 6 (某個非 dr05 的系統內部參數)；舊判斷 `if (!val.HasValue || val.Value == 0)` 因 6 != 0 而未觸發 fallback，直接將 6 當作 dr05，經 6 * 0.1 誤算為 0.6Hz！(3)精確修復方案：在 `Dynamometer_HMI_WinForms.cs` INI 載入防禦清洗中，凡偵測到 `addr 在 0x0400~0x0418` 且為 dr 參數，強制自動映射為實機位址 `0x0600+` (dr05 強制轉為 0x0605)；在 `DoHmiKebQuery1`、`DoHmiKebQuery2` 輪詢中，凡要求 dr 參數一律優先讀取 `0x0600+` 實機位址 (讀取 515 即 51.5Hz)；在 `ConvertKebDr05ToFrequency` 加入 raw < 20 防禦過濾；(4)發布與驗證：升版至 2.10.67，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.67 發布。 |
 | V2.108 (beta) | v2.10.66 | 2026-09-14 | 根除 uF.00 額定頻率誤被 0.0125 縮放砍半顯示為 25.8Hz 之致命缺陷：(1)現象與佐證：使用者實測回報「還是錯啊，uf.00變成25.8」；(2)致命根因 (Root Cause)：變頻器基頻暫存器 uF.00 (0x0500) 之原始值為 2060，其物理標準解析度一律為 0.025 Hz (2060 * 0.025 = 51.50 Hz)；然而舊邏輯誤將「加載端 A 載台 (Drive 1 / Node 1)」綁定 0.0125 Hz 解析度，且堵轉測試傳入之第二參數為 node (其值為 1)，觸發 2060 * 0.0125 = 25.75 剛好砍半顯示為 25.8Hz；同時 INI 載入清洗中 list1 的 0x0500 亦被誤設為 0.0125；(3)精確修復方案：重構 `ConvertKebUf00ToFrequency`，確立 KEB F5 uF.00 基頻標準解析度全載台一律以 0.025 Hz (40 units/Hz) 為主力分支；修正 INI 載入 list1 與 list2 的 0x0500 Scale 一律統一為 0.025；在等效電路堵轉同步檢查中將呼叫參數修正為 driveId；(4)發布與驗證：升版至 2.10.66，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.66 發布。 |
+
+---
+
+## [V2.111 beta / v2.10.69] - 2026-09-14
+
+### 徹底根除等效電路點擊「清除重測」後 1.空載、2.額定 數據未歸零之缺陷
+
+### 現象與佐證
+- **使用者回報現象**：使用者實測指出：「按下清除重測，1Noload 2額定 的數據不會被清空」。
+- **問題重現還原**：
+  - 使用者在等效電路分頁點擊「[X] 清除重測」按鈕並確認後，Card 1 (空載運轉數據) 的 V0、I0、P0、PF0、N0、f0 與 Card 2 (額定運轉數據) 的 TN、NN、VN、IN、PN、PFN、s 依然留存靜態數值，未呈現清空/歸零狀態；
+  - 頂部狀態列依然持續顯示 `一致性: [O] 同一馬達記憶中 (1,2項數據已保留)`，造成視覺與邏輯嚴重脫節。
+
+### 致命根因 (Root Cause)
+1. **清除函式誤寫入寫死之靜態樣本數據**：
+   在 `Dynamometer_TestEquivCircuit.cs` 的 `ResetEquivDataCards()` 函式中，代碼收到清除指令後，竟執行了 `numEquivV0.Value = 260m; numEquivI0.Value = 12m; numEquivP0.Value = 450m; numEquivTn.Value = 70m; numEquivNn.Value = 1465m; numEquivVn.Value = 260m; ...`，強行把舊式 SVM100S 樣本值重新填入控制項，而非將數值清空歸零（`Value = 0m`）！
+2. **NumericUpDown 最小限值設限阻礙歸零**：
+   Card 1 的 `numEquivF0` (測試頻率) 在初始化時設定 `Minimum = 1`，導致若嘗試設定為 `0m` 會觸發系統範圍例外，阻礙了正常的數值歸零重置。
+3. **狀態列顯示邏輯未與採樣狀態聯動**：
+   `RefreshEquivMotorStatus()` 僅比對馬達名稱與 dr 指紋是否一致，即便採樣已被清除（`isNoLoadDataReady = false`），依然在同馬達分支中寫死輸出 `(1,2項數據已保留)`。
+4. **INI 載入端狀態同步單向缺失**：
+   `LoadEquivCircuitConfig()` 僅在 `NoLoadReady == "1"` 時設為 true，當 `NoLoadReady == "0"` 時未同步將記憶標誌與狀態文字切換回待採樣。
+
+### 精確修復方案
+1. **輸入控制項全量歸零重置 (`Dynamometer_TestEquivCircuit.cs`)**：
+   - 在 `ResetEquivDataCards()` 中，將 1.空載（V0, I0, P0, PF0, N0, f0）、2.額定（TN, NN, VN, IN, PN, PFN, s）、3.堵轉（Vk, Ik, Pk, PFk）共 17 項輸入數值全數徹底歸零清空 (`Value = 0m`)。
+   - `InitDefaultEquivResultsGrid()` 同動將下方結果網格全數重設為 `--`，並清空圖解快取。
+2. **開放 f0 零值輸入與卡片初始預設值純淨化 (`Dynamometer_TestEquivCircuit.cs`)**：
+   - 將 `numEquivF0` 之 Minimum 下限由 1 改為 0，預設值歸零。
+   - Card 1、Card 2、Card 3 建立時的所有欄位預設值一律改為 0.0m，未採樣前絕不預填虛假樣本。
+3. **狀態列動態真實反映採樣狀態 (`Dynamometer_TestEquivCircuit.cs`)**：
+   - 在 `RefreshEquivMotorStatus()` 中增加判定：若 1/2/3 項數據均未採樣，狀態列明確顯示 `一致性: [--] 數據已清空，待採樣 (1.空載 / 2.額定 / 3.堵轉)`；若僅部分完成則精確標註各項狀態，徹底根除誤導。
+4. **INI 設定記憶雙向同動與清除閉環 (`Dynamometer_TestEquivCircuit.cs`)**：
+   - `SaveEquivCircuitConfig()` 在數值為空或預設時寫入 0。
+   - `LoadEquivCircuitConfig()` 支援 `Ready == "0"` 之重置，並即時更新卡片狀態標籤為 `[--] 待採樣`。
+   - 點擊「清除重測」後立即同動呼叫 `SaveLayoutConfig()` 將全 0 數據保存至 INI，確保重開程式亦維持乾淨狀態。
+5. **發布與驗證**：
+   - 升版至 `2.10.69`。
+   - 通過 `csc.exe` 編譯，完成雙分支同動推送與 GitHub Release v2.10.69 發布。
 
 ---
 

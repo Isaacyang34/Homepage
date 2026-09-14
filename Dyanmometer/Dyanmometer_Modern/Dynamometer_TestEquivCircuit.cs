@@ -361,13 +361,13 @@ namespace DynamometerHMI
             tlp.SetColumnSpan(lblNoLoadItemStatus, 2);
             tlp.Controls.Add(lblNoLoadItemStatus, 0, 1);
 
-            // 參數列
-            numEquivV0 = AddCardField(tlp, 2, "線電壓 V0 (V):", 260.0m, 1, 0, 1000);
-            numEquivI0 = AddCardField(tlp, 3, "線電流 I0 (A):", 12.0m, 2, 0, 500);
-            numEquivP0 = AddCardField(tlp, 4, "輸入功率 P0 (W):", 450.0m, 1, 0, 100000);
-            numEquivPf0 = AddCardField(tlp, 5, "功率因數 PF0:", 0.08m, 3, 0, 1);
-            numEquivN0 = AddCardField(tlp, 6, "實測轉速 N0 (rpm):", 1498m, 0, 0, 15000);
-            numEquivF0 = AddCardField(tlp, 7, "測試頻率 f0 (Hz):", 50.0m, 2, 1, 500);
+            // 參數列 (預設值歸零，允許 f0 下限為 0)
+            numEquivV0 = AddCardField(tlp, 2, "線電壓 V0 (V):", 0.0m, 1, 0, 1000);
+            numEquivI0 = AddCardField(tlp, 3, "線電流 I0 (A):", 0.0m, 2, 0, 500);
+            numEquivP0 = AddCardField(tlp, 4, "輸入功率 P0 (W):", 0.0m, 1, 0, 100000);
+            numEquivPf0 = AddCardField(tlp, 5, "功率因數 PF0:", 0.0m, 3, 0, 1);
+            numEquivN0 = AddCardField(tlp, 6, "實測轉速 N0 (rpm):", 0m, 0, 0, 15000);
+            numEquivF0 = AddCardField(tlp, 7, "測試頻率 f0 (Hz):", 0.0m, 2, 0, 500);
 
             // 操作按鈕行
             TableLayoutPanel tlpBtns = new TableLayoutPanel()
@@ -475,13 +475,14 @@ namespace DynamometerHMI
             tlp.SetColumnSpan(lblRatedItemStatus, 2);
             tlp.Controls.Add(lblRatedItemStatus, 0, 1);
 
-            numEquivTn = AddCardField(tlp, 2, "額定轉矩 TN (Nm):", 70.0m, 2, 0, 2000);
-            numEquivNn = AddCardField(tlp, 3, "實測轉速 NN (rpm):", 1465m, 0, 0, 15000);
-            numEquivVn = AddCardField(tlp, 4, "額定線壓 VN (V):", 260.0m, 1, 0, 1000);
-            numEquivIn = AddCardField(tlp, 5, "額定線流 IN (A):", 32.3m, 2, 0, 500);
-            numEquivPn = AddCardField(tlp, 6, "輸入電功率 (kW):", 12.8m, 3, 0, 500);
-            numEquivPfn = AddCardField(tlp, 7, "功率因數 PFN:", 0.86m, 3, 0, 1);
-            numEquivSlip = AddCardField(tlp, 8, "實測轉差率 s (%):", 2.33m, 2, 0, 100);
+            // 參數列 (預設值歸零)
+            numEquivTn = AddCardField(tlp, 2, "額定轉矩 TN (Nm):", 0.0m, 2, 0, 2000);
+            numEquivNn = AddCardField(tlp, 3, "實測轉速 NN (rpm):", 0m, 0, 0, 15000);
+            numEquivVn = AddCardField(tlp, 4, "額定線壓 VN (V):", 0.0m, 1, 0, 1000);
+            numEquivIn = AddCardField(tlp, 5, "額定線流 IN (A):", 0.0m, 2, 0, 500);
+            numEquivPn = AddCardField(tlp, 6, "輸入電功率 (kW):", 0.0m, 3, 0, 500);
+            numEquivPfn = AddCardField(tlp, 7, "功率因數 PFN:", 0.0m, 3, 0, 1);
+            numEquivSlip = AddCardField(tlp, 8, "實測轉差率 s (%):", 0.0m, 2, 0, 100);
 
             // 操作按鈕行
             TableLayoutPanel tlpBtns = new TableLayoutPanel()
@@ -781,11 +782,11 @@ namespace DynamometerHMI
             tlp.SetColumnSpan(lblLockedProtStatus, 2);
             tlp.Controls.Add(lblLockedProtStatus, 0, 5);
 
-            // Row 6~9: 堵轉實測數據列
-            numEquivVk = AddCardField(tlp, 6, "堵轉電壓 Vk (V):", 52.0m, 1, 0, 500);
-            numEquivIk = AddCardField(tlp, 7, "堵轉電流 Ik (A):", 32.5m, 2, 0, 500);
-            numEquivPk = AddCardField(tlp, 8, "堵轉功率 Pk (W):", 850.0m, 1, 0, 50000);
-            numEquivPfk = AddCardField(tlp, 9, "堵轉因數 PFk:", 0.29m, 3, 0, 1);
+            // Row 6~9: 堵轉實測數據列 (預設值歸零)
+            numEquivVk = AddCardField(tlp, 6, "堵轉電壓 Vk (V):", 0.0m, 1, 0, 500);
+            numEquivIk = AddCardField(tlp, 7, "堵轉電流 Ik (A):", 0.0m, 2, 0, 500);
+            numEquivPk = AddCardField(tlp, 8, "堵轉功率 Pk (W):", 0.0m, 1, 0, 50000);
+            numEquivPfk = AddCardField(tlp, 9, "堵轉因數 PFk:", 0.0m, 3, 0, 1);
 
             // Row 10: 操作按鈕行 (三鍵式: 擷取 / 復歸 / 緊急停機)
             TableLayoutPanel tlpBtnsLocked = new TableLayoutPanel()
@@ -2893,8 +2894,22 @@ namespace DynamometerHMI
                 {
                     if (isSame)
                     {
-                        lblEquivMotorStatus.Text = string.Format("[連線] 待測馬達: 【{0}】 | B載台 dr: [{1}] | 一致性: [O] 同一馬達記憶中 (1,2項數據已保留)", curName, bDrSummary);
-                        lblEquivMotorStatus.ForeColor = Color.FromArgb(15, 23, 42);
+                        if (isNoLoadDataReady && isRatedDataReady)
+                        {
+                            lblEquivMotorStatus.Text = string.Format("[連線] 待測馬達: 【{0}】 | B載台 dr: [{1}] | 一致性: [O] 同一馬達記憶中 (1,2項數據已保留)", curName, bDrSummary);
+                            lblEquivMotorStatus.ForeColor = Color.FromArgb(15, 23, 42);
+                        }
+                        else if (!isNoLoadDataReady && !isRatedDataReady && !isLockedDataReady)
+                        {
+                            lblEquivMotorStatus.Text = string.Format("[連線] 待測馬達: 【{0}】 | B載台 dr: [{1}] | 一致性: [--] 數據已清空，待採樣 (1.空載 / 2.額定 / 3.堵轉)", curName, bDrSummary);
+                            lblEquivMotorStatus.ForeColor = Color.FromArgb(100, 116, 139);
+                        }
+                        else
+                        {
+                            lblEquivMotorStatus.Text = string.Format("[連線] 待測馬達: 【{0}】 | B載台 dr: [{1}] | 一致性: [部分採樣] (空載:{2}, 額定:{3}, 堵轉:{4})",
+                                curName, bDrSummary, (isNoLoadDataReady ? "已完成" : "待採樣"), (isRatedDataReady ? "已完成" : "待採樣"), (isLockedDataReady ? "已完成" : "待採樣"));
+                            lblEquivMotorStatus.ForeColor = Color.FromArgb(30, 64, 175);
+                        }
                     }
                     else
                     {
@@ -2918,22 +2933,50 @@ namespace DynamometerHMI
         // 清除採樣重設
         private void ResetEquivDataCards()
         {
-            numEquivV0.Value = 260m; numEquivI0.Value = 12m; numEquivP0.Value = 450m; numEquivPf0.Value = 0.08m; numEquivN0.Value = 1498m; numEquivF0.Value = 50m;
-            numEquivTn.Value = 70m; numEquivNn.Value = 1465m; numEquivVn.Value = 260m; numEquivIn.Value = 32.3m; numEquivPn.Value = 12.8m; numEquivPfn.Value = 0.86m; numEquivSlip.Value = 2.33m;
-            numEquivVk.Value = 52m; numEquivIk.Value = 32.5m; numEquivPk.Value = 850m; numEquivPfk.Value = 0.29m;
+            // 1. 空載運轉數據 (No-Load) 全數歸零清空
+            if (numEquivV0 != null) numEquivV0.Value = 0m;
+            if (numEquivI0 != null) numEquivI0.Value = 0m;
+            if (numEquivP0 != null) numEquivP0.Value = 0m;
+            if (numEquivPf0 != null) numEquivPf0.Value = 0m;
+            if (numEquivN0 != null) numEquivN0.Value = 0m;
+            if (numEquivF0 != null) numEquivF0.Value = 0m;
+
+            // 2. 額定運轉數據 (Rated Load) 全數歸零清空
+            if (numEquivTn != null) numEquivTn.Value = 0m;
+            if (numEquivNn != null) numEquivNn.Value = 0m;
+            if (numEquivVn != null) numEquivVn.Value = 0m;
+            if (numEquivIn != null) numEquivIn.Value = 0m;
+            if (numEquivPn != null) numEquivPn.Value = 0m;
+            if (numEquivPfn != null) numEquivPfn.Value = 0m;
+            if (numEquivSlip != null) numEquivSlip.Value = 0m;
+
+            // 3. 堵轉測試數據 (Locked-Rotor) 全數歸零清空
+            if (numEquivVk != null) numEquivVk.Value = 0m;
+            if (numEquivIk != null) numEquivIk.Value = 0m;
+            if (numEquivPk != null) numEquivPk.Value = 0m;
+            if (numEquivPfk != null) numEquivPfk.Value = 0m;
 
             isNoLoadDataReady = false;
             isRatedDataReady = false;
             isLockedDataReady = false;
 
-            lblNoLoadItemStatus.Text = "[--] 待採樣 (可從空載測試載入或即時抓取)";
-            lblNoLoadItemStatus.ForeColor = Color.FromArgb(100, 116, 139);
+            if (lblNoLoadItemStatus != null)
+            {
+                lblNoLoadItemStatus.Text = "[--] 待採樣 (可從空載測試載入或即時抓取)";
+                lblNoLoadItemStatus.ForeColor = Color.FromArgb(100, 116, 139);
+            }
 
-            lblRatedItemStatus.Text = "[--] 待採樣 (可從 T-N 額定點載入或即時抓取)";
-            lblRatedItemStatus.ForeColor = Color.FromArgb(100, 116, 139);
+            if (lblRatedItemStatus != null)
+            {
+                lblRatedItemStatus.Text = "[--] 待採樣 (可從 T-N 額定點載入或即時抓取)";
+                lblRatedItemStatus.ForeColor = Color.FromArgb(100, 116, 139);
+            }
 
-            lblLockedItemStatus.Text = "[--] 待採樣 (請先降低 uf09 並鎖定轉子)";
-            lblLockedItemStatus.ForeColor = Color.FromArgb(100, 116, 139);
+            if (lblLockedItemStatus != null)
+            {
+                lblLockedItemStatus.Text = "[--] 待採樣 (請先降低 uf09 並鎖定轉子)";
+                lblLockedItemStatus.ForeColor = Color.FromArgb(100, 116, 139);
+            }
 
             cachedEquivMotorName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
             cachedEquivDrFingerprint = lastKnownB_DrFingerprint;
@@ -2943,7 +2986,7 @@ namespace DynamometerHMI
             if (pnlEquivDiagram != null) pnlEquivDiagram.Invalidate();
 
             RefreshEquivMotorStatus();
-            WriteHmiLog("EQUIV", "【等效電路】已清空所有前次採樣數據，準備全新馬達測試。");
+            WriteHmiLog("EQUIV", "【等效電路】已清空所有 1.空載、2.額定、3.堵轉 採樣數據，數值已全數歸零，準備全新馬達測試。");
         }
 
         #endregion
@@ -3025,27 +3068,27 @@ namespace DynamometerHMI
                 sb.AppendLine("CachedFingerprint=" + (cachedEquivDrFingerprint ?? ""));
                 sb.AppendLine("CachedMotorName=" + (cachedEquivMotorName ?? ""));
                 sb.AppendLine("NoLoadReady=" + (isNoLoadDataReady ? "1" : "0"));
-                sb.AppendLine("V0=" + (numEquivV0 != null ? numEquivV0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "260"));
-                sb.AppendLine("I0=" + (numEquivI0 != null ? numEquivI0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "12"));
-                sb.AppendLine("P0=" + (numEquivP0 != null ? numEquivP0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "450"));
-                sb.AppendLine("Pf0=" + (numEquivPf0 != null ? numEquivPf0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0.08"));
-                sb.AppendLine("N0=" + (numEquivN0 != null ? numEquivN0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "1498"));
-                sb.AppendLine("F0=" + (numEquivF0 != null ? numEquivF0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "50"));
+                sb.AppendLine("V0=" + (numEquivV0 != null ? numEquivV0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("I0=" + (numEquivI0 != null ? numEquivI0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("P0=" + (numEquivP0 != null ? numEquivP0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("Pf0=" + (numEquivPf0 != null ? numEquivPf0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("N0=" + (numEquivN0 != null ? numEquivN0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("F0=" + (numEquivF0 != null ? numEquivF0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
 
                 sb.AppendLine("RatedReady=" + (isRatedDataReady ? "1" : "0"));
-                sb.AppendLine("Tn=" + (numEquivTn != null ? numEquivTn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "70"));
-                sb.AppendLine("Nn=" + (numEquivNn != null ? numEquivNn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "1465"));
-                sb.AppendLine("Vn=" + (numEquivVn != null ? numEquivVn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "260"));
-                sb.AppendLine("In=" + (numEquivIn != null ? numEquivIn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "32.3"));
-                sb.AppendLine("Pn=" + (numEquivPn != null ? numEquivPn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "12.8"));
-                sb.AppendLine("Pfn=" + (numEquivPfn != null ? numEquivPfn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0.86"));
-                sb.AppendLine("Slip=" + (numEquivSlip != null ? numEquivSlip.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "2.33"));
+                sb.AppendLine("Tn=" + (numEquivTn != null ? numEquivTn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("Nn=" + (numEquivNn != null ? numEquivNn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("Vn=" + (numEquivVn != null ? numEquivVn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("In=" + (numEquivIn != null ? numEquivIn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("Pn=" + (numEquivPn != null ? numEquivPn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("Pfn=" + (numEquivPfn != null ? numEquivPfn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("Slip=" + (numEquivSlip != null ? numEquivSlip.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
 
                 sb.AppendLine("LockedReady=" + (isLockedDataReady ? "1" : "0"));
-                sb.AppendLine("Vk=" + (numEquivVk != null ? numEquivVk.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "52"));
-                sb.AppendLine("Ik=" + (numEquivIk != null ? numEquivIk.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "32.5"));
-                sb.AppendLine("Pk=" + (numEquivPk != null ? numEquivPk.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "850"));
-                sb.AppendLine("Pfk=" + (numEquivPfk != null ? numEquivPfk.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0.29"));
+                sb.AppendLine("Vk=" + (numEquivVk != null ? numEquivVk.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("Ik=" + (numEquivIk != null ? numEquivIk.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("Pk=" + (numEquivPk != null ? numEquivPk.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("Pfk=" + (numEquivPfk != null ? numEquivPfk.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
                 sb.AppendLine("TargetUf09=" + (numEquivTargetUf09 != null ? numEquivTargetUf09.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "50"));
                 sb.AppendLine("AutoR1=" + (chkAutoR1Distribute != null && chkAutoR1Distribute.Checked ? "1" : "0"));
                 sb.AppendLine("StatorR1=" + (numEquivStatorR1 != null ? numEquivStatorR1.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0.125"));
@@ -3061,7 +3104,7 @@ namespace DynamometerHMI
                 if (map.ContainsKey("EquivCircuit.CachedFingerprint")) cachedEquivDrFingerprint = map["EquivCircuit.CachedFingerprint"];
                 if (map.ContainsKey("EquivCircuit.CachedMotorName")) cachedEquivMotorName = map["EquivCircuit.CachedMotorName"];
 
-                if (map.ContainsKey("EquivCircuit.NoLoadReady") && map["EquivCircuit.NoLoadReady"] == "1") isNoLoadDataReady = true;
+                if (map.ContainsKey("EquivCircuit.NoLoadReady")) isNoLoadDataReady = (map["EquivCircuit.NoLoadReady"] == "1");
                 if (map.ContainsKey("EquivCircuit.V0") && numEquivV0 != null) { decimal v0; if (decimal.TryParse(map["EquivCircuit.V0"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out v0)) numEquivV0.Value = v0; }
                 if (map.ContainsKey("EquivCircuit.I0") && numEquivI0 != null) { decimal i0; if (decimal.TryParse(map["EquivCircuit.I0"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out i0)) numEquivI0.Value = i0; }
                 if (map.ContainsKey("EquivCircuit.P0") && numEquivP0 != null) { decimal p0; if (decimal.TryParse(map["EquivCircuit.P0"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out p0)) numEquivP0.Value = p0; }
@@ -3069,7 +3112,7 @@ namespace DynamometerHMI
                 if (map.ContainsKey("EquivCircuit.N0") && numEquivN0 != null) { decimal n0; if (decimal.TryParse(map["EquivCircuit.N0"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out n0)) numEquivN0.Value = n0; }
                 if (map.ContainsKey("EquivCircuit.F0") && numEquivF0 != null) { decimal f0; if (decimal.TryParse(map["EquivCircuit.F0"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out f0)) numEquivF0.Value = f0; }
 
-                if (map.ContainsKey("EquivCircuit.RatedReady") && map["EquivCircuit.RatedReady"] == "1") isRatedDataReady = true;
+                if (map.ContainsKey("EquivCircuit.RatedReady")) isRatedDataReady = (map["EquivCircuit.RatedReady"] == "1");
                 if (map.ContainsKey("EquivCircuit.Tn") && numEquivTn != null) { decimal tn; if (decimal.TryParse(map["EquivCircuit.Tn"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out tn)) numEquivTn.Value = tn; }
                 if (map.ContainsKey("EquivCircuit.Nn") && numEquivNn != null) { decimal nn; if (decimal.TryParse(map["EquivCircuit.Nn"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out nn)) numEquivNn.Value = nn; }
                 if (map.ContainsKey("EquivCircuit.Vn") && numEquivVn != null) { decimal vn; if (decimal.TryParse(map["EquivCircuit.Vn"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out vn)) numEquivVn.Value = vn; }
@@ -3078,7 +3121,7 @@ namespace DynamometerHMI
                 if (map.ContainsKey("EquivCircuit.Pfn") && numEquivPfn != null) { decimal pfn; if (decimal.TryParse(map["EquivCircuit.Pfn"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out pfn)) numEquivPfn.Value = pfn; }
                 if (map.ContainsKey("EquivCircuit.Slip") && numEquivSlip != null) { decimal slip; if (decimal.TryParse(map["EquivCircuit.Slip"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out slip)) numEquivSlip.Value = slip; }
 
-                if (map.ContainsKey("EquivCircuit.LockedReady") && map["EquivCircuit.LockedReady"] == "1") isLockedDataReady = true;
+                if (map.ContainsKey("EquivCircuit.LockedReady")) isLockedDataReady = (map["EquivCircuit.LockedReady"] == "1");
                 if (map.ContainsKey("EquivCircuit.Vk") && numEquivVk != null) { decimal vk; if (decimal.TryParse(map["EquivCircuit.Vk"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out vk)) numEquivVk.Value = vk; }
                 if (map.ContainsKey("EquivCircuit.Ik") && numEquivIk != null) { decimal ik; if (decimal.TryParse(map["EquivCircuit.Ik"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out ik)) numEquivIk.Value = ik; }
                 if (map.ContainsKey("EquivCircuit.Pk") && numEquivPk != null) { decimal pk; if (decimal.TryParse(map["EquivCircuit.Pk"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out pk)) numEquivPk.Value = pk; }
@@ -3088,20 +3131,44 @@ namespace DynamometerHMI
                 if (map.ContainsKey("EquivCircuit.StatorR1") && numEquivStatorR1 != null) { decimal r1; if (decimal.TryParse(map["EquivCircuit.StatorR1"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out r1)) numEquivStatorR1.Value = r1; }
 
                 // 更新狀態標籤
-                if (isNoLoadDataReady && lblNoLoadItemStatus != null)
+                if (lblNoLoadItemStatus != null)
                 {
-                    lblNoLoadItemStatus.Text = "[O] 已載入記憶空載數據";
-                    lblNoLoadItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
+                    if (isNoLoadDataReady)
+                    {
+                        lblNoLoadItemStatus.Text = "[O] 已載入記憶空載數據";
+                        lblNoLoadItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
+                    }
+                    else
+                    {
+                        lblNoLoadItemStatus.Text = "[--] 待採樣 (可從空載測試載入或即時抓取)";
+                        lblNoLoadItemStatus.ForeColor = Color.FromArgb(100, 116, 139);
+                    }
                 }
-                if (isRatedDataReady && lblRatedItemStatus != null)
+                if (lblRatedItemStatus != null)
                 {
-                    lblRatedItemStatus.Text = "[O] 已載入記憶額定數據";
-                    lblRatedItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
+                    if (isRatedDataReady)
+                    {
+                        lblRatedItemStatus.Text = "[O] 已載入記憶額定數據";
+                        lblRatedItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
+                    }
+                    else
+                    {
+                        lblRatedItemStatus.Text = "[--] 待採樣 (可從 T-N 額定點載入或即時抓取)";
+                        lblRatedItemStatus.ForeColor = Color.FromArgb(100, 116, 139);
+                    }
                 }
-                if (isLockedDataReady && lblLockedItemStatus != null)
+                if (lblLockedItemStatus != null)
                 {
-                    lblLockedItemStatus.Text = "[O] 已載入記憶堵轉數據";
-                    lblLockedItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
+                    if (isLockedDataReady)
+                    {
+                        lblLockedItemStatus.Text = "[O] 已載入記憶堵轉數據";
+                        lblLockedItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
+                    }
+                    else
+                    {
+                        lblLockedItemStatus.Text = "[--] 待採樣 (請先降低 uf09 並鎖定轉子)";
+                        lblLockedItemStatus.ForeColor = Color.FromArgb(100, 116, 139);
+                    }
                 }
                 RefreshEquivMotorStatus();
             }
