@@ -760,6 +760,60 @@ namespace DynamometerHMI
             return rawRu03 * adoptedScale;
         }
 
+        /// <summary>
+        /// KEB COMBIVERT F5 uF.00 (0x0500) 額定頻率智能換算：
+        /// KEB F5 速度範圍標準化系統：
+        ///  - 8000 rpm 速度範圍 (B載台待測端)：Scale = 0.025 Hz (1 Hz = 40 units, 例如 51.5 Hz 儲存為 2060, 2060 * 0.025 = 51.50 Hz)
+        ///  - 4000 rpm 速度範圍 (A載台加載機)：Scale = 0.0125 Hz (1 Hz = 80 units, 例如 51.5 Hz 儲存為 4120, 4120 * 0.0125 = 51.50 Hz)
+        ///  - 擴展高解析度模式：Scale = 0.0001 Hz (raw >= 100000)
+        /// 徹底根治因誤用 0.0001 Scale 導致 2060 被誤算為 0.206 Hz (顯示 0.21 Hz) 的缺陷！
+        /// </summary>
+        public static double ConvertKebUf00ToFrequency(int rawUf00, int driveId)
+        {
+            if (rawUf00 <= 0) return 0.0;
+            double raw = (double)rawUf00;
+
+            // 1. 高解析度擴展模式判別 (例如 raw = 515,000 代表 51.5000 Hz)
+            if (raw >= 100000)
+            {
+                return raw * 0.0001;
+            }
+
+            // 2. KEB F5 速度範圍標準化模式 (B載台待測預設 0.025 Hz, A載台加載預設 0.0125 Hz)
+            double stdScale = (driveId == 1) ? 0.0125 : 0.025;
+            double stdVal = raw * stdScale;
+            if (stdVal >= 5.0 && stdVal <= 400.0)
+            {
+                return stdVal;
+            }
+
+            // 3. 備援判定：B載台 0.025 候選 (2060 * 0.025 = 51.5 Hz)
+            if (raw * 0.025 >= 5.0 && raw * 0.025 <= 400.0)
+            {
+                return raw * 0.025;
+            }
+
+            // 4. 備援判定：A載台 0.0125 候選 (4120 * 0.0125 = 51.5 Hz)
+            if (raw * 0.0125 >= 5.0 && raw * 0.0125 <= 400.0)
+            {
+                return raw * 0.0125;
+            }
+
+            // 5. 備援判定：若為 0.1 Hz 單位 (515 * 0.1 = 51.5 Hz)
+            if (raw >= 100 && raw <= 4000 && (raw * 0.1 >= 5.0 && raw * 0.1 <= 400.0))
+            {
+                return raw * 0.1;
+            }
+
+            // 6. 備援判定：若為整數 Hz (50 或 51 或 52)
+            if (raw >= 10.0 && raw <= 400.0)
+            {
+                return raw;
+            }
+
+            return raw * stdScale;
+        }
+
         private bool EnsureHmiKebOpen1()
         {
             if (isHmiKebOpen1) return true;
@@ -2053,6 +2107,11 @@ namespace DynamometerHMI
                                 {
                                     gridUpdates.Add(Tuple.Create(r, string.Format("{0:F2} Hz", Math.Abs(kebFrequency1)), Color.FromArgb(15, 23, 42)));
                                 }
+                                else if (item.Address == 0x0500)
+                                {
+                                    double ufVal = ConvertKebUf00ToFrequency(val.Value, 1);
+                                    gridUpdates.Add(Tuple.Create(r, string.Format("{0:F2} Hz", ufVal), Color.FromArgb(15, 23, 42)));
+                                }
                                 else
                                 {
                                     double scale = (item.Address == 0x0034) ? 1.0 : item.Scale;
@@ -2261,6 +2320,11 @@ namespace DynamometerHMI
                                 if (item.Address == 0x0203)
                                 {
                                     gridUpdates.Add(Tuple.Create(r, string.Format("{0:F2} Hz", Math.Abs(kebFrequency2)), Color.FromArgb(15, 23, 42)));
+                                }
+                                else if (item.Address == 0x0500)
+                                {
+                                    double ufVal = ConvertKebUf00ToFrequency(val.Value, 2);
+                                    gridUpdates.Add(Tuple.Create(r, string.Format("{0:F2} Hz", ufVal), Color.FromArgb(15, 23, 42)));
                                 }
                                 else
                                 {

@@ -1565,9 +1565,7 @@ namespace DynamometerHMI
                 double ufFreq = 0.0;
                 if (r_uf00.HasValue)
                 {
-                    if (r_uf00.Value >= 10000) ufFreq = r_uf00.Value * 0.0001;
-                    else if (r_uf00.Value >= 200) ufFreq = r_uf00.Value * 0.1;
-                    else ufFreq = r_uf00.Value;
+                    ufFreq = ConvertKebUf00ToFrequency(r_uf00.Value, node);
                 }
 
                 double drVolt = r_dr02.HasValue ? r_dr02.Value : 0.0;

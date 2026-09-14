@@ -2541,7 +2541,7 @@ namespace DynamometerHMI
                                     bool isNode = (parts.Length >= 8) ? (parts[6] == "1") : (name.Contains("站號"));
                                     if (addr == 0x0F13 || addr == 0x0231) continue;
                                     if (addr == 0x0F12 && scale == 0.01) { scale = 0.1; unit = "%"; }
-                                    if (addr == 0x0203 && (scale == 0.0001 || scale == 0.01)) { scale = 0.0125; }
+                                    if ((addr == 0x0203 || addr == 0x0500) && (scale == 0.0001 || scale == 0.01)) { scale = 0.0125; }
                                     list1.Add(new KebMonitorItem(name, addr, scale, unit, isHex, isStatus, isNode));
                                 }
                             }
@@ -2583,7 +2583,7 @@ namespace DynamometerHMI
                                     bool isNode = (parts.Length >= 8) ? (parts[6] == "1") : (name.Contains("站號"));
                                     if (addr == 0x0F13 || addr == 0x0231) continue;
                                     if (addr == 0x0F12 && scale == 0.01) { scale = 0.1; unit = "%"; }
-                                    if (addr == 0x0203 && (scale == 0.0001 || scale == 0.01)) { scale = 0.025; }
+                                    if ((addr == 0x0203 || addr == 0x0500) && (scale == 0.0001 || scale == 0.01)) { scale = 0.025; }
                                     list2.Add(new KebMonitorItem(name, addr, scale, unit, isHex, isStatus, isNode));
                                 }
                             }
@@ -3126,7 +3126,7 @@ namespace DynamometerHMI
                 new { Title = "【dr.18】弱磁轉速設定 (0x0412 / 1.0 rpm)",        Name = "弱磁轉速 (dr18)", Addr = "0412", Scale = "1.0",    Unit = "rpm", IsHex = false, IsStatus = false },
 
                 // --- 【uF 曲線群組 (依據 Combivis 實機校驗)】 ---
-                new { Title = "【uF.00】額定頻率 (0x0500 / 0.0001 Hz)",          Name = "額定頻率 (uF00)", Addr = "0500", Scale = "0.0001", Unit = "Hz",  IsHex = false, IsStatus = false },
+                new { Title = "【uF.00】額定頻率 (0x0500 / 0.025 Hz)",           Name = "額定頻率 (uF00)", Addr = "0500", Scale = "0.025",  Unit = "Hz",  IsHex = false, IsStatus = false },
                 new { Title = "【uF.01】轉矩提升 (0x0501 / 0.1 %)",              Name = "轉矩提升 (uF01)", Addr = "0501", Scale = "0.1",    Unit = "%",   IsHex = false, IsStatus = false },
                 new { Title = "【uF.09】電壓穩定 (0x0509 / 1.0 V)",              Name = "電壓穩定 (uF09)", Addr = "0509", Scale = "1.0",    Unit = "V",   IsHex = false, IsStatus = false },
                 new { Title = "【uF.11】載波頻率 (0x050B / 1.0 kHz)",            Name = "載波頻率 (uF11)", Addr = "050B", Scale = "1.0",    Unit = "kHz", IsHex = false, IsStatus = false },
