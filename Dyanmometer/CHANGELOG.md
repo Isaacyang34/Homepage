@@ -14,7 +14,25 @@
 
 ---
 
+## [V2.103 beta / v2.10.61] - 2026-09-14
+
+### 修復：等效電路工具列三顆按鈕因 Emoji 導致 GDI+ 文字完全消失 (按鈕呈現純色塊)
+
+### 現象與佐證
+- **使用者回報**：等效電路頁面下方成果工具列右上角出現一個「純綠色色塊」，看不到任何文字，不知道是什麼功能。
+- **根本根因 (Root Cause)**：`Dynamometer_TestEquivCircuit.cs` 的 `CreateResultsSection()` 中，`btnEquivCalculate.Text = "🚀 計算等效電路參數"`、`btnEquivExportCsv.Text = "📊 匯出 CSV"`、`btnEquivCopyResults.Text = "📋 複製參數"` 三顆按鈕均含有 U+1F000 以上的 Emoji 符號。WinForms + .NET 4.0 + GDI+ 在 Windows XP 環境下，Button 控制項遇到 Emoji 字元時會觸發 GDI+ 字型 fallback 失敗，導致**整行 Text 完全不渲染，按鈕只顯示 BackColor 背景色**，即使不報任何錯誤亦然。
+
+### 精確修復方案
+1. `btnEquivCalculate.Text`：`"🚀 計算等效電路參數"` → `"計算等效電路參數"`
+2. `btnEquivExportCsv.Text`：`"📊 匯出 CSV"` → `"匯出 CSV"`
+3. `btnEquivCopyResults.Text`：`"📋 複製參數"` → `"複製參數"`
+4. 同步新增 GEMINI.md **Rule 9：WinForms .NET 4.0 GDI+ Emoji 完全禁用鐵律**，永久固化為全案最高強制規範，防止同類問題再次發生。
+5. 版本升級至 `2.10.61`，完成打包與雙分支同動推送。
+
+---
+
 ## [V2.102 beta / v2.10.60] - 2026-09-14
+
 
 ### 🎯 現象與佐證 (Verbatim Excerpts & Requirements)
 1. **使用者實測回報與截圖反映**：
