@@ -2543,6 +2543,7 @@ namespace DynamometerHMI
                                     if (addr == 0x0F12 && scale == 0.01) { scale = 0.1; unit = "%"; }
                                     if (addr == 0x0203 && (scale == 0.0001 || scale == 0.01)) { scale = 0.0125; }
                                     if (addr == 0x0500) { scale = 0.025; }
+                                    if (addr >= 0x0400 && addr <= 0x0418 && (name.Contains("dr") || name.Contains("額定") || name.Contains("馬達"))) { addr = 0x0600 + (addr - 0x0400); }
                                     list1.Add(new KebMonitorItem(name, addr, scale, unit, isHex, isStatus, isNode));
                                 }
                             }
@@ -2586,6 +2587,7 @@ namespace DynamometerHMI
                                     if (addr == 0x0F12 && scale == 0.01) { scale = 0.1; unit = "%"; }
                                     if (addr == 0x0203 && (scale == 0.0001 || scale == 0.01)) { scale = 0.025; }
                                     if (addr == 0x0500) { scale = 0.025; }
+                                    if (addr >= 0x0400 && addr <= 0x0418 && (name.Contains("dr") || name.Contains("額定") || name.Contains("馬達"))) { addr = 0x0600 + (addr - 0x0400); }
                                     list2.Add(new KebMonitorItem(name, addr, scale, unit, isHex, isStatus, isNode));
                                 }
                             }

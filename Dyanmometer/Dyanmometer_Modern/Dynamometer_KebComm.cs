@@ -833,10 +833,16 @@ namespace DynamometerHMI
                 return raw;
             }
 
-            // 3. 一般介於 10~400 Hz 範圍
-            if (raw >= 10.0 && raw <= 400.0)
+            // 3. 一般合理工業頻率介於 20~400 Hz 範圍
+            if (raw >= 20.0 && raw <= 400.0)
             {
                 return raw;
+            }
+
+            // 4. 異常防禦：若 raw < 20 (例如誤讀到無關參數 6)，馬達額定基頻絕不可能為 0.6 Hz
+            if (raw < 20.0)
+            {
+                return 0.0;
             }
 
             return raw * 0.1;
@@ -2066,19 +2072,26 @@ namespace DynamometerHMI
                             continue;
                         }
 
-                        int? val = KebReadParamWithDll(comIdx, baudIdx, addr, item.Address);
-                        // KEB F5 dr 銘牌參數雙向相容探測 (0x0600~0x0618 與 0x0400~0x0418)
-                        if ((!val.HasValue || val.Value == 0) && item.Address >= 0x0400 && item.Address <= 0x0418)
+                        int? val = null;
+                        if (item.Address >= 0x0400 && item.Address <= 0x0418)
                         {
-                            int altAddr = 0x0600 + (item.Address - 0x0400);
-                            val = KebReadParamWithDll(comIdx, baudIdx, addr, altAddr, 0) ??
-                                  KebReadParamWithDll(comIdx, baudIdx, addr, altAddr, 1) ?? val;
+                            // 實機 KEB F5 dr 銘牌參數實際位於 0x0600+，一律優先讀取 0x0600+！
+                            int realAddr = 0x0600 + (item.Address - 0x0400);
+                            val = KebReadParamWithDll(comIdx, baudIdx, addr, realAddr, 0) ??
+                                  KebReadParamWithDll(comIdx, baudIdx, addr, realAddr, 1) ??
+                                  KebReadParamWithDll(comIdx, baudIdx, addr, item.Address, 0) ??
+                                  KebReadParamWithDll(comIdx, baudIdx, addr, item.Address, 1);
                         }
-                        else if ((!val.HasValue || val.Value == 0) && item.Address >= 0x0600 && item.Address <= 0x0618)
+                        else if (item.Address >= 0x0600 && item.Address <= 0x0618)
                         {
-                            int altAddr = 0x0400 + (item.Address - 0x0600);
-                            val = KebReadParamWithDll(comIdx, baudIdx, addr, altAddr, 0) ??
-                                  KebReadParamWithDll(comIdx, baudIdx, addr, altAddr, 1) ?? val;
+                            val = KebReadParamWithDll(comIdx, baudIdx, addr, item.Address, 0) ??
+                                  KebReadParamWithDll(comIdx, baudIdx, addr, item.Address, 1) ??
+                                  KebReadParamWithDll(comIdx, baudIdx, addr, item.Address - 0x0200, 0) ??
+                                  KebReadParamWithDll(comIdx, baudIdx, addr, item.Address - 0x0200, 1);
+                        }
+                        else
+                        {
+                            val = KebReadParamWithDll(comIdx, baudIdx, addr, item.Address);
                         }
 
                         if (val.HasValue)
@@ -2299,19 +2312,26 @@ namespace DynamometerHMI
                             continue;
                         }
 
-                        int? val = KebReadParamWithDll(comIdx, baudIdx, addr, item.Address);
-                        // KEB F5 dr 銘牌參數雙向相容探測 (0x0600~0x0618 與 0x0400~0x0418)
-                        if ((!val.HasValue || val.Value == 0) && item.Address >= 0x0400 && item.Address <= 0x0418)
+                        int? val = null;
+                        if (item.Address >= 0x0400 && item.Address <= 0x0418)
                         {
-                            int altAddr = 0x0600 + (item.Address - 0x0400);
-                            val = KebReadParamWithDll(comIdx, baudIdx, addr, altAddr, 0) ??
-                                  KebReadParamWithDll(comIdx, baudIdx, addr, altAddr, 1) ?? val;
+                            // 實機 KEB F5 dr 銘牌參數實際位於 0x0600+，一律優先讀取 0x0600+！
+                            int realAddr = 0x0600 + (item.Address - 0x0400);
+                            val = KebReadParamWithDll(comIdx, baudIdx, addr, realAddr, 0) ??
+                                  KebReadParamWithDll(comIdx, baudIdx, addr, realAddr, 1) ??
+                                  KebReadParamWithDll(comIdx, baudIdx, addr, item.Address, 0) ??
+                                  KebReadParamWithDll(comIdx, baudIdx, addr, item.Address, 1);
                         }
-                        else if ((!val.HasValue || val.Value == 0) && item.Address >= 0x0600 && item.Address <= 0x0618)
+                        else if (item.Address >= 0x0600 && item.Address <= 0x0618)
                         {
-                            int altAddr = 0x0400 + (item.Address - 0x0600);
-                            val = KebReadParamWithDll(comIdx, baudIdx, addr, altAddr, 0) ??
-                                  KebReadParamWithDll(comIdx, baudIdx, addr, altAddr, 1) ?? val;
+                            val = KebReadParamWithDll(comIdx, baudIdx, addr, item.Address, 0) ??
+                                  KebReadParamWithDll(comIdx, baudIdx, addr, item.Address, 1) ??
+                                  KebReadParamWithDll(comIdx, baudIdx, addr, item.Address - 0x0200, 0) ??
+                                  KebReadParamWithDll(comIdx, baudIdx, addr, item.Address - 0x0200, 1);
+                        }
+                        else
+                        {
+                            val = KebReadParamWithDll(comIdx, baudIdx, addr, item.Address);
                         }
 
                         if (val.HasValue)
