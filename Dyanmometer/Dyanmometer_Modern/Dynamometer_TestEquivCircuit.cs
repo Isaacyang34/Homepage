@@ -61,6 +61,23 @@ namespace DynamometerHMI
         private NumericUpDown numEquivPfk;
         private Button btnEquivCaptureLiveLocked;
         private bool isLockedDataReady = false;
+        private ComboBox cmbEquivLockedFreq;       // 測試頻率選擇 (額定 / 1/2額定 / 1/4額定)
+        private Button btnEquivAutoTuneUf09;       // 🤖 自適應追隨額定電流按鈕
+        private Button btnEquivLockedStop;         // 🛑 堵轉緊急停機按鈕
+        private Label lblLockedProtStatus;         // 🛡️ 保護監控與閾值狀態指示
+        private System.Windows.Forms.Timer tmrLockedWatchdog; // 堵轉看門狗與自適應調壓定時器
+        private bool isLockedRotorActive = false;
+        private int lockedOverCurrentTicks = 0;
+        private int lockedSpeedAnomalyTicks = 0;
+        private bool isAutoTuningUf09 = false;
+        private int autoTuneStage = 0;             // 0:Idle, 1:Probe(5步1V), 2:HalfStep(1/2增量), 3:Verify, 4:BestFit(最小步階逼近)
+        private int autoTuneProbeIndex = 0;
+        private int autoTuneCurV = 10;
+        private double autoTuneSlope = 0.5;
+        private int autoTuneBestV = 10;
+        private double autoTuneBestDiff = 9999.0;
+        private int autoTuneTickCount = 0;
+        private List<KeyValuePair<int, double>> autoTuneHistory = new List<KeyValuePair<int, double>>();
         private int originalUf09Val = 260; // 記錄原始 uf09 數值以供安全復歸
 
         // 等效電路計算與結果呈現控制項
@@ -193,7 +210,7 @@ namespace DynamometerHMI
             TableLayoutPanel tlpCards = new TableLayoutPanel()
             {
                 Dock = DockStyle.Top,
-                Height = 350,
+                Height = 400,
                 ColumnCount = 3,
                 RowCount = 1,
                 Margin = new Padding(0, 8, 0, 8)
@@ -220,6 +237,15 @@ namespace DynamometerHMI
             pnlMainScroll.Controls.Add(pnlTopBar);
 
             tab.Controls.Add(pnlMainScroll);
+
+            // 啟動堵轉測試看門狗與自適應調壓定時器
+            if (tmrLockedWatchdog == null)
+            {
+                tmrLockedWatchdog = new System.Windows.Forms.Timer();
+                tmrLockedWatchdog.Interval = 500;
+                tmrLockedWatchdog.Tick += TmrLockedWatchdog_Tick;
+                tmrLockedWatchdog.Start();
+            }
         }
 
         #endregion
@@ -456,14 +482,14 @@ namespace DynamometerHMI
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
-                RowCount = 9
+                RowCount = 12
             };
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 48f));
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 52f));
 
             Label lblTitle = new Label()
             {
-                Text = "3. 堵轉測試數據 (KEB uf09 降壓)",
+                Text = "3. 堵轉測試數據 (多頻試驗與自適應調壓)",
                 Font = new Font("微軟正黑體", 11f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(180, 83, 9),
                 Dock = DockStyle.Fill,
@@ -474,7 +500,7 @@ namespace DynamometerHMI
 
             lblLockedItemStatus = new Label()
             {
-                Text = "⚪ 待採樣 (請先降低 uf09 並鎖定轉子)",
+                Text = "⚪ 待採樣 (請先鎖死轉子並啟動自適應調壓)",
                 Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(100, 116, 139),
                 Dock = DockStyle.Fill,
@@ -482,6 +508,46 @@ namespace DynamometerHMI
             };
             tlp.SetColumnSpan(lblLockedItemStatus, 2);
             tlp.Controls.Add(lblLockedItemStatus, 0, 1);
+
+            // 測試頻率選擇行
+            TableLayoutPanel tlpFreq = new TableLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount = 1
+            };
+            tlpFreq.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35f));
+            tlpFreq.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 65f));
+
+            Label lblFreqTitle = new Label()
+            {
+                Text = "試驗頻率:",
+                Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(71, 85, 105),
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleRight
+            };
+
+            cmbEquivLockedFreq = new ComboBox()
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Dock = DockStyle.Fill,
+                Font = new Font("微軟正黑體", 8.5f)
+            };
+            cmbEquivLockedFreq.Items.AddRange(new object[] {
+                "額定頻率 (50/60 Hz) [1.0x]",
+                "1/2 額定頻率 (25/30 Hz) [0.5x, 推薦]",
+                "1/4 額定頻率 (12.5/15 Hz) [0.25x]"
+            });
+            cmbEquivLockedFreq.SelectedIndex = 1; // 預設 1/2 頻率 (IEEE 112 推薦)
+            cmbEquivLockedFreq.SelectedIndexChanged += (s, e) => {
+                WriteHmiLog("EQUIV", string.Format("【等效電路】切換堵轉試驗頻率模式為: {0}", cmbEquivLockedFreq.SelectedItem));
+            };
+
+            tlpFreq.Controls.Add(lblFreqTitle, 0, 0);
+            tlpFreq.Controls.Add(cmbEquivLockedFreq, 1, 0);
+            tlp.SetColumnSpan(tlpFreq, 2);
+            tlp.Controls.Add(tlpFreq, 0, 2);
 
             // KEB uf09 調控行 1: 選擇載台與讀取當前電壓
             TableLayoutPanel tlpUfCtrl1 = new TableLayoutPanel()
@@ -526,32 +592,32 @@ namespace DynamometerHMI
             tlpUfCtrl1.Controls.Add(btnEquivReadUf09, 2, 0);
 
             tlp.SetColumnSpan(tlpUfCtrl1, 2);
-            tlp.Controls.Add(tlpUfCtrl1, 0, 2);
+            tlp.Controls.Add(tlpUfCtrl1, 0, 3);
 
-            // KEB uf09 調控行 2: 目標電壓設定與寫入/復歸按鈕
+            // KEB uf09 調控行 2: 目標電壓手動寫入與自動自適應微調
             TableLayoutPanel tlpUfCtrl2 = new TableLayoutPanel()
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 3,
                 RowCount = 1
             };
-            tlpUfCtrl2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38f));
-            tlpUfCtrl2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 34f));
             tlpUfCtrl2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28f));
+            tlpUfCtrl2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32f));
+            tlpUfCtrl2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40f));
 
             numEquivTargetUf09 = new NumericUpDown()
             {
-                Minimum = 10,
+                Minimum = 5,
                 Maximum = 260,
-                Value = 50,
-                Increment = 5,
+                Value = 35,
+                Increment = 1,
                 Dock = DockStyle.Fill,
-                Font = new Font("Consolas", 10f, FontStyle.Bold)
+                Font = new Font("Consolas", 9.5f, FontStyle.Bold)
             };
 
             btnEquivWriteUf09 = new Button()
             {
-                Text = "⚡ 寫入目標",
+                Text = "⚡ 手動寫入",
                 Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold),
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(254, 243, 199),
@@ -560,6 +626,69 @@ namespace DynamometerHMI
             };
             btnEquivWriteUf09.FlatAppearance.BorderColor = Color.FromArgb(252, 211, 77);
             btnEquivWriteUf09.Click += (s, e) => WriteTargetUf09ToHardware();
+
+            btnEquivAutoTuneUf09 = new Button()
+            {
+                Text = "🤖 自適應追隨額定流",
+                Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold),
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(238, 242, 255),
+                ForeColor = Color.FromArgb(79, 70, 229),
+                FlatStyle = FlatStyle.Flat
+            };
+            btnEquivAutoTuneUf09.FlatAppearance.BorderColor = Color.FromArgb(199, 210, 254);
+            btnEquivAutoTuneUf09.Click += (s, e) => ToggleAutoTuneUf09();
+
+            tlpUfCtrl2.Controls.Add(numEquivTargetUf09, 0, 0);
+            tlpUfCtrl2.Controls.Add(btnEquivWriteUf09, 1, 0);
+            tlpUfCtrl2.Controls.Add(btnEquivAutoTuneUf09, 2, 0);
+
+            tlp.SetColumnSpan(tlpUfCtrl2, 2);
+            tlp.Controls.Add(tlpUfCtrl2, 0, 4);
+
+            // 即時保護狀態指示橫條
+            lblLockedProtStatus = new Label()
+            {
+                Text = "🛡️ 實時防護: 監控中 (電流閥值: 110% IN / 10s | 轉速: 5 rpm / 3s)",
+                Font = new Font("微軟正黑體", 8f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(16, 185, 129),
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                BackColor = Color.FromArgb(248, 250, 252),
+                Padding = new Padding(4, 2, 4, 2)
+            };
+            tlp.SetColumnSpan(lblLockedProtStatus, 2);
+            tlp.Controls.Add(lblLockedProtStatus, 0, 5);
+
+            // 堵轉實測數據列
+            numEquivVk = AddCardField(tlp, 6, "堵轉電壓 Vk (V):", 52.0m, 1, 0, 500);
+            numEquivIk = AddCardField(tlp, 7, "堵轉電流 Ik (A):", 32.5m, 2, 0, 500);
+            numEquivPk = AddCardField(tlp, 8, "堵轉功率 Pk (W):", 850.0m, 1, 0, 50000);
+            numEquivPfk = AddCardField(tlp, 9, "堵轉因數 PFk:", 0.29m, 3, 0, 1);
+
+            // 操作按鈕行 (三鍵式: 擷取 / 復歸 / 緊急停機)
+            TableLayoutPanel tlpBtnsLocked = new TableLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 3,
+                RowCount = 1,
+                Margin = new Padding(0, 4, 0, 0)
+            };
+            tlpBtnsLocked.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42f));
+            tlpBtnsLocked.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28f));
+            tlpBtnsLocked.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30f));
+
+            btnEquivCaptureLiveLocked = new Button()
+            {
+                Text = "📸 擷取即時數據",
+                Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(254, 243, 199),
+                ForeColor = Color.FromArgb(180, 83, 9),
+                FlatStyle = FlatStyle.Flat
+            };
+            btnEquivCaptureLiveLocked.FlatAppearance.BorderColor = Color.FromArgb(252, 211, 77);
+            btnEquivCaptureLiveLocked.Click += (s, e) => CaptureLiveLockedData();
 
             btnEquivRevertUf09 = new Button()
             {
@@ -570,35 +699,26 @@ namespace DynamometerHMI
             };
             btnEquivRevertUf09.Click += (s, e) => RevertUf09ToDefault();
 
-            tlpUfCtrl2.Controls.Add(numEquivTargetUf09, 0, 0);
-            tlpUfCtrl2.Controls.Add(btnEquivWriteUf09, 1, 0);
-            tlpUfCtrl2.Controls.Add(btnEquivRevertUf09, 2, 0);
-
-            tlp.SetColumnSpan(tlpUfCtrl2, 2);
-            tlp.Controls.Add(tlpUfCtrl2, 0, 3);
-
-            // 堵轉實測數據列
-            numEquivVk = AddCardField(tlp, 4, "堵轉電壓 Vk (V):", 52.0m, 1, 0, 500);
-            numEquivIk = AddCardField(tlp, 5, "堵轉電流 Ik (A):", 32.5m, 2, 0, 500);
-            numEquivPk = AddCardField(tlp, 6, "堵轉功率 Pk (W):", 850.0m, 1, 0, 50000);
-            numEquivPfk = AddCardField(tlp, 7, "堵轉因數 PFk:", 0.29m, 3, 0, 1);
-
-            // 操作按鈕行
-            btnEquivCaptureLiveLocked = new Button()
+            btnEquivLockedStop = new Button()
             {
-                Text = "⚡ 擷取當前堵轉數據 (鎖定採樣)",
-                Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
+                Text = "🛑 緊急停機",
+                Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold),
                 Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(254, 243, 199),
-                ForeColor = Color.FromArgb(180, 83, 9),
-                FlatStyle = FlatStyle.Flat,
-                Margin = new Padding(0, 6, 0, 0)
+                BackColor = Color.FromArgb(254, 242, 242),
+                ForeColor = Color.FromArgb(220, 38, 38),
+                FlatStyle = FlatStyle.Flat
             };
-            btnEquivCaptureLiveLocked.FlatAppearance.BorderColor = Color.FromArgb(252, 211, 77);
-            btnEquivCaptureLiveLocked.Click += (s, e) => CaptureLiveLockedData();
+            btnEquivLockedStop.FlatAppearance.BorderColor = Color.FromArgb(254, 202, 202);
+            btnEquivLockedStop.Click += (s, e) => {
+                TriggerLockedProtectionTrip("使用者手動點擊緊急停止", "操作者於等效電路堵轉面板主動點擊【🛑 緊急停機】按鈕。");
+            };
 
-            tlp.SetColumnSpan(btnEquivCaptureLiveLocked, 2);
-            tlp.Controls.Add(btnEquivCaptureLiveLocked, 0, 8);
+            tlpBtnsLocked.Controls.Add(btnEquivCaptureLiveLocked, 0, 0);
+            tlpBtnsLocked.Controls.Add(btnEquivRevertUf09, 1, 0);
+            tlpBtnsLocked.Controls.Add(btnEquivLockedStop, 2, 0);
+
+            tlp.SetColumnSpan(tlpBtnsLocked, 2);
+            tlp.Controls.Add(tlpBtnsLocked, 0, 10);
 
             card.Controls.Add(tlp);
             return card;
@@ -1250,6 +1370,437 @@ namespace DynamometerHMI
             }
         }
 
+        // ── 堵轉保護機制與自適應 uf09 調控核心 ──────────────────────────
+
+        private void ToggleAutoTuneUf09()
+        {
+            if (isAutoTuningUf09)
+            {
+                // 停止自動調壓
+                isAutoTuningUf09 = false;
+                btnEquivAutoTuneUf09.Text = "🤖 自適應追隨額定流";
+                btnEquivAutoTuneUf09.BackColor = Color.FromArgb(238, 242, 255);
+                lblLockedItemStatus.Text = "⚪ 自適應調壓已手動停止";
+                lblLockedItemStatus.ForeColor = Color.Gray;
+                WriteHmiLog("EQUIV", "【堵轉自適應調壓】使用者手動中止調壓程序。");
+                return;
+            }
+
+            try
+            {
+                double inRated = (double)numEquivIn.Value;
+                if (inRated <= 0.5)
+                {
+                    MessageBox.Show("請先確認卡片 2 中的「額定線流 IN」數值正確 (不可為 0)！", "參數提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // 檢查是否處於旋轉中 (保護：轉速 > 5 rpm 嚴禁啟動堵轉)
+                double actSpdVal = Math.Abs(actSpeed);
+                if (actSpdVal > 5.0)
+                {
+                    MessageBox.Show(string.Format("⚠️ 偵測到目前軸轉速為 {0:F0} rpm (大於 5 rpm)！\r\n\r\n進行堵轉測試前，必須使用專用機械夾具或定位治具將待測馬達「確實剛性鎖死」！", actSpdVal), "安全閉鎖·禁止啟動", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                int driveId = (cmbEquivKebDrive.SelectedIndex == 1) ? 1 : 2;
+                string dName = (driveId == 1) ? "A載台" : "B載台";
+
+                string confirmMsg = string.Format("【🤖 堵轉自適應自動調壓啟動確認】\r\n\r\n" +
+                    "• 待測目標載台: {0}\r\n" +
+                    "• 目標額定電流 IN: {1:F2} A\r\n" +
+                    "• 調控策略: 漸進探測斜率 (5步 1V) -> 1/2半幅阻尼逼近 -> 最小步階重合鎖定\r\n" +
+                    "• 內建雙防線: 電流超標 110% 限時 10s 緊急跳脫 / 轉速 > 5rpm 3s 治具防脫扣\r\n\r\n" +
+                    "※ 請確認馬達已確實機械鎖死！是否立即開始自動調壓？", dName, inRated);
+
+                if (MessageBox.Show(confirmMsg, "啟動自適應調壓", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                {
+                    return;
+                }
+
+                // 讀取當前 uf.09 或重置至安全起點
+                int? curVal = KebReadUf09(driveId);
+                if (curVal.HasValue) originalUf09Val = curVal.Value;
+                int startV = (curVal.HasValue && curVal.Value <= 20) ? curVal.Value : 12;
+                KebWriteUf09(driveId, startV);
+
+                // 初始化狀態機
+                isAutoTuningUf09 = true;
+                isLockedRotorActive = true;
+                autoTuneStage = 1;
+                autoTuneProbeIndex = 0;
+                autoTuneCurV = startV;
+                autoTuneSlope = 0.5;
+                autoTuneBestV = startV;
+                autoTuneBestDiff = 9999.0;
+                autoTuneTickCount = 0;
+                autoTuneHistory.Clear();
+                autoTuneHistory.Add(new KeyValuePair<int, double>(startV, 0.0));
+
+                lockedOverCurrentTicks = 0;
+                lockedSpeedAnomalyTicks = 0;
+
+                btnEquivAutoTuneUf09.Text = "⏹️ 停止自動調壓";
+                btnEquivAutoTuneUf09.BackColor = Color.FromArgb(254, 226, 226);
+                lblLockedItemStatus.Text = string.Format("🤖 自適應調壓中: 步階探測 (0/5)... 初始起點 {0}V", startV);
+                lblLockedItemStatus.ForeColor = Color.FromArgb(79, 70, 229);
+
+                WriteHmiLog("EQUIV", string.Format("【堵轉自適應調壓啟動】目標電流 IN={0:F2}A, 起始電壓={1}V, 載台={2}", inRated, startV, dName));
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("啟動自適應調壓失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void RunAutoTuneUf09Step()
+        {
+            if (!isAutoTuningUf09) return;
+
+            autoTuneTickCount++;
+            // 每 2 個 tick (1.0 秒) 執行一次調壓閉迴路計算，確保變頻器輸出與功率計電流已充分穩定
+            if (autoTuneTickCount % 2 != 0) return;
+
+            try
+            {
+                int driveId = (cmbEquivKebDrive.SelectedIndex == 1) ? 1 : 2;
+                double inRated = (double)numEquivIn.Value;
+                if (inRated <= 0.5) inRated = 32.3;
+
+                // 取得目前實測電流 (優先功率計三相平均/Sigma，備援 KEB dr.00)
+                double iCur = (actCurrentSigma > 0.05) ? actCurrentSigma : ((wtI1 + wtI2 + wtI3) / 3.0);
+                if (iCur <= 0.05 && lastB_Dr00.HasValue) iCur = (double)lastB_Dr00.Value;
+
+                // 記錄歷史
+                if (autoTuneHistory.Count > 0)
+                {
+                    int lastIdx = autoTuneHistory.Count - 1;
+                    autoTuneHistory[lastIdx] = new KeyValuePair<int, double>(autoTuneCurV, iCur);
+                }
+
+                double curDiff = Math.Abs(iCur - inRated);
+                if (curDiff < autoTuneBestDiff)
+                {
+                    autoTuneBestDiff = curDiff;
+                    autoTuneBestV = autoTuneCurV;
+                }
+
+                // ── 階段 1：5 步 1V 探測階段 (估測每 A/V 的關係) ──
+                if (autoTuneStage == 1)
+                {
+                    autoTuneProbeIndex++;
+                    if (autoTuneProbeIndex <= 5 && iCur < (inRated * 0.95))
+                    {
+                        autoTuneCurV += 1; // 每次 +1V
+                        KebWriteUf09(driveId, autoTuneCurV);
+                        autoTuneHistory.Add(new KeyValuePair<int, double>(autoTuneCurV, iCur));
+                        lblLockedItemStatus.Text = string.Format("🤖 步階斜率探測 ({0}/5): uf09={1}V, Ik={2:F2}A (目標 {3:F2}A)",
+                            autoTuneProbeIndex, autoTuneCurV, iCur, inRated);
+                        lblLockedItemStatus.ForeColor = Color.FromArgb(79, 70, 229);
+                        return;
+                    }
+                    else
+                    {
+                        // 探測 5 步完成或電流已接近額定，計算電流/電壓斜率 k = ΔI / ΔV
+                        if (autoTuneHistory.Count >= 2)
+                        {
+                            double dv = autoTuneHistory[autoTuneHistory.Count - 1].Key - autoTuneHistory[0].Key;
+                            double di = autoTuneHistory[autoTuneHistory.Count - 1].Value - autoTuneHistory[0].Value;
+                            if (dv > 0 && di > 0.05)
+                            {
+                                autoTuneSlope = di / dv;
+                            }
+                            else
+                            {
+                                autoTuneSlope = 0.6; // 經驗回退預設
+                            }
+                        }
+                        if (autoTuneSlope < 0.05) autoTuneSlope = 0.05;
+
+                        WriteHmiLog("EQUIV", string.Format("【自適應調壓·斜率探測完成】估算斜率 k = {0:F3} A/V (ΔV={1}V, ΔI={2:F2}A)",
+                            autoTuneSlope, autoTuneProbeIndex, iCur));
+
+                        autoTuneStage = 2; // 切入階段 2: 1/2 半幅預估
+                    }
+                }
+
+                // ── 階段 2：計算預期目標電壓並給予 1/2 預期增量 ──
+                if (autoTuneStage == 2)
+                {
+                    double deltaI_needed = inRated - iCur;
+                    double deltaV_pred = deltaI_needed / autoTuneSlope;
+
+                    // 給予 1/2 的預期電壓增量 (避免飽和或超調)
+                    int stepV = (int)Math.Round(0.5 * deltaV_pred);
+                    if (stepV == 0) stepV = (deltaI_needed > 0) ? 1 : -1;
+                    // 單步限幅：最大步幅 ±10V，防止巨幅衝擊
+                    stepV = Math.Max(-10, Math.Min(10, stepV));
+
+                    autoTuneCurV += stepV;
+                    autoTuneCurV = Math.Max(5, Math.Min(200, autoTuneCurV));
+                    KebWriteUf09(driveId, autoTuneCurV);
+
+                    lblLockedItemStatus.Text = string.Format("🤖 半幅阻尼逼近: 給予 1/2 預期增量({0:+0;-0}V) -> uf09={1}V, Ik={2:F2}A",
+                        stepV, autoTuneCurV, iCur);
+                    lblLockedItemStatus.ForeColor = Color.FromArgb(180, 83, 9);
+                    autoTuneStage = 3; // 進入階段 3: 驗算
+                    return;
+                }
+
+                // ── 階段 3：再度驗算實際是否如預期，修正斜率並再微調 ──
+                if (autoTuneStage == 3)
+                {
+                    // 驗算斜率響應
+                    if (autoTuneHistory.Count >= 2)
+                    {
+                        var lastPt = autoTuneHistory[autoTuneHistory.Count - 1];
+                        var prevPt = autoTuneHistory[autoTuneHistory.Count - 2];
+                        double dv = lastPt.Key - prevPt.Key;
+                        double di = lastPt.Value - prevPt.Value;
+                        if (Math.Abs(dv) >= 1 && Math.Abs(di) > 0.05)
+                        {
+                            double localSlope = di / dv;
+                            if (localSlope > 0.05 && localSlope < 5.0)
+                            {
+                                autoTuneSlope = (autoTuneSlope * 0.4) + (localSlope * 0.6); // 一階低通融合
+                            }
+                        }
+                    }
+
+                    // 檢查是否已收斂至容許帶 (±0.3A 或 1% 誤差)
+                    if (curDiff <= Math.Max(0.3, inRated * 0.01))
+                    {
+                        autoTuneStage = 4; // 進入收斂鎖定
+                    }
+                    else
+                    {
+                        double deltaI = inRated - iCur;
+                        int stepV = (int)Math.Round(0.5 * deltaI / autoTuneSlope);
+                        if (stepV == 0) stepV = (deltaI > 0) ? 1 : -1;
+                        stepV = Math.Max(-4, Math.Min(4, stepV));
+
+                        // 若已在 ±1V 間擺動 (無法精確重合)
+                        if (Math.Abs(stepV) <= 1 && autoTuneHistory.Count > 10)
+                        {
+                            autoTuneStage = 4; // 判定無法重合，進入最接近值抉擇
+                        }
+                        else
+                        {
+                            autoTuneCurV += stepV;
+                            autoTuneCurV = Math.Max(5, Math.Min(200, autoTuneCurV));
+                            KebWriteUf09(driveId, autoTuneCurV);
+                            autoTuneHistory.Add(new KeyValuePair<int, double>(autoTuneCurV, iCur));
+                            lblLockedItemStatus.Text = string.Format("🤖 斜率驗算微調: 給定 {0}V (步幅 {1:+0;-0}V), 實測 Ik={2:F2}A (目標 {3:F2}A)",
+                                autoTuneCurV, stepV, iCur, inRated);
+                            return;
+                        }
+                    }
+                }
+
+                // ── 階段 4：最小變化量 ±1V 無法重合時，依最接近數值決定並鎖定 ──
+                if (autoTuneStage == 4)
+                {
+                    // 鎖定最佳電壓
+                    if (autoTuneCurV != autoTuneBestV)
+                    {
+                        autoTuneCurV = autoTuneBestV;
+                        KebWriteUf09(driveId, autoTuneCurV);
+                    }
+
+                    isAutoTuningUf09 = false;
+                    btnEquivAutoTuneUf09.Text = "🤖 自適應追隨額定流";
+                    btnEquivAutoTuneUf09.BackColor = Color.FromArgb(238, 242, 255);
+
+                    // 自動執行即時堵轉數據採樣鎖定
+                    CaptureLiveLockedData();
+
+                    lblLockedItemStatus.Text = string.Format("🟢 調壓收斂完成: uf09={0}V, Ik={1:F2}A (最接近額定, 誤差 {2:F2}A)",
+                        autoTuneCurV, iCur, autoTuneBestDiff);
+                    lblLockedItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
+
+                    WriteHmiLog("LOCKED_AUTOTUNE", string.Format("【堵轉自適應調壓收斂成功】目標電流 IN={0:F2}A, 最佳輸出電壓 uf09={1}V, 實測電流 Ik={2:F2}A, 誤差={3:F2}A",
+                        inRated, autoTuneCurV, iCur, autoTuneBestDiff));
+
+                    MessageBox.Show(string.Format("🎉 堵轉電壓自適應調控成功收斂！\r\n\r\n" +
+                        "• 目標額定電流 IN = {0:F2} A\r\n" +
+                        "• 最佳收斂調壓 uf.09 = {1} V\r\n" +
+                        "• 實測堵轉電流 Ik = {2:F2} A\r\n" +
+                        "• 電流偏差 (最接近值) = ±{3:F2} A\r\n\r\n" +
+                        "堵轉電氣量已自動擷取鎖定，系統持續維持實時防護監控。",
+                        inRated, autoTuneCurV, iCur, autoTuneBestDiff),
+                        "調壓完成·數據已採樣", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                isAutoTuningUf09 = false;
+                btnEquivAutoTuneUf09.Text = "🤖 自適應追隨額定流";
+                btnEquivAutoTuneUf09.BackColor = Color.FromArgb(238, 242, 255);
+                WriteHmiLog("LOCKED_ERR", "RunAutoTuneUf09Step 例外: " + ex.Message);
+            }
+        }
+
+        // ── 堵轉看門狗：電流與時間保護 (110% IN / 10s) 及轉速防脫扣 (5rpm / 3s) ──────
+        private void TmrLockedWatchdog_Tick(object sender, EventArgs e)
+        {
+            try
+            {
+                // 執行自適應調壓輪詢
+                if (isAutoTuningUf09)
+                {
+                    RunAutoTuneUf09Step();
+                }
+
+                // 只有在等效電路分頁被開啟、或堵轉正在調壓/測試時才執行保護監聽
+                bool isEquivTabActive = (tabControl != null && tabControl.SelectedTab == tabEquiv);
+                if (!isEquivTabActive && !isAutoTuningUf09 && !isLockedRotorActive)
+                {
+                    return;
+                }
+
+                double inRated = (double)numEquivIn.Value;
+                if (inRated <= 0.5) inRated = 32.3;
+                double iThreshold = inRated * 1.10; // 額定電流 +10% 閥值
+
+                // 實測電流
+                double iCur = (actCurrentSigma > 0.05) ? actCurrentSigma : ((wtI1 + wtI2 + wtI3) / 3.0);
+                if (iCur <= 0.05 && lastB_Dr00.HasValue) iCur = (double)lastB_Dr00.Value;
+
+                // 實測轉速
+                double spdCur = Math.Abs(actSpeed);
+                if (spdCur <= 0.5 && lastB_Dr01.HasValue) spdCur = Math.Abs((double)lastB_Dr01.Value);
+
+                // ── 1. 電流閥值超標且持續 10 秒保護 ──
+                if (iCur > iThreshold)
+                {
+                    lockedOverCurrentTicks++;
+                    double elapsedSec = lockedOverCurrentTicks * 0.5;
+                    if (lblLockedProtStatus != null)
+                    {
+                        lblLockedProtStatus.Text = string.Format("⚠️【電流超標預警】實測 {0:F1}A > 閥值 {1:F1}A！累計 {2:F1}s / 10.0s (達標將緊急跳脫)",
+                            iCur, iThreshold, elapsedSec);
+                        lblLockedProtStatus.ForeColor = Color.FromArgb(220, 38, 38);
+                    }
+
+                    if (lockedOverCurrentTicks >= 20) // 20 * 0.5s = 10.0s
+                    {
+                        TriggerLockedProtectionTrip(
+                            "堵轉過電流超時保護 (Over-Current > 110% IN)",
+                            string.Format("• 基準額定電流 IN = {0:F2} A\r\n• 過電流保護閥值 (110%) = {1:F2} A\r\n• 實測堵轉電流 = {2:F2} A (超標 {3:F2} A)\r\n• 累計超標時間 = {4:F1} 秒 (已達 10 秒跳脫上限)",
+                            inRated, iThreshold, iCur, iCur - iThreshold, elapsedSec));
+                        return;
+                    }
+                }
+                else
+                {
+                    if (lockedOverCurrentTicks > 0) lockedOverCurrentTicks = Math.Max(0, lockedOverCurrentTicks - 1);
+                }
+
+                // ── 2. 轉速異常大於 5 rpm 且持續超過 3 秒保護 (治具脫扣防護) ──
+                if (spdCur > 5.0)
+                {
+                    lockedSpeedAnomalyTicks++;
+                    double elapsedSec = lockedSpeedAnomalyTicks * 0.5;
+                    if (lblLockedProtStatus != null)
+                    {
+                        lblLockedProtStatus.Text = string.Format("⚠️【轉速異常預警】轉速 {0:F0} rpm > 5 rpm！累計 {1:F1}s / 3.0s (判定治具脫扣)",
+                            spdCur, elapsedSec);
+                        lblLockedProtStatus.ForeColor = Color.FromArgb(220, 38, 38);
+                    }
+
+                    if (lockedSpeedAnomalyTicks >= 6) // 6 * 0.5s = 3.0s
+                    {
+                        TriggerLockedProtectionTrip(
+                            "堵轉轉速異常跳脫 (治具脫扣/機械鎖死失效)",
+                            string.Format("• 實測扭力計軸轉速 = {0:F0} rpm (容許上限 5 rpm)\r\n• 累計轉動時間 = {1:F1} 秒 (已達 3 秒跳脫上限)\r\n• 判定結果：待測馬達機械鎖死治具已脫扣或未能承受堵轉扭力！為防止飛脫、劇烈旋轉造成機件毀損，系統已執行緊急停機。",
+                            spdCur, elapsedSec));
+                        return;
+                    }
+                }
+                else
+                {
+                    lockedSpeedAnomalyTicks = 0;
+                }
+
+                // 若一切正常且無警告，刷新指示為正常綠色
+                if (lockedOverCurrentTicks == 0 && lockedSpeedAnomalyTicks == 0 && lblLockedProtStatus != null)
+                {
+                    lblLockedProtStatus.Text = string.Format("🛡️ 實時防護監控中 | 電流閥值: {0:F1}A (110% IN, 0/10s) | 轉速閥值: 5 rpm (0/3s)", iThreshold);
+                    lblLockedProtStatus.ForeColor = Color.FromArgb(16, 185, 129);
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteHmiLog("LOCKED_ERR", "TmrLockedWatchdog_Tick 例外: " + ex.Message);
+            }
+        }
+
+        // ── 堵轉保護機制緊急跳脫處置函式 ──────────────────────────────
+        private void TriggerLockedProtectionTrip(string title, string details)
+        {
+            try
+            {
+                isAutoTuningUf09 = false;
+                isLockedRotorActive = false;
+                lockedOverCurrentTicks = 0;
+                lockedSpeedAnomalyTicks = 0;
+
+                if (btnEquivAutoTuneUf09 != null)
+                {
+                    btnEquivAutoTuneUf09.Text = "🤖 自適應追隨額定流";
+                    btnEquivAutoTuneUf09.BackColor = Color.FromArgb(238, 242, 255);
+                }
+
+                // 1. 立即切斷變頻器輸出 (Sy.50 = 0)
+                int driveId = (cmbEquivKebDrive != null && cmbEquivKebDrive.SelectedIndex == 1) ? 1 : 2;
+                int com = GetHmiKebComIdx(driveId);
+                int baud = GetHmiKebBaudIdx(driveId);
+                int node = (driveId == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
+                KebWriteParamWithDll(com, baud, node, 0x0032, 0); // Sy.50 = 0 (強制停機)
+
+                // 2. KEB uf.09 電壓強制降至最低安全值 0 V
+                KebWriteUf09(driveId, 0);
+
+                // 3. 更新 UI 狀態
+                if (lblLockedItemStatus != null)
+                {
+                    lblLockedItemStatus.Text = "🛑 保護機制已觸發跳脫: " + title;
+                    lblLockedItemStatus.ForeColor = Color.FromArgb(220, 38, 38);
+                }
+                if (lblLockedProtStatus != null)
+                {
+                    lblLockedProtStatus.Text = "🛑【緊急停機】" + title;
+                    lblLockedProtStatus.ForeColor = Color.FromArgb(220, 38, 38);
+                }
+                if (lblEquivCurUf09 != null)
+                {
+                    lblEquivCurUf09.Text = "uf09: 0 V (安全切斷)";
+                    lblEquivCurUf09.ForeColor = Color.FromArgb(220, 38, 38);
+                }
+
+                // 4. 記錄 HMI 日誌
+                WriteHmiLog("LOCKED_PROT_TRIP", string.Format("【⚠️ 堵轉保護緊急跳脫】{0} | 詳情: {1}", title, details.Replace("\r\n", " | ")));
+
+                // 5. 彈跳警示對話框 (詳細告知使用者跳脫原因，非程式 BUG)
+                string alertMsg = string.Format("⚠️【堵轉安全防護機制緊急跳脫·非軟體異常】\r\n\r\n" +
+                    "觸發保護類型：{0}\r\n\r\n" +
+                    "【實測數據與觸發條件】：\r\n{1}\r\n\r\n" +
+                    "【🛡️ 系統已主動完成處置措施】：\r\n" +
+                    "1. 已立即下達 Sy.50 = 0 切斷變頻器輸出 (停止定子激磁)\r\n" +
+                    "2. KEB uf.09 輸出電壓已強制安全降為 0 V\r\n" +
+                    "3. 自適應調壓程序已安全中止\r\n\r\n" +
+                    "※ 說明：此為保護馬達不致過熱燒毀及防止治具脫扣之主動安全機制。\r\n" +
+                    "請確認待測馬達冷卻狀況與機械鎖死治具後，再行測試。",
+                    title, details);
+
+                MessageBox.Show(alertMsg, "⚠️ 堵轉安全防護跳脫", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception ex)
+            {
+                WriteHmiLog("LOCKED_ERR", "TriggerLockedProtectionTrip 例外: " + ex.Message);
+            }
+        }
+
         #endregion
 
         #region 等效電路演算法與結果計算核心 (IEEE Std 112)
@@ -1287,10 +1838,26 @@ namespace DynamometerHMI
                 double Iphase_k = Ik;
                 double Pphase_k = Pk / 3.0;
 
-                res.Zk = Vphase_k / Iphase_k;                    // 堵轉總阻抗
+                res.Zk = Vphase_k / Iphase_k;                    // 實測頻率下堵轉總阻抗
                 res.Rk = Pphase_k / (Iphase_k * Iphase_k);       // 堵轉總電阻
                 double xk_sqr = (res.Zk * res.Zk) - (res.Rk * res.Rk);
-                res.Xk = xk_sqr > 0 ? Math.Sqrt(xk_sqr) : 0.1;   // 堵轉總漏抗
+                double Xk_meas = xk_sqr > 0 ? Math.Sqrt(xk_sqr) : 0.1; // 實測頻率下堵轉漏抗
+
+                // ── 多頻試驗頻率折算 (IEEE Std 112 / IEC 60034-2-1) ──
+                int freqMode = (cmbEquivLockedFreq != null) ? cmbEquivLockedFreq.SelectedIndex : 1;
+                double fRatio = 1.0;
+                if (freqMode == 1) fRatio = 0.5;       // 1/2 額定頻率
+                else if (freqMode == 2) fRatio = 0.25; // 1/4 額定頻率
+
+                double baseFreq = (f0 > 1.0) ? f0 : 50.0;
+                double fTest = baseFreq * fRatio;      // 實際測試頻率 (如 25 Hz 或 12.5 Hz)
+
+                // 折算回額定頻率 f0 下之堵轉總漏抗: Xk(f0) = Xk_meas * (f0 / fTest) = Xk_meas / fRatio
+                res.Xk = Xk_meas / fRatio;
+
+                // 換算堵轉漏電感 (mH): Lk = Xk_meas / (2 * pi * fTest) * 1000 (電感為物理固有量，不受折算影響)
+                double omega_test = 2.0 * Math.PI * fTest;
+                res.Lk_mH = (Xk_meas / omega_test) * 1000.0;
 
                 // 定子與轉子電阻/漏抗分配 (標準 IEEE Std 112 推薦：50% / 50%)
                 if (chkAutoR1Distribute.Checked)
@@ -1305,6 +1872,8 @@ namespace DynamometerHMI
                 res.R2_prime = Math.Max(0.001, res.Rk - res.R1); // 轉子折算電阻
                 res.X1 = res.Xk * 0.5;                           // 定子漏抗
                 res.X2_prime = res.Xk * 0.5;                     // 轉子折算漏抗
+                res.L1_mH = res.Lk_mH * 0.5;
+                res.L2_prime_mH = res.Lk_mH * 0.5;
 
                 // 2. 空載實驗參數 (No-Load Test)
                 double Vphase_0 = V0 / Math.Sqrt(3.0);
@@ -1374,10 +1943,10 @@ namespace DynamometerHMI
                 // 換算電感 (mH): L = X / (2 * pi * f) * 1000
                 double calcFreq = f0 > 1.0 ? f0 : 50.0;
                 double omega_0 = 2.0 * Math.PI * calcFreq;
-                res.L1_mH = (res.X1 / omega_0) * 1000.0;
+                if (res.Lk_mH <= 0.001) res.Lk_mH = (res.Xk / omega_0) * 1000.0;
+                res.L1_mH = res.Lk_mH * 0.5;
+                res.L2_prime_mH = res.Lk_mH * 0.5;
                 res.Lm_mH = (res.Xm / omega_0) * 1000.0;
-                res.L2_prime_mH = (res.X2_prime / omega_0) * 1000.0;
-                res.Lk_mH = (res.Xk / omega_0) * 1000.0;
 
                 lastEquivResult = res;
 
