@@ -23,6 +23,15 @@ namespace DynamometerHMI
         private Label lblEquivMotorStatus;
         private Button btnEquivRefreshFingerprint;
         private Button btnEquivClearAllData;
+        private Button btnEquivManualRecord; // 等效電路純電氣量連續紀錄控制按鈕 (無溫度)
+
+        // 等效電路連續紀錄器狀態變數 (無溫度純電氣量)
+        private StreamWriter equivRecordWriter = null;
+        private readonly object equivRecordLock = new object();
+        private bool isEquivRecording = false;
+        private DateTime equivRecordStartTime = DateTime.MinValue;
+        private int equivRecordCount = 0;
+        private string equivRecordFilePath = "";
 
         // 項目 1: 空載運轉數據控制項
         private Label lblNoLoadItemStatus;
@@ -200,12 +209,13 @@ namespace DynamometerHMI
             TableLayoutPanel tlpTopBar = new TableLayoutPanel()
             {
                 Dock = DockStyle.Fill,
-                ColumnCount = 3,
+                ColumnCount = 4,
                 RowCount = 1
             };
             tlpTopBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            tlpTopBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140f));
-            tlpTopBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140f));
+            tlpTopBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150f));
+            tlpTopBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 125f));
+            tlpTopBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 125f));
 
             lblEquivMotorStatus = new Label()
             {
@@ -214,6 +224,28 @@ namespace DynamometerHMI
                 ForeColor = Color.FromArgb(15, 23, 42),
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleLeft
+            };
+
+            btnEquivManualRecord = new Button()
+            {
+                Text = "[記錄] 開始記錄",
+                Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(241, 245, 249),
+                ForeColor = Color.FromArgb(30, 41, 59),
+                FlatStyle = FlatStyle.Flat,
+                Margin = new Padding(3)
+            };
+            btnEquivManualRecord.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
+            btnEquivManualRecord.Click += (s, e) => {
+                if (!isEquivRecording)
+                {
+                    StartEquivTestRecording("Manual_Equiv");
+                }
+                else
+                {
+                    StopEquivTestRecording("使用者主動停止記錄", showPrompt: true);
+                }
             };
 
             btnEquivRefreshFingerprint = new Button()
@@ -249,8 +281,9 @@ namespace DynamometerHMI
             };
 
             tlpTopBar.Controls.Add(lblEquivMotorStatus, 0, 0);
-            tlpTopBar.Controls.Add(btnEquivRefreshFingerprint, 1, 0);
-            tlpTopBar.Controls.Add(btnEquivClearAllData, 2, 0);
+            tlpTopBar.Controls.Add(btnEquivManualRecord, 1, 0);
+            tlpTopBar.Controls.Add(btnEquivRefreshFingerprint, 2, 0);
+            tlpTopBar.Controls.Add(btnEquivClearAllData, 3, 0);
             pnlTopBar.Controls.Add(tlpTopBar);
 
             // 中間卡片網格：三大測試數據卡片 (橫向三等分 TableLayoutPanel, Dock: Fill 自適應填滿剩餘高度)
@@ -1880,6 +1913,10 @@ namespace DynamometerHMI
                 // 啟動前轉速清零防呆 (確保 Sy.52=0, oP.03=0)
                 ClearLockedSpeedCmd("試驗啟動前轉速清零防呆");
 
+                // ★ 自動開啟等效電路專屬測試紀錄 (無溫度純電氣量 CSV，不受<60秒刪除限制)
+                string recordTag = singleFreqMode ? ("Locked_" + cmbEquivLockedFreq.SelectedIndex) : "Locked_8Freq_Sweep";
+                StartEquivTestRecording(recordTag);
+
                 btnEquivAutoTuneUf09.Text = "[停止] 中止試驗";
                 btnEquivAutoTuneUf09.BackColor = Color.FromArgb(254, 226, 226);
                 if (!singleFreqMode)
@@ -1908,6 +1945,9 @@ namespace DynamometerHMI
             isLockedRotorActive = false;
             lockedOverCurrentTicks = 0;
             lockedSpeedAnomalyTicks = 0;
+
+            // ★ 安全關閉等效電路專屬紀錄檔
+            StopEquivTestRecording(reason, showPrompt: false);
 
             if (btnEquivAutoTuneUf09 != null)
             {
@@ -2053,6 +2093,7 @@ namespace DynamometerHMI
                     // 步驟 B2: 在已確認極低電壓下，正式啟動變頻器輸出激磁 (Sy.50 = 4 RUN 正轉)
                     KebWriteParamWithDll(com, baud, node, 0x0032, 4); // RUN 正轉 (Sy.50 = 4)
                     System.Threading.Thread.Sleep(400); // 響應 400ms，電流平穩建壓
+                    WriteEquivRecordRow("Excitation_Start", item.FreqName, fTest, curV, "起始低壓建壓激磁");
 
                     // 步驟 C: 初測電流安全檢驗 (若切換後電流偏大 > 80% IN，啟動反向階梯回退降壓)
                     double iInit = GetCurrentSample();
@@ -2065,6 +2106,7 @@ namespace DynamometerHMI
                             rollbackCount++;
                             curV = Math.Max(5, curV - 2);
                             KebWriteUf09(driveId, curV);
+                            WriteEquivRecordRow("Rollback_Step", item.FreqName, fTest, curV, string.Format("起步電流過大回退降壓: Ik={0:F2}A", GetCurrentSample()));
                             this.Invoke((MethodInvoker)delegate {
                                 lblEquivCurUf09.Text = string.Format("uf09: {0} V", curV);
                                 lblLockedItemStatus.Text = string.Format("[AI] {0} 電流過大回退降壓: uf09={1}V, Ik={2:F2}A", item.FreqName, curV, GetCurrentSample());
@@ -2093,6 +2135,7 @@ namespace DynamometerHMI
 
                         double iSample = GetCurrentSample();
                         probePts.Add(new KeyValuePair<int, double>(curV, iSample));
+                        WriteEquivRecordRow(string.Format("Probe_1V_{0}of5", step), item.FreqName, fTest, curV, string.Format("斜率探測第 {0}/5 步 (Ik={1:F2}A)", step, iSample));
                     }
                     if (!isLockedSweepRunning) break;
 
@@ -2154,6 +2197,7 @@ namespace DynamometerHMI
                                 item.FreqName, stepV, curV, curI, inRated);
                         });
                         System.Threading.Thread.Sleep(1000);
+                        WriteEquivRecordRow("Adaptive_Step", item.FreqName, fTest, curV, string.Format("梯度逼近 stepV={0:+0;-0}V, Ik={1:F2}A (目標 {2:F2}A)", stepV, curI, inRated));
                     }
 
                     if (!isLockedSweepRunning) break;
@@ -2183,6 +2227,7 @@ namespace DynamometerHMI
                         double p = (actElecPower > 0.001) ? (actElecPower * 1000.0) : (wtP1 + wtP2 + wtP3);
                         double pf = (wtPFSig > 0.0) ? wtPFSig : 0.29;
                         samples.Add(new LockedSamplePoint { V = v, I = curI, P = p, PF = pf });
+                        WriteEquivRecordRow(string.Format("Sample_{0}of30", s + 1), item.FreqName, fTest, curV, string.Format("穩定額定流連續採樣 #{0}", s + 1));
                     }
 
                     if (!isLockedSweepRunning) break;
@@ -2227,6 +2272,9 @@ namespace DynamometerHMI
                         item.IsCompleted = true;
                         item.TestTime = DateTime.Now;
 
+                        WriteEquivRecordRow("Freq_Point_Summary", item.FreqName, fTest, curV, string.Format("20筆平均彙總: Vk={0:F1}V, Ik={1:F2}A, Pk={2:F1}W, PFk={3:F3} | Xk_meas={4:F4}Ω, Xk_ref={5:F4}Ω, Lk={6:F3}mH",
+                            avgV, avgI, avgP, avgPF, xk_meas, xk_ref, lk_mH));
+
                         // 若為當前介面選中頻率，回填至卡片數值框
                         if (idx == cmbEquivLockedFreq.SelectedIndex)
                         {
@@ -2264,6 +2312,9 @@ namespace DynamometerHMI
                 KebWriteParamWithDll(com, baud, node, 0x0032, 0); // Sy.50 = 0
                 ClearLockedSpeedCmd("堵轉試驗完成停機轉速歸零");
 
+                // ★ 堵轉試驗完成，保存並關閉專屬紀錄檔
+                StopEquivTestRecording("堵轉試驗成功完成", showPrompt: false);
+
                 // 結束處置
                 this.Invoke((MethodInvoker)delegate {
                     isLockedSweepRunning = false;
@@ -2288,7 +2339,7 @@ namespace DynamometerHMI
                 else
                 {
                     this.Invoke((MethodInvoker)delegate {
-                        MessageBox.Show(string.Format("【{0}】堵轉自適應試驗完成！\r\n\r\n已成功採樣 30 筆電氣量並完成去極端值平均運算，數據已填入堵轉卡片。", lockedSweepItems[singleFreqIndex].FreqName),
+                        MessageBox.Show(string.Format("【{0}】堵轉自適應試驗完成！\r\n\r\n已成功採樣 30 筆電氣量並完成去極端值平均運算，數據已填入堵轉卡片。\r\n(測試過程純電氣量已自動記錄於馬達目錄)", lockedSweepItems[singleFreqIndex].FreqName),
                             "單頻試驗完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     });
                 }
@@ -2307,6 +2358,7 @@ namespace DynamometerHMI
                 isLockedRotorActive = false;
                 ClearLockedSpeedCmd("堵轉測試線程安全結束轉速清零");
                 AutoRestoreUf09("堵轉測試線程安全結束復歸");
+                StopEquivTestRecording("堵轉測試線程安全結束", showPrompt: false);
             }
         }
 
@@ -2545,6 +2597,20 @@ namespace DynamometerHMI
         {
             try
             {
+                // ── 等效電路連續紀錄狀態 UI 刷新與背景手動採樣 ──
+                if (isEquivRecording)
+                {
+                    if (btnEquivManualRecord != null && !btnEquivManualRecord.IsDisposed)
+                    {
+                        double elSec = (DateTime.Now - equivRecordStartTime).TotalSeconds;
+                        btnEquivManualRecord.Text = string.Format("[停止] 記錄中 ({0:F0}s/{1}筆)", elSec, equivRecordCount);
+                    }
+                    // 若為手動純電氣記錄狀態 (非自動堵轉測試中)，看門狗定期 500ms 寫入一筆
+                    if (!isAutoTuningUf09 && !isLockedRotorActive)
+                    {
+                        WriteEquivRecordRow("Manual_Logging", "手動監測", (actFrequency > 1.0 ? actFrequency : 50.0), (int)numEquivTargetUf09.Value, "手動連續紀錄中");
+                    }
+                }
 
                 // ★【極重要鐵律】：堵轉看門狗保護 ONLY 在「正在執行堵轉自適應調壓 (isAutoTuningUf09)」或「明確啟動堵轉測試 (isLockedRotorActive)」時才生效！
                 // 嚴禁在平時使用者只是查看等效電路分頁、或馬達正在運轉其他測試 (例如 S1 測試 1465 rpm) 時誤判！
@@ -2893,7 +2959,34 @@ namespace DynamometerHMI
                 WriteHmiLog("EQUIV_CALC", string.Format("【等效電路計算成功】R1={0:F4}Ω, X1={1:F4}Ω({6:F2}mH), Xm={2:F2}Ω({7:F1}mH), R2'={3:F4}Ω, X2'={4:F4}Ω({8:F2}mH), Tmax={5:F1}Nm",
                     res.R1, res.X1, res.Xm, res.R2_prime, res.X2_prime, res.T_max, res.L1_mH, res.Lm_mH, res.L2_prime_mH));
 
-                MessageBox.Show(string.Format("[成功] 三相感應馬達單相等效電路參數計算成功！\r\n\r\n• 定子電阻 R1 = {0:F4} Ω\r\n• 定子漏抗 X1 = {1:F4} Ω (L1 = {7:F3} mH)\r\n• 轉子折算電阻 R2' = {2:F4} Ω\r\n• 轉子折算漏抗 X2' = {3:F4} Ω (L2' = {8:F3} mH)\r\n• 激磁電抗 Xm = {4:F2} Ω (Lm = {9:F2} mH)\r\n• 最大崩潰轉矩 Tmax = {5:F1} Nm ({6:F2} 倍額定)",
+                // ★ 自動將等效電路參數成果儲存至馬達專屬目錄 (無溫度報表)
+                try
+                {
+                    string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
+                    string motorDir = GetMotorDedicatedLogDirectory(mName);
+                    if (!Directory.Exists(motorDir)) Directory.CreateDirectory(motorDir);
+                    string autoParamFile = Path.Combine(motorDir, string.Format("Report_EquivCircuit_Params_{0}_{1}.csv", mName, DateTime.Now.ToString("yyyyMMdd_HHmmss")));
+                    StringBuilder sbAuto = new StringBuilder();
+                    sbAuto.AppendLine("# ========================================================================================");
+                    sbAuto.AppendLine("# 動力計系統 - 馬達單相等效電路參數計算成果報表 (IEEE Std 112)");
+                    sbAuto.AppendLine(string.Format("# 待測馬達: 【{0}】 | 計算時間: {1:yyyy-MM-dd HH:mm:ss}", mName, DateTime.Now));
+                    sbAuto.AppendLine("# 特性說明: 短時間純電氣阻抗參數估算，無溫度感測記錄 (No Temperature Channels)");
+                    sbAuto.AppendLine("# ========================================================================================");
+                    sbAuto.AppendLine("項目,符號,數值,單位,換算電感(mH),工程物理意義");
+                    if (dgvEquivResults != null)
+                    {
+                        foreach (DataGridViewRow row in dgvEquivResults.Rows)
+                        {
+                            sbAuto.AppendLine(string.Format("\"{0}\",\"{1}\",\"{2}\",\"{3}\",\"{4}\",\"{5}\"",
+                                row.Cells["Param"].Value, row.Cells["Symbol"].Value, row.Cells["Value"].Value, row.Cells["Unit"].Value, row.Cells["Inductance"].Value, row.Cells["Desc"].Value));
+                        }
+                    }
+                    File.WriteAllText(autoParamFile, sbAuto.ToString(), Encoding.UTF8);
+                    WriteHmiLog("EQUIV_REPORT", "【等效電路參數已自動存檔】" + Path.GetFileName(autoParamFile));
+                }
+                catch { }
+
+                MessageBox.Show(string.Format("[成功] 三相感應馬達單相等效電路參數計算成功！\r\n\r\n• 定子電阻 R1 = {0:F4} Ω\r\n• 定子漏抗 X1 = {1:F4} Ω (L1 = {7:F3} mH)\r\n• 轉子折算電阻 R2' = {2:F4} Ω\r\n• 轉子折算漏抗 X2' = {3:F4} Ω (L2' = {8:F3} mH)\r\n• 激磁電抗 Xm = {4:F2} Ω (Lm = {9:F2} mH)\r\n• 最大崩潰轉矩 Tmax = {5:F1} Nm ({6:F2} 倍額定)\r\n\r\n(參數成果報表已自動儲存至馬達目錄)",
                     res.R1, res.X1, res.R2_prime, res.X2_prime, res.Xm, res.T_max, res.T_max_ratio, res.L1_mH, res.L2_prime_mH, res.Lm_mH),
                     "計算完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
@@ -3389,6 +3482,162 @@ namespace DynamometerHMI
                 RefreshEquivMotorStatus();
             }
             catch { }
+        }
+
+        #endregion
+
+        #region 等效電路專屬日誌與連續紀錄器 (無溫度純電氣量)
+
+        public void StartEquivTestRecording(string testTag = "EquivCircuit")
+        {
+            lock (equivRecordLock)
+            {
+                try
+                {
+                    if (isEquivRecording)
+                    {
+                        StopEquivTestRecording("切換新紀錄", showPrompt: false);
+                    }
+
+                    string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
+                    string motorDir = GetMotorDedicatedLogDirectory(mName);
+                    if (!Directory.Exists(motorDir)) Directory.CreateDirectory(motorDir);
+
+                    string timeStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                    string safeTag = string.IsNullOrEmpty(testTag) ? "EquivTest" : testTag.Trim().Replace(" ", "_");
+                    string fName = string.Format("EquivCircuit_Test_Log_{0}_{1}_{2}.csv", mName, timeStamp, safeTag);
+                    equivRecordFilePath = Path.Combine(motorDir, fName);
+
+                    equivRecordWriter = new StreamWriter(equivRecordFilePath, false, Encoding.UTF8);
+
+                    // 寫入註解與標頭 (純電氣量與機械量，嚴格排除溫度)
+                    equivRecordWriter.WriteLine("# ========================================================================================");
+                    equivRecordWriter.WriteLine("# 動力計系統 - 馬達單相等效電路測試連續紀錄 (IEEE Std 112)");
+                    equivRecordWriter.WriteLine(string.Format("# 待測馬達: 【{0}】 | 基準電壓: {1} V | 額定電流 IN: {2:F2} A", mName, originalUf09Val, numEquivIn != null ? numEquivIn.Value : 0m));
+                    equivRecordWriter.WriteLine(string.Format("# 測試啟動時間: {0:yyyy-MM-dd HH:mm:ss} | 測試模式: {1}", DateTime.Now, safeTag));
+                    equivRecordWriter.WriteLine("# 欄位特性: 純電機電氣與機械量連續紀錄 (不含任何溫度通道)");
+                    equivRecordWriter.WriteLine("# ========================================================================================");
+                    equivRecordWriter.WriteLine("Timestamp,Elapsed_sec,Stage,FreqName,TargetFreq_Hz,Uf09_V,Speed_rpm,Frequency_Hz,Torque_Nm,Voltage_U1_V,Voltage_U2_V,Voltage_U3_V,Voltage_Sigma_V,Current_I1_A,Current_I2_A,Current_I3_A,Current_Sigma_A,Power_P1_kW,Power_P2_kW,Power_P3_kW,ElecPower_kW,MechPower_kW,PF,Status");
+                    equivRecordWriter.Flush();
+
+                    equivRecordStartTime = DateTime.Now;
+                    equivRecordCount = 0;
+                    isEquivRecording = true;
+
+                    if (btnEquivManualRecord != null && !btnEquivManualRecord.IsDisposed)
+                    {
+                        btnEquivManualRecord.Text = "[停止] 記錄中 (0s)";
+                        btnEquivManualRecord.BackColor = Color.FromArgb(254, 226, 226);
+                        btnEquivManualRecord.ForeColor = Color.FromArgb(220, 38, 38);
+                    }
+
+                    WriteHmiLog("EQUIV_REC", string.Format("【等效電路開啟記錄】馬達: {0} | 標籤: {1} | 檔案: {2}", mName, safeTag, Path.GetFileName(equivRecordFilePath)));
+                }
+                catch (Exception ex)
+                {
+                    WriteHmiLog("EQUIV_REC_ERR", "啟動等效電路記錄失敗: " + ex.Message);
+                }
+            }
+        }
+
+        public void WriteEquivRecordRow(string stage, string freqName, double targetFreq, int curUf09, string statusMsg)
+        {
+            if (!isEquivRecording || equivRecordWriter == null) return;
+            lock (equivRecordLock)
+            {
+                try
+                {
+                    if (equivRecordWriter == null) return;
+                    DateTime now = DateTime.Now;
+                    double elapsedSec = (now - equivRecordStartTime).TotalSeconds;
+
+                    // 提取即時電氣量與機械量 (絕不含溫度)
+                    double spd = Math.Abs(actSpeed);
+                    double freq = (actFrequency > 0.5) ? actFrequency : (wtFreqU > 0.5 ? wtFreqU : targetFreq);
+                    double trq = actTorque;
+
+                    double u1 = wtU1;
+                    double u2 = wtU2;
+                    double u3 = wtU3;
+                    double uSig = (actVoltageSigma > 1.0) ? actVoltageSigma : ((u1 + u2 + u3) / 3.0);
+
+                    double i1 = wtI1;
+                    double i2 = wtI2;
+                    double i3 = wtI3;
+                    double iSig = (actCurrentSigma > 0.05) ? actCurrentSigma : ((i1 + i2 + i3) / 3.0);
+
+                    double p1 = wtP1;
+                    double p2 = wtP2;
+                    double p3 = wtP3;
+                    double pElec = actElecPower;
+                    double pMech = actMechPower;
+                    double pf = (wtPFSig > 0.0) ? wtPFSig : actPf;
+
+                    string safeStatus = (statusMsg ?? "").Replace(",", " ").Replace("\r", "").Replace("\n", "");
+                    string safeStage = (stage ?? "").Replace(",", "_");
+                    string safeFreqName = (freqName ?? "").Replace(",", "_");
+
+                    string line = string.Format("\"{0:yyyy-MM-dd HH:mm:ss.fff}\",{1:F2},\"{2}\",\"{3}\",{4:F1},{5},{6:F1},{7:F2},{8:F2},{9:F2},{10:F2},{11:F2},{12:F2},{13:F3},{14:F3},{15:F3},{16:F3},{17:F3},{18:F3},{19:F3},{20:F3},{21:F3},{22:F3},\"{23}\"",
+                        now, elapsedSec, safeStage, safeFreqName, targetFreq, curUf09,
+                        spd, freq, trq,
+                        u1, u2, u3, uSig,
+                        i1, i2, i3, iSig,
+                        p1, p2, p3, pElec, pMech, pf, safeStatus);
+
+                    equivRecordWriter.WriteLine(line);
+                    equivRecordCount++;
+
+                    // 每 10 筆或關鍵節點強制 Flush
+                    if (equivRecordCount % 10 == 0 || stage.Contains("Sample") || stage.Contains("Summary") || stage.Contains("Excitation"))
+                    {
+                        equivRecordWriter.Flush();
+                    }
+                }
+                catch { }
+            }
+        }
+
+        public void StopEquivTestRecording(string reason = "正常停止", bool showPrompt = false)
+        {
+            lock (equivRecordLock)
+            {
+                if (!isEquivRecording) return;
+                isEquivRecording = false;
+
+                string savedFile = equivRecordFilePath;
+                int totalCount = equivRecordCount;
+                double totalSec = (DateTime.Now - equivRecordStartTime).TotalSeconds;
+
+                try
+                {
+                    if (equivRecordWriter != null)
+                    {
+                        equivRecordWriter.WriteLine("# ========================================================================================");
+                        equivRecordWriter.WriteLine(string.Format("# 測試記錄結束: {0:yyyy-MM-dd HH:mm:ss} | 歷時: {1:F1} 秒 | 總採樣筆數: {2} 筆 | 停止原因: {3}", DateTime.Now, totalSec, totalCount, reason));
+                        equivRecordWriter.WriteLine("# ========================================================================================");
+                        equivRecordWriter.Flush();
+                        equivRecordWriter.Close();
+                        equivRecordWriter.Dispose();
+                        equivRecordWriter = null;
+                    }
+                }
+                catch { }
+
+                if (btnEquivManualRecord != null && !btnEquivManualRecord.IsDisposed)
+                {
+                    btnEquivManualRecord.Text = "[記錄] 開始記錄";
+                    btnEquivManualRecord.BackColor = Color.FromArgb(241, 245, 249);
+                    btnEquivManualRecord.ForeColor = Color.FromArgb(30, 41, 59);
+                }
+
+                WriteHmiLog("EQUIV_REC", string.Format("【等效電路記錄已儲存】檔案: {0} ({1:F1}s / {2}筆) | 原因: {3}", Path.GetFileName(savedFile), totalSec, totalCount, reason));
+
+                if (showPrompt && !string.IsNullOrEmpty(savedFile) && File.Exists(savedFile))
+                {
+                    MessageBox.Show(string.Format("等效電路測試紀錄已成功儲存至馬達專屬目錄：\r\n\r\n{0}\r\n\r\n(歷時: {1:F1} 秒，共 {2} 筆純電氣量數據，無溫度通道)",
+                        savedFile, totalSec, totalCount), "紀錄已保存", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
         }
 
         #endregion

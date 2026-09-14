@@ -8,8 +8,49 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.115 (beta) | v2.10.73 | 2026-09-14 | 全面實作「等效電路專屬純電氣連續紀錄功能 (無溫度)」與「測試成果自動歸檔」架構：(1)現象與佐證：使用者反映「等效電路測試也要有紀錄功能，只是不需要溫度而已。目前好像沒有」；檢查源碼發現，其他進階模組 (TN、Duty、NoLoad、手動連續錄製) 均具備 CSV 記錄，但等效電路分頁在執行堵轉單頻自適應測試、8頻率全頻掃描以及手動調試時，完全缺乏即時資料記錄器；且通用錄製強制綁定 GL820 溫度通道與 GBD 原廠格式，並具備「未滿 1 分鐘自動刪除」規則，無法適用於等效電路短時間純電氣阻抗量測需求；(2)致命根因 (Root Cause)：`Dynamometer_TestEquivCircuit.cs` 未建置專屬的 CSV 連續資料串流記錄器，導致堵轉測試期間之 1V 增幅探測斜率、梯度自適應逼近、以及額定電流 30 筆採樣等珍貴數據無法被即時持久化儲存，無法作為工程後續分析之佐證；(3)精確修復方案：在 `Dynamometer_TestEquivCircuit.cs` 中建立「等效電路專屬連續紀錄器 (`StartEquivTestRecording` / `WriteEquivRecordRow` / `StopEquivTestRecording`)」，自動儲存於馬達專屬目錄 `EquivCircuit_Test_Log_{馬達型號}_{yyyyMMdd_HHmmss}_{標籤}.csv`；欄位設計純粹聚焦於電氣與機械量 (時間戳記、耗時、階段、頻率名稱、目標頻率、uf09、轉速、頻率、轉矩、三相電壓 U1~U3/USig、三相電流 I1~I3/ISig、三相功率 P1~P3/PElec、輸出功率 PMech、功率因數 PF、狀態說明)，**嚴格排除任何溫度通道 (無 Temp、無 GL820、無 GBD)**；當點擊「[AI] 單頻測試」或「[>>] 全頻掃描」時自動啟動記錄，採樣全程即時寫入，測試結束安全關閉並保留，**完全不受 <60秒刪除限制**；於等效電路頂部橫條新增 `btnEquivManualRecord` ([記錄] 開始記錄 / [停止] 記錄中) 支援手動即時記錄；計算完成時自動保存 `Report_EquivCircuit_Params_*.csv` 參數報表；(4)發布與驗證：升版至 2.10.73，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.73 發布。 |
 | V2.114 (beta) | v2.10.72 | 2026-09-14 | 全面建立堵轉測試「降壓硬體驗證安全閉鎖」與「瞬時突波極限跳脫」機制，徹底杜絕高壓激磁與金屬巨響衝擊：(1)現象與佐證：使用者回報「上傳日誌，剛才有發生巨響，我猜又是控制問題，你查清楚，這個堵轉不能開玩笑的」；提取雲端實測日誌 `20260914_163308.json` (KEB_Readback_Parameters.log) 顯示當前變頻器 cs.00=0 (V/F模式), oP.03=1500rpm (RAW: 12000), Sy.52=1500rpm (RAW: 1500), dr.02=260V；(2)致命根因 (Root Cause)：在 `Dynamometer_TestEquivCircuit.cs` 中，若變頻器已處於運轉狀態 (Sy.50 != 0)，KEB F5 變頻器硬體對 uf.09 (基準電壓) 具備寫入保護 (Write Protected)，導致步驟 A 的 `KebWriteUf09` 降壓失敗，電壓仍殘留為 260V 額定高壓；舊程式未驗證 uf.09 是否降壓成功，隨即於步驟 B 寫入 1500rpm (50Hz)，變頻器在 V/f 模式下直接以 260V 全電壓向機械完全鎖死之馬達定子通電，引發瞬間數百安培短路衝擊大電流並爆發金屬劇烈撞擊「巨響」；同時看門狗僅具 10 秒慢速保護，缺乏瞬間大電流零延遲防護；(3)精確修復方案：在 `Dynamometer_TestEquivCircuit.cs` 的 `LockedSweepWorker` 中全面導入「降壓安全視窗」：寫入前強制先執行 `Sy.50=0` (停機進入 nOP) 並將 Sy.52/oP.03 清零；寫入 uf.09 後強制進行 5 次讀回驗證，若未確認 `uf.09 <= 60V`，觸發【生與死安全閉鎖】直接阻斷並退出，絕對嚴禁給予轉速指令，絕對嚴禁啟動變頻器；當且僅當驗證 `uf.09 <= 60V` 安全降壓完成後，才寫入目標轉速並下達 Sy.50=4 (RUN 正轉) 低壓安全建壓；在換頻與結束時先下達 Sy.50=0 停機清零再換步；在看門狗 `tmrLockedWatchdog_Tick` 中新增「瞬時突波過載極限保護 (Peak Over-Current > 150% IN)」，電流超過 150% IN 立即 0 秒瞬間跳脫；(4)發布與驗證：升版至 2.10.72，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.72 發布。 |
 | V2.113 (beta) | v2.10.71 | 2026-09-14 | 徹底根除堵轉測試錯誤/停止後 Sy.52 (0x0034) 與 oP.03 (0x0303) 未清空導致下次啟動直接給予轉速之嚴重隱患：(1)現象與佐證：使用者回報「而且錯誤後的sy52也沒有清空，這樣下次執行就會直接給轉速這樣也不對」；(2)致命根因 (Root Cause)：在 `Dynamometer_TestEquivCircuit.cs` 中，堵轉測試於步驟 B 依試驗頻率向變頻器寫入目標轉速 `targetRpm` 至 Sy.52 (0x0034) 與 oP.03 (0x0303)；然而當試驗發生例外錯誤、使用者手動點擊中止、看門狗保護急停跳脫、甚至試驗正常跑完時，系統完全沒有將 Sy.52 與 oP.03 歸零；導致變頻器內部轉速指令永久殘留，若下次下達啟動 (Sy.50) 變頻器會立刻依照殘留轉速全速狂飆，造成嚴重機構破壞與安全隱患；(3)精確修復方案：在 `Dynamometer_TestEquivCircuit.cs` 建立集中安全清零函式 `ClearLockedSpeedCmd()`，向變頻器 Sy.52 (0x0034) 與 oP.03 (0x0303) 雙重寫入 0；在 `StopLockedRotorSweep()` 停止路徑 (下達 Sy.50=0 切斷激磁後同步清空 Sy.52/oP.03)、`TriggerLockedProtectionTrip()` 保護急停跳脫路徑、`LockedSweepWorker` 之 `finally` 生命週期保證區塊、`StartLockedRotorTest` 啟動前防呆、以及手動 `RevertUf09ToDefault()` 中 100% 強制執行 `ClearLockedSpeedCmd()`；更新跳脫警示訊息告知轉速設定值已安全歸零；(4)發布與驗證：升版至 2.10.71，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.71 發布。 |
+
+---
+
+## [V2.115 beta / v2.10.73] - 2026-09-14
+
+### 全面實作「等效電路專屬純電氣連續紀錄功能 (無溫度)」與「測試成果自動歸檔」架構
+
+### 現象與佐證
+- **使用者回報現象**：使用者提出：「等效電路測試也要有紀錄功能，只是不需要溫度而已。目前好像沒有」。
+- **代碼與現況查證**：
+  檢查系統各模組：
+  1. `Dynamometer_TestDuty.cs`：具備 `Report_Duty_Cycle_*.csv` 與 `StartAutoRawRecordingWithTag(dutyTag)`；
+  2. `Dynamometer_TestTN.cs`：具備 `Report_TN_MultiPoints_*.csv` 與 `StartAutoRawRecordingWithTag(tnTag)`；
+  3. `Dynamometer_TestNoLoad.cs`：具備 `NoLoad_Test_Log_*.csv` 與 `StartAutoRawRecordingWithTag("NoLoad")`；
+  4. 然而在 `Dynamometer_TestEquivCircuit.cs` 中，僅在計算後有一個手動另存 CSV 視窗，**在測試進行時（單頻堵轉、8頻率全頻掃描）完全沒有任何即時 CSV 記錄功能**！
+  5. 且通用記錄器強制綁定 GL820 溫度通道（20 通道溫度與 GBD 二進位檔），並具備「未滿 1 分鐘自動刪除」邏輯，不適用於等效電路短時間、高頻率、純電氣量測之特性。
+
+### 致命根因 (Root Cause)
+- **缺乏專屬等效電路資料串流紀錄器**：
+  等效電路分頁建置時未串接專屬的 CSV StreamWriter 記錄引擎，導致操作者在進行單頻堵轉自適應調壓、8 個頻率點自動掃描試驗、以及現場即時微調時，變頻器與功率計產生的電氣量數據（1V 斜率探測、自適應梯度逼近、額定電流穩定 30 筆採樣）僅在記憶體或 UI 閃過，無法被自動落盤留存，操作員無法事後追溯測試曲線。
+
+### 精確修復方案
+1. **建立等效電路專屬連續紀錄器 (`Dynamometer_TestEquivCircuit.cs`)**：
+   - 實作 `StartEquivTestRecording(string testTag)`、`WriteEquivRecordRow(string stage, ...)` 與 `StopEquivTestRecording(string reason)`。
+   - 自動將紀錄檔建立於馬達專屬目錄：`GetMotorDedicatedLogDirectory(motorModelName)`。
+   - 檔名規範：`EquivCircuit_Test_Log_{馬達型號}_{yyyyMMdd_HHmmss}_{測試標籤}.csv`。
+2. **純電氣與機械量欄位規範（嚴格排除溫度通道）**：
+   - 依據使用者明確需求，標頭與記錄行**全面排除溫度欄位**（無 `MotorTemp_C`、無 `GL820_CH*_C`、無 GBD 溫度檔案）：
+     `Timestamp,Elapsed_sec,Stage,FreqName,TargetFreq_Hz,Uf09_V,Speed_rpm,Frequency_Hz,Torque_Nm,Voltage_U1_V,Voltage_U2_V,Voltage_U3_V,Voltage_Sigma_V,Current_I1_A,Current_I2_A,Current_I3_A,Current_Sigma_A,Power_P1_kW,Power_P2_kW,Power_P3_kW,ElecPower_kW,MechPower_kW,PF,Status`
+3. **自動測試連鎖觸發與全生命週期保存**：
+   - 當點擊「[AI] 單頻測試」或「[>>] 全頻掃描」時，系統自動呼叫 `StartEquivTestRecording` 啟動記錄。
+   - 在起始激磁、起步回退、1V 增幅 5 步探測、自適應梯度逼近、30 筆採樣、換頻暫態等各個階段，均即時呼叫 `WriteEquivRecordRow` 記錄。
+   - 測試完成、手動中止、急停或保護跳脫時，安全關閉並寫入統計摘要，**完全不受「< 60 秒刪除」規則影響**，確保每次測試數據 100% 留存。
+4. **手動記錄控制按鈕 (`btnEquivManualRecord`)**：
+   - 於等效電路頂部狀態橫條增加 `btnEquivManualRecord` 按鈕（`[記錄] 開始記錄` / `[停止] 記錄中 (Xs/N筆)`）。
+   - 提供操作者手動即時記錄空載/額定點調校之彈性；在自動測試中同動反映即時記錄秒數與筆數。
+5. **等效電路計算參數報表自動存檔**：
+   - 點擊「計算等效電路參數」成功時，除了 UI 呈現與手動另存，系統自動在馬達目錄歸檔 `Report_EquivCircuit_Params_{馬達型號}_{時間}.csv`。
+
+---
 
 ---
 
