@@ -290,6 +290,15 @@ namespace DynamometerHMI
             };
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 48f));
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 52f));
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 24f)); // Row 0: Title
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 22f)); // Row 1: Status
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 2: V0
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 3: I0
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 4: P0
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 5: PF0
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 6: N0
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 7: f0
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 32f)); // Row 8: Buttons
 
             // 標題行
             Label lblTitle = new Label()
@@ -392,10 +401,20 @@ namespace DynamometerHMI
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
-                RowCount = 9
+                RowCount = 10
             };
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 48f));
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 52f));
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 24f)); // Row 0: Title
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 22f)); // Row 1: Status
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 2: TN
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 3: NN
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 4: VN
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 5: IN
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 6: PN
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 7: PFN
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 8: Slip
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 32f)); // Row 9: Buttons
 
             Label lblTitle = new Label()
             {
@@ -500,6 +519,16 @@ namespace DynamometerHMI
             };
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 46f));
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 54f));
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 24f)); // Row 0: Title
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 22f)); // Row 1: Status
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 2: Freq & Drive
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 3: uf09 Controls
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 24f)); // Row 4: Protection Status
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 5: Vk
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 6: Ik
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 7: Pk
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 8: PFk
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 32f)); // Row 9: Buttons
 
             // Row 0: 標題
             Label lblTitle = new Label()
@@ -574,14 +603,14 @@ namespace DynamometerHMI
                 RowCount = 1,
                 Margin = new Padding(0)
             };
-            tlpUfCtrl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 55f));
-            tlpUfCtrl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 55f));
             tlpUfCtrl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70f));
+            tlpUfCtrl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 60f));
+            tlpUfCtrl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 65f));
             tlpUfCtrl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
 
             lblEquivCurUf09 = new Label()
             {
-                Text = "uf09:--",
+                Text = "uf09:--V",
                 Font = new Font("Consolas", 9f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(180, 83, 9),
                 Dock = DockStyle.Fill,
@@ -601,7 +630,7 @@ namespace DynamometerHMI
             btnEquivWriteUf09 = new Button()
             {
                 Text = "⚡ 寫入",
-                Font = new Font("微軟正黑體", 8f, FontStyle.Bold),
+                Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold),
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(254, 243, 199),
                 ForeColor = Color.FromArgb(180, 83, 9),
@@ -614,7 +643,7 @@ namespace DynamometerHMI
             btnEquivAutoTuneUf09 = new Button()
             {
                 Text = "🤖 自適應追隨",
-                Font = new Font("微軟正黑體", 8f, FontStyle.Bold),
+                Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold),
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(238, 242, 255),
                 ForeColor = Color.FromArgb(79, 70, 229),
