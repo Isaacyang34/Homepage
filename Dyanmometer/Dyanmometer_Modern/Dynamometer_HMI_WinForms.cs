@@ -695,7 +695,7 @@ namespace DynamometerHMI
 
         // 全設備一鍵連線與通訊狀態藥丸燈號 (Device Connection Status Pills)
         private Label lblPillTorque, lblPillPowerMeter, lblPillGbd, lblPillKeb1, lblPillKeb2;
-        private Button btnMasterConnectAll, btnMasterDisconnectAll, btnFontCustomizer, btnDeviceSettings;
+        private Button btnMasterConnectAll, btnMasterDisconnectAll, btnDeviceSettings;
         public string torquePortName = "COM4";
         public int torqueBaudRate = 1000000;
         public string powerMeterIp = "192.168.0.11";
@@ -1205,32 +1205,13 @@ namespace DynamometerHMI
                 }
             };
 
-            // 8. 字體大小客製化設定按鈕 (標準 Tahoma 字體 Aa，原生支援 XP)
-            btnFontCustomizer = new Button()
-            {
-                Text = "Aa",
-                Location = new Point(400, 8),
-                Size = new Size(42, 34),
-                BackColor = Color.FromArgb(139, 92, 246),
-                ForeColor = Color.White,
-                Font = new Font("Tahoma", 12f, FontStyle.Bold),
-                Cursor = Cursors.Hand
-            };
-            ttTop.SetToolTip(btnFontCustomizer, "自訂全站字體大小 (字體客製化)");
-            btnFontCustomizer.Click += (s, e) => {
-                using (FontCustomizerDialog dlg = new FontCustomizerDialog(this))
-                {
-                    dlg.ShowDialog(this);
-                }
-            };
-
-            // 9. 設備通訊設定按鈕 (GDI+ 向量繪製連接器/插頭 ICON，完美相容 XP)
+            // 8. 設備通訊設定按鈕 (GDI+ 向量繪製連接器/插頭 ICON，完美相容 XP)
             btnDeviceSettings = new Button()
             {
                 Text = "",
                 Image = CreatePlugIconImage(36, 28, Color.White),
                 ImageAlign = ContentAlignment.MiddleCenter,
-                Location = new Point(450, 8),
+                Location = new Point(398, 8),
                 Size = new Size(42, 34),
                 BackColor = Color.FromArgb(14, 165, 233),
                 Cursor = Cursors.Hand
@@ -1275,11 +1256,11 @@ namespace DynamometerHMI
                 }
             };
 
-            // 10. 儀表校正微調設定按鈕 (支援 WT333E 三相電壓/電流/扭力計比例微調)
+            // 9. 儀表校正微調設定按鈕 (支援 WT333E 三相電壓/電流/扭力計比例微調)
             btnCalibrationSettings = new Button()
             {
                 Text = "⚙️",
-                Location = new Point(500, 8),
+                Location = new Point(448, 8),
                 Size = new Size(42, 34),
                 BackColor = Color.FromArgb(16, 185, 129),
                 ForeColor = Color.White,
@@ -1294,11 +1275,11 @@ namespace DynamometerHMI
                 }
             };
 
-            // 11. 崩潰/異常診斷日誌按鈕 (一鍵開啟最新崩潰報告或系統日誌)
+            // 10. 崩潰/異常診斷日誌按鈕 (一鍵開啟最新崩潰報告或系統日誌)
             Button btnCrashLogs = new Button()
             {
                 Text = "🚨 診斷 LOG",
-                Location = new Point(548, 8),
+                Location = new Point(498, 8),
                 Size = new Size(110, 34),
                 BackColor = Color.FromArgb(71, 85, 105),
                 ForeColor = Color.White,
@@ -1353,7 +1334,7 @@ namespace DynamometerHMI
 
             pnlTop.Controls.AddRange(new Control[] {
                 lblAppTitle, btnClosedLoopModal,
-                btnRecordRawTop, btnFontCustomizer, btnDeviceSettings, btnCalibrationSettings, btnCrashLogs,
+                btnRecordRawTop, btnDeviceSettings, btnCalibrationSettings, btnCrashLogs,
                 flpTopRight
             });
             rootTable.Controls.Add(pnlTop, 0, 0);
