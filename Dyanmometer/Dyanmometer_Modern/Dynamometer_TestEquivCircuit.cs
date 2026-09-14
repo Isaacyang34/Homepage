@@ -1249,7 +1249,11 @@ namespace DynamometerHMI
                 double p = (actElecPower > 0.01) ? (actElecPower * 1000.0) : (wtP1 + wtP2 + wtP3);
                 double pf = (wtPFSig > 0.0) ? wtPFSig : 0.08;
                 double spd = Math.Abs(actSpeed);
-                double f = (actFrequency > 1.0) ? actFrequency : (wtFreqU > 1.0 ? wtFreqU : 50.0);
+                double f = (actFrequency > 1.0) ? actFrequency : 
+                           (wtFreqU > 1.0 ? wtFreqU : 
+                           (numEquivF0.Value > 1.0m ? (double)numEquivF0.Value :
+                           (lastB_Dr05.HasValue ? ConvertKebDr05ToFrequency(lastB_Dr05.Value) :
+                           (kebDrFreq2 > 1.0 ? kebDrFreq2 : 50.0))));
 
                 if (v > 0) numEquivV0.Value = (decimal)Math.Round(v, 1);
                 if (i > 0) numEquivI0.Value = (decimal)Math.Round(i, 2);
@@ -1352,7 +1356,10 @@ namespace DynamometerHMI
                     numEquivVn.Value = ratedV;
 
                     int poles = kebMotorPoles2 > 0 ? kebMotorPoles2 : 4;
-                    double syncSpd = 120.0 * 50.0 / poles;
+                    double effectiveF0 = (numEquivF0.Value > 1.0m) ? (double)numEquivF0.Value :
+                                         (lastB_Dr05.HasValue ? ConvertKebDr05ToFrequency(lastB_Dr05.Value) :
+                                         (kebDrFreq2 > 1.0 ? kebDrFreq2 : 50.0));
+                    double syncSpd = (120.0 * effectiveF0) / poles;
                     double actSpdVal = (double)numEquivNn.Value;
                     if (syncSpd > 0 && actSpdVal > 0)
                     {
@@ -1399,8 +1406,12 @@ namespace DynamometerHMI
                 if (pf > 0) numEquivPfn.Value = (decimal)Math.Round(pf, 3);
 
                 int poles = kebMotorPoles2 > 0 ? kebMotorPoles2 : 4;
-                double f = (actFrequency > 1.0) ? actFrequency : (wtFreqU > 1.0 ? wtFreqU : 50.0);
-                double syncSpd = 120.0 * f / poles;
+                double f = (numEquivF0.Value > 1.0m) ? (double)numEquivF0.Value :
+                           (actFrequency > 1.0 ? actFrequency :
+                           (wtFreqU > 1.0 ? wtFreqU :
+                           (lastB_Dr05.HasValue ? ConvertKebDr05ToFrequency(lastB_Dr05.Value) :
+                           (kebDrFreq2 > 1.0 ? kebDrFreq2 : 50.0))));
+                double syncSpd = (120.0 * f) / poles;
                 if (syncSpd > 0 && spd > 0)
                 {
                     double s = (syncSpd - spd) / syncSpd;
@@ -1703,10 +1714,14 @@ namespace DynamometerHMI
                 int? r_dr05_4_s0 = KebReadParamWithDll(com, baud, node, 0x0405, 0);
                 int? r_dr05 = r_dr05_s0 ?? r_dr05_s1 ?? r_dr05_4_s0;
 
-                // 讀取 uf 特性參數 (uf00 頻率, uf09 基準電壓)
+                // 讀取 uf 特性參數 (uf00 基準頻率, uf05 拐點/額定頻率, uf09 基準電壓)
                 int? r_uf00_s1 = KebReadParamWithDll(com, baud, node, 0x0500, 1);
                 int? r_uf00_s0 = KebReadParamWithDll(com, baud, node, 0x0500, 0);
                 int? r_uf00 = r_uf00_s1 ?? r_uf00_s0;
+
+                int? r_uf05_s1 = KebReadParamWithDll(com, baud, node, 0x0505, 1);
+                int? r_uf05_s0 = KebReadParamWithDll(com, baud, node, 0x0505, 0);
+                int? r_uf05 = r_uf05_s1 ?? r_uf05_s0;
 
                 int? r_uf09_s1 = KebReadParamWithDll(com, baud, node, 0x0509, 1);
                 int? r_uf09_s0 = KebReadParamWithDll(com, baud, node, 0x0509, 0);
@@ -1718,24 +1733,34 @@ namespace DynamometerHMI
                     drFreq = ConvertKebDr05ToFrequency(r_dr05.Value);
                 }
 
-                double ufFreq = 0.0;
+                double uf00Freq = 0.0;
                 if (r_uf00.HasValue)
                 {
-                    ufFreq = ConvertKebUf00ToFrequency(r_uf00.Value, drFreq);
+                    uf00Freq = ConvertKebUf00ToFrequency(r_uf00.Value, drFreq);
                 }
 
+                double uf05Freq = 0.0;
+                if (r_uf05.HasValue)
+                {
+                    uf05Freq = ConvertKebUf00ToFrequency(r_uf05.Value, drFreq > 0 ? drFreq : uf00Freq);
+                }
+
+                double ufFreq = (uf05Freq > 1.0) ? uf05Freq : uf00Freq;
+                double effectiveFreq = (drFreq > 1.0) ? drFreq : ((uf05Freq > 1.0) ? uf05Freq : ((uf00Freq > 1.0) ? uf00Freq : 50.0));
+
                 int rawUf00Val = r_uf00.HasValue ? r_uf00.Value : 0;
+                int rawUf05Val = r_uf05.HasValue ? r_uf05.Value : 0;
                 int rawDr05Val = r_dr05.HasValue ? r_dr05.Value : 0;
 
                 string rawDiagStr = string.Format(
                     "【[RAW] KEB 原始暫存器 RAW 遙測分析】{0} (COM{1}/Baud{2}/Node{3}):\r\n" +
-                    "  • uF.00 (0x0500): Raw={4} (HEX: 0x{4:X4}) [Set1={5}, Set0={6}]\r\n" +
-                    "    -> 比例試算: x0.05={7:F2}Hz, x0.025={8:F2}Hz, x0.0125={9:F2}Hz, x0.1={10:F2}Hz | 最終解析={11:F2}Hz\r\n" +
-                    "  • dr.05 (0x0605): Raw={12} (HEX: 0x{12:X4}) [Set0={13}, Set1={14}, 0x0405={15}] | 最終解析={16:F1}Hz",
+                    "  • uF.00 (0x0500): Raw={4} (HEX: 0x{4:X4}) -> 解析={5:F2}Hz\r\n" +
+                    "  • uF.05 (0x0505): Raw={6} (HEX: 0x{6:X4}) -> 解析={7:F2}Hz\r\n" +
+                    "  • dr.05 (0x0605): Raw={8} (HEX: 0x{8:X4}) [Set0={9}, Set1={10}, 0x0405={11}] -> 最終鎖定={12:F1}Hz",
                     dName, com, baud, node,
-                    rawUf00Val, (r_uf00_s1.HasValue ? r_uf00_s1.Value.ToString() : "null"), (r_uf00_s0.HasValue ? r_uf00_s0.Value.ToString() : "null"),
-                    rawUf00Val * 0.05, rawUf00Val * 0.025, rawUf00Val * 0.0125, rawUf00Val * 0.1, ufFreq,
-                    rawDr05Val, (r_dr05_s0.HasValue ? r_dr05_s0.Value.ToString() : "null"), (r_dr05_s1.HasValue ? r_dr05_s1.Value.ToString() : "null"), (r_dr05_4_s0.HasValue ? r_dr05_4_s0.Value.ToString() : "null"), drFreq);
+                    rawUf00Val, uf00Freq,
+                    rawUf05Val, uf05Freq,
+                    rawDr05Val, (r_dr05_s0.HasValue ? r_dr05_s0.Value.ToString() : "null"), (r_dr05_s1.HasValue ? r_dr05_s1.Value.ToString() : "null"), (r_dr05_4_s0.HasValue ? r_dr05_4_s0.Value.ToString() : "null"), effectiveFreq);
 
                 WriteHmiLog("KEB_RAW_DUMP", rawDiagStr);
 
@@ -1766,28 +1791,67 @@ namespace DynamometerHMI
                     originalUf09Val = r_dr02.Value;
                 }
 
-                // 同步比對檢查
+                // ★【硬體參數自動連鎖回填 UI】(徹底解決使用者反映數值未帶入導致 fallback 50.0Hz 問題)
+                this.Invoke((MethodInvoker)delegate {
+                    if (numEquivF0 != null && effectiveFreq > 1.0)
+                    {
+                        numEquivF0.Value = (decimal)Math.Round(effectiveFreq, 2);
+                    }
+                    if (numEquivVn != null && drVolt >= 50.0)
+                    {
+                        numEquivVn.Value = (decimal)Math.Round(drVolt, 1);
+                    }
+                    if (numEquivIn != null && drCurr >= 0.5)
+                    {
+                        numEquivIn.Value = (decimal)Math.Round(drCurr, 2);
+                    }
+                    if (numEquivNn != null && r_dr01.HasValue && r_dr01.Value > 100)
+                    {
+                        numEquivNn.Value = (decimal)r_dr01.Value;
+                        int poles = kebMotorPoles2 > 0 ? kebMotorPoles2 : 4;
+                        double syncSpd = (120.0 * effectiveFreq) / poles;
+                        if (syncSpd > 0 && r_dr01.Value > 0)
+                        {
+                            double s = (syncSpd - r_dr01.Value) / syncSpd;
+                            if (s > 0 && numEquivSlip != null) numEquivSlip.Value = (decimal)Math.Round(s * 100.0, 2);
+                        }
+                    }
+                    if (lblNoLoadItemStatus != null && effectiveFreq > 1.0)
+                    {
+                        lblNoLoadItemStatus.Text = string.Format("[O] 已鎖定變頻器額定頻率: {0:F1} Hz", effectiveFreq);
+                        lblNoLoadItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
+                    }
+                    if (lblRatedItemStatus != null && r_dr01.HasValue)
+                    {
+                        lblRatedItemStatus.Text = string.Format("[O] 已同步變頻器銘牌: {0:F0}V, {1:F1}A, {2}rpm", drVolt, drCurr, r_dr01.Value);
+                        lblRatedItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
+                    }
+                });
+
+                // 同步比對檢查 (若 dr.05 與 uf.05 或 uf.00 其中之一匹配即判定頻率同步)
                 List<string> unSyncItems = new List<string>();
-                if (drFreq > 0 && ufFreq > 0 && Math.Abs(drFreq - ufFreq) > 0.5)
+                bool freqSynced = (drFreq > 0 && ((uf05Freq > 0 && Math.Abs(drFreq - uf05Freq) <= 0.5) || (uf00Freq > 0 && Math.Abs(drFreq - uf00Freq) <= 0.5)));
+                if (!freqSynced && drFreq > 0 && (uf05Freq > 0 || uf00Freq > 0))
                 {
-                    unSyncItems.Add(string.Format("• 額定頻率不同步: dr.05={0:F1} Hz vs uf.00={1:F1} Hz (相差 {2:F1} Hz)", drFreq, ufFreq, Math.Abs(drFreq - ufFreq)));
+                    unSyncItems.Add(string.Format("• 額定頻率不同步: dr.05={0:F1} Hz vs uf.05={1:F1} Hz / uf.00={2:F1} Hz", drFreq, uf05Freq, uf00Freq));
                 }
                 if (drVolt > 0 && ufVolt > 0 && Math.Abs(drVolt - ufVolt) > 5.0)
                 {
                     unSyncItems.Add(string.Format("• 額定電壓不同步: dr.02={0:F0} V vs uf.09={1:F0} V (相差 {2:F0} V)", drVolt, ufVolt, Math.Abs(drVolt - ufVolt)));
                 }
 
-                WriteHmiLog("KEB_SYNC", string.Format("【dr/uf 參數蒐集】{0}: dr00={1:F1}A, dr01={2}rpm, dr02={3}V, dr05={4:F1}Hz | uf00={5:F1}Hz, uf09={6}V | 同步: {7}",
-                    dName, drCurr, r_dr01.HasValue ? r_dr01.Value.ToString() : "--", drVolt, drFreq, ufFreq, ufVolt, (unSyncItems.Count == 0 ? "已同步" : "未同步")));
+                WriteHmiLog("KEB_SYNC", string.Format("【dr/uf 參數蒐集】{0}: dr00={1:F1}A, dr01={2}rpm, dr02={3}V, dr05={4:F1}Hz | uf00={5:F1}Hz, uf05={6:F1}Hz, uf09={7}V | 同步: {8} | 鎖定頻率: {9:F1}Hz",
+                    dName, drCurr, r_dr01.HasValue ? r_dr01.Value.ToString() : "--", drVolt, drFreq, uf00Freq, uf05Freq, ufVolt, (unSyncItems.Count == 0 ? "已同步" : "未同步"), effectiveFreq));
 
                 string popupRawBox = string.Format(
                     "--------------------------------------------------\r\n" +
                     "【變頻器實測 RAW 暫存器數據】\r\n" +
-                    "• uF.00 (0x0500): Raw={0} (0x{0:X4}) -> 解析: {1:F2} Hz\r\n" +
-                    "  [各比例: x0.05={2:F1}Hz, x0.025={3:F1}Hz, x0.1={4:F1}Hz]\r\n" +
-                    "• dr.05 (0x0605): Raw={5} (0x{5:X4}) -> 解析: {6:F1} Hz\r\n" +
-                    "--------------------------------------------------",
-                    rawUf00Val, ufFreq, rawUf00Val * 0.05, rawUf00Val * 0.025, rawUf00Val * 0.1, rawDr05Val, drFreq);
+                    "• dr.05 (0x0605): Raw={0} (0x{0:X4}) -> 解析: {1:F1} Hz\r\n" +
+                    "• uF.05 (0x0505): Raw={2} (0x{2:X4}) -> 解析: {3:F1} Hz\r\n" +
+                    "• uF.00 (0x0500): Raw={4} (0x{4:X4}) -> 解析: {5:F2} Hz\r\n" +
+                    "--------------------------------------------------\r\n" +
+                    "★ 系統已自動連鎖回填：測試基準頻率 f0 = {6:F1} Hz",
+                    rawDr05Val, drFreq, rawUf05Val, uf05Freq, rawUf00Val, uf00Freq, effectiveFreq);
 
                 if (unSyncItems.Count > 0)
                 {
@@ -1795,10 +1859,10 @@ namespace DynamometerHMI
                         "偵測到 {0} 的 dr 銘牌參數與 uf 特性曲線參數未完全同步：\r\n\r\n" +
                         string.Join("\r\n", unSyncItems.ToArray()) + "\r\n\r\n" +
                         "• 實測 dr 參數: dr01={1}rpm, dr00={2:F1}A, dr02={3:F0}V, dr05={4:F1}Hz\r\n" +
-                        "• 實測 uf 參數: uf00={5:F1}Hz, uf09={6:F0}V\r\n\r\n" +
+                        "• 實測 uf 參數: uf05={5:F1}Hz, uf00={6:F1}Hz, uf09={7:F0}V\r\n\r\n" +
                         popupRawBox + "\r\n\r\n" +
                         "※ 提醒：請確認變頻器內部設定是否正確！",
-                        dName, r_dr01.HasValue ? r_dr01.Value.ToString() : "--", drCurr, drVolt, drFreq, ufFreq, ufVolt);
+                        dName, r_dr01.HasValue ? r_dr01.Value.ToString() : "--", drCurr, drVolt, drFreq, uf05Freq, uf00Freq, ufVolt);
 
                     MessageBox.Show(warnMsg, "參數同步提醒", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return false;
@@ -1808,16 +1872,16 @@ namespace DynamometerHMI
                     if (showSuccessDialog)
                     {
                         string okMsg = string.Format("【[O] KEB 參數蒐集與同步驗證正常】\r\n\r\n" +
-                            "{0} 的 dr 與 uf 參數均已同步一致：\r\n" +
-                            "• 額定頻率: {1:F1} Hz (dr.05={1:F1} Hz, uf.00={2:F1} Hz)\r\n" +
-                            "• 額定電壓: {3:F0} V (dr.02={3:F0} V, uf.09={4:F0} V)\r\n" +
-                            "• 額定電流: {5:F1} A (dr.00)\r\n" +
-                            "• 額定轉速: {6} rpm (dr.01)\r\n\r\n" +
+                            "{0} 的 dr 與 uf 參數均已同步一致，並已自動回填實驗參數：\r\n" +
+                            "• 鎖定額定頻率: {1:F1} Hz (dr.05={1:F1} Hz, uf.05={2:F1} Hz, uf.00={3:F1} Hz)\r\n" +
+                            "• 額定電壓: {4:F0} V (dr.02={4:F0} V, uf.09={5:F0} V)\r\n" +
+                            "• 額定電流: {6:F1} A (dr.00)\r\n" +
+                            "• 額定轉速: {7} rpm (dr.01)\r\n\r\n" +
                             popupRawBox + "\r\n\r\n" +
-                            "變頻器參數設定良好！",
-                            dName, drFreq, ufFreq, drVolt, ufVolt, drCurr, r_dr01.HasValue ? r_dr01.Value.ToString() : "--");
+                            "變頻器參數設定良好，等效電路數值已自動同步！",
+                            dName, drFreq, uf05Freq, uf00Freq, drVolt, ufVolt, drCurr, r_dr01.HasValue ? r_dr01.Value.ToString() : "--");
 
-                        MessageBox.Show(okMsg, "參數已同步", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show(okMsg, "參數已同步且回填", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                     return true;
                 }
@@ -1995,7 +2059,38 @@ namespace DynamometerHMI
                 int node = (driveId == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
                 double inRated = (double)numEquivIn.Value;
                 if (inRated <= 0.5) inRated = 32.3;
-                double f0 = (numEquivF0.Value > 1.0m) ? (double)numEquivF0.Value : 50.0;
+
+                // ★【額定頻率動態鎖定】優先取卡片 1 輸入值，若為 0 則動態自變頻器實測 dr.05 / uf.05 提取並自動回填 UI
+                double f0 = (double)numEquivF0.Value;
+                if (f0 <= 1.0)
+                {
+                    if (driveId == 2 && lastB_Dr05.HasValue) f0 = ConvertKebDr05ToFrequency(lastB_Dr05.Value);
+                    else if (driveId == 1 && kebDrFreq1 > 1.0) f0 = kebDrFreq1;
+                    else if (driveId == 2 && kebDrFreq2 > 1.0) f0 = kebDrFreq2;
+
+                    if (f0 <= 1.0)
+                    {
+                        int? rDr = KebReadParamWithDll(com, baud, node, 0x0605, 0) ?? KebReadParamWithDll(com, baud, node, 0x0405, 0);
+                        if (rDr.HasValue) f0 = ConvertKebDr05ToFrequency(rDr.Value);
+                    }
+                    if (f0 <= 1.0)
+                    {
+                        int? rUf = KebReadParamWithDll(com, baud, node, 0x0505, 1) ?? KebReadParamWithDll(com, baud, node, 0x0500, 1);
+                        if (rUf.HasValue) f0 = ConvertKebUf00ToFrequency(rUf.Value, 0.0);
+                    }
+                    if (f0 <= 1.0) f0 = 50.0;
+
+                    double autoDetectedF0 = f0;
+                    this.Invoke((MethodInvoker)delegate {
+                        numEquivF0.Value = (decimal)Math.Round(autoDetectedF0, 2);
+                        if (lblNoLoadItemStatus != null)
+                        {
+                            lblNoLoadItemStatus.Text = string.Format("[O] 堵轉試驗自動鎖定額定頻率: {0:F1} Hz", autoDetectedF0);
+                            lblNoLoadItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
+                        }
+                    });
+                }
+                WriteHmiLog("EQUIV", string.Format("【堵轉掃描啟動】鎖定額定頻率基準 f0 = {0:F1} Hz, 額定電流 IN = {1:F2} A", f0, inRated));
 
                 // 讀取原始 uf09 基準電壓 (低於 100V 視為降壓狀態，不予採納為原始值)
                 int? origVal = KebReadUf09(driveId);
@@ -2803,6 +2898,13 @@ namespace DynamometerHMI
                 double I0 = (double)numEquivI0.Value;
                 double P0 = (double)numEquivP0.Value;
                 double f0 = (double)numEquivF0.Value;
+                if (f0 <= 1.0)
+                {
+                    if (lastB_Dr05.HasValue) f0 = ConvertKebDr05ToFrequency(lastB_Dr05.Value);
+                    else if (kebDrFreq2 > 1.0) f0 = kebDrFreq2;
+                    else f0 = 50.0;
+                    numEquivF0.Value = (decimal)Math.Round(f0, 2);
+                }
 
                 double VN = (double)numEquivVn.Value;
                 double IN = (double)numEquivIn.Value;
@@ -2848,7 +2950,7 @@ namespace DynamometerHMI
                     default: fRatio = 1.0; break;
                 }
 
-                double baseFreq = (f0 > 1.0) ? f0 : 50.0;
+                double baseFreq = f0;
                 double fTest = baseFreq * fRatio;      // 實際測試頻率 (如 25 Hz 或 12.5 Hz)
 
                 // 折算回額定頻率 f0 下之堵轉總漏抗: Xk(f0) = Xk_meas * (f0 / fTest) = Xk_meas / fRatio
@@ -3230,6 +3332,38 @@ namespace DynamometerHMI
                 // 首次若無快取，進行記錄
                 if (string.IsNullOrEmpty(cachedEquivMotorName)) cachedEquivMotorName = curName;
                 if (string.IsNullOrEmpty(cachedEquivDrFingerprint) && !string.IsNullOrEmpty(lastKnownB_DrFingerprint)) cachedEquivDrFingerprint = lastKnownB_DrFingerprint;
+
+                // ★【變頻器實測銘牌自動預填防呆】若 UI 欄位未填，自最新快取自動補齊，徹底杜絕 fallback 50.0Hz
+                if (numEquivF0 != null && numEquivF0.Value <= 1.0m)
+                {
+                    double f = 0.0;
+                    if (lastB_Dr05.HasValue) f = ConvertKebDr05ToFrequency(lastB_Dr05.Value);
+                    else if (kebDrFreq2 > 1.0) f = kebDrFreq2;
+                    if (f > 1.0) numEquivF0.Value = (decimal)Math.Round(f, 2);
+                }
+                if (numEquivVn != null && numEquivVn.Value <= 10.0m && lastB_Dr02.HasValue && lastB_Dr02.Value >= 50)
+                {
+                    numEquivVn.Value = (decimal)lastB_Dr02.Value;
+                }
+                if (numEquivIn != null && numEquivIn.Value <= 0.5m && lastB_Dr00.HasValue && lastB_Dr00.Value > 0)
+                {
+                    numEquivIn.Value = (decimal)Math.Round(lastB_Dr00.Value * 0.1, 2);
+                }
+                if (numEquivNn != null && numEquivNn.Value <= 100m && lastB_Dr01.HasValue && lastB_Dr01.Value > 100)
+                {
+                    numEquivNn.Value = (decimal)lastB_Dr01.Value;
+                    int poles = kebMotorPoles2 > 0 ? kebMotorPoles2 : 4;
+                    double fVal = (double)numEquivF0.Value;
+                    if (fVal > 1.0)
+                    {
+                        double syncSpd = (120.0 * fVal) / poles;
+                        if (syncSpd > 0 && lastB_Dr01.Value > 0)
+                        {
+                            double s = (syncSpd - lastB_Dr01.Value) / syncSpd;
+                            if (s > 0 && numEquivSlip != null) numEquivSlip.Value = (decimal)Math.Round(s * 100.0, 2);
+                        }
+                    }
+                }
             }
             catch { }
         }
