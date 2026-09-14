@@ -1800,28 +1800,66 @@ namespace DynamometerHMI
                         cmbEquivLockedFreq.SelectedIndex = idx;
                     });
 
-                    // 1. 設定變頻器輸出頻率 (透過 Sy.52 與 oP.03 給定轉速 rpm = 120 * fTest / poles)
+                    // 1. 起始安全電壓估算 (阻抗繼承法 或 頻率等比例折算法，避免低頻漏抗減半導致電流過大)
+                    int startV;
+                    if (idx > startFreqIdx && lockedSweepItems[idx - 1].IsCompleted && lockedSweepItems[idx - 1].Lk_mH > 0 && lockedSweepItems[idx - 1].AvgIk > 0.1)
+                    {
+                        // 阻抗繼承預估法：以前一頻率測得之 Lk 與 Rk 外推新頻率理論目標電壓，取 60% 作為起點
+                        double prevLk = lockedSweepItems[idx - 1].Lk_mH / 1000.0;
+                        double prevRk = lockedSweepItems[idx - 1].AvgPk / (3.0 * Math.Pow(lockedSweepItems[idx - 1].AvgIk, 2));
+                        double omegaTest = 2.0 * Math.PI * fTest;
+                        double estZk = Math.Sqrt(prevRk * prevRk + Math.Pow(omegaTest * prevLk, 2));
+                        double estVline = (inRated * estZk) * Math.Sqrt(3.0);
+                        startV = Math.Max(5, Math.Min((int)Math.Round(ratedVolt * 0.15), (int)Math.Round(estVline * 0.60)));
+                        WriteHmiLog("EQUIV", string.Format("【阻抗繼承預估起步電壓】{0}: 前頻Lk={1:F3}mH, 理論Zk={2:F3}Ω, 起步電壓={3}V", item.FreqName, lockedSweepItems[idx - 1].Lk_mH, estZk, startV));
+                    }
+                    else
+                    {
+                        // 頻率等比例折算法：基頻為 10% 額定電壓，隨頻率倍率折算，最低保底 5V
+                        double scaledRatio = Math.Min(1.0, Math.Max(0.2, fRatio));
+                        startV = Math.Max(5, (int)Math.Round(ratedVolt * 0.10 * scaledRatio));
+                    }
+
+                    item.StartVoltage = startV;
+                    int curV = startV;
+
+                    // 步驟 A: 先將 uf.09 寫入安全起步電壓 (消除高壓切換過電流風險)
+                    KebWriteUf09(driveId, curV);
+
+                    // 步驟 B: 設定變頻器輸出頻率 (透過 Sy.52 與 oP.03 給定轉速 rpm = 120 * fTest / poles)
                     int poles = (kebMotorPoles2 > 0) ? kebMotorPoles2 : 4;
                     double targetRpm = (120.0 * fTest) / poles;
                     KebWriteParam32(com, baud, node, 0x0034, (int)Math.Round(targetRpm), string.Format("堵轉頻率 {0:F1}Hz (Sy.52)", fTest));
                     KebWriteParam32(com, baud, node, 0x0303, (int)Math.Round(targetRpm * 8), string.Format("堵轉轉速 (oP.03)", fTest));
-                    System.Threading.Thread.Sleep(800);
-
-                    // 2. 起始電壓設定: 1/10 額定電壓 (uf09 可蒐集)
-                    int startV = Math.Max(5, (int)Math.Round(ratedVolt * 0.1));
-                    item.StartVoltage = startV;
-                    int curV = startV;
-                    KebWriteUf09(driveId, curV);
 
                     this.Invoke((MethodInvoker)delegate {
                         lblEquivCurUf09.Text = string.Format("uf09: {0} V", curV);
-                        lblLockedItemStatus.Text = string.Format("[AI] {0} 起始電壓 1/10 額定: {1} V，準備 1V 增幅探測...", item.FreqName, startV);
+                        lblLockedItemStatus.Text = string.Format("[AI] {0} ({1:F1}Hz) 起始電壓: {2}V, Sy.52={3:F0}rpm，握手鎖定中...", item.FreqName, fTest, startV, targetRpm);
                     });
-                    System.Threading.Thread.Sleep(1000);
+                    System.Threading.Thread.Sleep(400); // 握手響應 400ms，無須多餘冷卻停頓
 
-                    // 3. 做 1V 增幅 5 次估測目標電流所需電壓
-                    List<KeyValuePair<int, double>> probePts = new List<KeyValuePair<int, double>>();
+                    // 步驟 C: 初測電流安全檢驗 (若切換後電流偏大 > 80% IN，啟動反向階梯回退降壓)
                     double iInit = GetCurrentSample();
+                    if (iInit > inRated * 0.80)
+                    {
+                        WriteHmiLog("EQUIV_WARN", string.Format("【起步電流偏大預警】{0} 初測電流 {1:F2}A 達額定 {2:F2}A 之 80%，啟動反向階梯回退降壓！", item.FreqName, iInit, inRated));
+                        int rollbackCount = 0;
+                        while (isLockedSweepRunning && curV > 5 && GetCurrentSample() > inRated * 0.70 && rollbackCount < 10)
+                        {
+                            rollbackCount++;
+                            curV = Math.Max(5, curV - 2);
+                            KebWriteUf09(driveId, curV);
+                            this.Invoke((MethodInvoker)delegate {
+                                lblEquivCurUf09.Text = string.Format("uf09: {0} V", curV);
+                                lblLockedItemStatus.Text = string.Format("[AI] {0} 電流過大回退降壓: uf09={1}V, Ik={2:F2}A", item.FreqName, curV, GetCurrentSample());
+                            });
+                            System.Threading.Thread.Sleep(300);
+                        }
+                        iInit = GetCurrentSample();
+                    }
+
+                    // 2. 做 1V 增幅 5 次估測目標電流所需電壓
+                    List<KeyValuePair<int, double>> probePts = new List<KeyValuePair<int, double>>();
                     probePts.Add(new KeyValuePair<int, double>(curV, iInit));
 
                     for (int step = 1; step <= 5; step++)
@@ -1989,13 +2027,16 @@ namespace DynamometerHMI
                             item.FreqName, fTest, avgV, avgI, avgP, avgPF, xk_meas, xk_ref, lk_mH));
                     }
 
-                    // 單頻或各步完成後，稍微平滑過渡
+                    // 單頻或各步完成後，退回安全起步電壓無縫切換下一頻率 (無需冷卻停頓)
                     if (!singleFreqMode && idx < endFreqIdx)
                     {
+                        int nextStartV = Math.Max(5, (int)Math.Round(ratedVolt * 0.10 * Math.Min(1.0, Math.Max(0.2, lockedSweepItems[idx + 1].FreqRatio))));
+                        KebWriteUf09(driveId, nextStartV);
                         this.Invoke((MethodInvoker)delegate {
-                            lblLockedItemStatus.Text = string.Format("[AI] {0} 完成，切換至下一頻率...", item.FreqName);
+                            lblEquivCurUf09.Text = string.Format("uf09: {0} V", nextStartV);
+                            lblLockedItemStatus.Text = string.Format("[AI] {0} 完成，退回起步電壓 {1}V 直接推進下一頻率...", item.FreqName, nextStartV);
                         });
-                        System.Threading.Thread.Sleep(1000);
+                        System.Threading.Thread.Sleep(300); // 僅需 300ms 暫態響應，零冷卻停頓
                     }
                 }
 
