@@ -901,6 +901,7 @@ namespace DynamometerHMI
 
         // 分頁 6: 系統運轉日誌專屬檢視與匯出
         private static MainForm instance;
+        public static MainForm Instance { get { return instance; } }
         private Label lblMiniLogText;
         private TextBox txtFullLog;
         private TextBox txtKebConfigLog;
@@ -1956,55 +1957,7 @@ namespace DynamometerHMI
                 sb.AppendLine("Width=" + bounds.Width);
                 sb.AppendLine("Height=" + bounds.Height);
                 sb.AppendLine("State=" + (int)this.WindowState);
-                sb.AppendLine("ActiveTab=" + (tabControl != null ? tabControl.SelectedIndex : 0));
-
-                // 僅同步目前使用者正處於活動操作分頁 (Active Tab) 之分割容器位置，絕對嚴禁讀取背景/未渲染分頁造成覆寫
-                int curTab = (tabControl != null) ? tabControl.SelectedIndex : 0;
-                if (curTab == 0)
-                {
-                    if (splitMainVertical != null && splitMainVertical.Height > 0) layoutSplitters["MainVertical"] = splitMainVertical.SplitterDistance;
-                    if (splitDrives != null && splitDrives.Width > 0) layoutSplitters["Drives"] = splitDrives.SplitterDistance;
-                    if (splitDrive1 != null && splitDrive1.Width > 0) layoutSplitters["Drive1"] = splitDrive1.SplitterDistance;
-                    if (splitDrive2 != null && splitDrive2.Width > 0) layoutSplitters["Drive2"] = splitDrive2.SplitterDistance;
-                    if (splitBottomHorizontal != null && splitBottomHorizontal.Width > 0) layoutSplitters["Bottom"] = splitBottomHorizontal.SplitterDistance;
-                    if (splitParam1 != null && splitParam1.Height > 0) layoutSplitters["Param1"] = splitParam1.SplitterDistance;
-                    if (splitParam2 != null && splitParam2.Height > 0) layoutSplitters["Param2"] = splitParam2.SplitterDistance;
-                }
-                else if (curTab == 1) // 多段 T-N 測試
-                {
-                    if (splitTnMain != null && splitTnMain.Height > 0)
-                    {
-                        string k = (cmbTnMode != null && cmbTnMode.SelectedIndex == 1) ? "TnMainMulti" : "TnMain";
-                        layoutSplitters[k] = splitTnMain.SplitterDistance;
-                    }
-                    if (splitTnBottom != null && splitTnBottom.Width > 0) layoutSplitters["TnBottom"] = splitTnBottom.SplitterDistance;
-                    if (splitTnRight != null && splitTnRight.Height > 0) layoutSplitters["TnRight"] = splitTnRight.SplitterDistance;
-                }
-                else if (curTab == 2) // 工作制測試 (Duty: S1 / S2 / S6)
-                {
-                    if (splitDuty != null && splitDuty.Height > 0)
-                    {
-                        string dutyModeKey = "DutyMain";
-                        if (cmbDutyMode != null)
-                        {
-                            if (cmbDutyMode.SelectedIndex == 0) dutyModeKey = "DutyMain_S1";
-                            else if (cmbDutyMode.SelectedIndex == 1) dutyModeKey = "DutyMain_S2";
-                            else if (cmbDutyMode.SelectedIndex == 2) dutyModeKey = "DutyMain_S6";
-                        }
-                        layoutSplitters[dutyModeKey] = splitDuty.SplitterDistance;
-                        layoutSplitters["DutyMain"] = splitDuty.SplitterDistance;
-                    }
-                    if (splitDutyTop != null && splitDutyTop.Width > 0) layoutSplitters["DutyTop"] = splitDutyTop.SplitterDistance;
-                }
-                else if (curTab == 3) // 效率地圖 (Map)
-                {
-                    if (splitEff != null && splitEff.Width > 0) layoutSplitters["EffMain"] = splitEff.SplitterDistance;
-                }
-                else if (curTab == 4) // 空載溫升 (No-Load)
-                {
-                    if (splitNoLoadMain != null && splitNoLoadMain.Height > 0) layoutSplitters["NoLoadMain"] = splitNoLoadMain.SplitterDistance;
-                    if (splitNoLoadBottom != null && splitNoLoadBottom.Width > 0) layoutSplitters["NoLoadBottom"] = splitNoLoadBottom.SplitterDistance;
-                }
+                sb.AppendLine("ActiveTab=" + (tabControl != null ? tabControl.SelectedIndex : (loadedActiveTab >= 0 ? loadedActiveTab : 1)));
 
                 sb.AppendLine("[Splitters]");
                 foreach (var kvp in layoutSplitters)
@@ -2685,9 +2638,10 @@ namespace DynamometerHMI
                 // 設定 Panel1 為固定面板，防止視窗縮放或最大化時被 WinForms 等比縮放自動破壞像素設定
                 try { split.FixedPanel = FixedPanel.Panel1; } catch { }
 
-                // 綁定 SplitterMoved 事件，僅在使用者手動拖曳時儲存設定
+                // 綁定 SplitterMoved 事件，僅在使用者手動拖曳或鍵盤操作時儲存設定 (過濾 WinForms 排版縮放觸發之虛假事件)
                 split.SplitterMoved += (s, e) => {
                     if (!isLayoutLoaded || isApplyingSplitterLayout) return;
+                    if (Control.MouseButtons != MouseButtons.Left && !split.Focused && !split.ContainsFocus) return;
                     string actualKey = key;
                     if (key == "TnMain" && cmbTnMode != null && cmbTnMode.SelectedIndex == 1) actualKey = "TnMainMulti";
                     if (key == "DutyMain" && cmbDutyMode != null)
@@ -2752,17 +2706,6 @@ namespace DynamometerHMI
                 int total = (split.Orientation == Orientation.Horizontal) ? split.Height : split.Width;
                 if (total <= (p1Min + p2Min + split.SplitterWidth))
                 {
-                    // 容器尚未完成內部排版 (Height/Width 暫為 0 或小於邊界)，註冊就緒時重試
-                    EventHandler onReady = null;
-                    onReady = (s, e) => {
-                        int rTotal = (split.Orientation == Orientation.Horizontal) ? split.Height : split.Width;
-                        if (rTotal > (p1Min + p2Min + split.SplitterWidth))
-                        {
-                            try { split.SizeChanged -= onReady; } catch { }
-                            ApplySplitterDistanceSafe(split, key, defaultFallback, p1Min, p2Min);
-                        }
-                    };
-                    split.SizeChanged += onReady;
                     return false;
                 }
 
@@ -2772,28 +2715,33 @@ namespace DynamometerHMI
                     desired = (defaultFallback > 0) ? defaultFallback : split.SplitterDistance;
                 }
 
-                if (desired > 0)
-                {
-                    split.Panel1MinSize = p1Min;
-                    split.Panel2MinSize = p2Min;
-                    int maxDist = total - p2Min - split.SplitterWidth;
-                    int clamped = Math.Max(p1Min, Math.Min(maxDist, desired));
+                if (desired <= 0) return false;
 
-                    isApplyingSplitterLayout = true;
-                    try
+                split.Panel1MinSize = p1Min;
+                split.Panel2MinSize = p2Min;
+                int maxDist = total - p2Min - split.SplitterWidth;
+                if (maxDist < p1Min) return false;
+
+                int clamped = Math.Max(p1Min, Math.Min(maxDist, desired));
+
+                isApplyingSplitterLayout = true;
+                try
+                {
+                    if (split.SplitterDistance != clamped)
                     {
-                        if (split.SplitterDistance != clamped)
-                        {
-                            split.SplitterDistance = clamped;
-                        }
+                        split.SplitterDistance = clamped;
                     }
-                    finally
-                    {
-                        isApplyingSplitterLayout = false;
-                    }
-                    // 保留使用者設定的原始 desired 數值，絕不覆寫為臨時之 clamped
-                    return true;
                 }
+                finally
+                {
+                    isApplyingSplitterLayout = false;
+                }
+
+                // 關鍵：只有當容器尺寸完全舒展、能 100% 滿足 desired (clamped == desired) 時，
+                // 才視為完全成功並回傳 true (呼叫端的 SizeChanged 監聽器方可安全卸載)。
+                // 若容器仍處於初期小尺寸 (clamped < desired)，必須回傳 false，讓監聽器持續保留，
+                // 等待視窗或分頁佈局擴展完畢後再次自動套用！
+                return (clamped == desired);
             }
             catch { }
             return false;
@@ -3322,6 +3270,7 @@ namespace DynamometerHMI
             splitDrives.Panel1.AutoScroll = true;
             splitDrives.Panel2.BackColor = Color.FromArgb(240, 243, 246);
             splitDrives.Panel2.AutoScroll = true;
+            SafeSetupSplitContainer(splitDrives, "Drives", 521, 80, 80);
 
             // 左側：Drive 1 (A載台 加載端 COM1)
             GroupBox grpD1 = new GroupBox() { Text = "【A載台】(加載端 / 負載動力計 COM1)", Dock = DockStyle.Fill, Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold) };
@@ -3698,12 +3647,7 @@ namespace DynamometerHMI
             splitParam1.Panel2.BackColor = Color.FromArgb(240, 243, 246);
             splitParam1.Panel1.Controls.Add(pnlLeft1);
             splitParam1.Panel2.Controls.Add(pnlParamsBox1);
-            splitParam1.SplitterDistance = 245; // 預設高度
-            splitParam1.SplitterMoved += (s, e) => {
-                if (!isLayoutLoaded || isApplyingSplitterLayout) return;
-                layoutSplitters["Param1"] = splitParam1.SplitterDistance;
-                SaveLayoutConfig();
-            };
+            SafeSetupSplitContainer(splitParam1, "Param1", 160, 50, 20);
 
             Control pnlRuContainer1 = CreateKebRuPanelWithToolbar(1, "A載台數值", out dgvKebRu1);
 
@@ -3721,12 +3665,7 @@ namespace DynamometerHMI
             splitDrive1.Panel2.AutoScroll = true;
             splitDrive1.Panel1.Controls.Add(splitParam1);
             splitDrive1.Panel2.Controls.Add(pnlRuContainer1);
-            splitDrive1.SplitterDistance = 420;
-            splitDrive1.SplitterMoved += (s, e) => {
-                if (!isLayoutLoaded || isApplyingSplitterLayout) return;
-                layoutSplitters["Drive1"] = splitDrive1.SplitterDistance;
-                SaveLayoutConfig();
-            };
+            SafeSetupSplitContainer(splitDrive1, "Drive1", 408, 80, 80);
 
             grpD1.Controls.Add(splitDrive1);
             splitDrives.Panel1.Controls.Add(grpD1);
@@ -4109,12 +4048,7 @@ namespace DynamometerHMI
             splitParam2.Panel2.BackColor = Color.FromArgb(240, 243, 246);
             splitParam2.Panel1.Controls.Add(pnlLeft2);
             splitParam2.Panel2.Controls.Add(pnlParamsBox2);
-            splitParam2.SplitterDistance = 245; // 預設高度
-            splitParam2.SplitterMoved += (s, e) => {
-                if (!isLayoutLoaded || isApplyingSplitterLayout) return;
-                layoutSplitters["Param2"] = splitParam2.SplitterDistance;
-                SaveLayoutConfig();
-            };
+            SafeSetupSplitContainer(splitParam2, "Param2", 160, 50, 20);
 
             Control pnlRuContainer2 = CreateKebRuPanelWithToolbar(2, "B載台數值", out dgvKebRu2);
 
@@ -4132,12 +4066,7 @@ namespace DynamometerHMI
             splitDrive2.Panel2.AutoScroll = true;
             splitDrive2.Panel1.Controls.Add(splitParam2);
             splitDrive2.Panel2.Controls.Add(pnlRuContainer2);
-            splitDrive2.SplitterDistance = 420;
-            splitDrive2.SplitterMoved += (s, e) => {
-                if (!isLayoutLoaded || isApplyingSplitterLayout) return;
-                layoutSplitters["Drive2"] = splitDrive2.SplitterDistance;
-                SaveLayoutConfig();
-            };
+            SafeSetupSplitContainer(splitDrive2, "Drive2", 817, 80, 80);
 
             grpD2.Controls.Add(splitDrive2);
             splitDrives.Panel2.Controls.Add(grpD2);
@@ -4164,11 +4093,6 @@ namespace DynamometerHMI
                 btnRF2, btnRR2, btnSetSpd2, btnSetTrq2
             });
 
-            splitDrives.SplitterMoved += (s, e) => {
-                if (!isLayoutLoaded || isApplyingSplitterLayout) return;
-                layoutSplitters["Drives"] = splitDrives.SplitterDistance;
-                SaveLayoutConfig();
-            };
             pnlKebSection.Controls.Add(splitDrives);
 
             // -------------------------------------------------------------
@@ -4309,7 +4233,7 @@ namespace DynamometerHMI
             splitBottomHorizontal.Panel1.Controls.Add(grpGrid);
             SetupBottomRightWorkbench(grpMotorTemp);
             splitBottomHorizontal.Panel2.Controls.Add(pnlWorkbench);
-            splitBottomHorizontal.SplitterDistance = 750;
+            SafeSetupSplitContainer(splitBottomHorizontal, "Bottom", 1240, 80, 80);
 
             // -------------------------------------------------------------
             // 中間可上下自由拖曳調整高度的分割 Bar (SplitContainer)
@@ -4329,19 +4253,7 @@ namespace DynamometerHMI
 
             splitMainVertical.Panel1.Controls.Add(pnlKebSection);
             splitMainVertical.Panel2.Controls.Add(splitBottomHorizontal);
-            splitMainVertical.SplitterDistance = 330;
-            splitMainVertical.Panel1MinSize = 120;
-            splitMainVertical.Panel2MinSize = 120;
-            splitMainVertical.SplitterMoved += (s, e) => {
-                if (!isLayoutLoaded || isApplyingSplitterLayout) return;
-                layoutSplitters["MainVertical"] = splitMainVertical.SplitterDistance;
-                SaveLayoutConfig();
-            };
-            splitBottomHorizontal.SplitterMoved += (s, e) => {
-                if (!isLayoutLoaded || isApplyingSplitterLayout) return;
-                layoutSplitters["Bottom"] = splitBottomHorizontal.SplitterDistance;
-                SaveLayoutConfig();
-            };
+            SafeSetupSplitContainer(splitMainVertical, "MainVertical", 436, 80, 80);
 
             tableManual.Controls.Add(splitMainVertical, 0, 1);
 

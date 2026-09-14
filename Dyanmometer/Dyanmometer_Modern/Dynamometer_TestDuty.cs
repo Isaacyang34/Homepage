@@ -823,7 +823,7 @@ namespace DynamometerHMI
             if (splitDuty != null && splitDuty.Height > 0)
             {
                 string dutyModeKey = isS1 ? "DutyMain_S1" : (isS2 ? "DutyMain_S2" : "DutyMain_S6");
-                int defDist = 550;
+                int defDist = isS1 ? 539 : 550;
                 int saved;
                 if (layoutSplitters.TryGetValue(dutyModeKey, out saved) && saved > 0)
                 {

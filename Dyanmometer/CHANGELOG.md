@@ -8,10 +8,80 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.96 (beta) | v2.10.54 | 2026-09-14 | 排版記憶全息閉環根治（解決更新後仍無法儲存排版之根本缺陷）：(1)現象與致命根因：使用者強烈指出「既然只更新exe就不會動到其他檔案，為何沒辦法一開始就想到? 我更新了，但還是沒有辦法儲存排版」；經無頭生命週期測試機實測提取發現 5 大致命缺陷：①`ApplySplitterDistanceSafe` 在初期微小尺寸時提早回傳 `true` 導致 `onSize` 提早解除綁定，`FixedPanel.Panel1` 將分割條死鎖在壓扁值；②WinForms 在容器 Layout/Resize 階段自動引發 `SplitterMoved` 假事件，將夾殺值當成使用者拖曳回寫 INI；③`SaveLayoutConfig` 暴力讀取當前控制項像素覆寫記憶字典；④分頁 0 之 7 大分割條未納入 `SafeSetupSplitContainer`；⑤建構式提前存檔將 `ActiveTab` 覆寫為 0 且線上熱更新前未主動固化排版；(2)全域防夾契約重構：`ApplySplitterDistanceSafe` 僅在 `clamped == desired` 完全舒展時才回傳 `true`，初期未展開催化則回傳 `false` 保持監聽；(3)虛假事件物理過濾：`SplitterMoved` 強制注入 `MouseButtons.Left` / `ContainsFocus` 雙守衛，100% 免疫系統縮放產生的假事件；(4)單一真相源確立：`layoutSplitters` 作為純淨中繼記憶，徹底杜絕中途視窗尺寸污染，Tab 0 全 7 組分割容器統一接入；(5)熱替換即時固化：線上熱替換重新啟動前強制觸發 `SaveLayoutConfig()`。 |
 | V2.95 (beta) | v2.10.53 | 2026-09-14 | 純下載版本免 INI 自帶黃金排版 (Self-Seeding Zero-Config Layout) 與 GitHub Release 便攜壓縮包發布：(1)現象與致命根因：使用者回報「為何透過下載的版本沒辦法記憶，本地端得可以?」；經深層剖析，本地端目錄存在預先調校之 dynamometer_layout.ini (包含 TnMain=232, TnBottom=732, DutyMain_S1=539...)，但 GitHub Releases 與線上更新僅發布單一 Dynamometer_HMI_Pro.exe；當使用者在全新資料夾執行下載之 EXE 時，LoadLayoutConfig() 因 File.Exists(path) 為 false 直接提早 return，layoutSplitters 字典為空，全分割條退回程式碼硬編碼之舊預設值 (210, 650, 280, 550)，且未自動落地初始化 INI；(2)全域黃金基準值內嵌 (Golden Baseline Hardcoded Defaults)：全面更新 DefaultSplitterDistances 與 SafeSetupSplitContainer / ApplyTabSplitters 之回退基線為使用者真實調校值 (TnMain:232, TnBottom:732, TnRight:444, DutyMain_S1:539, DutyTop:905, EffMain:1018, NoLoadMain:509, NoLoadBottom:1223)；(3)啟動時自適應自創 INI (Self-Seeding Engine)：LoadLayoutConfig() 在開機時優先以黃金基準值填滿排版字典，若檢測到目錄無 INI，立即自動產生標準 dynamometer_layout.ini 與 ini/dynamometer_layout.ini，使單獨下載之 EXE 亦能開箱即享完美佈局與後續永久記憶；(4)發布管線雙資產升級：package_release.ps1 除了單一 EXE 外，自動封裝 Dynamometer_HMI_V2.5.0_Portable.zip (含完整驅動與 INI) 同步上傳至 GitHub Releases。 |
 | V2.94 (beta) | v2.10.52 | 2026-09-11 | 分頁列抬頭顯示器 (Tab Row Layout HUD) 功成身退與視覺簡潔純化：(1)需求背景：在排版記憶時序與巢狀容器自適應根治後，分割條數值已可 100% 於開機冷啟動時永久穩定復原，使用者指示移除分頁列右側除錯用之抬頭顯示區 (Tab Row Layout HUD)；(2)元件徹底解耦與移除：全面刪除 pnlTabHud、lblTabHudCoords、btnSaveHud、btnOpenIni、btnReloadHud、ttTabHud 及其所有關聯事件與連動監聽，零代碼殘留；(3)分頁列視覺恢復：分頁標籤 Padding 回調至舒適之 new Point(12, 6)，恢復頂部介面大氣、專業且純粹之主控台視覺，底層自動記憶引擎持續維持最高可靠度運作。 |
 | V2.93 (beta) | v2.10.51 | 2026-09-11 | 排版記憶啟動時序與巢狀容器自適應修復（徹底根治「存好按載入能恢復，但重啟後失效」之深層病灶）：(1)致命根因：過去 LoadLayoutConfig() 被延遲至視窗完全顯示 (this.Shown) 時才執行，導致建構式建立 TN/Duty 各子分頁時，排版字典 layoutSplitters 仍為空，所有分割條被強制灌入硬編碼預設值 (如 210, 650, 550) 並解除監聽；同時 WinForms SplitContainer 預設 FixedPanel=None，導致視窗最大化時依比例縮放拉偏數值；且巢狀容器 (如 splitTnBottom) 在分頁尚未完全渲染時因尺寸為 0 被拋棄套用；(2)建構式第一優先預載 (Pre-Construction Preload)：在 MainForm 建構式建立任何子元件前立即執行 LoadLayoutConfig()，確保全域排版字典、視窗最大化狀態、上次活動分頁於實例化前 100% 準備就緒；(3)Panel1 絕對像素鎖定 (FixedPanel.Panel1)：全分割容器強制啟用 FixedPanel = FixedPanel.Panel1，徹底杜絕全螢幕與視窗縮放時被 WinForms 等比縮放自動破壞像素設定；(4)巢狀佈局自適應延遲補償 (Self-Healing Layout Retry)：若呼叫 ApplySplitterDistanceSafe 時容器寬高尚未由 GDI+ 完成佈局，自動掛載一次性 SizeChanged 重試監聽，尺寸一就緒即刻以微秒級速度套用使用者 INI 記憶之絕對像素；(5)分頁建立完成即刻切換：於 TabPages 填入完畢後立即恢復 loadedActiveTab，開機即定位至上次操作分頁。 |
 | V2.92 (beta) | v2.10.50 | 2026-09-11 | 分頁列右側即時排版記憶 HUD 抬頭顯示器與熱載入/直修控制中心：(1)根因與需求：使用者調整分割條後渴望即時目視目前記憶座標、手動修訂行數與立即回寫，過去排版記憶隱藏於背景；(2)分頁列右端空間重構：將 tabControl 的 SizeMode 改為 Normal、縮減 Padding 釋出右側空間，於分頁標籤列最右側頂層錨定專屬抬頭顯示面板 (pnlTabHud)；(3)即時座標聯動顯示：分割條拖曳 (SplitterMoved)、工作制 (S1/S2/S6) 或分頁切換時，毫秒級動態刷新當前分頁核心分割條像素數值 (如 TnMain:232, TnBot:732)；(4)一鍵熱操作三核心按鈕：實裝 [💾存] 即刻強制同步寫入根目錄與 ini/、[📝改] 一鍵喚醒 Windows 原生 Notepad.exe 直接手動修改 dynamometer_layout.ini 指定行數、[🔄載] 即刻免重啟熱載入 (Hot-Reload) 重新套用最新 INI 尺寸；(5)懸浮完整資訊提示 (ToolTip)：滑鼠懸停即浮現目前 [Splitters] 完整排版鍵值清單。 |
+
+---
+
+## [V2.96 beta / v2.10.54] - 2026-09-14
+
+### 🎯 現象與佐證 (Verbatim Excerpts & Problem Identification)
+1. **使用者回報現象**：
+   - 使用者回饋指出：「這問題一開始就該想到了，既然你只更新exe就不會動到其他的檔案，為何沒辦法一開始就想到會有這個問題呢?請謹記」
+   - 使用者實測回報：「我更新了，但還是沒有辦法儲存排版」
+2. **無頭生命週期測試機實測數據佐證 (Headless GUI Lifecycle Harness Verbatim Trace)**：
+   - 透過實機 WinForms 生命週期測試腳本，提取出視窗初始化、渲染及分頁切換時分割條像素之致命衰退數據：
+     ```text
+     After 1.5s in GUI loop (視窗展開就緒後):
+     tabControl.SelectedIndex = 0
+     splitTnMain.Height = 683
+     splitTnMain.SplitterDistance = 100  <-- 被強制截斷並死鎖在 Panel1MinSize (100px)!
+     splitTnBottom.Width = 1268
+     splitTnBottom.SplitterDistance = 989
+     splitTnRight.Height = 575
+     splitTnRight.SplitterDistance = 120 <-- 被強制截斷並死鎖在 Panel1MinSize (120px)!
+
+     Switching to Tab 1 (切換至 T-N 曲線分頁):
+     After switching to Tab 1:
+     splitTnMain.SplitterDistance = 80   <-- 被 ApplyTabSplitters 傳入之 80px 再次夾殺!
+     splitTnBottom.SplitterDistance = 150 <-- 被未渲染之寬度壓扁至 150px!
+     splitTnRight.SplitterDistance = 120
+     ```
+
+---
+
+### 🔍 致命根因 (Root Cause Analysis - 5大核心病灶交叉驗證)
+1. **`ApplySplitterDistanceSafe` 過早回傳 `true` 觸發 `onSize` 提早解綁**：
+   - `SafeSetupSplitContainer` 中註冊之 `onSize` 監聽器會在容器第一次觸發 `SizeChanged` 時執行；
+   - 在表單建構與初次排版過渡期，容器寬高（例如 `splitTnMain.Height = 215`）遠小於視窗全展開之尺寸；
+   - `ApplySplitterDistanceSafe` 計算出的 `maxDist` 被嚴重壓縮，使得 `clamped = Math.Max(p1Min, Math.Min(maxDist, desired))` 被迫退回 `p1Min`（如 100）；
+   - 但舊函式因未拋出例外即無條件回傳 `true`，導致 `split.SizeChanged -= onSize` **立即解除了監聽**；
+   - 當視窗隨後展開至 1600x960 時，因先前已鎖定 `FixedPanel = FixedPanel.Panel1`，Panel1 **永久死鎖在此被截斷的壓扁像素**，再也無法恢復至使用者設定之 232 / 732！
+2. **WinForms 排版縮放自動引發 `SplitterMoved` 虛假事件**：
+   - 深度查證 WinForms 內部機制發現：當容器 Resize 或受父層排版強制縮小而改變 `SplitterDistance` 時，WinForms 會自動觸發 `SplitterMoved` 事件（此時 `Control.MouseButtons == MouseButtons.None` 且 `Focused == false`）；
+   - 原先的 `SplitterMoved` 監聽器未校驗使用者實體滑鼠輸入，將 WinForms 縮放所致之夾殺值（如 `108`、`150`）誤認為「使用者手動拖曳」，立刻回寫 `layoutSplitters` 並調用 `SaveLayoutConfig()` 覆寫磁碟 INI！
+3. **`SaveLayoutConfig()` 存檔時暴力讀取當前控制項像素造成反向污染**：
+   - `SaveLayoutConfig()` 中原包含 `if (curTab == 0) layoutSplitters["MainVertical"] = splitMainVertical.SplitterDistance;` 等邏輯；
+   - 當視窗縮放、最小化、或在關閉表單 (`FormClosing`) 過程中觸發存檔時，控制項的即時像素已受縮小夾殺，將髒資料反向灌入 `layoutSplitters` 記憶體字典並寫入 INI。
+4. **分頁 0（即時監控）之 7 大分割條架構脫勾**：
+   - 即時監控分頁的 `splitMainVertical`、`splitDrives`、`splitDrive1`、`splitDrive2`、`splitBottomHorizontal`、`splitParam1`、`splitParam2` 過去均未呼叫 `SafeSetupSplitContainer`，缺乏 `FixedPanel.Panel1` 保護，視窗最大化時被 WinForms 等比縮放徹底拉偏。
+5. **建構式提早存檔時 `ActiveTab` 被寫死為 0 且線上熱更新未即時固化**：
+   - 在 `MainForm` 建構式執行 `LoadLayoutConfig()` 時，`tabControl` 尚未被建立 (`tabControl == null`)，導致 `SaveLayoutConfig()` 落地寫入 `ActiveTab=0`，冷啟動時被強制拉回分頁 0；
+   - 線上更新熱替換模組 (`ExecuteHotSwapAndRestart`) 執行 `File.Move` 與 `Environment.Exit(0)` 前未主動保存排版。
+
+---
+
+### 🛠️ 精確修復方案 (Exact Resolution & Implementation)
+1. **重構 `ApplySplitterDistanceSafe` 契約（僅完全滿足才解綁）**：
+   - `ApplySplitterDistanceSafe` 改為嚴格判定：只有當容器尺寸完全舒展、能 100% 滿足目標值（即 `clamped == desired`）時才回傳 `true`；
+   - 若因容器尚未展開至足夠寬高而受截斷 (`clamped < desired`)，回傳 `false`，確保 `onSize` 監聽器持續常駐，直至視窗完全展開後自動精確賦值！
+2. **`SplitterMoved` 實體操作雙守衛（100% 過濾系統虛假事件）**：
+   - 於 `SafeSetupSplitContainer` 監聽器注入實體操作防線：
+     `if (Control.MouseButtons != MouseButtons.Left && !split.Focused && !split.ContainsFocus) return;`
+   - 嚴格限定僅在使用者按住滑鼠左鍵手動拖曳或具備鍵盤焦點調整時才認定為使用者自訂，徹底隔絕 WinForms Layout 引起之自動覆寫。
+3. **建立 `layoutSplitters` 單一真相源（Single Source of Truth）**：
+   - 徹底移除 `SaveLayoutConfig()` 中對控制項即時像素的反向讀取，全案以純淨記憶體快取字典 `layoutSplitters` 為唯一權威；
+   - 修正 `SaveLayoutConfig()` 中 `ActiveTab` 儲存邏輯，若 `tabControl == null` 優先繼承 `loadedActiveTab`，杜絕被重置為 0。
+4. **全分頁 15 組 SplitContainer 全面統一納入 `SafeSetupSplitContainer`**：
+   - 將分頁 0 之 `splitMainVertical` (436), `splitDrives` (521), `splitDrive1` (408), `splitDrive2` (817), `splitBottomHorizontal` (1240), `splitParam1` (160), `splitParam2` (160) 全數以 `SafeSetupSplitContainer` 統一管理，啟用 `FixedPanel.Panel1`。
+   - 統合同步各分頁（如 TN、Duty）之最小尺寸門檻，消除 MinSize 衝突。
+5. **熱替換前即時固化排版**：
+   - 在 `ExecuteHotSwapAndRestart` 中，於進程替換重啟前主動調用 `MainForm.Instance.SaveLayoutConfig()`。
+6. **發布管線防污染與黃金 INI 同步 (`package_release.ps1`)**：
+   - 移除 `backupRootIni` 還原覆寫，確保發布目錄與 Portable 壓縮包永遠攜帶最新調校之黃金配置。
 
 ---
 

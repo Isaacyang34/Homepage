@@ -30,7 +30,7 @@ namespace DynamometerHMI
             splitTnMain.Panel1.BackColor = Color.FromArgb(248, 250, 252);
             splitTnMain.Panel2.AutoScroll = true;
             splitTnMain.Panel2.BackColor = Color.White;
-            SafeSetupSplitContainer(splitTnMain, "TnMain", 232, 100, 100);
+            SafeSetupSplitContainer(splitTnMain, "TnMain", 232, 80, 80);
 
             // 頂部參數設定區
             Panel pnlTop = new Panel() { Dock = DockStyle.Fill, Padding = new Padding(6), BackColor = Color.FromArgb(248, 250, 252) };
@@ -583,7 +583,7 @@ namespace DynamometerHMI
             if (splitTnMain != null && splitTnMain.Height > 0)
             {
                 string key = isMulti ? "TnMainMulti" : "TnMain";
-                int defaultTarget = isMulti ? 325 : 210;
+                int defaultTarget = isMulti ? 325 : 232;
                 int target = defaultTarget;
                 int saved;
                 if (layoutSplitters.TryGetValue(key, out saved) && saved > 0)
