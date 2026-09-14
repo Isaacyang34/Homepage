@@ -2787,10 +2787,12 @@ namespace DynamometerHMI
                 int baud = GetHmiKebBaudIdx(driveId);
                 int node = (driveId == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
                 string dName = (driveId == 1) ? "A載台" : "B載台";
-                bool ok = KebWriteParamWithDll(com, baud, node, 0x0509, voltVal, 1);
+                bool ok1 = KebWriteParamWithDll(com, baud, node, 0x0509, voltVal, 1);
+                bool ok0 = KebWriteParamWithDll(com, baud, node, 0x0509, voltVal, 0);
+                bool ok = ok1 || ok0;
                 if (ok)
                 {
-                    WriteHmiLog("KEB_UF09", string.Format("【{0} uf.09 寫入成功】設定輸出電壓值為 {1} V (0x0509)", dName, voltVal));
+                    WriteHmiLog("KEB_UF09", string.Format("【{0} uf.09 寫入成功】設定輸出電壓值為 {1} V (0x0509, Set1={2}, Set0={3})", dName, voltVal, ok1 ? "OK" : "NG", ok0 ? "OK" : "NG"));
                 }
                 else
                 {

@@ -1385,6 +1385,93 @@ namespace DynamometerHMI
             }
         }
 
+        // 取得有效原始或額定基準電壓 (優先順序: originalUf09Val >= 100 -> dr.02 -> VN -> V0 -> 220V)
+        private int GetOriginalOrRatedUf09(int driveId)
+        {
+            try
+            {
+                // 1. 若原始記錄之 uf09 有效 (額定電壓通常 >= 100V)，優先採用
+                if (originalUf09Val >= 100)
+                {
+                    return originalUf09Val;
+                }
+
+                // 2. 嘗試從變頻器讀取 dr.02 (銘牌額定電壓)
+                try
+                {
+                    int com = GetHmiKebComIdx(driveId);
+                    int baud = GetHmiKebBaudIdx(driveId);
+                    int node = (driveId == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
+                    int? r_dr02 = KebReadParamWithDll(com, baud, node, 0x0602, 0) ?? KebReadParamWithDll(com, baud, node, 0x0602, 1) ??
+                                  KebReadParamWithDll(com, baud, node, 0x0402, 0) ?? KebReadParamWithDll(com, baud, node, 0x0402, 1);
+                    if (r_dr02.HasValue && r_dr02.Value >= 100)
+                    {
+                        originalUf09Val = r_dr02.Value;
+                        return r_dr02.Value;
+                    }
+                }
+                catch { }
+
+                // 3. 從卡片 2「額定線壓 VN」取用
+                if (numEquivVn != null && numEquivVn.Value >= 100m)
+                {
+                    int vn = (int)Math.Round(numEquivVn.Value);
+                    originalUf09Val = vn;
+                    return vn;
+                }
+
+                // 4. 從卡片 1「空載線壓 V0」取用
+                if (numEquivV0 != null && numEquivV0.Value >= 100m)
+                {
+                    int v0 = (int)Math.Round(numEquivV0.Value);
+                    originalUf09Val = v0;
+                    return v0;
+                }
+            }
+            catch { }
+
+            // 5. 終極保底標準電壓 220 V
+            return 220;
+        }
+
+        // 集中安全自動復歸 uf.09 函式 (無論測試成功、失敗、跳脫或停止，均保證回寫額定值)
+        private bool AutoRestoreUf09(string reason)
+        {
+            try
+            {
+                int driveId = (cmbEquivKebDrive != null && cmbEquivKebDrive.SelectedIndex == 1) ? 1 : 2;
+                string dName = (driveId == 1) ? "A載台" : "B載台";
+                int targetV = GetOriginalOrRatedUf09(driveId);
+
+                bool ok = KebWriteUf09(driveId, targetV);
+                WriteHmiLog("KEB_UF09", string.Format("【uf.09 安全復歸】{0} ({1}): 復歸目標={2}V, 結果={3}", dName, reason, targetV, (ok ? "成功" : "失敗")));
+
+                Action updateUi = () => {
+                    if (lblEquivCurUf09 != null)
+                    {
+                        lblEquivCurUf09.Text = string.Format("uf09: {0} V (已復歸)", targetV);
+                        lblEquivCurUf09.ForeColor = ok ? Color.FromArgb(16, 185, 129) : Color.FromArgb(239, 68, 68);
+                    }
+                };
+
+                if (this.InvokeRequired)
+                {
+                    this.BeginInvoke((MethodInvoker)(() => updateUi()));
+                }
+                else
+                {
+                    updateUi();
+                }
+
+                return ok;
+            }
+            catch (Exception ex)
+            {
+                WriteHmiLog("KEB_ERR", "AutoRestoreUf09 異常: " + ex.Message);
+                return false;
+            }
+        }
+
         // 3. KEB uf09 讀取
         private void ReadCurrentUf09FromHardware()
         {
@@ -1394,10 +1481,13 @@ namespace DynamometerHMI
                 int? val = KebReadUf09(driveId);
                 if (val.HasValue)
                 {
-                    originalUf09Val = val.Value;
+                    if (val.Value >= 100)
+                    {
+                        originalUf09Val = val.Value;
+                    }
                     lblEquivCurUf09.Text = string.Format("uf09: {0} V", val.Value);
                     lblEquivCurUf09.ForeColor = Color.FromArgb(16, 185, 129);
-                    WriteHmiLog("EQUIV", string.Format("【KEB uf09 讀回成功】{0} 目前輸出電壓值為 {1} V", (driveId == 1 ? "A載台" : "B載台"), val.Value));
+                    WriteHmiLog("EQUIV", string.Format("【KEB uf09 讀回成功】{0} 目前輸出電壓值為 {1} V (記錄基準: {2} V)", (driveId == 1 ? "A載台" : "B載台"), val.Value, originalUf09Val));
                 }
                 else
                 {
@@ -1452,23 +1542,21 @@ namespace DynamometerHMI
             {
                 int driveId = (cmbEquivKebDrive.SelectedIndex == 1) ? 1 : 2;
                 string dName = (driveId == 1) ? "A載台" : "B載台";
-                int defaultV = (originalUf09Val > 50) ? originalUf09Val : 260;
+                int defaultV = GetOriginalOrRatedUf09(driveId);
 
                 isAutoTuningUf09 = false;
                 isLockedRotorActive = false;
                 lockedOverCurrentTicks = 0;
                 lockedSpeedAnomalyTicks = 0;
 
-                bool ok = KebWriteUf09(driveId, defaultV);
+                bool ok = AutoRestoreUf09("手動點擊復歸預設");
                 if (ok)
                 {
-                    lblEquivCurUf09.Text = string.Format("uf09: {0} V (正常)", defaultV);
-                    lblEquivCurUf09.ForeColor = Color.FromArgb(16, 185, 129);
                     MessageBox.Show("已成功將 " + dName + " 的 uf09 復歸為 " + defaultV + " V！", "復歸完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 else
                 {
-                    MessageBox.Show("復歸 uf09 失敗，請手動確認！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show("復歸 uf09 失敗，請手動確認通訊連線！", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
             }
             catch (Exception ex)
@@ -1594,7 +1682,7 @@ namespace DynamometerHMI
                 double ufVolt = r_uf09.HasValue ? r_uf09.Value : 0.0;
                 double drCurr = r_dr00.HasValue ? (r_dr00.Value * 0.1) : 0.0;
 
-                if (r_uf09.HasValue && r_uf09.Value > 0)
+                if (r_uf09.HasValue && r_uf09.Value >= 100)
                 {
                     originalUf09Val = r_uf09.Value;
                     if (lblEquivCurUf09 != null)
@@ -1602,6 +1690,19 @@ namespace DynamometerHMI
                         lblEquivCurUf09.Text = string.Format("uf09: {0} V", r_uf09.Value);
                         lblEquivCurUf09.ForeColor = Color.FromArgb(16, 185, 129);
                     }
+                }
+                else if (r_uf09.HasValue)
+                {
+                    if (lblEquivCurUf09 != null)
+                    {
+                        lblEquivCurUf09.Text = string.Format("uf09: {0} V (降壓狀態)", r_uf09.Value);
+                        lblEquivCurUf09.ForeColor = Color.FromArgb(245, 158, 11);
+                    }
+                }
+
+                if (r_dr02.HasValue && r_dr02.Value >= 100 && originalUf09Val < 100)
+                {
+                    originalUf09Val = r_dr02.Value;
                 }
 
                 // 同步比對檢查
@@ -1794,6 +1895,9 @@ namespace DynamometerHMI
             }
 
             WriteHmiLog("EQUIV", "【堵轉試驗停止】" + reason);
+
+            // ★ 無論成功或失敗，只要停止後立即改回原本數值，防止下次測試卡住
+            AutoRestoreUf09("停止試驗強制復歸: " + reason);
         }
 
         private void LockedSweepWorker(bool singleFreqMode, int singleFreqIndex)
@@ -1808,10 +1912,10 @@ namespace DynamometerHMI
                 if (inRated <= 0.5) inRated = 32.3;
                 double f0 = (numEquivF0.Value > 1.0m) ? (double)numEquivF0.Value : 50.0;
 
-                // 讀取原始 uf09 基準電壓
+                // 讀取原始 uf09 基準電壓 (低於 100V 視為降壓狀態，不予採納為原始值)
                 int? origVal = KebReadUf09(driveId);
-                if (origVal.HasValue && origVal.Value > 50) originalUf09Val = origVal.Value;
-                int ratedVolt = (originalUf09Val > 50) ? originalUf09Val : 220;
+                if (origVal.HasValue && origVal.Value >= 100) originalUf09Val = origVal.Value;
+                int ratedVolt = GetOriginalOrRatedUf09(driveId);
 
                 int startFreqIdx = singleFreqMode ? singleFreqIndex : 0;
                 int endFreqIdx = singleFreqMode ? singleFreqIndex : 7;
@@ -2106,6 +2210,13 @@ namespace DynamometerHMI
                 this.Invoke((MethodInvoker)delegate {
                     StopLockedRotorSweep("試驗發生例外: " + ex.Message);
                 });
+            }
+            finally
+            {
+                isLockedSweepRunning = false;
+                isAutoTuningUf09 = false;
+                isLockedRotorActive = false;
+                AutoRestoreUf09("堵轉測試線程安全結束復歸");
             }
         }
 
@@ -2459,10 +2570,11 @@ namespace DynamometerHMI
                 int com = GetHmiKebComIdx(driveId);
                 int baud = GetHmiKebBaudIdx(driveId);
                 int node = (driveId == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
-                KebWriteParamWithDll(com, baud, node, 0x0032, 0); // Sy.50 = 0 (強制停機)
+                KebWriteParamWithDll(com, baud, node, 0x0032, 0); // Sy.50 = 0 (強制停機切斷輸出激磁)
 
-                // 2. KEB uf.09 電壓強制降至最低安全值 0 V
-                KebWriteUf09(driveId, 0);
+                // 2. KEB uf.09 立即自動恢復至額定基準電壓 (絕不殘留 0V 或低壓，防止下次測試卡住)
+                int restoreV = GetOriginalOrRatedUf09(driveId);
+                AutoRestoreUf09("保護跳脫後自動恢復額定基準電壓");
 
                 // 3. 更新 UI 狀態
                 if (lblLockedItemStatus != null)
@@ -2477,8 +2589,8 @@ namespace DynamometerHMI
                 }
                 if (lblEquivCurUf09 != null)
                 {
-                    lblEquivCurUf09.Text = "uf09: 0 V (安全切斷)";
-                    lblEquivCurUf09.ForeColor = Color.FromArgb(220, 38, 38);
+                    lblEquivCurUf09.Text = string.Format("uf09: {0} V (已復歸)", restoreV);
+                    lblEquivCurUf09.ForeColor = Color.FromArgb(16, 185, 129);
                 }
 
                 // 4. 記錄 HMI 日誌
@@ -2490,11 +2602,11 @@ namespace DynamometerHMI
                     "【實測數據與觸發條件】：\r\n{1}\r\n\r\n" +
                     "【[防護] 系統已主動完成處置措施】：\r\n" +
                     "1. 已立即下達 Sy.50 = 0 切斷變頻器輸出 (停止定子激磁)\r\n" +
-                    "2. KEB uf.09 輸出電壓已強制安全降為 0 V\r\n" +
+                    "2. KEB uf.09 輸出電壓已自動復歸為額定基準值 ({2} V)，防止下次測試卡死\r\n" +
                     "3. 自適應調壓程序已安全中止\r\n\r\n" +
                     "※ 說明：此為保護馬達不致過熱燒毀及防止治具脫扣之主動安全機制。\r\n" +
                     "請確認待測馬達冷卻狀況與機械鎖死治具後，再行測試。",
-                    title, details);
+                    title, details, restoreV);
 
                 MessageBox.Show(alertMsg, "[!] 堵轉安全防護跳脫", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
