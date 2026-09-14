@@ -174,7 +174,7 @@ namespace DynamometerHMI
                 Dock = DockStyle.Fill,
                 Orientation = Orientation.Vertical
             };
-            SafeSetupSplitContainer(splitEff, "EffMain", 550, 150, 150);
+            SafeSetupSplitContainer(splitEff, "EffMain", 1018, 150, 150);
 
             // 左側：2D 彩色效率熱力圖 (Custom GDI+ Heatmap & Contour Control)
             effHeatmap = new EfficiencyHeatmapControl() { Dock = DockStyle.Fill };

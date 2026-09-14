@@ -410,18 +410,18 @@ namespace DynamometerHMI
             { "Bottom", 1240 },
             { "Param1", 160 },
             { "Param2", 160 },
-            { "TnMain", 210 },
+            { "TnMain", 232 },
             { "TnMainMulti", 325 },
-            { "TnBottom", 650 },
-            { "TnRight", 280 },
-            { "DutyMain", 550 },
-            { "DutyMain_S1", 550 },
+            { "TnBottom", 732 },
+            { "TnRight", 444 },
+            { "DutyMain", 539 },
+            { "DutyMain_S1", 539 },
             { "DutyMain_S2", 550 },
             { "DutyMain_S6", 550 },
-            { "DutyTop", 880 },
-            { "EffMain", 550 },
-            { "NoLoadMain", 460 },
-            { "NoLoadBottom", 580 }
+            { "DutyTop", 905 },
+            { "EffMain", 1018 },
+            { "NoLoadMain", 509 },
+            { "NoLoadBottom", 1223 }
         };
         private readonly Dictionary<string, int> layoutSplitters = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private int loadedActiveTab = -1;
@@ -2196,8 +2196,21 @@ namespace DynamometerHMI
         {
             try
             {
+                // 1. 先行以全域基準預設值填滿排版字典，確保即使初次下載未附 INI 或部分鍵值遺漏，全域 19 組分割條依然 100% 完整
+                foreach (var kv in DefaultSplitterDistances)
+                {
+                    if (!layoutSplitters.ContainsKey(kv.Key)) layoutSplitters[kv.Key] = kv.Value;
+                }
+
                 string path = GetLayoutConfigPath();
-                if (!File.Exists(path)) return;
+                if (!File.Exists(path))
+                {
+                    // 若為透過下載之乾淨目錄 (無 INI)，首次啟動自動建立標準 dynamometer_layout.ini
+                    isLayoutLoaded = true;
+                    if (loadedActiveTab < 0) loadedActiveTab = 1; // 預設定位至多段 T-N 特性曲線測試
+                    try { SaveLayoutConfig(); } catch { }
+                    return;
+                }
 
                 var lines = File.ReadAllLines(path, Encoding.UTF8);
                 string section = "";
@@ -2803,10 +2816,10 @@ namespace DynamometerHMI
                 else if (tabIndex == 1) // 多段 T-N 測試
                 {
                     string tnKey = (cmbTnMode != null && cmbTnMode.SelectedIndex == 1) ? "TnMainMulti" : "TnMain";
-                    int defTn = (cmbTnMode != null && cmbTnMode.SelectedIndex == 1) ? 325 : 210;
+                    int defTn = (cmbTnMode != null && cmbTnMode.SelectedIndex == 1) ? 325 : 232;
                     ApplySplitterDistanceSafe(splitTnMain, tnKey, defTn, 80, 80);
-                    ApplySplitterDistanceSafe(splitTnBottom, "TnBottom", 650, 150, 150);
-                    ApplySplitterDistanceSafe(splitTnRight, "TnRight", 280, 120, 120);
+                    ApplySplitterDistanceSafe(splitTnBottom, "TnBottom", 732, 150, 150);
+                    ApplySplitterDistanceSafe(splitTnRight, "TnRight", 444, 120, 120);
                 }
                 else if (tabIndex == 2) // 工作制測試 Duty
                 {
@@ -2817,17 +2830,17 @@ namespace DynamometerHMI
                         else if (cmbDutyMode.SelectedIndex == 1 && layoutSplitters.ContainsKey("DutyMain_S2")) dutyKey = "DutyMain_S2";
                         else if (cmbDutyMode.SelectedIndex == 2 && layoutSplitters.ContainsKey("DutyMain_S6")) dutyKey = "DutyMain_S6";
                     }
-                    ApplySplitterDistanceSafe(splitDuty, dutyKey, 550, 150, 80);
-                    ApplySplitterDistanceSafe(splitDutyTop, "DutyTop", 880, 200, 150);
+                    ApplySplitterDistanceSafe(splitDuty, dutyKey, 539, 150, 80);
+                    ApplySplitterDistanceSafe(splitDutyTop, "DutyTop", 905, 200, 150);
                 }
                 else if (tabIndex == 3) // 效率地圖 Map
                 {
-                    ApplySplitterDistanceSafe(splitEff, "EffMain", 550, 150, 150);
+                    ApplySplitterDistanceSafe(splitEff, "EffMain", 1018, 150, 150);
                 }
                 else if (tabIndex == 4) // 空載溫升 No-Load
                 {
-                    ApplySplitterDistanceSafe(splitNoLoadMain, "NoLoadMain", 460, 200, 100);
-                    ApplySplitterDistanceSafe(splitNoLoadBottom, "NoLoadBottom", 580, 200, 150);
+                    ApplySplitterDistanceSafe(splitNoLoadMain, "NoLoadMain", 509, 200, 100);
+                    ApplySplitterDistanceSafe(splitNoLoadBottom, "NoLoadBottom", 1223, 200, 150);
                 }
             }
             catch { }

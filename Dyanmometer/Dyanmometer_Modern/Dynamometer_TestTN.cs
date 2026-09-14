@@ -30,7 +30,7 @@ namespace DynamometerHMI
             splitTnMain.Panel1.BackColor = Color.FromArgb(248, 250, 252);
             splitTnMain.Panel2.AutoScroll = true;
             splitTnMain.Panel2.BackColor = Color.White;
-            SafeSetupSplitContainer(splitTnMain, "TnMain", 210, 100, 100);
+            SafeSetupSplitContainer(splitTnMain, "TnMain", 232, 100, 100);
 
             // 頂部參數設定區
             Panel pnlTop = new Panel() { Dock = DockStyle.Fill, Padding = new Padding(6), BackColor = Color.FromArgb(248, 250, 252) };
@@ -399,7 +399,7 @@ namespace DynamometerHMI
                 SplitterWidth = 8,
                 BackColor = Color.FromArgb(203, 213, 225)
             };
-            SafeSetupSplitContainer(splitTnBottom, "TnBottom", 650, 150, 150);
+            SafeSetupSplitContainer(splitTnBottom, "TnBottom", 732, 150, 150);
 
             // 左側：T-N 曲線圖
             tnChart = new TnCurveChart() { Dock = DockStyle.Fill };
@@ -413,7 +413,7 @@ namespace DynamometerHMI
                 SplitterWidth = 8,
                 BackColor = Color.FromArgb(203, 213, 225)
             };
-            SafeSetupSplitContainer(splitTnRight, "TnRight", 280, 120, 120);
+            SafeSetupSplitContainer(splitTnRight, "TnRight", 444, 120, 120);
 
             // 右上方：專屬即時溫度動態曲線與通道選擇 (同 S1 介面規格)
             grpTnTemp = new GroupBox()

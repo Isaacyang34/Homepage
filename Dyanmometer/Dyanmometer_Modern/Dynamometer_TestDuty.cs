@@ -29,7 +29,7 @@ namespace DynamometerHMI
             splitDuty.Panel1.BackColor = Color.FromArgb(248, 250, 252);
             splitDuty.Panel2.AutoScroll = true;
             splitDuty.Panel2.BackColor = Color.White;
-            SafeSetupSplitContainer(splitDuty, "DutyMain", 550, 150, 100);
+            SafeSetupSplitContainer(splitDuty, "DutyMain", 539, 150, 100);
 
             splitDutyTop = new SplitContainer()
             {
@@ -42,7 +42,7 @@ namespace DynamometerHMI
             splitDutyTop.Panel1.BackColor = Color.FromArgb(248, 250, 252);
             splitDutyTop.Panel2.AutoScroll = true;
             splitDutyTop.Panel2.BackColor = Color.FromArgb(248, 250, 252);
-            SafeSetupSplitContainer(splitDutyTop, "DutyTop", 880, 250, 150);
+            SafeSetupSplitContainer(splitDutyTop, "DutyTop", 905, 250, 150);
 
             // -------------------------------------------------------------
             // 左側：控制參數、KEB全自動模式連鎖與 V/F 雙重定錨/S2錨點設定群組

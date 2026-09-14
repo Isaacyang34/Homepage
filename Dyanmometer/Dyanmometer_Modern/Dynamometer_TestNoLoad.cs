@@ -122,7 +122,7 @@ namespace DynamometerHMI
             splitNoLoadMain.Panel1.BackColor = Color.FromArgb(248, 250, 252);
             splitNoLoadMain.Panel2.AutoScroll = true;
             splitNoLoadMain.Panel2.BackColor = Color.White;
-            SafeSetupSplitContainer(splitNoLoadMain, "NoLoadMain", 460, 250, 150);
+            SafeSetupSplitContainer(splitNoLoadMain, "NoLoadMain", 509, 250, 150);
 
             // -------------------------------------------------------------
             // 上半部：主參數面板 (採用 TableLayoutPanel 彈性排版，杜絕遮擋)
@@ -434,7 +434,7 @@ namespace DynamometerHMI
             splitNoLoadBottom.Panel1.BackColor = Color.White;
             splitNoLoadBottom.Panel2.AutoScroll = true;
             splitNoLoadBottom.Panel2.BackColor = Color.White;
-            SafeSetupSplitContainer(splitNoLoadBottom, "NoLoadBottom", 580, 200, 200);
+            SafeSetupSplitContainer(splitNoLoadBottom, "NoLoadBottom", 1223, 200, 200);
 
             // Panel1: 專屬即時溫度趨勢圖 (多通道各別彩色波形與端點即時標籤)
             grpNoLoadChart = new GroupBox()
