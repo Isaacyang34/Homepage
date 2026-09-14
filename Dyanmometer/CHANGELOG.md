@@ -8,8 +8,66 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.102 (beta) | v2.10.60 | 2026-09-14 | 全面重整「⚡ 等效電路」分頁排版架構與解決水平位移裁切：(1)現象與佐證：使用者指出等效電路頁面排版異常，第 1 張卡片 (空載數據) 嚴重向左推擠並裁切超過 70%，右側出現大片空白，卡片 3 (堵轉測試) 塞入 12 列高度不足產生壓迫擠壓；使用者質疑「重整吧，我就懷疑為何第一次生成不檢查這些問題???」；(2)致命根因 (Root Cause)：`Dynamometer_TestEquivCircuit.cs` 原採用單一外層 Panel 垂直靜態堆疊 882px 並開啟 `AutoScroll=true`，底部工具列與橫向表格超出 1024px 引發水平滾動條；當卡片 2 輸入框獲取焦點時，WinForms 的 `ScrollControlIntoView` 強制將容器向右滾動，造成卡片 1 被推進左側可視區外；(3)精確修復方案：導入全專案統一之 `SafeSetupSplitContainer` 兩段式架構 (`splitEquivMain`, 上下垂直拉伸，預設 340px) 與左右垂直分割 (`splitEquivResults`, 數據表格與 GDI+ 向量電路圖，預設 620px)；卡片 3 由 12 列重整為緊湊 10 列，頻率與載台、uf09 與控制按鈕合併為多欄佈局；註冊 INI 分割記憶與分頁切換還原；(4)版本升級與發布：升級至 2.10.60，落實 Rule 5/7 打包與雙分支同動推送。 |
 | V2.101 (beta) | v2.10.59 | 2026-09-14 | 徹底根絕堵轉看門狗誤判常態運轉與對話框雪崩連發重入漏洞：(1)現象與實測佐證：使用者回傳螢幕截圖指出，當在等效電路分頁查看數據、或馬達在常態測試 (如 S1 額定運轉 1465 rpm / 1500 rpm) 時，系統突發判定「堵轉轉速異常跳脫 (治具脫扣/機械鎖死失效)」，且因 MessageBox.Show 模態泵入事件導致背景定時器每 3 秒無限遞歸彈出超過十層疊加警告視窗，造成畫面癱瘓；(2)致命根因 (Root Cause)：`Dynamometer_TestEquivCircuit.cs` 中 `TmrLockedWatchdog_Tick` 誤將 `bool isEquivTabActive` 納入觸發條件，導致只要切換至等效電路分頁，即便未啟動堵轉測試，看門狗亦將常態運轉轉速視為堵轉治具脫扣；且 `TriggerLockedProtectionTrip` 缺乏重入鎖 (`isLockedTripShowing`)，在彈窗阻塞 UI 期間 Windows 訊息迴圈持續觸發定時器，引發彈窗雪崩；(3)精確修復方案：移除 `isEquivTabActive` 觸發條件，嚴格規定堵轉看門狗僅在 `isAutoTuningUf09` (自動調壓) 或 `isLockedRotorActive` (堵轉測試啟動) 狀態下才進行轉速與電流監測；加入 `isLockedTripShowing` 重入鎖，觸發時立即重設狀態機並鎖定單一彈窗；(4)版本升級與發布：升級至 2.10.59，完成雙分支同動推送。 |
 | V2.100 (beta) | v2.10.58 | 2026-09-14 | 移除頂部工具列「Aa」字體自訂功能與版面精簡重整：(1)現象與使用者需求：使用者指令「Aa這個功能也可以刪掉了」；(2)致命根因與演進分析：過去開發初期為相容不同螢幕解析度測試設計了「Aa」字體客製化彈窗按鈕，但隨著系統全面升級為三段式 Dock 佈局、自適應響應式流式排版以及 1080p 統一高對比度規範後，該手動字體微調按鈕已完全冗餘且佔據頂部工具列精華空間；(3)精確修復方案：移除 btnFontCustomizer ("Aa") 控制項與相關欄位宣告，並自頂部面板 Controls 移除；對齊重整頂部相鄰操作按鈕水平間距 (btnDeviceSettings -> X:398, btnCalibrationSettings -> X:448, btnCrashLogs -> X:498)，使頂部面板視覺與操作流程更為洗鍊整潔；(4)版本升級與發布：升級至 2.10.58，完成雙分支同動推送與發布。 |
+
+---
+
+## [V2.102 beta / v2.10.60] - 2026-09-14
+
+### 🎯 現象與佐證 (Verbatim Excerpts & Requirements)
+1. **使用者實測回報與截圖反映**：
+   - 使用者反映：「等效電路頁面目前的排版很奇怪，你要不要開程式自己看一下，還是你能不開程式就能找出來?」
+   - 「重整吧，我就懷疑為何第一次生成不檢查這些問題???」
+2. **具體破版異常現象**：
+   - 第 1 張卡片「1. 空載運轉數據 (No-Load)」嚴重向左推擠，被螢幕左邊界裁切吞噬超過 70% 的寬度，導致使用者無法正常讀取或輸入 V0、I0 等參數。
+   - 右側卡片 2 與卡片 3 之間出現不正常的水平空白位移。
+   - 卡片 3「3. 堵轉測試數據」垂直塞入多達 12 列，單列高度被壓縮至 24~28px，各項調壓與安全操作按鈕互相擠壓，視覺壓迫感強烈。
+   - 下半部成果分析區（參數表格與等效電路向量圖）採用靜態固定百分比與長度配置，在小解析度視窗下容易觸發水平與垂直雙向滾動條。
+
+---
+
+### 🔍 致命根因分析 (Root Cause)
+1. **外層 Panel 啟用 AutoScroll 與 WinForms Focus 機制衝突**：
+   - 檔案：`Dyanmometer_Modern/Dynamometer_TestEquivCircuit.cs`
+   - 函式：`BuildEquivCircuitTab`
+   - 原架構採用單一 `Panel pnlMainScroll` 設 `Dock = DockStyle.Fill` 且 `AutoScroll = true`，其內垂直堆疊 `pnlTopBar (62px)` + `tlpCards (400px)` + `pnlBottomSection (420px)`，總垂直高度高達 882px。
+   - 下半部成果區之工具列 (`tlpToolbar`) 各欄固定像素總和達 920px，加上 `tlpSplit` 總寬度要求，在低於 1150px 寬度時立即觸發水平滾動條 (`HorizontalScroll`)。
+   - 當焦點移至卡片 2 或卡片 3 之輸入框時，WinForms 的原生機制 `ScrollControlIntoView` 會自動將容器水平向右捲動數百像素，導致位在最左邊的卡片 1 被直接推擠至左側負座標（可視區黑洞），產生嚴重裁切破版。
+2. **卡片 3 結構未定義 RowStyles 導致行高擠壓**：
+   - 卡片 3 塞入了標題、狀態、頻率選擇、uf09 載台選擇、目標電壓寫入、防護橫條、Vk、Ik、Pk、PFk 與按鈕行等共 12 行，且未針對 `TableLayoutPanel` 分配行高比例，在固定高度限制下產生垂直擠壓與擁擠。
+
+---
+
+### 🛠️ 精確修復方案 (Exact Implementation)
+1. **導入全專案統一之 SplitContainer 兩段式上下彈性佈局 (`Dynamometer_TestEquivCircuit.cs`)**：
+   - 廢除單一外層 `pnlMainScroll` 與可能引起視窗晃動的 `AutoScroll`。
+   - 改採 `splitEquivMain` (水平分割，Orientation = Horizontal，預設 SplitterDistance = 340px)：
+     - **上半部 Panel1**：放置 `pnlTopBar` (高度緊湊化為 44px) + `tlpCards` (三等分 Dock = DockStyle.Fill)，確保三張數據卡片 100% 自適應貼齊，徹底杜絕水平位移與溢出。
+     - **下半部 Panel2**：放置 `pnlBottomSection` (Dock = DockStyle.Fill)。
+2. **卡片 3 佈局精簡與緊湊多欄化 (`CreateLockedCard`)**：
+   - 將原本 12 列擠壓排版精簡重整為對齊卡片 1 與卡片 2 的 10 列結構：
+     - Row 0: 標題列
+     - Row 1: 狀態指示列
+     - Row 2: 試驗頻率 (`cmbEquivLockedFreq`) 與 載台選擇 (`cmbEquivKebDrive`) 雙欄整合
+     - Row 3: 當前 uf09 標籤 + 目標 uf09 數值框 + ⚡ 寫入 + 🤖 自適應追隨 緊湊四欄整合
+     - Row 4: 實時防護監控橫條
+     - Row 5~8: Vk、Ik、Pk、PFk 實測輸入欄
+     - Row 9: 📸 擷取即時 | 復歸預設 | 🛑 急停 三鍵操作列
+   - 使卡片 3 在 340px 的上半部分割高度下舒展展開，完全消除行距壓迫感。
+3. **成果分析區重構為左右自由拉伸分割條 (`CreateResultsSection`)**：
+   - 頂部工具列精簡為 38px，定子冷態電阻輸入與計算/匯出按鈕自適應佈局。
+   - 數據表格 (`dgvEquivResults`) 與 GDI+ 等效電路向量圖解 (`pnlEquivDiagram`) 由 `TableLayoutPanel` 升級為獨立之 `splitEquivResults` 垂直分割條 (Orientation = Vertical，預設 SplitterDistance = 620px)。
+   - 操作者可依照螢幕大小自由拖曳調整左側參數表格與右側電路圖的寬度比例。
+4. **註冊安全分割記憶與分頁切換還原 (`Dynamometer_HMI_WinForms.cs`)**：
+   - 透過 `SafeSetupSplitContainer(splitEquivMain, "EquivMain", 340, 150, 150)` 與 `SafeSetupSplitContainer(splitEquivResults, "EquivResults", 620, 200, 200)` 自動將操作者拖曳的分割寬度記錄於 `dynamometer_layout.ini`。
+   - 在 `ApplyTabSplitters` 中加入 `tabIndex == 7` / `tabEquiv` 分割條安全還原邏輯，確保每次切換分頁或改變視窗大小時版面永遠保持最佳狀態。
+5. **版本遞增與發布同動**：
+   - 內部版號升級至 `2.10.60` (`APP_VERSION = "2.10.60"` / `V2.102 beta`)。
+   - 執行 `package_release.ps1 -Version 2.5.0` 完成打包與雙分支 (`gh-pages` 與 `master`) 強制同動發布。
+
+---
 
 ---
 

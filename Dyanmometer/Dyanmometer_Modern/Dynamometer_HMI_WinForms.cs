@@ -2789,6 +2789,11 @@ namespace DynamometerHMI
                     ApplySplitterDistanceSafe(splitNoLoadMain, "NoLoadMain", 509, 200, 100);
                     ApplySplitterDistanceSafe(splitNoLoadBottom, "NoLoadBottom", 1223, 200, 150);
                 }
+                else if (tabIndex == 7 || (tabControl != null && tabControl.SelectedTab == tabEquiv)) // 等效電路 EquivCircuit
+                {
+                    ApplySplitterDistanceSafe(splitEquivMain, "EquivMain", 340, 150, 150);
+                    ApplySplitterDistanceSafe(splitEquivResults, "EquivResults", 620, 200, 200);
+                }
             }
             catch { }
         }

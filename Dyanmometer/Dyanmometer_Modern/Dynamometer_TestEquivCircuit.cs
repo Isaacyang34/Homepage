@@ -14,6 +14,8 @@ namespace DynamometerHMI
         #region 等效電路控制項與狀態變數宣告
 
         public TabPage tabEquiv;
+        private SplitContainer splitEquivMain;
+        private SplitContainer splitEquivResults;
 
         // 馬達特徵指紋快取與狀態標籤
         private string cachedEquivDrFingerprint = "";
@@ -126,23 +128,31 @@ namespace DynamometerHMI
         {
             tab.BackColor = Color.FromArgb(248, 250, 252);
 
-            // 主容器：外層垂直 Dock Panel (啟用 AutoScroll 防止 DPI / 小螢幕裁切)
-            Panel pnlMainScroll = new Panel()
+            // 主分割容器：上下兩段式自由拉伸佈局 (預設高度 340px)
+            splitEquivMain = new SplitContainer()
             {
                 Dock = DockStyle.Fill,
-                AutoScroll = true,
-                BackColor = Color.FromArgb(248, 250, 252),
-                Padding = new Padding(8)
+                Orientation = Orientation.Horizontal,
+                BackColor = Color.FromArgb(226, 232, 240),
+                SplitterWidth = 5
             };
 
-            // 頂部狀態橫條：馬達指紋與同動記憶指示
+            // 上半部容器：頂部狀態橫條 (44px) + 三大採樣數據卡片 (Dock: Fill)
+            Panel pnlTopContainer = new Panel()
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(248, 250, 252),
+                Padding = new Padding(6, 4, 6, 2)
+            };
+
+            // 頂部狀態橫條：馬達指紋與同動記憶指示 (高度緊湊 44px)
             Panel pnlTopBar = new Panel()
             {
                 Dock = DockStyle.Top,
-                Height = 62,
+                Height = 44,
                 BackColor = Color.White,
-                Padding = new Padding(10, 6, 10, 6),
-                Margin = new Padding(0, 0, 0, 8)
+                Padding = new Padding(10, 4, 10, 4),
+                Margin = new Padding(0, 0, 0, 4)
             };
             pnlTopBar.Paint += (s, e) => {
                 using (Pen p = new Pen(Color.FromArgb(226, 232, 240), 1))
@@ -157,14 +167,14 @@ namespace DynamometerHMI
                 ColumnCount = 3,
                 RowCount = 1
             };
-            tlpTopBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 72f));
-            tlpTopBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150f));
-            tlpTopBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160f));
+            tlpTopBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            tlpTopBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140f));
+            tlpTopBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140f));
 
             lblEquivMotorStatus = new Label()
             {
                 Text = "🔗 待測馬達: 【" + (!string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S") + "】 | B載台 dr 狀態: 讀取中... | 一致性: 🟢 同一馬達測試記憶中",
-                Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold),
+                Font = new Font("微軟正黑體", 10f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(15, 23, 42),
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleLeft
@@ -173,12 +183,12 @@ namespace DynamometerHMI
             btnEquivRefreshFingerprint = new Button()
             {
                 Text = "🔄 刷新馬達狀態",
-                Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
+                Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(241, 245, 249),
                 ForeColor = Color.FromArgb(30, 41, 59),
                 FlatStyle = FlatStyle.Flat,
-                Margin = new Padding(4)
+                Margin = new Padding(3)
             };
             btnEquivRefreshFingerprint.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
             btnEquivRefreshFingerprint.Click += (s, e) => RefreshEquivMotorStatus();
@@ -186,12 +196,12 @@ namespace DynamometerHMI
             btnEquivClearAllData = new Button()
             {
                 Text = "🗑️ 清除採樣重測",
-                Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
+                Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(254, 242, 242),
                 ForeColor = Color.FromArgb(220, 38, 38),
                 FlatStyle = FlatStyle.Flat,
-                Margin = new Padding(4)
+                Margin = new Padding(3)
             };
             btnEquivClearAllData.FlatAppearance.BorderColor = Color.FromArgb(252, 165, 165);
             btnEquivClearAllData.Click += (s, e) => {
@@ -207,14 +217,13 @@ namespace DynamometerHMI
             tlpTopBar.Controls.Add(btnEquivClearAllData, 2, 0);
             pnlTopBar.Controls.Add(tlpTopBar);
 
-            // 中間卡片網格：三大測試數據卡片 (橫向三等分 TableLayoutPanel)
+            // 中間卡片網格：三大測試數據卡片 (橫向三等分 TableLayoutPanel, Dock: Fill 自適應填滿剩餘高度)
             TableLayoutPanel tlpCards = new TableLayoutPanel()
             {
-                Dock = DockStyle.Top,
-                Height = 400,
+                Dock = DockStyle.Fill,
                 ColumnCount = 3,
                 RowCount = 1,
-                Margin = new Padding(0, 8, 0, 8)
+                Margin = new Padding(0, 4, 0, 0)
             };
             tlpCards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
             tlpCards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
@@ -229,15 +238,19 @@ namespace DynamometerHMI
             tlpCards.Controls.Add(card2, 1, 0);
             tlpCards.Controls.Add(card3, 2, 0);
 
-            // 底部成果分析區：計算控制列 + 表格與電路圖圖解 (兩欄分割)
+            pnlTopContainer.Controls.Add(tlpCards);
+            pnlTopContainer.Controls.Add(pnlTopBar);
+
+            // 下半部成果分析區：計算控制列 + 表格與電路圖圖解 (左右分割)
             Panel pnlBottomSection = CreateResultsSection();
 
-            // 依序由上至下置入主滾動容器
-            pnlMainScroll.Controls.Add(pnlBottomSection);
-            pnlMainScroll.Controls.Add(tlpCards);
-            pnlMainScroll.Controls.Add(pnlTopBar);
+            splitEquivMain.Panel1.Controls.Add(pnlTopContainer);
+            splitEquivMain.Panel2.Controls.Add(pnlBottomSection);
 
-            tab.Controls.Add(pnlMainScroll);
+            tab.Controls.Add(splitEquivMain);
+
+            // 註冊安全分割條 (預設距離 340, Panel1 最少 150, Panel2 最少 150)
+            SafeSetupSplitContainer(splitEquivMain, "EquivMain", 340, 150, 150);
 
             // 啟動堵轉測試看門狗與自適應調壓定時器
             if (tmrLockedWatchdog == null)
@@ -470,7 +483,7 @@ namespace DynamometerHMI
                 Dock = DockStyle.Fill,
                 BackColor = Color.White,
                 Margin = new Padding(4),
-                Padding = new Padding(12)
+                Padding = new Padding(10, 8, 10, 8)
             };
             card.Paint += (s, e) => {
                 using (Pen p = new Pen(Color.FromArgb(226, 232, 240), 1))
@@ -483,15 +496,16 @@ namespace DynamometerHMI
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
-                RowCount = 12
+                RowCount = 10
             };
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 48f));
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 52f));
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 46f));
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 54f));
 
+            // Row 0: 標題
             Label lblTitle = new Label()
             {
                 Text = "3. 堵轉測試數據 (多頻試驗與自適應調壓)",
-                Font = new Font("微軟正黑體", 11f, FontStyle.Bold),
+                Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(180, 83, 9),
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleLeft
@@ -499,10 +513,11 @@ namespace DynamometerHMI
             tlp.SetColumnSpan(lblTitle, 2);
             tlp.Controls.Add(lblTitle, 0, 0);
 
+            // Row 1: 狀態指示
             lblLockedItemStatus = new Label()
             {
                 Text = "⚪ 待採樣 (請先鎖死轉子並啟動自適應調壓)",
-                Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
+                Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(100, 116, 139),
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleLeft
@@ -510,24 +525,16 @@ namespace DynamometerHMI
             tlp.SetColumnSpan(lblLockedItemStatus, 2);
             tlp.Controls.Add(lblLockedItemStatus, 0, 1);
 
-            // 測試頻率選擇行
-            TableLayoutPanel tlpFreq = new TableLayoutPanel()
+            // Row 2: 試驗頻率與載台選擇 (雙欄合一行，節省空間)
+            TableLayoutPanel tlpFreqDrive = new TableLayoutPanel()
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
-                RowCount = 1
+                RowCount = 1,
+                Margin = new Padding(0)
             };
-            tlpFreq.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35f));
-            tlpFreq.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 65f));
-
-            Label lblFreqTitle = new Label()
-            {
-                Text = "試驗頻率:",
-                Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(71, 85, 105),
-                Dock = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleRight
-            };
+            tlpFreqDrive.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58f));
+            tlpFreqDrive.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42f));
 
             cmbEquivLockedFreq = new ComboBox()
             {
@@ -536,75 +543,50 @@ namespace DynamometerHMI
                 Font = new Font("微軟正黑體", 8.5f)
             };
             cmbEquivLockedFreq.Items.AddRange(new object[] {
-                "額定頻率 (50/60 Hz) [1.0x]",
-                "1/2 額定頻率 (25/30 Hz) [0.5x, 推薦]",
-                "1/4 額定頻率 (12.5/15 Hz) [0.25x]"
+                "50/60 Hz [1.0x]",
+                "25/30 Hz [0.5x, 推薦]",
+                "12.5/15 Hz [0.25x]"
             });
             cmbEquivLockedFreq.SelectedIndex = 1; // 預設 1/2 頻率 (IEEE 112 推薦)
             cmbEquivLockedFreq.SelectedIndexChanged += (s, e) => {
                 WriteHmiLog("EQUIV", string.Format("【等效電路】切換堵轉試驗頻率模式為: {0}", cmbEquivLockedFreq.SelectedItem));
             };
 
-            tlpFreq.Controls.Add(lblFreqTitle, 0, 0);
-            tlpFreq.Controls.Add(cmbEquivLockedFreq, 1, 0);
-            tlp.SetColumnSpan(tlpFreq, 2);
-            tlp.Controls.Add(tlpFreq, 0, 2);
-
-            // KEB uf09 調控行 1: 選擇載台與讀取當前電壓
-            TableLayoutPanel tlpUfCtrl1 = new TableLayoutPanel()
-            {
-                Dock = DockStyle.Fill,
-                ColumnCount = 3,
-                RowCount = 1
-            };
-            tlpUfCtrl1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40f));
-            tlpUfCtrl1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35f));
-            tlpUfCtrl1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
-
             cmbEquivKebDrive = new ComboBox()
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Dock = DockStyle.Fill,
-                Font = new Font("微軟正黑體", 9f)
+                Font = new Font("微軟正黑體", 8.5f)
             };
-            cmbEquivKebDrive.Items.AddRange(new object[] { "B載台 (待測端)", "A載台" });
+            cmbEquivKebDrive.Items.AddRange(new object[] { "B載台 (待測)", "A載台" });
             cmbEquivKebDrive.SelectedIndex = 0;
+
+            tlpFreqDrive.Controls.Add(cmbEquivLockedFreq, 0, 0);
+            tlpFreqDrive.Controls.Add(cmbEquivKebDrive, 1, 0);
+            tlp.SetColumnSpan(tlpFreqDrive, 2);
+            tlp.Controls.Add(tlpFreqDrive, 0, 2);
+
+            // Row 3: 目標 uf09 + 寫入 + 自適應追隨 (緊湊三欄式)
+            TableLayoutPanel tlpUfCtrl = new TableLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 4,
+                RowCount = 1,
+                Margin = new Padding(0)
+            };
+            tlpUfCtrl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 55f));
+            tlpUfCtrl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 55f));
+            tlpUfCtrl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70f));
+            tlpUfCtrl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
 
             lblEquivCurUf09 = new Label()
             {
-                Text = "uf09: -- V",
-                Font = new Font("Consolas", 10f, FontStyle.Bold),
+                Text = "uf09:--",
+                Font = new Font("Consolas", 9f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(180, 83, 9),
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleCenter
             };
-
-            btnEquivReadUf09 = new Button()
-            {
-                Text = "讀取",
-                Font = new Font("微軟正黑體", 8.5f),
-                Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(241, 245, 249)
-            };
-            btnEquivReadUf09.Click += (s, e) => ReadCurrentUf09FromHardware();
-
-            tlpUfCtrl1.Controls.Add(cmbEquivKebDrive, 0, 0);
-            tlpUfCtrl1.Controls.Add(lblEquivCurUf09, 1, 0);
-            tlpUfCtrl1.Controls.Add(btnEquivReadUf09, 2, 0);
-
-            tlp.SetColumnSpan(tlpUfCtrl1, 2);
-            tlp.Controls.Add(tlpUfCtrl1, 0, 3);
-
-            // KEB uf09 調控行 2: 目標電壓手動寫入與自動自適應微調
-            TableLayoutPanel tlpUfCtrl2 = new TableLayoutPanel()
-            {
-                Dock = DockStyle.Fill,
-                ColumnCount = 3,
-                RowCount = 1
-            };
-            tlpUfCtrl2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28f));
-            tlpUfCtrl2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32f));
-            tlpUfCtrl2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40f));
 
             numEquivTargetUf09 = new NumericUpDown()
             {
@@ -613,67 +595,74 @@ namespace DynamometerHMI
                 Value = 35,
                 Increment = 1,
                 Dock = DockStyle.Fill,
-                Font = new Font("Consolas", 9.5f, FontStyle.Bold)
+                Font = new Font("Consolas", 9f, FontStyle.Bold)
             };
 
             btnEquivWriteUf09 = new Button()
             {
-                Text = "⚡ 手動寫入",
-                Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold),
+                Text = "⚡ 寫入",
+                Font = new Font("微軟正黑體", 8f, FontStyle.Bold),
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(254, 243, 199),
                 ForeColor = Color.FromArgb(180, 83, 9),
-                FlatStyle = FlatStyle.Flat
+                FlatStyle = FlatStyle.Flat,
+                Margin = new Padding(1)
             };
             btnEquivWriteUf09.FlatAppearance.BorderColor = Color.FromArgb(252, 211, 77);
             btnEquivWriteUf09.Click += (s, e) => WriteTargetUf09ToHardware();
 
             btnEquivAutoTuneUf09 = new Button()
             {
-                Text = "🤖 自適應追隨額定流",
-                Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold),
+                Text = "🤖 自適應追隨",
+                Font = new Font("微軟正黑體", 8f, FontStyle.Bold),
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(238, 242, 255),
                 ForeColor = Color.FromArgb(79, 70, 229),
-                FlatStyle = FlatStyle.Flat
+                FlatStyle = FlatStyle.Flat,
+                Margin = new Padding(1)
             };
             btnEquivAutoTuneUf09.FlatAppearance.BorderColor = Color.FromArgb(199, 210, 254);
             btnEquivAutoTuneUf09.Click += (s, e) => ToggleAutoTuneUf09();
 
-            tlpUfCtrl2.Controls.Add(numEquivTargetUf09, 0, 0);
-            tlpUfCtrl2.Controls.Add(btnEquivWriteUf09, 1, 0);
-            tlpUfCtrl2.Controls.Add(btnEquivAutoTuneUf09, 2, 0);
+            // 支援背景讀取
+            btnEquivReadUf09 = new Button() { Visible = false };
+            btnEquivReadUf09.Click += (s, e) => ReadCurrentUf09FromHardware();
 
-            tlp.SetColumnSpan(tlpUfCtrl2, 2);
-            tlp.Controls.Add(tlpUfCtrl2, 0, 4);
+            tlpUfCtrl.Controls.Add(lblEquivCurUf09, 0, 0);
+            tlpUfCtrl.Controls.Add(numEquivTargetUf09, 1, 0);
+            tlpUfCtrl.Controls.Add(btnEquivWriteUf09, 2, 0);
+            tlpUfCtrl.Controls.Add(btnEquivAutoTuneUf09, 3, 0);
 
-            // 即時保護狀態指示橫條
+            tlp.SetColumnSpan(tlpUfCtrl, 2);
+            tlp.Controls.Add(tlpUfCtrl, 0, 3);
+
+            // Row 4: 即時保護指示橫條
             lblLockedProtStatus = new Label()
             {
-                Text = "🛡️ 實時防護: 監控中 (電流閥值: 110% IN / 10s | 轉速: 5 rpm / 3s)",
+                Text = "🛡️ 實時防護: 監控中 (電流: 110% IN / 10s | 轉速: 5 rpm / 3s)",
                 Font = new Font("微軟正黑體", 8f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(16, 185, 129),
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleLeft,
                 BackColor = Color.FromArgb(248, 250, 252),
-                Padding = new Padding(4, 2, 4, 2)
+                Padding = new Padding(3, 1, 3, 1)
             };
             tlp.SetColumnSpan(lblLockedProtStatus, 2);
-            tlp.Controls.Add(lblLockedProtStatus, 0, 5);
+            tlp.Controls.Add(lblLockedProtStatus, 0, 4);
 
-            // 堵轉實測數據列
-            numEquivVk = AddCardField(tlp, 6, "堵轉電壓 Vk (V):", 52.0m, 1, 0, 500);
-            numEquivIk = AddCardField(tlp, 7, "堵轉電流 Ik (A):", 32.5m, 2, 0, 500);
-            numEquivPk = AddCardField(tlp, 8, "堵轉功率 Pk (W):", 850.0m, 1, 0, 50000);
-            numEquivPfk = AddCardField(tlp, 9, "堵轉因數 PFk:", 0.29m, 3, 0, 1);
+            // Row 5~8: 堵轉實測數據列
+            numEquivVk = AddCardField(tlp, 5, "堵轉電壓 Vk (V):", 52.0m, 1, 0, 500);
+            numEquivIk = AddCardField(tlp, 6, "堵轉電流 Ik (A):", 32.5m, 2, 0, 500);
+            numEquivPk = AddCardField(tlp, 7, "堵轉功率 Pk (W):", 850.0m, 1, 0, 50000);
+            numEquivPfk = AddCardField(tlp, 8, "堵轉因數 PFk:", 0.29m, 3, 0, 1);
 
-            // 操作按鈕行 (三鍵式: 擷取 / 復歸 / 緊急停機)
+            // Row 9: 操作按鈕行 (三鍵式: 擷取 / 復歸 / 緊急停機)
             TableLayoutPanel tlpBtnsLocked = new TableLayoutPanel()
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 3,
                 RowCount = 1,
-                Margin = new Padding(0, 4, 0, 0)
+                Margin = new Padding(0, 2, 0, 0)
             };
             tlpBtnsLocked.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42f));
             tlpBtnsLocked.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28f));
@@ -681,12 +670,13 @@ namespace DynamometerHMI
 
             btnEquivCaptureLiveLocked = new Button()
             {
-                Text = "📸 擷取即時數據",
-                Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
+                Text = "📸 擷取即時",
+                Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold),
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(254, 243, 199),
                 ForeColor = Color.FromArgb(180, 83, 9),
-                FlatStyle = FlatStyle.Flat
+                FlatStyle = FlatStyle.Flat,
+                Margin = new Padding(2)
             };
             btnEquivCaptureLiveLocked.FlatAppearance.BorderColor = Color.FromArgb(252, 211, 77);
             btnEquivCaptureLiveLocked.Click += (s, e) => CaptureLiveLockedData();
@@ -694,20 +684,22 @@ namespace DynamometerHMI
             btnEquivRevertUf09 = new Button()
             {
                 Text = "復歸預設",
-                Font = new Font("微軟正黑體", 8.5f),
+                Font = new Font("微軟正黑體", 8f),
                 Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(241, 245, 249)
+                BackColor = Color.FromArgb(241, 245, 249),
+                Margin = new Padding(2)
             };
             btnEquivRevertUf09.Click += (s, e) => RevertUf09ToDefault();
 
             btnEquivLockedStop = new Button()
             {
-                Text = "🛑 緊急停機",
+                Text = "🛑 急停",
                 Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold),
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(254, 242, 242),
                 ForeColor = Color.FromArgb(220, 38, 38),
-                FlatStyle = FlatStyle.Flat
+                FlatStyle = FlatStyle.Flat,
+                Margin = new Padding(2)
             };
             btnEquivLockedStop.FlatAppearance.BorderColor = Color.FromArgb(254, 202, 202);
             btnEquivLockedStop.Click += (s, e) => {
@@ -721,7 +713,7 @@ namespace DynamometerHMI
             tlpBtnsLocked.Controls.Add(btnEquivLockedStop, 2, 0);
 
             tlp.SetColumnSpan(tlpBtnsLocked, 2);
-            tlp.Controls.Add(tlpBtnsLocked, 0, 10);
+            tlp.Controls.Add(tlpBtnsLocked, 0, 9);
 
             card.Controls.Add(tlp);
             return card;
@@ -761,38 +753,31 @@ namespace DynamometerHMI
         {
             Panel pnl = new Panel()
             {
-                Dock = DockStyle.Top,
-                Height = 420,
+                Dock = DockStyle.Fill,
                 BackColor = Color.White,
-                Margin = new Padding(0, 8, 0, 8),
-                Padding = new Padding(12)
-            };
-            pnl.Paint += (s, e) => {
-                using (Pen p = new Pen(Color.FromArgb(226, 232, 240), 1))
-                {
-                    e.Graphics.DrawRectangle(p, 0, 0, pnl.Width - 1, pnl.Height - 1);
-                }
+                Padding = new Padding(8, 6, 8, 6)
             };
 
-            // 頂部操作工具列
+            // 頂部操作工具列 (緊湊自適應寬度)
             TableLayoutPanel tlpToolbar = new TableLayoutPanel()
             {
                 Dock = DockStyle.Top,
-                Height = 44,
+                Height = 38,
                 ColumnCount = 6,
-                RowCount = 1
+                RowCount = 1,
+                Margin = new Padding(0, 0, 0, 4)
             };
-            tlpToolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180f));
-            tlpToolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110f));
-            tlpToolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180f));
-            tlpToolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190f));
+            tlpToolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 155f));
+            tlpToolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100f));
+            tlpToolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160f));
+            tlpToolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 175f));
             tlpToolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            tlpToolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 260f));
+            tlpToolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 235f));
 
             Label lblR1Prompt = new Label()
             {
-                Text = "定子冷態電阻 R1 (Ω):",
-                Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
+                Text = "定子冷態 R1 (Ω):",
+                Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleRight
             };
@@ -804,7 +789,7 @@ namespace DynamometerHMI
                 Value = 0.1250m,
                 Increment = 0.001m,
                 Dock = DockStyle.Fill,
-                Font = new Font("Consolas", 10f, FontStyle.Bold),
+                Font = new Font("Consolas", 9.5f, FontStyle.Bold),
                 TextAlign = HorizontalAlignment.Right
             };
 
@@ -812,7 +797,7 @@ namespace DynamometerHMI
             {
                 Text = "自動依堵轉 50% 分配",
                 Checked = true,
-                Font = new Font("微軟正黑體", 9f),
+                Font = new Font("微軟正黑體", 8.5f),
                 Dock = DockStyle.Fill
             };
             chkAutoR1Distribute.CheckedChanged += (s, e) => {
@@ -822,11 +807,12 @@ namespace DynamometerHMI
             btnEquivCalculate = new Button()
             {
                 Text = "🚀 計算等效電路參數",
-                Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold),
+                Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(16, 185, 129),
                 ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat
+                FlatStyle = FlatStyle.Flat,
+                Margin = new Padding(2)
             };
             btnEquivCalculate.FlatAppearance.BorderSize = 0;
             btnEquivCalculate.Click += (s, e) => ExecuteEquivCircuitCalculation();
@@ -834,23 +820,26 @@ namespace DynamometerHMI
             FlowLayoutPanel flpExport = new FlowLayoutPanel()
             {
                 Dock = DockStyle.Fill,
-                FlowDirection = FlowDirection.RightToLeft
+                FlowDirection = FlowDirection.RightToLeft,
+                Margin = new Padding(0)
             };
             btnEquivExportCsv = new Button()
             {
                 Text = "📊 匯出 CSV",
-                Font = new Font("微軟正黑體", 9f),
-                Size = new Size(110, 34),
-                BackColor = Color.FromArgb(241, 245, 249)
+                Font = new Font("微軟正黑體", 8.5f),
+                Size = new Size(100, 30),
+                BackColor = Color.FromArgb(241, 245, 249),
+                Margin = new Padding(2)
             };
             btnEquivExportCsv.Click += (s, e) => ExportEquivCircuitCsv();
 
             btnEquivCopyResults = new Button()
             {
                 Text = "📋 複製參數",
-                Font = new Font("微軟正黑體", 9f),
-                Size = new Size(110, 34),
-                BackColor = Color.FromArgb(241, 245, 249)
+                Font = new Font("微軟正黑體", 8.5f),
+                Size = new Size(100, 30),
+                BackColor = Color.FromArgb(241, 245, 249),
+                Margin = new Padding(2)
             };
             btnEquivCopyResults.Click += (s, e) => CopyEquivResultsToClipboard();
 
@@ -863,16 +852,14 @@ namespace DynamometerHMI
             tlpToolbar.Controls.Add(btnEquivCalculate, 3, 0);
             tlpToolbar.Controls.Add(flpExport, 5, 0);
 
-            // 分割檢視：左側參數數據 DataGridView，右側 GDI+ 等效電路架構繪製圖解
-            TableLayoutPanel tlpSplit = new TableLayoutPanel()
+            // 分割檢視：左側參數數據 DataGridView，右側 GDI+ 等效電路架構繪製圖解 (左右分割條)
+            splitEquivResults = new SplitContainer()
             {
                 Dock = DockStyle.Fill,
-                ColumnCount = 2,
-                RowCount = 1,
-                Margin = new Padding(0, 8, 0, 0)
+                Orientation = Orientation.Vertical,
+                BackColor = Color.FromArgb(226, 232, 240),
+                SplitterWidth = 5
             };
-            tlpSplit.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55f));
-            tlpSplit.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45f));
 
             dgvEquivResults = new DataGridView()
             {
@@ -883,10 +870,10 @@ namespace DynamometerHMI
                 RowHeadersVisible = false,
                 BackgroundColor = Color.White,
                 BorderStyle = BorderStyle.Fixed3D,
-                Font = new Font("微軟正黑體", 9.5f),
+                Font = new Font("微軟正黑體", 9f),
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect
             };
-            dgvEquivResults.ColumnHeadersDefaultCellStyle.Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold);
+            dgvEquivResults.ColumnHeadersDefaultCellStyle.Font = new Font("微軟正黑體", 9f, FontStyle.Bold);
             dgvEquivResults.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(241, 245, 249);
             dgvEquivResults.Columns.Add("Param", "等效電路參數");
             dgvEquivResults.Columns.Add("Symbol", "符號");
@@ -895,11 +882,11 @@ namespace DynamometerHMI
             dgvEquivResults.Columns.Add("Inductance", "換算電感 (mH)");
             dgvEquivResults.Columns.Add("Desc", "工程物理意義");
 
-            dgvEquivResults.Columns["Param"].Width = 130;
-            dgvEquivResults.Columns["Symbol"].Width = 65;
-            dgvEquivResults.Columns["Value"].Width = 95;
-            dgvEquivResults.Columns["Unit"].Width = 50;
-            dgvEquivResults.Columns["Inductance"].Width = 110;
+            dgvEquivResults.Columns["Param"].Width = 120;
+            dgvEquivResults.Columns["Symbol"].Width = 60;
+            dgvEquivResults.Columns["Value"].Width = 90;
+            dgvEquivResults.Columns["Unit"].Width = 45;
+            dgvEquivResults.Columns["Inductance"].Width = 100;
             dgvEquivResults.Columns["Desc"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
 
             InitDefaultEquivResultsGrid();
@@ -913,10 +900,14 @@ namespace DynamometerHMI
             };
             pnlEquivDiagram.Paint += DrawEquivalentCircuitDiagram;
 
-            tlpSplit.Controls.Add(dgvEquivResults, 0, 0);
-            tlpSplit.Controls.Add(pnlEquivDiagram, 1, 0);
+            splitEquivResults.Panel1.Controls.Add(dgvEquivResults);
+            splitEquivResults.Panel2.Controls.Add(pnlEquivDiagram);
 
-            pnl.Controls.Add(tlpSplit);
+            // 註冊安全分割條 (預設距離 620, Panel1 最少 200, Panel2 最少 200)
+            SafeSetupSplitContainer(splitEquivResults, "EquivResults", 620, 200, 200);
+
+            // 依序加入底層成果容器 (tlpToolbar 在上，splitEquivResults 在下 Fill)
+            pnl.Controls.Add(splitEquivResults);
             pnl.Controls.Add(tlpToolbar);
 
             return pnl;
