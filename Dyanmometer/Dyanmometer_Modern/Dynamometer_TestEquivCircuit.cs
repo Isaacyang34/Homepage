@@ -835,7 +835,7 @@ namespace DynamometerHMI
 
             btnEquivCalculate = new Button()
             {
-                Text = "🚀 計算等效電路參數",
+                Text = "計算等效電路參數",
                 Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(16, 185, 129),
@@ -854,7 +854,7 @@ namespace DynamometerHMI
             };
             btnEquivExportCsv = new Button()
             {
-                Text = "📊 匯出 CSV",
+                Text = "匯出 CSV",
                 Font = new Font("微軟正黑體", 8.5f),
                 Size = new Size(100, 30),
                 BackColor = Color.FromArgb(241, 245, 249),
@@ -864,7 +864,7 @@ namespace DynamometerHMI
 
             btnEquivCopyResults = new Button()
             {
-                Text = "📋 複製參數",
+                Text = "複製參數",
                 Font = new Font("微軟正黑體", 8.5f),
                 Size = new Size(100, 30),
                 BackColor = Color.FromArgb(241, 245, 249),
