@@ -2003,20 +2003,56 @@ namespace DynamometerHMI
                     item.StartVoltage = startV;
                     int curV = startV;
 
-                    // 步驟 A: 先將 uf.09 寫入安全起步電壓 (消除高壓切換過電流風險)
-                    KebWriteUf09(driveId, curV);
+                    // 步驟 A1: 先下達停機 (Sy.50 = 0) 並將轉速清零 (Sy.52 = 0, oP.03 = 0)
+                    // 變頻器只有在 nOP 狀態下才保證接受修改 uf.09，且保證絕不在切換電壓時帶載運轉！
+                    KebWriteParamWithDll(com, baud, node, 0x0032, 0); // 確保停機 (Sy.50 = 0)
+                    ClearLockedSpeedCmd("進入降壓安全設定視窗");
+                    System.Threading.Thread.Sleep(200);
 
-                    // 步驟 B: 設定變頻器輸出頻率 (透過 Sy.52 與 oP.03 給定轉速 rpm = 120 * fTest / poles)
+                    // 步驟 A2: 寫入目標降壓起步值，並【100% 讀回驗證硬體是否確實降壓 (<= 60V)】
+                    bool verifiedSafeUf09 = false;
+                    for (int retry = 0; retry < 5; retry++)
+                    {
+                        KebWriteUf09(driveId, curV);
+                        System.Threading.Thread.Sleep(150);
+                        int? vRead = KebReadUf09(driveId);
+                        if (vRead.HasValue && vRead.Value <= 60)
+                        {
+                            verifiedSafeUf09 = true;
+                            curV = vRead.Value;
+                            break;
+                        }
+                    }
+
+                    if (!verifiedSafeUf09)
+                    {
+                        // ★【生與死安全閉鎖】若 uf.09 未被變頻器確認降壓至 <= 60V，嚴禁啟動！嚴禁給速！
+                        WriteHmiLog("LOCKED_ERR", string.Format("【致命安全阻擋】{0} uf.09 降壓驗證失敗！當前電壓未確認降至安全值 (<=60V)，試驗已緊急中止，絕不允許高壓輸出！", item.FreqName));
+                        this.Invoke((MethodInvoker)delegate {
+                            MessageBox.Show(string.Format("【[!] 堵轉安全閉鎖防護】\r\n\r\n變頻器 uf.09 基準電壓未能成功降至安全值 (<= 60V)！\r\n為防止額定高壓損壞鎖死馬達，系統已強制阻斷輸出並終止試驗！\r\n\r\n請確認變頻器是否處於 nOP 狀態後再試。", item.FreqName),
+                                "安全閉鎖·禁止啟動", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            StopLockedRotorSweep("uf.09 降壓驗證失敗緊急中止");
+                        });
+                        return;
+                    }
+
+                    // 步驟 B: 硬體驗證降壓完成，安全寫入測試頻率對應之轉速 (Sy.52 / oP.03)
                     int poles = (kebMotorPoles2 > 0) ? kebMotorPoles2 : 4;
                     double targetRpm = (120.0 * fTest) / poles;
                     KebWriteParam32(com, baud, node, 0x0034, (int)Math.Round(targetRpm), string.Format("堵轉頻率 {0:F1}Hz (Sy.52)", fTest));
+                    try { KebWriteParamWithDll(com, baud, node, 0x0034, (int)Math.Round(targetRpm)); } catch { }
                     KebWriteParam32(com, baud, node, 0x0303, (int)Math.Round(targetRpm * 8), string.Format("堵轉轉速 (oP.03)", fTest));
+                    try { KebWriteParamWithDll(com, baud, node, 0x0303, (int)Math.Round(targetRpm * 8)); } catch { }
 
                     this.Invoke((MethodInvoker)delegate {
-                        lblEquivCurUf09.Text = string.Format("uf09: {0} V", curV);
-                        lblLockedItemStatus.Text = string.Format("[AI] {0} ({1:F1}Hz) 起始電壓: {2}V, Sy.52={3:F0}rpm，握手鎖定中...", item.FreqName, fTest, startV, targetRpm);
+                        lblEquivCurUf09.Text = string.Format("uf09: {0} V (已確認降壓)", curV);
+                        lblLockedItemStatus.Text = string.Format("[AI] {0} ({1:F1}Hz) 起始電壓: {2}V, Sy.52={3:F0}rpm，啟動安全低壓激磁...", item.FreqName, fTest, curV, targetRpm);
                     });
-                    System.Threading.Thread.Sleep(400); // 握手響應 400ms，無須多餘冷卻停頓
+                    System.Threading.Thread.Sleep(200);
+
+                    // 步驟 B2: 在已確認極低電壓下，正式啟動變頻器輸出激磁 (Sy.50 = 4 RUN 正轉)
+                    KebWriteParamWithDll(com, baud, node, 0x0032, 4); // RUN 正轉 (Sy.50 = 4)
+                    System.Threading.Thread.Sleep(400); // 響應 400ms，電流平穩建壓
 
                     // 步驟 C: 初測電流安全檢驗 (若切換後電流偏大 > 80% IN，啟動反向階梯回退降壓)
                     double iInit = GetCurrentSample();
@@ -2207,18 +2243,26 @@ namespace DynamometerHMI
                             item.FreqName, fTest, avgV, avgI, avgP, avgPF, xk_meas, xk_ref, lk_mH));
                     }
 
-                    // 單頻或各步完成後，退回安全起步電壓無縫切換下一頻率 (無需冷卻停頓)
+                    // 單頻或各步完成後，先停機切斷激磁，再推進下一頻率
                     if (!singleFreqMode && idx < endFreqIdx)
                     {
+                        KebWriteParamWithDll(com, baud, node, 0x0032, 0); // 停機 (Sy.50 = 0)
+                        ClearLockedSpeedCmd("換頻暫態停機轉速清零");
+                        System.Threading.Thread.Sleep(200);
+
                         int nextStartV = Math.Max(5, (int)Math.Round(ratedVolt * 0.10 * Math.Min(1.0, Math.Max(0.2, lockedSweepItems[idx + 1].FreqRatio))));
                         KebWriteUf09(driveId, nextStartV);
                         this.Invoke((MethodInvoker)delegate {
                             lblEquivCurUf09.Text = string.Format("uf09: {0} V", nextStartV);
-                            lblLockedItemStatus.Text = string.Format("[AI] {0} 完成，退回起步電壓 {1}V 直接推進下一頻率...", item.FreqName, nextStartV);
+                            lblLockedItemStatus.Text = string.Format("[AI] {0} 完成，切換下一頻率起步電壓 {1}V...", item.FreqName, nextStartV);
                         });
-                        System.Threading.Thread.Sleep(300); // 僅需 300ms 暫態響應，零冷卻停頓
+                        System.Threading.Thread.Sleep(200);
                     }
                 }
+
+                // 結束處置：立即切斷變頻器輸出 (Sy.50 = 0) 並清空轉速
+                KebWriteParamWithDll(com, baud, node, 0x0032, 0); // Sy.50 = 0
+                ClearLockedSpeedCmd("堵轉試驗完成停機轉速歸零");
 
                 // 結束處置
                 this.Invoke((MethodInvoker)delegate {
@@ -2527,6 +2571,16 @@ namespace DynamometerHMI
                 // 實測轉速
                 double spdCur = Math.Abs(actSpeed);
                 if (spdCur <= 0.5 && lastB_Dr01.HasValue) spdCur = Math.Abs((double)lastB_Dr01.Value);
+
+                // ── 0. 瞬時突波過載極限保護 (Instant Peak Overcurrent > 150% IN, 零秒延遲緊急跳脫) ──
+                if (iCur > inRated * 1.50 && iCur > 5.0)
+                {
+                    TriggerLockedProtectionTrip(
+                        "堵轉瞬時極限過電流跳脫 (Peak Over-Current > 150% IN)",
+                        string.Format("• 基準額定電流 IN = {0:F2} A\r\n• 瞬時極限跳脫閥值 (150%) = {1:F2} A\r\n• 實測瞬間衝擊電流 = {2:F2} A\r\n• 判定結果：偵測到危險瞬時突波電流！為保護變頻器 IGBT 與馬達定子，系統已於 0 秒內執行緊急停機並切斷輸出激磁。",
+                        inRated, inRated * 1.50, iCur));
+                    return;
+                }
 
                 // ── 1. 電流閥值超標且持續 10 秒保護 ──
                 if (iCur > iThreshold)
