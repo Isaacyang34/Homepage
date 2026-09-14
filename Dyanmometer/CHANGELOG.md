@@ -8,7 +8,55 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.97 (beta) | v2.10.55 | 2026-09-14 | 馬達同名專屬歸檔目錄、S1 不補轉差 40 筆取中 30 筆平均取樣、等效電路自動讀取與 mH 電感換算、堵轉控制保護技術手冊：(1)現象與需求：使用者要求更換馬達型號時以馬達名稱自動建立資料夾並歸檔所有紀錄；等效電路除堵轉外由紀錄檔自動讀取；S1測試加載穩定後記錄40筆不補轉差電氣量並去掉前後5筆平均供等效電路取用；等效電路增加mH單位顯示；編寫堵轉操作控制保護MD文件；(2)馬達專屬目錄引擎：實作 GetMotorDedicatedLogDirectory()，遙測、手動記錄、快照、TN/S1/NoLoad 匯出全面自動導向 logs/<MotorName>/；(3)S1 額定不補轉差 40 筆取樣演算法：轉矩穩定進入目標帶後，自動鎖定 SY52 輸出關閉補轉差，連續記錄40筆電氣量，自動剔除前5筆與後5筆，將中間30筆平均計算產出 S1_Rated_NoSlip_Latest.csv；(4)等效電路自動讀檔與 mH 換算：自動掃描馬達目錄讀入空載穩態與 S1 不補轉差平均數據，表格與向量圖解新增 L=X/(2*pi*f)*1000 換算電感 (mH) 雙單位呈現；(5)堵轉測試全方位保護手冊：編製 LOCKED_ROTOR_TEST_OPERATION_CONTROL_PROTECTION_MANUAL.md。 |
 | V2.96 (beta) | v2.10.54 | 2026-09-14 | 排版記憶全息閉環根治（解決更新後仍無法儲存排版之根本缺陷）：(1)現象與致命根因：使用者強烈指出「既然只更新exe就不會動到其他檔案，為何沒辦法一開始就想到? 我更新了，但還是沒有辦法儲存排版」；經無頭生命週期測試機實測提取發現 5 大致命缺陷：①`ApplySplitterDistanceSafe` 在初期微小尺寸時提早回傳 `true` 導致 `onSize` 提早解除綁定，`FixedPanel.Panel1` 將分割條死鎖在壓扁值；②WinForms 在容器 Layout/Resize 階段自動引發 `SplitterMoved` 假事件，將夾殺值當成使用者拖曳回寫 INI；③`SaveLayoutConfig` 暴力讀取當前控制項像素覆寫記憶字典；④分頁 0 之 7 大分割條未納入 `SafeSetupSplitContainer`；⑤建構式提前存檔將 `ActiveTab` 覆寫為 0 且線上熱更新前未主動固化排版；(2)全域防夾契約重構：`ApplySplitterDistanceSafe` 僅在 `clamped == desired` 完全舒展時才回傳 `true`，初期未展開催化則回傳 `false` 保持監聽；(3)虛假事件物理過濾：`SplitterMoved` 強制注入 `MouseButtons.Left` / `ContainsFocus` 雙守衛，100% 免疫系統縮放產生的假事件；(4)單一真相源確立：`layoutSplitters` 作為純淨中繼記憶，徹底杜絕中途視窗尺寸污染，Tab 0 全 7 組分割容器統一接入；(5)熱替換即時固化：線上熱替換重新啟動前強制觸發 `SaveLayoutConfig()`。 |
+
+---
+
+## [V2.97 beta / v2.10.55] - 2026-09-14
+
+### 🎯 現象與佐證 (Verbatim Excerpts & Requirements)
+1. **使用者明確需求**：
+   - 「在更換馬達型號的時候，開始紀錄時建立一個新的資料夾，名稱就同馬達名稱，然後再把相關紀錄檔存入此資料夾。」
+   - 「等效電路需要的相關資訊就在記錄檔內直接讀取，除了賭轉外。」
+   - 「因為需要上述的功能，必須在測試S1的時候多做一個不補轉差的紀錄，扭力穩定後記錄40筆讓上述功能能取用去掉前後5筆平均。」
+   - 「等效電路頁面除了ohm單位之外再另外有換算mH的單位顯示」
+   - 「堵轉測試目前的操作控制保護流程能寫成MD檔讓我確認嗎?」
+2. **實測與數據流架構佐證**：
+   - 舊版架構中，所有遙測檔 (`Auto_Raw_Telemetry_*.csv`)、手動標籤紀錄 (`Manual_Record_*.csv`) 與測試匯出報表全數平鋪堆積於根目錄 `logs/` 下，不同馬達型號之測試檔混雜，導致等效電路演算法無法快速精確定位當前馬達的空載與負載紀錄。
+   - S1 測試過去全程啟用閉迴路轉矩補償與轉差補償，若直接取用含有轉差補償的轉速與頻率，計算出之轉差率 $s = \frac{n_s - n_r}{n_s}$ 會偏離馬達真實物理漏抗與轉子電阻等效模型。
+   - 等效電路原本僅呈現 $\Omega$ 阻抗（$R_1, X_1, R_m, X_m, R_2', X_2'$），現場工程師在比對馬達設計電磁參數時，亟需精確轉換為毫亨 ($\text{mH}$) 電感單位。
+
+---
+
+### 🔍 致命根因與架構設計 (Root Cause & Architectural Blueprint)
+1. **缺乏馬達目錄隔離機制**：
+   - 遙測記錄器固定以 `logs/` 作為目錄路徑，未根據 `motorModelName` 進行目錄分層，更換馬達測試時難以歸檔與追溯。
+2. **等效電路參數手動輸入痛點與轉差率補償干擾**：
+   - IEEE 112 等效電路需要空載試驗（$V_0, I_0, P_0$）與額定負載試驗（$V_n, I_n, P_n, s_n$）。
+   - 若使用者在測試完成後手動抄寫至等效電路介面容易發生人為筆誤；且標準 S1 運轉若帶有轉速閉迴路「補轉差」控制，測得之 $n_r$ 將被強拉回同部轉速附近，使得計算所得之等效轉子電阻 $R_2'/s$ 發生奇異點扭曲。因此必須在轉矩穩定後，進行 40 秒「不補轉差」純物理穩態採樣，並透過「去掉前後各 5 筆、取中間 30 筆平均」以濾除切換瞬間之動態震盪與結束干擾。
+3. **電抗與電感物理單位對照缺失**：
+   - 感應馬達之感抗 $X = 2\pi f L$，換算電感公式為 $L(\text{mH}) = \frac{X}{2\pi f} \times 1000$。介面與向量繪圖過去僅標記 $\Omega$，缺少直接對照的電感數值。
+
+---
+
+### 🛠️ 精確修復方案 (Exact Resolution & Implementation)
+1. **馬達專屬歸檔目錄引擎 (`Dynamometer_Telemetry.cs`)**：
+   - 實作 `GetMotorDedicatedLogDirectory(string motorName = null)`：自動檢測當前馬達型號，安全過濾非法字元（如 `\ / : * ? " < > |`），於 `logs/` 下建立以馬達名稱同名之專屬資料夾（例如 `logs/YE3-100L-4/`）。
+   - 全面更新 `StartAutoRawRecordingWithTag`、`ToggleManualRawRecording`、`SaveRawSnapshot`、`OpenLogsFolder`，所有遙測日誌、手動紀錄與快照一律自動歸檔進該馬達專屬資料夾。
+   - 同動更新 `Dynamometer_TestTN.cs`、`Dynamometer_TestDuty.cs`、`Dynamometer_TestNoLoad.cs` 之匯出目錄為馬達專屬目錄。
+2. **S1 額定不補轉差 40 筆中位平均採樣引擎 (`Dynamometer_HMI_WinForms.cs` & `Dynamometer_TestDuty.cs`)**：
+   - 新增 `S1NoSlipSample` 採樣資料結構與緩衝佇列 `s1NoSlipBuffer`。
+   - 於 `DutyTimer_Tick` 實裝自動取樣機制：當加載轉矩進入目標負載容許帶（$\pm 3\%$）穩定後，自動鎖定 `SY52 = targetSpd`（停止補轉差頻率疊加），以 1 Hz 週期採集 40 筆高精準電氣量（轉速、轉矩、電壓、電流、功率、功因）。
+   - 採樣完成後自動呼叫 `SaveS1NoSlipResultAndCsv`：自動剔除前 5 筆（排除切換擾動）與後 5 筆，取中間 30 筆進行統計平均計算，並自動輸出為 `S1_Rated_NoSlip_Latest.csv` 與歷程時間戳檔至馬達專屬資料夾。
+3. **等效電路自動讀取與毫亨 ($\text{mH}$) 電感雙單位呈現 (`Dynamometer_TestEquivCircuit.cs`)**：
+   - 實裝 `LoadNoLoadDataFromTestTab()`：優先自 `logs/<MotorName>/` 自動掃描載入最新空載測試數據並平均穩態點。
+   - 實裝 `LoadRatedDataFromTnTab()`：優先自 `logs/<MotorName>/S1_Rated_NoSlip_Latest.csv` 直接讀取 30 筆平均之不補轉差額定數據（電壓、電流、功率、轉速、轉矩、轉差率），一鍵免除手動抄寫。
+   - 擴充 `EquivCircuitResult` 結構，加入 `L1_mH`（定子漏感）、`Lm_mH`（激磁電感）、`L2_prime_mH`（轉子折算漏感）、`Lk_mH`（總漏感）。
+   - 在結果表格 `dgvEquivResults` 增加「換算電感 (mH)」欄位，並於 GDI+ 向量等效電路圖解中在各電抗元件下方同步標繪 `(xx.xx mH)`。
+   - 剪貼簿複製與 CSV 報表匯出功能同步納入毫亨電感數值。
+4. **堵轉測試操作控制與保護手冊全覽 (`LOCKED_ROTOR_TEST_OPERATION_CONTROL_PROTECTION_MANUAL.md`)**：
+   - 於根目錄撰寫完備之操作手冊，詳解 KEB 變頻器 `uf.09` (0x0509) 降壓調控機制、機械剛性鎖死治具規範、四重軟硬體保護（電流閾值即時攔截、轉速防脫扣、15秒超時自毀防護、退出分頁未復歸警示）及等效電路堵轉漏抗計算公式。
 | V2.95 (beta) | v2.10.53 | 2026-09-14 | 純下載版本免 INI 自帶黃金排版 (Self-Seeding Zero-Config Layout) 與 GitHub Release 便攜壓縮包發布：(1)現象與致命根因：使用者回報「為何透過下載的版本沒辦法記憶，本地端得可以?」；經深層剖析，本地端目錄存在預先調校之 dynamometer_layout.ini (包含 TnMain=232, TnBottom=732, DutyMain_S1=539...)，但 GitHub Releases 與線上更新僅發布單一 Dynamometer_HMI_Pro.exe；當使用者在全新資料夾執行下載之 EXE 時，LoadLayoutConfig() 因 File.Exists(path) 為 false 直接提早 return，layoutSplitters 字典為空，全分割條退回程式碼硬編碼之舊預設值 (210, 650, 280, 550)，且未自動落地初始化 INI；(2)全域黃金基準值內嵌 (Golden Baseline Hardcoded Defaults)：全面更新 DefaultSplitterDistances 與 SafeSetupSplitContainer / ApplyTabSplitters 之回退基線為使用者真實調校值 (TnMain:232, TnBottom:732, TnRight:444, DutyMain_S1:539, DutyTop:905, EffMain:1018, NoLoadMain:509, NoLoadBottom:1223)；(3)啟動時自適應自創 INI (Self-Seeding Engine)：LoadLayoutConfig() 在開機時優先以黃金基準值填滿排版字典，若檢測到目錄無 INI，立即自動產生標準 dynamometer_layout.ini 與 ini/dynamometer_layout.ini，使單獨下載之 EXE 亦能開箱即享完美佈局與後續永久記憶；(4)發布管線雙資產升級：package_release.ps1 除了單一 EXE 外，自動封裝 Dynamometer_HMI_V2.5.0_Portable.zip (含完整驅動與 INI) 同步上傳至 GitHub Releases。 |
 | V2.94 (beta) | v2.10.52 | 2026-09-11 | 分頁列抬頭顯示器 (Tab Row Layout HUD) 功成身退與視覺簡潔純化：(1)需求背景：在排版記憶時序與巢狀容器自適應根治後，分割條數值已可 100% 於開機冷啟動時永久穩定復原，使用者指示移除分頁列右側除錯用之抬頭顯示區 (Tab Row Layout HUD)；(2)元件徹底解耦與移除：全面刪除 pnlTabHud、lblTabHudCoords、btnSaveHud、btnOpenIni、btnReloadHud、ttTabHud 及其所有關聯事件與連動監聽，零代碼殘留；(3)分頁列視覺恢復：分頁標籤 Padding 回調至舒適之 new Point(12, 6)，恢復頂部介面大氣、專業且純粹之主控台視覺，底層自動記憶引擎持續維持最高可靠度運作。 |
 | V2.93 (beta) | v2.10.51 | 2026-09-11 | 排版記憶啟動時序與巢狀容器自適應修復（徹底根治「存好按載入能恢復，但重啟後失效」之深層病灶）：(1)致命根因：過去 LoadLayoutConfig() 被延遲至視窗完全顯示 (this.Shown) 時才執行，導致建構式建立 TN/Duty 各子分頁時，排版字典 layoutSplitters 仍為空，所有分割條被強制灌入硬編碼預設值 (如 210, 650, 550) 並解除監聽；同時 WinForms SplitContainer 預設 FixedPanel=None，導致視窗最大化時依比例縮放拉偏數值；且巢狀容器 (如 splitTnBottom) 在分頁尚未完全渲染時因尺寸為 0 被拋棄套用；(2)建構式第一優先預載 (Pre-Construction Preload)：在 MainForm 建構式建立任何子元件前立即執行 LoadLayoutConfig()，確保全域排版字典、視窗最大化狀態、上次活動分頁於實例化前 100% 準備就緒；(3)Panel1 絕對像素鎖定 (FixedPanel.Panel1)：全分割容器強制啟用 FixedPanel = FixedPanel.Panel1，徹底杜絕全螢幕與視窗縮放時被 WinForms 等比縮放自動破壞像素設定；(4)巢狀佈局自適應延遲補償 (Self-Healing Layout Retry)：若呼叫 ApplySplitterDistanceSafe 時容器寬高尚未由 GDI+ 完成佈局，自動掛載一次性 SizeChanged 重試監聽，尺寸一就緒即刻以微秒級速度套用使用者 INI 記憶之絕對像素；(5)分頁建立完成即刻切換：於 TabPages 填入完畢後立即恢復 loadedActiveTab，開機即定位至上次操作分頁。 |

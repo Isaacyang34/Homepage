@@ -1843,7 +1843,7 @@ namespace DynamometerHMI
         {
             try
             {
-                string logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+                string logDir = GetMotorDedicatedLogDirectory(motorModelName);
                 if (!Directory.Exists(logDir)) Directory.CreateDirectory(logDir);
 
                 if (cmbTnMode != null && cmbTnMode.SelectedIndex == 1)

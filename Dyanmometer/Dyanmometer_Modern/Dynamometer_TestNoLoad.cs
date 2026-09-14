@@ -1470,6 +1470,7 @@ namespace DynamometerHMI
                 {
                     sfd.Filter = "CSV 日誌檔案 (*.csv)|*.csv|所有檔案 (*.*)|*.*";
                     sfd.FileName = string.Format("NoLoad_Test_Log_{0}.csv", DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+                    sfd.InitialDirectory = GetMotorDedicatedLogDirectory(motorModelName);
                     sfd.Title = "匯出空載溫升測試紀錄";
 
                     if (sfd.ShowDialog() == DialogResult.OK)

@@ -1464,6 +1464,10 @@ namespace DynamometerHMI
                 s1LoadTracker.Reset(targetSpd, 0.0);
                 s6CurrentSpeedCmd = targetSpd;
                 s6AdaptedTorquePct = 0.0;
+                s1NoSlipCompleted = false;
+                isS1RecordingNoSlip = false;
+                s1NoSlipSampleCount = 0;
+                if (s1NoSlipBuffer != null) s1NoSlipBuffer.Clear();
             }
             else if (dutyModeIdx == 1) // S2 短時工作制 (含錨點測試機制)
             {
@@ -2645,7 +2649,9 @@ namespace DynamometerHMI
             else if (dutyModeIdx == 0) // ================= S1 連續工作制 (熱平衡 30min溫差<1℃ 判定) =================
             {
                 dutyElapsedSec++;
-                if (dutyElapsedSec <= prgDuty.Maximum) prgDuty.Value = dutyElapsedSec;
+                int elapsedMins = dutyElapsedSec / 60;
+                int elapsedSecs = dutyElapsedSec % 60;
+                if (prgDuty != null && dutyElapsedSec <= prgDuty.Maximum) prgDuty.Value = dutyElapsedSec;
                 if (prgDutyMini != null && dutyElapsedSec <= prgDutyMini.Maximum) prgDutyMini.Value = dutyElapsedSec;
 
                 currentPhaseName = "S1 連續";
@@ -2658,21 +2664,93 @@ namespace DynamometerHMI
                     s1TempHistory.RemoveAll(x => x.Key < expireTime);
                 }
 
-                // ★【全系統統一核心引擎：SY52 + CS18 雙閉環自適應加速定錨追隨】
-                // 前 3 秒 0.1% 試探斜率 -> 依差距與斜率預估開出大步長 (最高 5.0%) 狂飆衝刺 -> SY52 同步補轉差 -> 雙達標後無縫持續加載
-                string s1TrackStatus;
-                bool s1Converged = ExecuteUnifiedDualTrackingStep(
-                    s1LoadTracker, spdDrive, trqDrive,
-                    targetSpd, targetTrq, actAbsSpd, actAbsTrq,
-                    out s1TrackStatus, "S1");
+                // ★【S1 專屬：不補轉差 40 筆取中間 30 筆平均採樣機制】
+                // 當轉矩首次接近目標 (扭力穩定) 時啟動
+                bool isTrqNearTarget = Math.Abs(actAbsTrq - targetTrq) <= Math.Max(1.0, targetTrq * 0.06);
+                if (!s1NoSlipCompleted)
+                {
+                    if (!isS1RecordingNoSlip)
+                    {
+                        if (isTrqNearTarget && actAbsSpd >= targetSpd * 0.7)
+                        {
+                            isS1RecordingNoSlip = true;
+                            if (s1NoSlipBuffer == null) s1NoSlipBuffer = new List<S1NoSlipSample>();
+                            s1NoSlipBuffer.Clear();
+                            s1NoSlipSampleCount = 0;
+                            WriteHmiLog("S1_NOSLIP", string.Format("【S1 扭矩穩定】開始執行「不補轉差」40筆連續採樣 (固定SY52={0:F0} rpm，加載={1:F1} Nm)...", targetSpd, targetTrq));
+                        }
+                    }
 
-                s6AdaptedTorquePct = s1LoadTracker.AdaptedTorquePct;
-                s6CurrentSpeedCmd = s1LoadTracker.CurrentSpeedCmd;
+                    if (isS1RecordingNoSlip)
+                    {
+                        // 1. 固定待測端 SY52 為 targetSpd，嚴禁補轉差
+                        s1LoadTracker.CurrentSpeedCmd = targetSpd;
+                        s6CurrentSpeedCmd = targetSpd;
+                        KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)Math.Round(targetSpd), "S1不補轉差固定SY52");
 
-                int elapsedMins = dutyElapsedSec / 60;
-                int elapsedSecs = dutyElapsedSec % 60;
-                lblDutyStatus.Text = string.Format("【S1 連續】已運轉: {0:D2}:{1:D2} | 目標轉矩: {2:F1} Nm, 實測: {3:F1} Nm", elapsedMins, elapsedSecs, targetTrq, actAbsTrq);
-                lblDutyPhaseAction.Text = string.Format("【恆定加載】加載輸出 {0:F1}%, 實測轉速 {1:F0} rpm", s6AdaptedTorquePct, actAbsSpd);
+                        // 2. 加載端維持微調追隨目標轉矩
+                        double trqErr = targetTrq - actAbsTrq;
+                        if (Math.Abs(trqErr) > 0.3)
+                        {
+                            s1LoadTracker.AdaptedTorquePct += (trqErr > 0 ? 0.08 : -0.08);
+                            s1LoadTracker.AdaptedTorquePct = Math.Max(0.0, Math.Min(100.0, s1LoadTracker.AdaptedTorquePct));
+                            KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, (int)Math.Round(s1LoadTracker.AdaptedTorquePct * 10.0));
+                        }
+                        s6AdaptedTorquePct = s1LoadTracker.AdaptedTorquePct;
+
+                        // 3. 採集 1 筆完整電氣與機械量
+                        double vSig = (actVoltageSigma > 10.0) ? actVoltageSigma : ((wtU1 + wtU2 + wtU3) / 3.0);
+                        double iSig = (actCurrentSigma > 0.05) ? actCurrentSigma : ((wtI1 + wtI2 + wtI3) / 3.0);
+                        double pKw = (actElecPower > 0.01) ? actElecPower : ((wtP1 + wtP2 + wtP3) / 1000.0);
+                        double pf = (wtPFSig > 0.0) ? wtPFSig : 0.85;
+                        double fHz = (actFrequency > 1.0) ? actFrequency : (wtFreqU > 1.0 ? wtFreqU : 50.0);
+
+                        s1NoSlipBuffer.Add(new S1NoSlipSample
+                        {
+                            Time = now,
+                            Speed = actAbsSpd,
+                            Torque = actAbsTrq,
+                            Voltage = vSig,
+                            Current = iSig,
+                            PowerKw = pKw,
+                            PowerFactor = pf,
+                            Frequency = fHz
+                        });
+                        s1NoSlipSampleCount = s1NoSlipBuffer.Count;
+
+                        lblDutyStatus.Text = string.Format("【S1 不補轉差採樣中】已採集 {0}/40 筆 (實測: {1:F0} rpm, {2:F1} Nm)", s1NoSlipSampleCount, actAbsSpd, actAbsTrq);
+                        lblDutyPhaseAction.Text = string.Format("【不補轉差】固定 SY52={0:F0} rpm，加載 {1:F1}%，自然轉差運轉中", targetSpd, s6AdaptedTorquePct);
+                        if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
+                        if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
+
+                        if (s1NoSlipBuffer.Count >= 40)
+                        {
+                            SaveS1NoSlipResultAndCsv(targetSpd, targetTrq);
+                            isS1RecordingNoSlip = false;
+                            s1NoSlipCompleted = true;
+                        }
+                    }
+                }
+
+                if (!isS1RecordingNoSlip)
+                {
+                    // ★【全系統統一核心引擎：SY52 + CS18 雙閉環自適應加速定錨追隨】
+                    string s1TrackStatus;
+                    bool s1Converged = ExecuteUnifiedDualTrackingStep(
+                        s1LoadTracker, spdDrive, trqDrive,
+                        targetSpd, targetTrq, actAbsSpd, actAbsTrq,
+                        out s1TrackStatus, "S1");
+
+                    s6AdaptedTorquePct = s1LoadTracker.AdaptedTorquePct;
+                    s6CurrentSpeedCmd = s1LoadTracker.CurrentSpeedCmd;
+
+                    elapsedMins = dutyElapsedSec / 60;
+                    elapsedSecs = dutyElapsedSec % 60;
+                    string noSlipTag = s1NoSlipCompleted ? " [不補轉差40筆已存]" : "";
+                    lblDutyStatus.Text = string.Format("【S1 連續】已運轉: {0:D2}:{1:D2}{2} | 目標轉矩: {3:F1} Nm, 實測: {4:F1} Nm", elapsedMins, elapsedSecs, noSlipTag, targetTrq, actAbsTrq);
+                    lblDutyPhaseAction.Text = string.Format("【恆定加載】加載輸出 {0:F1}%, 實測轉速 {1:F0} rpm", s6AdaptedTorquePct, actAbsSpd);
+                }
+
                 if (lblDutyAbStatus != null)
                 {
                     string spdName = (spdDrive == 1) ? "A" : "B";
@@ -3164,11 +3242,79 @@ namespace DynamometerHMI
             if (lblDutyPhaseAction != null) { webRemotePhaseText  = lblDutyPhaseAction.Text; }
         }
 
+        private void SaveS1NoSlipResultAndCsv(double targetSpd, double targetTrq)
+        {
+            try
+            {
+                if (s1NoSlipBuffer == null || s1NoSlipBuffer.Count < 40) return;
+
+                // 去掉前 5 筆 (0..4) 與後 5 筆 (35..39)，取中間 30 筆 (5..34)
+                var validSamples = s1NoSlipBuffer.Skip(5).Take(30).ToList();
+                double avgSpd = validSamples.Average(s => s.Speed);
+                double avgTrq = validSamples.Average(s => s.Torque);
+                double avgV = validSamples.Average(s => s.Voltage);
+                double avgI = validSamples.Average(s => s.Current);
+                double avgP = validSamples.Average(s => s.PowerKw);
+                double avgPf = validSamples.Average(s => s.PowerFactor);
+                double avgFreq = validSamples.Average(s => s.Frequency);
+
+                int poles = kebMotorPoles2 > 0 ? kebMotorPoles2 : 4;
+                double syncSpd = 120.0 * avgFreq / poles;
+                double slip = (syncSpd > 0 && avgSpd > 0) ? Math.Max(0.0, ((syncSpd - avgSpd) / syncSpd) * 100.0) : 0.0;
+
+                string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
+                string logDir = GetMotorDedicatedLogDirectory(mName);
+
+                string timeStr = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                string fileHist = Path.Combine(logDir, string.Format("S1_Rated_NoSlip_40pts_{0}.csv", timeStr));
+                string fileLatest = Path.Combine(logDir, "S1_Rated_NoSlip_Latest.csv");
+
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine("# MotorName: " + mName);
+                sb.AppendLine("# TestMode: S1_Rated_NoSlip_40Pts");
+                sb.AppendLine("# TotalSamples: 40");
+                sb.AppendLine("# TrimmedSamples: 30 (Removed first 5 and last 5)");
+                sb.AppendLine(string.Format("# AverageSpeed_rpm: {0:F2}", avgSpd));
+                sb.AppendLine(string.Format("# AverageTorque_Nm: {0:F3}", avgTrq));
+                sb.AppendLine(string.Format("# AverageVoltage_V: {0:F2}", avgV));
+                sb.AppendLine(string.Format("# AverageCurrent_A: {0:F3}", avgI));
+                sb.AppendLine(string.Format("# AveragePower_kW: {0:F4}", avgP));
+                sb.AppendLine(string.Format("# AveragePowerFactor: {0:F4}", avgPf));
+                sb.AppendLine(string.Format("# AverageFrequency_Hz: {0:F2}", avgFreq));
+                sb.AppendLine(string.Format("# SyncSpeed_rpm: {0:F1}", syncSpd));
+                sb.AppendLine(string.Format("# Slip_pct: {0:F2}", slip));
+                sb.AppendLine("# MotorPoles: " + poles);
+                sb.AppendLine("# TargetSpeed_rpm: " + targetSpd.ToString("F0"));
+                sb.AppendLine("# TargetTorque_Nm: " + targetTrq.ToString("F1"));
+                sb.AppendLine("# GeneratedTime: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                sb.AppendLine("Index,Timestamp,Speed_rpm,Torque_Nm,Voltage_V,Current_A,Power_kW,PowerFactor,Freq_Hz,Included_In_Average");
+
+                for (int i = 0; i < s1NoSlipBuffer.Count; i++)
+                {
+                    var s = s1NoSlipBuffer[i];
+                    bool included = (i >= 5 && i < 35);
+                    sb.AppendLine(string.Format("{0},{1},{2:F2},{3:F3},{4:F2},{5:F3},{6:F4},{7:F4},{8:F2},{9}",
+                        i + 1, s.Time.ToString("HH:mm:ss"), s.Speed, s.Torque, s.Voltage, s.Current, s.PowerKw, s.PowerFactor, s.Frequency, (included ? "Yes" : "No")));
+                }
+
+                string content = sb.ToString();
+                File.WriteAllText(fileHist, content, Encoding.UTF8);
+                File.WriteAllText(fileLatest, content, Encoding.UTF8);
+
+                WriteHmiLog("S1_NOSLIP", string.Format("【S1 不補轉差40筆紀錄完成】去前後5筆(取中間30筆平均)：NN={0:F1}rpm, TN={1:F2}Nm, VN={2:F1}V, IN={3:F2}A, PN={4:F3}kW, sN={5:F2}%。已存入: {6}",
+                    avgSpd, avgTrq, avgV, avgI, avgP, slip, Path.GetFileName(fileLatest)));
+            }
+            catch (Exception ex)
+            {
+                WriteHmiLog("S1_ERR", "儲存 S1 不補轉差紀錄失敗: " + ex.Message);
+            }
+        }
+
         private void BtnExportDuty_Click(object sender, EventArgs e)
         {
             try
             {
-                string logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+                string logDir = GetMotorDedicatedLogDirectory(motorModelName);
                 if (!Directory.Exists(logDir)) Directory.CreateDirectory(logDir);
                 string path = Path.Combine(logDir, string.Format("Report_Duty_Cycle_{0}.csv", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
                 using (StreamWriter sw = new StreamWriter(path, false, Encoding.UTF8))

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 
@@ -83,6 +84,10 @@ namespace DynamometerHMI
             public double Zk = 0.0;       // 堵轉阻抗 (Ω)
             public double Rk = 0.0;       // 堵轉電阻 (Ω)
             public double Xk = 0.0;       // 堵轉漏抗 (Ω)
+            public double L1_mH = 0.0;       // 定子漏電感 (mH)
+            public double Lm_mH = 0.0;       // 激磁電感 (mH)
+            public double L2_prime_mH = 0.0; // 轉子折算漏電感 (mH)
+            public double Lk_mH = 0.0;       // 堵轉漏電感 (mH)
             public double Z0 = 0.0;       // 空載阻抗 (Ω)
             public double RatedSlip = 0.0;// 額定轉差率 (%)
             public double T_start = 0.0;  // 推估啟動轉矩 (Nm)
@@ -291,7 +296,7 @@ namespace DynamometerHMI
 
             btnEquivLoadNoLoadFromTest = new Button()
             {
-                Text = "📥 空載分頁載入",
+                Text = "📁 載入空載紀錄檔",
                 Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(240, 249, 255),
@@ -395,7 +400,7 @@ namespace DynamometerHMI
 
             btnEquivLoadRatedFromTn = new Button()
             {
-                Text = "📥 T-N 額定點載入",
+                Text = "📁 載入 S1 不補轉差檔",
                 Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(240, 253, 250),
@@ -762,14 +767,16 @@ namespace DynamometerHMI
             dgvEquivResults.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(241, 245, 249);
             dgvEquivResults.Columns.Add("Param", "等效電路參數");
             dgvEquivResults.Columns.Add("Symbol", "符號");
-            dgvEquivResults.Columns.Add("Value", "計算數值");
+            dgvEquivResults.Columns.Add("Value", "計算數值 (Ω/Nm/%)");
             dgvEquivResults.Columns.Add("Unit", "單位");
+            dgvEquivResults.Columns.Add("Inductance", "換算電感 (mH)");
             dgvEquivResults.Columns.Add("Desc", "工程物理意義");
 
-            dgvEquivResults.Columns["Param"].Width = 140;
-            dgvEquivResults.Columns["Symbol"].Width = 70;
-            dgvEquivResults.Columns["Value"].Width = 100;
-            dgvEquivResults.Columns["Unit"].Width = 60;
+            dgvEquivResults.Columns["Param"].Width = 130;
+            dgvEquivResults.Columns["Symbol"].Width = 65;
+            dgvEquivResults.Columns["Value"].Width = 95;
+            dgvEquivResults.Columns["Unit"].Width = 50;
+            dgvEquivResults.Columns["Inductance"].Width = 110;
             dgvEquivResults.Columns["Desc"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
 
             InitDefaultEquivResultsGrid();
@@ -796,63 +803,159 @@ namespace DynamometerHMI
         {
             if (dgvEquivResults == null) return;
             dgvEquivResults.Rows.Clear();
-            dgvEquivResults.Rows.Add("定子相電阻", "R1", "--", "Ω", "定子繞組有效相電阻");
-            dgvEquivResults.Rows.Add("定子漏電抗", "X1", "--", "Ω", "定子漏磁通等效相電抗");
-            dgvEquivResults.Rows.Add("激磁電抗", "Xm", "--", "Ω", "氣隙主磁通等效激磁抗");
-            dgvEquivResults.Rows.Add("鐵損電阻", "Rc", "--", "Ω", "主磁通渦流與磁滯鐵耗");
-            dgvEquivResults.Rows.Add("轉子折算電阻", "R2'", "--", "Ω", "轉子繞組折算至定子端電阻");
-            dgvEquivResults.Rows.Add("轉子折算漏抗", "X2'", "--", "Ω", "轉子漏磁通折算等效電抗");
-            dgvEquivResults.Rows.Add("堵轉阻抗", "Zk", "--", "Ω", "轉子鎖死時之短路等效總阻抗");
-            dgvEquivResults.Rows.Add("額定運轉轉差率", "sN", "--", "%", "實測額定負載不補轉差率");
-            dgvEquivResults.Rows.Add("推估啟動轉矩", "Tst", "--", "Nm", "全壓啟動初始瞬態轉矩估算");
-            dgvEquivResults.Rows.Add("推估最大崩潰轉矩", "Tmax", "--", "Nm", "等效電路推估之極限轉矩");
-            dgvEquivResults.Rows.Add("額定預測效率", "η", "--", "%", "由等效電路損耗推估之額定效率");
+            dgvEquivResults.Rows.Add("定子相電阻", "R1", "--", "Ω", "--", "定子繞組有效相電阻");
+            dgvEquivResults.Rows.Add("定子漏電抗", "X1", "--", "Ω", "--", "定子漏磁通等效相電抗/漏電感");
+            dgvEquivResults.Rows.Add("激磁電抗", "Xm", "--", "Ω", "--", "氣隙主磁通等效激磁抗/激磁電感");
+            dgvEquivResults.Rows.Add("鐵損電阻", "Rc", "--", "Ω", "--", "主磁通渦流與磁滯鐵耗");
+            dgvEquivResults.Rows.Add("轉子折算電阻", "R2'", "--", "Ω", "--", "轉子繞組折算至定子端電阻");
+            dgvEquivResults.Rows.Add("轉子折算漏抗", "X2'", "--", "Ω", "--", "轉子漏磁通折算等效電抗/漏電感");
+            dgvEquivResults.Rows.Add("堵轉阻抗", "Zk", "--", "Ω", "--", "轉子鎖死時之短路等效總阻抗");
+            dgvEquivResults.Rows.Add("堵轉總漏抗", "Xk", "--", "Ω", "--", "堵轉短路等效總漏抗/漏電感");
+            dgvEquivResults.Rows.Add("額定運轉轉差率", "sN", "--", "%", "--", "實測額定負載不補轉差率");
+            dgvEquivResults.Rows.Add("推估啟動轉矩", "Tst", "--", "Nm", "--", "全壓啟動初始瞬態轉矩估算");
+            dgvEquivResults.Rows.Add("推估最大崩潰轉矩", "Tmax", "--", "Nm", "--", "等效電路推估之極限轉矩");
+            dgvEquivResults.Rows.Add("額定預測效率", "η", "--", "%", "--", "由等效電路損耗推估之額定效率");
         }
 
         #endregion
 
         #region 數據載入與即時採樣實作
 
-        // 1. 從「空載測試」分頁載入
+        // 1. 從馬達專屬資料夾或「空載測試」分頁載入
         private void LoadNoLoadDataFromTestTab()
         {
             try
             {
-                if (dgvNoLoad != null && dgvNoLoad.Rows.Count > 0)
-                {
-                    // 尋找最後一筆或達標之穩定記錄
-                    DataGridViewRow targetRow = null;
-                    for (int i = dgvNoLoad.Rows.Count - 1; i >= 0; i--)
-                    {
-                        var r = dgvNoLoad.Rows[i];
-                        string ev = Convert.ToString(r.Cells["Event"].Value ?? "");
-                        if (ev.Contains("達標") || ev.Contains("完成") || ev.Contains("額定") || i == dgvNoLoad.Rows.Count - 1)
-                        {
-                            targetRow = r;
-                            break;
-                        }
-                    }
+                string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
+                string motorDir = GetMotorDedicatedLogDirectory(mName);
+                bool loadedFromFile = false;
 
-                    if (targetRow != null)
+                if (Directory.Exists(motorDir))
+                {
+                    // 搜尋 NoLoad 測試檔案或最新包含 NoLoad 關鍵字的 CSV
+                    var files = Directory.GetFiles(motorDir, "*.csv")
+                        .Where(f => f.IndexOf("NoLoad", StringComparison.OrdinalIgnoreCase) >= 0)
+                        .OrderByDescending(f => File.GetLastWriteTime(f))
+                        .ToList();
+
+                    if (files.Count > 0)
                     {
-                        double spd = 0.0;
-                        double.TryParse(Convert.ToString(targetRow.Cells["ActSpd"].Value ?? "0"), out spd);
-                        if (spd > 0) numEquivN0.Value = (decimal)Math.Round(spd);
+                        string targetFile = files[0];
+                        string[] lines = File.ReadAllLines(targetFile, Encoding.UTF8);
+
+                        List<double[]> dataRows = new List<double[]>();
+                        int headerIdx = -1;
+                        Dictionary<string, int> colMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+                        for (int l = 0; l < lines.Length; l++)
+                        {
+                            string line = lines[l].Trim();
+                            if (string.IsNullOrEmpty(line)) continue;
+                            if (line.StartsWith("#")) continue;
+
+                            if (headerIdx < 0 && line.Contains("Speed_rpm") && line.Contains("Voltage_Sigma_V"))
+                            {
+                                headerIdx = l;
+                                string[] headers = line.Split(',');
+                                for (int c = 0; c < headers.Length; c++)
+                                {
+                                    colMap[headers[c].Trim()] = c;
+                                }
+                                continue;
+                            }
+
+                            if (headerIdx >= 0)
+                            {
+                                string[] parts = line.Split(',');
+                                if (parts.Length >= colMap.Count && colMap.ContainsKey("Speed_rpm"))
+                                {
+                                    try
+                                    {
+                                        double spd = double.Parse(parts[colMap["Speed_rpm"]]);
+                                        double v = colMap.ContainsKey("Voltage_Sigma_V") ? double.Parse(parts[colMap["Voltage_Sigma_V"]]) : 0;
+                                        double i = colMap.ContainsKey("Current_Sigma_A") ? double.Parse(parts[colMap["Current_Sigma_A"]]) : 0;
+                                        double pKw = colMap.ContainsKey("ElecPower_kW") ? double.Parse(parts[colMap["ElecPower_kW"]]) : 0;
+                                        double pf = colMap.ContainsKey("PF") ? double.Parse(parts[colMap["PF"]]) : 0.08;
+                                        double freq = colMap.ContainsKey("Frequency_Hz") ? double.Parse(parts[colMap["Frequency_Hz"]]) : 50.0;
+                                        if (spd > 10.0 && v > 10.0)
+                                        {
+                                            dataRows.Add(new double[] { spd, v, i, pKw * 1000.0, pf, freq });
+                                        }
+                                    }
+                                    catch { }
+                                }
+                            }
+                        }
+
+                        if (dataRows.Count > 0)
+                        {
+                            int takeCount = Math.Min(10, dataRows.Count);
+                            var stableRows = dataRows.Skip(dataRows.Count - takeCount).ToList();
+                            double avgSpd = stableRows.Average(r => r[0]);
+                            double avgV = stableRows.Average(r => r[1]);
+                            double avgI = stableRows.Average(r => r[2]);
+                            double avgP = stableRows.Average(r => r[3]);
+                            double avgPf = stableRows.Average(r => r[4]);
+                            double avgFreq = stableRows.Average(r => r[5]);
+
+                            if (avgV > 0) numEquivV0.Value = (decimal)Math.Round(avgV, 1);
+                            if (avgI > 0) numEquivI0.Value = (decimal)Math.Round(avgI, 2);
+                            if (avgP > 0) numEquivP0.Value = (decimal)Math.Round(avgP, 1);
+                            if (avgPf > 0) numEquivPf0.Value = (decimal)Math.Round(avgPf, 3);
+                            if (avgSpd > 0) numEquivN0.Value = (decimal)Math.Round(avgSpd);
+                            if (avgFreq > 0) numEquivF0.Value = (decimal)Math.Round(avgFreq, 2);
+
+                            isNoLoadDataReady = true;
+                            lblNoLoadItemStatus.Text = string.Format("🟢 已自檔案讀取: {0} ({1:HH:mm:ss})", Path.GetFileName(targetFile), DateTime.Now);
+                            lblNoLoadItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
+                            WriteHmiLog("EQUIV", string.Format("【等效電路】成功自馬達檔案提取空載數據: V0={0:F1}V, I0={1:F2}A, P0={2:F1}W, N0={3:F0}rpm, F0={4:F1}Hz ({5})",
+                                avgV, avgI, avgP, avgSpd, avgFreq, Path.GetFileName(targetFile)));
+                            loadedFromFile = true;
+                        }
                     }
                 }
 
-                // 結合當前 B 載台 dr02 額定電壓或預設 260V
-                decimal ratedV = (lastB_Dr02.HasValue && lastB_Dr02.Value > 0) ? (decimal)lastB_Dr02.Value : 260m;
-                if (numEquivV0.Value <= 0 || numEquivV0.Value == 260m) numEquivV0.Value = ratedV;
+                if (!loadedFromFile)
+                {
+                    // 若無檔案，備援從 dgvNoLoad 載入
+                    if (dgvNoLoad != null && dgvNoLoad.Rows.Count > 0)
+                    {
+                        DataGridViewRow targetRow = null;
+                        for (int i = dgvNoLoad.Rows.Count - 1; i >= 0; i--)
+                        {
+                            var r = dgvNoLoad.Rows[i];
+                            string ev = Convert.ToString(r.Cells["Event"].Value ?? "");
+                            if (ev.Contains("達標") || ev.Contains("完成") || ev.Contains("額定") || i == dgvNoLoad.Rows.Count - 1)
+                            {
+                                targetRow = r;
+                                break;
+                            }
+                        }
 
-                isNoLoadDataReady = true;
-                lblNoLoadItemStatus.Text = "🟢 已載入空載測試數據 (" + DateTime.Now.ToString("HH:mm:ss") + ")";
-                lblNoLoadItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
-                WriteHmiLog("EQUIV", "【等效電路】已成功從空載測試分頁提取運轉數據！");
+                        if (targetRow != null)
+                        {
+                            double spd = 0.0;
+                            double.TryParse(Convert.ToString(targetRow.Cells["ActSpd"].Value ?? "0"), out spd);
+                            if (spd > 0) numEquivN0.Value = (decimal)Math.Round(spd);
+                        }
+
+                        decimal ratedV = (lastB_Dr02.HasValue && lastB_Dr02.Value > 0) ? (decimal)lastB_Dr02.Value : 260m;
+                        if (numEquivV0.Value <= 0 || numEquivV0.Value == 260m) numEquivV0.Value = ratedV;
+
+                        isNoLoadDataReady = true;
+                        lblNoLoadItemStatus.Text = "🟢 已載入空載分頁數據 (" + DateTime.Now.ToString("HH:mm:ss") + ")";
+                        lblNoLoadItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
+                        WriteHmiLog("EQUIV", "【等效電路】已成功從空載測試分頁提取運轉數據！");
+                    }
+                    else
+                    {
+                        MessageBox.Show("於馬達資料夾中未找到空載紀錄檔 (NoLoad)，且空載測試分頁尚無數據！\r\n請先執行空載測試或直接手動輸入/即時採樣。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("從空載分頁載入數據失敗: " + ex.Message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("從空載記錄載入數據失敗: " + ex.Message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -886,50 +989,113 @@ namespace DynamometerHMI
             }
         }
 
-        // 2. 從「T-N 特性測試」載入額定點
+        // 2. 從「S1 不補轉差紀錄檔」或「T-N 分頁」載入額定點
         private void LoadRatedDataFromTnTab()
         {
             try
             {
-                bool found = false;
-                if (dgvTnPoints != null && dgvTnPoints.Rows.Count > 0)
-                {
-                    // 優先搜尋最後一個點或最大轉矩點
-                    var row = dgvTnPoints.Rows[dgvTnPoints.Rows.Count - 1];
-                    double spd = 0, trq = 0, pwr = 0;
-                    double.TryParse(Convert.ToString(row.Cells["Speed"].Value ?? "0"), out spd);
-                    double.TryParse(Convert.ToString(row.Cells["Torque"].Value ?? "0"), out trq);
-                    double.TryParse(Convert.ToString(row.Cells["Pwr"].Value ?? "0"), out pwr);
+                string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
+                string motorDir = GetMotorDedicatedLogDirectory(mName);
+                bool loadedFromS1 = false;
 
-                    if (spd > 0 && trq > 0)
+                if (Directory.Exists(motorDir))
+                {
+                    string latestS1File = Path.Combine(motorDir, "S1_Rated_NoSlip_Latest.csv");
+                    if (!File.Exists(latestS1File))
                     {
-                        numEquivNn.Value = (decimal)Math.Round(spd);
-                        numEquivTn.Value = (decimal)Math.Round(trq, 2);
-                        if (pwr > 0) numEquivPn.Value = (decimal)Math.Round(pwr, 3);
-                        found = true;
+                        var files = Directory.GetFiles(motorDir, "S1_Rated_NoSlip_*.csv")
+                            .OrderByDescending(f => File.GetLastWriteTime(f))
+                            .ToList();
+                        if (files.Count > 0) latestS1File = files[0];
+                    }
+
+                    if (File.Exists(latestS1File))
+                    {
+                        string[] lines = File.ReadAllLines(latestS1File, Encoding.UTF8);
+                        double avgSpd = 0, avgTrq = 0, avgV = 0, avgI = 0, avgP = 0, avgPf = 0, slip = 0;
+
+                        foreach (string l in lines)
+                        {
+                            string trimL = l.Trim();
+                            if (!trimL.StartsWith("#")) continue;
+                            if (trimL.StartsWith("# AverageSpeed_rpm:")) double.TryParse(trimL.Substring(19).Trim(), out avgSpd);
+                            else if (trimL.StartsWith("# AverageTorque_Nm:")) double.TryParse(trimL.Substring(19).Trim(), out avgTrq);
+                            else if (trimL.StartsWith("# AverageVoltage_V:")) double.TryParse(trimL.Substring(19).Trim(), out avgV);
+                            else if (trimL.StartsWith("# AverageCurrent_A:")) double.TryParse(trimL.Substring(19).Trim(), out avgI);
+                            else if (trimL.StartsWith("# AveragePower_kW:")) double.TryParse(trimL.Substring(18).Trim(), out avgP);
+                            else if (trimL.StartsWith("# AveragePowerFactor:")) double.TryParse(trimL.Substring(21).Trim(), out avgPf);
+                            else if (trimL.StartsWith("# Slip_pct:")) double.TryParse(trimL.Substring(11).Trim(), out slip);
+                        }
+
+                        if (avgSpd > 0 && avgTrq > 0)
+                        {
+                            numEquivNn.Value = (decimal)Math.Round(avgSpd);
+                            numEquivTn.Value = (decimal)Math.Round(avgTrq, 2);
+                            if (avgV > 0) numEquivVn.Value = (decimal)Math.Round(avgV, 1);
+                            if (avgI > 0) numEquivIn.Value = (decimal)Math.Round(avgI, 2);
+                            if (avgP > 0) numEquivPn.Value = (decimal)Math.Round(avgP, 3);
+                            if (avgPf > 0) numEquivPfn.Value = (decimal)Math.Round(avgPf, 3);
+                            if (slip > 0) numEquivSlip.Value = (decimal)Math.Round(slip, 2);
+
+                            isRatedDataReady = true;
+                            lblRatedItemStatus.Text = string.Format("🟢 已自 S1 不補轉差檔讀取 ({0:HH:mm:ss})", DateTime.Now);
+                            lblRatedItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
+                            WriteHmiLog("EQUIV", string.Format("【等效電路】成功自 S1 紀錄檔提取額定數據 (30筆平均): TN={0:F2}Nm, NN={1:F0}rpm (不補轉差), VN={2:F1}V, IN={3:F2}A, sN={4:F2}% ({5})",
+                                avgTrq, avgSpd, avgV, avgI, slip, Path.GetFileName(latestS1File)));
+                            loadedFromS1 = true;
+                        }
                     }
                 }
 
-                decimal ratedV = (lastB_Dr02.HasValue && lastB_Dr02.Value > 0) ? (decimal)lastB_Dr02.Value : 260m;
-                numEquivVn.Value = ratedV;
-
-                int poles = kebMotorPoles2 > 0 ? kebMotorPoles2 : 4;
-                double syncSpd = 120.0 * 50.0 / poles;
-                double actSpdVal = (double)numEquivNn.Value;
-                if (syncSpd > 0 && actSpdVal > 0)
+                if (!loadedFromS1)
                 {
-                    double s = (syncSpd - actSpdVal) / syncSpd;
-                    if (s > 0) numEquivSlip.Value = (decimal)Math.Round(s * 100.0, 2);
-                }
+                    // 備援從 T-N 分頁載入
+                    bool found = false;
+                    if (dgvTnPoints != null && dgvTnPoints.Rows.Count > 0)
+                    {
+                        var row = dgvTnPoints.Rows[dgvTnPoints.Rows.Count - 1];
+                        double spd = 0, trq = 0, pwr = 0;
+                        double.TryParse(Convert.ToString(row.Cells["Speed"].Value ?? "0"), out spd);
+                        double.TryParse(Convert.ToString(row.Cells["Torque"].Value ?? "0"), out trq);
+                        double.TryParse(Convert.ToString(row.Cells["Pwr"].Value ?? "0"), out pwr);
 
-                isRatedDataReady = true;
-                lblRatedItemStatus.Text = "🟢 已載入 T-N 額定運轉數據 (" + DateTime.Now.ToString("HH:mm:ss") + ")";
-                lblRatedItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
-                WriteHmiLog("EQUIV", "【等效電路】已成功從 T-N 分頁提取額定運轉數據！");
+                        if (spd > 0 && trq > 0)
+                        {
+                            numEquivNn.Value = (decimal)Math.Round(spd);
+                            numEquivTn.Value = (decimal)Math.Round(trq, 2);
+                            if (pwr > 0) numEquivPn.Value = (decimal)Math.Round(pwr, 3);
+                            found = true;
+                        }
+                    }
+
+                    decimal ratedV = (lastB_Dr02.HasValue && lastB_Dr02.Value > 0) ? (decimal)lastB_Dr02.Value : 260m;
+                    numEquivVn.Value = ratedV;
+
+                    int poles = kebMotorPoles2 > 0 ? kebMotorPoles2 : 4;
+                    double syncSpd = 120.0 * 50.0 / poles;
+                    double actSpdVal = (double)numEquivNn.Value;
+                    if (syncSpd > 0 && actSpdVal > 0)
+                    {
+                        double s = (syncSpd - actSpdVal) / syncSpd;
+                        if (s > 0) numEquivSlip.Value = (decimal)Math.Round(s * 100.0, 2);
+                    }
+
+                    if (found)
+                    {
+                        isRatedDataReady = true;
+                        lblRatedItemStatus.Text = "🟢 已載入 T-N 額定運轉數據 (" + DateTime.Now.ToString("HH:mm:ss") + ")";
+                        lblRatedItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
+                        WriteHmiLog("EQUIV", "【等效電路】已成功從 T-N 分頁提取額定運轉數據！");
+                    }
+                    else
+                    {
+                        MessageBox.Show("於馬達資料夾中未找到 S1 不補轉差紀錄檔 (S1_Rated_NoSlip_Latest.csv)，且 T-N 分頁亦無數據！\r\n請先執行 S1 測試 (自動完成40筆採樣) 或直接手動輸入/即時採樣。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("從 T-N 額定點載入失敗: " + ex.Message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("從額定記錄載入失敗: " + ex.Message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -1205,6 +1371,14 @@ namespace DynamometerHMI
                     res.EstEff = 88.5;
                 }
 
+                // 換算電感 (mH): L = X / (2 * pi * f) * 1000
+                double calcFreq = f0 > 1.0 ? f0 : 50.0;
+                double omega_0 = 2.0 * Math.PI * calcFreq;
+                res.L1_mH = (res.X1 / omega_0) * 1000.0;
+                res.Lm_mH = (res.Xm / omega_0) * 1000.0;
+                res.L2_prime_mH = (res.X2_prime / omega_0) * 1000.0;
+                res.Lk_mH = (res.Xk / omega_0) * 1000.0;
+
                 lastEquivResult = res;
 
                 // 更新結果 DataGridView
@@ -1214,11 +1388,11 @@ namespace DynamometerHMI
                 if (pnlEquivDiagram != null) pnlEquivDiagram.Invalidate();
 
                 SaveLayoutConfig();
-                WriteHmiLog("EQUIV_CALC", string.Format("【等效電路計算成功】R1={0:F4}Ω, X1={1:F4}Ω, Xm={2:F2}Ω, R2'={3:F4}Ω, X2'={4:F4}Ω, Tmax={5:F1}Nm",
-                    res.R1, res.X1, res.Xm, res.R2_prime, res.X2_prime, res.T_max));
+                WriteHmiLog("EQUIV_CALC", string.Format("【等效電路計算成功】R1={0:F4}Ω, X1={1:F4}Ω({6:F2}mH), Xm={2:F2}Ω({7:F1}mH), R2'={3:F4}Ω, X2'={4:F4}Ω({8:F2}mH), Tmax={5:F1}Nm",
+                    res.R1, res.X1, res.Xm, res.R2_prime, res.X2_prime, res.T_max, res.L1_mH, res.Lm_mH, res.L2_prime_mH));
 
-                MessageBox.Show(string.Format("🎉 三相感應馬達單相等效電路參數計算成功！\r\n\r\n• 定子電阻 R1 = {0:F4} Ω\r\n• 定子漏抗 X1 = {1:F4} Ω\r\n• 轉子折算電阻 R2' = {2:F4} Ω\r\n• 轉子折算漏抗 X2' = {3:F4} Ω\r\n• 激磁電抗 Xm = {4:F2} Ω\r\n• 最大崩潰轉矩 Tmax = {5:F1} Nm ({6:F2} 倍額定)",
-                    res.R1, res.X1, res.R2_prime, res.X2_prime, res.Xm, res.T_max, res.T_max_ratio),
+                MessageBox.Show(string.Format("🎉 三相感應馬達單相等效電路參數計算成功！\r\n\r\n• 定子電阻 R1 = {0:F4} Ω\r\n• 定子漏抗 X1 = {1:F4} Ω (L1 = {7:F3} mH)\r\n• 轉子折算電阻 R2' = {2:F4} Ω\r\n• 轉子折算漏抗 X2' = {3:F4} Ω (L2' = {8:F3} mH)\r\n• 激磁電抗 Xm = {4:F2} Ω (Lm = {9:F2} mH)\r\n• 最大崩潰轉矩 Tmax = {5:F1} Nm ({6:F2} 倍額定)",
+                    res.R1, res.X1, res.R2_prime, res.X2_prime, res.Xm, res.T_max, res.T_max_ratio, res.L1_mH, res.L2_prime_mH, res.Lm_mH),
                     "計算完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
@@ -1231,17 +1405,18 @@ namespace DynamometerHMI
         {
             if (dgvEquivResults == null || r == null) return;
             dgvEquivResults.Rows.Clear();
-            dgvEquivResults.Rows.Add("定子相電阻", "R1", r.R1.ToString("F4"), "Ω", "定子繞組有效相電阻");
-            dgvEquivResults.Rows.Add("定子漏電抗", "X1", r.X1.ToString("F4"), "Ω", "定子漏磁通等效相電抗");
-            dgvEquivResults.Rows.Add("激磁電抗", "Xm", r.Xm.ToString("F2"), "Ω", "氣隙主磁通等效激磁抗");
-            dgvEquivResults.Rows.Add("鐵損電阻", "Rc", r.Rc.ToString("F1"), "Ω", "主磁通渦流與磁滯鐵耗");
-            dgvEquivResults.Rows.Add("轉子折算電阻", "R2'", r.R2_prime.ToString("F4"), "Ω", "轉子繞組折算至定子端電阻");
-            dgvEquivResults.Rows.Add("轉子折算漏抗", "X2'", r.X2_prime.ToString("F4"), "Ω", "轉子漏磁通折算等效電抗");
-            dgvEquivResults.Rows.Add("堵轉阻抗", "Zk", r.Zk.ToString("F4"), "Ω", "轉子鎖死時之短路等效總阻抗");
-            dgvEquivResults.Rows.Add("額定運轉轉差率", "sN", r.RatedSlip.ToString("F2"), "%", "實測額定負載不補轉差率");
-            dgvEquivResults.Rows.Add("推估啟動轉矩", "Tst", r.T_start.ToString("F1") + " (" + r.T_start_ratio.ToString("F2") + "x)", "Nm", "全壓啟動初始瞬態轉矩估算");
-            dgvEquivResults.Rows.Add("推估最大崩潰轉矩", "Tmax", r.T_max.ToString("F1") + " (" + r.T_max_ratio.ToString("F2") + "x)", "Nm", "等效電路推估之極限轉矩");
-            dgvEquivResults.Rows.Add("額定預測效率", "η", r.EstEff.ToString("F2"), "%", "由等效電路損耗推估之額定效率");
+            dgvEquivResults.Rows.Add("定子相電阻", "R1", r.R1.ToString("F4"), "Ω", "--", "定子繞組有效相電阻");
+            dgvEquivResults.Rows.Add("定子漏電抗", "X1", r.X1.ToString("F4"), "Ω", r.L1_mH.ToString("F3"), "定子漏磁通等效相電抗/漏電感");
+            dgvEquivResults.Rows.Add("激磁電抗", "Xm", r.Xm.ToString("F2"), "Ω", r.Lm_mH.ToString("F1"), "氣隙主磁通等效激磁抗/激磁電感");
+            dgvEquivResults.Rows.Add("鐵損電阻", "Rc", r.Rc.ToString("F1"), "Ω", "--", "主磁通渦流與磁滯鐵耗");
+            dgvEquivResults.Rows.Add("轉子折算電阻", "R2'", r.R2_prime.ToString("F4"), "Ω", "--", "轉子繞組折算至定子端電阻");
+            dgvEquivResults.Rows.Add("轉子折算漏抗", "X2'", r.X2_prime.ToString("F4"), "Ω", r.L2_prime_mH.ToString("F3"), "轉子漏磁通折算等效電抗/漏電感");
+            dgvEquivResults.Rows.Add("堵轉阻抗", "Zk", r.Zk.ToString("F4"), "Ω", "--", "轉子鎖死時之短路等效總阻抗");
+            dgvEquivResults.Rows.Add("堵轉總漏抗", "Xk", r.Xk.ToString("F4"), "Ω", r.Lk_mH.ToString("F3"), "堵轉短路等效總漏抗/漏電感");
+            dgvEquivResults.Rows.Add("額定運轉轉差率", "sN", r.RatedSlip.ToString("F2"), "%", "--", "實測額定負載不補轉差率");
+            dgvEquivResults.Rows.Add("推估啟動轉矩", "Tst", r.T_start.ToString("F1") + " (" + r.T_start_ratio.ToString("F2") + "x)", "Nm", "--", "全壓啟動初始瞬態轉矩估算");
+            dgvEquivResults.Rows.Add("推估最大崩潰轉矩", "Tmax", r.T_max.ToString("F1") + " (" + r.T_max_ratio.ToString("F2") + "x)", "Nm", "--", "等效電路推估之極限轉矩");
+            dgvEquivResults.Rows.Add("額定預測效率", "η", r.EstEff.ToString("F2"), "%", "--", "由等效電路損耗推估之額定效率");
         }
 
         #endregion
@@ -1311,7 +1486,7 @@ namespace DynamometerHMI
                 // 3. 定子元件: X1 (電感符號)
                 DrawInductorSymbol(g, compPen, xStatorX, yTop, true);
                 g.DrawString("X1 (定子漏抗)", fLbl, textBrush, xStatorX - 35, yTop - 42);
-                string x1Str = lastEquivResult != null ? (lastEquivResult.X1.ToString("F4") + " Ω") : "--";
+                string x1Str = lastEquivResult != null ? (lastEquivResult.X1.ToString("F4") + " Ω\r\n(" + lastEquivResult.L1_mH.ToString("F2") + "mH)") : "--";
                 g.DrawString(x1Str, fVal, valBrush, xStatorX - 25, yTop - 25);
 
                 // 4. 中間激磁分支 (並聯 Rc || Xm)
@@ -1334,7 +1509,7 @@ namespace DynamometerHMI
                 g.DrawLine(wirePen, xMagBranch + 28, yMid + 22, xMagBranch + 28, yBot - 25);
 
                 g.DrawString("Xm", fLbl, textBrush, xMagBranch + 34, yMid - 10);
-                string xmStr = lastEquivResult != null ? (lastEquivResult.Xm.ToString("F2") + "Ω") : "--";
+                string xmStr = lastEquivResult != null ? (lastEquivResult.Xm.ToString("F2") + "Ω\r\n(" + lastEquivResult.Lm_mH.ToString("F1") + "mH)") : "--";
                 g.DrawString(xmStr, fVal, valBrush, xMagBranch + 34, yMid + 6);
 
                 g.DrawLine(wirePen, xMagBranch - 28, yBot - 25, xMagBranch + 28, yBot - 25);
@@ -1343,7 +1518,7 @@ namespace DynamometerHMI
                 // 5. 轉子元件: X2' (轉子折算漏抗)
                 DrawInductorSymbol(g, compPen, xRotorX, yTop, true);
                 g.DrawString("X2' (轉子漏抗)", fLbl, textBrush, xRotorX - 35, yTop - 42);
-                string x2Str = lastEquivResult != null ? (lastEquivResult.X2_prime.ToString("F4") + " Ω") : "--";
+                string x2Str = lastEquivResult != null ? (lastEquivResult.X2_prime.ToString("F4") + " Ω\r\n(" + lastEquivResult.L2_prime_mH.ToString("F2") + "mH)") : "--";
                 g.DrawString(x2Str, fVal, valBrush, xRotorX - 25, yTop - 25);
 
                 // 6. 轉子負載: R2'/s (可變轉差負載電阻)
@@ -1363,11 +1538,13 @@ namespace DynamometerHMI
                 g.DrawLine(wirePen, xEnd, yTop, xEnd, yBot);
 
                 // 底部文字提示
-                string motorHint = string.Format("★ 待測機種: {0} | 額定轉差: {1:F2}% | 功率因數: {2:F2} | 激磁抗: {3:F2} Ω",
+                string motorHint = string.Format("★ 待測機種: {0} | 額定轉差: {1:F2}% | 激磁: {2:F2} Ω ({3:F1} mH) | 漏抗: X1={4:F3}mH, X2'={5:F3}mH",
                     motorModelName,
                     lastEquivResult != null ? lastEquivResult.RatedSlip : (double)numEquivSlip.Value,
-                    (double)numEquivPfn.Value,
-                    lastEquivResult != null ? lastEquivResult.Xm : 0.0);
+                    lastEquivResult != null ? lastEquivResult.Xm : 0.0,
+                    lastEquivResult != null ? lastEquivResult.Lm_mH : 0.0,
+                    lastEquivResult != null ? lastEquivResult.L1_mH : 0.0,
+                    lastEquivResult != null ? lastEquivResult.L2_prime_mH : 0.0);
                 g.DrawString(motorHint, fLbl, Brushes.DimGray, 16, h - 28);
             }
         }
@@ -1500,11 +1677,12 @@ namespace DynamometerHMI
                 if (lastEquivResult != null)
                 {
                     sb.AppendLine(string.Format("定子相電阻 R1: {0:F4} Ω", lastEquivResult.R1));
-                    sb.AppendLine(string.Format("定子漏電抗 X1: {0:F4} Ω", lastEquivResult.X1));
-                    sb.AppendLine(string.Format("激磁電抗 Xm: {0:F2} Ω", lastEquivResult.Xm));
+                    sb.AppendLine(string.Format("定子漏電抗 X1: {0:F4} Ω ({1:F3} mH)", lastEquivResult.X1, lastEquivResult.L1_mH));
+                    sb.AppendLine(string.Format("激磁電抗 Xm: {0:F2} Ω ({1:F2} mH)", lastEquivResult.Xm, lastEquivResult.Lm_mH));
                     sb.AppendLine(string.Format("鐵損電阻 Rc: {0:F1} Ω", lastEquivResult.Rc));
                     sb.AppendLine(string.Format("轉子折算電阻 R2': {0:F4} Ω", lastEquivResult.R2_prime));
-                    sb.AppendLine(string.Format("轉子折算漏抗 X2': {0:F4} Ω", lastEquivResult.X2_prime));
+                    sb.AppendLine(string.Format("轉子折算漏抗 X2': {0:F4} Ω ({1:F3} mH)", lastEquivResult.X2_prime, lastEquivResult.L2_prime_mH));
+                    sb.AppendLine(string.Format("堵轉總漏抗 Xk: {0:F4} Ω ({1:F3} mH)", lastEquivResult.Xk, lastEquivResult.Lk_mH));
                     sb.AppendLine(string.Format("額定運轉轉差率 sN: {0:F2} %", lastEquivResult.RatedSlip));
                     sb.AppendLine(string.Format("推估啟動轉矩 Tst: {0:F1} Nm ({1:F2}x TN)", lastEquivResult.T_start, lastEquivResult.T_start_ratio));
                     sb.AppendLine(string.Format("推估最大轉矩 Tmax: {0:F1} Nm ({1:F2}x TN)", lastEquivResult.T_max, lastEquivResult.T_max_ratio));
@@ -1526,16 +1704,17 @@ namespace DynamometerHMI
                 {
                     sfd.Filter = "CSV 檔案 (*.csv)|*.csv";
                     sfd.FileName = string.Format("EquivCircuit_{0}_{1}.csv", motorModelName.Replace(" ", "_"), DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+                    sfd.InitialDirectory = GetMotorDedicatedLogDirectory(motorModelName);
                     if (sfd.ShowDialog() == DialogResult.OK)
                     {
                         StringBuilder sb = new StringBuilder();
-                        sb.AppendLine("項目,符號,數值,單位,說明");
+                        sb.AppendLine("項目,符號,數值,單位,換算電感(mH),說明");
                         if (dgvEquivResults != null)
                         {
                             foreach (DataGridViewRow r in dgvEquivResults.Rows)
                             {
-                                sb.AppendLine(string.Format("\"{0}\",\"{1}\",\"{2}\",\"{3}\",\"{4}\"",
-                                    r.Cells["Param"].Value, r.Cells["Symbol"].Value, r.Cells["Value"].Value, r.Cells["Unit"].Value, r.Cells["Desc"].Value));
+                                sb.AppendLine(string.Format("\"{0}\",\"{1}\",\"{2}\",\"{3}\",\"{4}\",\"{5}\"",
+                                    r.Cells["Param"].Value, r.Cells["Symbol"].Value, r.Cells["Value"].Value, r.Cells["Unit"].Value, r.Cells["Inductance"].Value, r.Cells["Desc"].Value));
                             }
                         }
                         File.WriteAllText(sfd.FileName, sb.ToString(), Encoding.UTF8);

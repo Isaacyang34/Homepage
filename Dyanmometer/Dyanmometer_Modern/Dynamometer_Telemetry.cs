@@ -1296,6 +1296,49 @@ namespace DynamometerHMI
             }
         }
 
+        /// <summary>
+        /// 取得或建立特定馬達名稱專屬之日誌目錄 (例如 logs/SVM100S/)
+        /// </summary>
+        public string GetMotorDedicatedLogDirectory(string motorName = null)
+        {
+            try
+            {
+                string mName = !string.IsNullOrEmpty(motorName) ? motorName : (!string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S");
+                foreach (char c in Path.GetInvalidFileNameChars())
+                {
+                    mName = mName.Replace(c, '_');
+                }
+                mName = mName.Trim();
+                if (string.IsNullOrEmpty(mName)) mName = "DUT";
+
+                string baseDir = !string.IsNullOrEmpty(rawDataSaveDirectory) && Directory.Exists(rawDataSaveDirectory)
+                    ? rawDataSaveDirectory
+                    : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+
+                // 若目前 baseDir 的結尾已經就是該馬達名稱，則不重複嵌套
+                string targetDir = baseDir;
+                string lastSegment = Path.GetFileName(baseDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                if (!string.Equals(lastSegment, mName, StringComparison.OrdinalIgnoreCase))
+                {
+                    targetDir = Path.Combine(baseDir, mName);
+                }
+
+                if (!Directory.Exists(targetDir))
+                {
+                    Directory.CreateDirectory(targetDir);
+                    WriteHmiLog("RECORDER", string.Format("【建立馬達專屬紀錄資料夾】成功建立目錄: {0}", targetDir));
+                }
+                return targetDir;
+            }
+            catch (Exception ex)
+            {
+                WriteHmiLog("RECORDER_ERR", "建立馬達專屬目錄例外: " + ex.Message);
+                string fallback = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+                if (!Directory.Exists(fallback)) Directory.CreateDirectory(fallback);
+                return fallback;
+            }
+        }
+
         public void StartAutoRawRecordingWithTag(string testTag)
         {
             lock (manualRecordLock)
@@ -1309,9 +1352,7 @@ namespace DynamometerHMI
                 autoRecordTestTag = string.IsNullOrEmpty(testTag) ? "TEST" : testTag.Trim().Replace(" ", "_");
 
                 string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
-                string fDir = !string.IsNullOrEmpty(rawDataSaveDirectory) && Directory.Exists(rawDataSaveDirectory)
-                    ? rawDataSaveDirectory
-                    : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+                string fDir = GetMotorDedicatedLogDirectory(mName);
 
                 string tag = autoRecordTestTag;
                 string fName = string.Format("{0}_{1}_{2}.csv", mName, DateTime.Now.ToString("yyyyMMdd_HHmmss"), tag);
@@ -1328,9 +1369,7 @@ namespace DynamometerHMI
                 isAutoTriggeredRecording = false;
                 autoRecordTestTag = "";
                 string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
-                string fDir = !string.IsNullOrEmpty(rawDataSaveDirectory) && Directory.Exists(rawDataSaveDirectory)
-                    ? rawDataSaveDirectory
-                    : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+                string fDir = GetMotorDedicatedLogDirectory(mName);
                 string fName = string.Format("{0}_{1}.csv", mName, DateTime.Now.ToString("yyyyMMdd_HHmmss"));
                 StartManualRecordingWithParams(mName, fDir, fName, gl820ChannelMask, recordKebRuParams, rawDataIntervalMs);
             }
@@ -1344,7 +1383,7 @@ namespace DynamometerHMI
         {
             try
             {
-                string logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+                string logDir = GetMotorDedicatedLogDirectory(motorModelName);
                 if (!Directory.Exists(logDir)) Directory.CreateDirectory(logDir);
                 string snapFile = Path.Combine(logDir, string.Format("RawData_Snapshots_{0}.csv", DateTime.Now.ToString("yyyyMMdd")));
 
@@ -1370,8 +1409,12 @@ namespace DynamometerHMI
         {
             try
             {
-                string logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
-                if (!Directory.Exists(logDir)) Directory.CreateDirectory(logDir);
+                string logDir = GetMotorDedicatedLogDirectory(motorModelName);
+                if (!Directory.Exists(logDir))
+                {
+                    logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+                    if (!Directory.Exists(logDir)) Directory.CreateDirectory(logDir);
+                }
                 System.Diagnostics.Process.Start("explorer.exe", logDir);
             }
             catch (Exception ex)

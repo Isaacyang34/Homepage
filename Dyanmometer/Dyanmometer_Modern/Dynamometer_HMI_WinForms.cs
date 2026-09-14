@@ -320,6 +320,23 @@ namespace DynamometerHMI
         public bool[] s1MonitoredChannels = new bool[20] { true, true, true, true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false };
         private List<KeyValuePair<DateTime, double[]>> s1TempHistory = new List<KeyValuePair<DateTime, double[]>>();
 
+        // S1 不補轉差 40 筆採樣結構與狀態欄位
+        public class S1NoSlipSample
+        {
+            public DateTime Time;
+            public double Speed;
+            public double Torque;
+            public double Voltage;
+            public double Current;
+            public double PowerKw;
+            public double PowerFactor;
+            public double Frequency;
+        }
+        public bool s1NoSlipCompleted = false;
+        public bool isS1RecordingNoSlip = false;
+        public int s1NoSlipSampleCount = 0;
+        public List<S1NoSlipSample> s1NoSlipBuffer = new List<S1NoSlipSample>();
+
         private Label lblS2Duration, lblS2TempCh, lblS2TempThresh, lblS2TempRealtime, lblS2ThermalStatus;
         private NumericUpDown numS2DurationMin, numS2TempThreshold;
         private CheckBox chkS2TempStop;
