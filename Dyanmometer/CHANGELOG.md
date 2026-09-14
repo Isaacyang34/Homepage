@@ -8,9 +8,57 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.116 (beta) | v2.10.74 | 2026-09-14 | 全面建立等效電路與堵轉測試之「dr.05 與 uf.05 實測額定頻率 (51.5Hz) 自動感知與連鎖回填」架構，徹底消除 50.0Hz 硬編碼與轉速失真：(1)現象與佐證：使用者質疑「為何我的dr.05和uf.05都是51.5Hz但是實驗的額定還是用50」；經查證，現場變頻器參數設定 dr.05=51.5Hz (0x0605 / 515) 與 uf.05=51.5Hz (0x0505)，但堵轉測試第一點額定頻率依然被設定為 50.0Hz，下發轉速指令為 1500 rpm 而非 51.5Hz 對應之 1545 rpm，且等效電路計算同步轉速亦被算成 1500 rpm；(2)致命根因 (Root Cause)：1. 讀回只印 Log 未回填 UI：`CheckAndCollectDrUfParams()` 讀取了 dr05=51.5Hz 與 uf00=51.5Hz，但完全沒有將其賦值給卡片 1 的 `numEquivF0.Value`，卡片 1 頻率永遠為 0.0；2. 堵轉工作線程硬編碼 50.0：`LockedSweepWorker` 中以 `double f0 = (numEquivF0.Value > 1.0m) ? (double)numEquivF0.Value : 50.0;` 取值，因 `numEquivF0` 為 0 導致直接 fallback 成了 50.0Hz，目標轉速算成 1500 rpm 寫入 Sy.52/oP.03；3. 等效電路計算核心 `ExecuteEquivCircuitCalculation` 同樣 fallback 成 50.0Hz，同步轉速算成 1500 rpm，導致額定轉差率與漏抗折算跑偏；4. `LoadRatedDataFromTnTab` 中 `double syncSpd = 120.0 * 50.0 / poles;` 寫死 50.0；5. `CheckAndCollectDrUfParams` 漏讀了 `0x0505` (uf.05)；(3)精確修復方案：1. 新增對 `0x0505` (uf.05) 之 Set 1 與 Set 0 讀取與頻率智能解析；2. 實作「硬體參數自動連鎖回填」：當讀取到變頻器頻率 (51.5Hz) 時，自動回填卡片 1 之 `numEquivF0`，並將 dr.02 (電壓)、dr.00 (電流)、dr.01 (轉速) 自動回填卡片 2，以 51.5Hz 精確計算同步轉速 1545 rpm 與額定轉差率；3. 改造 `LockedSweepWorker`：若 `numEquivF0` 為 0，動態自變頻器實測變數 `lastB_Dr05`、`kebDrFreq2` 或現場讀取 0x0605/0x0505 提取 51.5Hz，自動回填 UI 並以 51.5Hz 計算各頻點與 1545 rpm 指令；4. 改造 `ExecuteEquivCircuitCalculation`、`LoadRatedDataFromTnTab`、`CaptureLiveNoLoadData` 與 `CaptureLiveRatedData`，全面以實測頻率動態計算，徹底消除 50.0Hz 硬編碼；5. 於 `RefreshEquivMotorStatus` 建立銘牌自動預填防呆；(4)發布與驗證：升版至 2.10.74，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.74 發布。 |
 | V2.115 (beta) | v2.10.73 | 2026-09-14 | 全面實作「等效電路專屬純電氣連續紀錄功能 (無溫度)」與「測試成果自動歸檔」架構：(1)現象與佐證：使用者反映「等效電路測試也要有紀錄功能，只是不需要溫度而已。目前好像沒有」；檢查源碼發現，其他進階模組 (TN、Duty、NoLoad、手動連續錄製) 均具備 CSV 記錄，但等效電路分頁在執行堵轉單頻自適應測試、8頻率全頻掃描以及手動調試時，完全缺乏即時資料記錄器；且通用錄製強制綁定 GL820 溫度通道與 GBD 原廠格式，並具備「未滿 1 分鐘自動刪除」規則，無法適用於等效電路短時間純電氣阻抗量測需求；(2)致命根因 (Root Cause)：`Dynamometer_TestEquivCircuit.cs` 未建置專屬的 CSV 連續資料串流記錄器，導致堵轉測試期間之 1V 增幅探測斜率、梯度自適應逼近、以及額定電流 30 筆採樣等珍貴數據無法被即時持久化儲存，無法作為工程後續分析之佐證；(3)精確修復方案：在 `Dynamometer_TestEquivCircuit.cs` 中建立「等效電路專屬連續紀錄器 (`StartEquivTestRecording` / `WriteEquivRecordRow` / `StopEquivTestRecording`)」，自動儲存於馬達專屬目錄 `EquivCircuit_Test_Log_{馬達型號}_{yyyyMMdd_HHmmss}_{標籤}.csv`；欄位設計純粹聚焦於電氣與機械量 (時間戳記、耗時、階段、頻率名稱、目標頻率、uf09、轉速、頻率、轉矩、三相電壓 U1~U3/USig、三相電流 I1~I3/ISig、三相功率 P1~P3/PElec、輸出功率 PMech、功率因數 PF、狀態說明)，**嚴格排除任何溫度通道 (無 Temp、無 GL820、無 GBD)**；當點擊「[AI] 單頻測試」或「[>>] 全頻掃描」時自動啟動記錄，採樣全程即時寫入，測試結束安全關閉並保留，**完全不受 <60秒刪除限制**；於等效電路頂部橫條新增 `btnEquivManualRecord` ([記錄] 開始記錄 / [停止] 記錄中) 支援手動即時記錄；計算完成時自動保存 `Report_EquivCircuit_Params_*.csv` 參數報表；(4)發布與驗證：升版至 2.10.73，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.73 發布。 |
 | V2.114 (beta) | v2.10.72 | 2026-09-14 | 全面建立堵轉測試「降壓硬體驗證安全閉鎖」與「瞬時突波極限跳脫」機制，徹底杜絕高壓激磁與金屬巨響衝擊：(1)現象與佐證：使用者回報「上傳日誌，剛才有發生巨響，我猜又是控制問題，你查清楚，這個堵轉不能開玩笑的」；提取雲端實測日誌 `20260914_163308.json` (KEB_Readback_Parameters.log) 顯示當前變頻器 cs.00=0 (V/F模式), oP.03=1500rpm (RAW: 12000), Sy.52=1500rpm (RAW: 1500), dr.02=260V；(2)致命根因 (Root Cause)：在 `Dynamometer_TestEquivCircuit.cs` 中，若變頻器已處於運轉狀態 (Sy.50 != 0)，KEB F5 變頻器硬體對 uf.09 (基準電壓) 具備寫入保護 (Write Protected)，導致步驟 A 的 `KebWriteUf09` 降壓失敗，電壓仍殘留為 260V 額定高壓；舊程式未驗證 uf.09 是否降壓成功，隨即於步驟 B 寫入 1500rpm (50Hz)，變頻器在 V/f 模式下直接以 260V 全電壓向機械完全鎖死之馬達定子通電，引發瞬間數百安培短路衝擊大電流並爆發金屬劇烈撞擊「巨響」；同時看門狗僅具 10 秒慢速保護，缺乏瞬間大電流零延遲防護；(3)精確修復方案：在 `Dynamometer_TestEquivCircuit.cs` 的 `LockedSweepWorker` 中全面導入「降壓安全視窗」：寫入前強制先執行 `Sy.50=0` (停機進入 nOP) 並將 Sy.52/oP.03 清零；寫入 uf.09 後強制進行 5 次讀回驗證，若未確認 `uf.09 <= 60V`，觸發【生與死安全閉鎖】直接阻斷並退出，絕對嚴禁給予轉速指令，絕對嚴禁啟動變頻器；當且僅當驗證 `uf.09 <= 60V` 安全降壓完成後，才寫入目標轉速並下達 Sy.50=4 (RUN 正轉) 低壓安全建壓；在換頻與結束時先下達 Sy.50=0 停機清零再換步；在看門狗 `tmrLockedWatchdog_Tick` 中新增「瞬時突波過載極限保護 (Peak Over-Current > 150% IN)」，電流超過 150% IN 立即 0 秒瞬間跳脫；(4)發布與驗證：升版至 2.10.72，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.72 發布。 |
 | V2.113 (beta) | v2.10.71 | 2026-09-14 | 徹底根除堵轉測試錯誤/停止後 Sy.52 (0x0034) 與 oP.03 (0x0303) 未清空導致下次啟動直接給予轉速之嚴重隱患：(1)現象與佐證：使用者回報「而且錯誤後的sy52也沒有清空，這樣下次執行就會直接給轉速這樣也不對」；(2)致命根因 (Root Cause)：在 `Dynamometer_TestEquivCircuit.cs` 中，堵轉測試於步驟 B 依試驗頻率向變頻器寫入目標轉速 `targetRpm` 至 Sy.52 (0x0034) 與 oP.03 (0x0303)；然而當試驗發生例外錯誤、使用者手動點擊中止、看門狗保護急停跳脫、甚至試驗正常跑完時，系統完全沒有將 Sy.52 與 oP.03 歸零；導致變頻器內部轉速指令永久殘留，若下次下達啟動 (Sy.50) 變頻器會立刻依照殘留轉速全速狂飆，造成嚴重機構破壞與安全隱患；(3)精確修復方案：在 `Dynamometer_TestEquivCircuit.cs` 建立集中安全清零函式 `ClearLockedSpeedCmd()`，向變頻器 Sy.52 (0x0034) 與 oP.03 (0x0303) 雙重寫入 0；在 `StopLockedRotorSweep()` 停止路徑 (下達 Sy.50=0 切斷激磁後同步清空 Sy.52/oP.03)、`TriggerLockedProtectionTrip()` 保護急停跳脫路徑、`LockedSweepWorker` 之 `finally` 生命週期保證區塊、`StartLockedRotorTest` 啟動前防呆、以及手動 `RevertUf09ToDefault()` 中 100% 強制執行 `ClearLockedSpeedCmd()`；更新跳脫警示訊息告知轉速設定值已安全歸零；(4)發布與驗證：升版至 2.10.71，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.71 發布。 |
+
+---
+
+## [V2.116 beta / v2.10.74] - 2026-09-14
+
+### 全面建立等效電路與堵轉測試之「dr.05 與 uf.05 實測額定頻率 (51.5Hz) 自動感知與連鎖回填」架構，徹底消除 50.0Hz 硬編碼與轉速失真
+
+### 現象與佐證
+- **使用者回報現象**：使用者質疑：「為何我的dr.05和uf.05都是51.5Hz但是實驗的額定還是用50」。
+- **現場狀況與數據查證**：
+  現場變頻器參數明確配置為：
+  - `dr.05` = 51.5 Hz（馬達銘牌額定頻率，暫存器 0x0605 / 0x0405，RAW=515）；
+  - `uf.05` = 51.5 Hz（變頻器額定/拐點頻率，暫存器 0x0505）；
+  但在執行等效電路堵轉試驗時，第 1 個頻率點「(1) 額定頻率」依然顯示為 50.0 Hz，發出的變頻器轉速指令為 1500 rpm（非 51.5 Hz 對應之 1545 rpm），且在等效電路參數計算時，基準頻率與同步轉速亦均採用 50.0 Hz 與 1500 rpm，導致額定轉差率與漏抗折算產生系統性偏差。
+
+### 致命根因 (Root Cause)
+1. **讀回只印 Log 未回填 UI（數值斷層）**：
+   在 `Dynamometer_TestEquivCircuit.cs` 的 `CheckAndCollectDrUfParams()` 中，程式雖然正確讀取了 `drFreq = 51.5 Hz` 與 `uf00Freq = 51.5 Hz`，但函式內部**完全沒有任何一行代碼將讀回數值賦值給卡片 1 的 `numEquivF0.Value`**！導致卡片 1 的「測試頻率 f0 (Hz)」一直維持為初始值 `0.0`。
+2. **堵轉工作線程硬編碼 Fallback 50.0**：
+   在 `LockedSweepWorker` 中：
+   ```csharp
+   double f0 = (numEquivF0.Value > 1.0m) ? (double)numEquivF0.Value : 50.0;
+   ```
+   因卡片 1 的 `numEquivF0` 為 0，三元運算式直接 fallback 為 **50.0 Hz**：
+   - 第 1 個頻率點算為 $50.0 \times 1.0 = 50.0\text{ Hz}$；
+   - 給予變頻器之轉速指令算為 $(120 \times 50.0) / 4 = 1500\text{ rpm}$（寫入 `Sy.52` 與 `oP.03`），變頻器實體輸出被強制釘死在 50.0 Hz！
+3. **計算核心與轉差率硬編碼 50.0**：
+   - `ExecuteEquivCircuitCalculation` 中：`double baseFreq = (f0 > 1.0) ? f0 : 50.0;`
+   - `LoadRatedDataFromTnTab` 中：`double syncSpd = 120.0 * 50.0 / poles;` 寫死 50.0，轉差率嚴重失真。
+4. **漏讀 `uf.05` (0x0505)**：
+   在 `CheckAndCollectDrUfParams` 中只讀取了 `0x0500` (uf.00)，漏讀了現場變頻器關鍵參數 `0x0505` (uf.05)。
+
+### 精確修復方案
+1. **新增 `uf.05` (0x0505) 雙向讀取與智能頻率解析**：
+   - 於 `CheckAndCollectDrUfParams` 新增讀取 `0x0505`（Set 1 與 Set 0），並透過 `ConvertKebUf00ToFrequency` 自動解析出頻率。
+   - 診斷 Log 與彈跳視窗同步完整印出 `dr.05`、`uf.05`、`uf.00` 之 RAW 與解析 Hz 數值。
+2. **實作「硬體參數自動連鎖回填」UI 核心**：
+   - 當讀取到有效額定頻率（51.5 Hz）時，透過主線程委派自動連鎖回填：
+     - 卡片 1：`numEquivF0.Value = (decimal)effectiveFreq;`
+     - 卡片 2：`numEquivVn.Value = (decimal)drVolt;`、`numEquivIn.Value = (decimal)drCurr;`、`numEquivNn.Value = (decimal)dr01;`
+     - 以 51.5 Hz 精確計算同步轉速 $N_{sync} = 120 \times 51.5 / poles = 1545\text{ rpm}$，自動更新額定轉差率 `numEquivSlip.Value`。
+3. **堵轉掃描線程動態感知與防呆回填**：
+   - 改造 `LockedSweepWorker`：若 `numEquivF0.Value <= 1.0`，主動自 `lastB_Dr05`、`kebDrFreq2` 或現場即時讀取 0x0605/0x0505 提取 51.5 Hz，自動回填 UI 並以 51.5 Hz 計算各測試頻點與 1545 rpm 指令。
+4. **全面消除 50.0 Hz 硬編碼**：
+   - 改造 `ExecuteEquivCircuitCalculation`、`LoadRatedDataFromTnTab`、`CaptureLiveNoLoadData` 與 `CaptureLiveRatedData`，同步轉速與基準頻率一律動態採用實測額定頻率。
+5. **連線狀態刷新自動預填防呆**：
+   - 於 `RefreshEquivMotorStatus` 中加入銘牌自動補齊機制，只要變頻器讀值就緒，自動預填至 UI 欄位，根除未填導致 fallback 之可能性。
 
 ---
 
