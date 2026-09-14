@@ -768,7 +768,7 @@ namespace DynamometerHMI
         ///  - 擴展高解析度模式：Scale = 0.0001 Hz (raw >= 100000)
         /// 徹底根治因誤用 0.0001 Scale 導致 2060 被誤算為 0.206 Hz (顯示 0.21 Hz) 的缺陷！
         /// </summary>
-        public static double ConvertKebUf00ToFrequency(int rawUf00, int driveId)
+        public static double ConvertKebUf00ToFrequency(int rawUf00, int driveId = 0)
         {
             if (rawUf00 <= 0) return 0.0;
             double raw = (double)rawUf00;
@@ -779,39 +779,35 @@ namespace DynamometerHMI
                 return raw * 0.0001;
             }
 
-            // 2. KEB F5 速度範圍標準化模式 (B載台待測預設 0.025 Hz, A載台加載預設 0.0125 Hz)
-            double stdScale = (driveId == 1) ? 0.0125 : 0.025;
-            double stdVal = raw * stdScale;
-            if (stdVal >= 5.0 && stdVal <= 400.0)
-            {
-                return stdVal;
-            }
-
-            // 3. 備援判定：B載台 0.025 候選 (2060 * 0.025 = 51.5 Hz)
-            if (raw * 0.025 >= 5.0 && raw * 0.025 <= 400.0)
-            {
-                return raw * 0.025;
-            }
-
-            // 4. 備援判定：A載台 0.0125 候選 (4120 * 0.0125 = 51.5 Hz)
-            if (raw * 0.0125 >= 5.0 && raw * 0.0125 <= 400.0)
+            // 2. 特殊高脈衝 4000+ units 模式 (例如 4120 * 0.0125 = 51.5 Hz, 4000 * 0.0125 = 50.0 Hz)
+            if (raw >= 3500 && (raw * 0.0125 >= 10.0 && raw * 0.0125 <= 150.0))
             {
                 return raw * 0.0125;
             }
 
-            // 5. 備援判定：若為 0.1 Hz 單位 (515 * 0.1 = 51.5 Hz)
+            // 3. KEB COMBIVERT F5 uF.00 基頻標準解析度一律為 0.025 Hz (1 Hz = 40 units)
+            //    例如 51.5 Hz 儲存為 2060 (2060 * 0.025 = 51.50 Hz)
+            //         50.0 Hz 儲存為 2000 (2000 * 0.025 = 50.00 Hz)
+            //         60.0 Hz 儲存為 2400 (2400 * 0.025 = 60.00 Hz)
+            double freq0025 = raw * 0.025;
+            if (freq0025 >= 5.0 && freq0025 <= 400.0)
+            {
+                return freq0025;
+            }
+
+            // 4. 備援判定：若為 0.1 Hz 單位 (515 * 0.1 = 51.5 Hz)
             if (raw >= 100 && raw <= 4000 && (raw * 0.1 >= 5.0 && raw * 0.1 <= 400.0))
             {
                 return raw * 0.1;
             }
 
-            // 6. 備援判定：若為整數 Hz (50 或 51 或 52)
+            // 5. 備援判定：若為整數 Hz (50 或 51 或 60)
             if (raw >= 10.0 && raw <= 400.0)
             {
                 return raw;
             }
 
-            return raw * stdScale;
+            return freq0025;
         }
 
         /// <summary>

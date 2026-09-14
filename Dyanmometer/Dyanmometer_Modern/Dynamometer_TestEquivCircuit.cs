@@ -1563,7 +1563,7 @@ namespace DynamometerHMI
                 double ufFreq = 0.0;
                 if (r_uf00.HasValue)
                 {
-                    ufFreq = ConvertKebUf00ToFrequency(r_uf00.Value, node);
+                    ufFreq = ConvertKebUf00ToFrequency(r_uf00.Value, driveId);
                 }
 
                 double drVolt = r_dr02.HasValue ? r_dr02.Value : 0.0;

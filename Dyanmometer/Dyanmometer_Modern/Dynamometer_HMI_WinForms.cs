@@ -2541,7 +2541,8 @@ namespace DynamometerHMI
                                     bool isNode = (parts.Length >= 8) ? (parts[6] == "1") : (name.Contains("站號"));
                                     if (addr == 0x0F13 || addr == 0x0231) continue;
                                     if (addr == 0x0F12 && scale == 0.01) { scale = 0.1; unit = "%"; }
-                                    if ((addr == 0x0203 || addr == 0x0500) && (scale == 0.0001 || scale == 0.01)) { scale = 0.0125; }
+                                    if (addr == 0x0203 && (scale == 0.0001 || scale == 0.01)) { scale = 0.0125; }
+                                    if (addr == 0x0500) { scale = 0.025; }
                                     list1.Add(new KebMonitorItem(name, addr, scale, unit, isHex, isStatus, isNode));
                                 }
                             }
@@ -2583,7 +2584,8 @@ namespace DynamometerHMI
                                     bool isNode = (parts.Length >= 8) ? (parts[6] == "1") : (name.Contains("站號"));
                                     if (addr == 0x0F13 || addr == 0x0231) continue;
                                     if (addr == 0x0F12 && scale == 0.01) { scale = 0.1; unit = "%"; }
-                                    if ((addr == 0x0203 || addr == 0x0500) && (scale == 0.0001 || scale == 0.01)) { scale = 0.025; }
+                                    if (addr == 0x0203 && (scale == 0.0001 || scale == 0.01)) { scale = 0.025; }
+                                    if (addr == 0x0500) { scale = 0.025; }
                                     list2.Add(new KebMonitorItem(name, addr, scale, unit, isHex, isStatus, isNode));
                                 }
                             }
