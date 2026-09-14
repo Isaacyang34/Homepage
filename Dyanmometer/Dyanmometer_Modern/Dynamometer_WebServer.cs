@@ -38,7 +38,7 @@ namespace DynamometerHMI
         private bool isCloudUploadRunning = false;
 
         // ── 軟體線上熱更新設定 (Online Auto-Update & In-Place Hot Swap) ──────
-        public const string APP_VERSION = "2.10.56";
+        public const string APP_VERSION = "2.10.57";
         public string cloudUpdateManifestUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/update/version.json";
         public Button btnOnlineUpdate = null;
         private bool? lastCloudUploadSuccess = null;
@@ -3231,10 +3231,11 @@ namespace DynamometerHMI
         {
             try
             {
-                // ★【排版與視圖即時固化】：在熱更新重新啟動前，立即儲存當前全域視圖與分割條排版
+                // ★【排版與視圖即時固化 & 純手動切換】：在熱更新重新啟動前，立即儲存當前全域視圖與分割條排版，並切換純手動模式
                 if (MainForm.Instance != null)
                 {
                     try { MainForm.Instance.SaveLayoutConfig(); } catch { }
+                    try { MainForm.Instance.SwitchToPureManualModeOnExit(); } catch { }
                 }
 
                 string currentExe = Process.GetCurrentProcess().MainModule.FileName;

@@ -1519,10 +1519,10 @@ namespace DynamometerHMI
                 if (isViewerMode) { try { StopViewerClientSync(); } catch { } }
 
                 // 4. 【雙重保險核心：強制自毀超時看門狗 (Watchdog)】
-                // 給予背景執行緒最多 1.2 秒優雅關閉硬體與網路。若超時 (例如底層驅動 DLL 阻塞或 COM 埠卡死)，
+                // 給予背景執行緒最多 2.5 秒優雅關閉硬體與網路。若超時 (例如底層驅動 DLL 阻塞或 COM 埠卡死)，
                 // 看門狗執行緒直接調用 Process.Kill() 強制自毀，絕對不允許程式變成隱形殭屍殘留於工作管理員！
                 Thread exitWatchdog = new Thread(() => {
-                    Thread.Sleep(1200);
+                    Thread.Sleep(2500); // 給予充足時間完成純手動模式設定與通訊關閉
                     try
                     {
                         Process.GetCurrentProcess().Kill();
@@ -1535,6 +1535,7 @@ namespace DynamometerHMI
                 e.Cancel = true;
                 ThreadPool.QueueUserWorkItem(_ => {
                     try { if (isManualRecording) StopManualRecording(showPrompt: false); } catch { }
+                    try { SwitchToPureManualModeOnExit(); } catch { } // ★離開程式時強制切換回純手動模式 (AB載台 op01=7, A載台 cs15=1, B載台 op00=5)
                     try { StopWebServer(); } catch { }       // 優雅關閉 Web Server
                     try { StopBackgroundWorker(); } catch { }
                     try { DisconnectHardware(); } catch { }
@@ -7114,6 +7115,13 @@ namespace DynamometerHMI
             try
             {
                 if (isHmiKebOpen2) RestoreHmiKebInitialParams(2);
+            }
+            catch { }
+
+            // ★【離開程式 / 斷線 切換純手動模式】強制確保寫入 op.01=7, cs.15=1, op.00=5
+            try
+            {
+                SwitchToPureManualModeOnExit();
             }
             catch { }
 

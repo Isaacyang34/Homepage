@@ -1473,6 +1473,20 @@ namespace DynamometerHMI
                     backup.Op03.HasValue ? backup.Op03.Value.ToString() : "--",
                     backup.Sy52.HasValue ? backup.Sy52.Value.ToString() : "--");
 
+                // ★【離開與斷線純手動鐵律】：強制寫入使用者指定之純手動模式 (AB載台 op01=7, A載台 cs15=1, B載台 op00=5)
+                if (driveId == 1)
+                {
+                    KebWriteParamWithDll(comIdx, baudIdx, node, 0x0301, 7); // A載台 op.01 = 7 (端子控制)
+                    KebWriteParamWithDll(comIdx, baudIdx, node, 0x0F0F, 1); // A載台 cs.15 = 1 (純手動模式)
+                    WriteHmiLog("KEB_RESTORE", string.Format("【A載台】已強制切換為純手動模式 (op.01=7, cs.15=1)"));
+                }
+                else if (driveId == 2)
+                {
+                    KebWriteParamWithDll(comIdx, baudIdx, node, 0x0301, 7); // B載台 op.01 = 7 (端子控制)
+                    KebWriteParamWithDll(comIdx, baudIdx, node, 0x0300, 5); // B載台 op.00 = 5 (純手動模式)
+                    WriteHmiLog("KEB_RESTORE", string.Format("【B載台】已強制切換為純手動模式 (op.01=7, op.00=5)"));
+                }
+
                 WriteHmiLog("KEB_RESTORE", restoreMsg);
                 if (txtHmiKebLog != null && !txtHmiKebLog.IsDisposed)
                 {
@@ -1482,6 +1496,68 @@ namespace DynamometerHMI
             catch (Exception ex)
             {
                 WriteHmiLog("KEB_RESTORE_ERR", string.Format("[{0}] 回寫原始參數發生異常: {1}", driveName, ex.Message));
+            }
+        }
+
+        /// <summary>
+        /// 當離開程式、關閉視窗或熱替換重啟時，強制切換變頻器回純手動模式
+        /// 規範：AB載台 op01=7, A載台 cs15=1, B載台 op00=5
+        /// </summary>
+        public void SwitchToPureManualModeOnExit()
+        {
+            try
+            {
+                WriteHmiLog("KEB_EXIT", "【離開程式·切換純手動模式】正在下達指令 (AB載台 op01=7, A載台 cs15=1, B載台 op00=5)...");
+
+                // ── A 載台 (Drive 1: 負載端 / 驅動器1) ──
+                try
+                {
+                    int com1 = GetHmiKebComIdx(1);
+                    int baud1 = GetHmiKebBaudIdx(1);
+                    int node1 = (int)numHmiKebNode1.Value;
+
+                    // 1. 安全停機與轉矩歸零
+                    KebWriteParamWithDll(com1, baud1, node1, 0x0032, 0); // Sy.50 = 0 (STOP)
+                    KebWriteParamWithDll(com1, baud1, node1, 0x0F12, 0); // cs.18 = 0
+                    Thread.Sleep(20);
+
+                    // 2. 切換純手動模式：op01 = 7, cs15 = 1
+                    KebWriteParamWithDll(com1, baud1, node1, 0x0301, 7); // op.01 = 7
+                    KebWriteParamWithDll(com1, baud1, node1, 0x0F0F, 1); // cs.15 = 1
+
+                    WriteHmiLog("KEB_EXIT", string.Format("【A載台 純手動設定完成】已成功寫入 op.01=7, cs.15=1 (COM{0}, Node={1})", com1, node1));
+                }
+                catch (Exception exA)
+                {
+                    WriteHmiLog("KEB_ERR", "A載台切換純手動模式例外: " + exA.Message);
+                }
+
+                // ── B 載台 (Drive 2: 待測端 / 驅動器2) ──
+                try
+                {
+                    int com2 = GetHmiKebComIdx(2);
+                    int baud2 = GetHmiKebBaudIdx(2);
+                    int node2 = (int)numHmiKebNode2.Value;
+
+                    // 1. 安全停機與轉矩歸零
+                    KebWriteParamWithDll(com2, baud2, node2, 0x0032, 0); // Sy.50 = 0 (STOP)
+                    KebWriteParamWithDll(com2, baud2, node2, 0x0F12, 0); // cs.18 = 0
+                    Thread.Sleep(20);
+
+                    // 2. 切換純手動模式：op01 = 7, op00 = 5
+                    KebWriteParamWithDll(com2, baud2, node2, 0x0301, 7); // op.01 = 7
+                    KebWriteParamWithDll(com2, baud2, node2, 0x0300, 5); // op.00 = 5
+
+                    WriteHmiLog("KEB_EXIT", string.Format("【B載台 純手動設定完成】已成功寫入 op.01=7, op.00=5 (COM{0}, Node={1})", com2, node2));
+                }
+                catch (Exception exB)
+                {
+                    WriteHmiLog("KEB_ERR", "B載台切換純手動模式例外: " + exB.Message);
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteHmiLog("KEB_ERR", "SwitchToPureManualModeOnExit 例外: " + ex.Message);
             }
         }
 
