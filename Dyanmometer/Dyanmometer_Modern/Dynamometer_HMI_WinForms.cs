@@ -3634,7 +3634,7 @@ namespace DynamometerHMI
             };
             lblKebModeParams1 = new Label()
             {
-                Text = "🔍 系統判斷：【未連線 / 待開啟 COM 埠】",
+                Text = "[診斷] 系統判斷：【未連線 / 待開啟 COM 埠】",
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(15, 23, 42),
@@ -4035,7 +4035,7 @@ namespace DynamometerHMI
             };
             lblKebModeParams2 = new Label()
             {
-                Text = "🔍 系統判斷：【未連線 / 待開啟 COM 埠】",
+                Text = "[診斷] 系統判斷：【未連線 / 待開啟 COM 埠】",
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(15, 23, 42),
@@ -4648,7 +4648,7 @@ namespace DynamometerHMI
             btnTnMiniStart.Click += (s, e) => { BtnStartTn_Click(s, e); };
             btnTnMiniStop = new Button() { Text = "⏹️ 停止", Size = new Size(60, 28), BackColor = Color.FromArgb(239, 68, 68), ForeColor = Color.White, Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold), Enabled = false };
             btnTnMiniStop.Click += (s, e) => { StopTnTest(); };
-            Button btnTnMiniViewTab = new Button() { Text = "🔍 查看大圖", Size = new Size(82, 28), BackColor = Color.FromArgb(100, 116, 139), ForeColor = Color.White, Font = new Font("微軟正黑體", 8.5f) };
+            Button btnTnMiniViewTab = new Button() { Text = "[檢視] 查看大圖", Size = new Size(82, 28), BackColor = Color.FromArgb(100, 116, 139), ForeColor = Color.White, Font = new Font("微軟正黑體", 8.5f) };
             btnTnMiniViewTab.Click += (s, e) => { if (tabControl != null && tabControl.TabPages.Count > 1) tabControl.SelectedIndex = 1; };
             pnlTnMiniBtns.Controls.AddRange(new Control[] { btnTnMiniStart, btnTnMiniStop, btnTnMiniViewTab });
 
@@ -4891,7 +4891,7 @@ namespace DynamometerHMI
             btnDutyMiniStart.Click += (s, e) => { BtnStartDuty_Click(s, e); };
             btnDutyMiniStop = new Button() { Text = "⏹️ 停止", Size = new Size(60, 28), BackColor = Color.FromArgb(239, 68, 68), ForeColor = Color.White, Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold), Enabled = false };
             btnDutyMiniStop.Click += (s, e) => { StopDutyTest(); };
-            Button btnDutyMiniViewTab = new Button() { Text = "🔍 查看大圖", Size = new Size(82, 28), BackColor = Color.FromArgb(100, 116, 139), ForeColor = Color.White, Font = new Font("微軟正黑體", 8.5f) };
+            Button btnDutyMiniViewTab = new Button() { Text = "[檢視] 查看大圖", Size = new Size(82, 28), BackColor = Color.FromArgb(100, 116, 139), ForeColor = Color.White, Font = new Font("微軟正黑體", 8.5f) };
             btnDutyMiniViewTab.Click += (s, e) => { if (tabControl != null && tabControl.TabPages.Count > 2) tabControl.SelectedIndex = 2; };
             pnlDutyMiniBtns.Controls.AddRange(new Control[] { btnDutyMiniStart, btnDutyMiniStop, btnDutyMiniViewTab });
 
@@ -4930,7 +4930,7 @@ namespace DynamometerHMI
             FlowLayoutPanel pnlEffBtns = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, Margin = new Padding(0) };
             Button btnEffMiniGen = new Button() { Text = "⚡ 產生測試矩陣", Size = new Size(110, 28), BackColor = Color.FromArgb(0, 180, 216), ForeColor = Color.White, Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold) };
             btnEffMiniGen.Click += (s, e) => { BtnGenEffMap_Click(s, e); };
-            Button btnEffMiniViewTab = new Button() { Text = "🔍 檢視完整效率地圖", Size = new Size(130, 28), BackColor = Color.FromArgb(100, 116, 139), ForeColor = Color.White, Font = new Font("微軟正黑體", 8.5f) };
+            Button btnEffMiniViewTab = new Button() { Text = "[檢視] 檢視完整效率地圖", Size = new Size(130, 28), BackColor = Color.FromArgb(100, 116, 139), ForeColor = Color.White, Font = new Font("微軟正黑體", 8.5f) };
             btnEffMiniViewTab.Click += (s, e) => { if (tabControl != null && tabControl.TabPages.Count > 3) tabControl.SelectedIndex = 3; };
             pnlEffBtns.Controls.AddRange(new Control[] { btnEffMiniGen, btnEffMiniViewTab });
 

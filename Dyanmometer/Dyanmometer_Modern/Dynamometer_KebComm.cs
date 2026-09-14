@@ -768,7 +768,7 @@ namespace DynamometerHMI
         ///  - 擴展高解析度模式：Scale = 0.0001 Hz (raw >= 100000)
         /// 徹底根治因誤用 0.0001 Scale 導致 2060 被誤算為 0.206 Hz (顯示 0.21 Hz) 的缺陷！
         /// </summary>
-        public static double ConvertKebUf00ToFrequency(int rawUf00, int driveId = 0)
+        public static double ConvertKebUf00ToFrequency(int rawUf00, double refDrFreq = 0.0)
         {
             if (rawUf00 <= 0) return 0.0;
             double raw = (double)rawUf00;
@@ -779,35 +779,68 @@ namespace DynamometerHMI
                 return raw * 0.0001;
             }
 
-            // 2. 特殊高脈衝 4000+ units 模式 (例如 4120 * 0.0125 = 51.5 Hz, 4000 * 0.0125 = 50.0 Hz)
-            if (raw >= 3500 && (raw * 0.0125 >= 10.0 && raw * 0.0125 <= 150.0))
+            // 2. 閉環參考校驗：若外部已知 dr.05 額定頻率 (如 51.5 Hz)，以誤差最小者優先鎖定！
+            if (refDrFreq >= 20.0 && refDrFreq <= 400.0)
+            {
+                double err05 = Math.Abs((raw * 0.05) - refDrFreq);
+                double err025 = Math.Abs((raw * 0.025) - refDrFreq);
+                double err0125 = Math.Abs((raw * 0.0125) - refDrFreq);
+                double err01 = Math.Abs((raw * 0.1) - refDrFreq);
+
+                if (err05 < 0.25) return raw * 0.05;
+                if (err025 < 0.25) return raw * 0.025;
+                if (err0125 < 0.25) return raw * 0.0125;
+                if (err01 < 0.25) return raw * 0.1;
+            }
+
+            // 3. 工業標準基頻先驗判定 (45.0 Hz ~ 75.0 Hz，涵蓋 50Hz, 51.5Hz, 60Hz 典型馬達基頻)
+            //    例如 raw = 1030: raw * 0.05 = 51.50 Hz (完美命中！若誤用 0.025 則會落入荒謬的 25.8 Hz)
+            if (raw * 0.05 >= 45.0 && raw * 0.05 <= 75.0)
+            {
+                return raw * 0.05;
+            }
+
+            //    例如 raw = 2060: raw * 0.025 = 51.50 Hz (完美命中！)
+            if (raw * 0.025 >= 45.0 && raw * 0.025 <= 75.0)
+            {
+                return raw * 0.025;
+            }
+
+            //    例如 raw = 4120: raw * 0.0125 = 51.50 Hz (完美命中！)
+            if (raw * 0.0125 >= 45.0 && raw * 0.0125 <= 75.0)
             {
                 return raw * 0.0125;
             }
 
-            // 3. KEB COMBIVERT F5 uF.00 基頻標準解析度一律為 0.025 Hz (1 Hz = 40 units)
-            //    例如 51.5 Hz 儲存為 2060 (2060 * 0.025 = 51.50 Hz)
-            //         50.0 Hz 儲存為 2000 (2000 * 0.025 = 50.00 Hz)
-            //         60.0 Hz 儲存為 2400 (2400 * 0.025 = 60.00 Hz)
-            double freq0025 = raw * 0.025;
-            if (freq0025 >= 5.0 && freq0025 <= 400.0)
-            {
-                return freq0025;
-            }
-
-            // 4. 備援判定：若為 0.1 Hz 單位 (515 * 0.1 = 51.5 Hz)
-            if (raw >= 100 && raw <= 4000 && (raw * 0.1 >= 5.0 && raw * 0.1 <= 400.0))
+            //    例如 raw = 515: raw * 0.1 = 51.50 Hz
+            if (raw * 0.1 >= 45.0 && raw * 0.1 <= 75.0)
             {
                 return raw * 0.1;
             }
 
-            // 5. 備援判定：若為整數 Hz (50 或 51 或 60)
+            // 4. 特殊高脈衝模式 (raw >= 3500)
+            if (raw >= 3500 && (raw * 0.0125 >= 10.0 && raw * 0.0125 <= 400.0))
+            {
+                return raw * 0.0125;
+            }
+
+            // 5. 通用 0.05 Hz 與 0.025 Hz 區間備援
+            if (raw * 0.05 >= 10.0 && raw * 0.05 <= 400.0)
+            {
+                return raw * 0.05;
+            }
+            if (raw * 0.025 >= 10.0 && raw * 0.025 <= 400.0)
+            {
+                return raw * 0.025;
+            }
+
+            // 6. 整數 Hz 備援
             if (raw >= 10.0 && raw <= 400.0)
             {
                 return raw;
             }
 
-            return freq0025;
+            return raw * 0.05;
         }
 
         /// <summary>
@@ -1150,7 +1183,7 @@ namespace DynamometerHMI
                 else diagDesc = "【連線就緒，請選擇控制模式】";
             }
 
-            string realText = "🔍 系統判斷：" + diagDesc;
+            string realText = "[診斷] 系統判斷：" + diagDesc;
 
             if (this.IsHandleCreated && !this.IsDisposed)
             {
@@ -2163,13 +2196,15 @@ namespace DynamometerHMI
                                 }
                                 else if (item.Address == 0x0500)
                                 {
-                                    double ufVal = ConvertKebUf00ToFrequency(val.Value, 1);
+                                    double ufVal = ConvertKebUf00ToFrequency(val.Value, kebDrFreq1);
                                     gridUpdates.Add(Tuple.Create(r, string.Format("{0:F2} Hz", ufVal), Color.FromArgb(15, 23, 42)));
+                                    WriteHmiLog("KEB_RAW", string.Format("【A載台 uF.00 原始值】RAW={0} (0x{0:X4}) -> 解析頻率={1:F2}Hz", val.Value, ufVal));
                                 }
                                 else if (item.Address == 0x0405 || item.Address == 0x0605)
                                 {
                                     double drVal = ConvertKebDr05ToFrequency(val.Value);
                                     gridUpdates.Add(Tuple.Create(r, string.Format("{0:F1} Hz", drVal), Color.FromArgb(15, 23, 42)));
+                                    WriteHmiLog("KEB_RAW", string.Format("【A載台 dr.05 原始值】RAW={0} (0x{0:X4}) -> 解析頻率={1:F1}Hz", val.Value, drVal));
                                 }
                                 else
                                 {
@@ -2403,13 +2438,15 @@ namespace DynamometerHMI
                                 }
                                 else if (item.Address == 0x0500)
                                 {
-                                    double ufVal = ConvertKebUf00ToFrequency(val.Value, 2);
+                                    double ufVal = ConvertKebUf00ToFrequency(val.Value, kebDrFreq2);
                                     gridUpdates.Add(Tuple.Create(r, string.Format("{0:F2} Hz", ufVal), Color.FromArgb(15, 23, 42)));
+                                    WriteHmiLog("KEB_RAW", string.Format("【B載台 uF.00 原始值】RAW={0} (0x{0:X4}) -> 解析頻率={1:F2}Hz", val.Value, ufVal));
                                 }
                                 else if (item.Address == 0x0405 || item.Address == 0x0605)
                                 {
                                     double drVal = ConvertKebDr05ToFrequency(val.Value);
                                     gridUpdates.Add(Tuple.Create(r, string.Format("{0:F1} Hz", drVal), Color.FromArgb(15, 23, 42)));
+                                    WriteHmiLog("KEB_RAW", string.Format("【B載台 dr.05 原始值】RAW={0} (0x{0:X4}) -> 解析頻率={1:F1}Hz", val.Value, drVal));
                                 }
                                 else
                                 {

@@ -38,7 +38,7 @@ namespace DynamometerHMI
         private bool isCloudUploadRunning = false;
 
         // ── 軟體線上熱更新設定 (Online Auto-Update & In-Place Hot Swap) ──────
-        public const string APP_VERSION = "2.10.67";
+        public const string APP_VERSION = "2.10.68";
         public string cloudUpdateManifestUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/update/version.json";
         public Button btnOnlineUpdate = null;
         private bool? lastCloudUploadSuccess = null;
@@ -1391,7 +1391,7 @@ namespace DynamometerHMI
 
                 Button btnNetDiag = new Button()
                 {
-                    Text = "🔍 網卡架構診斷",
+                    Text = "[診斷] 網卡架構診斷",
                     Location = new System.Drawing.Point(170, 395),
                     Size = new System.Drawing.Size(145, 42),
                     BackColor = System.Drawing.Color.FromArgb(16, 185, 129),

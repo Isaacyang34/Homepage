@@ -1817,7 +1817,19 @@ namespace DynamometerDeviceTester
 
                     if (res == 0 && ack == 0)
                     {
-                        return BitConverter.ToInt32(rxBuf, 24);
+                        int val = BitConverter.ToInt32(rxBuf, 24);
+                        if (paramAddr == 0x0500 || paramAddr == 0x0605 || paramAddr == 0x0405 || paramAddr == 0x0509 || paramAddr == 0x0600 || paramAddr == 0x0601 || paramAddr == 0x0602)
+                        {
+                            MainForm.WriteHmiLog("KEB_RAW_COMM", string.Format("Read Node={0} Addr=0x{1:X4} Set={2} -> res={3}, ack={4}, val={5} (0x{5:X4})", invAddr, paramAddr, paramSet, res, ack, val));
+                        }
+                        return val;
+                    }
+                    else
+                    {
+                        if (paramAddr == 0x0500 || paramAddr == 0x0605 || paramAddr == 0x0405)
+                        {
+                            MainForm.WriteHmiLog("KEB_RAW_COMM", string.Format("Read Node={0} Addr=0x{1:X4} Set={2} -> FAIL (res={3}, ack={4})", invAddr, paramAddr, paramSet, res, ack));
+                        }
                     }
                 }
                 catch { activeKebComIndex = -1; try { closechannels(); } catch { } }
@@ -2281,7 +2293,7 @@ namespace DynamometerDeviceTester
 
             Button btnPowerMatrixDump = new Button()
             {
-                Text = "🔍 128暫存器全矩陣Dump獵捕",
+                Text = "[Dump] 128暫存器全矩陣Dump獵捕",
                 Location = new Point(8, 20),
                 Size = new Size(180, 48),
                 BackColor = Color.FromArgb(139, 92, 246),

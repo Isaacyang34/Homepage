@@ -1547,12 +1547,20 @@ namespace DynamometerHMI
                               KebReadParamWithDll(com, baud, node, 0x0401, 0) ?? KebReadParamWithDll(com, baud, node, 0x0401, 1);
                 int? r_dr02 = KebReadParamWithDll(com, baud, node, 0x0602, 0) ?? KebReadParamWithDll(com, baud, node, 0x0602, 1) ??
                               KebReadParamWithDll(com, baud, node, 0x0402, 0) ?? KebReadParamWithDll(com, baud, node, 0x0402, 1);
-                int? r_dr05 = KebReadParamWithDll(com, baud, node, 0x0605, 0) ?? KebReadParamWithDll(com, baud, node, 0x0605, 1) ??
-                              KebReadParamWithDll(com, baud, node, 0x0405, 0) ?? KebReadParamWithDll(com, baud, node, 0x0405, 1);
+                // 讀取 dr 銘牌參數 (優先讀取 0x0605，相容 0x0405)
+                int? r_dr05_s0 = KebReadParamWithDll(com, baud, node, 0x0605, 0);
+                int? r_dr05_s1 = KebReadParamWithDll(com, baud, node, 0x0605, 1);
+                int? r_dr05_4_s0 = KebReadParamWithDll(com, baud, node, 0x0405, 0);
+                int? r_dr05 = r_dr05_s0 ?? r_dr05_s1 ?? r_dr05_4_s0;
 
                 // 讀取 uf 特性參數 (uf00 頻率, uf09 基準電壓)
-                int? r_uf00 = KebReadParamWithDll(com, baud, node, 0x0500, 1) ?? KebReadParamWithDll(com, baud, node, 0x0500, 0);
-                int? r_uf09 = KebReadParamWithDll(com, baud, node, 0x0509, 1) ?? KebReadParamWithDll(com, baud, node, 0x0509, 0);
+                int? r_uf00_s1 = KebReadParamWithDll(com, baud, node, 0x0500, 1);
+                int? r_uf00_s0 = KebReadParamWithDll(com, baud, node, 0x0500, 0);
+                int? r_uf00 = r_uf00_s1 ?? r_uf00_s0;
+
+                int? r_uf09_s1 = KebReadParamWithDll(com, baud, node, 0x0509, 1);
+                int? r_uf09_s0 = KebReadParamWithDll(com, baud, node, 0x0509, 0);
+                int? r_uf09 = r_uf09_s1 ?? r_uf09_s0;
 
                 double drFreq = 0.0;
                 if (r_dr05.HasValue)
@@ -1563,8 +1571,23 @@ namespace DynamometerHMI
                 double ufFreq = 0.0;
                 if (r_uf00.HasValue)
                 {
-                    ufFreq = ConvertKebUf00ToFrequency(r_uf00.Value, driveId);
+                    ufFreq = ConvertKebUf00ToFrequency(r_uf00.Value, drFreq);
                 }
+
+                int rawUf00Val = r_uf00.HasValue ? r_uf00.Value : 0;
+                int rawDr05Val = r_dr05.HasValue ? r_dr05.Value : 0;
+
+                string rawDiagStr = string.Format(
+                    "【[RAW] KEB 原始暫存器 RAW 遙測分析】{0} (COM{1}/Baud{2}/Node{3}):\r\n" +
+                    "  • uF.00 (0x0500): Raw={4} (HEX: 0x{4:X4}) [Set1={5}, Set0={6}]\r\n" +
+                    "    -> 比例試算: x0.05={7:F2}Hz, x0.025={8:F2}Hz, x0.0125={9:F2}Hz, x0.1={10:F2}Hz | 最終解析={11:F2}Hz\r\n" +
+                    "  • dr.05 (0x0605): Raw={12} (HEX: 0x{12:X4}) [Set0={13}, Set1={14}, 0x0405={15}] | 最終解析={16:F1}Hz",
+                    dName, com, baud, node,
+                    rawUf00Val, (r_uf00_s1.HasValue ? r_uf00_s1.Value.ToString() : "null"), (r_uf00_s0.HasValue ? r_uf00_s0.Value.ToString() : "null"),
+                    rawUf00Val * 0.05, rawUf00Val * 0.025, rawUf00Val * 0.0125, rawUf00Val * 0.1, ufFreq,
+                    rawDr05Val, (r_dr05_s0.HasValue ? r_dr05_s0.Value.ToString() : "null"), (r_dr05_s1.HasValue ? r_dr05_s1.Value.ToString() : "null"), (r_dr05_4_s0.HasValue ? r_dr05_4_s0.Value.ToString() : "null"), drFreq);
+
+                WriteHmiLog("KEB_RAW_DUMP", rawDiagStr);
 
                 double drVolt = r_dr02.HasValue ? r_dr02.Value : 0.0;
                 double ufVolt = r_uf09.HasValue ? r_uf09.Value : 0.0;
@@ -1594,6 +1617,15 @@ namespace DynamometerHMI
                 WriteHmiLog("KEB_SYNC", string.Format("【dr/uf 參數蒐集】{0}: dr00={1:F1}A, dr01={2}rpm, dr02={3}V, dr05={4:F1}Hz | uf00={5:F1}Hz, uf09={6}V | 同步: {7}",
                     dName, drCurr, r_dr01.HasValue ? r_dr01.Value.ToString() : "--", drVolt, drFreq, ufFreq, ufVolt, (unSyncItems.Count == 0 ? "已同步" : "未同步")));
 
+                string popupRawBox = string.Format(
+                    "--------------------------------------------------\r\n" +
+                    "【變頻器實測 RAW 暫存器數據】\r\n" +
+                    "• uF.00 (0x0500): Raw={0} (0x{0:X4}) -> 解析: {1:F2} Hz\r\n" +
+                    "  [各比例: x0.05={2:F1}Hz, x0.025={3:F1}Hz, x0.1={4:F1}Hz]\r\n" +
+                    "• dr.05 (0x0605): Raw={5} (0x{5:X4}) -> 解析: {6:F1} Hz\r\n" +
+                    "--------------------------------------------------",
+                    rawUf00Val, ufFreq, rawUf00Val * 0.05, rawUf00Val * 0.025, rawUf00Val * 0.1, rawDr05Val, drFreq);
+
                 if (unSyncItems.Count > 0)
                 {
                     string warnMsg = string.Format("【[!] KEB 內部參數未同步提醒】\r\n\r\n" +
@@ -1601,6 +1633,7 @@ namespace DynamometerHMI
                         string.Join("\r\n", unSyncItems.ToArray()) + "\r\n\r\n" +
                         "• 實測 dr 參數: dr01={1}rpm, dr00={2:F1}A, dr02={3:F0}V, dr05={4:F1}Hz\r\n" +
                         "• 實測 uf 參數: uf00={5:F1}Hz, uf09={6:F0}V\r\n\r\n" +
+                        popupRawBox + "\r\n\r\n" +
                         "※ 提醒：請確認變頻器內部設定是否正確！",
                         dName, r_dr01.HasValue ? r_dr01.Value.ToString() : "--", drCurr, drVolt, drFreq, ufFreq, ufVolt);
 
@@ -1617,6 +1650,7 @@ namespace DynamometerHMI
                             "• 額定電壓: {3:F0} V (dr.02={3:F0} V, uf.09={4:F0} V)\r\n" +
                             "• 額定電流: {5:F1} A (dr.00)\r\n" +
                             "• 額定轉速: {6} rpm (dr.01)\r\n\r\n" +
+                            popupRawBox + "\r\n\r\n" +
                             "變頻器參數設定良好！",
                             dName, drFreq, ufFreq, drVolt, ufVolt, drCurr, r_dr01.HasValue ? r_dr01.Value.ToString() : "--");
 
