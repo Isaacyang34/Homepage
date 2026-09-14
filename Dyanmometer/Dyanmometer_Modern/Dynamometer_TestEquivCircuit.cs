@@ -1557,9 +1557,7 @@ namespace DynamometerHMI
                 double drFreq = 0.0;
                 if (r_dr05.HasValue)
                 {
-                    if (r_dr05.Value >= 200) drFreq = r_dr05.Value * 0.1;
-                    else if (r_dr05.Value == 50 || r_dr05.Value == 60) drFreq = r_dr05.Value;
-                    else drFreq = r_dr05.Value;
+                    drFreq = ConvertKebDr05ToFrequency(r_dr05.Value);
                 }
 
                 double ufFreq = 0.0;

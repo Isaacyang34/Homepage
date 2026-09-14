@@ -814,6 +814,38 @@ namespace DynamometerHMI
             return raw * stdScale;
         }
 
+        /// <summary>
+        /// KEB COMBIVERT F5 dr.05 (0x0605 / 0x0405) 馬達額定頻率統一智能解義：
+        ///  - 原廠規範通常以 0.1 Hz 儲存 (例如 51.5 Hz 儲存為 515, 50.0 Hz 儲存為 500)
+        ///  - 部分直接以整數 Hz 儲存 (50, 60)
+        /// 全系統 (即時監控、堵轉同步、極數辨識) 100% 統一調用此函式，根除解義分裂！
+        /// </summary>
+        public static double ConvertKebDr05ToFrequency(int rawDr05)
+        {
+            if (rawDr05 <= 0) return 0.0;
+            double raw = (double)rawDr05;
+
+            // 1. 標準 0.1 Hz 解析 (例如 515 * 0.1 = 51.5 Hz)
+            if (raw >= 200)
+            {
+                return raw * 0.1;
+            }
+
+            // 2. 直接整數 Hz (例如 50, 60)
+            if (raw == 50 || raw == 60)
+            {
+                return raw;
+            }
+
+            // 3. 一般介於 10~400 Hz 範圍
+            if (raw >= 10.0 && raw <= 400.0)
+            {
+                return raw;
+            }
+
+            return raw * 0.1;
+        }
+
         private bool EnsureHmiKebOpen1()
         {
             if (isHmiKebOpen1) return true;
@@ -1187,9 +1219,8 @@ namespace DynamometerHMI
                 double drFreq = 0.0;
                 if (r_dr05.HasValue && r_dr05.Value > 0)
                 {
-                    if (r_dr05.Value >= 200) drFreq = (double)r_dr05.Value * 0.1;
-                    else if (r_dr05.Value == 50 || r_dr05.Value == 60) drFreq = (double)r_dr05.Value;
-                    else if (r_dr05.Value < 20 && drSpeed > 500)
+                    drFreq = ConvertKebDr05ToFrequency(r_dr05.Value);
+                    if (drFreq < 10.0 && drSpeed > 500)
                     {
                         drFreq = ((drSpeed >= 1600 && drSpeed <= 1800) || (drSpeed >= 3200 && drSpeed <= 3600) || (drSpeed >= 1100 && drSpeed <= 1200)) ? 60.0 : 50.0;
                     }
@@ -2040,6 +2071,20 @@ namespace DynamometerHMI
                         }
 
                         int? val = KebReadParamWithDll(comIdx, baudIdx, addr, item.Address);
+                        // KEB F5 dr 銘牌參數雙向相容探測 (0x0600~0x0618 與 0x0400~0x0418)
+                        if ((!val.HasValue || val.Value == 0) && item.Address >= 0x0400 && item.Address <= 0x0418)
+                        {
+                            int altAddr = 0x0600 + (item.Address - 0x0400);
+                            val = KebReadParamWithDll(comIdx, baudIdx, addr, altAddr, 0) ??
+                                  KebReadParamWithDll(comIdx, baudIdx, addr, altAddr, 1) ?? val;
+                        }
+                        else if ((!val.HasValue || val.Value == 0) && item.Address >= 0x0600 && item.Address <= 0x0618)
+                        {
+                            int altAddr = 0x0400 + (item.Address - 0x0600);
+                            val = KebReadParamWithDll(comIdx, baudIdx, addr, altAddr, 0) ??
+                                  KebReadParamWithDll(comIdx, baudIdx, addr, altAddr, 1) ?? val;
+                        }
+
                         if (val.HasValue)
                         {
                             successCount++;
@@ -2111,6 +2156,11 @@ namespace DynamometerHMI
                                 {
                                     double ufVal = ConvertKebUf00ToFrequency(val.Value, 1);
                                     gridUpdates.Add(Tuple.Create(r, string.Format("{0:F2} Hz", ufVal), Color.FromArgb(15, 23, 42)));
+                                }
+                                else if (item.Address == 0x0405 || item.Address == 0x0605)
+                                {
+                                    double drVal = ConvertKebDr05ToFrequency(val.Value);
+                                    gridUpdates.Add(Tuple.Create(r, string.Format("{0:F1} Hz", drVal), Color.FromArgb(15, 23, 42)));
                                 }
                                 else
                                 {
@@ -2254,6 +2304,20 @@ namespace DynamometerHMI
                         }
 
                         int? val = KebReadParamWithDll(comIdx, baudIdx, addr, item.Address);
+                        // KEB F5 dr 銘牌參數雙向相容探測 (0x0600~0x0618 與 0x0400~0x0418)
+                        if ((!val.HasValue || val.Value == 0) && item.Address >= 0x0400 && item.Address <= 0x0418)
+                        {
+                            int altAddr = 0x0600 + (item.Address - 0x0400);
+                            val = KebReadParamWithDll(comIdx, baudIdx, addr, altAddr, 0) ??
+                                  KebReadParamWithDll(comIdx, baudIdx, addr, altAddr, 1) ?? val;
+                        }
+                        else if ((!val.HasValue || val.Value == 0) && item.Address >= 0x0600 && item.Address <= 0x0618)
+                        {
+                            int altAddr = 0x0400 + (item.Address - 0x0600);
+                            val = KebReadParamWithDll(comIdx, baudIdx, addr, altAddr, 0) ??
+                                  KebReadParamWithDll(comIdx, baudIdx, addr, altAddr, 1) ?? val;
+                        }
+
                         if (val.HasValue)
                         {
                             successCount++;
@@ -2326,6 +2390,11 @@ namespace DynamometerHMI
                                     double ufVal = ConvertKebUf00ToFrequency(val.Value, 2);
                                     gridUpdates.Add(Tuple.Create(r, string.Format("{0:F2} Hz", ufVal), Color.FromArgb(15, 23, 42)));
                                 }
+                                else if (item.Address == 0x0405 || item.Address == 0x0605)
+                                {
+                                    double drVal = ConvertKebDr05ToFrequency(val.Value);
+                                    gridUpdates.Add(Tuple.Create(r, string.Format("{0:F1} Hz", drVal), Color.FromArgb(15, 23, 42)));
+                                }
                                 else
                                 {
                                     double scale = (item.Address == 0x0034) ? 1.0 : item.Scale;
@@ -2359,8 +2428,7 @@ namespace DynamometerHMI
                     if (r_dr01.HasValue && r_dr01.Value > 0)
                     {
                         kebDrSpeed2 = (double)r_dr01.Value;
-                        if (r_dr05.HasValue && r_dr05.Value >= 200) kebDrFreq2 = (double)r_dr05.Value * 0.1;
-                        else if (r_dr05.HasValue && (r_dr05.Value == 50 || r_dr05.Value == 60)) kebDrFreq2 = (double)r_dr05.Value;
+                        if (r_dr05.HasValue) kebDrFreq2 = ConvertKebDr05ToFrequency(r_dr05.Value);
                         else kebDrFreq2 = ((kebDrSpeed2 >= 1600 && kebDrSpeed2 <= 1800) || (kebDrSpeed2 >= 3200 && kebDrSpeed2 <= 3600)) ? 60.0 : 50.0;
                         
                         kebMotorPoles2 = (int)Math.Round(120.0 * kebDrFreq2 / kebDrSpeed2);

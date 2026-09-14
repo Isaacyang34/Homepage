@@ -3112,18 +3112,18 @@ namespace DynamometerHMI
                 new { Title = "【cs.18】數位轉矩設定 (0x0F12 / 0.1 %)",           Name = "數位轉矩 (cs18)", Addr = "0F12", Scale = "0.1",    Unit = "%",   IsHex = false, IsStatus = false },
                 new { Title = "【cs.19】轉矩基準額定 (0x0F13 / 0.01 Nm)",        Name = "轉矩基準 (cs19)", Addr = "0F13", Scale = "0.01",   Unit = "Nm",  IsHex = false, IsStatus = false },
 
-                // --- 【dr 馬達銘牌群組 (依據 Combivis 實機校驗)】 ---
-                new { Title = "【dr.00】馬達額定電流 (0x0400 / 0.1 A)",          Name = "額定電流 (dr00)", Addr = "0400", Scale = "0.1",    Unit = "A",   IsHex = false, IsStatus = false },
-                new { Title = "【dr.01】馬達額定轉速 (0x0401 / 1.0 rpm)",        Name = "額定轉速 (dr01)", Addr = "0401", Scale = "1.0",    Unit = "rpm", IsHex = false, IsStatus = false },
-                new { Title = "【dr.02】馬達額定電壓 (0x0402 / 1.0 V)",          Name = "額定電壓 (dr02)", Addr = "0402", Scale = "1.0",    Unit = "V",   IsHex = false, IsStatus = false },
-                new { Title = "【dr.03】馬達額定功率 (0x0403 / 0.01 kW)",        Name = "額定功率 (dr03)", Addr = "0403", Scale = "0.01",   Unit = "kW",  IsHex = false, IsStatus = false },
-                new { Title = "【dr.04】馬達功率因數 (0x0404 / 0.01)",           Name = "功率因數 (dr04)", Addr = "0404", Scale = "0.01",   Unit = "",    IsHex = false, IsStatus = false },
-                new { Title = "【dr.05】馬達額定頻率 (0x0405 / 0.1 Hz)",         Name = "額定頻率 (dr05)", Addr = "0405", Scale = "0.1",    Unit = "Hz",  IsHex = false, IsStatus = false },
-                new { Title = "【dr.14】馬達額定轉矩 (0x040E / 0.01 Nm)",        Name = "額定轉矩 (dr14)", Addr = "040E", Scale = "0.01",   Unit = "Nm",  IsHex = false, IsStatus = false },
-                new { Title = "【dr.15】最大轉矩極限 (0x040F / 0.01 Nm)",        Name = "最大轉矩 (dr15)", Addr = "040F", Scale = "0.01",   Unit = "Nm",  IsHex = false, IsStatus = false },
-                new { Title = "【dr.16】最高補償轉矩 (0x0410 / 0.01 Nm)",        Name = "補償轉矩 (dr16)", Addr = "0410", Scale = "0.01",   Unit = "Nm",  IsHex = false, IsStatus = false },
-                new { Title = "【dr.17】最高轉矩轉速 (0x0411 / 1.0 rpm)",        Name = "滿扭轉速 (dr17)", Addr = "0411", Scale = "1.0",    Unit = "rpm", IsHex = false, IsStatus = false },
-                new { Title = "【dr.18】弱磁轉速設定 (0x0412 / 1.0 rpm)",        Name = "弱磁轉速 (dr18)", Addr = "0412", Scale = "1.0",    Unit = "rpm", IsHex = false, IsStatus = false },
+                // --- 【dr 馬達銘牌群組 (依據 Combivis 實機校驗，0x06xx 優先，相容 0x04xx)】 ---
+                new { Title = "【dr.00】馬達額定電流 (0x0600 / 0.1 A)",          Name = "額定電流 (dr00)", Addr = "0600", Scale = "0.1",    Unit = "A",   IsHex = false, IsStatus = false },
+                new { Title = "【dr.01】馬達額定轉速 (0x0601 / 1.0 rpm)",        Name = "額定轉速 (dr01)", Addr = "0601", Scale = "1.0",    Unit = "rpm", IsHex = false, IsStatus = false },
+                new { Title = "【dr.02】馬達額定電壓 (0x0602 / 1.0 V)",          Name = "額定電壓 (dr02)", Addr = "0602", Scale = "1.0",    Unit = "V",   IsHex = false, IsStatus = false },
+                new { Title = "【dr.03】馬達額定功率 (0x0603 / 0.01 kW)",        Name = "額定功率 (dr03)", Addr = "0603", Scale = "0.01",   Unit = "kW",  IsHex = false, IsStatus = false },
+                new { Title = "【dr.04】馬達功率因數 (0x0604 / 0.01)",           Name = "功率因數 (dr04)", Addr = "0604", Scale = "0.01",   Unit = "",    IsHex = false, IsStatus = false },
+                new { Title = "【dr.05】馬達額定頻率 (0x0605 / 0.1 Hz)",         Name = "額定頻率 (dr05)", Addr = "0605", Scale = "0.1",    Unit = "Hz",  IsHex = false, IsStatus = false },
+                new { Title = "【dr.14】馬達額定轉矩 (0x060E / 0.01 Nm)",        Name = "額定轉矩 (dr14)", Addr = "060E", Scale = "0.01",   Unit = "Nm",  IsHex = false, IsStatus = false },
+                new { Title = "【dr.15】最大轉矩極限 (0x060F / 0.01 Nm)",        Name = "最大轉矩 (dr15)", Addr = "060F", Scale = "0.01",   Unit = "Nm",  IsHex = false, IsStatus = false },
+                new { Title = "【dr.16】最高補償轉矩 (0x0610 / 0.01 Nm)",        Name = "補償轉矩 (dr16)", Addr = "0610", Scale = "0.01",   Unit = "Nm",  IsHex = false, IsStatus = false },
+                new { Title = "【dr.17】最高轉矩轉速 (0x0611 / 1.0 rpm)",        Name = "滿扭轉速 (dr17)", Addr = "0611", Scale = "1.0",    Unit = "rpm", IsHex = false, IsStatus = false },
+                new { Title = "【dr.18】弱磁轉速設定 (0x0612 / 1.0 rpm)",        Name = "弱磁轉速 (dr18)", Addr = "0612", Scale = "1.0",    Unit = "rpm", IsHex = false, IsStatus = false },
 
                 // --- 【uF 曲線群組 (依據 Combivis 實機校驗)】 ---
                 new { Title = "【uF.00】額定頻率 (0x0500 / 0.025 Hz)",           Name = "額定頻率 (uF00)", Addr = "0500", Scale = "0.025",  Unit = "Hz",  IsHex = false, IsStatus = false },
