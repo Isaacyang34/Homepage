@@ -1472,6 +1472,33 @@ namespace DynamometerHMI
             }
         }
 
+        // 堵轉停機轉速歸零安全處置 (將 Sy.52 與 oP.03 寫入 0，防止下次啟動直接給予殘留轉速)
+        private void ClearLockedSpeedCmd(string reason)
+        {
+            try
+            {
+                int driveId = (cmbEquivKebDrive != null && cmbEquivKebDrive.SelectedIndex == 1) ? 1 : 2;
+                string dName = (driveId == 1) ? "A載台" : "B載台";
+                int com = GetHmiKebComIdx(driveId);
+                int baud = GetHmiKebBaudIdx(driveId);
+                int node = (driveId == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
+
+                // 1. Sy.52 (0x0034) 寫入 0
+                KebWriteParam32(com, baud, node, 0x0034, 0, dName + " 停機轉速歸零 (Sy.52=0)");
+                try { KebWriteParamWithDll(com, baud, node, 0x0034, 0); } catch { }
+
+                // 2. oP.03 (0x0303) 寫入 0
+                KebWriteParam32(com, baud, node, 0x0303, 0, dName + " 停機過程數據轉速歸零 (oP.03=0)");
+                try { KebWriteParamWithDll(com, baud, node, 0x0303, 0); } catch { }
+
+                WriteHmiLog("KEB_SPEED", string.Format("【停機轉速歸零】{0} ({1}): Sy.52=0, oP.03=0 已安全清零", dName, reason));
+            }
+            catch (Exception ex)
+            {
+                WriteHmiLog("KEB_ERR", "ClearLockedSpeedCmd 異常: " + ex.Message);
+            }
+        }
+
         // 3. KEB uf09 讀取
         private void ReadCurrentUf09FromHardware()
         {
@@ -1549,10 +1576,11 @@ namespace DynamometerHMI
                 lockedOverCurrentTicks = 0;
                 lockedSpeedAnomalyTicks = 0;
 
+                ClearLockedSpeedCmd("手動點擊復歸預設");
                 bool ok = AutoRestoreUf09("手動點擊復歸預設");
                 if (ok)
                 {
-                    MessageBox.Show("已成功將 " + dName + " 的 uf09 復歸為 " + defaultV + " V！", "復歸完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("已成功將 " + dName + " 的 uf09 復歸為 " + defaultV + " V，且轉速設定值 (Sy.52 / oP.03) 已安全清零！", "復歸完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 else
                 {
@@ -1849,6 +1877,9 @@ namespace DynamometerHMI
                 lockedOverCurrentTicks = 0;
                 lockedSpeedAnomalyTicks = 0;
 
+                // 啟動前轉速清零防呆 (確保 Sy.52=0, oP.03=0)
+                ClearLockedSpeedCmd("試驗啟動前轉速清零防呆");
+
                 btnEquivAutoTuneUf09.Text = "[停止] 中止試驗";
                 btnEquivAutoTuneUf09.BackColor = Color.FromArgb(254, 226, 226);
                 if (!singleFreqMode)
@@ -1896,7 +1927,21 @@ namespace DynamometerHMI
 
             WriteHmiLog("EQUIV", "【堵轉試驗停止】" + reason);
 
-            // ★ 無論成功或失敗，只要停止後立即改回原本數值，防止下次測試卡住
+            // 1. 強制切斷變頻器輸出 (Sy.50 = 0)
+            try
+            {
+                int driveId = (cmbEquivKebDrive != null && cmbEquivKebDrive.SelectedIndex == 1) ? 1 : 2;
+                int com = GetHmiKebComIdx(driveId);
+                int baud = GetHmiKebBaudIdx(driveId);
+                int node = (driveId == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
+                KebWriteParamWithDll(com, baud, node, 0x0032, 0); // Sy.50 = 0 (停機)
+            }
+            catch { }
+
+            // 2. ★ 清空設定轉速指令 (Sy.52=0, oP.03=0)，防止下次執行直接給予殘留轉速
+            ClearLockedSpeedCmd("停止試驗轉速歸零: " + reason);
+
+            // 3. ★ 無論成功或失敗，只要停止後立即改回原本數值，防止下次測試卡住
             AutoRestoreUf09("停止試驗強制復歸: " + reason);
         }
 
@@ -2216,6 +2261,7 @@ namespace DynamometerHMI
                 isLockedSweepRunning = false;
                 isAutoTuningUf09 = false;
                 isLockedRotorActive = false;
+                ClearLockedSpeedCmd("堵轉測試線程安全結束轉速清零");
                 AutoRestoreUf09("堵轉測試線程安全結束復歸");
             }
         }
@@ -2572,11 +2618,14 @@ namespace DynamometerHMI
                 int node = (driveId == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
                 KebWriteParamWithDll(com, baud, node, 0x0032, 0); // Sy.50 = 0 (強制停機切斷輸出激磁)
 
-                // 2. KEB uf.09 立即自動恢復至額定基準電壓 (絕不殘留 0V 或低壓，防止下次測試卡住)
+                // 2. 立即清空設定轉速指令 (Sy.52=0, oP.03=0)，防止殘留轉速導致下次啟動直接給速
+                ClearLockedSpeedCmd("保護跳脫轉速歸零");
+
+                // 3. KEB uf.09 立即自動恢復至額定基準電壓 (絕不殘留 0V 或低壓，防止下次測試卡住)
                 int restoreV = GetOriginalOrRatedUf09(driveId);
                 AutoRestoreUf09("保護跳脫後自動恢復額定基準電壓");
 
-                // 3. 更新 UI 狀態
+                // 4. 更新 UI 狀態
                 if (lblLockedItemStatus != null)
                 {
                     lblLockedItemStatus.Text = "[■ 急停] 保護機制已觸發跳脫: " + title;
@@ -2593,17 +2642,18 @@ namespace DynamometerHMI
                     lblEquivCurUf09.ForeColor = Color.FromArgb(16, 185, 129);
                 }
 
-                // 4. 記錄 HMI 日誌
+                // 5. 記錄 HMI 日誌
                 WriteHmiLog("LOCKED_PROT_TRIP", string.Format("【[!] 堵轉保護緊急跳脫】{0} | 詳情: {1}", title, details.Replace("\r\n", " | ")));
 
-                // 5. 彈跳警示對話框 (詳細告知使用者跳脫原因，非程式 BUG)
+                // 6. 彈跳警示對話框 (詳細告知使用者跳脫原因，非程式 BUG)
                 string alertMsg = string.Format("[!]【堵轉安全防護機制緊急跳脫·非軟體異常】\r\n\r\n" +
                     "觸發保護類型：{0}\r\n\r\n" +
                     "【實測數據與觸發條件】：\r\n{1}\r\n\r\n" +
                     "【[防護] 系統已主動完成處置措施】：\r\n" +
                     "1. 已立即下達 Sy.50 = 0 切斷變頻器輸出 (停止定子激磁)\r\n" +
-                    "2. KEB uf.09 輸出電壓已自動復歸為額定基準值 ({2} V)，防止下次測試卡死\r\n" +
-                    "3. 自適應調壓程序已安全中止\r\n\r\n" +
+                    "2. 轉速設定值 (Sy.52 / oP.03) 已安全歸零，防止下次啟動誤帶轉速\r\n" +
+                    "3. KEB uf.09 輸出電壓已自動復歸為額定基準值 ({2} V)，防止下次測試卡死\r\n" +
+                    "4. 自適應調壓程序已安全中止\r\n\r\n" +
                     "※ 說明：此為保護馬達不致過熱燒毀及防止治具脫扣之主動安全機制。\r\n" +
                     "請確認待測馬達冷卻狀況與機械鎖死治具後，再行測試。",
                     title, details, restoreV);

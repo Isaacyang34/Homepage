@@ -8,7 +8,42 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.113 (beta) | v2.10.71 | 2026-09-14 | 徹底根除堵轉測試錯誤/停止後 Sy.52 (0x0034) 與 oP.03 (0x0303) 未清空導致下次啟動直接給予轉速之嚴重隱患：(1)現象與佐證：使用者回報「而且錯誤後的sy52也沒有清空，這樣下次執行就會直接給轉速這樣也不對」；(2)致命根因 (Root Cause)：在 `Dynamometer_TestEquivCircuit.cs` 中，堵轉測試於步驟 B 依試驗頻率向變頻器寫入目標轉速 `targetRpm` 至 Sy.52 (0x0034) 與 oP.03 (0x0303)；然而當試驗發生例外錯誤、使用者手動點擊中止、看門狗保護急停跳脫、甚至試驗正常跑完時，系統完全沒有將 Sy.52 與 oP.03 歸零；導致變頻器內部轉速指令永久殘留，若下次下達啟動 (Sy.50) 變頻器會立刻依照殘留轉速全速狂飆，造成嚴重機構破壞與安全隱患；(3)精確修復方案：在 `Dynamometer_TestEquivCircuit.cs` 建立集中安全清零函式 `ClearLockedSpeedCmd()`，向變頻器 Sy.52 (0x0034) 與 oP.03 (0x0303) 雙重寫入 0；在 `StopLockedRotorSweep()` 停止路徑 (下達 Sy.50=0 切斷激磁後同步清空 Sy.52/oP.03)、`TriggerLockedProtectionTrip()` 保護急停跳脫路徑、`LockedSweepWorker` 之 `finally` 生命週期保證區塊、`StartLockedRotorTest` 啟動前防呆、以及手動 `RevertUf09ToDefault()` 中 100% 強制執行 `ClearLockedSpeedCmd()`；更新跳脫警示訊息告知轉速設定值已安全歸零；(4)發布與驗證：升版至 2.10.71，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.71 發布。 |
 | V2.112 (beta) | v2.10.70 | 2026-09-14 | 徹底根除堵轉測試失敗或停止後 uf.09 未改回原本數值導致下次測試卡死之缺陷：(1)現象與佐證：使用者回報「堵轉測試的uf.09 測試失敗後沒有改回原本的數值，這部分要改進，無論有沒有失敗，只要停止後就要改回原本的輸入，否則要再次測試就卡住」；(2)致命根因 (Root Cause)：在 `Dynamometer_TestEquivCircuit.cs` 中，`TriggerLockedProtectionTrip()` 在保護機制跳脫時執行了 `KebWriteUf09(driveId, 0)` 將電壓強制設為 0V；且在 `StopLockedRotorSweep()`（使用者點擊中止或例外中止）與 `LockedSweepWorker` 執行緒中，皆未實作停機/退出自動回寫復歸邏輯；導致變頻器 uf.09 (0x0509) 殘留在 0V 或 5V 低壓，下次啟動試驗時變頻器無電壓輸出而直接卡死；同時原 `originalUf09Val` 缺乏防禦性下限，若在降壓狀態下讀取會誤將 0V/5V 當作原始額定值；(3)精確修復方案：在 `Dynamometer_KebComm.cs` 升級 `KebWriteUf09` 同步回寫 Parameter Set 1 與 Set 0；在 `Dynamometer_TestEquivCircuit.cs` 新增 `GetOriginalOrRatedUf09()` 確保原始額定電壓來源可靠 (dr.02 -> VN -> V0 -> 220V 保底，過濾 <100V 降壓值)；新增集中安全復歸函式 `AutoRestoreUf09()`；在 `StopLockedRotorSweep()` 停止路徑、`TriggerLockedProtectionTrip()` 保護跳脫路徑、以及 `LockedSweepWorker` 之 `finally` 區塊中 100% 強制執行 `AutoRestoreUf09()`；更新保護跳脫提示對話框；(4)發布與驗證：升版至 2.10.70，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.70 發布。 |
+
+---
+
+## [V2.113 beta / v2.10.71] - 2026-09-14
+
+### 徹底根除堵轉測試錯誤/停止後 Sy.52 (0x0034) 與 oP.03 (0x0303) 未清空導致下次啟動直接給予轉速之嚴重隱患
+
+### 現象與佐證
+- **使用者回報現象**：使用者實測指出：「而且錯誤後的sy52也沒有清空，這樣下次執行就會直接給轉速這樣也不對」。
+- **問題重現還原**：
+  - 在等效電路 8 頻率堵轉測試中，系統在步驟 B 會依據測試頻率計算同步轉速 `targetRpm` 並寫入 `Sy.52` (0x0034) 與 `oP.03` (0x0303)；
+  - 若試驗發生錯誤、使用者點擊「中止試驗」、觸發看門狗保護急停跳脫、或試驗正常結束時，舊代碼未對 `Sy.52` 與 `oP.03` 做任何清零動作；
+  - 導致變頻器硬體內部殘留了上一次的轉速設定值（例如 1500 rpm）；當下次執行測試或下達啟動激磁（Sy.50）時，變頻器會立刻依照殘留轉速全速輸出驅動馬達旋轉，造成機構損壞與安全隱患。
+
+### 致命根因 (Root Cause)
+1. **停止與跳脫邏輯缺乏轉速指令清零**：
+   在 `Dynamometer_TestEquivCircuit.cs` 中，`StopLockedRotorSweep()` 與 `TriggerLockedProtectionTrip()` 過去僅執行停機標誌或 `Sy.50 = 0`，未將 `Sy.52` (0x0034) 及 `oP.03` (0x0303) 寫回 0。
+2. **執行緒生命週期缺乏清零閉環**：
+   `LockedSweepWorker` 背景測試執行緒在任何原因（完成、中斷、例外跳出）結束時，未在 `finally` 區塊中執行硬體轉速指令清零。
+3. **試驗啟動前缺乏殘留轉速防呆清除**：
+   若變頻器在前次測試或手動操作中已有殘留轉速，啟動試驗前未先行清零。
+
+### 精確修復方案
+1. **集中安全轉速清零函式 (`Dynamometer_TestEquivCircuit.cs`)**：
+   - 實作 `ClearLockedSpeedCmd(string reason)`：向當前測試載台之變頻器同步將 `Sy.52` (0x0034) 與 `oP.03` (0x0303) 寫入 0，並同時支援通訊庫與 DLL 直接寫入保底，輸出 `KEB_SPEED` 日誌。
+2. **全生命週期強制清零閉環 (`Dynamometer_TestEquivCircuit.cs`)**：
+   - **手動/例外停止**：在 `StopLockedRotorSweep(string reason)` 中，於 `Sy.50 = 0` 切斷激磁後，立即執行 `ClearLockedSpeedCmd()`。
+   - **保護急停跳脫**：在 `TriggerLockedProtectionTrip()` 中，於停機後立即執行 `ClearLockedSpeedCmd()`，並更新對話框說明轉速設定值已安全歸零。
+   - **背景執行緒保證**：在 `LockedSweepWorker` 的 `finally` 區塊中加入 `ClearLockedSpeedCmd()`，保證 100% 不漏清。
+   - **啟動前防呆**：在 `StartLockedRotorTest()` 啟動線程前，預先執行 `ClearLockedSpeedCmd()` 清除任何舊有殘留轉速。
+   - **手動復歸**：在 `RevertUf09ToDefault()` 中同步調用 `ClearLockedSpeedCmd()`。
+3. **發布與驗證**：
+   - 升版至 `2.10.71`。
+   - 通過 `csc.exe` 編譯，完成雙分支同動推送與 GitHub Release v2.10.71 發布。
 | V2.111 (beta) | v2.10.69 | 2026-09-14 | 徹底根除等效電路點擊「清除重測」後 1.空載、2.額定 數據未歸零之缺陷：(1)現象與佐證：使用者實測回報「按下清除重測，1Noload 2額定 的數據不會被清空」；(2)致命根因 (Root Cause)：在 `Dynamometer_TestEquivCircuit.cs` 中，`ResetEquivDataCards()` 函式在收到清除指令後，未將控制項歸零，而是強制寫入寫死之靜態樣本數據 (V0=260, I0=12, P0=450, TN=70, NN=1465, VN=260 等)；同時 `numEquivF0` 之前設 `Minimum = 1` 阻礙歸零；`RefreshEquivMotorStatus()` 在清空後未判斷 `isNoLoadDataReady` 與 `isRatedDataReady`，在馬達名稱未變時仍盲目顯示 `(1,2項數據已保留)` 誤導使用者；`LoadEquivCircuitConfig()` 在 `NoLoadReady` 為 0 時未將 ready 標誌與狀態標籤重設為待採樣；(3)精確修復方案：在 `ResetEquivDataCards()` 中將 1.空載、2.額定、3.堵轉 共 17 項輸入數值全數徹底歸零清空 (`Value = 0m`)；將 `numEquivF0` 下限開放為 `0m`，Card 1/2/3 預設值全數歸零；`RefreshEquivMotorStatus()` 與 `LoadEquivCircuitConfig()` 依據真實採樣旗標動態切換狀態文字為 `[--] 數據已清空，待採樣 (1.空載 / 2.額定 / 3.堵轉)`；`SaveLayoutConfig()` 同動將全 0 數據寫回 INI；(4)發布與驗證：升版至 2.10.69，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.69 發布。 |
 
 ---
