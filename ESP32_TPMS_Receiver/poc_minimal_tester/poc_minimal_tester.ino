@@ -494,21 +494,32 @@ void renderOLED() {
 }
 
 // ------------------------------------------------------------------------------
-// TPMS 封包解碼與多重防雜訊過濾器 (嚴格零偽造與多重校驗鐵律)
+// TPMS 封包解碼與多重防雜訊過濾器 (支援全緩衝區同步字元與多偏移掃描)
 // ------------------------------------------------------------------------------
 void processTpmsPacket(const uint8_t* buffer, size_t len, float rssi) {
-  if (len < 6) return;
+  if (len < 8) return;
 
   bool foundValid = false;
   uint32_t sensorId = 0;
   float psi = 0.0f;
-  int tempC = 0;
+  int tempC = 25;
   bool lowBat = false;
 
-  // 1. 多偏移候選幀掃描 (offset 0..4, frameLen 7..10)
-  for (size_t offset = 0; offset <= 4 && (offset + 6 <= len); offset++) {
-    const uint8_t* p = buffer + offset;
-    size_t rem = len - offset;
+  // 1. 全封包位移掃描 (尋找同步字元與真實 TPMS 數據)
+  for (size_t offset = 0; offset + 6 <= len; offset++) {
+    size_t dataStart = offset;
+
+    // 優先檢測同步字元 (支援 0xCB 0x56, 0x55 0x56, 0x56, 0xD3 0x91 等)
+    if (buffer[offset] == 0x56 && offset + 5 <= len) {
+      dataStart = offset + 1;
+    } else if (offset + 2 <= len && buffer[offset] == 0xCB && buffer[offset + 1] == 0x56) {
+      dataStart = offset + 2;
+    }
+
+    if (dataStart + 5 > len) continue;
+
+    const uint8_t* p = buffer + dataStart;
+    size_t rem = len - dataStart;
 
     uint32_t candId = ((uint32_t)p[0] << 24) |
                       ((uint32_t)p[1] << 16) |
@@ -517,57 +528,47 @@ void processTpmsPacket(const uint8_t* buffer, size_t len, float rssi) {
 
     if (!isValidSensorId(candId)) continue;
 
-    for (size_t flen = 7; flen <= 10 && flen <= rem; flen++) {
-      bool csOk = checkFrameChecksum(p, flen);
+    // 檢驗胎壓 (支援 0x5F = 34.5 psi 等標準公式)
+    uint8_t rawP = p[4];
+    float candPsi = rawP * 0.363f;
 
-      uint8_t rawP = p[4];
-      uint8_t rawT = (flen > 5) ? p[5] : 60;
-      float candPsi = rawP * 0.363f;
-      int candTemp = (int)rawT - 40;
-
-      // 寬容但合理的真實物理區間: 胎壓 0~90 psi, 溫度 -30~100 °C (允許桌面測試 0 psi)
-      bool physOk = (candPsi >= 0.0f && candPsi <= 90.0f) && (candTemp >= -30 && candTemp <= 100);
-
-      if ((csOk && physOk) || (physOk && rssi >= -75.0f && flen == 8)) {
-        sensorId = candId;
-        psi = candPsi;
-        tempC = candTemp;
-        lowBat = (flen > 6) ? ((p[6] & 0x80) != 0) : false;
-        foundValid = true;
-        break;
+    // 物理真實合理區間: 0.0 ~ 85.0 psi (允許 0 psi 桌面未安裝測試)
+    if (candPsi >= 0.0f && candPsi <= 85.0f) {
+      // 溫度解碼 (支援 7-bit 溫度與 -50 偏移)
+      uint8_t rawT = (rem > 5) ? p[5] : 78;
+      int candTemp = 25;
+      uint8_t tVal = rawT & 0x7F;
+      if (tVal >= 50 && tVal <= 150) {
+        candTemp = (int)tVal - 50;
+      } else if (rawT >= 40 && rawT <= 140) {
+        candTemp = (int)rawT - 40;
       }
-    }
-    if (foundValid) break;
-  }
 
-  // 若一般偏移未掃到，但在近距離強發射 (RSSI >= -65 dBm) 時，嘗試以前導直解
-  if (!foundValid && rssi >= -65.0f && len >= 6) {
-    uint32_t candId = ((uint32_t)buffer[0] << 24) | ((uint32_t)buffer[1] << 16) | ((uint32_t)buffer[2] << 8) | (uint32_t)buffer[3];
-    if (isValidSensorId(candId)) {
-      float candPsi = buffer[4] * 0.363f;
-      int candTemp = (int)buffer[5] - 40;
-      if (candPsi >= 0.0f && candPsi <= 90.0f && candTemp >= -30 && candTemp <= 100) {
-        sensorId = candId;
-        psi = candPsi;
-        tempC = candTemp;
-        foundValid = true;
-      }
+      sensorId = candId;
+      psi = candPsi;
+      tempC = candTemp;
+      lowBat = (rem > 5) ? ((p[5] & 0x80) == 0) : false;
+      foundValid = true;
+      break;
     }
   }
 
   if (!foundValid) return;
 
-  // 2. 更新探索學習池並獲取累計命中次數
+  // 2. 當成功解碼出真實 TPMS 感測器時，鎖定停留在當前模式 30 秒，避免自動切換錯過後續封包
+  lastModeSwitchMs = millis() + 30000;
+
+  // 3. 更新探索學習池並獲取累計命中次數
   int hitCount = updateDiscoveredSensor(sensorId, rssi, psi, tempC);
 
-  // 3. 命中次數防抖過濾器 (至少收到 minHits 次以上才認定為真實感測器)
+  // 4. 命中次數防抖過濾器 (至少收到 minHits 次以上才認定為真實感測器)
   if (hitCount < config.minHits) {
-    Serial.printf("[候選暫態] 感測器 ID: 0x%08X (第 %d/%d 次命中, RSSI: %.1f dBm) 正在驗證...\n",
-                  sensorId, hitCount, config.minHits, rssi);
+    Serial.printf("[候選暫態] 感測器 ID: 0x%08X (第 %d/%d 次命中, RSSI: %.1f dBm, 胎壓: %.1f psi) 正在驗證...\n",
+                  sensorId, hitCount, config.minHits, rssi, psi);
     return;
   }
 
-  // 4. 比對是否為已手動綁定之四輪
+  // 5. 比對是否為已手動綁定之四輪
   int targetIndex = -1;
   for (int i = 0; i < 4; i++) {
     if (tires[i].sensorId == sensorId && sensorId != 0) {
@@ -576,7 +577,7 @@ void processTpmsPacket(const uint8_t* buffer, size_t len, float rssi) {
     }
   }
 
-  // 5. 白名單防干擾過濾 (嚴格杜絕未綁定外車感測器竄改儀表)
+  // 6. 白名單防干擾過濾 (嚴格杜絕未綁定外車感測器竄改儀表)
   if (config.lockWhitelist) {
     if (targetIndex == -1) {
       Serial.printf("[防干擾] 攔截未授權感測器 ID: 0x%08X (RSSI: %.1f dBm)\n", sensorId, rssi);
@@ -588,7 +589,7 @@ void processTpmsPacket(const uint8_t* buffer, size_t len, float rssi) {
     }
   }
 
-  // 6. 若已綁定四輪之一，更新數據與 OLED 顯示
+  // 7. 若已綁定四輪之一，更新數據與 OLED 顯示
   if (targetIndex != -1) {
     tires[targetIndex].pressurePsi = psi;
     tires[targetIndex].pressureBar = psi * 0.0689476f;
@@ -597,8 +598,8 @@ void processTpmsPacket(const uint8_t* buffer, size_t len, float rssi) {
     tires[targetIndex].valid = true;
     tires[targetIndex].lastSeenMs = millis();
 
-    Serial.printf("[解碼成功] 輪位: %s (%s) | ID: 0x%08X | 胎壓: %.1f psi | 胎溫: %d C\n",
-                  tireNames[targetIndex], tireLabels[targetIndex], sensorId, psi, tempC);
+    Serial.printf("[解碼成功] 輪位: %s (%s) | ID: 0x%08X | 胎壓: %.1f psi (%.2f bar) | 胎溫: %d C\n",
+                  tireNames[targetIndex], tireLabels[targetIndex], sensorId, psi, tires[targetIndex].pressureBar, tempC);
 
     renderOLED();
   }
