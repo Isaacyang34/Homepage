@@ -8,11 +8,54 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.118 (beta) | v2.10.76 | 2026-09-15 | 全面實作等效電路 (堵轉測試) 變頻器連線雙向即時同步、啟動前連線防呆閉鎖、以及徹底修復 Windows XP 右下角等效電路圖解「一片空白」GDI+ 繪圖缺陷：(1)現象與佐證：使用者反映「另外我發現就算我沒有按下綜合監控的KEB連線，堵轉測試還是能執行? 這又是為什麼?」以及「另外堵轉頁面右下角我知道你是畫了等效電路的圖形，但在WIN11可以正常顯示，但XP是一片空白」；(2)致命根因 (Root Cause)：1. 連線閉鎖缺失：德國原廠 protKEB.dll 具備 On-Demand 隨選自給自足開啟串列埠通道機制，綜合監控連線按鈕本質為「主畫面 500ms 遙測輪詢定時器開關」而非實體通道閘門；堵轉測試 StartLockedRotorTest 漏設了 isHmiKebOpen1/2 狀態檢查，操作者未連線變頻器依然會通電運轉，造成工控安全恐慌與人機矛盾；2. XP 電路圖一片空白四大根因：(A) 寫死嚴格寬度門檻 if (xEnd <= xStart + 200) return; 要求寬度 >290px，在 XP 傳統解析度 (1024x768) 下，左側表格分割條佔了 620px 導致右側僅剩 ~250px 被直接 return 擋下；(B) XP GDI 面板未掛載 Resize 觸發 Invalidate() 且未開啟 DoubleBuffered，在 XP 無 DWM 合成器環境下排版完成後不會主動重繪；(C) XP 原生未內建「微軟正黑體」，繪製拋出 GDI+ 字型或邊界例外未加 try-catch 導致 Paint 直接白屏中斷；(D) splitEquivResults 預設 620px 壓縮右側空間；(3)精確修復方案：1. 在卡片 3 (堵轉測試) Row 3 嵌入載台選單 cmbEquivKebDrive、連線按鈕 btnEquivKebToggle ([Open]/[Close]) 與狀態文字 lblEquivKebStatus，與「綜合監控」保持 100% 雙向即時同動 (任一端切換連線/斷線，兩邊介面按鈕與狀態即刻同步)；2. StartLockedRotorTest 新增「變頻器實體連線閉鎖防呆」：若檢測到目標載台未連線，彈窗提示並詢問是否自動連線，解除未連線即運轉疑慮；3. GDI+ 電路圖全自適應 XP 相容重構：將分割條預設調為 480px、掛載 Resize Invalidate 與 DoubleBuffered、移除 return 門檻改採 scale 自適應等比縮放、建立 CreateSafeDiagramFont (微軟正黑體->Tahoma->Arial 安全降級)、全函式 try-catch 防禦，確保 Windows XP 任何解析度下電路圖 100% 穩定清晰呈現；(4)發布與驗證：升版至 2.10.76，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.76 發布。 |
 | V2.117 (beta) | v2.10.75 | 2026-09-15 | 徹底根除堵轉測試保護跳脫誤升 260V 額定電壓導致 180A 短路大電流金屬撞擊聲、以及背景掃描線程未停止競爭之致命缺陷：(1)現象與佐證：使用者回報「又出現撞擊聲了，到底改了什麼 LOG有上傳」；提取雲端實測日誌 (firebase_latest_log.json) 證實：08:20:51 馬達通電建壓，機械鎖死治具產生微小彈性扭轉形變 (Spd=-8.0rpm)，看門狗誤判為「治具脫扣」；08:20:53.125 觸發跳脫後，舊程式竟然呼叫 AutoRestoreUf09 將 uf.09 寫回 260V 額定電壓！08:20:53.484 實測 Volt=101.9V, Curr=180.05A, ElecPwr=25.80kW，瞬間 180A 短路大電流直接灌入鎖死馬達定子，引發劇烈金屬巨響！且 08:20:54~08:20:57 背景線程繼續下發 29V、30V、31V 調壓指令；(2)致命根因 (Root Cause)：1. 致命死穴 A：跳脫/停止時錯誤恢復 260V 高壓！在馬達軸機械鎖死狀態下，任何恢復 260V 均等同定子短路！2. 致命死穴 B：TriggerLockedProtectionTrip 漏設 isLockedSweepRunning = false，導致背景線程 lockedSweepThread 完全未停止，繼續在背後調壓與跳脫處理衝突；3. 致命死穴 C：看門狗轉速閾值過敏 (>5 rpm 持續3秒)，將聯軸器幾十Nm加載時的正常彈性微動角位移 (-8~+12 rpm) 誤判為治具脫扣；(3)精確修復方案：1. 廢除堵轉停止與保護跳脫時自動調回 260V 額定電壓之危險邏輯，停機與跳脫時一律強制鎖定為安全低壓 (10V)，杜絕高壓激磁；額定電壓僅允許在確認拆除治具後手動點擊「復歸預設」；2. 於 TriggerLockedProtectionTrip 首行強制設定 isLockedSweepRunning = false，立即徹底終止背景掃描線程；3. 改進看門狗脫扣防護，區分機械微動 (允許 -8~+12 rpm) 與真正脫扣 (瞬時 >30 rpm 立即跳脫，持續 >15 rpm 達 3 秒跳脫)；(4)發布與驗證：升版至 2.10.75，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.75 發布。 |
 | V2.116 (beta) | v2.10.74 | 2026-09-14 | 全面建立等效電路與堵轉測試之「dr.05 與 uf.05 實測額定頻率 (51.5Hz) 自動感知與連鎖回填」架構，徹底消除 50.0Hz 硬編碼與轉速失真：(1)現象與佐證：使用者質疑「為何我的dr.05和uf.05都是51.5Hz但是實驗的額定還是用50」；經查證，現場變頻器參數設定 dr.05=51.5Hz (0x0605 / 515) 與 uf.05=51.5Hz (0x0505)，但堵轉測試第一點額定頻率依然被設定為 50.0Hz，下發轉速指令為 1500 rpm 而非 51.5Hz 對應之 1545 rpm，且等效電路計算同步轉速亦被算成 1500 rpm；(2)致命根因 (Root Cause)：1. 讀回只印 Log 未回填 UI：`CheckAndCollectDrUfParams()` 讀取了 dr05=51.5Hz 與 uf00=51.5Hz，但完全沒有將其賦值給卡片 1 的 `numEquivF0.Value`，卡片 1 頻率永遠為 0.0；2. 堵轉工作線程硬編碼 50.0：`LockedSweepWorker` 中以 `double f0 = (numEquivF0.Value > 1.0m) ? (double)numEquivF0.Value : 50.0;` 取值，因 `numEquivF0` 為 0 導致直接 fallback 成了 50.0Hz，目標轉速算成 1500 rpm 寫入 Sy.52/oP.03；3. 等效電路計算核心 `ExecuteEquivCircuitCalculation` 同樣 fallback 成 50.0Hz，同步轉速算成 1500 rpm，導致額定轉差率與漏抗折算跑偏；4. `LoadRatedDataFromTnTab` 中 `double syncSpd = 120.0 * 50.0 / poles;` 寫死 50.0；5. `CheckAndCollectDrUfParams` 漏讀了 `0x0505` (uf.05)；(3)精確修復方案：1. 新增對 `0x0505` (uf.05) 之 Set 1 與 Set 0 讀取與頻率智能解析；2. 實作「硬體參數自動連鎖回填」：當讀取到變頻器頻率 (51.5Hz) 時，自動回填卡片 1 之 `numEquivF0`，並將 dr.02 (電壓)、dr.00 (電流)、dr.01 (轉速) 自動回填卡片 2，以 51.5Hz 精確計算同步轉速 1545 rpm 與額定轉差率；3. 改造 `LockedSweepWorker`：若 `numEquivF0` 為 0，動態自變頻器實測變數 `lastB_Dr05`、`kebDrFreq2` 或現場讀取 0x0605/0x0505 提取 51.5Hz，自動回填 UI 並以 51.5Hz 計算各頻點與 1545 rpm 指令；4. 改造 `ExecuteEquivCircuitCalculation`、`LoadRatedDataFromTnTab`、`CaptureLiveNoLoadData` 與 `CaptureLiveRatedData`，全面以實測頻率動態計算，徹底消除 50.0Hz 硬編碼；5. 於 `RefreshEquivMotorStatus` 建立銘牌自動預填防呆；(4)發布與驗證：升版至 2.10.74，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.74 發布。 |
 | V2.115 (beta) | v2.10.73 | 2026-09-14 | 全面實作「等效電路專屬純電氣連續紀錄功能 (無溫度)」與「測試成果自動歸檔」架構：(1)現象與佐證：使用者反映「等效電路測試也要有紀錄功能，只是不需要溫度而已。目前好像沒有」；檢查源碼發現，其他進階模組 (TN、Duty、NoLoad、手動連續錄製) 均具備 CSV 記錄，但等效電路分頁在執行堵轉單頻自適應測試、8頻率全頻掃描以及手動調試時，完全缺乏即時資料記錄器；且通用錄製強制綁定 GL820 溫度通道與 GBD 原廠格式，並具備「未滿 1 分鐘自動刪除」規則，無法適用於等效電路短時間純電氣阻抗量測需求；(2)致命根因 (Root Cause)：`Dynamometer_TestEquivCircuit.cs` 未建置專屬的 CSV 連續資料串流記錄器，導致堵轉測試期間之 1V 增幅探測斜率、梯度自適應逼近、以及額定電流 30 筆採樣等珍貴數據無法被即時持久化儲存，無法作為工程後續分析之佐證；(3)精確修復方案：在 `Dynamometer_TestEquivCircuit.cs` 中建立「等效電路專屬連續紀錄器 (`StartEquivTestRecording` / `WriteEquivRecordRow` / `StopEquivTestRecording`)」，自動儲存於馬達專屬目錄 `EquivCircuit_Test_Log_{馬達型號}_{yyyyMMdd_HHmmss}_{標籤}.csv`；欄位設計純粹聚焦於電氣與機械量 (時間戳記、耗時、階段、頻率名稱、目標頻率、uf09、轉速、頻率、轉矩、三相電壓 U1~U3/USig、三相電流 I1~I3/ISig、三相功率 P1~P3/PElec、輸出功率 PMech、功率因數 PF、狀態說明)，**嚴格排除任何溫度通道 (無 Temp、無 GL820、無 GBD)**；當點擊「[AI] 單頻測試」或「[>>] 全頻掃描」時自動啟動記錄，採樣全程即時寫入，測試結束安全關閉並保留，**完全不受 <60秒刪除限制**；於等效電路頂部橫條新增 `btnEquivManualRecord` ([記錄] 開始記錄 / [停止] 記錄中) 支援手動即時記錄；計算完成時自動保存 `Report_EquivCircuit_Params_*.csv` 參數報表；(4)發布與驗證：升版至 2.10.73，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.73 發布。 |
 | V2.114 (beta) | v2.10.72 | 2026-09-14 | 全面建立堵轉測試「降壓硬體驗證安全閉鎖」與「瞬時突波極限跳脫」機制，徹底杜絕高壓激磁與金屬巨響衝擊：(1)現象與佐證：使用者回報「上傳日誌，剛才有發生巨響，我猜又是控制問題，你查清楚，這個堵轉不能開玩笑的」；提取雲端實測日誌 `20260914_163308.json` (KEB_Readback_Parameters.log) 顯示當前變頻器 cs.00=0 (V/F模式), oP.03=1500rpm (RAW: 12000), Sy.52=1500rpm (RAW: 1500), dr.02=260V；(2)致命根因 (Root Cause)：在 `Dynamometer_TestEquivCircuit.cs` 中，若變頻器已處於運轉狀態 (Sy.50 != 0)，KEB F5 變頻器硬體對 uf.09 (基準電壓) 具備寫入保護 (Write Protected)，導致步驟 A 的 `KebWriteUf09` 降壓失敗，電壓仍殘留為 260V 額定高壓；舊程式未驗證 uf.09 是否降壓成功，隨即於步驟 B 寫入 1500rpm (50Hz)，變頻器在 V/f 模式下直接以 260V 全電壓向機械完全鎖死之馬達定子通電，引發瞬間數百安培短路衝擊大電流並爆發金屬劇烈撞擊「巨響」；同時看門狗僅具 10 秒慢速保護，缺乏瞬間大電流零延遲防護；(3)精確修復方案：在 `Dynamometer_TestEquivCircuit.cs` 的 `LockedSweepWorker` 中全面導入「降壓安全視窗」：寫入前強制先執行 `Sy.50=0` (停機進入 nOP) 並將 Sy.52/oP.03 清零；寫入 uf.09 後強制進行 5 次讀回驗證，若未確認 `uf.09 <= 60V`，觸發【生與死安全閉鎖】直接阻斷並退出，絕對嚴禁給予轉速指令，絕對嚴禁啟動變頻器；當且僅當驗證 `uf.09 <= 60V` 安全降壓完成後，才寫入目標轉速並下達 Sy.50=4 (RUN 正轉) 低壓安全建壓；在換頻與結束時先下達 Sy.50=0 停機清零再換步；在看門狗 `tmrLockedWatchdog_Tick` 中新增「瞬時突波過載極限保護 (Peak Over-Current > 150% IN)」，電流超過 150% IN 立即 0 秒瞬間跳脫；(4)發布與驗證：升版至 2.10.72，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.72 發布。 |
 | V2.113 (beta) | v2.10.71 | 2026-09-14 | 徹底根除堵轉測試錯誤/停止後 Sy.52 (0x0034) 與 oP.03 (0x0303) 未清空導致下次啟動直接給予轉速之嚴重隱患：(1)現象與佐證：使用者回報「而且錯誤後的sy52也沒有清空，這樣下次執行就會直接給轉速這樣也不對」；(2)致命根因 (Root Cause)：在 `Dynamometer_TestEquivCircuit.cs` 中，堵轉測試於步驟 B 依試驗頻率向變頻器寫入目標轉速 `targetRpm` 至 Sy.52 (0x0034) 與 oP.03 (0x0303)；然而當試驗發生例外錯誤、使用者手動點擊中止、看門狗保護急停跳脫、甚至試驗正常跑完時，系統完全沒有將 Sy.52 與 oP.03 歸零；導致變頻器內部轉速指令永久殘留，若下次下達啟動 (Sy.50) 變頻器會立刻依照殘留轉速全速狂飆，造成嚴重機構破壞與安全隱患；(3)精確修復方案：在 `Dynamometer_TestEquivCircuit.cs` 建立集中安全清零函式 `ClearLockedSpeedCmd()`，向變頻器 Sy.52 (0x0034) 與 oP.03 (0x0303) 雙重寫入 0；在 `StopLockedRotorSweep()` 停止路徑 (下達 Sy.50=0 切斷激磁後同步清空 Sy.52/oP.03)、`TriggerLockedProtectionTrip()` 保護急停跳脫路徑、`LockedSweepWorker` 之 `finally` 生命週期保證區塊、`StartLockedRotorTest` 啟動前防呆、以及手動 `RevertUf09ToDefault()` 中 100% 強制執行 `ClearLockedSpeedCmd()`；更新跳脫警示訊息告知轉速設定值已安全歸零；(4)發布與驗證：升版至 2.10.71，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.71 發布。 |
+
+---
+
+## [V2.118 beta / v2.10.76] - 2026-09-15
+
+### 全面實作等效電路 (堵轉測試) 變頻器連線雙向即時同步、啟動前連線防呆閉鎖、以及徹底修復 Windows XP 右下角等效電路圖解「一片空白」GDI+ 繪圖缺陷
+
+### 現象與佐證
+1. **使用者回報連線疑問**：使用者質疑：「另外我發現就算我沒有按下綜合監控的KEB連線，堵轉測試還是能執行? 這又是為什麼?」
+   - **狀況查證**：在主介面「綜合監控」中，連線按鈕處於綠色 `[Open]`、狀態顯示為灰色「狀態: 未連線」之情況下，切換至「等效電路」分頁點擊「[AI] 單頻測試」或「[>>] 全頻掃描」，系統竟然完全不經連線確認，直接對實體變頻器發出通訊封包並啟動馬達通電運轉。這給現場操作人員帶來極大的心理威脅與「系統失控」疑慮。
+2. **使用者回報 Windows XP 電路圖全白**：使用者反映：「另外堵轉頁面右下角我知道你是畫了等效電路的圖形，但在WIN11可以正常顯示，但XP是一片空白。」
+   - **現場狀況**：在 Windows 11 開發機上，等效電路成果區右側能夠完整繪製向量單相 T 型等效電路圖解；但在現場 Windows XP 工控機（解析度 1024x768 / 1280x1024）上，右下角完全是一片死寂的空白區域。
+
+### 致命根因 (Root Cause)
+1. **變頻器連線閉鎖缺失與通道隨選自啟 (On-Demand) 機制**：
+   - 德國原廠 `protKEB.dll` 是 Windows 系統級動態庫，其底層通訊封裝函式 `KebReadParamWithDll` / `KebWriteParamWithDll` 在調用時具備「隨選自啟 (On-Demand)」機制：只要傳入的 COM 埠與鮑率有效，底層 DLL 會自動透過 `setprotproperties()` 開啟通訊通道，無須依賴外部預先宣告；
+   - 「綜合監控」上的 `[Open]` 按鈕本質上是「500ms 遙測輪詢定時器 (`tmrHmiKeb`) 開關」，負責定時更新主畫面儀表；
+   - 等效電路模組在 `StartLockedRotorTest()` 啟動時，**完全沒有檢查 `isHmiKebOpen1` 或 `isHmiKebOpen2` 狀態標誌**，導致未連線狀態下亦可自由發送通訊，造成人機直覺與工控安全矛盾。
+2. **Windows XP 右下角電路圖一片空白四大根因**：
+   - **致命死穴 A（寫死過嚴寬度門檻提早退出）**：原始繪圖代碼第 3319 行寫死：`if (xEnd <= xStart + 200) return;`（要求可用寬度必須 $> 290\text{px}$）。在 Windows XP 傳統 1024x768 解析度下，左側表格分割條預設佔據了 `620px`，導致右側 `pnlEquivDiagram` 的寬度僅剩約 250px，直接觸發 `return;` 提早結束，連一行字一條線都沒繪製！
+   - **致命死穴 B（WinForms Panel 缺乏 Resize 重繪與 DoubleBuffered）**：Windows 11 具備 DWM（桌面視窗合成器）會主動刷新表面；但 Windows XP 依賴傳統 GDI 訊息循環。`pnlEquivDiagram` 未掛載 `Resize` 事件（`Invalidate()`），且未啟用 `DoubleBuffered`，在 XP 窗體排版調整時不會自動重繪，永遠維持初始空白狀態；
+   - **致命死穴 C（XP 原生無微軟正黑體且缺乏 try-catch）**：Windows XP 原生未內建「微軟正黑體」，繪製拋出 GDI+ 字型或邊界例外未加 `try-catch` 導致 `Paint` 事件直接白屏中斷；
+   - **致命死穴 D（分割條比例失衡）**：`splitEquivResults` 預設距離設為 620px，嚴重擠壓了右側繪圖空間。
+
+### 精確修復方案
+1. **等效電路介面嵌入連線按鈕與狀態顯示 (雙向同步綜合監控)**：
+   - 在卡片 3（堵轉測試）Row 3 嵌入精美載台選單 `cmbEquivKebDrive`、連線按鈕 `btnEquivKebToggle` (`[Open]` 綠 / `[Close]` 紅) 與狀態標籤 `lblEquivKebStatus`；
+   - 實作 `UpdateEquivKebConnectionUi()`，切換載台時自動抓取該載台的真實連線狀態；
+   - 點擊按鈕時執行對應載台之連線/斷線，並與「綜合監控」保持 100% 雙向即時同動；
+   - 在 `EnsureHmiKebOpen1/2`、`CloseHmiKebPort1/2` 以及 500ms 看門狗定時器中定期刷新，保證全域狀態絕對一致。
+2. **堵轉啟動前新增「變頻器實體連線閉鎖防呆」**：
+   - 於 `StartLockedRotorTest()` 開頭檢查目標載台是否已連線；若未連線，跳出確認視窗：「【[!] 變頻器尚未連線】目前尚未建立通訊連線，是否立即開啟通訊連線並繼續測試？」，選「是」由系統自動連線並同步點亮綜合監控燈號，選「否」安全退出，徹底解除未連線即通電之疑慮。
+3. **等效電路 GDI+ 向量繪圖全自適應 XP 相容重構**：
+   - 調整 `splitEquivResults` 預設距離為 `480px`，保留右側至少 350~450px 的充裕空間；
+   - 為 `pnlEquivDiagram` 掛載 `Resize += (s, e) => pnlEquivDiagram.Invalidate();` 並反射啟用 `DoubleBuffered`；
+   - 徹底移除 `if (xEnd <= xStart + 200) return;` 阻礙，改採自適應動態等比縮放演算法（以 `compScale` 依可用寬高動態調整元件、引線與文字尺寸，任何解析度皆能完整呈現）；
+   - 實作 `CreateSafeDiagramFont` 安全字型 Fallback（微軟正黑體 -> Tahoma -> Arial -> GenericSansSerif，絕不拋例外）；
+   - 全函式外層加上 `try ... catch`，即使發生未預期異常亦在畫布繪製相容提示，保證絕不白屏。
+
+### 發布與驗證
+- 升級版本號至 **v2.10.76 (V2.118 beta)**，經 `csc.exe` 編譯 0 錯誤通過。
+- 完成 GitHub `gh-pages` 與 `master` 雙分支同步推送，更新 Firebase RTDB `version.json`，並發布 GitHub Release v2.10.76。
 
 ---
 
