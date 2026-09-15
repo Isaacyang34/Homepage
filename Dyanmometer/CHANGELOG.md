@@ -50,6 +50,11 @@
    - 遵循 Rule 7 線上更新驗證遞增原則 ($V_{cloud} > V_{local}$)，將 `Dynamometer_WebServer.cs` 之 `APP_VERSION` 升級為 `2.10.78`；
    - 重新執行 `package_release.ps1 -Version 2.10.78`，將最新編譯之 `Dynamometer_HMI_Pro.exe` 推送至 `gh-pages` 與 `master` 雙分支；
    - 同步更新 Firebase RTDB 與發布 GitHub Release v2.10.78，確保下載 URL 回傳 HTTP 200 OK。
+4. **正式固化全案發布防護規範至系統規則 (Rules Formalization)**：
+   - 於 `GEMINI.md` 與 `.agents/rules/github_release_integrity_rule.md` 正式寫入「發布執行檔 Git 追蹤與 .gitignore 永久白名單鐵律」與「線上發布 200 OK 實測探測閉鎖鐵律」；
+   - 於 `package_release.ps1` 實裝兩道鐵壁防線：
+     1. 提交前自動執行 `git ls-files --stage` 驗證目標版號之 `Dynamometer_HMI_Pro.exe` 確實存在於暫存區，若未追蹤直接拋出致命錯誤中斷；
+     2. 更新 Firebase 後自動發起 HTTP HEAD 實測探測，驗證下載 URL 確實回傳 `HTTP 200 OK` 且檔案大小 > 500KB，徹底杜絕 404 再次發生。
 
 ---
 | V2.118 (beta) | v2.10.76 | 2026-09-15 | 全面實作等效電路 (堵轉測試) 變頻器連線雙向即時同步、啟動前連線防呆閉鎖、以及徹底修復 Windows XP 右下角等效電路圖解「一片空白」GDI+ 繪圖缺陷：(1)現象與佐證：使用者反映「另外我發現就算我沒有按下綜合監控的KEB連線，堵轉測試還是能執行? 這又是為什麼?」以及「另外堵轉頁面右下角我知道你是畫了等效電路的圖形，但在WIN11可以正常顯示，但XP是一片空白」；(2)致命根因 (Root Cause)：1. 連線閉鎖缺失：德國原廠 protKEB.dll 具備 On-Demand 隨選自給自足開啟串列埠通道機制，綜合監控連線按鈕本質為「主畫面 500ms 遙測輪詢定時器開關」而非實體通道閘門；堵轉測試 StartLockedRotorTest 漏設了 isHmiKebOpen1/2 狀態檢查，操作者未連線變頻器依然會通電運轉，造成工控安全恐慌與人機矛盾；2. XP 電路圖一片空白四大根因：(A) 寫死嚴格寬度門檻 if (xEnd <= xStart + 200) return; 要求寬度 >290px，在 XP 傳統解析度 (1024x768) 下，左側表格分割條佔了 620px 導致右側僅剩 ~250px 被直接 return 擋下；(B) XP GDI 面板未掛載 Resize 觸發 Invalidate() 且未開啟 DoubleBuffered，在 XP 無 DWM 合成器環境下排版完成後不會主動重繪；(C) XP 原生未內建「微軟正黑體」，繪製拋出 GDI+ 字型或邊界例外未加 try-catch 導致 Paint 直接白屏中斷；(D) splitEquivResults 預設 620px 壓縮右側空間；(3)精確修復方案：1. 在卡片 3 (堵轉測試) Row 3 嵌入載台選單 cmbEquivKebDrive、連線按鈕 btnEquivKebToggle ([Open]/[Close]) 與狀態文字 lblEquivKebStatus，與「綜合監控」保持 100% 雙向即時同動 (任一端切換連線/斷線，兩邊介面按鈕與狀態即刻同步)；2. StartLockedRotorTest 新增「變頻器實體連線閉鎖防呆」：若檢測到目標載台未連線，彈窗提示並詢問是否自動連線，解除未連線即運轉疑慮；3. GDI+ 電路圖全自適應 XP 相容重構：將分割條預設調為 480px、掛載 Resize Invalidate 與 DoubleBuffered、移除 return 門檻改採 scale 自適應等比縮放、建立 CreateSafeDiagramFont (微軟正黑體->Tahoma->Arial 安全降級)、全函式 try-catch 防禦，確保 Windows XP 任何解析度下電路圖 100% 穩定清晰呈現；(4)發布與驗證：升版至 2.10.76，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.76 發布。 |

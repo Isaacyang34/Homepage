@@ -67,8 +67,42 @@
 * **機密防護與 PAT 永久保存 (Zero-Leak PAT & INI Integrity)**：
   * **嚴禁明文 Token 上傳**：Git 追蹤之 `dynamometer_layout.ini` 中的 `Token=` 必須永久為空，程式碼內部一律採用 XOR 編碼混淆（`GetEmbeddedToken()`），嚴格杜絕觸發 GitHub Secret Scanning Push Protection 阻擋提交。
   * **設定檔防覆寫保護**：WinForms 在執行 `SaveLayoutConfig()` 儲存視窗版面時，必須完整保留並回寫所有非 UI 區段（如 `[GitHub]`、`[ReportManager]`、`[GoogleDrive]`），嚴禁截斷或清空使用者的 PAT 與外部配置。
+* **發布執行檔 Git 追蹤與 .gitignore 永久白名單 (Binary Tracking & Whitelist Integrity - 杜絕 404)**：
+  * **根目錄白名單保證**：根目錄 `.gitignore` 必須永久設置 `!Dyanmometer/Release/**/*.exe` 與 `!Release/**/*.exe` 白名單，嚴禁被 `*.exe` 全域忽略規則吞沒。
+  * **暫存強制驗證防呆**：`package_release.ps1` 暫存指令一律使用 `git add -f "Dyanmometer/Release/"`；且在 `commit` 前必須主動執行 `git ls-files --stage` 驗證目標版號之 `Dynamometer_HMI_Pro.exe` 確實已被 Git 暫存追蹤，若未追蹤直接拋出致命錯誤中斷，嚴禁盲目推送空目錄或幽靈發布！
+* **線上發布 200 OK 實測探測閉鎖 (Post-Release 200-OK Probe Lockout - 嚴禁無效 URL)**：
+  * **實測探測鐵律**：凡更新 Firebase RTDB `/update/version.json` 之 `download_url`，**必須在更新前/後立即對該 Raw 下載網址發起 HTTP HEAD 實測探測**！
+  * **200 OK 驗證閉鎖**：當且僅當遠端伺服器回傳 **`HTTP 200 OK` 且 Content-Length > 500KB** 時，才視為線上發布真正成功；若探測為 404 或異常，嚴禁向使用者回報發布成功，必須立即發出致命告警並排查 Git 推送與 CDN 狀態！
 
 ## 8. 嚴禁未經指示擅自開啟瀏覽器鐵律 (Zero Unauthorized Browser Launch - 全案最高強制規範)
 * **嚴禁主動調用瀏覽器工具**：**嚴格禁止**在未獲得使用者明確文字指令（例如明確要求「請打開瀏覽器測試」或「用瀏覽器查看」）的情況下，擅自調用 `browser_subagent` 或透過任何指令在本地彈出瀏覽器視窗！
 * **靜默與離線驗證原則**：所有 HTML、JavaScript、CSS 或前端應用之邏輯修復、資料解析與演算法測試，**一律限於背景透過本機腳本（PowerShell / Node.js 等靜態分析或單元驗證）無聲完成**，絕對禁止跳出任何瀏覽器視窗奪取作業系統焦點或干擾使用者工作！
 * **回報即止原則**：前端程式碼與樣式修改完成後，僅需清楚條列修改內容、邏輯佐證與本地檔案路徑，**由使用者完全自主決定何時開啟檢視**，嚴禁代為做主開啟！
+
+## 9. WinForms .NET 4.0 GDI+ UI 控制項 Emoji 完全禁用鐵律 (Anti-Emoji UI Rendering - 全案最高強制規範)
+* **核心物理限制**：Windows XP + .NET Framework 4.0 + GDI+ 的 WinForms 渲染引擎，**對 Unicode Emoji（U+1F300 以上之多位元組符號，包含 🚀 📸 🛑 🤖 🌐 ☁️ 📶 💾 🔄 🔍 等）的渲染行為不可預測**：
+  * 在 Button、Label、CheckBox 等標準 WinForms 控制項內，Emoji 字元可能導致整行文字**完全不渲染（文字消失，只顯示背景色）**，即使不報任何錯誤！
+  * 這是 GDI+ 字型 fallback 機制在 XP 上的已知缺陷，無法透過字型替換或 DoubleBuffer 修復。
+* **禁用範圍（嚴格執行，無例外）**：
+  * **嚴禁**在任何 `Button.Text`、`Label.Text`、`CheckBox.Text`、`GroupBox.Text`、`TabPage.Text` 中使用 **Emoji 或 Unicode 特殊裝飾符號（U+1F000 以上）**。
+  * **嚴禁**使用任何多碼點組合 Emoji（如 🕵️‍♂️ 含 ZWJ 組合），這類符號在 .NET 4.0 字串處理中亦可能引發長度計算錯誤。
+* **允許使用的替代符號（明確白名單）**：下列 ASCII/BMP 範圍符號在 WinForms GDI+ 下渲染正常，可作為 Emoji 的替代：
+
+  | 用途 | 禁用 Emoji | 允許替代 |
+  |---|---|---|
+  | 警示/急停 | 🛑 | ` ■ 急停` 或文字 |
+  | 啟動/計算 | 🚀 | `>> 計算` 或文字 |
+  | 上傳/雲端 | ☁️ | `[雲] 上傳` 或文字 |
+  | 讀取/連線 | 🔄 | `[->] 連線` 或文字 |
+  | 擷取/拍照 | 📸 | `[*] 擷取` 或文字 |
+  | 自動化/機器人 | 🤖 | `[AI] 自適應` 或文字 |
+  | 警告/提示 | ⚠️ | `[!] 警告` 或文字 |
+  | 狀態圓點 | 🔴🟡🟢 | 使用 GDI+ `OnPaint` 自繪圓形，或用 `[X]` `[-]` `[O]` 文字替代 |
+
+* **AI 自我強制審查鐵律 (Self-Check Before Write — 全案最嚴執行)**：
+  * **【接觸前掃描】凡開始讀取或編輯任何 WinForms `.cs` 檔案，第一個動作必須是用 `grep_search` 對整個檔案搜尋 Emoji 字元（搜尋關鍵字為 `Text = "` 配合 Emoji 範圍），列出全部違規行，一次性批量清除後，才允許進行業務邏輯修改**。
+  * **【輸出前審查】每次生成或修改任何 WinForms 控制項 `Text` 屬性時，在輸出前必須自我逐行掃描輸出內容是否包含 U+1F000 以上字元**。
+  * **發現 Emoji 必須立即替換，嚴禁以「在 Windows 10 上可以渲染」為由保留**，因現場環境永遠是 Windows XP。
+  * **【擴散清除】已存在的 Emoji 如在相關檔案上做任何修改時，必須順手清除整個檔案中所有 Emoji，不得只改當次目標函式或目標行**。
+  * **【違規即擋】若在輸出代碼中仍發現 Emoji，視同任務未完成，必須先回頭清除全部違規後才能繼續**。
+* **詳細規範**：此規範直接補充並強化 `## 6. Windows XP 向下相容最高鐵律` 中的「UI 與字體相容」條款。

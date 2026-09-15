@@ -11,7 +11,8 @@
 Rufus/
 
 # AI Agents 暫存
-.agents/
+.agents/*
+!.agents/rules/
 
 # 歷史備份
 backups/

@@ -190,6 +190,17 @@ if (!$gitExe) {
     & $gitExe -C $repoRoot add -f "Dyanmometer/Release/" 2>&1 | Write-Host
     & $gitExe -C $repoRoot add "Dyanmometer/CHANGELOG.md" 2>&1 | Write-Host
     & $gitExe -C $repoRoot add "Dyanmometer/Dyanmometer_Modern/" 2>&1 | Write-Host
+
+    # 驗證目標發布執行檔確實已被 Git 暫存或追蹤 (杜絕 .gitignore 誤阻擋)
+    $trackedExeRel = "Dyanmometer/Release/Dynamometer_HMI_V${Version}_Portable/Dynamometer_HMI_Pro.exe"
+    $checkTracked = & $gitExe -C $repoRoot ls-files --stage $trackedExeRel
+    if ([string]::IsNullOrEmpty($checkTracked)) {
+        Write-Error "❌ 致命發布錯誤: $trackedExeRel 未被 Git 追蹤！請檢查 .gitignore 白名單或使用 git add -f。"
+        exit 1
+    } else {
+        Write-Host "✅ Git 追蹤確認: $trackedExeRel 已成功納入暫存區 (Stage OK)"
+    }
+
     & $gitExe -C $repoRoot commit -m $commitMsg 2>&1 | Write-Host
 
     if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq 1) {
@@ -298,6 +309,32 @@ if (!$gitExe) {
                 $mreader.ReadToEnd() | Out-Null
                 $mreader.Close()
                 Write-Host "✅ Firebase manifest updated: V$appVer (Target V$Version) -> $dlUrl"
+
+                # 5-2. 線上發布 200 OK 探測閉鎖檢驗 (Post-Release 200-OK Probe Lockout)
+                Write-Host "🔍 正在探測驗證雲端下載網址可用性: $dlUrl"
+                $probeOk = $false
+                for ($attempt = 1; $attempt -le 5; $attempt++) {
+                    try {
+                        $probeReq = [System.Net.HttpWebRequest]::Create($dlUrl)
+                        $probeReq.Method = "HEAD"
+                        $probeReq.Timeout = 5000
+                        $probeResp = $probeReq.GetResponse()
+                        $pCode = [int]$probeResp.StatusCode
+                        $pLen = $probeResp.ContentLength
+                        $probeResp.Close()
+                        if ($pCode -eq 200 -and $pLen -gt 500000) {
+                            Write-Host "✅ 雲端下載點 200 OK 驗證通過！(HTTP $pCode, 大小: $([math]::Round($pLen/1048576, 2)) MB)"
+                            $probeOk = $true
+                            break
+                        }
+                    } catch {
+                        Write-Host "   嘗試第 $attempt 次探測 (等待 GitHub CDN 鏡像同步 2 秒)..."
+                        Start-Sleep -Seconds 2
+                    }
+                }
+                if (-not $probeOk) {
+                    Write-Warning "⚠️ 警告: 下載網址尚未回傳 200 OK，請手動確認網址: $dlUrl"
+                }
             } catch {
                 Write-Warning "⚠️  Firebase manifest update failed: $_  (Please run scratch\fix_manifest.ps1 manually)"
             }
