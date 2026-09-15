@@ -2100,7 +2100,15 @@ namespace DynamometerHMI
                 }
                 if (drVolt > 0 && ufVolt > 0 && Math.Abs(drVolt - ufVolt) > 5.0)
                 {
-                    unSyncItems.Add(string.Format("• 額定電壓不同步: dr.02={0:F0} V vs uf.09={1:F0} V (相差 {2:F0} V)", drVolt, ufVolt, Math.Abs(drVolt - ufVolt)));
+                    // 若 uf.09 <= 60V，代表目前處於堵轉安全低壓/調壓鎖定狀態 (如 10V~26V)，此為安全防護常態，絕不可誤判為電壓未同步而阻擋試驗！
+                    if (ufVolt <= 60)
+                    {
+                        WriteHmiLog("KEB_SYNC", string.Format("【安全低壓狀態】{0} 目前 uf.09={1}V (處於堵轉安全低壓鎖定狀態，免除電壓未同步阻擋)", dName, ufVolt));
+                    }
+                    else
+                    {
+                        unSyncItems.Add(string.Format("• 額定電壓不同步: dr.02={0:F0} V vs uf.09={1:F0} V (相差 {2:F0} V)", drVolt, ufVolt, Math.Abs(drVolt - ufVolt)));
+                    }
                 }
 
                 // ★【實測頻率即時反饋到 UI 橫條】
@@ -2351,14 +2359,19 @@ namespace DynamometerHMI
 
         private void LockedSweepWorker(bool singleFreqMode, int singleFreqIndex)
         {
+            int driveId = (cmbEquivKebDrive != null && cmbEquivKebDrive.SelectedIndex == 1) ? 1 : 2;
+            int com = GetHmiKebComIdx(driveId);
+            int baud = GetHmiKebBaudIdx(driveId);
+            int node = (driveId == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
+            int? origOp01 = null;
+
             try
             {
-                int driveId = (cmbEquivKebDrive.SelectedIndex == 1) ? 1 : 2;
-                int com = GetHmiKebComIdx(driveId);
-                int baud = GetHmiKebBaudIdx(driveId);
-                int node = (driveId == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
                 double inRated = (double)numEquivIn.Value;
                 if (inRated <= 0.5) inRated = 32.3;
+
+                // 記錄變頻器原始運轉控制來源 (oP.01: 7=半自動端子, 8=全自動通訊)，以便試驗結束後安全還原
+                origOp01 = KebReadParamWithDll(com, baud, node, 0x0301);
 
                 // ★【額定頻率動態鎖定】優先取卡片 1 輸入值，若為 0 則動態自變頻器實測 dr.05 / uf.05 提取並自動回填 UI
                 double f0 = (double)numEquivF0.Value;
@@ -2485,6 +2498,22 @@ namespace DynamometerHMI
                         lblLockedItemStatus.Text = string.Format("[AI] {0} ({1:F1}Hz) 起始電壓: {2}V, Sy.52={3:F0}rpm，啟動安全低壓激磁...", item.FreqName, fTest, curV, targetRpm);
                     });
                     System.Threading.Thread.Sleep(200);
+
+                    // 步驟 B1.5: 確保運轉控制權限為全自動通訊控制 (oP.01 = 8) 且轉矩限制 cs.18 = 1000 (100.0%)
+                    // 現場變頻器若處於 oP.01 = 7 (半自動端子控制)，變頻器只聽實體 ST 端子，對軟體通訊 Sy.50 完全不予響應！
+                    KebWriteParamWithDll(com, baud, node, 0x0301, 8); // oP.01 = 8 (通訊運轉控制)
+                    KebWriteParamWithDll(com, baud, node, 0x0F12, 1000); // cs.18 = 1000 (100.0% 轉矩極限)
+
+                    // 啟動前硬體狀態自檢：若變頻器處於故障碼狀態 (ru.00 == 76 或 ru.43 != 0)，自動執行一次 FAULT RESET 復歸
+                    int? curRu00 = KebReadParamWithDll(com, baud, node, 0x0200);
+                    if (curRu00.HasValue && (curRu00.Value == 76 || curRu00.Value == 68 || ((curRu00.Value & 0x40) == 0 && curRu00.Value != 0)))
+                    {
+                        WriteHmiLog("KEB_RESET", string.Format("【啟動前故障復歸】{0} 偵測到變頻器處於異常狀態 (ru.00={1})，自動下達 FAULT RESET (Sy.50=2)", (driveId == 1 ? "A載台" : "B載台"), curRu00.Value));
+                        KebWriteParamWithDll(com, baud, node, 0x0032, 2); // FAULT RESET
+                        System.Threading.Thread.Sleep(200);
+                        KebWriteParamWithDll(com, baud, node, 0x0032, 0); // 復歸為 0
+                        System.Threading.Thread.Sleep(200);
+                    }
 
                     // 步驟 B2: 在已確認極低電壓下，正式啟動變頻器輸出激磁 (Sy.50 = 4 RUN 正轉)
                     KebWriteParamWithDll(com, baud, node, 0x0032, 4); // RUN 正轉 (Sy.50 = 4)
@@ -2752,8 +2781,26 @@ namespace DynamometerHMI
                 isLockedSweepRunning = false;
                 isAutoTuningUf09 = false;
                 isLockedRotorActive = false;
+                // 1. 強制確保切斷變頻器輸出激磁 (Sy.50 = 0)
+                try { KebWriteParamWithDll(com, baud, node, 0x0032, 0); } catch { }
+                // 2. 轉速指令清零 (Sy.52=0, oP.03=0)
                 ClearLockedSpeedCmd("堵轉測試線程安全結束轉速清零");
-                AutoRestoreUf09("堵轉測試線程安全結束復歸");
+                // 3. ★【生與死安全防護】：結束時強制鎖定為安全低壓 10V，絕對嚴禁自動恢復 260V 額定電壓！
+                try {
+                    KebWriteUf09(driveId, 10);
+                    if (lblEquivCurUf09 != null)
+                    {
+                        this.Invoke((MethodInvoker)delegate {
+                            lblEquivCurUf09.Text = "uf09: 10 V (低壓鎖定)";
+                            lblEquivCurUf09.ForeColor = Color.FromArgb(245, 158, 11);
+                        });
+                    }
+                } catch { }
+                // 4. 若原本為半自動端子控制 (oP.01 == 7)，安全還原變頻器控制來源
+                if (origOp01.HasValue && origOp01.Value == 7)
+                {
+                    try { KebWriteParamWithDll(com, baud, node, 0x0301, 7); } catch { }
+                }
                 StopEquivTestRecording("堵轉測試線程安全結束", showPrompt: false);
             }
         }
@@ -3030,13 +3077,11 @@ namespace DynamometerHMI
                 if (inRated <= 0.5) inRated = 32.3;
                 double iThreshold = inRated * 1.10; // 額定電流 +10% 閥值
 
-                // 實測電流
+                // 實測電流: 嚴格讀取功率計/遙測物理感測器，未起步時為 0A 屬完全正常，絕不可 fallback 銘牌額定電流
                 double iCur = (actCurrentSigma > 0.05) ? actCurrentSigma : ((wtI1 + wtI2 + wtI3) / 3.0);
-                if (iCur <= 0.05 && lastB_Dr00.HasValue) iCur = (double)lastB_Dr00.Value;
 
-                // 實測轉速
+                // 實測轉速: 堵轉試驗待測馬達被夾具確實鎖死，實測轉速 0.0 rpm 為絕對正常，嚴禁 fallback 銘牌額定轉速 (1500 rpm)！
                 double spdCur = Math.Abs(actSpeed);
-                if (spdCur <= 0.5 && lastB_Dr01.HasValue) spdCur = Math.Abs((double)lastB_Dr01.Value);
 
                 // ── 0. 瞬時突波過載極限保護 (Instant Peak Overcurrent > 150% IN, 零秒延遲緊急跳脫) ──
                 if (iCur > inRated * 1.50 && iCur > 5.0)

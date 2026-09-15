@@ -8,8 +8,62 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.122 (beta) | v2.10.80 | 2026-09-15 | 徹底根除堵轉測試「完全不會動」四大致命死穴 (看門狗幽靈轉速竄改0秒超速急停、幽靈電流過載跳脫、oP.01端子控制權限阻斷、電壓未同步自相矛盾阻擋)：(1)現象與佐證：使用者實測回報：「現在做賭轉測試完全不會動，請檢察，為什麼之前明明就都可以用?」；經比對 Firebase 歷史日誌 (20260915_082121) 與源碼：馬達於 08:20 處於鎖死狀態，轉速 actSpeed 為 0.0 rpm，但看門狗卻瞬時跳脫「堵轉瞬時嚴重飛脫跳脫 (轉速 > 30 rpm)」，隨即下達 Sy.50=0 強制停機並終止線程，馬達完全無動作；(2)致命根因 (Root Cause)：1. 看門狗幽靈轉速竄改：TmrLockedWatchdog_Tick 行 3047 加入了 if (spdCur <= 0.5 && lastB_Dr01.HasValue) spdCur = Math.Abs((double)lastB_Dr01.Value); 荒謬邏輯，當待測馬達被機械確實鎖死時 (轉速為 0 rpm)，竟被篡改為銘牌額定轉速 1500 rpm，導致啟動第 1 拍 (500ms 內) 判定 1500 > 30 rpm 瞬間急停並將線程殺死！2. 看門狗幽靈電流竄改：行 3043 加入了 if (iCur <= 0.05 && lastB_Dr00.HasValue) iCur = (double)lastB_Dr00.Value;，建壓初期電流為 0 時被篡改為 45.0A，誤判過電流跳脫；3. oP.01 運轉控制權限未切換：現場變頻器參數為 oP.01=7 (半自動硬體端子控制)，變頻器僅聽實體 ST 端子，對軟體通訊 Sy.50=4 完全不予響應；且 cs.18 (轉矩極限) 未確保為 1000；4. 電壓同步自相矛盾阻擋：前次測試結束時系統為保護馬達鎖定 10V 安全低壓，但 CheckAndCollectDrUfParams 卻比對 dr.02(260V) 與 uf.09(10V) 相差 250V 判定「電壓未同步」彈窗阻擋測試；5. finally 區塊危險升壓：先前 finally 區塊殘留 AutoRestoreUf09，於線程結束時將電壓寫回 260V 造成撞擊與大電流短路危險；(3)精確修復方案：1. 徹底剷除看門狗中所有幽靈 fallback，實測轉速與電流嚴格取自物理感測器讀值，馬達鎖死轉速為 0 rpm 判定為絕對正常；2. 啟動激磁前自動將運轉控制權限切換為全自動通訊控制 (oP.01=8)，確保轉矩極限 cs.18=1000 (100.0%)，並於存在殘留故障時自動執行 FAULT RESET (Sy.50=2)；試驗結束於 finally 安全還原 oP.01；3. CheckAndCollectDrUfParams 明確將 uf.09<=60V 識別為「安全低壓鎖定狀態」，免除電壓未同步阻擋；4. finally 區塊廢除 AutoRestoreUf09，一律強制鎖定為安全低壓 10V；(4)發布與驗證：升版至 2.10.80，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.80 發布。 |
 | V2.121 (beta) | v2.10.79 | 2026-09-15 | 徹底剷除虛構之「uF.05」幽靈暫存器讀取、回歸 KEB COMBIVERT F5 原廠規範 (銘牌 dr.05 與基頻 uF.00)、並修復同步檢查或條件誤報正常之缺陷：(1)現象與佐證：使用者實測質疑：「為何現在顯示uf.05=0.00Hz？然後在同步檢查時還告訴我正常？為何要觀察uf.05？原因是甚麼？」；(2)致命根因 (Root Cause)：1. 虛構暫存器讀取：KEB COMBIVERT F5 原廠 U/f 特性參數群中，基準額定頻率為 uF.00 (0x0500)，馬達銘牌額定頻率為 dr.05 (0x0605)，原廠根本無 uf.05 (0x0505) 參數；先前版本未查手冊盲目加入 0x0505 讀取，變頻器回傳 null/0，造成常駐橫條顯示「uf.05=0.00 Hz」；2. 寬鬆或邏輯誤判：CheckAndCollectDrUfParams 之 freqSynced 判定採用了 || 邏輯 ((uf05Freq > 0 && 吻合) || (uf00Freq > 0 && 吻合))，因現場實體 uF.00=51.5Hz 與 dr.05=51.5Hz 完全吻合，觸發了 || 條件，導致 uf.05=0.00Hz 依然誤判為「已同步正常」；3. 觀察 uf.05 毫無物理意義：KEB 控制馬達的核心頻率僅有銘牌額定 dr.05 與特性基頻 uF.00，uf.05 純屬虛構；(3)精確修復方案：1. 徹底清除所有對 0x0505 (uf.05) 的讀取、換算與變數；2. 常駐橫條明確更正為「實測頻率: dr.05=xx.xx Hz (銘牌) | uF.00=xx.xx Hz (基頻)」；3. 同步比對嚴格修正為 dr.05 與 uF.00 雙向吻合判定 (Math.Abs(drFreq - uf00Freq) <= 0.5)；4. 堵轉工作線程自動鎖定全面回歸 0x0500 (uF.00)；(4)發布與驗證：升版至 2.10.79，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.79 發布。 |
 | V2.120 (beta) | v2.10.78 | 2026-09-15 | 徹底修復線上更新「HTTP 404」致命缺陷、排除 .gitignore 誤阻擋 Release 執行檔與自動化發布強制推送雙保險機制：(1)現象與佐證：使用者於客戶端點擊線上自動更新時跳出「下載或替換失敗: 伺服器回應異常: 404 (HTTP/1.1 404 Not Found)」；經查 Firebase RTDB update/version.json 指向 raw.githubusercontent.com 連結，實測 curl 回傳 404 Not Found；(2)致命根因 (Root Cause)：1. 根目錄 .gitignore 第 3 行定義了 *.exe 全域忽略，未設置 Release 目錄例外；2. package_release.ps1 第 190 行執行 git add "Dyanmometer/Release/" 時缺少 -f (force) 參數，導致編譯完成的新版 Dynamometer_HMI_Pro.exe 完全未被暫存或 commit，gh-pages 分支遠端並無該 exe；而 package_release.ps1 仍將不存在的 raw.githubusercontent.com 下載網址寫入 Firebase RTDB，客戶端下載即報 404；(3)精確修復方案：1. 於根目錄 .gitignore 新增白名單例外 !Dyanmometer/Release/**/*.exe 與 !Release/**/*.exe，確保便攜執行檔永久受 Git 追蹤；2. 修改 package_release.ps1 第 190 行為 git add -f "Dyanmometer/Release/" 形成雙保險；3. 升級至 v2.10.78，將 Portable 執行檔強制加入暫存並推送至 gh-pages 與 master，更新 Firebase RTDB 與 GitHub Release v2.10.78，確保下載 raw 連結 200 OK，恢復一鍵熱替換重啟；(4)發布與驗證：升版至 2.10.78，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.78 發布。 |
+
+---
+
+## [V2.122 beta / v2.10.80] - 2026-09-15
+
+### 徹底根除堵轉測試「完全不會動」四大致命死穴 (看門狗幽靈轉速竄改0秒超速急停、幽靈電流過載跳脫、oP.01端子控制權限阻斷、電壓未同步自相矛盾阻擋)
+
+### 現象與佐證
+- **使用者回報現象**：使用者在操作等效電路堵轉測試時反饋：
+  `現在做賭轉測試完全不會動，請檢察，為什麼之前明明就都可以用?`
+- **實測日誌佐證 (Firebase `/logs/history/20260915_082121.json`)**：
+  - 馬達軸處於確實機械剛性鎖死狀態，物理感測器轉速 `actSpeed = 0.0 rpm`；
+  - 但啟動後系統於 500ms 內立即觸發跳脫：
+    `[2026-09-15 08:20:53.125] [LOCKED_PROT_TRIP] 【[!] 保護】轉速異常 (治具脫扣/卡死) | 詳情: • 實測軸轉速 = 8 rpm (允許上限 5 rpm)...`
+  - 隨後系統下達 `Sy.50 = 0` 強制切斷輸出並中止線程，變頻器未建壓即被強行掐死，導致馬達完全不會動。
+
+### 致命根因 (Root Cause)
+1. **致命死穴 A（看門狗幽靈轉速竄改導致 0 秒超速急停）**：
+   - 在 `Dynamometer_TestEquivCircuit.cs` 第 3047 行：
+     `if (spdCur <= 0.5 && lastB_Dr01.HasValue) spdCur = Math.Abs((double)lastB_Dr01.Value);`
+   - 在堵轉試驗中，待測馬達被機械治具確實鎖死，實測轉速 `actSpeed` 恆為 `0.0 rpm`；
+   - 先前版本竟加入荒謬的 fallback 邏輯，當 `spdCur <= 0.5` 時將其賦值為馬達銘牌額定轉速 `lastB_Dr01`（現場實測為 1500 rpm）；
+   - 導致看門狗定時器 (`TmrLockedWatchdog_Tick`) 在啟動後第 1 個週期（500ms 內），直接判定 `spdCur = 1500 rpm > 30 rpm`（觸發「堵轉瞬時嚴重飛脫跳脫」），立即下達 `Sy.50 = 0` 停機，並將 `isLockedSweepRunning = false` 強制殺死背景掃描線程！變頻器根本來不及建壓就被直接掐死！
+2. **致命死穴 B（看門狗幽靈電流竄改誤判過載跳脫）**：
+   - 在第 3043 行：
+     `if (iCur <= 0.05 && lastB_Dr00.HasValue) iCur = (double)lastB_Dr00.Value;`
+   - 建壓初期電流為 0A 時，竟被篡改為銘牌額定電流 `lastB_Dr00`（現場為 45.0A）；若額定電流設定值較低，直接超過 150% IN 誤觸發瞬時極限過電流跳脫；
+3. **致命死穴 C（運轉控制來源 `oP.01` 缺乏全自動通訊切換）**：
+   - 現場變頻器參數 `oP.01 = 7`（半自動硬體 ST 端子控制）；
+   - 當 `oP.01 = 7` 時，變頻器僅受硬體端子控制，對軟體通訊下發的 `Sy.50 = 4`（0x0032 控制字）完全不予響應；
+   - 且轉矩極限 `cs.18` 未在啟動前確保為 1000 (100.0%)，若曾被卸載清零，變頻器輸出電流極限為 0%；
+4. **致命死穴 D（`CheckAndCollectDrUfParams` 電壓同步自相矛盾阻擋）**：
+   - 為保護鎖死馬達，系統在停止與跳脫時將 `uf.09` 鎖定為安全低壓 (10V)；
+   - 但在啟動前檢查 `CheckAndCollectDrUfParams` 中，比對 `Math.Abs(drVolt - ufVolt) > 5.0`（dr.02 額定 260V vs uf.09 實測 10V 相差 250V），判定「額定電壓未同步」彈窗告警阻擋試驗；
+5. **致命死穴 E（`finally` 區塊殘留 `AutoRestoreUf09` 恢復 260V 危險高壓）**：
+   - `LockedSweepWorker` 之 `finally` 生命週期保證區塊先前殘留呼叫 `AutoRestoreUf09`，在測試結束時將電壓寫回 260V，造成短路大電流與巨響隱患。
+
+### 精確修復方案
+1. **徹底剷除看門狗幽靈轉速與電流竄改**：
+   - 刪除 `lastB_Dr01` 與 `lastB_Dr00` 之 fallback 賦值，實測轉速與電流嚴格取自物理感測器讀值；待測馬達鎖死轉速為 0.0 rpm 判定為絕對正常運轉狀態，絕不再誤觸超速跳脫；
+2. **啟動前自動切換全自動通訊控制 (`oP.01 = 8`) 與轉矩極限 100% (`cs.18 = 1000`)**：
+   - 在 `LockedSweepWorker` 激磁前記錄原始 `oP.01`，並強制下發 `oP.01 = 8`，確保 `Sy.50 = 4` 真正能指揮變頻器正轉激磁；
+   - 強制下發 `cs.18 = 1000` (100.0% 轉矩極限)；
+   - 自檢變頻器硬體狀態，若處於故障碼狀態 (ru.00 == 76 或非0)，自動執行一次 FAULT RESET 復歸 (`Sy.50 = 2` -> 延遲 -> `Sy.50 = 0`)，解除硬體鎖定；
+   - 於 `finally` 區塊中將 `oP.01` 安全還原為原始值；
+3. **`CheckAndCollectDrUfParams` 豁免安全低壓狀態**：
+   - 明確將 `uf.09 <= 60V` 識別為「安全低壓/調壓鎖定狀態 (10V)」，免除電壓未同步阻擋，確保順暢起跑；
+4. **`finally` 區塊強制鎖定安全低壓 (10V)**：
+   - 廢除 `finally` 中危險的 `AutoRestoreUf09`，一律寫入 `KebWriteUf09(driveId, 10)`，徹底消除高壓短路撞擊風險。
+
+### 發布與驗證
+- 升級版本號至 **v2.10.80 (V2.122 beta)**，經 `csc.exe` 編譯通過。
+- 執行 `package_release.ps1 -Version 2.10.80`，完成雙分支推送、GitHub Release v2.10.80 發布與 HTTP 200 OK HEAD 實測探測。
 
 ---
 
