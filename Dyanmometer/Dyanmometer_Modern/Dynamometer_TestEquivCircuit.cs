@@ -70,6 +70,7 @@ namespace DynamometerHMI
         private NumericUpDown numEquivIk;
         private NumericUpDown numEquivPk;
         private NumericUpDown numEquivPfk;
+        private Button btnEquivLoadLockedFromTest;
         private Button btnEquivCaptureLiveLocked;
         private bool isLockedDataReady = false;
         private ComboBox cmbEquivLockedFreq;       // 測試頻率選擇 (8 種頻率模式)
@@ -428,7 +429,7 @@ namespace DynamometerHMI
                 FlatStyle = FlatStyle.Flat
             };
             btnEquivLoadNoLoadFromTest.FlatAppearance.BorderColor = Color.FromArgb(186, 230, 253);
-            btnEquivLoadNoLoadFromTest.Click += (s, e) => LoadNoLoadDataFromTestTab();
+            btnEquivLoadNoLoadFromTest.Click += (s, e) => LoadNoLoadDataFromTestTab(showPrompt: true);
 
             btnEquivCaptureLiveNoLoad = new Button()
             {
@@ -543,7 +544,7 @@ namespace DynamometerHMI
                 FlatStyle = FlatStyle.Flat
             };
             btnEquivLoadRatedFromTn.FlatAppearance.BorderColor = Color.FromArgb(153, 246, 228);
-            btnEquivLoadRatedFromTn.Click += (s, e) => LoadRatedDataFromTnTab();
+            btnEquivLoadRatedFromTn.Click += (s, e) => LoadRatedDataFromTnTab(showPrompt: true);
 
             btnEquivCaptureLiveRated = new Button()
             {
@@ -592,7 +593,7 @@ namespace DynamometerHMI
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
-                RowCount = 13
+                RowCount = 14
             };
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 46f));
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 54f));
@@ -608,7 +609,8 @@ namespace DynamometerHMI
             tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 9: Ik
             tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 10: Pk
             tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 11: PFk
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 32f)); // Row 12: Buttons
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 30f)); // Row 12: Data Loading Buttons
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 30f)); // Row 13: Safety & Inverter Buttons
 
             // Row 0: 標題
             Label lblTitle = new Label()
@@ -948,17 +950,29 @@ namespace DynamometerHMI
             numEquivPk = AddCardField(tlp, 10, "堵轉功率 Pk (W):", 0.0m, 1, 0, 50000);
             numEquivPfk = AddCardField(tlp, 11, "堵轉因數 PFk:", 0.0m, 3, 0, 1);
 
-            // Row 12: 操作按鈕行 (三鍵式: 擷取 / 復歸 / 緊急停機)
-            TableLayoutPanel tlpBtnsLocked = new TableLayoutPanel()
+            // Row 12: 數據載入工具列 (兩鍵式: 載入堵轉紀錄檔 / 擷取即時數據)
+            TableLayoutPanel tlpBtnsData = new TableLayoutPanel()
             {
                 Dock = DockStyle.Fill,
-                ColumnCount = 3,
+                ColumnCount = 2,
                 RowCount = 1,
-                Margin = new Padding(0, 2, 0, 0)
+                Margin = new Padding(0, 1, 0, 1)
             };
-            tlpBtnsLocked.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42f));
-            tlpBtnsLocked.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28f));
-            tlpBtnsLocked.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30f));
+            tlpBtnsData.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55f));
+            tlpBtnsData.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45f));
+
+            btnEquivLoadLockedFromTest = new Button()
+            {
+                Text = "[檔案] 載入堵轉紀錄檔",
+                Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold),
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(240, 249, 255),
+                ForeColor = Color.FromArgb(2, 132, 199),
+                FlatStyle = FlatStyle.Flat,
+                Margin = new Padding(1)
+            };
+            btnEquivLoadLockedFromTest.FlatAppearance.BorderColor = Color.FromArgb(186, 230, 253);
+            btnEquivLoadLockedFromTest.Click += (s, e) => LoadLockedDataFromTestTab(showPrompt: true);
 
             btnEquivCaptureLiveLocked = new Button()
             {
@@ -968,19 +982,38 @@ namespace DynamometerHMI
                 BackColor = Color.FromArgb(254, 243, 199),
                 ForeColor = Color.FromArgb(180, 83, 9),
                 FlatStyle = FlatStyle.Flat,
-                Margin = new Padding(2)
+                Margin = new Padding(1)
             };
             btnEquivCaptureLiveLocked.FlatAppearance.BorderColor = Color.FromArgb(252, 211, 77);
             btnEquivCaptureLiveLocked.Click += (s, e) => CaptureLiveLockedData();
 
+            tlpBtnsData.Controls.Add(btnEquivLoadLockedFromTest, 0, 0);
+            tlpBtnsData.Controls.Add(btnEquivCaptureLiveLocked, 1, 0);
+            tlp.SetColumnSpan(tlpBtnsData, 2);
+            tlp.Controls.Add(tlpBtnsData, 0, 12);
+
+            // Row 13: 安全與變頻器復歸工具列 (兩鍵式: 復歸預設 / ■ 急停)
+            TableLayoutPanel tlpBtnsSafety = new TableLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount = 1,
+                Margin = new Padding(0, 1, 0, 1)
+            };
+            tlpBtnsSafety.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+            tlpBtnsSafety.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+
             btnEquivRevertUf09 = new Button()
             {
                 Text = "復歸預設",
-                Font = new Font("微軟正黑體", 8f),
+                Font = new Font("微軟正黑體", 8.5f),
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(241, 245, 249),
-                Margin = new Padding(2)
+                ForeColor = Color.FromArgb(71, 85, 105),
+                FlatStyle = FlatStyle.Flat,
+                Margin = new Padding(1)
             };
+            btnEquivRevertUf09.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
             btnEquivRevertUf09.Click += (s, e) => RevertUf09ToDefault();
 
             btnEquivLockedStop = new Button()
@@ -991,7 +1024,7 @@ namespace DynamometerHMI
                 BackColor = Color.FromArgb(254, 242, 242),
                 ForeColor = Color.FromArgb(220, 38, 38),
                 FlatStyle = FlatStyle.Flat,
-                Margin = new Padding(2)
+                Margin = new Padding(1)
             };
             btnEquivLockedStop.FlatAppearance.BorderColor = Color.FromArgb(254, 202, 202);
             btnEquivLockedStop.Click += (s, e) => {
@@ -1001,12 +1034,10 @@ namespace DynamometerHMI
                 TriggerLockedProtectionTrip("使用者手動點擊緊急停止", "操作者於等效電路堵轉面板主動點擊【■ 急停】按鈕。");
             };
 
-            tlpBtnsLocked.Controls.Add(btnEquivCaptureLiveLocked, 0, 0);
-            tlpBtnsLocked.Controls.Add(btnEquivRevertUf09, 1, 0);
-            tlpBtnsLocked.Controls.Add(btnEquivLockedStop, 2, 0);
-
-            tlp.SetColumnSpan(tlpBtnsLocked, 2);
-            tlp.Controls.Add(tlpBtnsLocked, 0, 11);
+            tlpBtnsSafety.Controls.Add(btnEquivRevertUf09, 0, 0);
+            tlpBtnsSafety.Controls.Add(btnEquivLockedStop, 1, 0);
+            tlp.SetColumnSpan(tlpBtnsSafety, 2);
+            tlp.Controls.Add(tlpBtnsSafety, 0, 13);
 
             card.Controls.Add(tlp);
             return card;
@@ -1378,7 +1409,7 @@ namespace DynamometerHMI
         #region 數據載入與即時採樣實作
 
         // 1. 從馬達專屬資料夾或「空載測試」分頁載入
-        private void LoadNoLoadDataFromTestTab()
+        private bool LoadNoLoadDataFromTestTab(bool showPrompt = true)
         {
             try
             {
@@ -1467,6 +1498,13 @@ namespace DynamometerHMI
                             WriteHmiLog("EQUIV", string.Format("【等效電路】成功自馬達檔案提取空載數據: V0={0:F1}V, I0={1:F2}A, P0={2:F1}W, N0={3:F0}rpm, F0={4:F1}Hz ({5})",
                                 avgV, avgI, avgP, avgSpd, avgFreq, Path.GetFileName(targetFile)));
                             loadedFromFile = true;
+
+                            if (showPrompt)
+                            {
+                                MessageBox.Show(string.Format("已成功自空載紀錄檔提取數據：\r\n\r\n• 檔案：{0}\r\n• 空載電壓 V0 = {1:F1} V\r\n• 空載電流 I0 = {2:F2} A\r\n• 空載功率 P0 = {3:F1} W\r\n• 空載轉速 N0 = {4:F0} rpm",
+                                    Path.GetFileName(targetFile), avgV, avgI, avgP, avgSpd), "載入成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            }
+                            return true;
                         }
                     }
                 }
@@ -1492,26 +1530,36 @@ namespace DynamometerHMI
                         {
                             double spd = 0.0;
                             double.TryParse(Convert.ToString(targetRow.Cells["ActSpd"].Value ?? "0"), out spd);
-                            if (spd > 0) numEquivN0.Value = (decimal)Math.Round(spd);
+                            if (spd > 0)
+                            {
+                                numEquivN0.Value = (decimal)Math.Round(spd);
+                                isNoLoadDataReady = true;
+                                lblNoLoadItemStatus.Text = "[O] 已載入空載分頁數據 (" + DateTime.Now.ToString("HH:mm:ss") + ")";
+                                lblNoLoadItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
+                                WriteHmiLog("EQUIV", "【等效電路】已成功從空載測試分頁提取運轉數據！");
+                                if (showPrompt)
+                                {
+                                    MessageBox.Show("已成功從空載測試分頁提取運轉數據！", "載入成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                }
+                                return true;
+                            }
                         }
-
-                        decimal ratedV = (lastB_Dr02.HasValue && lastB_Dr02.Value > 0) ? (decimal)lastB_Dr02.Value : 260m;
-                        if (numEquivV0.Value <= 0 || numEquivV0.Value == 260m) numEquivV0.Value = ratedV;
-
-                        isNoLoadDataReady = true;
-                        lblNoLoadItemStatus.Text = "[O] 已載入空載分頁數據 (" + DateTime.Now.ToString("HH:mm:ss") + ")";
-                        lblNoLoadItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
-                        WriteHmiLog("EQUIV", "【等效電路】已成功從空載測試分頁提取運轉數據！");
                     }
-                    else
+
+                    if (showPrompt)
                     {
                         MessageBox.Show("於馬達資料夾中未找到空載紀錄檔 (NoLoad)，且空載測試分頁尚無數據！\r\n請先執行空載測試或直接手動輸入/即時採樣。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                 }
+                return false;
             }
             catch (Exception ex)
             {
-                MessageBox.Show("從空載記錄載入數據失敗: " + ex.Message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                if (showPrompt)
+                {
+                    MessageBox.Show("從空載記錄載入數據失敗: " + ex.Message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+                return false;
             }
         }
 
@@ -1550,7 +1598,7 @@ namespace DynamometerHMI
         }
 
         // 2. 從「S1 不補轉差紀錄檔」或「T-N 分頁」載入額定點
-        private void LoadRatedDataFromTnTab()
+        private bool LoadRatedDataFromTnTab(bool showPrompt = true)
         {
             try
             {
@@ -1603,6 +1651,13 @@ namespace DynamometerHMI
                             WriteHmiLog("EQUIV", string.Format("【等效電路】成功自 S1 紀錄檔提取額定數據 (30筆平均): TN={0:F2}Nm, NN={1:F0}rpm (不補轉差), VN={2:F1}V, IN={3:F2}A, sN={4:F2}% ({5})",
                                 avgTrq, avgSpd, avgV, avgI, slip, Path.GetFileName(latestS1File)));
                             loadedFromS1 = true;
+
+                            if (showPrompt)
+                            {
+                                MessageBox.Show(string.Format("已成功自 S1 紀錄檔提取額定數據：\r\n\r\n• 檔案：{0}\r\n• 額定轉矩 TN = {1:F2} Nm\r\n• 額定轉速 NN = {2:F0} rpm\r\n• 額定電壓 VN = {3:F1} V\r\n• 額定電流 IN = {4:F2} A\r\n• 轉差率 sN = {5:F2} %",
+                                    Path.GetFileName(latestS1File), avgTrq, avgSpd, avgV, avgI, slip), "載入成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            }
+                            return true;
                         }
                     }
                 }
@@ -1628,37 +1683,47 @@ namespace DynamometerHMI
                         }
                     }
 
-                    decimal ratedV = (lastB_Dr02.HasValue && lastB_Dr02.Value > 0) ? (decimal)lastB_Dr02.Value : 260m;
-                    numEquivVn.Value = ratedV;
-
-                    int poles = kebMotorPoles2 > 0 ? kebMotorPoles2 : 4;
-                    double effectiveF0 = (numEquivF0.Value > 1.0m) ? (double)numEquivF0.Value :
-                                         (lastB_Dr05.HasValue ? ConvertKebDr05ToFrequency(lastB_Dr05.Value) :
-                                         (kebDrFreq2 > 1.0 ? kebDrFreq2 : 50.0));
-                    double syncSpd = (120.0 * effectiveF0) / poles;
-                    double actSpdVal = (double)numEquivNn.Value;
-                    if (syncSpd > 0 && actSpdVal > 0)
-                    {
-                        double s = (syncSpd - actSpdVal) / syncSpd;
-                        if (s > 0) numEquivSlip.Value = (decimal)Math.Round(s * 100.0, 2);
-                    }
-
                     if (found)
                     {
+                        int poles = kebMotorPoles2 > 0 ? kebMotorPoles2 : 4;
+                        double effectiveF0 = (numEquivF0.Value > 1.0m) ? (double)numEquivF0.Value :
+                                             (lastB_Dr05.HasValue ? ConvertKebDr05ToFrequency(lastB_Dr05.Value) :
+                                             (kebDrFreq2 > 1.0 ? kebDrFreq2 : 50.0));
+                        double syncSpd = (120.0 * effectiveF0) / poles;
+                        double actSpdVal = (double)numEquivNn.Value;
+                        if (syncSpd > 0 && actSpdVal > 0)
+                        {
+                            double s = (syncSpd - actSpdVal) / syncSpd;
+                            if (s > 0) numEquivSlip.Value = (decimal)Math.Round(s * 100.0, 2);
+                        }
+
                         isRatedDataReady = true;
                         lblRatedItemStatus.Text = "[O] 已載入 T-N 額定運轉數據 (" + DateTime.Now.ToString("HH:mm:ss") + ")";
                         lblRatedItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
                         WriteHmiLog("EQUIV", "【等效電路】已成功從 T-N 分頁提取額定運轉數據！");
+                        if (showPrompt)
+                        {
+                            MessageBox.Show("已成功從 T-N 分頁提取額定運轉數據！", "載入成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        }
+                        return true;
                     }
                     else
                     {
-                        MessageBox.Show("於馬達資料夾中未找到 S1 不補轉差紀錄檔 (S1_Rated_NoSlip_Latest.csv)，且 T-N 分頁亦無數據！\r\n請先執行 S1 測試 (自動完成40筆採樣) 或直接手動輸入/即時採樣。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        if (showPrompt)
+                        {
+                            MessageBox.Show("於馬達資料夾中未找到 S1 不補轉差紀錄檔 (S1_Rated_NoSlip_Latest.csv)，且 T-N 分頁亦無數據！\r\n請先執行 S1 測試 (自動完成40筆採樣) 或直接手動輸入/即時採樣。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        }
                     }
                 }
+                return false;
             }
             catch (Exception ex)
             {
-                MessageBox.Show("從額定記錄載入失敗: " + ex.Message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                if (showPrompt)
+                {
+                    MessageBox.Show("從額定記錄載入失敗: " + ex.Message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+                return false;
             }
         }
 
@@ -1702,6 +1767,262 @@ namespace DynamometerHMI
             catch (Exception ex)
             {
                 MessageBox.Show("即時額定採樣失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        // 檢查馬達專屬資料夾中是否存在實體空載日誌
+        public bool CheckMotorHasNoLoadLog(string mName)
+        {
+            try
+            {
+                string dir = GetMotorDedicatedLogDirectory(mName);
+                if (!Directory.Exists(dir)) return false;
+                var files = Directory.GetFiles(dir, "*.csv")
+                    .Where(f => f.IndexOf("NoLoad", StringComparison.OrdinalIgnoreCase) >= 0)
+                    .ToList();
+                return files.Count > 0;
+            }
+            catch { return false; }
+        }
+
+        // 檢查馬達專屬資料夾中是否存在實體 S1 額定日誌
+        public bool CheckMotorHasRatedLog(string mName)
+        {
+            try
+            {
+                string dir = GetMotorDedicatedLogDirectory(mName);
+                if (!Directory.Exists(dir)) return false;
+                string latest = Path.Combine(dir, "S1_Rated_NoSlip_Latest.csv");
+                if (File.Exists(latest)) return true;
+                var files = Directory.GetFiles(dir, "S1_Rated_NoSlip_*.csv");
+                return files != null && files.Length > 0;
+            }
+            catch { return false; }
+        }
+
+        // 檢查馬達專屬資料夾中是否存在實體堵轉紀錄檔
+        public bool CheckMotorHasLockedLog(string mName)
+        {
+            try
+            {
+                string dir = GetMotorDedicatedLogDirectory(mName);
+                if (!Directory.Exists(dir)) return false;
+                var files = Directory.GetFiles(dir, "*.csv")
+                    .Where(f => {
+                        string name = Path.GetFileName(f);
+                        return name.IndexOf("Locked", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                               name.IndexOf("EquivCircuit_Test_Log", StringComparison.OrdinalIgnoreCase) >= 0;
+                    })
+                    .ToList();
+                return files.Count > 0;
+            }
+            catch { return false; }
+        }
+
+        // 3. 從馬達專屬資料夾載入堵轉試驗數據 (EquivCircuit_Test_Log_*.csv 或 LockedRotor_*.csv)
+        private bool LoadLockedDataFromTestTab(bool showPrompt = true)
+        {
+            try
+            {
+                string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
+                string motorDir = GetMotorDedicatedLogDirectory(mName);
+                bool loadedFromFile = false;
+
+                if (Directory.Exists(motorDir))
+                {
+                    // 搜尋馬達專屬資料夾下所有堵轉或等效電路日誌
+                    var files = Directory.GetFiles(motorDir, "*.csv")
+                        .Where(f => {
+                            string name = Path.GetFileName(f);
+                            return name.IndexOf("Locked", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                   name.IndexOf("EquivCircuit_Test_Log", StringComparison.OrdinalIgnoreCase) >= 0;
+                        })
+                        .OrderByDescending(f => File.GetLastWriteTime(f))
+                        .ToList();
+
+                    foreach (string targetFile in files)
+                    {
+                        string[] lines = File.ReadAllLines(targetFile, Encoding.UTF8);
+                        if (lines.Length == 0) continue;
+
+                        double avgV = 0, avgI = 0, avgP = 0, avgPf = 0;
+                        bool fileParsed = false;
+
+                        // 情況 1: EquivCircuit_Test_Log_*.csv 含有 Freq_Point_Summary
+                        for (int l = lines.Length - 1; l >= 0; l--)
+                        {
+                            string line = lines[l].Trim();
+                            if (line.Contains("Freq_Point_Summary"))
+                            {
+                                System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(line,
+                                    @"Vk=([0-9.]+)\s*V.*?Ik=([0-9.]+)\s*A.*?Pk=([0-9.]+)\s*W.*?PFk=([0-9.]+)");
+                                if (m.Success)
+                                {
+                                    double.TryParse(m.Groups[1].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out avgV);
+                                    double.TryParse(m.Groups[2].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out avgI);
+                                    double.TryParse(m.Groups[3].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out avgP);
+                                    double.TryParse(m.Groups[4].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out avgPf);
+                                    if (avgV > 0 && avgI > 0)
+                                    {
+                                        fileParsed = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        // 情況 2: 如果沒有 Freq_Point_Summary，但是有 Sample_* 採樣筆數或即時電氣列
+                        if (!fileParsed)
+                        {
+                            List<double[]> samples = new List<double[]>();
+                            int headerIdx = -1;
+                            Dictionary<string, int> colMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+                            for (int l = 0; l < lines.Length; l++)
+                            {
+                                string line = lines[l].Trim();
+                                if (string.IsNullOrEmpty(line) || line.StartsWith("#")) continue;
+
+                                if (headerIdx < 0 && (line.Contains("Voltage_Sigma_V") || line.Contains("平均電壓Vk") || line.Contains("Vk")))
+                                {
+                                    headerIdx = l;
+                                    string[] headers = line.Split(',');
+                                    for (int c = 0; c < headers.Length; c++)
+                                    {
+                                        colMap[headers[c].Trim().Trim('\"')] = c;
+                                    }
+                                    continue;
+                                }
+
+                                if (headerIdx >= 0)
+                                {
+                                    string[] parts = line.Split(',');
+                                    // 情況 2A: 8 頻率匯出報表 LockedRotor_8Freq_Sweep_*.csv
+                                    if (colMap.ContainsKey("平均電壓Vk(V)") && colMap.ContainsKey("平均電流Ik(A)"))
+                                    {
+                                        try
+                                        {
+                                            string status = colMap.ContainsKey("狀態") ? parts[colMap["狀態"]].Trim('\"') : "";
+                                            if (status.Contains("完成") || parts.Length > 10)
+                                            {
+                                                double v = double.Parse(parts[colMap["平均電壓Vk(V)"]].Trim('\"'), System.Globalization.CultureInfo.InvariantCulture);
+                                                double i = double.Parse(parts[colMap["平均電流Ik(A)"]].Trim('\"'), System.Globalization.CultureInfo.InvariantCulture);
+                                                double p = colMap.ContainsKey("平均功率Pk(W)") ? double.Parse(parts[colMap["平均功率Pk(W)"]].Trim('\"'), System.Globalization.CultureInfo.InvariantCulture) : 0;
+                                                double pf = colMap.ContainsKey("平均功率因數PFk") ? double.Parse(parts[colMap["平均功率因數PFk"]].Trim('\"'), System.Globalization.CultureInfo.InvariantCulture) : 0.29;
+                                                if (v > 0 && i > 0)
+                                                {
+                                                    avgV = v; avgI = i; avgP = p; avgPf = pf;
+                                                    fileParsed = true;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        catch { }
+                                    }
+                                    // 情況 2B: 原始測試電文 EquivCircuit_Test_Log_*.csv 含有 Sample_* 列
+                                    else if (colMap.ContainsKey("Voltage_Sigma_V") && colMap.ContainsKey("Current_Sigma_A"))
+                                    {
+                                        try
+                                        {
+                                            double v = double.Parse(parts[colMap["Voltage_Sigma_V"]].Trim('\"'), System.Globalization.CultureInfo.InvariantCulture);
+                                            double i = double.Parse(parts[colMap["Current_Sigma_A"]].Trim('\"'), System.Globalization.CultureInfo.InvariantCulture);
+                                            double pKw = colMap.ContainsKey("ElecPower_kW") ? double.Parse(parts[colMap["ElecPower_kW"]].Trim('\"'), System.Globalization.CultureInfo.InvariantCulture) : 0;
+                                            double pf = colMap.ContainsKey("PF") ? double.Parse(parts[colMap["PF"]].Trim('\"'), System.Globalization.CultureInfo.InvariantCulture) : 0.29;
+                                            double spd = colMap.ContainsKey("Speed_rpm") ? double.Parse(parts[colMap["Speed_rpm"]].Trim('\"'), System.Globalization.CultureInfo.InvariantCulture) : 0;
+
+                                            if (spd <= 20.0 && v > 0.5 && i > 0.1)
+                                            {
+                                                samples.Add(new double[] { v, i, pKw * 1000.0, pf });
+                                            }
+                                        }
+                                        catch { }
+                                    }
+                                }
+                            }
+
+                            if (!fileParsed && samples.Count > 0)
+                            {
+                                if (samples.Count >= 10)
+                                {
+                                    samples.Sort((a, b) => a[1].CompareTo(b[1]));
+                                    int trimCount = Math.Max(1, samples.Count / 6);
+                                    int takeCount = samples.Count - (trimCount * 2);
+                                    var trimmed = samples.Skip(trimCount).Take(takeCount).ToList();
+                                    avgV = trimmed.Average(s => s[0]);
+                                    avgI = trimmed.Average(s => s[1]);
+                                    avgP = trimmed.Average(s => s[2]);
+                                    avgPf = trimmed.Average(s => s[3]);
+                                }
+                                else
+                                {
+                                    avgV = samples.Average(s => s[0]);
+                                    avgI = samples.Average(s => s[1]);
+                                    avgP = samples.Average(s => s[2]);
+                                    avgPf = samples.Average(s => s[3]);
+                                }
+                                if (avgV > 0 && avgI > 0) fileParsed = true;
+                            }
+                        }
+
+                        if (fileParsed && avgV > 0 && avgI > 0)
+                        {
+                            numEquivVk.Value = (decimal)Math.Round(avgV, 1);
+                            numEquivIk.Value = (decimal)Math.Round(avgI, 2);
+                            numEquivPk.Value = (decimal)Math.Round(avgP, 1);
+                            numEquivPfk.Value = (decimal)Math.Round(avgPf, 3);
+
+                            isLockedDataReady = true;
+                            lblLockedItemStatus.Text = string.Format("[O] 已自檔案讀取: {0} ({1:HH:mm:ss})", Path.GetFileName(targetFile), DateTime.Now);
+                            lblLockedItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
+                            WriteHmiLog("EQUIV", string.Format("【等效電路】成功自馬達檔案提取堵轉數據: Vk={0:F1}V, Ik={1:F2}A, Pk={2:F1}W, PFk={3:F3} ({4})",
+                                avgV, avgI, avgP, avgPf, Path.GetFileName(targetFile)));
+                            loadedFromFile = true;
+
+                            if (showPrompt)
+                            {
+                                MessageBox.Show(string.Format("已成功自堵轉紀錄檔提取數據：\r\n\r\n• 檔案：{0}\r\n• 堵轉電壓 Vk = {1:F1} V\r\n• 堵轉電流 Ik = {2:F2} A\r\n• 堵轉功率 Pk = {3:F1} W\r\n• 堵轉功率因數 PFk = {4:F3}",
+                                    Path.GetFileName(targetFile), avgV, avgI, avgP, avgPf), "載入成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            }
+                            return true;
+                        }
+                    }
+                }
+
+                if (!loadedFromFile)
+                {
+                    // 備援：若本次執行已經在記憶體中完成掃描 (lockedSweepItems)
+                    var completedItem = lockedSweepItems.LastOrDefault(it => it.IsCompleted && it.AvgVk > 0 && it.AvgIk > 0);
+                    if (completedItem != null)
+                    {
+                        numEquivVk.Value = (decimal)Math.Round(completedItem.AvgVk, 1);
+                        numEquivIk.Value = (decimal)Math.Round(completedItem.AvgIk, 2);
+                        numEquivPk.Value = (decimal)Math.Round(completedItem.AvgPk, 1);
+                        numEquivPfk.Value = (decimal)Math.Round(completedItem.AvgPFk, 3);
+                        isLockedDataReady = true;
+                        lblLockedItemStatus.Text = string.Format("[O] 已自本次試驗快取載入 ({0})", completedItem.FreqName);
+                        lblLockedItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
+                        if (showPrompt)
+                        {
+                            MessageBox.Show(string.Format("已成功自本次堵轉試驗快取載入【{0}】數據！\r\n• Vk = {1:F1} V\r\n• Ik = {2:F2} A\r\n• Pk = {3:F1} W\r\n• PFk = {4:F3}",
+                                completedItem.FreqName, completedItem.AvgVk, completedItem.AvgIk, completedItem.AvgPk, completedItem.AvgPFk), "載入成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        }
+                        return true;
+                    }
+
+                    if (showPrompt)
+                    {
+                        MessageBox.Show("於馬達資料夾中未找到堵轉紀錄檔 (EquivCircuit_Test_Log 或 LockedRotor)！\r\n請先執行堵轉試驗或直接手動輸入/即時採樣。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                if (showPrompt)
+                {
+                    MessageBox.Show("從堵轉記錄載入失敗: " + ex.Message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+                return false;
             }
         }
 
@@ -3764,34 +4085,72 @@ namespace DynamometerHMI
                 if (string.IsNullOrEmpty(cachedEquivMotorName)) cachedEquivMotorName = curName;
                 if (string.IsNullOrEmpty(cachedEquivDrFingerprint) && !string.IsNullOrEmpty(lastKnownB_DrFingerprint)) cachedEquivDrFingerprint = lastKnownB_DrFingerprint;
 
-                // ★【變頻器實測銘牌自動預填防呆】若 UI 欄位未填，自最新快取自動補齊，徹底杜絕 fallback 50.0Hz
-                if (numEquivF0 != null && numEquivF0.Value <= 1.0m)
+                // ★【檔案驅動自動導入 - 零偽造原則】
+                // 除非在相對應的馬達資料夾中真正找到實體紀錄檔，否則嚴格維持 0.0 待採樣，絕對禁止自動導入預設假數據！
+                if (!isLockedDataReady || (numEquivVk != null && numEquivVk.Value <= 0m))
                 {
-                    double f = 0.0;
-                    if (lastB_Dr05.HasValue) f = ConvertKebDr05ToFrequency(lastB_Dr05.Value);
-                    else if (kebDrFreq2 > 1.0) f = kebDrFreq2;
-                    if (f > 1.0) numEquivF0.Value = (decimal)Math.Round(f, 2);
-                }
-                if (numEquivVn != null && numEquivVn.Value <= 10.0m && lastB_Dr02.HasValue && lastB_Dr02.Value >= 50)
-                {
-                    numEquivVn.Value = (decimal)lastB_Dr02.Value;
-                }
-                if (numEquivIn != null && numEquivIn.Value <= 0.5m && lastB_Dr00.HasValue && lastB_Dr00.Value > 0)
-                {
-                    numEquivIn.Value = (decimal)Math.Round(lastB_Dr00.Value * 0.1, 2);
-                }
-                if (numEquivNn != null && numEquivNn.Value <= 100m && lastB_Dr01.HasValue && lastB_Dr01.Value > 100)
-                {
-                    numEquivNn.Value = (decimal)lastB_Dr01.Value;
-                    int poles = kebMotorPoles2 > 0 ? kebMotorPoles2 : 4;
-                    double fVal = (double)numEquivF0.Value;
-                    if (fVal > 1.0)
+                    if (CheckMotorHasLockedLog(curName))
                     {
-                        double syncSpd = (120.0 * fVal) / poles;
-                        if (syncSpd > 0 && lastB_Dr01.Value > 0)
+                        LoadLockedDataFromTestTab(showPrompt: false);
+                    }
+                    else
+                    {
+                        isLockedDataReady = false;
+                        if (numEquivVk != null) numEquivVk.Value = 0m;
+                        if (numEquivIk != null) numEquivIk.Value = 0m;
+                        if (numEquivPk != null) numEquivPk.Value = 0m;
+                        if (numEquivPfk != null) numEquivPfk.Value = 0m;
+                        if (lblLockedItemStatus != null)
                         {
-                            double s = (syncSpd - lastB_Dr01.Value) / syncSpd;
-                            if (s > 0 && numEquivSlip != null) numEquivSlip.Value = (decimal)Math.Round(s * 100.0, 2);
+                            lblLockedItemStatus.Text = "[--] 待採樣 (資料夾中無堵轉紀錄)";
+                            lblLockedItemStatus.ForeColor = Color.FromArgb(100, 116, 139);
+                        }
+                    }
+                }
+
+                if (!isRatedDataReady || (numEquivTn != null && numEquivTn.Value <= 0m))
+                {
+                    if (CheckMotorHasRatedLog(curName))
+                    {
+                        LoadRatedDataFromTnTab(showPrompt: false);
+                    }
+                    else
+                    {
+                        isRatedDataReady = false;
+                        if (numEquivTn != null) numEquivTn.Value = 0m;
+                        if (numEquivNn != null) numEquivNn.Value = 0m;
+                        if (numEquivVn != null) numEquivVn.Value = 0m;
+                        if (numEquivIn != null) numEquivIn.Value = 0m;
+                        if (numEquivPn != null) numEquivPn.Value = 0m;
+                        if (numEquivPfn != null) numEquivPfn.Value = 0m;
+                        if (numEquivSlip != null) numEquivSlip.Value = 0m;
+                        if (lblRatedItemStatus != null)
+                        {
+                            lblRatedItemStatus.Text = "[--] 待採樣 (資料夾中無 S1 額定紀錄)";
+                            lblRatedItemStatus.ForeColor = Color.FromArgb(100, 116, 139);
+                        }
+                    }
+                }
+
+                if (!isNoLoadDataReady || (numEquivV0 != null && numEquivV0.Value <= 0m))
+                {
+                    if (CheckMotorHasNoLoadLog(curName))
+                    {
+                        LoadNoLoadDataFromTestTab(showPrompt: false);
+                    }
+                    else
+                    {
+                        isNoLoadDataReady = false;
+                        if (numEquivV0 != null) numEquivV0.Value = 0m;
+                        if (numEquivI0 != null) numEquivI0.Value = 0m;
+                        if (numEquivP0 != null) numEquivP0.Value = 0m;
+                        if (numEquivPf0 != null) numEquivPf0.Value = 0m;
+                        if (numEquivN0 != null) numEquivN0.Value = 0m;
+                        if (numEquivF0 != null) numEquivF0.Value = 0m;
+                        if (lblNoLoadItemStatus != null)
+                        {
+                            lblNoLoadItemStatus.Text = "[--] 待採樣 (資料夾中無空載紀錄)";
+                            lblNoLoadItemStatus.ForeColor = Color.FromArgb(100, 116, 139);
                         }
                     }
                 }
@@ -3942,27 +4301,27 @@ namespace DynamometerHMI
                 sb.AppendLine("CachedFingerprint=" + (cachedEquivDrFingerprint ?? ""));
                 sb.AppendLine("CachedMotorName=" + (cachedEquivMotorName ?? ""));
                 sb.AppendLine("NoLoadReady=" + (isNoLoadDataReady ? "1" : "0"));
-                sb.AppendLine("V0=" + (numEquivV0 != null ? numEquivV0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
-                sb.AppendLine("I0=" + (numEquivI0 != null ? numEquivI0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
-                sb.AppendLine("P0=" + (numEquivP0 != null ? numEquivP0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
-                sb.AppendLine("Pf0=" + (numEquivPf0 != null ? numEquivPf0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
-                sb.AppendLine("N0=" + (numEquivN0 != null ? numEquivN0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
-                sb.AppendLine("F0=" + (numEquivF0 != null ? numEquivF0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("V0=" + ((isNoLoadDataReady && numEquivV0 != null) ? numEquivV0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("I0=" + ((isNoLoadDataReady && numEquivI0 != null) ? numEquivI0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("P0=" + ((isNoLoadDataReady && numEquivP0 != null) ? numEquivP0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("Pf0=" + ((isNoLoadDataReady && numEquivPf0 != null) ? numEquivPf0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("N0=" + ((isNoLoadDataReady && numEquivN0 != null) ? numEquivN0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("F0=" + ((isNoLoadDataReady && numEquivF0 != null) ? numEquivF0.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
 
                 sb.AppendLine("RatedReady=" + (isRatedDataReady ? "1" : "0"));
-                sb.AppendLine("Tn=" + (numEquivTn != null ? numEquivTn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
-                sb.AppendLine("Nn=" + (numEquivNn != null ? numEquivNn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
-                sb.AppendLine("Vn=" + (numEquivVn != null ? numEquivVn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
-                sb.AppendLine("In=" + (numEquivIn != null ? numEquivIn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
-                sb.AppendLine("Pn=" + (numEquivPn != null ? numEquivPn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
-                sb.AppendLine("Pfn=" + (numEquivPfn != null ? numEquivPfn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
-                sb.AppendLine("Slip=" + (numEquivSlip != null ? numEquivSlip.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("Tn=" + ((isRatedDataReady && numEquivTn != null) ? numEquivTn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("Nn=" + ((isRatedDataReady && numEquivNn != null) ? numEquivNn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("Vn=" + ((isRatedDataReady && numEquivVn != null) ? numEquivVn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("In=" + ((isRatedDataReady && numEquivIn != null) ? numEquivIn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("Pn=" + ((isRatedDataReady && numEquivPn != null) ? numEquivPn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("Pfn=" + ((isRatedDataReady && numEquivPfn != null) ? numEquivPfn.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("Slip=" + ((isRatedDataReady && numEquivSlip != null) ? numEquivSlip.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
 
                 sb.AppendLine("LockedReady=" + (isLockedDataReady ? "1" : "0"));
-                sb.AppendLine("Vk=" + (numEquivVk != null ? numEquivVk.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
-                sb.AppendLine("Ik=" + (numEquivIk != null ? numEquivIk.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
-                sb.AppendLine("Pk=" + (numEquivPk != null ? numEquivPk.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
-                sb.AppendLine("Pfk=" + (numEquivPfk != null ? numEquivPfk.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("Vk=" + ((isLockedDataReady && numEquivVk != null) ? numEquivVk.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("Ik=" + ((isLockedDataReady && numEquivIk != null) ? numEquivIk.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("Pk=" + ((isLockedDataReady && numEquivPk != null) ? numEquivPk.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
+                sb.AppendLine("Pfk=" + ((isLockedDataReady && numEquivPfk != null) ? numEquivPfk.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0"));
                 sb.AppendLine("TargetUf09=" + (numEquivTargetUf09 != null ? numEquivTargetUf09.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "50"));
                 sb.AppendLine("AutoR1=" + (chkAutoR1Distribute != null && chkAutoR1Distribute.Checked ? "1" : "0"));
                 sb.AppendLine("StatorR1=" + (numEquivStatorR1 != null ? numEquivStatorR1.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "0.125"));
@@ -3978,28 +4337,75 @@ namespace DynamometerHMI
                 if (map.ContainsKey("EquivCircuit.CachedFingerprint")) cachedEquivDrFingerprint = map["EquivCircuit.CachedFingerprint"];
                 if (map.ContainsKey("EquivCircuit.CachedMotorName")) cachedEquivMotorName = map["EquivCircuit.CachedMotorName"];
 
-                if (map.ContainsKey("EquivCircuit.NoLoadReady")) isNoLoadDataReady = (map["EquivCircuit.NoLoadReady"] == "1");
-                if (map.ContainsKey("EquivCircuit.V0") && numEquivV0 != null) { decimal v0; if (decimal.TryParse(map["EquivCircuit.V0"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out v0)) numEquivV0.Value = v0; }
-                if (map.ContainsKey("EquivCircuit.I0") && numEquivI0 != null) { decimal i0; if (decimal.TryParse(map["EquivCircuit.I0"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out i0)) numEquivI0.Value = i0; }
-                if (map.ContainsKey("EquivCircuit.P0") && numEquivP0 != null) { decimal p0; if (decimal.TryParse(map["EquivCircuit.P0"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out p0)) numEquivP0.Value = p0; }
-                if (map.ContainsKey("EquivCircuit.Pf0") && numEquivPf0 != null) { decimal pf0; if (decimal.TryParse(map["EquivCircuit.Pf0"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out pf0)) numEquivPf0.Value = pf0; }
-                if (map.ContainsKey("EquivCircuit.N0") && numEquivN0 != null) { decimal n0; if (decimal.TryParse(map["EquivCircuit.N0"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out n0)) numEquivN0.Value = n0; }
-                if (map.ContainsKey("EquivCircuit.F0") && numEquivF0 != null) { decimal f0; if (decimal.TryParse(map["EquivCircuit.F0"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out f0)) numEquivF0.Value = f0; }
+                string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : (!string.IsNullOrEmpty(cachedEquivMotorName) ? cachedEquivMotorName : "SVM100S");
 
-                if (map.ContainsKey("EquivCircuit.RatedReady")) isRatedDataReady = (map["EquivCircuit.RatedReady"] == "1");
-                if (map.ContainsKey("EquivCircuit.Tn") && numEquivTn != null) { decimal tn; if (decimal.TryParse(map["EquivCircuit.Tn"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out tn)) numEquivTn.Value = tn; }
-                if (map.ContainsKey("EquivCircuit.Nn") && numEquivNn != null) { decimal nn; if (decimal.TryParse(map["EquivCircuit.Nn"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out nn)) numEquivNn.Value = nn; }
-                if (map.ContainsKey("EquivCircuit.Vn") && numEquivVn != null) { decimal vn; if (decimal.TryParse(map["EquivCircuit.Vn"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out vn)) numEquivVn.Value = vn; }
-                if (map.ContainsKey("EquivCircuit.In") && numEquivIn != null) { decimal inn; if (decimal.TryParse(map["EquivCircuit.In"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out inn)) numEquivIn.Value = inn; }
-                if (map.ContainsKey("EquivCircuit.Pn") && numEquivPn != null) { decimal pn; if (decimal.TryParse(map["EquivCircuit.Pn"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out pn)) numEquivPn.Value = pn; }
-                if (map.ContainsKey("EquivCircuit.Pfn") && numEquivPfn != null) { decimal pfn; if (decimal.TryParse(map["EquivCircuit.Pfn"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out pfn)) numEquivPfn.Value = pfn; }
-                if (map.ContainsKey("EquivCircuit.Slip") && numEquivSlip != null) { decimal slip; if (decimal.TryParse(map["EquivCircuit.Slip"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out slip)) numEquivSlip.Value = slip; }
+                // 1. 空載：唯有資料夾真有紀錄檔且 Ready==1 才載入
+                bool hasNoLoadFile = CheckMotorHasNoLoadLog(mName);
+                if (hasNoLoadFile && map.ContainsKey("EquivCircuit.NoLoadReady") && map["EquivCircuit.NoLoadReady"] == "1")
+                {
+                    isNoLoadDataReady = true;
+                    if (map.ContainsKey("EquivCircuit.V0") && numEquivV0 != null) { decimal v0; if (decimal.TryParse(map["EquivCircuit.V0"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out v0)) numEquivV0.Value = v0; }
+                    if (map.ContainsKey("EquivCircuit.I0") && numEquivI0 != null) { decimal i0; if (decimal.TryParse(map["EquivCircuit.I0"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out i0)) numEquivI0.Value = i0; }
+                    if (map.ContainsKey("EquivCircuit.P0") && numEquivP0 != null) { decimal p0; if (decimal.TryParse(map["EquivCircuit.P0"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out p0)) numEquivP0.Value = p0; }
+                    if (map.ContainsKey("EquivCircuit.Pf0") && numEquivPf0 != null) { decimal pf0; if (decimal.TryParse(map["EquivCircuit.Pf0"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out pf0)) numEquivPf0.Value = pf0; }
+                    if (map.ContainsKey("EquivCircuit.N0") && numEquivN0 != null) { decimal n0; if (decimal.TryParse(map["EquivCircuit.N0"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out n0)) numEquivN0.Value = n0; }
+                    if (map.ContainsKey("EquivCircuit.F0") && numEquivF0 != null) { decimal f0; if (decimal.TryParse(map["EquivCircuit.F0"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out f0)) numEquivF0.Value = f0; }
+                }
+                else
+                {
+                    isNoLoadDataReady = false;
+                    if (numEquivV0 != null) numEquivV0.Value = 0m;
+                    if (numEquivI0 != null) numEquivI0.Value = 0m;
+                    if (numEquivP0 != null) numEquivP0.Value = 0m;
+                    if (numEquivPf0 != null) numEquivPf0.Value = 0m;
+                    if (numEquivN0 != null) numEquivN0.Value = 0m;
+                    if (numEquivF0 != null) numEquivF0.Value = 0m;
+                }
 
-                if (map.ContainsKey("EquivCircuit.LockedReady")) isLockedDataReady = (map["EquivCircuit.LockedReady"] == "1");
-                if (map.ContainsKey("EquivCircuit.Vk") && numEquivVk != null) { decimal vk; if (decimal.TryParse(map["EquivCircuit.Vk"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out vk)) numEquivVk.Value = vk; }
-                if (map.ContainsKey("EquivCircuit.Ik") && numEquivIk != null) { decimal ik; if (decimal.TryParse(map["EquivCircuit.Ik"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out ik)) numEquivIk.Value = ik; }
-                if (map.ContainsKey("EquivCircuit.Pk") && numEquivPk != null) { decimal pk; if (decimal.TryParse(map["EquivCircuit.Pk"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out pk)) numEquivPk.Value = pk; }
-                if (map.ContainsKey("EquivCircuit.Pfk") && numEquivPfk != null) { decimal pfk; if (decimal.TryParse(map["EquivCircuit.Pfk"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out pfk)) numEquivPfk.Value = pfk; }
+                // 2. 額定：唯有資料夾真有紀錄檔且 Ready==1 才載入
+                bool hasRatedFile = CheckMotorHasRatedLog(mName);
+                if (hasRatedFile && map.ContainsKey("EquivCircuit.RatedReady") && map["EquivCircuit.RatedReady"] == "1")
+                {
+                    isRatedDataReady = true;
+                    if (map.ContainsKey("EquivCircuit.Tn") && numEquivTn != null) { decimal tn; if (decimal.TryParse(map["EquivCircuit.Tn"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out tn)) numEquivTn.Value = tn; }
+                    if (map.ContainsKey("EquivCircuit.Nn") && numEquivNn != null) { decimal nn; if (decimal.TryParse(map["EquivCircuit.Nn"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out nn)) numEquivNn.Value = nn; }
+                    if (map.ContainsKey("EquivCircuit.Vn") && numEquivVn != null) { decimal vn; if (decimal.TryParse(map["EquivCircuit.Vn"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out vn)) numEquivVn.Value = vn; }
+                    if (map.ContainsKey("EquivCircuit.In") && numEquivIn != null) { decimal inn; if (decimal.TryParse(map["EquivCircuit.In"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out inn)) numEquivIn.Value = inn; }
+                    if (map.ContainsKey("EquivCircuit.Pn") && numEquivPn != null) { decimal pn; if (decimal.TryParse(map["EquivCircuit.Pn"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out pn)) numEquivPn.Value = pn; }
+                    if (map.ContainsKey("EquivCircuit.Pfn") && numEquivPfn != null) { decimal pfn; if (decimal.TryParse(map["EquivCircuit.Pfn"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out pfn)) numEquivPfn.Value = pfn; }
+                    if (map.ContainsKey("EquivCircuit.Slip") && numEquivSlip != null) { decimal slip; if (decimal.TryParse(map["EquivCircuit.Slip"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out slip)) numEquivSlip.Value = slip; }
+                }
+                else
+                {
+                    isRatedDataReady = false;
+                    if (numEquivTn != null) numEquivTn.Value = 0m;
+                    if (numEquivNn != null) numEquivNn.Value = 0m;
+                    if (numEquivVn != null) numEquivVn.Value = 0m;
+                    if (numEquivIn != null) numEquivIn.Value = 0m;
+                    if (numEquivPn != null) numEquivPn.Value = 0m;
+                    if (numEquivPfn != null) numEquivPfn.Value = 0m;
+                    if (numEquivSlip != null) numEquivSlip.Value = 0m;
+                }
+
+                // 3. 堵轉：唯有資料夾真有紀錄檔且 Ready==1 才載入
+                bool hasLockedFile = CheckMotorHasLockedLog(mName);
+                if (hasLockedFile && map.ContainsKey("EquivCircuit.LockedReady") && map["EquivCircuit.LockedReady"] == "1")
+                {
+                    isLockedDataReady = true;
+                    if (map.ContainsKey("EquivCircuit.Vk") && numEquivVk != null) { decimal vk; if (decimal.TryParse(map["EquivCircuit.Vk"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out vk)) numEquivVk.Value = vk; }
+                    if (map.ContainsKey("EquivCircuit.Ik") && numEquivIk != null) { decimal ik; if (decimal.TryParse(map["EquivCircuit.Ik"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out ik)) numEquivIk.Value = ik; }
+                    if (map.ContainsKey("EquivCircuit.Pk") && numEquivPk != null) { decimal pk; if (decimal.TryParse(map["EquivCircuit.Pk"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out pk)) numEquivPk.Value = pk; }
+                    if (map.ContainsKey("EquivCircuit.Pfk") && numEquivPfk != null) { decimal pfk; if (decimal.TryParse(map["EquivCircuit.Pfk"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out pfk)) numEquivPfk.Value = pfk; }
+                }
+                else
+                {
+                    isLockedDataReady = false;
+                    if (numEquivVk != null) numEquivVk.Value = 0m;
+                    if (numEquivIk != null) numEquivIk.Value = 0m;
+                    if (numEquivPk != null) numEquivPk.Value = 0m;
+                    if (numEquivPfk != null) numEquivPfk.Value = 0m;
+                }
+
                 if (map.ContainsKey("EquivCircuit.TargetUf09") && numEquivTargetUf09 != null) { decimal tuf09; if (decimal.TryParse(map["EquivCircuit.TargetUf09"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out tuf09)) numEquivTargetUf09.Value = tuf09; }
                 if (map.ContainsKey("EquivCircuit.AutoR1") && chkAutoR1Distribute != null) chkAutoR1Distribute.Checked = (map["EquivCircuit.AutoR1"] == "1");
                 if (map.ContainsKey("EquivCircuit.StatorR1") && numEquivStatorR1 != null) { decimal r1; if (decimal.TryParse(map["EquivCircuit.StatorR1"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out r1)) numEquivStatorR1.Value = r1; }
@@ -4014,7 +4420,7 @@ namespace DynamometerHMI
                     }
                     else
                     {
-                        lblNoLoadItemStatus.Text = "[--] 待採樣 (可從空載測試載入或即時抓取)";
+                        lblNoLoadItemStatus.Text = "[--] 待採樣 (資料夾中無空載紀錄)";
                         lblNoLoadItemStatus.ForeColor = Color.FromArgb(100, 116, 139);
                     }
                 }
@@ -4027,7 +4433,7 @@ namespace DynamometerHMI
                     }
                     else
                     {
-                        lblRatedItemStatus.Text = "[--] 待採樣 (可從 T-N 額定點載入或即時抓取)";
+                        lblRatedItemStatus.Text = "[--] 待採樣 (資料夾中無 S1 額定紀錄)";
                         lblRatedItemStatus.ForeColor = Color.FromArgb(100, 116, 139);
                     }
                 }
@@ -4040,7 +4446,7 @@ namespace DynamometerHMI
                     }
                     else
                     {
-                        lblLockedItemStatus.Text = "[--] 待採樣 (請先降低 uf09 並鎖定轉子)";
+                        lblLockedItemStatus.Text = "[--] 待採樣 (資料夾中無堵轉紀錄)";
                         lblLockedItemStatus.ForeColor = Color.FromArgb(100, 116, 139);
                     }
                 }

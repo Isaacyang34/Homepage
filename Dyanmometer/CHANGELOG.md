@@ -8,8 +8,56 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.124 (beta) | v2.10.82 | 2026-09-15 | 廢除等效電路/堵轉頁面開啟時預設假數據導入、全面改為實體馬達專屬資料夾紀錄檔探測驅動導入機制：(1)現象與佐證：使用者明確指示：「目前賭轉頁面一開啟就會導入預設的數據，這是不必要的，除非真的在相對應的資料夾中有找到資料才導入。」；(2)致命根因 (Root Cause)：1. 預設假數據殘留：`dynamometer_layout.ini` 模板中預先寫死了 `Vk=52.0, Ik=32.5, Pk=850.0, Pfk=0.29` 等假數據，`LoadEquivCircuitConfig` 啟動時無視檔案是否存在盲目填入 UI；2. 銘牌偽造覆蓋：`RefreshEquivMotorStatus()` 於切換分頁時執行變頻器銘牌預填防呆，將 `lastB_Dr02`、`lastB_Dr00`、`lastB_Dr01` 自動強塞至額定欄位，違反零偽造鐵律；3. 堵轉卡片缺乏檔案導入器：先前僅空載與額定具備檔案導入，堵轉卡片缺乏對應的日誌解析與載入機制；(3)精確修復方案：1. 徹底清空 `dynamometer_layout.ini` 的 `[EquivCircuit]` 預設值為 0.0，未就緒卡片存檔一律歸零；2. 徹底移除 `RefreshEquivMotorStatus()` 的銘牌自動填入偽造代碼，全面改為實體資料夾探測 (`CheckMotorHasNoLoadLog`, `CheckMotorHasRatedLog`, `CheckMotorHasLockedLog`)；3. 嚴格落實「零偽造原則」：無實體檔案時欄位一律歸零 (0.0) 並標記 `[--] 待採樣 (資料夾中無紀錄)`，唯有在馬達專屬目錄 (`GetMotorDedicatedLogDirectory`) 真正找到實體 CSV 時才自動/手動導入；4. 實作 `LoadLockedDataFromTestTab(showPrompt)`，支援自動提取 `EquivCircuit_Test_Log_*.csv` 與 `LockedRotor_*.csv` 之穩態平均數據；5. 於堵轉卡片新增 `btnEquivLoadLockedFromTest`「[檔案] 載入堵轉紀錄檔」按鈕；(4)發布與驗證：升版至 2.10.82，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.82 發布。 |
 | V2.123 (beta) | v2.10.81 | 2026-09-15 | 確立全案最高強制規範「零偽造與零竄改實測物理量鐵律 (Zero-Fallback & Zero-Tampering Telemetry Integrity Rule)」、徹底清查代碼中所有幽靈替換與偽造邏輯：(1)現象與佐證：使用者深入追問：「為何會有這麼多竄改的問題??? 核心問題在哪? 不是說說而已，要怎麼樣還要我說嗎?」；(2)致命根因 (Root Cause)：1. 把「通訊暫時未刷新」與「物理量本身為 0」混為一談，錯誤地在遙測取樣、看門狗保護中使用額定值或歷史值進行覆蓋（如 GetCurrentSample 中殘留 if (curI <= 0.05 && lastB_Dr00.HasValue) curI = (double)lastB_Dr00.Value;）；2. 控制場景未嚴格隔離，以一般運轉思維套用至堵轉測試極端工況；3. 缺乏全案層級的強制規則約束，導致「打補丁引發新問題」之惡性循環；(3)精確修復方案：1. 於 GEMINI.md 與 .agents/rules/ 永久建立「第 10 條：零偽造與零竄改實測物理量鐵律」，強制規範嚴禁在任何即時控制、保護、看門狗或演算法中將實測為 0 的物理量（轉速、電流、電壓、轉矩）覆蓋為額定值或歷史值；2. 徹底清查並移除 GetCurrentSample() 中的殘留 lastB_Dr00 幽靈電流替換代碼；3. 通訊異常嚴格限定為通訊逾時標記，絕不允許假數據填補；(4)發布與驗證：升版至 2.10.81，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.81 發布。 |
 | V2.122 (beta) | v2.10.80 | 2026-09-15 | 徹底根除堵轉測試「完全不會動」四大致命死穴 (看門狗幽靈轉速竄改0秒超速急停、幽靈電流過載跳脫、oP.01端子控制權限阻斷、電壓未同步自相矛盾阻擋)：(1)現象與佐證：使用者實測回報：「現在做賭轉測試完全不會動，請檢察，為什麼之前明明就都可以用?」；經比對 Firebase 歷史日誌 (20260915_082121) 與源碼：馬達於 08:20 處於鎖死狀態，轉速 actSpeed 為 0.0 rpm，但看門狗卻瞬時跳脫「堵轉瞬時嚴重飛脫跳脫 (轉速 > 30 rpm)」，隨即下達 Sy.50=0 強制停機並終止線程，馬達完全無動作；(2)致命根因 (Root Cause)：1. 看門狗幽靈轉速竄改：TmrLockedWatchdog_Tick 行 3047 加入了 if (spdCur <= 0.5 && lastB_Dr01.HasValue) spdCur = Math.Abs((double)lastB_Dr01.Value); 荒謬邏輯，當待測馬達被機械確實鎖死時 (轉速為 0 rpm)，竟被篡改為銘牌額定轉速 1500 rpm，導致啟動第 1 拍 (500ms 內) 判定 1500 > 30 rpm 瞬間急停並將線程殺死！2. 看門狗幽靈電流竄改：行 3043 加入了 if (iCur <= 0.05 && lastB_Dr00.HasValue) iCur = (double)lastB_Dr00.Value;，建壓初期電流為 0 時被篡改為 45.0A，誤判過電流跳脫；3. oP.01 運轉控制權限未切換：現場變頻器參數為 oP.01=7 (半自動硬體端子控制)，變頻器僅聽實體 ST 端子，對軟體通訊 Sy.50=4 完全不予響應；且 cs.18 (轉矩極限) 未確保為 1000；4. 電壓同步自相矛盾阻擋：前次測試結束時系統為保護馬達鎖定 10V 安全低壓，但 CheckAndCollectDrUfParams 卻比對 dr.02(260V) 與 uf.09(10V) 相差 250V 判定「電壓未同步」彈窗阻擋測試；5. finally 區塊危險升壓：先前 finally 區塊殘留 AutoRestoreUf09，於線程結束時將電壓寫回 260V 造成撞擊與大電流短路危險；(3)精確修復方案：1. 徹底剷除看門狗中所有幽靈 fallback，實測轉速與電流嚴格取自物理感測器讀值，馬達鎖死轉速為 0 rpm 判定為絕對正常；2. 啟動激磁前自動將運轉控制權限切換為全自動通訊控制 (oP.01=8)，確保轉矩極限 cs.18=1000 (100.0%)，並於存在殘留故障時自動執行 FAULT RESET (Sy.50=2)；試驗結束於 finally 安全還原 oP.01；3. CheckAndCollectDrUfParams 明確將 uf.09<=60V 識別為「安全低壓鎖定狀態」，免除電壓未同步阻擋；4. finally 區塊廢除 AutoRestoreUf09，一律強制鎖定為安全低壓 10V；(4)發布與驗證：升版至 2.10.80，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.80 發布。 |
+
+---
+
+## [V2.124 beta / v2.10.82] - 2026-09-15
+
+### 廢除等效電路/堵轉頁面開啟時預設假數據導入、全面改為實體馬達專屬資料夾紀錄檔探測驅動導入機制
+
+### 現象與佐證
+- **使用者明確指令**：
+  `目前賭轉頁面一開啟就會導入預設的數據，這是不必要的，除非真的在相對應的資料夾中有找到資料才導入。`
+- **問題現象查證**：
+  - 開啟軟體進入「等效電路」分頁時，即便當前馬達專屬資料夾中並無任何測試紀錄檔，UI 上的堵轉卡片（卡片 3）及額定卡片（卡片 1）卻已顯示非零數據（例如堵轉卡片顯示 `Vk=52.0V, Ik=32.5A, Pk=850.0W, Pfk=0.29`，額定卡片自動填入變頻器額定值）；
+  - 使用者在尚未進行任何實測時，畫面充斥預設假數據，無法真實反映當前待測馬達的測試狀態，並極易誤將假數據進行等效電路參數推算與擬合。
+
+### 致命根因 (Root Cause)
+1. **設定檔殘留寫死假數據**：
+   - `dynamometer_layout.ini` 的模板殘留寫死了：
+     `Vk=52.0`, `Ik=32.5`, `Pk=850.0`, `Pfk=0.29` 等假數據；
+   - `Dynamometer_TestEquivCircuit.cs` 的 `LoadEquivCircuitConfig()` 在軟體啟動時未驗證本地是否真有實測日誌，直接將 INI 的歷史假數據讀入 UI 控制項。
+2. **切換分頁時執行了「銘牌自動預填防呆」（幽靈覆蓋）**：
+   - `RefreshEquivMotorStatus()` 於切換至等效電路分頁時，無條件執行：
+     `if (numEquivRatedV.Value <= 0 && lastB_Dr02.HasValue) numEquivRatedV.Value = (decimal)lastB_Dr02.Value;`
+     `if (numEquivRatedI.Value <= 0 && lastB_Dr00.HasValue) numEquivRatedI.Value = (decimal)lastB_Dr00.Value;`
+     `if (numEquivRatedSpd.Value <= 0 && lastB_Dr01.HasValue) numEquivRatedSpd.Value = (decimal)lastB_Dr01.Value;`
+     盲目將變頻器額定參數強塞至 UI 數值欄位，嚴重違反「零偽造與零竄改實測物理量鐵律 (Rule 10)」。
+3. **堵轉卡片完全缺乏實體日誌載入機制**：
+   - 額定卡片與空載卡片過去尚有 `btnEquivLoadRatedFromTn` 與 `btnEquivLoadNoLoadFromTest`，但堵轉卡片完全沒有日誌載入按鈕與讀取解析邏輯，使得卡片 3 只能依賴手動鍵入或 INI 假數據。
+
+### 精確修復方案
+1. **全面清空設定檔預設假數據**：
+   - 清除 `Dyanmometer_Modern/dynamometer_layout.ini` 與 `Release/Dynamometer_HMI_V2.5.0_Portable/dynamometer_layout.ini` 中 `[EquivCircuit]` 的所有預設值，全部重設為 `0.0`。
+   - 修改 `SaveEquivCircuitConfig()`：若卡片未就緒（`!isReady`），寫入 INI 時一律填入 `0.0`，杜絕假數據持久化。
+2. **徹底廢除「銘牌自動預填」，全面改為實體檔案探測驅動**：
+   - 於 `RefreshEquivMotorStatus()` 中徹底刪除 `lastB_Dr02`、`lastB_Dr00`、`lastB_Dr01` 自動塞值代碼；
+   - 實作實體檔案探測方法：`CheckMotorHasNoLoadLog()`、`CheckMotorHasRatedLog()`、`CheckMotorHasLockedLog()`；
+   - 進入頁面或載入 INI 時，先探測馬達專屬目錄（`GetMotorDedicatedLogDirectory(motorModelName)`）內是否存在實體測試日誌：
+     - 若**無實體檔案**：UI 數值一律歸零（`0.0`），卡片狀態標記為 `[--] 待採樣 (資料夾中無紀錄)`，背景色呈現待測試灰調；
+     - 若**真有實體檔案**：才允許調用讀取函式自動或手動導入實測數據。
+3. **新增堵轉紀錄檔解析與載入機制**：
+   - 於 `Dynamometer_TestEquivCircuit.cs` 實裝 `LoadLockedDataFromTestTab(bool showPrompt = true)`；
+   - 支援自動搜尋馬達目錄下之 `EquivCircuit_Test_Log_*.csv` 與 `LockedRotor_*.csv`；
+   - 支援提取穩態彙總行（`Freq_Point_Summary`）或自動計算 `Sample_*` 穩定 20 筆之各相平均電壓、電流、總功率與功率因數；
+   - 堵轉卡片佈局新增 `btnEquivLoadLockedFromTest`（「[檔案] 載入堵轉紀錄檔」按鈕），並重構按鈕網格佈局確保符合 XP GDI+ 防裁切與 ASCII 字元規範。
+4. **發布與驗證**：
+   - 內部版號升級至 `v2.10.82` (`Dynamometer_WebServer.cs`)；
+   - 通過 `csc.exe` /platform:x86 編譯通過；
+   - 執行 `package_release.ps1 -Version 2.10.82` 完成編譯、打包、GitHub 雙分支（`gh-pages` 與 `master`）同步推送與 Firebase RTDB 200 OK 探測閉鎖。
 
 ---
 
