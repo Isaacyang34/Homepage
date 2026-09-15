@@ -534,15 +534,15 @@ bool processTpmsPacket(const uint8_t* buffer, size_t len, float rssi) {
 
     // 物理真實合理區間: 0.0 ~ 85.0 psi (允許 0 psi 桌面未安裝測試)
     if (candPsi >= 0.0f && candPsi <= 85.0f) {
-      // 溫度解碼 (支援 7-bit 溫度與 -50 偏移)
+      // 溫度解碼 (支援 0x86 等高位元組偏移)
       uint8_t rawT = (rem > 5) ? p[5] : 78;
-      int candTemp = 25;
-      uint8_t tVal = rawT & 0x7F;
-      if (tVal >= 50 && tVal <= 150) {
-        candTemp = (int)tVal - 50;
-      } else if (rawT >= 40 && rawT <= 140) {
+      int candTemp = 28;
+      if (rawT >= 100 && rawT <= 160) {
+        candTemp = (int)rawT - 105; // 0x86 (134) - 105 = 29°C 室溫
+      } else if (rawT >= 40 && rawT < 100) {
         candTemp = (int)rawT - 40;
       }
+      if (candTemp < -20 || candTemp > 80) candTemp = 28;
 
       sensorId = candId;
       psi = candPsi;
