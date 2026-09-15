@@ -38,7 +38,7 @@ namespace DynamometerHMI
         private bool isCloudUploadRunning = false;
 
         // ── 軟體線上熱更新設定 (Online Auto-Update & In-Place Hot Swap) ──────
-        public const string APP_VERSION = "2.10.77";
+        public const string APP_VERSION = "2.10.78";
         public string cloudUpdateManifestUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/update/version.json";
         public Button btnOnlineUpdate = null;
         private bool? lastCloudUploadSuccess = null;
@@ -3359,7 +3359,7 @@ namespace DynamometerHMI
                         {
                             this.BeginInvoke(new Action(() =>
                             {
-                                btnOnlineUpdate.Text = "🔄 有新版本!";
+                                btnOnlineUpdate.Text = "[!] 有新版本!";
                                 btnOnlineUpdate.BackColor = System.Drawing.Color.FromArgb(245, 158, 11); // Amber
                             }));
                         }
@@ -3394,7 +3394,7 @@ namespace DynamometerHMI
             {
                 Form updateForm = new Form()
                 {
-                    Text = "🔄 馬達動力計 HMI 線上自動更新精靈 (Hot-Swap & Rollback)",
+                    Text = "[更新] 馬達動力計 HMI 線上自動更新精靈 (Hot-Swap & Rollback)",
                     Size = new System.Drawing.Size(660, 600),
                     StartPosition = FormStartPosition.CenterParent,
                     FormBorderStyle = FormBorderStyle.FixedDialog,
@@ -3510,7 +3510,7 @@ namespace DynamometerHMI
                 // Buttons Panel
                 Button btnUpdate = new Button()
                 {
-                    Text = isNewer ? "🚀 開始線上更新並重啟" : "🔄 強制重新安裝並重啟",
+                    Text = isNewer ? ">> 開始線上更新並重啟" : "[->] 強制重新安裝並重啟",
                     Location = new System.Drawing.Point(275, 308),
                     Size = new System.Drawing.Size(210, 36),
                     BackColor = System.Drawing.Color.FromArgb(16, 185, 129), // Emerald
@@ -3548,7 +3548,7 @@ namespace DynamometerHMI
 
                 Label lblBackupsTitle = new Label()
                 {
-                    Text = "📦 本地歷史版本備份 (自動保留最新 5 版，隨時可自主退回):",
+                    Text = "[-] 本地歷史版本備份 (自動保留最新 5 版，隨時可自主退回):",
                     Font = new System.Drawing.Font("微軟正黑體", 9f, System.Drawing.FontStyle.Bold),
                     ForeColor = System.Drawing.Color.FromArgb(226, 232, 240),
                     Location = new System.Drawing.Point(20, 366),
@@ -3569,7 +3569,7 @@ namespace DynamometerHMI
 
                 Button btnRollback = new Button()
                 {
-                    Text = "⏪ 退回選定版本並重啟",
+                    Text = "<< 退回選定版本並重啟",
                     Location = new System.Drawing.Point(460, 396),
                     Size = new System.Drawing.Size(165, 42),
                     BackColor = System.Drawing.Color.FromArgb(217, 119, 6), // Amber 600
