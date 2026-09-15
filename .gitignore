@@ -1,6 +1,8 @@
 # 系統與安裝包大檔
 *.iso
 *.exe
+!Dyanmometer/Release/**/*.exe
+!Release/**/*.exe
 *.zip
 *.rar
 *.7z

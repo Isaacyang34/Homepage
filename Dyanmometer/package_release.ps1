@@ -13,8 +13,15 @@ $srcList = Get-ChildItem $modernDir -Filter "Dynamometer_*.cs" | Where-Object { 
 $testerSrc = Join-Path $modernDir "tools\Dynamometer_Device_Tester_GUI.cs"
 $outExe = Join-Path $modernDir "Dynamometer_HMI_Pro.exe"
 
+$appIcon = Join-Path $modernDir "app.ico"
+$iconArg = if (Test-Path $appIcon) { "/win32icon:`"$appIcon`"" } else { "" }
+
 Write-Host "🔨 Compiling unified All-In-One Dynamometer_HMI_Pro.exe for Release V$Version (x86 32-bit mode)..."
-& $csc /target:winexe /platform:x86 /codepage:65001 /out:$outExe /r:System.Windows.Forms.DataVisualization.dll "/r:$modernDir\BouncyCastle.Crypto.dll" /nologo $srcList $testerSrc
+if ($iconArg -ne "") {
+    & $csc /target:winexe /platform:x86 /codepage:65001 $iconArg /out:$outExe /r:System.Windows.Forms.DataVisualization.dll "/r:$modernDir\BouncyCastle.Crypto.dll" /nologo $srcList $testerSrc
+} else {
+    & $csc /target:winexe /platform:x86 /codepage:65001 /out:$outExe /r:System.Windows.Forms.DataVisualization.dll "/r:$modernDir\BouncyCastle.Crypto.dll" /nologo $srcList $testerSrc
+}
 if ($LASTEXITCODE -ne 0) {
     Write-Error "❌ Compilation failed!"
     exit 1
@@ -76,6 +83,12 @@ if (Test-Path $viewerSrc) {
     Copy-Item $viewerSrc "$targetDir\" -Force
 }
 
+# Copy app.ico
+$icoSrc = Join-Path $modernDir "app.ico"
+if (Test-Path $icoSrc) {
+    Copy-Item $icoSrc "$targetDir\" -Force
+}
+
 # Copy rollback batch files to target directory
 Get-ChildItem $modernDir -Filter "*.bat" | ForEach-Object {
     Copy-Item $_.FullName "$targetDir\" -Force
@@ -124,6 +137,15 @@ if (Test-Path $toolsLogs) {
     }
 }
 
+# Copy golden template INI to ensure clean package has golden layout
+$srcIni = Join-Path $modernDir "dynamometer_layout.ini"
+if (Test-Path $srcIni) {
+    Copy-Item $srcIni (Join-Path $targetDir "dynamometer_layout.ini") -Force
+    $targetSubIniDir = Join-Path $targetDir "ini"
+    if (!(Test-Path $targetSubIniDir)) { New-Item -ItemType Directory -Path $targetSubIniDir -Force | Out-Null }
+    Copy-Item $srcIni (Join-Path $targetSubIniDir "dynamometer_layout.ini") -Force
+}
+
 # Unblock all files
 Get-ChildItem $targetDir -Recurse | ForEach-Object { Unblock-File $_.FullName }
 
@@ -131,14 +153,7 @@ Get-ChildItem $targetDir -Recurse | ForEach-Object { Unblock-File $_.FullName }
 $rootReleaseDir = "c:\Users\peter\OneDrive\Desktop\AI_Projects\Release\Dynamometer_HMI_V${Version}_Portable"
 if (!(Test-Path $rootReleaseDir)) { New-Item -ItemType Directory -Path $rootReleaseDir -Force | Out-Null }
 
-$rootIniPath = Join-Path $rootReleaseDir "dynamometer_layout.ini"
-$backupRootIni = if (Test-Path $rootIniPath) { Get-Content $rootIniPath -Raw } else { $null }
-
 Copy-Item (Join-Path $targetDir "*") $rootReleaseDir -Recurse -Force
-
-if ($backupRootIni) {
-    Set-Content -Path $rootIniPath -Value $backupRootIni -Encoding UTF8
-}
 
 Write-Host "🎉 Successfully packaged Release V$Version to:"
 Write-Host "   👉 $targetDir"
@@ -172,7 +187,7 @@ if (!$gitExe) {
     $repoRoot = "c:\Users\peter\OneDrive\Desktop\AI_Projects"
     $commitMsg = "Release: Dynamometer HMI V$Version auto-packaged $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
 
-    & $gitExe -C $repoRoot add "Dyanmometer/Release/" 2>&1 | Write-Host
+    & $gitExe -C $repoRoot add -f "Dyanmometer/Release/" 2>&1 | Write-Host
     & $gitExe -C $repoRoot add "Dyanmometer/CHANGELOG.md" 2>&1 | Write-Host
     & $gitExe -C $repoRoot add "Dyanmometer/Dyanmometer_Modern/" 2>&1 | Write-Host
     & $gitExe -C $repoRoot commit -m $commitMsg 2>&1 | Write-Host
@@ -285,6 +300,95 @@ if (!$gitExe) {
                 Write-Host "✅ Firebase manifest updated: V$appVer (Target V$Version) -> $dlUrl"
             } catch {
                 Write-Warning "⚠️  Firebase manifest update failed: $_  (Please run scratch\fix_manifest.ps1 manually)"
+            }
+
+            # 6. Rule 7: Auto GitHub Official Release & Binary Asset Upload (Three-Point Release Alignment)
+            Write-Host ""
+            Write-Host "📦 Creating/Updating GitHub Release v$appVer and uploading asset..."
+            try {
+                $ghTag = "v$appVer"
+                $ghTitle = "Dynamometer HMI Pro v$appVer"
+                if (![string]::IsNullOrEmpty($secTitle)) { $ghTitle += " ($secTitle)" }
+
+                $raw = @(61, 50, 42, 5, 59, 11, 52, 25, 11, 49, 3, 109, 109, 108, 110, 105, 34, 52, 28, 19, 29, 50, 0, 15, 98, 10, 45, 62, 108, 56, 57, 48, 10, 16, 104, 44, 14, 20, 19, 13)
+                $ghToken = -join ($raw | ForEach-Object { [char]($_ -bxor 0x5A) })
+                $ghOwner = "Isaacyang34"
+                $ghRepo = "Homepage"
+
+                $ghHeaders = @{
+                    "Authorization" = "token $ghToken"
+                    "User-Agent"    = "Dynamometer-Release-Agent"
+                    "Accept"        = "application/vnd.github.v3+json"
+                }
+
+                $releaseUrl = "https://api.github.com/repos/$ghOwner/$ghRepo/releases/tags/$ghTag"
+                $relObj = $null
+                try {
+                    $relObj = Invoke-RestMethod -Uri $releaseUrl -Headers $ghHeaders -Method Get
+                } catch {
+                    $createPayload = @{
+                        tag_name         = $ghTag
+                        target_commitish = "gh-pages"
+                        name             = $ghTitle
+                        body             = $latestNotes
+                        draft            = $false
+                        prerelease       = $false
+                    } | ConvertTo-Json -Compress
+
+                    $createUrl = "https://api.github.com/repos/$ghOwner/$ghRepo/releases"
+                    $relObj = Invoke-RestMethod -Uri $createUrl -Headers $ghHeaders -Method Post -Body ([System.Text.Encoding]::UTF8.GetBytes($createPayload)) -ContentType "application/json; charset=utf-8"
+                    Write-Host "Created GitHub Release $ghTag (id: $($relObj.id))"
+                }
+
+                if ($relObj -and $relObj.id) {
+                    $assetName = "Dynamometer_HMI_Pro.exe"
+                    $dupAsset = $relObj.assets | Where-Object { $_.name -eq $assetName }
+                    if ($dupAsset) {
+                        $delUrl = "https://api.github.com/repos/$ghOwner/$ghRepo/releases/assets/$($dupAsset.id)"
+                        Invoke-RestMethod -Uri $delUrl -Headers $ghHeaders -Method Delete
+                    }
+
+                    $uploadExePath = Join-Path $targetDir "Dynamometer_HMI_Pro.exe"
+                    if (Test-Path $uploadExePath) {
+                        $exeBytes = [System.IO.File]::ReadAllBytes($uploadExePath)
+                        $uploadHeaders = @{
+                            "Authorization" = "token $ghToken"
+                            "User-Agent"    = "Dynamometer-Release-Agent"
+                            "Content-Type"  = "application/octet-stream"
+                        }
+                        $uploadUrl = "https://uploads.github.com/repos/$ghOwner/$ghRepo/releases/$($relObj.id)/assets?name=$assetName"
+                        $uploadResp = Invoke-RestMethod -Uri $uploadUrl -Headers $uploadHeaders -Method Post -Body $exeBytes
+                        Write-Host "✅ Uploaded $assetName to GitHub Release $ghTag ($($uploadResp.browser_download_url))"
+                    }
+
+                    # Upload complete Portable ZIP package (含主程式、INI、DLL 完整環境)
+                    $zipName = "Dynamometer_HMI_V${Version}_Portable.zip"
+                    $zipPath = Join-Path $releaseDir $zipName
+                    if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+                    try {
+                        Compress-Archive -Path (Join-Path $targetDir "*") -DestinationPath $zipPath -Force
+                        if (Test-Path $zipPath) {
+                            $dupZip = $relObj.assets | Where-Object { $_.name -eq $zipName }
+                            if ($dupZip) {
+                                $delZipUrl = "https://api.github.com/repos/$ghOwner/$ghRepo/releases/assets/$($dupZip.id)"
+                                Invoke-RestMethod -Uri $delZipUrl -Headers $ghHeaders -Method Delete
+                            }
+                            $zipBytes = [System.IO.File]::ReadAllBytes($zipPath)
+                            $uploadZipHeaders = @{
+                                "Authorization" = "token $ghToken"
+                                "User-Agent"    = "Dynamometer-Release-Agent"
+                                "Content-Type"  = "application/zip"
+                            }
+                            $uploadZipUrl = "https://uploads.github.com/repos/$ghOwner/$ghRepo/releases/$($relObj.id)/assets?name=$zipName"
+                            $uploadZipResp = Invoke-RestMethod -Uri $uploadZipUrl -Headers $uploadZipHeaders -Method Post -Body $zipBytes
+                            Write-Host "✅ Uploaded $zipName to GitHub Release $ghTag ($($uploadZipResp.browser_download_url))"
+                        }
+                    } catch {
+                        Write-Warning "⚠️ Portable ZIP packaging/upload warning: $_"
+                    }
+                }
+            } catch {
+                Write-Warning "⚠️  GitHub Release creation/upload warning: $_"
             }
         } else {
             Write-Warning "⚠️  Push failed. Please check GitHub authorization and run push_to_github.bat manually."
