@@ -68,11 +68,11 @@
 // 射頻掃描多協議模式定義 (全模式具備 16 位元同步字元硬體匹配，徹底杜絕雜訊溢流)
 // ------------------------------------------------------------------------------
 enum ScanMode {
-  MODE_FSK_9600 = 0,
+  MODE_FSK_CB56 = 0,
+  MODE_FSK_D391,
+  MODE_OOK_5569,
   MODE_FSK_19200,
   MODE_FSK_4800,
-  MODE_OOK_4096,
-  MODE_OOK_9600,
   MODE_PROMISCUOUS,
   SCAN_MODE_COUNT
 };
@@ -90,15 +90,15 @@ struct ScanModeConfig {
 };
 
 const ScanModeConfig SCAN_MODES[SCAN_MODE_COUNT] = {
-  { "FSK 9.6k",   "433.92M 2-FSK 9.6k (豐田/日系/主流)", false, 9.6f,   40.0f, 135.0f, 0xD3, 0x91, false },
-  { "FSK 19.2k",  "433.92M 2-FSK 19.2k (歐美/Schrader)", false, 19.2f,  50.0f, 200.0f, 0xD3, 0x91, false },
-  { "FSK 4.8k",   "433.92M 2-FSK 4.8k (低速專用協定)",   false, 4.8f,   47.6f, 135.0f, 0xD3, 0x91, false },
-  { "OOK 4.1k",   "433.92M ASK/OOK 4.1k (胎外/太陽能)",  true,  4.096f, 0.0f,  135.0f, 0x55, 0x69, false },
-  { "OOK 9.6k",   "433.92M ASK/OOK 9.6k (外置通用)",     true,  9.6f,   0.0f,  135.0f, 0xD3, 0x91, false },
-  { "泛捕獲模式", "433.92M 泛捕獲 (全抓/寬鬆捕獲)",      false, 9.6f,   40.0f, 270.0f, 0x00, 0x00, true }
+  { "FSK 9.6k (CB56)", "433.92M 2-FSK 9.6k (外置通用/專屬匹配)", false, 9.6f,   40.0f, 135.0f, 0xCB, 0x56, false },
+  { "FSK 9.6k (D391)", "433.92M 2-FSK 9.6k (豐田/日系/主流)",      false, 9.6f,   40.0f, 135.0f, 0xD3, 0x91, false },
+  { "OOK 4.1k (5569)", "433.92M ASK/OOK 4.1k (胎外/太陽能)",       true,  4.096f, 0.0f,  135.0f, 0x55, 0x69, false },
+  { "FSK 19.2k",       "433.92M 2-FSK 19.2k (歐美/Schrader)",       false, 19.2f,  50.0f, 200.0f, 0xD3, 0x91, false },
+  { "FSK 4.8k",        "433.92M 2-FSK 4.8k (低速專用協定)",         false, 4.8f,   47.6f, 135.0f, 0xD3, 0x91, false },
+  { "泛捕獲全抓",      "433.92M 泛捕獲 (全抓/智慧靜音門閥)",        false, 9.6f,   40.0f, 270.0f, 0x00, 0x00, true }
 };
 
-int currentScanMode = MODE_PROMISCUOUS;
+int currentScanMode = MODE_FSK_CB56;
 bool autoScanEnabled = true;
 unsigned long lastModeSwitchMs = 0;
 const unsigned long DWELL_TIME_MS = 4000;
@@ -937,7 +937,7 @@ void setup() {
   // 5. 初始化 CC1101 並載入初始掃描模式
   int beginState = radio.begin(433.92, 9.6, 40.0, 135.0, 10, 32);
   if (beginState == RADIOLIB_ERR_NONE) {
-    radioOnline = applyScanMode(MODE_PROMISCUOUS);
+    radioOnline = applyScanMode(MODE_FSK_CB56);
   } else {
     Serial.printf("[CC1101] 初始化失敗! 錯誤碼: %d\n", beginState);
   }
@@ -1031,10 +1031,20 @@ void loop() {
         if (buffer[i] == 0xFF) ffCount++;
         else if (buffer[i] == 0x00) zeroCount++;
       }
-      // 若超過 50% 為連續 0xFF 或 0x00，判定為天線載波飽和雜訊 (如 69 FF FF FF...)，完全靜音，不寫入歷史，不刷屏
-      if (ffCount > (int)(safeLen * 0.50) || zeroCount > (int)(safeLen * 0.50)) {
+      // 若超過 35% 為連續 0xFF 或 0x00 (例如載波靜電噪聲)，完全靜音，不寫入歷史，不刷屏
+      if (ffCount >= (int)(safeLen * 0.35) || zeroCount >= (int)(safeLen * 0.35)) {
         radio.startReceive();
         return;
+      }
+
+      // 3. 泛捕獲模式突波防抖頻率限制 (每 100ms 最多接收一次，保護系統 CPU 與 WiFi)
+      if (SCAN_MODES[currentScanMode].promiscuous) {
+        static unsigned long lastPromiscMs = 0;
+        if (millis() - lastPromiscMs < 100) {
+          radio.startReceive();
+          return;
+        }
+        lastPromiscMs = millis();
       }
 
       totalPacketsCount++;
