@@ -498,6 +498,7 @@ void renderOLED() {
 // ------------------------------------------------------------------------------
 bool processTpmsPacket(const uint8_t* buffer, size_t len, float rssi) {
   if (len < 8) return false;
+  if (rssi < (float)config.minRssi) return false; // 排除 -130 dBm 等靜電底噪假觸發
 
   bool foundValid = false;
   uint32_t sensorId = 0;
