@@ -1962,7 +1962,6 @@ namespace DynamometerHMI
         private double GetCurrentSample()
         {
             double curI = (actCurrentSigma > 0.05) ? actCurrentSigma : ((wtI1 + wtI2 + wtI3) / 3.0);
-            if (curI <= 0.05 && lastB_Dr00.HasValue) curI = (double)lastB_Dr00.Value;
             return curI;
         }
 

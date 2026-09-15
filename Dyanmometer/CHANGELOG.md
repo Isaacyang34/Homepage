@@ -8,9 +8,35 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.123 (beta) | v2.10.81 | 2026-09-15 | 確立全案最高強制規範「零偽造與零竄改實測物理量鐵律 (Zero-Fallback & Zero-Tampering Telemetry Integrity Rule)」、徹底清查代碼中所有幽靈替換與偽造邏輯：(1)現象與佐證：使用者深入追問：「為何會有這麼多竄改的問題??? 核心問題在哪? 不是說說而已，要怎麼樣還要我說嗎?」；(2)致命根因 (Root Cause)：1. 把「通訊暫時未刷新」與「物理量本身為 0」混為一談，錯誤地在遙測取樣、看門狗保護中使用額定值或歷史值進行覆蓋（如 GetCurrentSample 中殘留 if (curI <= 0.05 && lastB_Dr00.HasValue) curI = (double)lastB_Dr00.Value;）；2. 控制場景未嚴格隔離，以一般運轉思維套用至堵轉測試極端工況；3. 缺乏全案層級的強制規則約束，導致「打補丁引發新問題」之惡性循環；(3)精確修復方案：1. 於 GEMINI.md 與 .agents/rules/ 永久建立「第 10 條：零偽造與零竄改實測物理量鐵律」，強制規範嚴禁在任何即時控制、保護、看門狗或演算法中將實測為 0 的物理量（轉速、電流、電壓、轉矩）覆蓋為額定值或歷史值；2. 徹底清查並移除 GetCurrentSample() 中的殘留 lastB_Dr00 幽靈電流替換代碼；3. 通訊異常嚴格限定為通訊逾時標記，絕不允許假數據填補；(4)發布與驗證：升版至 2.10.81，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.81 發布。 |
 | V2.122 (beta) | v2.10.80 | 2026-09-15 | 徹底根除堵轉測試「完全不會動」四大致命死穴 (看門狗幽靈轉速竄改0秒超速急停、幽靈電流過載跳脫、oP.01端子控制權限阻斷、電壓未同步自相矛盾阻擋)：(1)現象與佐證：使用者實測回報：「現在做賭轉測試完全不會動，請檢察，為什麼之前明明就都可以用?」；經比對 Firebase 歷史日誌 (20260915_082121) 與源碼：馬達於 08:20 處於鎖死狀態，轉速 actSpeed 為 0.0 rpm，但看門狗卻瞬時跳脫「堵轉瞬時嚴重飛脫跳脫 (轉速 > 30 rpm)」，隨即下達 Sy.50=0 強制停機並終止線程，馬達完全無動作；(2)致命根因 (Root Cause)：1. 看門狗幽靈轉速竄改：TmrLockedWatchdog_Tick 行 3047 加入了 if (spdCur <= 0.5 && lastB_Dr01.HasValue) spdCur = Math.Abs((double)lastB_Dr01.Value); 荒謬邏輯，當待測馬達被機械確實鎖死時 (轉速為 0 rpm)，竟被篡改為銘牌額定轉速 1500 rpm，導致啟動第 1 拍 (500ms 內) 判定 1500 > 30 rpm 瞬間急停並將線程殺死！2. 看門狗幽靈電流竄改：行 3043 加入了 if (iCur <= 0.05 && lastB_Dr00.HasValue) iCur = (double)lastB_Dr00.Value;，建壓初期電流為 0 時被篡改為 45.0A，誤判過電流跳脫；3. oP.01 運轉控制權限未切換：現場變頻器參數為 oP.01=7 (半自動硬體端子控制)，變頻器僅聽實體 ST 端子，對軟體通訊 Sy.50=4 完全不予響應；且 cs.18 (轉矩極限) 未確保為 1000；4. 電壓同步自相矛盾阻擋：前次測試結束時系統為保護馬達鎖定 10V 安全低壓，但 CheckAndCollectDrUfParams 卻比對 dr.02(260V) 與 uf.09(10V) 相差 250V 判定「電壓未同步」彈窗阻擋測試；5. finally 區塊危險升壓：先前 finally 區塊殘留 AutoRestoreUf09，於線程結束時將電壓寫回 260V 造成撞擊與大電流短路危險；(3)精確修復方案：1. 徹底剷除看門狗中所有幽靈 fallback，實測轉速與電流嚴格取自物理感測器讀值，馬達鎖死轉速為 0 rpm 判定為絕對正常；2. 啟動激磁前自動將運轉控制權限切換為全自動通訊控制 (oP.01=8)，確保轉矩極限 cs.18=1000 (100.0%)，並於存在殘留故障時自動執行 FAULT RESET (Sy.50=2)；試驗結束於 finally 安全還原 oP.01；3. CheckAndCollectDrUfParams 明確將 uf.09<=60V 識別為「安全低壓鎖定狀態」，免除電壓未同步阻擋；4. finally 區塊廢除 AutoRestoreUf09，一律強制鎖定為安全低壓 10V；(4)發布與驗證：升版至 2.10.80，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.80 發布。 |
-| V2.121 (beta) | v2.10.79 | 2026-09-15 | 徹底剷除虛構之「uF.05」幽靈暫存器讀取、回歸 KEB COMBIVERT F5 原廠規範 (銘牌 dr.05 與基頻 uF.00)、並修復同步檢查或條件誤報正常之缺陷：(1)現象與佐證：使用者實測質疑：「為何現在顯示uf.05=0.00Hz？然後在同步檢查時還告訴我正常？為何要觀察uf.05？原因是甚麼？」；(2)致命根因 (Root Cause)：1. 虛構暫存器讀取：KEB COMBIVERT F5 原廠 U/f 特性參數群中，基準額定頻率為 uF.00 (0x0500)，馬達銘牌額定頻率為 dr.05 (0x0605)，原廠根本無 uf.05 (0x0505) 參數；先前版本未查手冊盲目加入 0x0505 讀取，變頻器回傳 null/0，造成常駐橫條顯示「uf.05=0.00 Hz」；2. 寬鬆或邏輯誤判：CheckAndCollectDrUfParams 之 freqSynced 判定採用了 || 邏輯 ((uf05Freq > 0 && 吻合) || (uf00Freq > 0 && 吻合))，因現場實體 uF.00=51.5Hz 與 dr.05=51.5Hz 完全吻合，觸發了 || 條件，導致 uf.05=0.00Hz 依然誤判為「已同步正常」；3. 觀察 uf.05 毫無物理意義：KEB 控制馬達的核心頻率僅有銘牌額定 dr.05 與特性基頻 uF.00，uf.05 純屬虛構；(3)精確修復方案：1. 徹底清除所有對 0x0505 (uf.05) 的讀取、換算與變數；2. 常駐橫條明確更正為「實測頻率: dr.05=xx.xx Hz (銘牌) | uF.00=xx.xx Hz (基頻)」；3. 同步比對嚴格修正為 dr.05 與 uF.00 雙向吻合判定 (Math.Abs(drFreq - uf00Freq) <= 0.5)；4. 堵轉工作線程自動鎖定全面回歸 0x0500 (uF.00)；(4)發布與驗證：升版至 2.10.79，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.79 發布。 |
-| V2.120 (beta) | v2.10.78 | 2026-09-15 | 徹底修復線上更新「HTTP 404」致命缺陷、排除 .gitignore 誤阻擋 Release 執行檔與自動化發布強制推送雙保險機制：(1)現象與佐證：使用者於客戶端點擊線上自動更新時跳出「下載或替換失敗: 伺服器回應異常: 404 (HTTP/1.1 404 Not Found)」；經查 Firebase RTDB update/version.json 指向 raw.githubusercontent.com 連結，實測 curl 回傳 404 Not Found；(2)致命根因 (Root Cause)：1. 根目錄 .gitignore 第 3 行定義了 *.exe 全域忽略，未設置 Release 目錄例外；2. package_release.ps1 第 190 行執行 git add "Dyanmometer/Release/" 時缺少 -f (force) 參數，導致編譯完成的新版 Dynamometer_HMI_Pro.exe 完全未被暫存或 commit，gh-pages 分支遠端並無該 exe；而 package_release.ps1 仍將不存在的 raw.githubusercontent.com 下載網址寫入 Firebase RTDB，客戶端下載即報 404；(3)精確修復方案：1. 於根目錄 .gitignore 新增白名單例外 !Dyanmometer/Release/**/*.exe 與 !Release/**/*.exe，確保便攜執行檔永久受 Git 追蹤；2. 修改 package_release.ps1 第 190 行為 git add -f "Dyanmometer/Release/" 形成雙保險；3. 升級至 v2.10.78，將 Portable 執行檔強制加入暫存並推送至 gh-pages 與 master，更新 Firebase RTDB 與 GitHub Release v2.10.78，確保下載 raw 連結 200 OK，恢復一鍵熱替換重啟；(4)發布與驗證：升版至 2.10.78，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.78 發布。 |
+
+---
+
+## [V2.123 beta / v2.10.81] - 2026-09-15
+
+### 確立全案最高強制規範「零偽造與零竄改實測物理量鐵律 (Zero-Fallback & Zero-Tampering Telemetry Integrity Rule)」、徹底清查代碼中所有幽靈替換與偽造邏輯
+
+### 現象與佐證
+- **使用者核心質詢**：
+  `為何會有這麼多竄改的問題??? 核心問題在哪? 不是說說而已，要怎麼樣還要我說嗎?`
+- **問題本質**：
+  系統長期以來存在將「實測為 0 的物理量」以「銘牌額定值」或「歷史值」偷換之不良實作慣性（如 `GetCurrentSample()` 中殘留 `if (curI <= 0.05 && lastB_Dr00.HasValue) curI = (double)lastB_Dr00.Value;`），造成取樣值失真，進而在看門狗中引發誤判與跳脫。
+
+### 致命根因 (Root Cause)
+1. **未區分「通訊異常」與「物理量為 0」**：把堵轉時馬達軸被咬死轉速必為 0、低壓建壓初期電流為 0 的正常物理現象，誤判為通訊遺失，自作聰明加入額定值覆蓋；
+2. **缺乏全域鐵律約束**：先前未將此類行為定性為不可逾越的系統紅線，導致除錯時打補丁反覆引入新的偽造數值。
+
+### 精確修復方案
+1. **建立全域最高規範**：
+   - 於專案最高指揮規則 `GEMINI.md` 正式頒布並生效 **`## 10. 零偽造與零竄改實測物理量鐵律 (Zero-Fallback & Zero-Tampering Telemetry Integrity Rule - 全案最高強制規範)`**；
+   - 於 `.agents/rules/zero_tampering_telemetry_integrity_rule.md` 建立詳細實施手冊，永久列入接觸前掃描與輸出自檢流程。
+2. **全域代碼清查與清除**：
+   - 清除 `Dynamometer_TestEquivCircuit.cs` 中 `GetCurrentSample()` 的殘留 `lastB_Dr00` 幽靈覆蓋代碼，實測電流讀取徹底回歸功率計與感測器。
+3. **通訊與物理嚴格脫鉤**：
+   - 嚴格規定通訊問題僅允許標記通訊超時或異常，嚴禁偽造數據。
+4. **發布與驗證**：
+   - 升版至 `v2.10.81`，經 `csc.exe` 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.81 發布。
 
 ---
 
