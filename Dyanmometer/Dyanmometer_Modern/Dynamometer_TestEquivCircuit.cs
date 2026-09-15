@@ -2045,8 +2045,20 @@ namespace DynamometerHMI
             // 2. ★ 清空設定轉速指令 (Sy.52=0, oP.03=0)，防止下次執行直接給予殘留轉速
             ClearLockedSpeedCmd("停止試驗轉速歸零: " + reason);
 
-            // 3. ★ 無論成功或失敗，只要停止後立即改回原本數值，防止下次測試卡住
-            AutoRestoreUf09("停止試驗強制復歸: " + reason);
+            // 3. ★【生與死安全防護】停止時鎖定安全低壓 (10V)，絕對嚴禁在機械鎖死時自動恢復 260V 高壓！
+            try
+            {
+                int driveId = (cmbEquivKebDrive != null && cmbEquivKebDrive.SelectedIndex == 1) ? 1 : 2;
+                string dName = (driveId == 1) ? "A載台" : "B載台";
+                KebWriteUf09(driveId, 10);
+                WriteHmiLog("KEB_UF09", string.Format("【安全低壓鎖定】{0} 停止試驗鎖定安全低壓 10V (待拆除治具後請點擊「復歸預設」恢復額定電壓)", dName));
+                if (lblEquivCurUf09 != null)
+                {
+                    lblEquivCurUf09.Text = "uf09: 10 V (低壓鎖定)";
+                    lblEquivCurUf09.ForeColor = Color.FromArgb(245, 158, 11);
+                }
+            }
+            catch { }
         }
 
         private void LockedSweepWorker(bool singleFreqMode, int singleFreqIndex)
@@ -2769,14 +2781,24 @@ namespace DynamometerHMI
                     if (lockedOverCurrentTicks > 0) lockedOverCurrentTicks = Math.Max(0, lockedOverCurrentTicks - 1);
                 }
 
-                // ── 2. 轉速異常大於 5 rpm 且持續超過 3 秒保護 (治具脫扣防護) ──
-                if (spdCur > 5.0)
+                // ── 2. 真正治具脫扣防護 (排除聯軸器微動彈性形變 -8~+12 rpm) ──
+                // 2-1. 瞬時超速跳脫 (實測轉速 > 30 rpm 視為治具完全脫扣飛脫，0秒瞬間跳脫)
+                if (spdCur > 30.0)
+                {
+                    TriggerLockedProtectionTrip(
+                        "堵轉瞬時嚴重飛脫跳脫 (轉速 > 30 rpm)",
+                        string.Format("• 實測瞬間轉速 = {0:F0} rpm (遠超堵轉安全極限 30 rpm)\r\n• 判定結果：馬達鎖死治具已完全脫扣飛脫！系統已於 0 秒內強制切斷輸出！", spdCur));
+                    return;
+                }
+
+                // 2-2. 持續旋轉跳脫 (實測轉速 > 15 rpm 且持續超過 3.0 秒)
+                if (spdCur > 15.0)
                 {
                     lockedSpeedAnomalyTicks++;
                     double elapsedSec = lockedSpeedAnomalyTicks * 0.5;
                     if (lblLockedProtStatus != null)
                     {
-                        lblLockedProtStatus.Text = string.Format("[!]【轉速異常預警】轉速 {0:F0} rpm > 5 rpm！累計 {1:F1}s / 3.0s (判定治具脫扣)",
+                        lblLockedProtStatus.Text = string.Format("[!]【轉速異常預警】轉速 {0:F0} rpm > 15 rpm！累計 {1:F1}s / 3.0s (判定治具脫扣)",
                             spdCur, elapsedSec);
                         lblLockedProtStatus.ForeColor = Color.FromArgb(220, 38, 38);
                     }
@@ -2784,8 +2806,8 @@ namespace DynamometerHMI
                     if (lockedSpeedAnomalyTicks >= 6) // 6 * 0.5s = 3.0s
                     {
                         TriggerLockedProtectionTrip(
-                            "堵轉轉速異常跳脫 (治具脫扣/機械鎖死失效)",
-                            string.Format("• 實測扭力計軸轉速 = {0:F0} rpm (容許上限 5 rpm)\r\n• 累計轉動時間 = {1:F1} 秒 (已達 3 秒跳脫上限)\r\n• 判定結果：待測馬達機械鎖死治具已脫扣或未能承受堵轉扭力！為防止飛脫、劇烈旋轉造成機件毀損，系統已執行緊急停機。",
+                            "堵轉轉速異常跳脫 (治具脫扣/持續旋轉)",
+                            string.Format("• 實測扭力計軸轉速 = {0:F0} rpm (持續高於 15 rpm)\r\n• 累計轉動時間 = {1:F1} 秒 (已達 3 秒跳脫上限)\r\n• 判定結果：待測馬達未能剛性鎖死，已持續旋轉！為保護機構，系統已執行緊急停機。",
                             spdCur, elapsedSec));
                         return;
                     }
@@ -2798,7 +2820,7 @@ namespace DynamometerHMI
                 // 若一切正常且無警告，刷新指示為正常綠色
                 if (lockedOverCurrentTicks == 0 && lockedSpeedAnomalyTicks == 0 && lblLockedProtStatus != null)
                 {
-                    lblLockedProtStatus.Text = string.Format("[防護] 實時防護監控中 | 電流閥值: {0:F1}A (110% IN, 0/10s) | 轉速閥值: 5 rpm (0/3s)", iThreshold);
+                    lblLockedProtStatus.Text = string.Format("[防護] 實時防護監控中 | 電流閥值: {0:F1}A (110% IN, 0/10s) | 轉速極限: 15 rpm (0/3s)", iThreshold);
                     lblLockedProtStatus.ForeColor = Color.FromArgb(16, 185, 129);
                 }
             }
@@ -2815,30 +2837,44 @@ namespace DynamometerHMI
             isLockedTripShowing = true;
             try
             {
+                // ★【生與死核心修復 1】第一時間 100% 強制終止背景掃描線程迴圈，杜絕背景線程繼續調壓！
+                isLockedSweepRunning = false;
                 isAutoTuningUf09 = false;
                 isLockedRotorActive = false;
                 lockedOverCurrentTicks = 0;
                 lockedSpeedAnomalyTicks = 0;
 
+                // ★ 安全關閉等效電路專屬紀錄檔
+                StopEquivTestRecording("保護機制跳脫: " + title, showPrompt: false);
+
                 if (btnEquivAutoTuneUf09 != null)
                 {
-                    btnEquivAutoTuneUf09.Text = "[AI] 自適應追隨額定流";
+                    btnEquivAutoTuneUf09.Text = "[AI] 單頻測試";
                     btnEquivAutoTuneUf09.BackColor = Color.FromArgb(238, 242, 255);
                 }
+                if (btnEquivSweepAllFreq != null)
+                {
+                    btnEquivSweepAllFreq.Text = "[>>] 全頻掃描";
+                    btnEquivSweepAllFreq.BackColor = Color.FromArgb(241, 245, 249);
+                }
 
-                // 1. 立即切斷變頻器輸出 (Sy.50 = 0)
                 int driveId = (cmbEquivKebDrive != null && cmbEquivKebDrive.SelectedIndex == 1) ? 1 : 2;
                 int com = GetHmiKebComIdx(driveId);
                 int baud = GetHmiKebBaudIdx(driveId);
                 int node = (driveId == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
-                KebWriteParamWithDll(com, baud, node, 0x0032, 0); // Sy.50 = 0 (強制停機切斷輸出激磁)
+                string dName = (driveId == 1) ? "A載台" : "B載台";
+
+                // 1. 立即強制切斷變頻器輸出 (Sy.50 = 0 停機)
+                KebWriteParamWithDll(com, baud, node, 0x0032, 0);
 
                 // 2. 立即清空設定轉速指令 (Sy.52=0, oP.03=0)，防止殘留轉速導致下次啟動直接給速
                 ClearLockedSpeedCmd("保護跳脫轉速歸零");
 
-                // 3. KEB uf.09 立即自動恢復至額定基準電壓 (絕不殘留 0V 或低壓，防止下次測試卡住)
-                int restoreV = GetOriginalOrRatedUf09(driveId);
-                AutoRestoreUf09("保護跳脫後自動恢復額定基準電壓");
+                // 3. ★【生與死核心修復 2】堵轉鎖死狀態下絕對嚴禁恢復 260V 額定高壓！
+                //    馬達軸目前為機械鎖死狀態，若自動恢復 260V 將引發數百安培短路大電流與巨響！
+                //    因此強制鎖定為安全低壓 (10V)，確保變頻器即使激磁亦絕無大電流！
+                KebWriteUf09(driveId, 10);
+                WriteHmiLog("KEB_UF09", string.Format("【保護安全閉鎖】{0} 跳脫強制鎖定安全低壓 10V (嚴禁自動恢復 260V 高壓)", dName));
 
                 // 4. 更新 UI 狀態
                 if (lblLockedItemStatus != null)
@@ -2853,8 +2889,8 @@ namespace DynamometerHMI
                 }
                 if (lblEquivCurUf09 != null)
                 {
-                    lblEquivCurUf09.Text = string.Format("uf09: {0} V (已復歸)", restoreV);
-                    lblEquivCurUf09.ForeColor = Color.FromArgb(16, 185, 129);
+                    lblEquivCurUf09.Text = "uf09: 10 V (安全低壓鎖定)";
+                    lblEquivCurUf09.ForeColor = Color.FromArgb(245, 158, 11);
                 }
 
                 // 5. 記錄 HMI 日誌
@@ -2866,12 +2902,12 @@ namespace DynamometerHMI
                     "【實測數據與觸發條件】：\r\n{1}\r\n\r\n" +
                     "【[防護] 系統已主動完成處置措施】：\r\n" +
                     "1. 已立即下達 Sy.50 = 0 切斷變頻器輸出 (停止定子激磁)\r\n" +
-                    "2. 轉速設定值 (Sy.52 / oP.03) 已安全歸零，防止下次啟動誤帶轉速\r\n" +
-                    "3. KEB uf.09 輸出電壓已自動復歸為額定基準值 ({2} V)，防止下次測試卡死\r\n" +
+                    "2. 轉速設定值 (Sy.52 / oP.03) 已安全歸零，背景掃描線程已強制終止\r\n" +
+                    "3. KEB uf.09 輸出電壓已安全鎖定於低壓 (10 V)，絕不輸出高壓\r\n" +
                     "4. 自適應調壓程序已安全中止\r\n\r\n" +
-                    "※ 說明：此為保護馬達不致過熱燒毀及防止治具脫扣之主動安全機制。\r\n" +
-                    "請確認待測馬達冷卻狀況與機械鎖死治具後，再行測試。",
-                    title, details, restoreV);
+                    "※ 提醒：待測馬達目前仍處於治具鎖死狀態，請勿在高壓下運轉。\r\n" +
+                    "如需恢復額定基準電壓，請於確認拆除鎖死治具後，點擊「復歸預設」按鈕。",
+                    title, details);
 
                 MessageBox.Show(alertMsg, "[!] 堵轉安全防護跳脫", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
