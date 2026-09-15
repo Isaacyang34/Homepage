@@ -1432,6 +1432,8 @@ namespace DynamometerHMI
                 else if (tabControl.SelectedTab == tabEquiv) // 切換至 等效電路計算分頁
                 {
                     RefreshEquivMotorStatus();
+                    UpdateEquivKebConnectionUi();
+                    if (pnlEquivDiagram != null) { pnlEquivDiagram.Invalidate(); }
                 }
 
                 // 立即安全還原該分頁之視窗分割條佈局 (非同步排入訊息隊列確保容器尺寸已由 GDI+ 完成計算排版)

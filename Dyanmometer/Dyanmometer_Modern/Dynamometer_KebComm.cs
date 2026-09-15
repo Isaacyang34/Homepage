@@ -938,6 +938,7 @@ namespace DynamometerHMI
                     
                     // 連線成功後第一動作：先讀回變頻器目前真實硬體參數，並同步至介面設定框與模式按鈕
                     ReadAndSyncHmiKebInitialParams(1);
+                    try { UpdateEquivKebConnectionUi(); } catch { }
                     return true;
                 }
                 else
@@ -953,6 +954,7 @@ namespace DynamometerHMI
                     }
                     if (txtHmiKebLog != null) txtHmiKebLog.AppendText(string.Format("[{0}] [A載台錯誤] {1} 站號 {2} 無回應，請檢查實體接線與變頻器電源！\r\n", DateTime.Now.ToLongTimeString(), port, numHmiKebNode1.Value));
                     WriteHmiLog("KEB_A", string.Format("[FAIL] A載台驅動器連線失敗: {0} 站號 {1} 握手無回應，請檢查實體接線與變頻器電源！", port, numHmiKebNode1.Value));
+                    try { UpdateEquivKebConnectionUi(); } catch { }
                     return false;
                 }
             }
@@ -968,6 +970,7 @@ namespace DynamometerHMI
                     lblPillKeb1.Text = " A載台: 異常 ";
                     lblPillKeb1.ForeColor = Color.FromArgb(248, 113, 113);
                 }
+                try { UpdateEquivKebConnectionUi(); } catch { }
                 return false;
             }
         }
@@ -1010,6 +1013,7 @@ namespace DynamometerHMI
             }
             if (txtHmiKebLog != null) txtHmiKebLog.AppendText(string.Format("[{0}] A載台 COM 埠已釋放 (已解除鎖定，可供外部軟體使用)\r\n", DateTime.Now.ToLongTimeString()));
             WriteHmiLog("KEB_A", "[INFO] A載台 COM 埠已關閉釋放");
+            try { UpdateEquivKebConnectionUi(); } catch { }
         }
 
         private bool EnsureHmiKebOpen2()
@@ -1069,6 +1073,7 @@ namespace DynamometerHMI
                     
                     // 連線成功後第一動作：先讀回變頻器目前真實硬體參數，並同步至介面設定框與模式按鈕
                     ReadAndSyncHmiKebInitialParams(2);
+                    try { UpdateEquivKebConnectionUi(); } catch { }
                     return true;
                 }
                 else
@@ -1084,6 +1089,7 @@ namespace DynamometerHMI
                     }
                     if (txtHmiKebLog != null) txtHmiKebLog.AppendText(string.Format("[{0}] [B載台錯誤] {1} 站號 {2} 無回應，請檢查實體接線與變頻器電源！\r\n", DateTime.Now.ToLongTimeString(), port, numHmiKebNode2.Value));
                     WriteHmiLog("KEB_B", string.Format("[FAIL] B載台驅動器連線失敗: {0} 站號 {1} 握手無回應，請檢查實體接線與變頻器電源！", port, numHmiKebNode2.Value));
+                    try { UpdateEquivKebConnectionUi(); } catch { }
                     return false;
                 }
             }
@@ -1099,6 +1105,7 @@ namespace DynamometerHMI
                     lblPillKeb2.Text = " B載台: 異常 ";
                     lblPillKeb2.ForeColor = Color.FromArgb(248, 113, 113);
                 }
+                try { UpdateEquivKebConnectionUi(); } catch { }
                 return false;
             }
         }
@@ -1141,6 +1148,7 @@ namespace DynamometerHMI
             }
             if (txtHmiKebLog != null) txtHmiKebLog.AppendText(string.Format("[{0}] B載台 COM 埠已釋放 (已解除鎖定，可供外部軟體使用)\r\n", DateTime.Now.ToLongTimeString()));
             WriteHmiLog("KEB_B", "[INFO] B載台 COM 埠已關閉釋放");
+            try { UpdateEquivKebConnectionUi(); } catch { }
         }
 
         private void UpdateHmiKebModeParamsDisplay(int driveId, int mode = -1, int speedVal = -1, double trqPercent = -1.0, int lastCmd = -1)

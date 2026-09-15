@@ -79,6 +79,8 @@ namespace DynamometerHMI
         private Button btnEquivViewSweepResults;   // [表] 8頻記錄按鈕
         private Button btnEquivLockedStop;         // [■ 急停] 堵轉緊急停機按鈕
         private Label lblLockedProtStatus;         // [防護] 保護監控與閾值狀態指示
+        private Button btnEquivKebToggle;          // [Open] / [Close] 變頻器連線切換按鈕 (同步綜合監控)
+        private Label lblEquivKebStatus;           // 變頻器連線狀態標籤 (同步綜合監控)
         private System.Windows.Forms.Timer tmrLockedWatchdog; // 堵轉看門狗與自適應調壓定時器
         private bool isLockedRotorActive = false;
         private bool isLockedTripShowing = false; // ★【防彈跳連發重入鎖】保證絕不重複彈出多個 MessageBox
@@ -587,21 +589,22 @@ namespace DynamometerHMI
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
-                RowCount = 11
+                RowCount = 12
             };
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 46f));
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 54f));
             tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 24f)); // Row 0: Title
             tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 22f)); // Row 1: Status
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 2: Freq & Drive
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 3: uf09 Controls
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 4: Multi-Freq Sweep Controls
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 24f)); // Row 5: Protection Status
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 6: Vk
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 7: Ik
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 8: Pk
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 9: PFk
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 32f)); // Row 10: Buttons
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 2: Freq
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 28f)); // Row 3: Drive & KEB Connection
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 4: uf09 Controls
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 5: Multi-Freq Sweep Controls
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 24f)); // Row 6: Protection Status
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 7: Vk
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 8: Ik
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 9: Pk
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 10: PFk
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 32f)); // Row 11: Buttons
 
             // Row 0: 標題
             Label lblTitle = new Label()
@@ -627,17 +630,7 @@ namespace DynamometerHMI
             tlp.SetColumnSpan(lblLockedItemStatus, 2);
             tlp.Controls.Add(lblLockedItemStatus, 0, 1);
 
-            // Row 2: 試驗頻率與載台選擇 (8種試驗頻率)
-            TableLayoutPanel tlpFreqDrive = new TableLayoutPanel()
-            {
-                Dock = DockStyle.Fill,
-                ColumnCount = 2,
-                RowCount = 1,
-                Margin = new Padding(0)
-            };
-            tlpFreqDrive.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58f));
-            tlpFreqDrive.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42f));
-
+            // Row 2: 試驗頻率選擇 (8種試驗頻率，橫跨兩欄)
             cmbEquivLockedFreq = new ComboBox()
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
@@ -658,6 +651,20 @@ namespace DynamometerHMI
             cmbEquivLockedFreq.SelectedIndexChanged += (s, e) => {
                 WriteHmiLog("EQUIV", string.Format("【等效電路】切換堵轉試驗頻率模式為: {0}", cmbEquivLockedFreq.SelectedItem));
             };
+            tlp.SetColumnSpan(cmbEquivLockedFreq, 2);
+            tlp.Controls.Add(cmbEquivLockedFreq, 0, 2);
+
+            // Row 3: 變頻器載台選擇與連線控制列 (雙向同步綜合監控)
+            TableLayoutPanel tlpDriveConn = new TableLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 3,
+                RowCount = 1,
+                Margin = new Padding(0)
+            };
+            tlpDriveConn.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 105f));
+            tlpDriveConn.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 68f));
+            tlpDriveConn.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
 
             cmbEquivKebDrive = new ComboBox()
             {
@@ -667,13 +674,70 @@ namespace DynamometerHMI
             };
             cmbEquivKebDrive.Items.AddRange(new object[] { "B載台 (待測)", "A載台" });
             cmbEquivKebDrive.SelectedIndex = 0;
+            cmbEquivKebDrive.SelectedIndexChanged += (s, e) => {
+                UpdateEquivKebConnectionUi();
+            };
 
-            tlpFreqDrive.Controls.Add(cmbEquivLockedFreq, 0, 0);
-            tlpFreqDrive.Controls.Add(cmbEquivKebDrive, 1, 0);
-            tlp.SetColumnSpan(tlpFreqDrive, 2);
-            tlp.Controls.Add(tlpFreqDrive, 0, 2);
+            btnEquivKebToggle = new Button()
+            {
+                Text = "[Open]",
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(16, 185, 129),
+                ForeColor = Color.White,
+                Font = new Font("Consolas", 9.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                Margin = new Padding(1)
+            };
+            btnEquivKebToggle.Click += (s, e) => {
+                int driveId = (cmbEquivKebDrive != null && cmbEquivKebDrive.SelectedIndex == 1) ? 1 : 2;
+                if (driveId == 1)
+                {
+                    if (!isHmiKebOpen1)
+                    {
+                        EnsureHmiKebOpen1();
+                    }
+                    else
+                    {
+                        if (CheckConfirmDisconnectWithLock("A載台"))
+                        {
+                            CloseHmiKebPort1();
+                        }
+                    }
+                }
+                else
+                {
+                    if (!isHmiKebOpen2)
+                    {
+                        EnsureHmiKebOpen2();
+                    }
+                    else
+                    {
+                        if (CheckConfirmDisconnectWithLock("B載台"))
+                        {
+                            CloseHmiKebPort2();
+                        }
+                    }
+                }
+                UpdateEquivKebConnectionUi();
+            };
 
-            // Row 3: 目標 uf09 + 寫入 + 自適應追隨 (緊湊四欄式)
+            lblEquivKebStatus = new Label()
+            {
+                Text = "狀態: 未連線",
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Font = new Font("微軟正黑體", 8.5f),
+                ForeColor = Color.Gray,
+                Margin = new Padding(3, 0, 0, 0)
+            };
+
+            tlpDriveConn.Controls.Add(cmbEquivKebDrive, 0, 0);
+            tlpDriveConn.Controls.Add(btnEquivKebToggle, 1, 0);
+            tlpDriveConn.Controls.Add(lblEquivKebStatus, 2, 0);
+            tlp.SetColumnSpan(tlpDriveConn, 2);
+            tlp.Controls.Add(tlpDriveConn, 0, 3);
+
+            // Row 4: 目標 uf09 + 寫入 + 自適應追隨 (緊湊四欄式)
             TableLayoutPanel tlpUfCtrl = new TableLayoutPanel()
             {
                 Dock = DockStyle.Fill,
@@ -741,9 +805,9 @@ namespace DynamometerHMI
             tlpUfCtrl.Controls.Add(btnEquivAutoTuneUf09, 3, 0);
 
             tlp.SetColumnSpan(tlpUfCtrl, 2);
-            tlp.Controls.Add(tlpUfCtrl, 0, 3);
+            tlp.Controls.Add(tlpUfCtrl, 0, 4);
 
-            // Row 4: 8 頻率掃描操作工具列 (同步檢查 / 全頻掃描 / 8頻紀錄表)
+            // Row 5: 8 頻率掃描操作工具列 (同步檢查 / 全頻掃描 / 8頻紀錄表)
             TableLayoutPanel tlpSweepBtns = new TableLayoutPanel()
             {
                 Dock = DockStyle.Fill,
@@ -799,9 +863,9 @@ namespace DynamometerHMI
             tlpSweepBtns.Controls.Add(btnEquivViewSweepResults, 2, 0);
 
             tlp.SetColumnSpan(tlpSweepBtns, 2);
-            tlp.Controls.Add(tlpSweepBtns, 0, 4);
+            tlp.Controls.Add(tlpSweepBtns, 0, 5);
 
-            // Row 5: 即時保護指示橫條
+            // Row 6: 即時保護指示橫條
             lblLockedProtStatus = new Label()
             {
                 Text = "[防護] 實時防護: 監控中 (電流: 110% IN / 10s | 轉速: 5 rpm / 3s)",
@@ -813,13 +877,13 @@ namespace DynamometerHMI
                 Padding = new Padding(3, 1, 3, 1)
             };
             tlp.SetColumnSpan(lblLockedProtStatus, 2);
-            tlp.Controls.Add(lblLockedProtStatus, 0, 5);
+            tlp.Controls.Add(lblLockedProtStatus, 0, 6);
 
-            // Row 6~9: 堵轉實測數據列 (預設值歸零)
-            numEquivVk = AddCardField(tlp, 6, "堵轉電壓 Vk (V):", 0.0m, 1, 0, 500);
-            numEquivIk = AddCardField(tlp, 7, "堵轉電流 Ik (A):", 0.0m, 2, 0, 500);
-            numEquivPk = AddCardField(tlp, 8, "堵轉功率 Pk (W):", 0.0m, 1, 0, 50000);
-            numEquivPfk = AddCardField(tlp, 9, "堵轉因數 PFk:", 0.0m, 3, 0, 1);
+            // Row 7~10: 堵轉實測數據列 (預設值歸零)
+            numEquivVk = AddCardField(tlp, 7, "堵轉電壓 Vk (V):", 0.0m, 1, 0, 500);
+            numEquivIk = AddCardField(tlp, 8, "堵轉電流 Ik (A):", 0.0m, 2, 0, 500);
+            numEquivPk = AddCardField(tlp, 9, "堵轉功率 Pk (W):", 0.0m, 1, 0, 50000);
+            numEquivPfk = AddCardField(tlp, 10, "堵轉因數 PFk:", 0.0m, 3, 0, 1);
 
             // Row 10: 操作按鈕行 (三鍵式: 擷取 / 復歸 / 緊急停機)
             TableLayoutPanel tlpBtnsLocked = new TableLayoutPanel()
@@ -879,10 +943,45 @@ namespace DynamometerHMI
             tlpBtnsLocked.Controls.Add(btnEquivLockedStop, 2, 0);
 
             tlp.SetColumnSpan(tlpBtnsLocked, 2);
-            tlp.Controls.Add(tlpBtnsLocked, 0, 10);
+            tlp.Controls.Add(tlpBtnsLocked, 0, 11);
 
             card.Controls.Add(tlp);
             return card;
+        }
+
+        // 刷新等效電路 KEB 連線按鈕與狀態顯示 (雙向同步綜合監控)
+        public void UpdateEquivKebConnectionUi()
+        {
+            try
+            {
+                if (btnEquivKebToggle == null || btnEquivKebToggle.IsDisposed) return;
+                if (lblEquivKebStatus == null || lblEquivKebStatus.IsDisposed) return;
+
+                int driveId = (cmbEquivKebDrive != null && cmbEquivKebDrive.SelectedIndex == 1) ? 1 : 2;
+                bool isOpen = (driveId == 1) ? isHmiKebOpen1 : isHmiKebOpen2;
+                string port = (driveId == 1) ?
+                    (cmbHmiKebPort1 != null && cmbHmiKebPort1.SelectedItem != null ? cmbHmiKebPort1.SelectedItem.ToString() : "COM1") :
+                    (cmbHmiKebPort2 != null && cmbHmiKebPort2.SelectedItem != null ? cmbHmiKebPort2.SelectedItem.ToString() : "COM2");
+                string baud = (driveId == 1) ?
+                    (cmbHmiKebBaud1 != null && cmbHmiKebBaud1.SelectedItem != null ? cmbHmiKebBaud1.SelectedItem.ToString() : "9600") :
+                    (cmbHmiKebBaud2 != null && cmbHmiKebBaud2.SelectedItem != null ? cmbHmiKebBaud2.SelectedItem.ToString() : "9600");
+
+                if (isOpen)
+                {
+                    btnEquivKebToggle.Text = "[Close]";
+                    btnEquivKebToggle.BackColor = Color.FromArgb(239, 68, 68);
+                    lblEquivKebStatus.Text = string.Format("狀態: 已連線 ({0} @ {1})", port, baud);
+                    lblEquivKebStatus.ForeColor = Color.FromArgb(16, 185, 129);
+                }
+                else
+                {
+                    btnEquivKebToggle.Text = "[Open]";
+                    btnEquivKebToggle.BackColor = Color.FromArgb(16, 185, 129);
+                    lblEquivKebStatus.Text = string.Format("狀態: 未連線 ({0})", port);
+                    lblEquivKebStatus.ForeColor = Color.Gray;
+                }
+            }
+            catch { }
         }
 
         private NumericUpDown AddCardField(TableLayoutPanel tlp, int row, string labelText, decimal defVal, int decimals, decimal min, decimal max)
@@ -1057,7 +1156,7 @@ namespace DynamometerHMI
 
             InitDefaultEquivResultsGrid();
 
-            // 右側等效電路圖解面板
+            // 右側等效電路圖解面板 (WinXP GDI+ 繪圖相容強化)
             pnlEquivDiagram = new Panel()
             {
                 Dock = DockStyle.Fill,
@@ -1065,12 +1164,20 @@ namespace DynamometerHMI
                 BorderStyle = BorderStyle.FixedSingle
             };
             pnlEquivDiagram.Paint += DrawEquivalentCircuitDiagram;
+            pnlEquivDiagram.Resize += (s, e) => pnlEquivDiagram.Invalidate();
+            try
+            {
+                typeof(Panel).InvokeMember("DoubleBuffered",
+                    System.Reflection.BindingFlags.SetProperty | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+                    null, pnlEquivDiagram, new object[] { true });
+            }
+            catch { }
 
             splitEquivResults.Panel1.Controls.Add(dgvEquivResults);
             splitEquivResults.Panel2.Controls.Add(pnlEquivDiagram);
 
-            // 註冊安全分割條 (預設距離 620, Panel1 最少 200, Panel2 最少 200)
-            SafeSetupSplitContainer(splitEquivResults, "EquivResults", 620, 200, 200);
+            // 註冊安全分割條 (預設距離 480 提供右側充足繪圖空間, Panel1 最少 180, Panel2 最少 150)
+            SafeSetupSplitContainer(splitEquivResults, "EquivResults", 480, 180, 150);
 
             // 依序加入底層成果容器 (tlpToolbar 在上，splitEquivResults 在下 Fill)
             pnl.Controls.Add(splitEquivResults);
@@ -1932,8 +2039,31 @@ namespace DynamometerHMI
                     return;
                 }
 
-                int driveId = (cmbEquivKebDrive.SelectedIndex == 1) ? 1 : 2;
+                int driveId = (cmbEquivKebDrive != null && cmbEquivKebDrive.SelectedIndex == 1) ? 1 : 2;
                 string dName = (driveId == 1) ? "A載台" : "B載台";
+
+                // 檢查變頻器實體連線閉鎖 (若未連線，彈窗提示防呆並詢問是否立即連線)
+                bool isDriveConnected = (driveId == 1) ? isHmiKebOpen1 : isHmiKebOpen2;
+                if (!isDriveConnected)
+                {
+                    DialogResult dr = MessageBox.Show(
+                        string.Format("【[!] 變頻器尚未連線】\r\n\r\n目前 {0} 尚未建立通訊連線 (狀態: 未連線)！\r\n\r\n是否立即為您開啟 {0} 通訊連線並繼續測試？", dName),
+                        "變頻器連線確認", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                    if (dr == DialogResult.Yes)
+                    {
+                        bool ok = (driveId == 1) ? EnsureHmiKebOpen1() : EnsureHmiKebOpen2();
+                        UpdateEquivKebConnectionUi();
+                        if (!ok)
+                        {
+                            MessageBox.Show(string.Format("連線 {0} 失敗，請確認串列埠與硬體通訊正常！", dName), "連線失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        return;
+                    }
+                }
 
                 // (1) 額定頻率時執行 dr 與 uf 參數蒐集與同步檢查
                 int selectedFreqIdx = cmbEquivLockedFreq.SelectedIndex;
@@ -2704,6 +2834,9 @@ namespace DynamometerHMI
         {
             try
             {
+                // ── 定期刷新連線狀態顯示 (雙向同步綜合監控) ──
+                UpdateEquivKebConnectionUi();
+
                 // ── 等效電路連續紀錄狀態 UI 刷新與背景手動採樣 ──
                 if (isEquivRecording)
                 {
@@ -3154,169 +3287,227 @@ namespace DynamometerHMI
 
         #endregion
 
-        #region GDI+ 專業向量等效電路圖解繪製
+        #region GDI+ 專業向量等效電路圖解繪製 (WinXP 相容自適應縮放)
+
+        private Font CreateSafeDiagramFont(string preferredFamily, float size, FontStyle style)
+        {
+            try
+            {
+                return new Font(preferredFamily, size, style);
+            }
+            catch
+            {
+                try
+                {
+                    return new Font("Tahoma", size, style);
+                }
+                catch
+                {
+                    try
+                    {
+                        return new Font(this.Font != null ? this.Font.FontFamily.Name : "Arial", size, style);
+                    }
+                    catch
+                    {
+                        return new Font(FontFamily.GenericSansSerif, size, style);
+                    }
+                }
+            }
+        }
 
         private void DrawEquivalentCircuitDiagram(object sender, PaintEventArgs e)
         {
             Graphics g = e.Graphics;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
-
-            int w = pnlEquivDiagram.ClientSize.Width;
-            int h = pnlEquivDiagram.ClientSize.Height;
-
-            // 背景填色
-            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(248, 250, 252)))
+            try
             {
-                g.FillRectangle(bgBrush, 0, 0, w, h);
-            }
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
 
-            // 標題與圖例
-            using (Font fTitle = new Font("微軟正黑體", 10f, FontStyle.Bold))
-            using (SolidBrush brText = new SolidBrush(Color.FromArgb(30, 41, 59)))
-            {
-                g.DrawString("[寫入] 三相感應電機單相 T 型等效電路圖解 (Per-Phase T-Equivalent Circuit)", fTitle, brText, 14, 12);
-            }
+                int w = pnlEquivDiagram.ClientSize.Width;
+                int h = pnlEquivDiagram.ClientSize.Height;
 
-            // 主迴路座標設定
-            int yTop = 85;
-            int yBot = h - 60;
-            int xStart = 45;
-            int xEnd = w - 45;
-            if (xEnd <= xStart + 200) return;
+                // 背景填色
+                using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(248, 250, 252)))
+                {
+                    g.FillRectangle(bgBrush, 0, 0, w, h);
+                }
 
-            int xStatorR = xStart + (int)((xEnd - xStart) * 0.16);
-            int xStatorX = xStart + (int)((xEnd - xStart) * 0.34);
-            int xMagBranch = xStart + (int)((xEnd - xStart) * 0.50);
-            int xRotorX = xStart + (int)((xEnd - xStart) * 0.68);
-            int xRotorR = xStart + (int)((xEnd - xStart) * 0.86);
+                if (w < 60 || h < 60) return;
 
-            using (Pen wirePen = new Pen(Color.FromArgb(71, 85, 105), 2.0f))
-            using (Pen compPen = new Pen(Color.FromArgb(3, 105, 161), 2.0f))
-            using (SolidBrush textBrush = new SolidBrush(Color.FromArgb(15, 23, 42)))
-            using (SolidBrush valBrush = new SolidBrush(Color.FromArgb(2, 132, 199)))
-            using (Font fLbl = new Font("微軟正黑體", 9f, FontStyle.Bold))
-            using (Font fVal = new Font("Consolas", 9.5f, FontStyle.Bold))
-            {
-                // 1. 頂部線路與底層共同回流線
-                g.DrawLine(wirePen, xStart, yTop, xEnd, yTop);
-                g.DrawLine(wirePen, xStart, yBot, xEnd, yBot);
+                // 標題與圖例 (使用 XP 相容安全字型)
+                using (Font fTitle = CreateSafeDiagramFont("微軟正黑體", 9.5f, FontStyle.Bold))
+                using (SolidBrush brText = new SolidBrush(Color.FromArgb(30, 41, 59)))
+                {
+                    g.DrawString("[等效電路] 三相感應電機單相 T 型等效電路圖解 (IEEE 112)", fTitle, brText, 12, 8);
+                }
 
-                // 電源輸入端標示 (V1,phase)
-                g.FillEllipse(Brushes.White, xStart - 5, yTop - 5, 10, 10);
-                g.DrawEllipse(wirePen, xStart - 5, yTop - 5, 10, 10);
-                g.FillEllipse(Brushes.White, xStart - 5, yBot - 5, 10, 10);
-                g.DrawEllipse(wirePen, xStart - 5, yBot - 5, 10, 10);
-                g.DrawString("+ V1", fLbl, textBrush, xStart - 35, yTop - 8);
-                g.DrawString("-", fLbl, textBrush, xStart - 25, yBot - 8);
+                // 自適應主迴路座標設定 (消除硬編碼 return 門檻，保證任何解析度皆能繪製)
+                int padX = Math.Max(10, (int)(w * 0.04));
+                int xStart = padX + 22;
+                int xEnd = Math.Max(xStart + 110, w - padX - 8);
 
-                // 2. 定子元件: R1 (電阻符號)
-                DrawResistorSymbol(g, compPen, xStatorR, yTop, true);
-                g.DrawString("R1 (定子電阻)", fLbl, textBrush, xStatorR - 35, yTop - 42);
-                string r1Str = lastEquivResult != null ? (lastEquivResult.R1.ToString("F4") + " Ω") : "--";
-                g.DrawString(r1Str, fVal, valBrush, xStatorR - 25, yTop - 25);
+                int yTop = Math.Max(38, Math.Min(70, (int)(h * 0.28)));
+                int yBot = Math.Max(yTop + 45, h - 30);
 
-                // 3. 定子元件: X1 (電感符號)
-                DrawInductorSymbol(g, compPen, xStatorX, yTop, true);
-                g.DrawString("X1 (定子漏抗)", fLbl, textBrush, xStatorX - 35, yTop - 42);
-                string x1Str = lastEquivResult != null ? (lastEquivResult.X1.ToString("F4") + " Ω\r\n(" + lastEquivResult.L1_mH.ToString("F2") + "mH)") : "--";
-                g.DrawString(x1Str, fVal, valBrush, xStatorX - 25, yTop - 25);
+                int span = xEnd - xStart;
+                int xStatorR = xStart + (int)(span * 0.16);
+                int xStatorX = xStart + (int)(span * 0.35);
+                int xMagBranch = xStart + (int)(span * 0.52);
+                int xRotorX = xStart + (int)(span * 0.70);
+                int xRotorR = xStart + (int)(span * 0.88);
 
-                // 4. 中間激磁分支 (並聯 Rc || Xm)
-                g.DrawLine(wirePen, xMagBranch, yTop, xMagBranch, yTop + 25);
-                g.DrawLine(wirePen, xMagBranch - 28, yTop + 25, xMagBranch + 28, yTop + 25);
-
-                // 左支路: Rc
+                float compScale = Math.Min(1.0f, Math.Max(0.55f, (float)span / 380f));
+                int magOffset = Math.Max(14, Math.Min(26, (int)(span * 0.055)));
+                int xMagL = xMagBranch - magOffset;
+                int xMagR = xMagBranch + magOffset;
                 int yMid = (yTop + yBot) / 2;
-                g.DrawLine(wirePen, xMagBranch - 28, yTop + 25, xMagBranch - 28, yMid - 22);
-                DrawResistorSymbol(g, compPen, xMagBranch - 28, yMid, false);
-                g.DrawLine(wirePen, xMagBranch - 28, yMid + 22, xMagBranch - 28, yBot - 25);
 
-                g.DrawString("Rc", fLbl, textBrush, xMagBranch - 65, yMid - 10);
-                string rcStr = lastEquivResult != null ? (lastEquivResult.Rc > 0 ? (lastEquivResult.Rc.ToString("F0") + "Ω") : "--") : "--";
-                g.DrawString(rcStr, fVal, valBrush, xMagBranch - 72, yMid + 6);
-
-                // 右支路: Xm
-                g.DrawLine(wirePen, xMagBranch + 28, yTop + 25, xMagBranch + 28, yMid - 22);
-                DrawInductorSymbol(g, compPen, xMagBranch + 28, yMid, false);
-                g.DrawLine(wirePen, xMagBranch + 28, yMid + 22, xMagBranch + 28, yBot - 25);
-
-                g.DrawString("Xm", fLbl, textBrush, xMagBranch + 34, yMid - 10);
-                string xmStr = lastEquivResult != null ? (lastEquivResult.Xm.ToString("F2") + "Ω\r\n(" + lastEquivResult.Lm_mH.ToString("F1") + "mH)") : "--";
-                g.DrawString(xmStr, fVal, valBrush, xMagBranch + 34, yMid + 6);
-
-                g.DrawLine(wirePen, xMagBranch - 28, yBot - 25, xMagBranch + 28, yBot - 25);
-                g.DrawLine(wirePen, xMagBranch, yBot - 25, xMagBranch, yBot);
-
-                // 5. 轉子元件: X2' (轉子折算漏抗)
-                DrawInductorSymbol(g, compPen, xRotorX, yTop, true);
-                g.DrawString("X2' (轉子漏抗)", fLbl, textBrush, xRotorX - 35, yTop - 42);
-                string x2Str = lastEquivResult != null ? (lastEquivResult.X2_prime.ToString("F4") + " Ω\r\n(" + lastEquivResult.L2_prime_mH.ToString("F2") + "mH)") : "--";
-                g.DrawString(x2Str, fVal, valBrush, xRotorX - 25, yTop - 25);
-
-                // 6. 轉子負載: R2'/s (可變轉差負載電阻)
-                DrawResistorSymbol(g, compPen, xRotorR, yTop, true);
-                // 斜向箭頭表示隨轉差 s 可變
-                using (Pen arrowPen = new Pen(Color.FromArgb(239, 68, 68), 1.8f))
+                using (Pen wirePen = new Pen(Color.FromArgb(71, 85, 105), 1.8f))
+                using (Pen compPen = new Pen(Color.FromArgb(3, 105, 161), 1.8f))
+                using (SolidBrush textBrush = new SolidBrush(Color.FromArgb(15, 23, 42)))
+                using (SolidBrush valBrush = new SolidBrush(Color.FromArgb(2, 132, 199)))
+                using (Font fLbl = CreateSafeDiagramFont("微軟正黑體", Math.Max(7.5f, 8.5f * compScale), FontStyle.Bold))
+                using (Font fVal = CreateSafeDiagramFont("Consolas", Math.Max(8f, 9f * compScale), FontStyle.Bold))
                 {
-                    g.DrawLine(arrowPen, xRotorR - 16, yTop + 14, xRotorR + 16, yTop - 14);
-                    g.DrawLine(arrowPen, xRotorR + 16, yTop - 14, xRotorR + 11, yTop - 14);
-                    g.DrawLine(arrowPen, xRotorR + 16, yTop - 14, xRotorR + 16, yTop - 9);
+                    // 1. 頂部線路與底層共同回流線
+                    g.DrawLine(wirePen, xStart, yTop, xEnd, yTop);
+                    g.DrawLine(wirePen, xStart, yBot, xEnd, yBot);
+
+                    // 電源輸入端標示 (V1,phase)
+                    g.FillEllipse(Brushes.White, xStart - 4, yTop - 4, 8, 8);
+                    g.DrawEllipse(wirePen, xStart - 4, yTop - 4, 8, 8);
+                    g.FillEllipse(Brushes.White, xStart - 4, yBot - 4, 8, 8);
+                    g.DrawEllipse(wirePen, xStart - 4, yBot - 4, 8, 8);
+                    g.DrawString("+ V1", fLbl, textBrush, Math.Max(2, xStart - 28), yTop - 7);
+                    g.DrawString("-", fLbl, textBrush, Math.Max(6, xStart - 18), yBot - 7);
+
+                    int lblYOffset = Math.Max(22, (int)(32 * compScale));
+                    int valYOffset = Math.Max(10, (int)(16 * compScale));
+
+                    // 2. 定子元件: R1 (電阻符號)
+                    DrawResistorSymbol(g, compPen, xStatorR, yTop, true, compScale);
+                    g.DrawString("R1", fLbl, textBrush, xStatorR - 14, yTop - lblYOffset);
+                    string r1Str = lastEquivResult != null ? (lastEquivResult.R1.ToString("F4") + "Ω") : "--";
+                    g.DrawString(r1Str, fVal, valBrush, xStatorR - 18, yTop - valYOffset);
+
+                    // 3. 定子元件: X1 (電感符號)
+                    DrawInductorSymbol(g, compPen, xStatorX, yTop, true, compScale);
+                    g.DrawString("X1", fLbl, textBrush, xStatorX - 14, yTop - lblYOffset);
+                    string x1Str = lastEquivResult != null ? (lastEquivResult.X1.ToString("F3") + "Ω") : "--";
+                    g.DrawString(x1Str, fVal, valBrush, xStatorX - 18, yTop - valYOffset);
+
+                    // 4. 中間激磁分支 (並聯 Rc || Xm)
+                    g.DrawLine(wirePen, xMagBranch, yTop, xMagBranch, yTop + 18);
+                    g.DrawLine(wirePen, xMagL, yTop + 18, xMagR, yTop + 18);
+
+                    // 左支路: Rc
+                    g.DrawLine(wirePen, xMagL, yTop + 18, xMagL, yMid - 16);
+                    DrawResistorSymbol(g, compPen, xMagL, yMid, false, compScale);
+                    g.DrawLine(wirePen, xMagL, yMid + 16, xMagL, yBot - 18);
+
+                    g.DrawString("Rc", fLbl, textBrush, xMagL - 26, yMid - 8);
+                    string rcStr = lastEquivResult != null ? (lastEquivResult.Rc > 0 ? (lastEquivResult.Rc.ToString("F0") + "Ω") : "--") : "--";
+                    g.DrawString(rcStr, fVal, valBrush, xMagL - 32, yMid + 6);
+
+                    // 右支路: Xm
+                    g.DrawLine(wirePen, xMagR, yTop + 18, xMagR, yMid - 16);
+                    DrawInductorSymbol(g, compPen, xMagR, yMid, false, compScale);
+                    g.DrawLine(wirePen, xMagR, yMid + 16, xMagR, yBot - 18);
+
+                    g.DrawString("Xm", fLbl, textBrush, xMagR + 8, yMid - 8);
+                    string xmStr = lastEquivResult != null ? (lastEquivResult.Xm.ToString("F1") + "Ω") : "--";
+                    g.DrawString(xmStr, fVal, valBrush, xMagR + 8, yMid + 6);
+
+                    g.DrawLine(wirePen, xMagL, yBot - 18, xMagR, yBot - 18);
+                    g.DrawLine(wirePen, xMagBranch, yBot - 18, xMagBranch, yBot);
+
+                    // 5. 轉子元件: X2' (轉子折算漏抗)
+                    DrawInductorSymbol(g, compPen, xRotorX, yTop, true, compScale);
+                    g.DrawString("X2'", fLbl, textBrush, xRotorX - 14, yTop - lblYOffset);
+                    string x2Str = lastEquivResult != null ? (lastEquivResult.X2_prime.ToString("F3") + "Ω") : "--";
+                    g.DrawString(x2Str, fVal, valBrush, xRotorX - 18, yTop - valYOffset);
+
+                    // 6. 轉子負載: R2'/s (可變轉差負載電阻)
+                    DrawResistorSymbol(g, compPen, xRotorR, yTop, true, compScale);
+                    using (Pen arrowPen = new Pen(Color.FromArgb(239, 68, 68), 1.5f))
+                    {
+                        int arrLen = Math.Max(8, (int)(12 * compScale));
+                        g.DrawLine(arrowPen, xRotorR - arrLen, yTop + arrLen, xRotorR + arrLen, yTop - arrLen);
+                        g.DrawLine(arrowPen, xRotorR + arrLen, yTop - arrLen, xRotorR + arrLen - 4, yTop - arrLen);
+                        g.DrawLine(arrowPen, xRotorR + arrLen, yTop - arrLen, xRotorR + arrLen, yTop - arrLen + 4);
+                    }
+                    g.DrawString("R2'/s", fLbl, textBrush, xRotorR - 18, yTop - lblYOffset);
+                    string r2Str = lastEquivResult != null ? (lastEquivResult.R2_prime.ToString("F4") + "Ω") : "--";
+                    g.DrawString(r2Str, fVal, valBrush, xRotorR - 18, yTop - valYOffset);
+
+                    // 右端閉合迴路
+                    g.DrawLine(wirePen, xEnd, yTop, xEnd, yBot);
+
+                    // 底部文字提示 (自適應精簡)
+                    string motorHint = string.Format("待測: {0} | 轉差: {1:F2}% | Xm: {2:F1}Ω({3:F1}mH) | 漏抗: X1={4:F2}mH, X2'={5:F2}mH",
+                        motorModelName,
+                        lastEquivResult != null ? lastEquivResult.RatedSlip : (double)numEquivSlip.Value,
+                        lastEquivResult != null ? lastEquivResult.Xm : 0.0,
+                        lastEquivResult != null ? lastEquivResult.Lm_mH : 0.0,
+                        lastEquivResult != null ? lastEquivResult.L1_mH : 0.0,
+                        lastEquivResult != null ? lastEquivResult.L2_prime_mH : 0.0);
+                    using (Font fFoot = CreateSafeDiagramFont("微軟正黑體", 8f, FontStyle.Regular))
+                    {
+                        g.DrawString(motorHint, fFoot, Brushes.DimGray, 12, h - 22);
+                    }
                 }
-                g.DrawString("R2'/s (負載電阻)", fLbl, textBrush, xRotorR - 40, yTop - 42);
-                string r2Str = lastEquivResult != null ? (lastEquivResult.R2_prime.ToString("F4") + " Ω") : "--";
-                g.DrawString(r2Str, fVal, valBrush, xRotorR - 25, yTop - 25);
-
-                // 右端閉合迴路
-                g.DrawLine(wirePen, xEnd, yTop, xEnd, yBot);
-
-                // 底部文字提示
-                string motorHint = string.Format("★ 待測機種: {0} | 額定轉差: {1:F2}% | 激磁: {2:F2} Ω ({3:F1} mH) | 漏抗: X1={4:F3}mH, X2'={5:F3}mH",
-                    motorModelName,
-                    lastEquivResult != null ? lastEquivResult.RatedSlip : (double)numEquivSlip.Value,
-                    lastEquivResult != null ? lastEquivResult.Xm : 0.0,
-                    lastEquivResult != null ? lastEquivResult.Lm_mH : 0.0,
-                    lastEquivResult != null ? lastEquivResult.L1_mH : 0.0,
-                    lastEquivResult != null ? lastEquivResult.L2_prime_mH : 0.0);
-                g.DrawString(motorHint, fLbl, Brushes.DimGray, 16, h - 28);
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    g.DrawString("[!] 電路圖繪製相容模式 (" + ex.Message + ")", this.Font, Brushes.DimGray, 10, 10);
+                }
+                catch { }
             }
         }
 
-        private void DrawResistorSymbol(Graphics g, Pen pen, int cx, int cy, bool horizontal)
+        private void DrawResistorSymbol(Graphics g, Pen pen, int cx, int cy, bool horizontal, float scale)
         {
             using (SolidBrush mask = new SolidBrush(Color.FromArgb(248, 250, 252)))
             {
+                int halfW = Math.Max(10, (int)(18 * scale));
+                int halfH = Math.Max(5, (int)(8 * scale));
                 if (horizontal)
                 {
-                    g.FillRectangle(mask, cx - 18, cy - 8, 36, 16);
-                    g.DrawRectangle(pen, cx - 18, cy - 8, 36, 16);
+                    g.FillRectangle(mask, cx - halfW, cy - halfH, halfW * 2, halfH * 2);
+                    g.DrawRectangle(pen, cx - halfW, cy - halfH, halfW * 2, halfH * 2);
                 }
                 else
                 {
-                    g.FillRectangle(mask, cx - 8, cy - 18, 16, 36);
-                    g.DrawRectangle(pen, cx - 8, cy - 18, 16, 36);
+                    g.FillRectangle(mask, cx - halfH, cy - halfW, halfH * 2, halfW * 2);
+                    g.DrawRectangle(pen, cx - halfH, cy - halfW, halfH * 2, halfW * 2);
                 }
             }
         }
 
-        private void DrawInductorSymbol(Graphics g, Pen pen, int cx, int cy, bool horizontal)
+        private void DrawInductorSymbol(Graphics g, Pen pen, int cx, int cy, bool horizontal, float scale)
         {
             using (SolidBrush mask = new SolidBrush(Color.FromArgb(248, 250, 252)))
             {
+                int halfW = Math.Max(10, (int)(18 * scale));
+                int halfH = Math.Max(5, (int)(10 * scale));
+                int segW = Math.Max(4, (halfW * 2) / 3);
+                int arcH = Math.Max(8, halfH * 2);
+
                 if (horizontal)
                 {
-                    g.FillRectangle(mask, cx - 18, cy - 10, 36, 20);
-                    // 繪製三個半圓弧表示電感
-                    g.DrawArc(pen, cx - 18, cy - 8, 12, 16, 180, 180);
-                    g.DrawArc(pen, cx - 6, cy - 8, 12, 16, 180, 180);
-                    g.DrawArc(pen, cx + 6, cy - 8, 12, 16, 180, 180);
+                    g.FillRectangle(mask, cx - halfW, cy - halfH, halfW * 2, arcH);
+                    g.DrawArc(pen, cx - halfW, cy - halfH, segW, arcH, 180, 180);
+                    g.DrawArc(pen, cx - halfW + segW, cy - halfH, segW, arcH, 180, 180);
+                    g.DrawArc(pen, cx - halfW + segW * 2, cy - halfH, segW, arcH, 180, 180);
                 }
                 else
                 {
-                    g.FillRectangle(mask, cx - 10, cy - 18, 20, 36);
-                    g.DrawArc(pen, cx - 8, cy - 18, 16, 12, 90, 180);
-                    g.DrawArc(pen, cx - 8, cy - 6, 16, 12, 90, 180);
-                    g.DrawArc(pen, cx - 8, cy + 6, 16, 12, 90, 180);
+                    g.FillRectangle(mask, cx - halfH, cy - halfW, arcH, halfW * 2);
+                    g.DrawArc(pen, cx - halfH, cy - halfW, arcH, segW, 90, 180);
+                    g.DrawArc(pen, cx - halfH, cy - halfW + segW, arcH, segW, 90, 180);
+                    g.DrawArc(pen, cx - halfH, cy - halfW + segW * 2, arcH, segW, 90, 180);
                 }
             }
         }
