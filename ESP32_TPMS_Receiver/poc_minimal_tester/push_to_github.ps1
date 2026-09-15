@@ -42,7 +42,7 @@ try {
 
     # 3. Commit
     Write-Host "`n[Step 3] Committing changes..." -ForegroundColor Yellow
-    & $GitExe commit -m "feat(tpms): release v2.8 OTA firmware with proximity distance icons and GitHub auto-update"
+    & $GitExe commit -m "feat(tpms): release v2.8.1 with squelch gate and multi-offset decoder"
 } finally {
     Pop-Location
 }
