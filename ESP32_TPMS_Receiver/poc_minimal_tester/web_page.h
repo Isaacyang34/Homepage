@@ -261,28 +261,28 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
 
       <div class="mode-grid">
         <button class="btn-mode" id="btn-mode-0" onclick="setScanMode(0)">
-          <b>1. FSK 9.6k (CB56)</b>
-          <small>433.92M 專屬外置胎壓 (免雜訊)</small>
+          <b>1. 泛捕獲全抓</b>
+          <small>433.92M 寬鬆全抓 / 智慧解碼</small>
         </button>
         <button class="btn-mode" id="btn-mode-1" onclick="setScanMode(1)">
-          <b>2. FSK 9.6k (D391)</b>
-          <small>433.92M 豐田/日系/主流車系</small>
+          <b>2. FSK 9.6k (CB56)</b>
+          <small>433.92M 專屬外置胎壓 (免雜訊)</small>
         </button>
         <button class="btn-mode" id="btn-mode-2" onclick="setScanMode(2)">
-          <b>3. OOK 4.1k (5569)</b>
-          <small>433.92M 太陽能外置主機</small>
+          <b>3. FSK 9.6k (D391)</b>
+          <small>433.92M 豐田/日系/主流車系</small>
         </button>
         <button class="btn-mode" id="btn-mode-3" onclick="setScanMode(3)">
-          <b>4. FSK 19.2k</b>
-          <small>433.92M 歐美/Schrader</small>
+          <b>4. OOK 4.1k (5569)</b>
+          <small>433.92M 太陽能外置主機</small>
         </button>
         <button class="btn-mode" id="btn-mode-4" onclick="setScanMode(4)">
-          <b>5. FSK 4.8k</b>
-          <small>433.92M 低速長距專用</small>
+          <b>5. FSK 19.2k</b>
+          <small>433.92M 歐美/Schrader</small>
         </button>
         <button class="btn-mode" id="btn-mode-5" onclick="setScanMode(5)">
-          <b>6. 泛捕獲全抓</b>
-          <small>433.92M 寬鬆全抓 / 智慧靜音</small>
+          <b>6. FSK 4.8k</b>
+          <small>433.92M 低速長距專用</small>
         </button>
       </div>
 

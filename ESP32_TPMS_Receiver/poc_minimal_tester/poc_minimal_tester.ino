@@ -68,12 +68,12 @@
 // 射頻掃描多協議模式定義 (全模式具備 16 位元同步字元硬體匹配，徹底杜絕雜訊溢流)
 // ------------------------------------------------------------------------------
 enum ScanMode {
-  MODE_FSK_CB56 = 0,
+  MODE_PROMISCUOUS = 0,
+  MODE_FSK_CB56,
   MODE_FSK_D391,
   MODE_OOK_5569,
   MODE_FSK_19200,
   MODE_FSK_4800,
-  MODE_PROMISCUOUS,
   SCAN_MODE_COUNT
 };
 
@@ -90,15 +90,15 @@ struct ScanModeConfig {
 };
 
 const ScanModeConfig SCAN_MODES[SCAN_MODE_COUNT] = {
+  { "泛捕獲全抓",      "433.92M 泛捕獲 (全抓/智慧解碼)",        false, 9.6f,   40.0f, 270.0f, 0x00, 0x00, true },
   { "FSK 9.6k (CB56)", "433.92M 2-FSK 9.6k (外置通用/專屬匹配)", false, 9.6f,   40.0f, 135.0f, 0xCB, 0x56, false },
   { "FSK 9.6k (D391)", "433.92M 2-FSK 9.6k (豐田/日系/主流)",      false, 9.6f,   40.0f, 135.0f, 0xD3, 0x91, false },
   { "OOK 4.1k (5569)", "433.92M ASK/OOK 4.1k (胎外/太陽能)",       true,  4.096f, 0.0f,  135.0f, 0x55, 0x69, false },
   { "FSK 19.2k",       "433.92M 2-FSK 19.2k (歐美/Schrader)",       false, 19.2f,  50.0f, 200.0f, 0xD3, 0x91, false },
-  { "FSK 4.8k",        "433.92M 2-FSK 4.8k (低速專用協定)",         false, 4.8f,   47.6f, 135.0f, 0xD3, 0x91, false },
-  { "泛捕獲全抓",      "433.92M 泛捕獲 (全抓/智慧靜音門閥)",        false, 9.6f,   40.0f, 270.0f, 0x00, 0x00, true }
+  { "FSK 4.8k",        "433.92M 2-FSK 4.8k (低速專用協定)",         false, 4.8f,   47.6f, 135.0f, 0xD3, 0x91, false }
 };
 
-int currentScanMode = MODE_FSK_CB56;
+int currentScanMode = MODE_PROMISCUOUS;
 bool autoScanEnabled = true;
 unsigned long lastModeSwitchMs = 0;
 const unsigned long DWELL_TIME_MS = 4000;
@@ -496,8 +496,8 @@ void renderOLED() {
 // ------------------------------------------------------------------------------
 // TPMS 封包解碼與多重防雜訊過濾器 (支援全緩衝區同步字元與多偏移掃描)
 // ------------------------------------------------------------------------------
-void processTpmsPacket(const uint8_t* buffer, size_t len, float rssi) {
-  if (len < 8) return;
+bool processTpmsPacket(const uint8_t* buffer, size_t len, float rssi) {
+  if (len < 8) return false;
 
   bool foundValid = false;
   uint32_t sensorId = 0;
@@ -553,7 +553,7 @@ void processTpmsPacket(const uint8_t* buffer, size_t len, float rssi) {
     }
   }
 
-  if (!foundValid) return;
+  if (!foundValid) return false;
 
   // 2. 當成功解碼出真實 TPMS 感測器時，鎖定停留在當前模式 30 秒，避免自動切換錯過後續封包
   lastModeSwitchMs = millis() + 30000;
@@ -561,14 +561,10 @@ void processTpmsPacket(const uint8_t* buffer, size_t len, float rssi) {
   // 3. 更新探索學習池並獲取累計命中次數
   int hitCount = updateDiscoveredSensor(sensorId, rssi, psi, tempC);
 
-  // 4. 命中次數防抖過濾器 (至少收到 minHits 次以上才認定為真實感測器)
-  if (hitCount < config.minHits) {
-    Serial.printf("[候選暫態] 感測器 ID: 0x%08X (第 %d/%d 次命中, RSSI: %.1f dBm, 胎壓: %.1f psi) 正在驗證...\n",
-                  sensorId, hitCount, config.minHits, rssi, psi);
-    return;
-  }
+  Serial.printf("\n[解碼成功] 感測器 ID: 0x%08X (命中 %d 次, RSSI: %.1f dBm) | 胎壓: %.1f psi (%.2f bar) | 胎溫: %d C\n",
+                sensorId, hitCount, rssi, psi, psi * 0.0689476f, tempC);
 
-  // 5. 比對是否為已手動綁定之四輪
+  // 4. 比對是否為已手動綁定之四輪
   int targetIndex = -1;
   for (int i = 0; i < 4; i++) {
     if (tires[i].sensorId == sensorId && sensorId != 0) {
@@ -577,19 +573,15 @@ void processTpmsPacket(const uint8_t* buffer, size_t len, float rssi) {
     }
   }
 
-  // 6. 白名單防干擾過濾 (嚴格杜絕未綁定外車感測器竄改儀表)
+  // 5. 白名單防干擾過濾 (嚴格杜絕未綁定外車感測器竄改儀表)
   if (config.lockWhitelist) {
     if (targetIndex == -1) {
       Serial.printf("[防干擾] 攔截未授權感測器 ID: 0x%08X (RSSI: %.1f dBm)\n", sensorId, rssi);
-      if (historyCount > 0) {
-        int lastIdx = (historyHead - 1 + MAX_LOG_RECORDS) % MAX_LOG_RECORDS;
-        packetHistory[lastIdx].filtered = true;
-      }
-      return;
+      return true;
     }
   }
 
-  // 7. 若已綁定四輪之一，更新數據與 OLED 顯示
+  // 6. 若已綁定四輪之一，更新數據與 OLED 顯示
   if (targetIndex != -1) {
     tires[targetIndex].pressurePsi = psi;
     tires[targetIndex].pressureBar = psi * 0.0689476f;
@@ -598,11 +590,10 @@ void processTpmsPacket(const uint8_t* buffer, size_t len, float rssi) {
     tires[targetIndex].valid = true;
     tires[targetIndex].lastSeenMs = millis();
 
-    Serial.printf("[解碼成功] 輪位: %s (%s) | ID: 0x%08X | 胎壓: %.1f psi (%.2f bar) | 胎溫: %d C\n",
-                  tireNames[targetIndex], tireLabels[targetIndex], sensorId, psi, tires[targetIndex].pressureBar, tempC);
-
     renderOLED();
   }
+
+  return true;
 }
 
 // ------------------------------------------------------------------------------
@@ -937,7 +928,7 @@ void setup() {
   // 5. 初始化 CC1101 並載入初始掃描模式
   int beginState = radio.begin(433.92, 9.6, 40.0, 135.0, 10, 32);
   if (beginState == RADIOLIB_ERR_NONE) {
-    radioOnline = applyScanMode(MODE_FSK_CB56);
+    radioOnline = applyScanMode(MODE_PROMISCUOUS);
   } else {
     Serial.printf("[CC1101] 初始化失敗! 錯誤碼: %d\n", beginState);
   }
@@ -1004,6 +995,14 @@ void loop() {
   if (packetReceivedFlag) {
     packetReceivedFlag = false;
 
+    // 防中斷突波淹沒 CPU (最少間隔 60ms)
+    static unsigned long lastRxTimeMs = 0;
+    if (millis() - lastRxTimeMs < 60) {
+      radio.startReceive();
+      return;
+    }
+    lastRxTimeMs = millis();
+
     size_t len = radio.getPacketLength();
     if (len == 0) {
       radio.startReceive();
@@ -1018,33 +1017,19 @@ void loop() {
     if (state == RADIOLIB_ERR_NONE) {
       float rssi = radio.getRSSI();
 
-      // --- [智慧靜音門閥 Squelch Gate] ---
-      // 1. 微弱底噪過濾: 在泛捕獲模式下，若 RSSI 低於門檻 (預設 -90 dBm)，視為遠處隨機背景雜散，靜音捨棄
-      if (SCAN_MODES[currentScanMode].promiscuous && rssi < (float)config.minRssi) {
-        radio.startReceive();
-        return;
-      }
+      // 先行由解碼器檢驗是否為真實 TPMS 感測器封包
+      bool isTpms = processTpmsPacket(buffer, safeLen, rssi);
 
-      // 2. 載波飽和雜訊過濾: 計算 0xFF 與 0x00 比例
-      int ffCount = 0, zeroCount = 0;
-      for (size_t i = 0; i < safeLen; i++) {
-        if (buffer[i] == 0xFF) ffCount++;
-        else if (buffer[i] == 0x00) zeroCount++;
-      }
-      // 若超過 35% 為連續 0xFF 或 0x00 (例如載波靜電噪聲)，完全靜音，不寫入歷史，不刷屏
-      if (ffCount >= (int)(safeLen * 0.35) || zeroCount >= (int)(safeLen * 0.35)) {
-        radio.startReceive();
-        return;
-      }
-
-      // 3. 泛捕獲模式突波防抖頻率限制 (每 100ms 最多接收一次，保護系統 CPU 與 WiFi)
-      if (SCAN_MODES[currentScanMode].promiscuous) {
-        static unsigned long lastPromiscMs = 0;
-        if (millis() - lastPromiscMs < 100) {
+      // 若未解碼出 TPMS，且符合空氣噪聲特徵 (連續 0xFF/00 超過 60% 或微弱底噪)，靜音捨棄
+      if (!isTpms) {
+        int satCount = 0;
+        for (size_t i = 0; i < safeLen; i++) {
+          if (buffer[i] == 0xFF || buffer[i] == 0x00) satCount++;
+        }
+        if (satCount > (int)(safeLen * 0.60) || rssi < (float)config.minRssi) {
           radio.startReceive();
           return;
         }
-        lastPromiscMs = millis();
       }
 
       totalPacketsCount++;
@@ -1072,8 +1057,6 @@ void loop() {
       if (historyCount < MAX_LOG_RECORDS) {
         historyCount++;
       }
-
-      processTpmsPacket(buffer, safeLen, rssi);
 
     } else if (state == RADIOLIB_ERR_CRC_MISMATCH) {
       Serial.println("[警告] 收到雜訊或 CRC 錯誤封包");
