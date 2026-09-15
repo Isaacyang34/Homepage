@@ -1583,6 +1583,7 @@ namespace DynamometerHMI
                     lblMotorTempDisplay.ForeColor = Color.FromArgb(239, 68, 68);
                     if (lblMotorTempDisplay.Font != fontConsolas12B) lblMotorTempDisplay.Font = fontConsolas12B;
                 }
+                UpdateEquivLiveTemperature();
                 if (motorTempChart != null && !motorTempChart.IsDisposed && t > 0.0)
                 {
                     motorTempChart.ChannelIndex = selCh;

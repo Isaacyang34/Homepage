@@ -81,6 +81,9 @@ namespace DynamometerHMI
         private Label lblLockedProtStatus;         // [防護] 保護監控與閾值狀態指示
         private Button btnEquivKebToggle;          // [Open] / [Close] 變頻器連線切換按鈕 (同步綜合監控)
         private Label lblEquivKebStatus;           // 變頻器連線狀態標籤 (同步綜合監控)
+        private Label lblEquivKebReadbackFreq;     // 變頻器實測 dr/uf 頻率即時顯示標籤
+        private ComboBox cmbEquivTempCh;           // 溫度監控通道選擇 (CH1~CH20)
+        private Label lblEquivTempDisplay;         // 單一通道實測溫度即時數值顯示
         private System.Windows.Forms.Timer tmrLockedWatchdog; // 堵轉看門狗與自適應調壓定時器
         private bool isLockedRotorActive = false;
         private bool isLockedTripShowing = false; // ★【防彈跳連發重入鎖】保證絕不重複彈出多個 MessageBox
@@ -589,7 +592,7 @@ namespace DynamometerHMI
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
-                RowCount = 12
+                RowCount = 13
             };
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 46f));
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 54f));
@@ -597,14 +600,15 @@ namespace DynamometerHMI
             tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 22f)); // Row 1: Status
             tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 2: Freq
             tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 28f)); // Row 3: Drive & KEB Connection
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 4: uf09 Controls
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 5: Multi-Freq Sweep Controls
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 24f)); // Row 6: Protection Status
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 7: Vk
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 8: Ik
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 9: Pk
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 10: PFk
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 32f)); // Row 11: Buttons
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 24f)); // Row 4: Readback dr/uf Frequencies
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 5: uf09 Controls
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 6: Multi-Freq Sweep Controls
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 7: Protection & Temperature
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 8: Vk
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 9: Ik
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 10: Pk
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f)); // Row 11: PFk
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 32f)); // Row 12: Buttons
 
             // Row 0: 標題
             Label lblTitle = new Label()
@@ -737,7 +741,21 @@ namespace DynamometerHMI
             tlp.SetColumnSpan(tlpDriveConn, 2);
             tlp.Controls.Add(tlpDriveConn, 0, 3);
 
-            // Row 4: 目標 uf09 + 寫入 + 自適應追隨 (緊湊四欄式)
+            // Row 4: 變頻器實測頻率即時顯示橫條 (常駐顯示 dr.05 / uf.05 / uf.00，供使用者隨時核實)
+            lblEquivKebReadbackFreq = new Label()
+            {
+                Text = "實測頻率: dr.05=-- Hz | uf.05=-- Hz | uf.00=-- Hz (待同步讀取)",
+                Font = new Font("Consolas", 8.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(71, 85, 105),
+                BackColor = Color.FromArgb(241, 245, 249),
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(3, 1, 3, 1)
+            };
+            tlp.SetColumnSpan(lblEquivKebReadbackFreq, 2);
+            tlp.Controls.Add(lblEquivKebReadbackFreq, 0, 4);
+
+            // Row 5: 目標 uf09 + 寫入 + 自適應追隨 (緊湊四欄式)
             TableLayoutPanel tlpUfCtrl = new TableLayoutPanel()
             {
                 Dock = DockStyle.Fill,
@@ -805,9 +823,9 @@ namespace DynamometerHMI
             tlpUfCtrl.Controls.Add(btnEquivAutoTuneUf09, 3, 0);
 
             tlp.SetColumnSpan(tlpUfCtrl, 2);
-            tlp.Controls.Add(tlpUfCtrl, 0, 4);
+            tlp.Controls.Add(tlpUfCtrl, 0, 5);
 
-            // Row 5: 8 頻率掃描操作工具列 (同步檢查 / 全頻掃描 / 8頻紀錄表)
+            // Row 6: 8 頻率掃描操作工具列 (同步檢查 / 全頻掃描 / 8頻紀錄表)
             TableLayoutPanel tlpSweepBtns = new TableLayoutPanel()
             {
                 Dock = DockStyle.Fill,
@@ -863,29 +881,74 @@ namespace DynamometerHMI
             tlpSweepBtns.Controls.Add(btnEquivViewSweepResults, 2, 0);
 
             tlp.SetColumnSpan(tlpSweepBtns, 2);
-            tlp.Controls.Add(tlpSweepBtns, 0, 5);
+            tlp.Controls.Add(tlpSweepBtns, 0, 6);
 
-            // Row 6: 即時保護指示橫條
+            // Row 7: 即時保護指示橫條與溫度監控 (CH自選，單一CH數值顯示)
+            TableLayoutPanel tlpProtAndTemp = new TableLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 4,
+                RowCount = 1,
+                Margin = new Padding(0)
+            };
+            tlpProtAndTemp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            tlpProtAndTemp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40f));
+            tlpProtAndTemp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 95f));
+            tlpProtAndTemp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 68f));
+
             lblLockedProtStatus = new Label()
             {
-                Text = "[防護] 實時防護: 監控中 (電流: 110% IN / 10s | 轉速: 5 rpm / 3s)",
+                Text = "[防護] 實時防護: 監控中",
                 Font = new Font("微軟正黑體", 8f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(16, 185, 129),
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleLeft,
                 BackColor = Color.FromArgb(248, 250, 252),
-                Padding = new Padding(3, 1, 3, 1)
+                Padding = new Padding(2, 1, 2, 1)
             };
-            tlp.SetColumnSpan(lblLockedProtStatus, 2);
-            tlp.Controls.Add(lblLockedProtStatus, 0, 6);
 
-            // Row 7~10: 堵轉實測數據列 (預設值歸零)
-            numEquivVk = AddCardField(tlp, 7, "堵轉電壓 Vk (V):", 0.0m, 1, 0, 500);
-            numEquivIk = AddCardField(tlp, 8, "堵轉電流 Ik (A):", 0.0m, 2, 0, 500);
-            numEquivPk = AddCardField(tlp, 9, "堵轉功率 Pk (W):", 0.0m, 1, 0, 50000);
-            numEquivPfk = AddCardField(tlp, 10, "堵轉因數 PFk:", 0.0m, 3, 0, 1);
+            Label lblTempTitle = new Label()
+            {
+                Text = "溫度:",
+                Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(71, 85, 105),
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleRight
+            };
 
-            // Row 10: 操作按鈕行 (三鍵式: 擷取 / 復歸 / 緊急停機)
+            cmbEquivTempCh = new ComboBox()
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Dock = DockStyle.Fill,
+                Font = new Font("Consolas", 8.5f)
+            };
+            InitEquivTempChannels();
+            cmbEquivTempCh.SelectedIndexChanged += (s, e) => UpdateEquivLiveTemperature();
+
+            lblEquivTempDisplay = new Label()
+            {
+                Text = "--.- °C",
+                Font = new Font("Consolas", 9.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(220, 38, 38),
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+
+            tlpProtAndTemp.Controls.Add(lblLockedProtStatus, 0, 0);
+            tlpProtAndTemp.Controls.Add(lblTempTitle, 1, 0);
+            tlpProtAndTemp.Controls.Add(cmbEquivTempCh, 2, 0);
+            tlpProtAndTemp.Controls.Add(lblEquivTempDisplay, 3, 0);
+
+            tlp.SetColumnSpan(tlpProtAndTemp, 2);
+            tlp.Controls.Add(tlpProtAndTemp, 0, 7);
+
+            // Row 8~11: 堵轉實測數據列 (預設值歸零)
+            numEquivVk = AddCardField(tlp, 8, "堵轉電壓 Vk (V):", 0.0m, 1, 0, 500);
+            numEquivIk = AddCardField(tlp, 9, "堵轉電流 Ik (A):", 0.0m, 2, 0, 500);
+            numEquivPk = AddCardField(tlp, 10, "堵轉功率 Pk (W):", 0.0m, 1, 0, 50000);
+            numEquivPfk = AddCardField(tlp, 11, "堵轉因數 PFk:", 0.0m, 3, 0, 1);
+
+            // Row 12: 操作按鈕行 (三鍵式: 擷取 / 復歸 / 緊急停機)
             TableLayoutPanel tlpBtnsLocked = new TableLayoutPanel()
             {
                 Dock = DockStyle.Fill,
@@ -979,6 +1042,113 @@ namespace DynamometerHMI
                     btnEquivKebToggle.BackColor = Color.FromArgb(16, 185, 129);
                     lblEquivKebStatus.Text = string.Format("狀態: 未連線 ({0})", port);
                     lblEquivKebStatus.ForeColor = Color.Gray;
+                }
+            }
+            catch { }
+        }
+
+        // 初始化堵轉卡片溫度監控通道 (CH1~CH20，支援 GL820 通道自訂名稱)
+        private void InitEquivTempChannels()
+        {
+            try
+            {
+                if (cmbEquivTempCh == null) return;
+                cmbEquivTempCh.Items.Clear();
+                for (int i = 0; i < 20; i++)
+                {
+                    string chName = (gl820ChannelNames != null && i < gl820ChannelNames.Length && !string.IsNullOrEmpty(gl820ChannelNames[i]))
+                        ? string.Format("CH{0}: {1}", i + 1, gl820ChannelNames[i])
+                        : string.Format("CH{0}", i + 1);
+                    cmbEquivTempCh.Items.Add(chName);
+                }
+                if (cmbEquivTempCh.Items.Count > 0)
+                    cmbEquivTempCh.SelectedIndex = 0;
+            }
+            catch { }
+        }
+
+        // 刷新堵轉卡片單一通道實測溫度即時顯示
+        public void UpdateEquivLiveTemperature()
+        {
+            try
+            {
+                if (lblEquivTempDisplay == null || lblEquivTempDisplay.IsDisposed) return;
+                if (cmbEquivTempCh == null || cmbEquivTempCh.IsDisposed) return;
+
+                if (lblEquivTempDisplay.InvokeRequired)
+                {
+                    lblEquivTempDisplay.BeginInvoke(new Action(UpdateEquivLiveTemperature));
+                    return;
+                }
+
+                int selIdx = cmbEquivTempCh.SelectedIndex;
+                if (selIdx < 0 || selIdx >= 20 || gbdChTemps == null || selIdx >= gbdChTemps.Length)
+                {
+                    lblEquivTempDisplay.Text = "--.- °C";
+                    lblEquivTempDisplay.ForeColor = Color.Gray;
+                    return;
+                }
+
+                double temp = gbdChTemps[selIdx];
+                if (double.IsNaN(temp) || double.IsInfinity(temp) || temp <= -900 || temp > 1000)
+                {
+                    lblEquivTempDisplay.Text = "--.- °C";
+                    lblEquivTempDisplay.ForeColor = Color.Gray;
+                }
+                else
+                {
+                    lblEquivTempDisplay.Text = string.Format("{0:F1} °C", temp);
+                    if (temp >= 100.0)
+                        lblEquivTempDisplay.ForeColor = Color.FromArgb(220, 38, 38); // 深紅
+                    else if (temp >= 80.0)
+                        lblEquivTempDisplay.ForeColor = Color.FromArgb(234, 88, 12); // 橘紅
+                    else
+                        lblEquivTempDisplay.ForeColor = Color.FromArgb(22, 101, 52); // 深綠
+                }
+            }
+            catch { }
+        }
+
+        // 刷新變頻器實測 dr/uf 頻率即時顯示橫條 (常駐顯示 dr.05 / uf.05 / uf.00，供使用者隨時核實)
+        public void UpdateEquivKebReadbackFreqDisplay(double? drFreq = null, double? uf05Freq = null, double? uf00Freq = null, string extraNote = "")
+        {
+            try
+            {
+                if (lblEquivKebReadbackFreq == null || lblEquivKebReadbackFreq.IsDisposed) return;
+
+                if (lblEquivKebReadbackFreq.InvokeRequired)
+                {
+                    lblEquivKebReadbackFreq.BeginInvoke(new Action(() => UpdateEquivKebReadbackFreqDisplay(drFreq, uf05Freq, uf00Freq, extraNote)));
+                    return;
+                }
+
+                string drStr = drFreq.HasValue ? string.Format("{0:F2} Hz", drFreq.Value) : "-- Hz";
+                string uf05Str = uf05Freq.HasValue ? string.Format("{0:F2} Hz", uf05Freq.Value) : "-- Hz";
+                string uf00Str = uf00Freq.HasValue ? string.Format("{0:F2} Hz", uf00Freq.Value) : "-- Hz";
+
+                StringBuilder sb = new StringBuilder();
+                sb.Append(string.Format("實測頻率: dr.05={0} | uf.05={1} | uf.00={2}", drStr, uf05Str, uf00Str));
+                if (!string.IsNullOrEmpty(extraNote))
+                {
+                    sb.Append(" (" + extraNote + ")");
+                }
+
+                lblEquivKebReadbackFreq.Text = sb.ToString();
+
+                if (drFreq.HasValue && uf05Freq.HasValue && Math.Abs(drFreq.Value - uf05Freq.Value) < 0.2)
+                {
+                    lblEquivKebReadbackFreq.ForeColor = Color.FromArgb(22, 101, 52);
+                    lblEquivKebReadbackFreq.BackColor = Color.FromArgb(240, 253, 244); // 淺綠底
+                }
+                else if (drFreq.HasValue || uf05Freq.HasValue)
+                {
+                    lblEquivKebReadbackFreq.ForeColor = Color.FromArgb(180, 83, 9);
+                    lblEquivKebReadbackFreq.BackColor = Color.FromArgb(254, 243, 199); // 淺黃底 (提醒核實)
+                }
+                else
+                {
+                    lblEquivKebReadbackFreq.ForeColor = Color.FromArgb(71, 85, 105);
+                    lblEquivKebReadbackFreq.BackColor = Color.FromArgb(241, 245, 249);
                 }
             }
             catch { }
@@ -1947,6 +2117,9 @@ namespace DynamometerHMI
                     unSyncItems.Add(string.Format("• 額定電壓不同步: dr.02={0:F0} V vs uf.09={1:F0} V (相差 {2:F0} V)", drVolt, ufVolt, Math.Abs(drVolt - ufVolt)));
                 }
 
+                // ★【實測頻率即時反饋到 UI 橫條】
+                UpdateEquivKebReadbackFreqDisplay(drFreq, uf05Freq, uf00Freq, unSyncItems.Count == 0 ? "已同步" : "未完全同步");
+
                 WriteHmiLog("KEB_SYNC", string.Format("【dr/uf 參數蒐集】{0}: dr00={1:F1}A, dr01={2}rpm, dr02={3}V, dr05={4:F1}Hz | uf00={5:F1}Hz, uf05={6:F1}Hz, uf09={7}V | 同步: {8} | 鎖定頻率: {9:F1}Hz",
                     dName, drCurr, r_dr01.HasValue ? r_dr01.Value.ToString() : "--", drVolt, drFreq, uf00Freq, uf05Freq, ufVolt, (unSyncItems.Count == 0 ? "已同步" : "未同步"), effectiveFreq));
 
@@ -2230,6 +2403,7 @@ namespace DynamometerHMI
                             lblNoLoadItemStatus.Text = string.Format("[O] 堵轉試驗自動鎖定額定頻率: {0:F1} Hz", autoDetectedF0);
                             lblNoLoadItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
                         }
+                        UpdateEquivKebReadbackFreqDisplay(autoDetectedF0, null, null, "堵轉試驗鎖定額定");
                     });
                 }
                 WriteHmiLog("EQUIV", string.Format("【堵轉掃描啟動】鎖定額定頻率基準 f0 = {0:F1} Hz, 額定電流 IN = {1:F2} A", f0, inRated));
@@ -2834,8 +3008,9 @@ namespace DynamometerHMI
         {
             try
             {
-                // ── 定期刷新連線狀態顯示 (雙向同步綜合監控) ──
+                // ── 定期刷新連線狀態與溫度顯示 (雙向同步綜合監控) ──
                 UpdateEquivKebConnectionUi();
+                UpdateEquivLiveTemperature();
 
                 // ── 等效電路連續紀錄狀態 UI 刷新與背景手動採樣 ──
                 if (isEquivRecording)
