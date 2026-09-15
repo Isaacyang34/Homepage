@@ -17,3 +17,6 @@ Rufus/
 # 歷史備份
 backups/
 !GBD/backups/
+
+# ESP8266 中繼編譯產物
+ESP32_TPMS_Receiver/poc_minimal_tester/build/
