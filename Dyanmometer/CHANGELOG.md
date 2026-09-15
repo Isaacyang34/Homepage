@@ -8,7 +8,49 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.119 (beta) | v2.10.77 | 2026-09-15 | 全面實作等效電路 (堵轉測試)「變頻器實測 dr/uf 頻率即時常駐顯示」與「單一通道自選溫度即時監控」：(1)現象與佐證：使用者提出兩大操作反饋：「堵轉頁面讀回的dr/fu頻率的數據請顯示於畫面上，讓使用者確定數值是否正確。增加一個溫度的顯示，一樣CH可以自選，單一CH數值顯示就好。」先前卡片 3 未常駐展示讀回之 dr.05 / uf.05 / uf.00 實測數值，使用者無法在操作當下核實變頻器頻率；且堵轉介面缺乏溫度指示，操作者無法在堵轉大電流測試時即時掌握馬達定子升溫；(2)致命根因 (Root Cause)：1. 頻率回饋未常駐 UI：CheckAndCollectDrUfParams() 讀取了 0x0605 (dr.05)、0x0505 (uf.05) 與 0x0500 (uf.00)，但僅用於日誌與彈窗，卡片 3 缺乏常駐指示標籤供使用者隨時核實；2. 溫度通道脫節：等效電路介面原本排除溫度，但堵轉試驗電流高達額定電流，使用者需切換分頁查看溫度極不方便且具安全隱患；(3)精確修復方案：1. 於卡片 3 Row 4 增設 lblEquivKebReadbackFreq，常駐顯示「實測頻率: dr.05=xx.xx Hz | uf.05=xx.xx Hz | uf.00=xx.xx Hz」，並具備狀態顏色反饋 (綠色/黃色/灰色)；於 CheckAndCollectDrUfParams 與 LockedSweepWorker 中即時回填；2. 於卡片 3 Row 7 增設溫度監控控制項，包含通道自選選單 cmbEquivTempCh (支援 CH1~CH20 與 GL820 自訂名稱) 與單一通道即時溫度顯示 lblEquivTempDisplay (支援分級色彩：正常深綠、>80°C橘紅、>100°C深紅)；3. 於 500ms 看門狗定時器與 GL820 遙測線程中雙重呼叫 UpdateEquivLiveTemperature()，達成零延遲即時更新；(4)發布與驗證：升版至 2.10.77，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.77 發布。 |
 | V2.118 (beta) | v2.10.76 | 2026-09-15 | 全面實作等效電路 (堵轉測試) 變頻器連線雙向即時同步、啟動前連線防呆閉鎖、以及徹底修復 Windows XP 右下角等效電路圖解「一片空白」GDI+ 繪圖缺陷：(1)現象與佐證：使用者反映「另外我發現就算我沒有按下綜合監控的KEB連線，堵轉測試還是能執行? 這又是為什麼?」以及「另外堵轉頁面右下角我知道你是畫了等效電路的圖形，但在WIN11可以正常顯示，但XP是一片空白」；(2)致命根因 (Root Cause)：1. 連線閉鎖缺失：德國原廠 protKEB.dll 具備 On-Demand 隨選自給自足開啟串列埠通道機制，綜合監控連線按鈕本質為「主畫面 500ms 遙測輪詢定時器開關」而非實體通道閘門；堵轉測試 StartLockedRotorTest 漏設了 isHmiKebOpen1/2 狀態檢查，操作者未連線變頻器依然會通電運轉，造成工控安全恐慌與人機矛盾；2. XP 電路圖一片空白四大根因：(A) 寫死嚴格寬度門檻 if (xEnd <= xStart + 200) return; 要求寬度 >290px，在 XP 傳統解析度 (1024x768) 下，左側表格分割條佔了 620px 導致右側僅剩 ~250px 被直接 return 擋下；(B) XP GDI 面板未掛載 Resize 觸發 Invalidate() 且未開啟 DoubleBuffered，在 XP 無 DWM 合成器環境下排版完成後不會主動重繪；(C) XP 原生未內建「微軟正黑體」，繪製拋出 GDI+ 字型或邊界例外未加 try-catch 導致 Paint 直接白屏中斷；(D) splitEquivResults 預設 620px 壓縮右側空間；(3)精確修復方案：1. 在卡片 3 (堵轉測試) Row 3 嵌入載台選單 cmbEquivKebDrive、連線按鈕 btnEquivKebToggle ([Open]/[Close]) 與狀態文字 lblEquivKebStatus，與「綜合監控」保持 100% 雙向即時同動 (任一端切換連線/斷線，兩邊介面按鈕與狀態即刻同步)；2. StartLockedRotorTest 新增「變頻器實體連線閉鎖防呆」：若檢測到目標載台未連線，彈窗提示並詢問是否自動連線，解除未連線即運轉疑慮；3. GDI+ 電路圖全自適應 XP 相容重構：將分割條預設調為 480px、掛載 Resize Invalidate 與 DoubleBuffered、移除 return 門檻改採 scale 自適應等比縮放、建立 CreateSafeDiagramFont (微軟正黑體->Tahoma->Arial 安全降級)、全函式 try-catch 防禦，確保 Windows XP 任何解析度下電路圖 100% 穩定清晰呈現；(4)發布與驗證：升版至 2.10.76，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.76 發布。 |
+
+---
+
+## [V2.119 beta / v2.10.77] - 2026-09-15
+
+### 全面實作等效電路 (堵轉測試)「變頻器實測 dr/uf 頻率即時常駐顯示」與「單一通道自選溫度即時監控」
+
+### 現象與佐證
+- **使用者回報需求**：使用者具體提出兩大操作功能增強：「堵轉頁面讀回的dr/fu頻率的數據請顯示於畫面上，讓使用者確定數值是否正確。增加一個溫度的顯示，一樣CH可以自選，單一CH數值顯示就好。」
+- **操作痛點分析**：
+  1. 先前卡片 3（堵轉測試）雖然在後台 `CheckAndCollectDrUfParams()` 讀取了變頻器暫存器，但讀回的數值僅出現在「同步檢查」的確認彈窗或後台日誌中；主畫面卡片缺乏常駐的即時頻率顯示橫條，使用者在日常試驗操作時無法一眼核對目前變頻器內部實際回傳的 `dr.05`、`uf.05` 與 `uf.00` 數值是否吻合預期；
+  2. 等效電路卡片 3 原本未嵌入任何溫度數值，然而堵轉試驗是以額定電流進行短路阻抗測試，馬達定子線圈會快速發熱；若操作人員需要監控溫度，必須來回切換回綜合監控或其他分頁，操作繁瑣且容易錯過高溫警報。
+
+### 致命根因 (Root Cause)
+1. **變頻器實測頻率缺乏常駐 UI 視覺反饋**：
+   - 系統內部具備完整的 `0x0605` (dr.05)、`0x0505` (uf.05) 與 `0x0500` (uf.00) RAW 電文讀取與換算函式，但卡片 3 介面排版中未規劃頻率顯示專用控制項，導致讀回之實測頻率成為「後台黑盒子數據」，使用者缺乏視覺確認依據。
+2. **溫度遙測與等效電路模組脫節**：
+   - 現場 GL820 溫度記錄器持續在背景更新全域陣列 `gbdChTemps[20]`，但等效電路卡片並未開放選單讓使用者指定關注之特定測點（例如定子繞組、軸承端），無法就地提供即時數值顯示與高溫顏色警示。
+
+### 精確修復方案
+1. **卡片 3 增設常駐型變頻器實測頻率顯示橫條 (`lblEquivKebReadbackFreq`)**：
+   - 在卡片 3 排版之 Row 4 實裝橫跨兩欄的專用資訊橫條 `lblEquivKebReadbackFreq`；
+   - 預設常駐顯示：「實測頻率: dr.05=-- Hz | uf.05=-- Hz | uf.00=-- Hz (待同步讀取)」；
+   - 實作 `UpdateEquivKebReadbackFreqDisplay()`，當呼叫「[同步檢查]」或啟動測試自動讀取時，即時更新各暫存器之實測解析頻率；
+   - 具備智慧色彩狀態反饋：三者一致時顯示清新綠底深綠字 (`#166534`)；存在差異時顯示警示淺黃底 (`#B45309`)，提醒操作者變頻器內部設定有落差；未讀取時維持低調灰階。
+2. **卡片 3 增設單一通道自選溫度即時監控 (`tlpProtAndTemp`)**：
+   - 在卡片 3 排版之 Row 7 增設四欄式組合橫條：
+     - 左側：`lblLockedProtStatus` 實時安全防護指示；
+     - 右側：標籤「溫度:」+ 下拉選單 `cmbEquivTempCh` + 即時數值顯示 `lblEquivTempDisplay`；
+   - 實作 `InitEquivTempChannels()`，自動載入 CH1~CH20，並動態抓取 GL820 之通道自訂名稱（如 `CH1: 馬達定子`）；
+   - 實作 `UpdateEquivLiveTemperature()`，依照使用者選取之單一通道即時呈現 `{temp:F1} °C`；若無數據或未連線顯示 `--.- °C`；
+   - 支援分級溫度顏色預警：正常範圍顯示深綠色 (`#166534`)、達到 80°C 轉為橘紅色 (`#EA580C`)、突破 100°C 轉為醒目深紅色 (`#DC2626`)。
+3. **無秒差雙重更新驅動機制**：
+   - 於等效電路 500ms 看門狗定時器 `TmrLockedWatchdog_Tick` 中掛載 `UpdateEquivLiveTemperature()`，無論是否處於測試中均保持 500ms 刷新；
+   - 於 `Dynamometer_HMI_WinForms.cs` 之 GL820 遙測更新回呼處，同步呼叫 `UpdateEquivLiveTemperature()`，保證實測溫度無秒差即時更新。
+
+### 發布與驗證
+- 升級版本號至 **v2.10.77 (V2.119 beta)**，經 `csc.exe` 編譯通過。
+- 完成雙分支 (`gh-pages` 與 `master`) 同步推送、更新 Firebase RTDB `version.json`，並發布 GitHub Release v2.10.77。
+
+---
 | V2.117 (beta) | v2.10.75 | 2026-09-15 | 徹底根除堵轉測試保護跳脫誤升 260V 額定電壓導致 180A 短路大電流金屬撞擊聲、以及背景掃描線程未停止競爭之致命缺陷：(1)現象與佐證：使用者回報「又出現撞擊聲了，到底改了什麼 LOG有上傳」；提取雲端實測日誌 (firebase_latest_log.json) 證實：08:20:51 馬達通電建壓，機械鎖死治具產生微小彈性扭轉形變 (Spd=-8.0rpm)，看門狗誤判為「治具脫扣」；08:20:53.125 觸發跳脫後，舊程式竟然呼叫 AutoRestoreUf09 將 uf.09 寫回 260V 額定電壓！08:20:53.484 實測 Volt=101.9V, Curr=180.05A, ElecPwr=25.80kW，瞬間 180A 短路大電流直接灌入鎖死馬達定子，引發劇烈金屬巨響！且 08:20:54~08:20:57 背景線程繼續下發 29V、30V、31V 調壓指令；(2)致命根因 (Root Cause)：1. 致命死穴 A：跳脫/停止時錯誤恢復 260V 高壓！在馬達軸機械鎖死狀態下，任何恢復 260V 均等同定子短路！2. 致命死穴 B：TriggerLockedProtectionTrip 漏設 isLockedSweepRunning = false，導致背景線程 lockedSweepThread 完全未停止，繼續在背後調壓與跳脫處理衝突；3. 致命死穴 C：看門狗轉速閾值過敏 (>5 rpm 持續3秒)，將聯軸器幾十Nm加載時的正常彈性微動角位移 (-8~+12 rpm) 誤判為治具脫扣；(3)精確修復方案：1. 廢除堵轉停止與保護跳脫時自動調回 260V 額定電壓之危險邏輯，停機與跳脫時一律強制鎖定為安全低壓 (10V)，杜絕高壓激磁；額定電壓僅允許在確認拆除治具後手動點擊「復歸預設」；2. 於 TriggerLockedProtectionTrip 首行強制設定 isLockedSweepRunning = false，立即徹底終止背景掃描線程；3. 改進看門狗脫扣防護，區分機械微動 (允許 -8~+12 rpm) 與真正脫扣 (瞬時 >30 rpm 立即跳脫，持續 >15 rpm 達 3 秒跳脫)；(4)發布與驗證：升版至 2.10.75，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.75 發布。 |
 | V2.116 (beta) | v2.10.74 | 2026-09-14 | 全面建立等效電路與堵轉測試之「dr.05 與 uf.05 實測額定頻率 (51.5Hz) 自動感知與連鎖回填」架構，徹底消除 50.0Hz 硬編碼與轉速失真：(1)現象與佐證：使用者質疑「為何我的dr.05和uf.05都是51.5Hz但是實驗的額定還是用50」；經查證，現場變頻器參數設定 dr.05=51.5Hz (0x0605 / 515) 與 uf.05=51.5Hz (0x0505)，但堵轉測試第一點額定頻率依然被設定為 50.0Hz，下發轉速指令為 1500 rpm 而非 51.5Hz 對應之 1545 rpm，且等效電路計算同步轉速亦被算成 1500 rpm；(2)致命根因 (Root Cause)：1. 讀回只印 Log 未回填 UI：`CheckAndCollectDrUfParams()` 讀取了 dr05=51.5Hz 與 uf00=51.5Hz，但完全沒有將其賦值給卡片 1 的 `numEquivF0.Value`，卡片 1 頻率永遠為 0.0；2. 堵轉工作線程硬編碼 50.0：`LockedSweepWorker` 中以 `double f0 = (numEquivF0.Value > 1.0m) ? (double)numEquivF0.Value : 50.0;` 取值，因 `numEquivF0` 為 0 導致直接 fallback 成了 50.0Hz，目標轉速算成 1500 rpm 寫入 Sy.52/oP.03；3. 等效電路計算核心 `ExecuteEquivCircuitCalculation` 同樣 fallback 成 50.0Hz，同步轉速算成 1500 rpm，導致額定轉差率與漏抗折算跑偏；4. `LoadRatedDataFromTnTab` 中 `double syncSpd = 120.0 * 50.0 / poles;` 寫死 50.0；5. `CheckAndCollectDrUfParams` 漏讀了 `0x0505` (uf.05)；(3)精確修復方案：1. 新增對 `0x0505` (uf.05) 之 Set 1 與 Set 0 讀取與頻率智能解析；2. 實作「硬體參數自動連鎖回填」：當讀取到變頻器頻率 (51.5Hz) 時，自動回填卡片 1 之 `numEquivF0`，並將 dr.02 (電壓)、dr.00 (電流)、dr.01 (轉速) 自動回填卡片 2，以 51.5Hz 精確計算同步轉速 1545 rpm 與額定轉差率；3. 改造 `LockedSweepWorker`：若 `numEquivF0` 為 0，動態自變頻器實測變數 `lastB_Dr05`、`kebDrFreq2` 或現場讀取 0x0605/0x0505 提取 51.5Hz，自動回填 UI 並以 51.5Hz 計算各頻點與 1545 rpm 指令；4. 改造 `ExecuteEquivCircuitCalculation`、`LoadRatedDataFromTnTab`、`CaptureLiveNoLoadData` 與 `CaptureLiveRatedData`，全面以實測頻率動態計算，徹底消除 50.0Hz 硬編碼；5. 於 `RefreshEquivMotorStatus` 建立銘牌自動預填防呆；(4)發布與驗證：升版至 2.10.74，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.74 發布。 |
 | V2.115 (beta) | v2.10.73 | 2026-09-14 | 全面實作「等效電路專屬純電氣連續紀錄功能 (無溫度)」與「測試成果自動歸檔」架構：(1)現象與佐證：使用者反映「等效電路測試也要有紀錄功能，只是不需要溫度而已。目前好像沒有」；檢查源碼發現，其他進階模組 (TN、Duty、NoLoad、手動連續錄製) 均具備 CSV 記錄，但等效電路分頁在執行堵轉單頻自適應測試、8頻率全頻掃描以及手動調試時，完全缺乏即時資料記錄器；且通用錄製強制綁定 GL820 溫度通道與 GBD 原廠格式，並具備「未滿 1 分鐘自動刪除」規則，無法適用於等效電路短時間純電氣阻抗量測需求；(2)致命根因 (Root Cause)：`Dynamometer_TestEquivCircuit.cs` 未建置專屬的 CSV 連續資料串流記錄器，導致堵轉測試期間之 1V 增幅探測斜率、梯度自適應逼近、以及額定電流 30 筆採樣等珍貴數據無法被即時持久化儲存，無法作為工程後續分析之佐證；(3)精確修復方案：在 `Dynamometer_TestEquivCircuit.cs` 中建立「等效電路專屬連續紀錄器 (`StartEquivTestRecording` / `WriteEquivRecordRow` / `StopEquivTestRecording`)」，自動儲存於馬達專屬目錄 `EquivCircuit_Test_Log_{馬達型號}_{yyyyMMdd_HHmmss}_{標籤}.csv`；欄位設計純粹聚焦於電氣與機械量 (時間戳記、耗時、階段、頻率名稱、目標頻率、uf09、轉速、頻率、轉矩、三相電壓 U1~U3/USig、三相電流 I1~I3/ISig、三相功率 P1~P3/PElec、輸出功率 PMech、功率因數 PF、狀態說明)，**嚴格排除任何溫度通道 (無 Temp、無 GL820、無 GBD)**；當點擊「[AI] 單頻測試」或「[>>] 全頻掃描」時自動啟動記錄，採樣全程即時寫入，測試結束安全關閉並保留，**完全不受 <60秒刪除限制**；於等效電路頂部橫條新增 `btnEquivManualRecord` ([記錄] 開始記錄 / [停止] 記錄中) 支援手動即時記錄；計算完成時自動保存 `Report_EquivCircuit_Params_*.csv` 參數報表；(4)發布與驗證：升版至 2.10.73，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.73 發布。 |
