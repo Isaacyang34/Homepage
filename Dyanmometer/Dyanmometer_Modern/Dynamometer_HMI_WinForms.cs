@@ -494,13 +494,28 @@ namespace DynamometerHMI
         {
             get
             {
-                // 首要黃金基準：Yokogawa PowerMeter WT333E 實測電氣基波頻率 (直接硬體 CT/PT 物理量測，無轉差與通訊縮放誤差)
+                // 1. 堵轉測試受控工況防護：若處於堵轉掃描或單頻測試，受控頻率由系統直接精確鎖定 (防禦 PWM 低壓載波雜訊誤觸發過零)
+                if (isLockedSweepRunning && currentLockedTargetFreq > 0.5)
+                {
+                    if (wtFreqI > 0.5f && Math.Abs(wtFreqI - currentLockedTargetFreq) / currentLockedTargetFreq <= 0.15)
+                        return wtFreqI;
+                    if (wtFreqU > 0.5f && Math.Abs(wtFreqU - currentLockedTargetFreq) / currentLockedTargetFreq <= 0.15)
+                        return wtFreqU;
+                    return currentLockedTargetFreq;
+                }
+
+                // 2. 首要黃金基準：Yokogawa PowerMeter WT333E 實測電氣基波頻率 (直接硬體 CT/PT 物理量測，無轉差與通訊縮放誤差)
+                // 防禦性濾波：若電壓過低 (< 40V) 或電壓過零頻率異常飆高 (> 150Hz) 且電流頻率合理，優先採納電流頻率 wtFreqI (因馬達繞組電感天然平滑濾波 PWM 載波)
                 if (wtFreqU > 2.0f)
+                {
+                    if ((wtFreqU > 150.0f || actVoltageSigma < 40.0) && wtFreqI > 2.0f && wtFreqI <= 120.0f)
+                        return wtFreqI;
                     return wtFreqU;
+                }
                 if (wtFreqI > 2.0f)
                     return wtFreqI;
 
-                // 次要基準：待測端 KEB ru.03 輸出頻率 (已由 ConvertKebRu03ToFrequency 依據速度範圍精確換算)
+                // 3. 次要基準：待測端 KEB ru.03 輸出頻率 (已由 ConvertKebRu03ToFrequency 依據速度範圍精確換算)
                 bool isDrive1Dut = (cmbTnRole != null && cmbTnRole.SelectedIndex == 0) ||
                                   (noLoadSpdDrive == 1 && isNoLoadRunning) ||
                                   (cmbDutyRole != null && cmbDutyRole.SelectedIndex == 0);

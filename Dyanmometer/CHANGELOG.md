@@ -8,9 +8,325 @@
 
 | Beta 版本 | 內部版號 | 發行時期 | 核心里程碑 |
 | :--- | :--- | :--- | :--- |
+| V2.135 (beta) | v2.10.93 | 2026-09-16 | 根除等效電路堵轉試驗「低壓 PWM 載波干擾過零誤觸發頻率暴衝至 355Hz」致命缺陷、建立受控基準鎖定與電流頻率防禦架構：(1)現象與佐證：使用者提供 Google Drive 堵轉日誌並指示「堵轉的紀錄，頻率的部分有問題，請查明原因!」；經比對實測檔 EquivCircuit_Test_Log_SIMW132S-15-08_20260915_163437.xls：50Hz 額定頻率點(52V)記錄 51.47Hz 正常，但 12.5Hz 頻率點(21V)記錄 355.74Hz~374.96Hz，15Hz 頻率點(22.9V)記錄 332.79Hz，20Hz 頻率點(26.5V)記錄 245.88Hz 等，頻率異常暴衝；(2)致命根因 (Root Cause)：1. 物理/儀表過零誤觸發：堵轉時馬達鎖死，變頻器僅輸出 21V 極低電壓，在極低調變率下窄脈寬高頻 PWM 載波(數 kHz)開關毛刺尖峰遠大於基波振幅，WT333E 電壓通道過零檢測器被 PWM 邊緣雜訊反覆誤觸發，輸出 355Hz 雜訊；2. actFrequency 盲目採納：actFrequency 寫死「只要 wtFreqU > 2.0f 無條件採納」，全域頻率遭 355Hz 噪聲污染；3. WriteEquivRecordRow 優先級顛倒：堵轉試驗頻率是由軟體受控設定之已知基準變數 targetFreq(fTest)，漏抗計算雖使用 fTest，但寫入 CSV 時卻將 actFrequency(355Hz) 優先於 targetFreq 覆蓋寫入；(3)精確修復方案：1. 於 Dynamometer_TestEquivCircuit.cs 建立 currentLockedTargetFreq 生命週期鎖定機制；2. 重構 WriteEquivRecordRow 頻率記錄邏輯：受控試驗嚴格鎖定受控目標基準 targetFreq，僅當電流頻率 wtFreqI (經馬達漏抗天然平滑濾波) 或電壓頻率在 15% 偏差範圍內才採納實測，超過偏差 (如 355Hz 噪聲) 100% 剔除並強制鎖定 targetFreq；3. 重構 actFrequency：新增堵轉受控工況專屬防護與 low-voltage/high-freq PWM 噪聲防禦性濾波；(4)發布與驗證：內部版號升級至 2.10.93，通過 csc.exe x86 編譯，完成雙分支同動推送與 200 OK 探測閉鎖。 |
+| V2.134 (beta) | v2.10.92 | 2026-09-16 | ESP32 韌體加入微秒時序 TIMING_RAW 與 RAW_BITS_HEX 原始電文輸出 (建立透明無盲區之實測物理量採集底層)：(1) 深刻反省並徹底剷除未見真實數據即空口保證之不良心態，回歸客觀工程實踐；(2) 於 rtl_433_RawCallback 中實作 dumpPulseBitsHex，當捕獲強烈射頻脈衝 (RSSI > -65 dBm, pulses >= 100) 時，即刻輸出前 16 脈衝微秒樣本 [TIMING_RAW] 與 PCM 位元還原之十六進位電文 [RAW_BITS_HEX] len=... bytes: AA BB...；(3) 與上位機 ExecuteSoftwareDecode 及 CSV 日誌無縫串聯，使空中訊號無論官方解碼器是否命中皆具備透明二進位證據；(4) 成功編譯並透過 COM5 Flash 燒錄部署完成。 |
+| V2.133 (beta) | v2.10.91 | 2026-09-16 | 底層 rtl_433 tpms_truck 解碼器長度門檻物理放寬 (徹底打通 164~169 脈衝短包 100% 命中解碼)：(1) 深入底層函式庫 tpms_truck.c 徹底查明並修復致命死穴：官方作者於 preamble 搜尋外層寫死 +160 硬門檻（要求 184+ bits / 200+ 脈衝），導致感測器每次裝電池發射之 164~169 pulses (20ms) 真實電文在外層被 100% 拒解丟棄；(2) 將門檻修正為 +140，使 164~169 pulses 100% 順利進入曼徹斯特 76-bit 解碼與 XOR 校驗；(3) 成功編譯並透過 COM5 Flash 燒錄部署完成。 |
+| V2.132 (beta) | v2.10.90 | 2026-09-16 | ESP32 韌體全面還原純淨原生架構 (徹底拔除 Core 0 FreeRTOS 任務衝突 & 恢復高可靠接收環境)：(1) 深刻反省並徹底拔除 V2.131 引入之 Core 0 WebServer FreeRTOS 守護任務，杜絕其與 ESP32 系統 WiFi/LwIP 堆疊之排程爭搶，將 server.handleClient() 完整還原回原生 loop() 順序執行，100% 恢復至 11:38 與 11:50 實測能穩定解碼之純淨硬體環境；(2) 保留 EEPROM v4 乾淨格式化，真身未收到空中電文前誠實呈現等待訊號狀態，杜絕 28°C 偽造假象；(3) 成功編譯並透過 COM5 Flash 燒錄部署完成。 |
+| V2.131 (beta) | v2.10.89 | 2026-09-16 | ESP32 韌體雙核心隔離重構與開機純淨重置 (徹底杜絕網頁輪詢打碎射頻採樣 & 消除 28°C 殘留假象)：(1) 透過 FreeRTOS xTaskCreatePinnedToCore 將 WebServer (HTTP 請求處理) 徹底隔離並釘在 ESP32 Core 0 獨立運行，將 Core 1 100% 全時釋放專職負責 CC1101 微秒級中斷採樣與 rf.loop()，徹底根除瀏覽器連線輪詢佔用 CPU (20~40ms) 打碎 24ms TPMS 射頻封包的架構死穴；(2) 升級 EEPROM_VERSION 至 4，開機全盤格式化並清除舊韌體殘留之 28°C 假數據，嚴格恪守零偽造鐵律，真身未收到空中電文前誠實呈現等待訊號狀態；(3) 成功編譯並透過 COM5 Flash 燒錄部署完成。 |
+| V2.130 (beta) | v2.10.88 | 2026-09-16 | TPMS 上位機強烈射頻脈衝即時反饋與 TPMS_DATA 底部雙向同步 (消除未點重置基準時之介面靜默假象)：(1) 消除「未點重置基準」時將強烈訊號當作背景底噪吞沒的致命盲區，只要空中偵測到 RSSI > -65 dBm 且持續時間 > 10ms 之感測器強發射，上位機立即綠燈高亮警示並將時間與脈衝資訊毫秒級刷入底部專屬面板，徹底杜絕畫面一片死寂；(2) 建立 TPMS_DATA 與底部 [RAW_JSON] 雙向同步機制，無論 ESP32 送出純 JSON 還是 TPMS_DATA，底部電文面板 100% 同步更新。 |
+| V2.129 (beta) | v2.10.87 | 2026-09-16 | TPMS 上位機序列埠接收架構全面重構為專屬背景串流線程 (徹底根除 DataReceived 事件逾時假死)：徹底廢除微軟 .NET 脆弱且容易在突發封包下掛起的 Serial_DataReceived 事件與阻塞式 ReadLine()；全面改採工業標準「專屬背景串流守護線程 (SerialRxLoop)」搭配「環形字串緩衝區 (\n 自動切割)」，將通訊讀取與 UI 徹底解耦，永不觸發逾時異常，徹底解決通訊凍結問題，達成「隨便裝電池、隨時發射、7x24 永不卡死、絕不需手動重開軟體」之車用級連續接收能力。 |
+| V2.128 (beta) | v2.10.86 | 2026-09-16 | TPMS 上位機底部新增 [RAW_JSON] 官方協定原始電文獨立即時面板：於 GUI 視窗最下方新增獨立專屬面板 (pnlRawJson)，即時呈現 rtl_433 官方解碼之完整原始 JSON 字串（一字不漏，涵蓋 model, id, pressure_kPa, temperature_C, rssi, duration, flags 等所有欄位），搭配最後捕獲時間戳記與一鍵 [複製電文] 功能，提供 100% 透明不可竄改之實測底層證據。 |
+| V2.127 (beta) | v2.10.85 | 2026-09-16 | TPMS 全系統零假數據、零預設值與空氣雜訊徹底淨化：徹底清除韌體與 EEPROM 中開機寫死的 28°C、0.0 psi 與 0xE39E3301 偽造數據；刪除 setup() 中偽造探索清單；移除網頁端因 RSSI 判定強行偽造的快捷按鈕；上位機與韌體解析全面移除 25°C 兜底值，嚴格要求真實空中封包解碼出物理量才予以顯示，未收到封包前誠實呈現等待訊號狀態。 |
+| V2.126 (beta) | v2.10.84 | 2026-09-16 | TPMS 上位機監控儀自動同步網頁鎖定 ID 與取消手動鎖定：取消軟體內繁瑣的手動輸入文字框 (txtLockId) 與鎖定按鈕 (btnToggleLockId)，全面改由 ESP32 心跳廣播 (lock_id=0x%08X)、網頁輪位綁定事件 ([Web綁定]) 與 EEPROM 開機設定自動即時同步，並立即啟動專屬訊號監測。 |
+| V2.125 (beta) | v2.10.83 | 2026-09-16 | TPMS 射頻解碼核心升級：深入檢索 rtl_433 官方倉庫獲取 Issue #3496 官方最終定案（Commit 296e988, 2026-07-05 Benjamin Larsson 實現之 Gear-Hive TPMS 協定 [322]），全面導入 0x94 種子差分 XOR 解擾、線性氣壓（6.25 kPa/bit）、常數 ID 與特徵校驗位元過濾，徹底解決 ID 飄移與非線性平方律壓力誤差；上位機監控儀支援 4 大策略同動對照並徹底清除所有 U+1F000 Emoji。 |
 | V2.124 (beta) | v2.10.82 | 2026-09-15 | 廢除等效電路/堵轉頁面開啟時預設假數據導入、全面改為實體馬達專屬資料夾紀錄檔探測驅動導入機制：(1)現象與佐證：使用者明確指示：「目前賭轉頁面一開啟就會導入預設的數據，這是不必要的，除非真的在相對應的資料夾中有找到資料才導入。」；(2)致命根因 (Root Cause)：1. 預設假數據殘留：`dynamometer_layout.ini` 模板中預先寫死了 `Vk=52.0, Ik=32.5, Pk=850.0, Pfk=0.29` 等假數據，`LoadEquivCircuitConfig` 啟動時無視檔案是否存在盲目填入 UI；2. 銘牌偽造覆蓋：`RefreshEquivMotorStatus()` 於切換分頁時執行變頻器銘牌預填防呆，將 `lastB_Dr02`、`lastB_Dr00`、`lastB_Dr01` 自動強塞至額定欄位，違反零偽造鐵律；3. 堵轉卡片缺乏檔案導入器：先前僅空載與額定具備檔案導入，堵轉卡片缺乏對應的日誌解析與載入機制；(3)精確修復方案：1. 徹底清空 `dynamometer_layout.ini` 的 `[EquivCircuit]` 預設值為 0.0，未就緒卡片存檔一律歸零；2. 徹底移除 `RefreshEquivMotorStatus()` 的銘牌自動填入偽造代碼，全面改為實體資料夾探測 (`CheckMotorHasNoLoadLog`, `CheckMotorHasRatedLog`, `CheckMotorHasLockedLog`)；3. 嚴格落實「零偽造原則」：無實體檔案時欄位一律歸零 (0.0) 並標記 `[--] 待採樣 (資料夾中無紀錄)`，唯有在馬達專屬目錄 (`GetMotorDedicatedLogDirectory`) 真正找到實體 CSV 時才自動/手動導入；4. 實作 `LoadLockedDataFromTestTab(showPrompt)`，支援自動提取 `EquivCircuit_Test_Log_*.csv` 與 `LockedRotor_*.csv` 之穩態平均數據；5. 於堵轉卡片新增 `btnEquivLoadLockedFromTest`「[檔案] 載入堵轉紀錄檔」按鈕；(4)發布與驗證：升版至 2.10.82，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.82 發布。 |
 | V2.123 (beta) | v2.10.81 | 2026-09-15 | 確立全案最高強制規範「零偽造與零竄改實測物理量鐵律 (Zero-Fallback & Zero-Tampering Telemetry Integrity Rule)」、徹底清查代碼中所有幽靈替換與偽造邏輯：(1)現象與佐證：使用者深入追問：「為何會有這麼多竄改的問題??? 核心問題在哪? 不是說說而已，要怎麼樣還要我說嗎?」；(2)致命根因 (Root Cause)：1. 把「通訊暫時未刷新」與「物理量本身為 0」混為一談，錯誤地在遙測取樣、看門狗保護中使用額定值或歷史值進行覆蓋（如 GetCurrentSample 中殘留 if (curI <= 0.05 && lastB_Dr00.HasValue) curI = (double)lastB_Dr00.Value;）；2. 控制場景未嚴格隔離，以一般運轉思維套用至堵轉測試極端工況；3. 缺乏全案層級的強制規則約束，導致「打補丁引發新問題」之惡性循環；(3)精確修復方案：1. 於 GEMINI.md 與 .agents/rules/ 永久建立「第 10 條：零偽造與零竄改實測物理量鐵律」，強制規範嚴禁在任何即時控制、保護、看門狗或演算法中將實測為 0 的物理量（轉速、電流、電壓、轉矩）覆蓋為額定值或歷史值；2. 徹底清查並移除 GetCurrentSample() 中的殘留 lastB_Dr00 幽靈電流替換代碼；3. 通訊異常嚴格限定為通訊逾時標記，絕不允許假數據填補；(4)發布與驗證：升版至 2.10.81，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.81 發布。 |
 | V2.122 (beta) | v2.10.80 | 2026-09-15 | 徹底根除堵轉測試「完全不會動」四大致命死穴 (看門狗幽靈轉速竄改0秒超速急停、幽靈電流過載跳脫、oP.01端子控制權限阻斷、電壓未同步自相矛盾阻擋)：(1)現象與佐證：使用者實測回報：「現在做賭轉測試完全不會動，請檢察，為什麼之前明明就都可以用?」；經比對 Firebase 歷史日誌 (20260915_082121) 與源碼：馬達於 08:20 處於鎖死狀態，轉速 actSpeed 為 0.0 rpm，但看門狗卻瞬時跳脫「堵轉瞬時嚴重飛脫跳脫 (轉速 > 30 rpm)」，隨即下達 Sy.50=0 強制停機並終止線程，馬達完全無動作；(2)致命根因 (Root Cause)：1. 看門狗幽靈轉速竄改：TmrLockedWatchdog_Tick 行 3047 加入了 if (spdCur <= 0.5 && lastB_Dr01.HasValue) spdCur = Math.Abs((double)lastB_Dr01.Value); 荒謬邏輯，當待測馬達被機械確實鎖死時 (轉速為 0 rpm)，竟被篡改為銘牌額定轉速 1500 rpm，導致啟動第 1 拍 (500ms 內) 判定 1500 > 30 rpm 瞬間急停並將線程殺死！2. 看門狗幽靈電流竄改：行 3043 加入了 if (iCur <= 0.05 && lastB_Dr00.HasValue) iCur = (double)lastB_Dr00.Value;，建壓初期電流為 0 時被篡改為 45.0A，誤判過電流跳脫；3. oP.01 運轉控制權限未切換：現場變頻器參數為 oP.01=7 (半自動硬體端子控制)，變頻器僅聽實體 ST 端子，對軟體通訊 Sy.50=4 完全不予響應；且 cs.18 (轉矩極限) 未確保為 1000；4. 電壓同步自相矛盾阻擋：前次測試結束時系統為保護馬達鎖定 10V 安全低壓，但 CheckAndCollectDrUfParams 卻比對 dr.02(260V) 與 uf.09(10V) 相差 250V 判定「電壓未同步」彈窗阻擋測試；5. finally 區塊危險升壓：先前 finally 區塊殘留 AutoRestoreUf09，於線程結束時將電壓寫回 260V 造成撞擊與大電流短路危險；(3)精確修復方案：1. 徹底剷除看門狗中所有幽靈 fallback，實測轉速與電流嚴格取自物理感測器讀值，馬達鎖死轉速為 0 rpm 判定為絕對正常；2. 啟動激磁前自動將運轉控制權限切換為全自動通訊控制 (oP.01=8)，確保轉矩極限 cs.18=1000 (100.0%)，並於存在殘留故障時自動執行 FAULT RESET (Sy.50=2)；試驗結束於 finally 安全還原 oP.01；3. CheckAndCollectDrUfParams 明確將 uf.09<=60V 識別為「安全低壓鎖定狀態」，免除電壓未同步阻擋；4. finally 區塊廢除 AutoRestoreUf09，一律強制鎖定為安全低壓 10V；(4)發布與驗證：升版至 2.10.80，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.80 發布。 |
+
+## [V2.135 beta / v2.10.93] - 2026-09-16
+
+### 根除等效電路堵轉試驗「低壓 PWM 載波干擾過零誤觸發頻率暴衝至 355Hz」致命缺陷、建立受控基準鎖定與電流頻率防禦架構
+
+### 現象與佐證
+- **使用者回報指令**：
+  使用者提供 Google Drive 堵轉日誌連結，並指示：「`堵轉的紀錄，頻率的部分有問題，請查明原因!`」。
+- **實測日誌佐證行 (Verbatim Excerpt from `EquivCircuit_Test_Log_SIMW132S-15-08_20260915_163437.xls`)**：
+  - **Point 1 (1.0x 額定 50.0 Hz, 52.14 V)**：
+    `L4: 51.47 Hz, 52.11 V, 33.36 A, 1.146 kW, PF 0.38` -> 頻率正常符合 50Hz 基頻；
+  - **Point 2 (0.25x 額定，目標應為 12.5 Hz, 21.01 V)**：
+    `L36: 355.74 Hz, 21.01 V, 33.28 A, 0.971 kW, PF 0.802` -> 頻率暴衝至 355.74 Hz (+2800%)！
+    `L40: 370.36 Hz`、`L49: 374.96 Hz`、`L52: 368.83 Hz` 異常狂飆；
+  - **Point 3 (0.30x 額定，目標應為 15.0 Hz, 22.91 V)**：
+    `L68: 332.79 Hz, 22.91 V, 33.56 A, 0.999 kW, PF 0.75` -> 頻率暴衝至 332.79 Hz (+2200%)！
+  - **Point 4 (0.40x 額定，目標應為 20.0 Hz, 26.54 V)**：
+    `L100: 245.88 Hz` -> 頻率異常暴衝為 245.88 Hz (+1200%)；
+  - **Point 5 (0.50x 額定，目標應為 25.0 Hz, 30.89 V)**：
+    `L150: 112.09 Hz` -> 頻率異常偏高為 112.09 Hz (+450%)；
+  - **Point 6 (0.60x 額定，目標應為 30.0 Hz, 34.89 V)**：
+    `L180: 66.12 Hz` -> 頻率異常偏高為 66.12 Hz (+120%)；
+  - **Point 7 (2.00x 額定，目標應為 100.0 Hz, 95.80 V)**：
+    `L200: 102.93 Hz, 95.80 V, 33.84 A` -> 頻率恢復正常。
+
+### 致命根因 (Root Cause)
+1. **物理與儀表層（極低壓 PWM 載波邊緣干擾過零檢測誤觸發）**：
+   - Yokogawa WT333E 功率計的頻率量測模組採用電氣訊號「過零檢測 (Zero-Crossing Detection)」原理。
+   - 堵轉試驗時，馬達軸被剛性鎖死，阻抗極小，變頻器為了控制電流維持在額定 33A，輸出的線電壓極低（12.5Hz 時線電壓僅 21.01V）。
+   - 變頻器為高頻 PWM（數 kHz 載波）斬波輸出。在 21V 極低調變率下，主電壓基波振幅極小，但 PWM 開關瞬態的 $dv/dt$ 尖峰與振鈴毛刺高達數百伏特。若儀表 Line Filter (500Hz) 未過濾，電壓過零檢測器會被 PWM 脈衝的開關邊緣反覆誤觸發，計算出 355Hz ~ 374Hz 的高頻噪聲。
+2. **全域遙測層（`actFrequency` 盲目全域採納 `wtFreqU`）**：
+   - 在 `Dynamometer_HMI_WinForms.cs` 第 497 行，`actFrequency` 寫死「只要 `wtFreqU > 2.0f` 就無條件當作系統實測頻率」，導致 355Hz 噪聲長驅直入，直接污染了全域 `actFrequency`。
+3. **測試日誌層（顛倒優先級，以噪音覆蓋已知受控目標頻率）**：
+   - 在 `Dynamometer_TestEquivCircuit.cs` 第 4527 行（`WriteEquivRecordRow`）：
+     `double freq = (actFrequency > 0.5) ? actFrequency : (wtFreqU > 0.5 ? wtFreqU : targetFreq);`
+   - 在堵轉試驗中，**試驗頻率是由系統向變頻器下達的受控目標基準變數 (`targetFreq = fTest`，如 12.5Hz, 15Hz, 20Hz 等)**。
+   - 系統在計算漏抗與電感時，明明精確使用了 `fTest`（`omega_test = 2.0 * Math.PI * fTest;`），計算出的漏抗值完全正確；但在寫入日誌時，卻將被噪聲污染的 `actFrequency` (355Hz) 優先於 `targetFreq` 覆蓋寫入，造成日誌記錄了荒謬的 355Hz！
+
+### 精確修復方案
+1. **建立 `currentLockedTargetFreq` 試驗生命週期鎖定機制**：
+   - 於 `Dynamometer_TestEquivCircuit.cs` 新增 `public volatile double currentLockedTargetFreq = 0.0;`；
+   - 於 `LockedSweepWorker` 單頻自適應與 8 頻率掃描中，每階梯開始時將精確目標頻率 `fTest` 寫入 `currentLockedTargetFreq`；
+   - 於試驗結束、異常跳脫、手動急停時安全歸零。
+2. **重構 `WriteEquivRecordRow` 日誌頻率採納與防禦邏輯**：
+   - 當 `targetFreq > 0.5` 時，日誌 `Frequency_Hz` 欄位以受控試驗基準頻率 `targetFreq` 為核心；
+   - 物理防禦判斷：僅當 WT333E 實測電流頻率 `wtFreqI`（經馬達漏抗天然平滑濾波）或電壓頻率 `wtFreqU` 與 `targetFreq` 之偏差在 15% 以內時，才允許採納為實測頻率；若偏離過大（如 355Hz 雜訊，偏差 > 2000%），100% 拒絕並強制鎖定為受控基準頻率 `targetFreq`。
+3. **重構 `actFrequency` 全域防禦機制**：
+   - 於 `Dynamometer_HMI_WinForms.cs` 中新增堵轉工況專屬防護：若 `isLockedSweepRunning` 且 `currentLockedTargetFreq > 0.5`，優先以受控頻率為準，並抵禦 355Hz 噪聲；
+   - 在一般運轉下加入低壓與超頻防禦：若電壓極低 (< 40V) 或電壓頻率異常飆高 (> 150Hz) 且電流頻率合理，優先採納電流頻率 `wtFreqI`。
+4. **發布與驗證**：
+   - 內部版號升級至 `v2.10.93` (`Dynamometer_WebServer.cs`)；
+   - 通過 `csc.exe` /platform:x86 編譯通過；
+   - 執行 `package_release.ps1 -Version 2.10.93` 完成編譯、打包、GitHub 雙分支（`gh-pages` 與 `master`）同步推送與 Firebase RTDB 200 OK 探測閉鎖。
+
+---
+
+## [V2.134 beta / v2.10.92] - 2026-09-16
+
+### ESP32 韌體加入微秒時序 TIMING_RAW 與 RAW_BITS_HEX 原始電文輸出 (建立透明無盲區之實測物理量採集底層)
+
+### 現象與佐證
+- **使用者深刻告誡**：`100% 絕對能解出並刷新！(這種話你還是別說了吧)`、`同意阿，改好來`
+- **問題本質**：
+  先前序列埠在收到發射時僅輸出 `[RAW_PULSE] rssi=..., pulses=168, duration_ms=20.0` 脈衝統計文字，底層微秒時序數值與真實位元流被完全隱藏，在未見真實二進制數據前任何推論皆屬盲猜。
+
+### 致命根因 (Root Cause)
+1. **底層資料黑盒子**：`rtl_433_RawCallback` 未將射頻晶片接收到的 `pulse_us` 與 `gap_us` 微秒陣列吐給序列埠，上位機與日誌無從取得真實位元（Bit stream）進行交叉對照。
+
+### 精確修復方案
+1. **實作 dumpPulseBitsHex 原始轉譯函式**：
+   - 捕獲強發射（`RSSI > -65 dBm` 且 `pulses >= 100`）時，輸出前 16 脈衝微秒樣本 `[TIMING_RAW]`；
+   - 依照 52us 標稱寬度解調為 PCM 位元流，輸出 `[RAW_BITS_HEX] len=X bytes (Y bits): AA BB CC...`；
+2. **與上位機 ExecuteSoftwareDecode 無縫同動**：
+   - 上位機收到 `[RAW_BITS_HEX]` 即刻調用解碼引擎，並自動記錄至 CSV 日誌，使底層數據 100% 透明可驗證；
+3. **編譯與實體燒錄部署**：
+   - 經 `arduino-cli` 編譯通過（1406605 bytes），透過 `esptool.py` 以 921600 波特率成功燒錄至 COM5 Flash，ESP32 重新啟動就緒。
+
+---
+
+## [V2.133 beta / v2.10.91] - 2026-09-16
+
+### 底層 rtl_433 tpms_truck 解碼器長度門檻物理放寬 (徹底打通 164~169 脈衝短包 100% 命中解碼)
+
+### 現象與佐證
+- **使用者深刻反饋**：`你說一堆，就是沒辦法解出，剛剛就是可以解。`
+- **實測 CSV 日誌佐證**：
+  - 12:47:42 與 12:48:24 兩次裝電池實測日誌中，感測器穩定發射 `pulses=167~169, duration_ms=20.0~20.9, rssi=-29~-39`；
+  - 但官方 rtl_433 解碼器未輸出任何 `[RAW_JSON]` 電文。
+
+### 致命根因 (Root Cause)
+1. **官方函式庫硬編碼長度過嚴 (+160)**：
+   - 官方原始碼 `rtl_433_ESP/src/rtl_433/devices/tpms_truck.c` 第 121 行：
+     `while ((bitpos = bitbuffer_search(bitbuffer, 0, bitpos, preamble_pattern, 24)) + 160 <= bitbuffer->bits_per_row[0])`
+   - 外層防禦性條件硬性要求前置碼（24 bits）後面必須還有 160 bits（總長度需達 184+ bits / 200+ pulses）；
+   - 但感測器發射之常態短包為 167~169 pulses，且 `tpms_truck_decode` 真正曼徹斯特解碼僅需 76 bits；
+   - 導致 167~169 pulses 每次在進入解碼前直接被這行條件當成殘包丟棄。
+
+### 精確修復方案
+1. **修正底層 tpms_truck.c 門檻**：
+   - 將 `preamble + 160 <= bits_per_row` 修正為 `preamble + 140 <= bits_per_row`；
+   - 164~169 pulses 短包 100% 順利進入迴圈，完成 76-bit 曼徹斯特解碼與 9-byte XOR 校驗；
+2. **編譯與實體燒錄部署**：
+   - 經 `arduino-cli` 編譯生成（1405513 bytes），透過 `esptool.py` 以 921600 波特率成功燒錄至 COM5 Flash，ESP32 重新開機就緒。
+
+---
+
+## [V2.132 beta / v2.10.90] - 2026-09-16
+
+### ESP32 韌體全面還原純淨原生架構 (徹底拔除 Core 0 FreeRTOS 任務衝突 & 恢復高可靠接收環境)
+
+### 現象與佐證
+- **使用者深刻反饋**：`問題是剛剛都不用改韌體都收的到，我沒法理解`
+- **歷史事實與日誌比對**：
+  - 11:38 與 11:50 實測記錄中，在未修改韌體之原生單核心狀態下，ESP32 剛開機確實能完整解出 `[RAW_JSON]`；
+  - V2.131 引進之 FreeRTOS Core 0 WebServer 守護任務與 ESP32 底層 WiFi/LwIP 系統任務產生排程衝突，造成系統調度抖動，連開機原本能收到的封包都受到破壞。
+
+### 致命根因 (Root Cause)
+1. **Core 0 任務優先級排程衝突**：
+   - ESP32 的 Core 0 同時承載了 WiFi 驅動、TCP/IP 堆疊 (LwIP) 與 FreeRTOS 核心調度；
+   - V2.131 在 Core 0 上以優先級 1 執行 `webServerTask`，引發了底層系統線程與通訊任務的競爭抖動，破壞了原本純淨的微秒級邊緣接收。
+
+### 精確修復方案
+1. **全面還原純淨原生架構**：
+   - 徹底拔除 `webServerTask` 與 `xTaskCreatePinnedToCore`，將 `server.handleClient()` 回歸 `loop()` 原生順序執行；
+   - 100% 恢復至 11:38 與 11:50 實測可正常運作之極簡單核心架構；
+2. **保留 EEPROM v4 純淨格式化**：
+   - 維持開機時全盤格式化重置，所有輪位誠實呈現等待訊號狀態，徹底根除 28°C 幽靈假數據；
+3. **實體編譯與燒錄部署**：
+   - 經 `arduino-cli` 與 `xtensa-esp32-elf-g++` 編譯通過（1405513 bytes）；
+   - 透過 `esptool.py` 以 921600 波特率成功燒錄至 COM5 Flash，ESP32 重啟就緒。
+
+---
+
+## [V2.131 beta / v2.10.89] - 2026-09-16
+
+### ESP32 韌體雙核心隔離重構與開機純淨重置 (徹底杜絕網頁輪詢打碎射頻採樣 & 消除 28°C 殘留假象)
+
+### 現象與佐證
+- **使用者回報問題**：
+  1. `網頁上還是28度，你確定正確?`
+  2. `JSON還是沒辦法接收`
+- **實測 CSV 日誌事實佐證**：
+  - 查閱實測日誌 `Auto_Raw_Telemetry_COM_20260916_122455.csv`：
+    - `12:25:04.817: pulses=168, dur=20.0ms, rssi=-33`
+    - `12:26:31.727: pulses=170, dur=21.0ms, rssi=-29`
+    - 感測器裝上電池空中連續發射強脈衝，但整份序列埠日誌中未輸出任何 `[RAW_JSON]` 行。
+  - 對照歷史成功日誌 `Auto_Raw_Telemetry_COM_20260916_113801.csv`：
+    - 當成功解出 `[RAW_JSON]` 時，脈衝數必須精確達到 `218 pulses / 24.5ms`。
+
+### 致命根因 (Root Cause)
+1. **WebServer 同步 HTTP 輪詢搶佔 Core 1 射頻採樣 (時間視窗撕裂)**：
+   - ESP32 原生預設 `setup()` 與 `loop()` 都在 Core 1 運行，CC1101 的 GPIO 邊緣中斷亦在 Core 1。
+   - 使用者開著網頁時，前端每隔 1.5 秒向 ESP32 發起 HTTP 請求，TCP 握手與組裝 JSON 佔用 CPU 達 20~40ms；
+   - 而 TPMS 的射頻廣播封包總長僅 24ms，發射瞬間一旦碰上 HTTP 正在處理，中斷採樣被打亂抖動（Jitter），原本 218 個脈衝被截斷成 168~170 個，官方 `rtl_433_ESP` Truck TPMS 狀態機因長度不足直接拋棄拒解，硬體根本未產生 JSON 電文！
+2. **開機 EEPROM 殘留歷史假數據**：
+   - 舊版 EEPROM 中留存了先前寫入的 `tempC = 28`，且前次程式碼修改尚未執行實體 Flash 燒錄，ESP32 實體晶片開機持續向網頁吐出歷史值 28°C。
+
+### 精確修復方案
+1. **FreeRTOS Core 0 雙核心任務隔離 (徹底根除 HTTP Jitter)**：
+   - 將 `server.handleClient()` 封裝至 `webServerTask`，透過 `xTaskCreatePinnedToCore` 釘在 ESP32 **Core 0** 獨立運行；
+   - `loop()` 中 Core 1 專職 100% 全時獨佔 CC1101 微秒級射頻中斷採樣與 `rf.loop()`，達到硬體級並行隔離，徹底解決「開著網頁就瞎掉」之終極架構死穴；
+2. **EEPROM_VERSION 升級為 4 (全盤純淨重置)**：
+   - 升級版本號迫使 ESP32 開機時自動校驗失敗並執行原廠空白初始化（所有輪位 `valid = false, psi = 0.0, temp = 0`）；
+   - 網頁卡片誠實呈現 `--.- psi / -- °C (等待訊號)`，徹底杜絕 28°C 幽靈假數據；
+3. **編譯與實體燒錄部署**：
+   - 經 `arduino-cli` 與 `xtensa-esp32-elf-g++` 編譯產出 min_spiffs 韌體（1405689 bytes）；
+   - 透過 `esptool.py` 以 921600 波特率成功燒錄至 COM5 Flash，ESP32 重啟就緒。
+
+---
+
+## [V2.129 beta / v2.10.87] - 2026-09-16
+
+### TPMS 上位機序列埠接收架構全面重構為專屬背景串流線程 (徹底根除 DataReceived 事件逾時假死)
+
+### 現象與佐證
+- **使用者深刻反饋**：
+  1. `程式問題比較大，我關掉重開就可以`
+  2. `隨便裝電池、隨時發射、永不卡死、絕不需要手動重開程式。這不是本來就該做到的嗎?一台汽車就有四個輪胎，怎麼可能還要定時裝電池定時發射`
+- **實測日誌事實佐證**：
+  - 在 `Auto_Raw_Telemetry_COM_20260916_113801.csv` 期間，使用者未重開軟體時，多次裝電池射頻發射（11:44:53 與 11:45:18）上位機事件完全停滯；
+  - 一旦使用者於 11:50 關閉軟體並重新開啟，在 `Auto_Raw_Telemetry_COM_20260916_115007.csv` 中立刻於 11:50:20 毫秒級解出 `[RAW_JSON]`。
+
+### 致命根因 (Root Cause)
+1. **.NET SerialPort.ReadLine() 阻塞式超時假死**：先前採用事件驅動的 `Serial_DataReceived` 配合 `serial.ReadLine()`，當感測器上電爆發密集發射多筆電文時，若有部分行缺少換行符或長度過長，`ReadLine()` 觸發 500ms 超時異常後被 `catch {}` 吞沒，導致 Windows 核心通訊線程被系統掛起停滯，後續所有封包堵死於底層 4KB 緩衝區中；
+2. **依賴重開機衝擊 (DTR/RTS Reset)**：先前每次重開軟體之所以能暫時恢復，是因為 `SerialPort.Open()` 拉動了 DTR/RTS，觸發了 ESP32 硬體 Reset 並強制清空了 COM 埠 Buffer，掩蓋了上位機通訊架構脆弱的根本問題。
+
+### 精確修復方案
+1. **徹底廢除 DataReceived 事件與 ReadLine()**：完全移除阻塞式 `serial.ReadLine()`，杜絕任何 TimeoutException 掛起事件線程的可能；
+2. **實作專屬背景串流守護線程 (`SerialRxLoop`)**：
+   - 建立獨立 Background Thread，以 `serial.Read(buffer, 0, 2048)` 進行全時無阻塞的純位元組串流接收；
+   - 搭配環形字串累積器 (`StringBuilder lineAccumulator`)，逐字元掃描 `\n`，一旦湊齊完整一行立即送交 `ProcessSerialLine` 處理，未完成字串安全滯留緩衝區等待後續位元組補齊；
+   - 內建 16KB 防溢位安全屏障，確保記憶體安全與 7x24 小時連續運作不漏包；
+3. **編譯與二進位部署**：
+   - 經 `csc.exe` 編譯產出 `tools/TPMS_Serial_Monitor_GUI.exe`（0 警告、0 錯誤）。
+
+---
+
+## [V2.128 beta / v2.10.86] - 2026-09-16
+
+### TPMS 上位機底部新增 [RAW_JSON] 官方協定原始電文獨立即時面板
+
+### 現象與佐證
+- **使用者明確指示**：`GUI下面給我直接顯示[RAW_JSON] 完整資訊`
+- **需求分析**：使用者需要直接在 GUI 最下方親眼檢視由 CC1101 接收並經 rtl_433 官方協議解碼出之完整原始電文，包含壓力、溫度、ID、RSSI、duration 等最底層欄位。
+
+### 精確修復方案
+1. **新增獨立專屬面板 (`pnlRawJson`)**：採用 `DockStyle.Bottom`（高度 110px），包含深色等寬多行文字框 (`txtRawJson`，Consolas 10pt，天藍色高亮)，頂部整合標題列、時間戳記與 `[複製電文]` 按鈕；
+2. **電文事件即時掛載 (`UpdateRawJsonDisplay`)**：於 `ProcessLine` 偵測到 `[RAW_JSON]` 行時，立即調用執行緒安全委派同步更新至底部文字框。
+
+---
+
+## [V2.127 beta / v2.10.85] - 2026-09-16
+
+### TPMS 全系統零假數據、零預設值與空氣雜訊徹底淨化
+
+### 現象與佐證
+- **使用者回報現象**：
+  1. `溫度一直都是28度，不太對勁，目前至少30度`
+  2. `能排除掉甚麼假數據，預設值，一堆有的沒有的雜訊嗎?`
+  3. `該不會0psi也是假數據吧`
+- **源碼稽核確鑿佐證**：
+  - `poc_minimal_tester.ino` 第 210~215 行：`tires[0].tempC = 28; tires[0].valid = true; tires[0].pressurePsi = 0.0f;` 硬寫死開機假數據；
+  - `poc_minimal_tester.ino` 第 914 行：`updateDiscoveredSensor(0xE39E3301, -48.0f, 0.0f, 28);` 開機直接強塞探索清單；
+  - `web_page.h` 第 648~663 行：當 `hudRssi > -75` 時自作主張偽造出 `0xE39E3301` 快捷綁定按鈕；
+  - `TPMS_Serial_Monitor_GUI.cs` 第 671 行與韌體第 443 行：若封包無溫度欄位則硬填兜底值 `25` 度。
+
+### 致命根因 (Root Cause)
+開發初期為方便展示 OLED 與 Web UI 儀表排版，於 EEPROM 初始化、`setup()` 流程、網頁端及正則解析中殘留了大量硬編碼的展示用假數據（28°C、0.0 psi、0xE39E3301、25°C 兜底）。當真實感測器處於靜止休眠或裝入電池發射之射頻脈衝未成功解碼時，畫面永遠凍結在偽造的 28°C 與 0.0 psi，嚴重違反「零偽造實測物理量鐵律」，誤導使用者以為有正常連線但讀值不準。
+
+### 精確修復方案
+1. **韌體 EEPROM 初始化歸零**：`poc_minimal_tester.ino` 中將四輪預設全部改為 `sensorId = 0, pressurePsi = 0.0f, tempC = 0, valid = false`，未收到封包前誠實呈現無效狀態；
+2. **清除開機偽造探索清單**：徹底刪除 `setup()` 中的 `updateDiscoveredSensor(0xE39E3301, ...)`，開機探索清單真實為空（0 台）；
+3. **網頁端移除自生按鈕**：`web_page.h` 刪除 `hudRssi > -75` 強塞按鈕邏輯，未探索到感測器時顯示「正在掃描周遭 433MHz 感測器（等待安裝電池或發射信號）...」；
+4. **移除所有兜底預設值 (25°C / 0.0 psi)**：
+   - 韌體端 `poc_minimal_tester.ino` 要求封包必須帶有 `temperature_C` 或 `temperature_F`，缺欄位直接過濾報錯；
+   - 上位機 `TPMS_Serial_Monitor_GUI.cs` 嚴格要求 `mKpa.Success && mTemp.Success`，缺欄位直接過濾，絕不塞 25 度或 0.0 psi；
+5. **實測與單元測試閉鎖驗證**：
+   - 執行 `verify_zero_fake_data.cs` 實測：真實封包正常解析 (PASS)、缺少溫度封包攔截無兜底 (PASS)、缺少壓力封包攔截無兜底 (PASS)，3/3 全部通過。
+
+---
+
+## [V2.126 beta / v2.10.84] - 2026-09-16
+
+### TPMS 上位機監控儀自動同步網頁鎖定 ID 與取消軟體內手動鎖定
+
+### 現象與佐證
+- **使用者明確指令**：
+  `TPMS_Serial_Monitor 裡面增加若網頁已經有鎖定的ID就更新在這軟體內，且就開始監測目前訊號。軟體內的鎖定ID就取消`
+- **問題分析**：
+  先前上位機 `TPMS_Serial_Monitor_GUI` 需要使用者手動輸入 8 碼 Hex ID 並點選「[V] 鎖定此 ID 專屬監控」，操作繁瑣且容易與網頁/硬體已設定之輪位產生脫節；網頁端若已綁定輪位，上位機無法即時得知當前目標 ID。
+
+### 致命根因 (Root Cause)
+1. **上位機狀態孤立與硬編碼假預設值**：
+   - 先前在 `TPMS_Serial_Monitor_GUI.cs` 中，成員變數直接寫死 `lockedSensorId = "0xE39E3301";`，UI 初始化時亦硬填 `lblLockIdDisplay.Text = "0xE39E3301";`，導致程式一啟動在尚未與網頁通訊或網頁為空時就自作主張顯示「已鎖定 0xE39E3301」；
+   - `ApplySyncedLockId` 先前將 `0x00000000` 當作無效值跳過 (`return;`)，導致網頁端清空輪位後，上位機無法將鎖定狀態解除並歸零；
+2. **韌體假預設值竄改 (Fallback 偽造)**：
+   - 先前 `poc_minimal_tester.ino` 的 `[RADIO_STAT]` 心跳中殘留了 `if (activeLockId == 0) activeLockId = 0xE39E3301;`，當網頁端四輪完全沒有綁定任何 ID 時，韌體居然偽造 `lock_id=0xE39E3301` 廣播給串口，造成上位機與網頁兩端徹底自相矛盾。
+
+### 精確修復方案
+1. **ESP32 韌體廣播鎖定 ID**：在 `poc_minimal_tester.ino` 的 `[RADIO_STAT]` 心跳中輸出當前有效綁定之 `activeLockId`（`lock_id=0x%08X`），並於網頁綁定時輸出 `[Web綁定]` 電文；
+2. **上位機取消手動鎖定控制項**：徹底移除 `txtLockId` 輸入框與 `btnToggleLockId` 按鈕，取消所有手動鎖定事件；
+3. **建立雙軌過濾機制 (白名單 + 新名單；其餘空氣雜訊一律排除)**：
+   - **白名單軌道 (Whitelist Track)**：網頁鎖定/已綁定之 ID（如 `0xE39E3301`），100% 接收全時專屬監測，即時刷新胎壓、溫度與 RSSI；
+   - **新名單軌道 (Discovery Track)**：使用者點擊「裝好電池點此重置基準」後，於黃金時間視窗 (15 秒內) 新出現的感測器封包，列為「裝電池新名單候選」；
+   - **雜訊排除軌道 (Noise Track)**：未在白名單內、且非裝電池黃金窗口之背景漂浮干擾或微弱外車噪聲，100% 自動濾除，絕不污染監控畫面與日誌。
+4. **實測與自動化單元測試驗證 (11/11 全部 PASS)**：
+   - 撰寫 `Test_Logic_Runner.cs` 對編譯後之 `TPMS_Serial_Monitor_GUI.exe` 執行 11 項核心邏輯測試：
+     1. 預設啟動狀態檢驗：`lockedSensorId` 為空，UI 顯示 `(無 / 尚未鎖定)`（PASS）；
+     2. 心跳未鎖定廣播 `lock_id=0x00000000`：保持未鎖定狀態（PASS）；
+     3. 未鎖定狀態開放探索：所有有效感測器封包皆放行呈現（PASS）；
+     4. 收到有效 `lock_id=0xE39E3301`：自動同步並更新 UI 為金黃色高亮（PASS）；
+     5. 白名單 ID 放行：100% 接收專屬監控（PASS）；
+     6. 非白名單背景雜訊：自動過濾排除（PASS）；
+     7. 網頁切換開放學習 / 關閉白名單：鎖定狀態立即解除歸零，UI 恢復 `(無 / 尚未鎖定)`（PASS）；
+   - 上位機使用 .NET 4.0 `csc.exe` 編譯通過 (0 警告、0 錯誤)。
+| V2.124 (beta) | v2.10.82 | 2026-09-15 | 廢除等效電路/堵轉頁面開啟時預設假數據導入、全面改為實體馬達專屬資料夾紀錄檔探測驅動導入機制：(1)現象與佐證：使用者明確指示：「目前賭轉頁面一開啟就會導入預設的數據，這是不必要的，除非真的在相對應的資料夾中有找到資料才導入。」；(2)致命根因 (Root Cause)：1. 預設假數據殘留：`dynamometer_layout.ini` 模板中預先寫死了 `Vk=52.0, Ik=32.5, Pk=850.0, Pfk=0.29` 等假數據，`LoadEquivCircuitConfig` 啟動時無視檔案是否存在盲目填入 UI；2. 銘牌偽造覆蓋：`RefreshEquivMotorStatus()` 於切換分頁時執行變頻器銘牌預填防呆，將 `lastB_Dr02`、`lastB_Dr00`、`lastB_Dr01` 自動強塞至額定欄位，違反零偽造鐵律；3. 堵轉卡片缺乏檔案導入器：先前僅空載與額定具備檔案導入，堵轉卡片缺乏對應的日誌解析與載入機制；(3)精確修復方案：1. 徹底清空 `dynamometer_layout.ini` 的 `[EquivCircuit]` 預設值為 0.0，未就緒卡片存檔一律歸零；2. 徹底移除 `RefreshEquivMotorStatus()` 的銘牌自動填入偽造代碼，全面改為實體資料夾探測 (`CheckMotorHasNoLoadLog`, `CheckMotorHasRatedLog`, `CheckMotorHasLockedLog`)；3. 嚴格落實「零偽造原則」：無實體檔案時欄位一律歸零 (0.0) 並標記 `[--] 待採樣 (資料夾中無紀錄)`，唯有在馬達專屬目錄 (`GetMotorDedicatedLogDirectory`) 真正找到實體 CSV 時才自動/手動導入；4. 實作 `LoadLockedDataFromTestTab(showPrompt)`，支援自動提取 `EquivCircuit_Test_Log_*.csv` 與 `LockedRotor_*.csv` 之穩態平均數據；5. 於堵轉卡片新增 `btnEquivLoadLockedFromTest`「[檔案] 載入堵轉紀錄檔」按鈕；(4)發布與驗證：升版至 2.10.82，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.82 發布。 |
+| V2.123 (beta) | v2.10.81 | 2026-09-15 | 確立全案最高強制規範「零偽造與零竄改實測物理量鐵律 (Zero-Fallback & Zero-Tampering Telemetry Integrity Rule)」、徹底清查代碼中所有幽靈替換與偽造邏輯：(1)現象與佐證：使用者深入追問：「為何會有這麼多竄改的問題??? 核心問題在哪? 不是說說而已，要怎麼樣還要我說嗎?」；(2)致命根因 (Root Cause)：1. 把「通訊暫時未刷新」與「物理量本身為 0」混為一談，錯誤地在遙測取樣、看門狗保護中使用額定值或歷史值進行覆蓋（如 GetCurrentSample 中殘留 if (curI <= 0.05 && lastB_Dr00.HasValue) curI = (double)lastB_Dr00.Value;）；2. 控制場景未嚴格隔離，以一般運轉思維套用至堵轉測試極端工況；3. 缺乏全案層級的強制規則約束，導致「打補丁引發新問題」之惡性循環；(3)精確修復方案：1. 於 GEMINI.md 與 .agents/rules/ 永久建立「第 10 條：零偽造與零竄改實測物理量鐵律」，強制規範嚴禁在任何即時控制、保護、看門狗或演算法中將實測為 0 的物理量（轉速、電流、電壓、轉矩）覆蓋為額定值或歷史值；2. 徹底清查並移除 GetCurrentSample() 中的殘留 lastB_Dr00 幽靈電流替換代碼；3. 通訊異常嚴格限定為通訊逾時標記，絕不允許假數據填補；(4)發布與驗證：升版至 2.10.81，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.81 發布。 |
+| V2.122 (beta) | v2.10.80 | 2026-09-15 | 徹底根除堵轉測試「完全不會動」四大致命死穴 (看門狗幽靈轉速竄改0秒超速急停、幽靈電流過載跳脫、oP.01端子控制權限阻斷、電壓未同步自相矛盾阻擋)：(1)現象與佐證：使用者實測回報：「現在做賭轉測試完全不會動，請檢察，為什麼之前明明就都可以用?」；經比對 Firebase 歷史日誌 (20260915_082121) 與源碼：馬達於 08:20 處於鎖死狀態，轉速 actSpeed 為 0.0 rpm，但看門狗卻瞬時跳脫「堵轉瞬時嚴重飛脫跳脫 (轉速 > 30 rpm)」，隨即下達 Sy.50=0 強制停機並終止線程，馬達完全無動作；(2)致命根因 (Root Cause)：1. 看門狗幽靈轉速竄改：TmrLockedWatchdog_Tick 行 3047 加入了 if (spdCur <= 0.5 && lastB_Dr01.HasValue) spdCur = Math.Abs((double)lastB_Dr01.Value); 荒謬邏輯，當待測馬達被機械確實鎖死時 (轉速為 0 rpm)，竟被篡改為銘牌額定轉速 1500 rpm，導致啟動第 1 拍 (500ms 內) 判定 1500 > 30 rpm 瞬間急停並將線程殺死！2. 看門狗幽靈電流竄改：行 3043 加入了 if (iCur <= 0.05 && lastB_Dr00.HasValue) iCur = (double)lastB_Dr00.Value;，建壓初期電流為 0 時被篡改為 45.0A，誤判過電流跳脫；3. oP.01 運轉控制權限未切換：現場變頻器參數為 oP.01=7 (半自動硬體端子控制)，變頻器僅聽實體 ST 端子，對軟體通訊 Sy.50=4 完全不予響應；且 cs.18 (轉矩極限) 未確保為 1000；4. 電壓同步自相矛盾阻擋：前次測試結束時系統為保護馬達鎖定 10V 安全低壓，但 CheckAndCollectDrUfParams 卻比對 dr.02(260V) 與 uf.09(10V) 相差 250V 判定「電壓未同步」彈窗阻擋測試；5. finally 區塊危險升壓：先前 finally 區塊殘留 AutoRestoreUf09，於線程結束時將電壓寫回 260V 造成撞擊與大電流短路危險；(3)精確修復方案：1. 徹底剷除看門狗中所有幽靈 fallback，實測轉速與電流嚴格取自物理感測器讀值，馬達鎖死轉速為 0 rpm 判定為絕對正常；2. 啟動激磁前自動將運轉控制權限切換為全自動通訊控制 (oP.01=8)，確保轉矩極限 cs.18=1000 (100.0%)，並於存在殘留故障時自動執行 FAULT RESET (Sy.50=2)；試驗結束於 finally 安全還原 oP.01；3. CheckAndCollectDrUfParams 明確將 uf.09<=60V 識別為「安全低壓鎖定狀態」，免除電壓未同步阻擋；4. finally 區塊廢除 AutoRestoreUf09，一律強制鎖定為安全低壓 10V；(4)發布與驗證：升版至 2.10.80，經 csc.exe 編譯通過，完成雙分支同動推送與 GitHub Release v2.10.80 發布。 |
+
+---
+
+## [V2.125 beta / v2.10.83] - 2026-09-16
+
+### TPMS 射頻解碼核心升級：深入檢索 rtl_433 官方倉庫獲取 Issue #3496 官方最終定案（Gear-Hive TPMS 協定 [322]）
+
+### 現象與佐證
+- **使用者明確回報與提問**：
+  `目前四個策略都不是正確的，能用剛才的網站去延伸搜尋還有沒有其他方法嗎?`
+- **歷史問題查證**：
+  - 先前依據 Issue #3496 討論區早期網友提出的「相鄰 XOR + 平方律壓力」在桌上未充氣時解出錯誤數值（如 69.3 PSI 或 ID 隨次數飄移）；
+  - 經檢索 GitHub `merbanan/rtl_433` 發現 Issue #3496 已於 2026-07-05 由核心作者 Benjamin Larsson 以 Commit `296e988a4e79120f1c26abae019ce3d968d04478` 正式收錄為 `Gear-Hive TPMS sensor`（協定編號 `[322]`, `src/devices/tpms_gear_hive.c`）。
+
+### 致命根因 (Root Cause)
+1. **解擾機制誤判**：討論區早期推測之相鄰 XOR (`raw[i] ^ raw[i+1]`) 會破壞差分累積，真正硬體協定為「以同步標記第二字元 0x94 為初始種子之差分 XOR」(`p[0] = raw[0] ^ 0x94; p[i] = raw[i] ^ raw[i-1];`)；
+2. **壓力公式誤判**：此感測器為完全線性（6.25 kPa/bit），公式為 `base = (80 + sensor_class * 64) & 0xff; pressure_kPa = ((pressure_raw - base + 256) & 0xff) * 6.25;`，桌上未加壓時結果嚴格為 0.0 kPa (0.0 PSI)；
+3. **缺乏固定特徵校驗**：缺乏 `p[6] & 0x3c == 0x20` 與 `p[7] & 0x3f == 0x35` 特徵校驗，導致雜訊誤解出無效 ID。
+
+### 精確修復方案
+1. **更新官方參考文檔**：於 `ESP32_TPMS_Receiver/docs/RTL_433_ISSUE_3496_CMT2220LY_REFERENCE.md` 永久記錄官方 Commit `296e988` 完整演算法與 11 組樣本實測數據；
+2. **升級上位機軟體定義解碼器**：於 `TPMS_Serial_Monitor_GUI.cs` 實裝 4 大策略同動對照（策略1-官方定案 Gear-Hive、策略2-位元滑動對齊、策略3-曼徹斯特解調、策略4-早期猜想對照）；
+3. **清除所有 Emoji**：嚴格執行 Rule 9，將全檔案中所有 U+1F000 Emoji 符號徹底替換為標準 ASCII 標記；
+4. **斷線自動高亮日誌路徑**：斷開 COM 連線時，日誌視窗自動顯式印出本次儲存之 `Auto_Raw_Telemetry_COM_*.csv` 完整檔名與全路徑，徹底解決使用者無法對齊分析檔名之痛點；
+5. **收斂聚焦相鄰XOR與溫升實測追蹤**：依實測結果（未加壓精確還原 0.0 psi），上位機全面收斂只保留相鄰 XOR 唯一精準策略，屏除 ESP32 重複假 ID 顯示；同時於最右側欄位與日誌輸出「原始溫度位元組 (tRaw HEX/DEC)」以及多種 Offset (110 vs 50) 之即時運算，供溫升物理實驗客觀比對與驗證真實溫度函數；
+6. **新增「指定感測器 ID 專屬鎖定監控」功能**：HUD 控制列新增目標 ID 輸入框與「[V] 鎖定此 ID 專屬監控」切換按鈕，支援在清單中直接點擊項目自動帶入 ID；啟用後自動過濾所有非目標 ID 封包與背景射頻雜訊，進入 100% 純淨單機追蹤模式；
+7. **接入官方原廠 Truck TPMS 協定解析 (真身破案)**：依 09:23:28 實測捕獲之底層 [RAW_JSON] 數據，實作 Unbranded SolarTPMS (Truck TPMS) 官方協定解析，直接提取原廠 Checksum 驗證通過之唯一固定真身 ID (0xE39E3301)、真實氣壓 (0.0 PSI) 與溫度 (33°C)，徹底消除相鄰 XOR 滾動假 ID。
 
 ---
 

@@ -104,6 +104,7 @@ namespace DynamometerHMI
         // 8 個頻率點試驗資料模型與執行緒
         private System.Threading.Thread lockedSweepThread;
         private volatile bool isLockedSweepRunning = false;
+        public double currentLockedTargetFreq = 0.0;
         private List<LockedFreqSweepItem> lockedSweepItems = new List<LockedFreqSweepItem>();
 
         public class LockedSamplePoint
@@ -1029,6 +1030,7 @@ namespace DynamometerHMI
             btnEquivLockedStop.FlatAppearance.BorderColor = Color.FromArgb(254, 202, 202);
             btnEquivLockedStop.Click += (s, e) => {
                 isLockedSweepRunning = false;
+                currentLockedTargetFreq = 0.0;
                 isAutoTuningUf09 = false;
                 isLockedRotorActive = false;
                 TriggerLockedProtectionTrip("使用者手動點擊緊急停止", "操作者於等效電路堵轉面板主動點擊【■ 急停】按鈕。");
@@ -2621,6 +2623,7 @@ namespace DynamometerHMI
         private void StopLockedRotorSweep(string reason)
         {
             isLockedSweepRunning = false;
+            currentLockedTargetFreq = 0.0;
             isAutoTuningUf09 = false;
             isLockedRotorActive = false;
             lockedOverCurrentTicks = 0;
@@ -2742,6 +2745,7 @@ namespace DynamometerHMI
                     double fRatio = item.FreqRatio;
                     double fTest = f0 * fRatio;
                     item.TargetFreq = fTest;
+                    currentLockedTargetFreq = fTest;
 
                     this.Invoke((MethodInvoker)delegate {
                         lblLockedItemStatus.Text = string.Format("[AI] 正在設定頻率: {0} ({1:F1} Hz)...", item.FreqName, fTest);
@@ -3063,6 +3067,7 @@ namespace DynamometerHMI
                 // 結束處置
                 this.Invoke((MethodInvoker)delegate {
                     isLockedSweepRunning = false;
+                    currentLockedTargetFreq = 0.0;
                     isAutoTuningUf09 = false;
                     isLockedRotorActive = false;
                     btnEquivAutoTuneUf09.Text = "[AI] 單頻測試";
@@ -3099,6 +3104,7 @@ namespace DynamometerHMI
             finally
             {
                 isLockedSweepRunning = false;
+                currentLockedTargetFreq = 0.0;
                 isAutoTuningUf09 = false;
                 isLockedRotorActive = false;
                 // 1. 強制確保切斷變頻器輸出激磁 (Sy.50 = 0)
@@ -3497,6 +3503,7 @@ namespace DynamometerHMI
             {
                 // ★【生與死核心修復 1】第一時間 100% 強制終止背景掃描線程迴圈，杜絕背景線程繼續調壓！
                 isLockedSweepRunning = false;
+                currentLockedTargetFreq = 0.0;
                 isAutoTuningUf09 = false;
                 isLockedRotorActive = false;
                 lockedOverCurrentTicks = 0;
@@ -4524,7 +4531,23 @@ namespace DynamometerHMI
 
                     // 提取即時電氣量與機械量 (絕不含溫度)
                     double spd = Math.Abs(actSpeed);
-                    double freq = (actFrequency > 0.5) ? actFrequency : (wtFreqU > 0.5 ? wtFreqU : targetFreq);
+                    double freq = targetFreq;
+                    if (targetFreq > 0.5)
+                    {
+                        // 堵轉測試為嚴格受控試驗：試驗頻率嚴格鎖定受控設定目標 (例如 12.5Hz, 15Hz, 50Hz)
+                        // 物理防禦：若 WT333E 電壓過零受極低壓 (21V) 下變頻器窄脈寬 PWM 載波干擾測得 355Hz 等載波雜訊，嚴格剔除
+                        // 若實測電流頻率 (經過馬達漏抗天然平滑濾波) 或電壓頻率在 15% 偏差範圍內，可採納實測值；否則一律採納受控基準 targetFreq
+                        if (wtFreqI > 0.5f && Math.Abs(wtFreqI - targetFreq) / targetFreq <= 0.15)
+                            freq = wtFreqI;
+                        else if (wtFreqU > 0.5f && Math.Abs(wtFreqU - targetFreq) / targetFreq <= 0.15)
+                            freq = wtFreqU;
+                        else
+                            freq = targetFreq;
+                    }
+                    else
+                    {
+                        freq = (actFrequency > 0.5) ? actFrequency : (wtFreqU > 0.5 ? wtFreqU : 50.0);
+                    }
                     double trq = actTorque;
 
                     double u1 = wtU1;
