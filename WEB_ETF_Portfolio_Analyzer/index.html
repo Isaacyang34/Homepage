@@ -1977,50 +1977,122 @@
       recalculate();
     }
 
+    function displaySearchResult(data, sourceNote = '') {
+      currentSearchResult = data;
+      const card = document.getElementById('searchResultCard');
+      card.style.display = 'flex';
+      card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:16px; font-weight:800; color:#fff;">${data.symbol || data.code} ${sourceNote ? `<span style="font-size:11px; color:var(--accent-cyan); font-weight:normal;">(${sourceNote})</span>` : ''}</span>
+          <span style="font-size:14px; font-weight:700; color:var(--accent-cyan);">NT$ ${data.price}</span>
+        </div>
+        <div style="font-size:12.5px; color:var(--text-muted);">${data.name}</div>
+        <div style="display:flex; gap:16px; font-size:12px; margin-top:4px; flex-wrap:wrap;">
+          <span>真實殖利率: <strong style="color:var(--accent-green);">${data.yield_pct}%</strong></span>
+          <span>近1年配息: <strong>NT$ ${data.annual_dividend} (${data.dividend_count || 1}次)</strong></span>
+          <span>週期: <strong>${data.frequency_desc || data.frequency}</strong></span>
+        </div>
+        <button class="btn-action" style="margin-top:8px; justify-content:center;" onclick="confirmAddSearchResult()">
+          ✔ 加入此標的至投資組合
+        </button>
+      `;
+    }
+
     // Execute Live Search for ANY user-typed ETF ticker
     async function executeLiveSearch() {
       const input = document.getElementById('liveSearchInput');
-      const code = input.value.trim().toUpperCase();
-      if (!code) return;
+      const rawCode = input.value.trim().toUpperCase();
+      if (!rawCode) return;
 
+      const code = rawCode.replace('.TW', '').trim();
       const card = document.getElementById('searchResultCard');
       card.style.display = 'flex';
-      card.innerHTML = `<div style="color:var(--accent-cyan); font-size:13px;">正在連線抓取 ${code} 即時報價與除息數據...</div>`;
+      card.innerHTML = `<div style="color:var(--accent-cyan); font-size:13px;">正在檢索 ${rawCode} 行情數據...</div>`;
 
+      // 1. 第一優先：檢索已載入之市場快取庫 (LIVE_ETF_DB)
+      let found = LIVE_ETF_DB[code] || LIVE_ETF_DB[rawCode] || LIVE_ETF_DB[code + '.TW'];
+      if (!found) {
+        const matchedKey = Object.keys(LIVE_ETF_DB).find(k => 
+          k.toUpperCase() === code || 
+          k.toUpperCase() === rawCode || 
+          (LIVE_ETF_DB[k].name && LIVE_ETF_DB[k].name.includes(rawCode))
+        );
+        if (matchedKey) found = LIVE_ETF_DB[matchedKey];
+      }
+
+      if (found) {
+        displaySearchResult(found, '即時市場資料庫匹配');
+        return;
+      }
+
+      // 2. 第二優先：若本機伺服器 server.py 正在運行，向後端發起即時線上爬蟲查詢
       try {
         const resp = await fetch(`/api/fetch?code=${encodeURIComponent(code)}`);
         if (resp.ok) {
           const resJson = await resp.json();
           if (resJson.status === 'success' && resJson.data) {
-            currentSearchResult = resJson.data;
             LIVE_ETF_DB[code] = resJson.data;
-            card.innerHTML = `
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-size:16px; font-weight:800; color:#fff;">${resJson.data.symbol}</span>
-                <span style="font-size:14px; font-weight:700; color:var(--accent-cyan);">NT$ ${resJson.data.price}</span>
-              </div>
-              <div style="font-size:12.5px; color:var(--text-muted);">${resJson.data.name}</div>
-              <div style="display:flex; gap:16px; font-size:12px; margin-top:4px;">
-                <span>真實殖利率: <strong style="color:var(--accent-green);">${resJson.data.yield_pct}%</strong></span>
-                <span>近1年配息: <strong>NT$ ${resJson.data.annual_dividend} (${resJson.data.dividend_count}次)</strong></span>
-                <span>週期: <strong>${resJson.data.frequency_desc}</strong></span>
-              </div>
-              <button class="btn-action" style="margin-top:8px; justify-content:center;" onclick="confirmAddSearchResult()">
-                ✔ 加入此標的至投資組合
-              </button>
-            `;
+            displaySearchResult(resJson.data, '本機爬蟲即時抓取');
             return;
           }
         }
       } catch (e) {
-        // Server not available
+        // server.py 未啟動或處於 GitHub Pages 純靜態環境
       }
 
+      // 3. 查無此標的：友善引導使用者選擇熱門標的或手動輸入參數
+      const isGitHubPages = window.location.hostname.includes('github.io');
       card.innerHTML = `
-        <div style="color:var(--accent-rose); font-size:13px;">
-          無法直接在線獲取 ${code}。請確保已執行 <code>server.py</code> 以啟用全市場代理查詢功能。
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div style="color:var(--accent-rose); font-size:13.5px; font-weight:700;">
+            查無 ${rawCode} 於內建行情庫中
+          </div>
+          <div style="font-size:12px; color:var(--text-muted); line-height:1.6;">
+            ${isGitHubPages 
+              ? `目前此網頁由 <strong>GitHub Pages 純靜態託管</strong>，已內建涵蓋 <strong>${Object.keys(LIVE_ETF_DB).length} 檔熱門主流 ETF</strong>（如 0050、0056、00878、00919、00940、00937B、00713、00915、00679B 等，可直接於下方點選加入）。<br>
+                 如需<strong>任意連網爬取其他冷門標的</strong>，請下載專案在本地執行 <code>run_studio.bat</code> 啟動本機 Python 爬蟲代理！`
+              : `請確保已在本機終端啟動 <code>server.py</code> 以啟用全市場任意代號即時爬蟲功能。`
+            }
+          </div>
+          <div style="display:flex; gap:8px; margin-top:4px;">
+            <button class="btn-action" style="font-size:12px; padding:6px 14px;" onclick="promptManualAddETF('${code}')">
+              ✎ 自訂手動輸入 ${code} 參數直接加入
+            </button>
+          </div>
         </div>
       `;
+    }
+
+    function promptManualAddETF(code) {
+      const priceStr = prompt(`請輸入 ${code} 的最新市價 (元，例如: 15.5):`, "15.0");
+      if (!priceStr) return;
+      const price = parseFloat(priceStr) || 15.0;
+      const yieldStr = prompt(`請輸入 ${code} 的預估年化殖利率 % (例如: 6.5 代表 6.5%):`, "6.0");
+      if (!yieldStr) return;
+      const yieldPct = parseFloat(yieldStr) || 6.0;
+      const freq = prompt(`配息頻率 (輸入 12 代表月配，4 代表季配，2 代表半年配):`, "12");
+      const fNum = parseInt(freq) || 12;
+
+      const customData = {
+        code: code,
+        symbol: code + '.TW',
+        name: code + ' (自訂標的)',
+        price: price,
+        annual_dividend: parseFloat((price * (yieldPct / 100)).toFixed(3)),
+        dividend_count: fNum,
+        yield_rate: yieldPct / 100,
+        yield_pct: yieldPct,
+        frequency: fNum === 12 ? 'monthly' : fNum === 4 ? 'quarterly' : 'semi-annual',
+        frequency_desc: fNum === 12 ? '月配息' : fNum === 4 ? '季配息' : '半年配',
+        payout_months: fNum === 12 ? [1,2,3,4,5,6,7,8,9,10,11,12] : fNum === 4 ? [3,6,9,12] : [1,7],
+        category: code.toUpperCase().endsWith('B') ? 'bond' : 'stock',
+        beta: 0.8,
+        mdd_1y: -0.15
+      };
+
+      LIVE_ETF_DB[code] = customData;
+      addETFByData(customData);
+      closeAddModal();
     }
 
     function confirmAddSearchResult() {
