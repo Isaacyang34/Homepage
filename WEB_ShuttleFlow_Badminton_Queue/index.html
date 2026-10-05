@@ -137,7 +137,8 @@
     // ==========================================
     const UserCard = React.memo(({ 
       user, isCoolingDown, timeString, isSelected, canMoveCard, operable, 
-      isMine, isUserMainAdmin, isUserSubAdmin, isAdmin, onSelect, onEdit, onTogglePayment, onRequestClaim 
+      isMine, isUserMainAdmin, isUserSubAdmin, isAdmin, hasControllableCard,
+      onSelect, onEdit, onTogglePayment, onRequestClaim 
     }) => {
       const touchTimer = useRef(null);
       const isLongPress = useRef(false);
@@ -179,7 +180,7 @@
           isLongPress.current = true;
           if (navigator.vibrate) navigator.vibrate(50);
           if (operable) onEdit(user);
-          else onRequestClaim(user);
+          else if (!hasControllableCard) onRequestClaim(user);
         }, 550); 
       };
 
@@ -199,7 +200,8 @@
         if (isLongPress.current) return; 
         if (canMoveCard) {
           onSelect(user.id);
-        } else if (!isMine && !isAdmin) {
+        } else if (!isMine && !isAdmin && !hasControllableCard) {
+          // 僅在此裝置無掌控任何名子時，點擊他人才彈出認領名子視窗
           onRequestClaim(user);
         }
       };
@@ -215,11 +217,11 @@
           onContextMenu={(e) => { 
             e.preventDefault(); 
             if (operable) onEdit(user); 
-            else onRequestClaim(user); 
+            else if (!hasControllableCard) onRequestClaim(user); 
           }}
           className={`no-select relative flex flex-col px-3 py-2 rounded-xl shadow-md border text-sm select-none transition-all duration-200 
             ${theme.bg} ${theme.border}
-            ${canMoveCard ? 'cursor-pointer hover:scale-105 hover:shadow-emerald-500/20 active:scale-95' : 'cursor-pointer opacity-90'} 
+            ${canMoveCard ? 'cursor-pointer hover:scale-105 hover:shadow-emerald-500/20 active:scale-95' : (!hasControllableCard ? 'cursor-pointer hover:scale-105 hover:ring-2 hover:ring-emerald-400/60' : 'cursor-default opacity-90')} 
             ${isSelected ? 'ring-4 ring-yellow-400 scale-110 z-20 shadow-2xl bg-slate-800' : ''}
             ${isCoolingDown ? 'ring-2 ring-yellow-500/80 bg-yellow-950/80' : ''}`}
         >
@@ -993,6 +995,7 @@
             isUserMainAdmin={isMainAdminCard} 
             isUserSubAdmin={isSubAdminCard}   
             isAdmin={isAdmin} 
+            hasControllableCard={hasMyCard || isAdmin}
             onSelect={setSelectedUserId} 
             onEdit={startEditUser} 
             onTogglePayment={togglePayment} 
