@@ -23,7 +23,7 @@ def open_browser():
 def main():
     print("=" * 65)
     print("  🏸 羽樂排 (ShuttleJoy) 羽球即時排隊與球局調度系統 v1.0")
-    print("  🏆 由 [羽球狂熱份子] 打造")
+    print("  🏆 ShuttleJoy v1.0 • Built by [羽球狂熱份子] using Gemini")
     print(f"  📌 本地服務網址: {URL}")
     print("=" * 65)
 
