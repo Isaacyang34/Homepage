@@ -1,0 +1,2748 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ETF 智能投資組合與獲利風險動態評估系統 (Live Market Engine)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg-dark: #0a0d14;
+      --bg-card: #121722;
+      --bg-card-hover: #171e2c;
+      --bg-glass: rgba(18, 23, 34, 0.85);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-focus: rgba(56, 189, 248, 0.4);
+      --text-main: #f1f5f9;
+      --text-muted: #8b9bb4;
+      --text-dim: #5c6b82;
+      
+      --accent-cyan: #38bdf8;
+      --accent-blue: #60a5fa;
+      --accent-green: #34d399;
+      --accent-emerald: #10b981;
+      --accent-purple: #a855f7;
+      --accent-orange: #fb923c;
+      --accent-rose: #f43f5e;
+      --accent-yellow: #fbbf24;
+
+      --card-radius: 16px;
+      --shadow-soft: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+      --shadow-glow: 0 0 25px rgba(56, 189, 248, 0.15);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 15% 10%, rgba(56, 189, 248, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 80%, rgba(52, 211, 153, 0.06) 0%, transparent 40%);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', 'Noto Sans TC', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      padding: 28px 24px 60px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1360px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 16px;
+      padding-bottom: 8px;
+    }
+
+    .header-title-box h1 {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .live-status-pill {
+      font-size: 11.5px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      background: rgba(52, 211, 153, 0.15);
+      color: var(--accent-green);
+      border: 1px solid rgba(52, 211, 153, 0.3);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      box-shadow: 0 0 6px var(--accent-green);
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.4; }
+      50% { opacity: 1; }
+      100% { opacity: 0.4; }
+    }
+
+    .header-title-box p {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    .header-right-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .preset-selector-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      padding: 6px 14px;
+      border-radius: 12px;
+      backdrop-filter: blur(12px);
+    }
+
+    .preset-selector-bar span {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    select.preset-select {
+      color-scheme: dark;
+      background: #141b29;
+      border: 1px solid var(--border-color);
+      color: #ffffff;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      outline: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    select.preset-select:hover,
+    select.preset-select:focus {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+    }
+
+    select.preset-select option {
+      background-color: #141b29 !important;
+      color: #f1f5f9 !important;
+      font-size: 13px !important;
+      padding: 8px 12px;
+    }
+
+    select.preset-select optgroup {
+      background-color: #0c111a !important;
+      color: var(--accent-cyan) !important;
+      font-weight: 700 !important;
+      font-size: 12px !important;
+      padding: 6px 8px;
+    }
+
+    .btn-sync-live {
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--accent-cyan);
+      padding: 8px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-sync-live:hover {
+      background: var(--accent-cyan);
+      color: #080d1a;
+    }
+
+    .btn-preset-tool {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-color);
+      color: #fff;
+      padding: 6px 11px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.2s;
+    }
+
+    .btn-preset-tool:hover {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+    }
+
+    .btn-preset-tool.primary {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: rgba(56, 189, 248, 0.4);
+      color: var(--accent-cyan);
+    }
+
+    .btn-preset-tool.primary:hover {
+      background: var(--accent-cyan);
+      color: #080d1a;
+    }
+
+    .btn-preset-tool.danger {
+      color: var(--accent-rose);
+      border-color: rgba(244, 63, 94, 0.3);
+    }
+
+    .btn-preset-tool.danger:hover {
+      background: rgba(244, 63, 94, 0.2);
+    }
+
+    .dirty-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(251, 146, 60, 0.15);
+      color: var(--accent-orange);
+      border: 1px solid rgba(251, 146, 60, 0.3);
+      animation: pulse 1.5s infinite;
+    }
+
+    /* KPI Summary Cards */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+
+    .kpi-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--card-radius);
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+      box-shadow: var(--shadow-soft);
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .kpi-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255, 255, 255, 0.16);
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+    }
+
+    .kpi-card.cyan::before { background: linear-gradient(90deg, var(--accent-cyan), transparent); }
+    .kpi-card.green::before { background: linear-gradient(90deg, var(--accent-green), transparent); }
+    .kpi-card.purple::before { background: linear-gradient(90deg, var(--accent-purple), transparent); }
+    .kpi-card.orange::before { background: linear-gradient(90deg, var(--accent-orange), transparent); }
+
+    .kpi-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 0.2px;
+    }
+
+    .kpi-value {
+      font-size: 26px;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+      color: #ffffff;
+      margin: 10px 0 6px 0;
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+    }
+
+    .kpi-value .unit {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .kpi-subtext {
+      font-size: 12.5px;
+      font-weight: 600;
+    }
+
+    .kpi-subtext.green { color: var(--accent-green); }
+    .kpi-subtext.cyan { color: var(--accent-cyan); }
+    .kpi-subtext.orange { color: var(--accent-orange); }
+    .kpi-subtext.purple { color: var(--accent-purple); }
+
+    /* Main Workspace Layout */
+    .workspace-layout {
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 1080px) {
+      .workspace-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Left Panel: Visual Chart & Control */
+    .left-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .chart-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--card-radius);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .chart-mode-tabs {
+      display: flex;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 3px;
+      border-radius: 10px;
+      width: 100%;
+      margin-bottom: 20px;
+    }
+
+    .chart-tab-btn {
+      flex: 1;
+      padding: 8px 12px;
+      font-size: 12.5px;
+      font-weight: 600;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .chart-tab-btn.active {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .donut-wrapper {
+      position: relative;
+      width: 250px;
+      height: 250px;
+      margin: 10px 0;
+    }
+
+    svg.donut-svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+      border-radius: 50%;
+    }
+
+    .donut-center-info {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .donut-center-title {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+    }
+
+    .donut-center-val {
+      font-size: 24px;
+      font-weight: 800;
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      margin-top: 4px;
+    }
+
+    .donut-slice {
+      transition: stroke-width 0.2s, filter 0.2s;
+      cursor: pointer;
+    }
+
+    /* Calculation Mode Switcher */
+    .calc-mode-selector {
+      display: flex;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 3px;
+      border-radius: 12px;
+      width: 100%;
+      gap: 4px;
+      border: 1px solid var(--border-color);
+    }
+
+    .calc-mode-btn {
+      flex: 1;
+      padding: 9px 10px;
+      font-size: 12.5px;
+      font-weight: 700;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      border-radius: 9px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .calc-mode-btn.active {
+      background: rgba(56, 189, 248, 0.18);
+      color: #fff;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Shares & Lots Stepper Controls in ETF Card */
+    .shares-control-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+
+    .shares-stepper-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn-step {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-color);
+      color: #fff;
+      padding: 5px 9px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-step:hover {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+    }
+
+    .input-lot-unit {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-lot-unit input {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-color);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      padding: 5px 28px 5px 10px;
+      border-radius: 6px;
+      width: 82px;
+      text-align: right;
+      outline: none;
+    }
+
+    .input-lot-unit input:focus {
+      border-color: var(--accent-cyan);
+    }
+
+    .input-lot-unit .lot-tag {
+      position: absolute;
+      right: 8px;
+      font-size: 11px;
+      color: var(--text-dim);
+      font-weight: 600;
+      pointer-events: none;
+    }
+
+    .shares-val-badge {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--accent-emerald);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Capital Controller */
+    .capital-input-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--card-radius);
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .control-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .control-row label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .input-with-unit {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-with-unit input {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      padding: 8px 36px 8px 12px;
+      border-radius: 8px;
+      width: 160px;
+      text-align: right;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .input-with-unit input:focus {
+      border-color: var(--accent-cyan);
+    }
+
+    .input-with-unit .unit-tag {
+      position: absolute;
+      right: 12px;
+      font-size: 12px;
+      color: var(--text-dim);
+      font-weight: 600;
+      pointer-events: none;
+    }
+
+    .quick-chips {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .quick-chip-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-size: 11.5px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .quick-chip-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Right Panel: ETF Portfolio Items */
+    .right-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 4px;
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-action {
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--accent-cyan);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 7px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-action:hover {
+      background: var(--accent-cyan);
+      color: #0b111e;
+    }
+
+    .etf-card-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .etf-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--card-radius);
+      padding: 18px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      transition: transform 0.2s, border-color 0.2s;
+      position: relative;
+    }
+
+    .etf-card:hover {
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+
+    .etf-top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .etf-info-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .color-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    .etf-ticker {
+      font-size: 18px;
+      font-weight: 800;
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .etf-tag {
+      font-size: 11.5px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-muted);
+    }
+
+    .etf-live-price-tag {
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-weight: 700;
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--accent-cyan);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .etf-subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .etf-metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 12px;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 10px;
+      padding: 12px 16px;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    @media (max-width: 1280px) {
+      .etf-metrics-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    @media (max-width: 640px) {
+      .etf-metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    .metric-col {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .metric-col-label {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .metric-col-val {
+      font-size: 15px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      color: #fff;
+    }
+
+    .metric-col-sub {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .etf-slider-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .weight-slider {
+      flex: 1;
+      accent-color: var(--accent-cyan);
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+      cursor: pointer;
+    }
+
+    .slider-pct-badge {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--accent-cyan);
+      min-width: 48px;
+      text-align: right;
+    }
+
+    .btn-delete-etf {
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      font-size: 14px;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 6px;
+      transition: color 0.15s;
+    }
+
+    .btn-delete-etf:hover {
+      color: var(--accent-rose);
+    }
+
+    /* Risk Assessment & Monthly Flow Section */
+    .analysis-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 900px) {
+      .analysis-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .glass-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--card-radius);
+      padding: 22px;
+      box-shadow: var(--shadow-soft);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Monthly Cashflow Bar Chart */
+    .month-chart-container {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      align-items: flex-end;
+      gap: 8px;
+      height: 180px;
+      padding: 20px 8px 10px 8px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .month-bar-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100%;
+      justify-content: flex-end;
+      gap: 6px;
+      position: relative;
+    }
+
+    .bar-pill {
+      width: 100%;
+      max-width: 32px;
+      border-radius: 6px 6px 2px 2px;
+      background: linear-gradient(180deg, var(--accent-cyan), #0284c7);
+      transition: height 0.4s cubic-bezier(0.16, 1, 0.3, 1), background 0.2s;
+      min-height: 4px;
+      position: relative;
+    }
+
+    .bar-pill:hover {
+      filter: brightness(1.25);
+    }
+
+    .month-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .bar-tooltip {
+      position: absolute;
+      top: -28px;
+      font-size: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      color: #fff;
+      font-weight: 700;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    /* Stress Test & Defense Matrix */
+    .stress-matrix {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .stress-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .stress-desc {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .stress-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .stress-sub {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .stress-impact {
+      font-size: 14px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .stress-impact.negative { color: var(--accent-rose); }
+    .stress-impact.moderate { color: var(--accent-orange); }
+    .stress-impact.safe { color: var(--accent-green); }
+
+    /* Risk Diagnostic Badges */
+    .risk-diagnostic-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .diagnostic-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 10px;
+      font-size: 12.5px;
+      font-weight: 600;
+      border: 1px solid var(--border-color);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .diagnostic-badge.safe {
+      border-color: rgba(52, 211, 153, 0.3);
+      color: var(--accent-green);
+    }
+
+    .diagnostic-badge.warning {
+      border-color: rgba(251, 146, 60, 0.3);
+      color: var(--accent-orange);
+    }
+
+    .diagnostic-badge.alert {
+      border-color: rgba(244, 63, 94, 0.3);
+      color: var(--accent-rose);
+    }
+
+    /* 2nd-Gen NHI (二代健保) Badges & Diagnostic Grid */
+    .nhi-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      letter-spacing: 0.2px;
+    }
+
+    .nhi-badge.safe {
+      background: rgba(52, 211, 153, 0.12);
+      color: var(--accent-emerald);
+      border: 1px solid rgba(52, 211, 153, 0.3);
+    }
+
+    .nhi-badge.exempt {
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    .nhi-badge.alert {
+      background: rgba(244, 63, 94, 0.15);
+      color: var(--accent-rose);
+      border: 1px solid rgba(244, 63, 94, 0.4);
+    }
+
+    .nhi-diagnostic-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+    }
+
+    .nhi-item-card {
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: all 0.2s;
+    }
+
+    .nhi-item-card.alert {
+      border-color: rgba(244, 63, 94, 0.35);
+      background: rgba(244, 63, 94, 0.04);
+    }
+
+    .nhi-item-card.safe {
+      border-color: rgba(52, 211, 153, 0.25);
+    }
+
+    .nhi-item-card.exempt {
+      border-color: rgba(56, 189, 248, 0.25);
+    }
+
+    .nhi-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nhi-item-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nhi-metric-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 12px;
+    }
+
+    .nhi-payout-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .nhi-progress-bar-bg {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .nhi-progress-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.3s;
+    }
+
+    .nhi-strategy-tips {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 4px;
+    }
+
+    @media (max-width: 800px) {
+      .nhi-strategy-tips {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .tip-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .tip-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent-cyan);
+    }
+
+    .tip-desc {
+      font-size: 11px;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+
+    /* Modal for Add / Live Search ETF */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal-box {
+      background: #141b29;
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 620px;
+      padding: 26px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-header h3 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .modal-close-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 20px;
+      cursor: pointer;
+    }
+
+    /* Live Search Box */
+    .live-search-box {
+      display: flex;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 8px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+    }
+
+    .live-search-box input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+    }
+
+    .btn-search-online {
+      background: var(--accent-cyan);
+      color: #090e1a;
+      border: none;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .btn-search-online:hover {
+      opacity: 0.9;
+    }
+
+    .search-result-card {
+      background: rgba(56, 189, 248, 0.08);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 12px;
+      padding: 14px;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .search-result-card.active {
+      display: flex;
+    }
+
+    .quick-add-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      max-height: 220px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .btn-etf-preset-pick {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 8px 10px;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .btn-etf-preset-pick:hover {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--accent-cyan);
+    }
+
+    .pick-code {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      color: #fff;
+    }
+
+    .pick-name {
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .pick-rate {
+      font-size: 10.5px;
+      color: var(--accent-green);
+      font-weight: 600;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    footer {
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-dim);
+      padding-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="header-title-box">
+        <h1>
+          ETF 智能投資組合與獲利風險動態評估系統
+          <span class="live-status-pill"><span class="live-dot"></span><span id="liveStatusText">即時市場數據連動中</span></span>
+        </h1>
+        <p>連線公開即時金融 API · 拒絕寫死常數與假數據 · 全市場上市櫃 ETF 任意自由配置</p>
+      </div>
+
+      <div class="header-right-controls">
+        <button class="btn-sync-live" onclick="reloadLiveCache()">
+          <span>↻ 重新整理即時行情</span>
+        </button>
+
+        <div class="preset-selector-bar">
+          <span>組合方案：</span>
+          <select id="presetSelect" class="preset-select" onchange="onPresetSelectChange(this.value)">
+            <!-- Options dynamically rendered by renderPresetDropdown() -->
+          </select>
+          <span id="dirtyBadge" class="dirty-badge" style="display:none;" title="當前配置有未儲存的變更">● 未儲存</span>
+          <button class="btn-preset-tool primary" onclick="promptSaveCurrentPortfolio()" title="儲存當前修改之組合">💾 儲存組合</button>
+          <button class="btn-preset-tool" onclick="resetCurrentStrategy()" title="還原此方案原始預設值">↺ 重設本組合</button>
+          <button class="btn-preset-tool danger" id="btnDeleteCustom" style="display:none;" onclick="deleteCurrentCustomPortfolio()" title="刪除此自訂組合">🗑️ 刪除</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Top KPI Cards -->
+    <section class="kpi-grid">
+      <div class="kpi-card cyan">
+        <span class="kpi-label">預估投入總本金</span>
+        <div class="kpi-value" id="kpiTotalCapital">NT$ 1,694,700</div>
+        <div class="kpi-subtext cyan" id="kpiCapitalAlloc">100.0% 本金配置完成</div>
+      </div>
+
+      <div class="kpi-card green">
+        <span class="kpi-label">預估每月平均息收 (實證推算)</span>
+        <div class="kpi-value" id="kpiMonthlyIncome">NT$ 10,135</div>
+        <div class="kpi-subtext green" id="kpiYearlyIncome">年息約 NT$ 121,620</div>
+      </div>
+
+      <div class="kpi-card purple">
+        <span class="kpi-label">加權年化殖利率 (真實配息率)</span>
+        <div class="kpi-value" id="kpiYield">0.00<span class="unit">%</span></div>
+        <div class="kpi-subtext purple" id="kpiYieldQuality">依據近 12 個月實收配息總額 / 最新市價</div>
+      </div>
+
+      <div class="kpi-card orange">
+        <span class="kpi-label">綜合防禦指數 / 加權 Beta</span>
+        <div class="kpi-value" id="kpiRiskBeta">0.68 <span class="unit">β</span></div>
+        <div class="kpi-subtext orange" id="kpiRiskText">防禦型波動 (市場敏感度低)</div>
+      </div>
+    </section>
+
+    <!-- Workspace Main -->
+    <div class="workspace-layout">
+      <!-- Left Panel -->
+      <aside class="left-panel">
+        <div class="chart-card">
+          <div class="chart-mode-tabs">
+            <button class="chart-tab-btn active" id="tabCapital" onclick="switchChartMode('capital')">本金配置佔比</button>
+            <button class="chart-tab-btn" id="tabDividend" onclick="switchChartMode('dividend')">月息貢獻佔比</button>
+          </div>
+
+          <div class="donut-wrapper">
+            <svg class="donut-svg" viewBox="0 0 100 100" id="donutSvg">
+              <!-- SVG Slices -->
+            </svg>
+            <div class="donut-center-info">
+              <span class="donut-center-title" id="donutCenterTitle">總預估本金</span>
+              <span class="donut-center-val" id="donutCenterVal">169.5萬</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Calculation Mode Switcher -->
+        <div class="calc-mode-selector">
+          <button class="calc-mode-btn active" id="btnModeBudget" onclick="switchCalcMode('budget')">
+            💰 依總本金配比 (%)
+          </button>
+          <button class="calc-mode-btn" id="btnModeShares" onclick="switchCalcMode('shares')">
+            📊 依持有張數算現值
+          </button>
+        </div>
+
+        <!-- Mode 1: Budget Mode Container -->
+        <div class="capital-input-card" id="budgetModeCard">
+          <div class="control-row">
+            <label for="totalCapitalInput">設定投資總本金</label>
+            <div class="input-with-unit">
+              <input type="text" id="totalCapitalInput" value="1,694,700" oninput="handleCapitalChange(this.value)">
+              <span class="unit-tag">NT$</span>
+            </div>
+          </div>
+          <div class="quick-chips">
+            <button class="quick-chip-btn" onclick="setQuickCapital(500000)">50萬</button>
+            <button class="quick-chip-btn" onclick="setQuickCapital(1000000)">100萬</button>
+            <button class="quick-chip-btn" onclick="setQuickCapital(1694700)">169.5萬</button>
+            <button class="quick-chip-btn" onclick="setQuickCapital(3000000)">300萬</button>
+            <button class="quick-chip-btn" onclick="setQuickCapital(5000000)">500萬</button>
+          </div>
+        </div>
+
+        <!-- Mode 2: Shares / Inventory Mode Summary Card -->
+        <div class="capital-input-card" id="sharesModeCard" style="display:none;">
+          <div class="control-row">
+            <label>持股庫存總現值 (即時加總)</label>
+          </div>
+          <div class="kpi-value" id="sharesModeTotalVal" style="font-size:24px; color:var(--accent-emerald); margin:0;">NT$ 1,694,700</div>
+          <p style="font-size:11.5px; color:var(--text-muted); margin-top:-4px;">
+            由右側各標的持有張數 × 最新收盤市價即時自動合計
+          </p>
+        </div>
+      </aside>
+
+      <!-- Right Panel: ETF Target Cards -->
+      <main class="right-panel">
+        <div class="section-header">
+          <div class="section-title">
+            <span>標的配置明細與權重控制</span>
+            <span style="font-size:12px; color:var(--text-dim);" id="portfolioCountTag">(3 檔配置中)</span>
+          </div>
+          <button class="btn-action" onclick="openAddModal()">＋ 線上搜尋 / 加入其他 ETF</button>
+        </div>
+
+        <div class="etf-card-list" id="etfCardList">
+          <!-- Dynamic ETF Cards -->
+        </div>
+      </main>
+    </div>
+
+    <!-- Analysis & Risk Section -->
+    <div class="analysis-grid">
+      <!-- Monthly Dividend Flow -->
+      <div class="glass-card">
+        <div class="section-title">
+          <span>1~12 月現金流落袋矩陣 (淡旺季月曆)</span>
+        </div>
+        <p style="font-size: 12px; color: var(--text-muted); margin-top: -6px;">
+          依據各 ETF 真實除息月份紀錄，精確繪製 12 個月份的實收現金流
+        </p>
+
+        <div class="month-chart-container" id="monthlyBars">
+          <!-- 12 Bars -->
+        </div>
+
+        <div class="risk-diagnostic-row" id="cashflowStabilityBadge">
+          <div class="diagnostic-badge safe">
+            <span>● 正在評估現金流平穩度...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stress Testing & Risk -->
+      <div class="glass-card">
+        <div class="section-title">
+          <span>極端歷史情境壓力測試 (Stress Testing)</span>
+        </div>
+        <p style="font-size: 12px; color: var(--text-muted); margin-top: -6px;">
+          依真實持股類別與 Beta 係數，模擬歷史重大黑天鵝事件最大回撤 (MDD)
+        </p>
+
+        <div class="stress-matrix">
+          <div class="stress-item">
+            <div class="stress-desc">
+              <span class="stress-name">2022 年激進升息 (股債雙殺波段)</span>
+              <span class="stress-sub">通膨高企、無風險利率暴升，高估值股票與長天期債券承壓</span>
+            </div>
+            <span class="stress-impact moderate" id="stress2022">-14.2%</span>
+          </div>
+
+          <div class="stress-item">
+            <div class="stress-desc">
+              <span class="stress-name">2020 年新冠疫情黑天鵝 (流動性休克)</span>
+              <span class="stress-sub">全球股市閃崩近 30%，投資級債展現避險定錨效果</span>
+            </div>
+            <span class="stress-impact safe" id="stress2020">-11.8%</span>
+          </div>
+
+          <div class="stress-item">
+            <div class="stress-desc">
+              <span class="stress-name">台股大盤指數回檔 1,000 點衝擊</span>
+              <span class="stress-sub">短期獲利了結賣壓測試，高股息價值股與債息保護力</span>
+            </div>
+            <span class="stress-impact safe" id="stressCorrection">-2.4%</span>
+          </div>
+        </div>
+
+        <div class="risk-diagnostic-row" style="margin-top: 4px;">
+          <div class="diagnostic-badge safe" id="badgeStockBond">股債配置比 63 : 37</div>
+          <div class="diagnostic-badge safe" id="badgeFee">加權年化費用率約: 0.41%</div>
+        </div>
+      </div>
+
+      <!-- 2nd-Gen NHI (二代健保) Diagnostic Card -->
+      <div class="glass-card" style="grid-column: 1 / -1;">
+        <div class="section-header" style="padding:0;">
+          <div class="section-title">
+            <span>二代健保 (2.11%) 補充保費與稅賦門檻診斷</span>
+          </div>
+          <span id="nhiOverallStatusBadge" class="nhi-badge safe" style="font-size:12.5px; padding:4px 12px;">
+            🛡️ 檢測中...
+          </span>
+        </div>
+        <p style="font-size: 12px; color: var(--text-muted); margin-top: -6px;">
+          依衛福部規範：單次股利配發中屬 <strong>54C (境內股利)</strong> 達 <strong>NT$ 20,000 (含)</strong> 以上，由保管機構就源扣繳 <strong>2.11%</strong> 補充保費。
+          債券型 ETF (海外所得) 全面免扣；月配息 ETF 具備分散單次發放之避費優勢。
+        </p>
+
+        <!-- Dynamic List of ETF NHI Statuses -->
+        <div class="nhi-diagnostic-grid" id="nhiDiagnosticGrid">
+          <!-- Populated by renderNHIDiagnostic() -->
+        </div>
+
+        <!-- Strategy Advice Box -->
+        <div class="nhi-strategy-tips">
+          <div class="tip-card">
+            <span class="tip-title">💡 月配息自動拆單優勢</span>
+            <span class="tip-desc">年息拆為 12 次發放，每檔可容納資金約為季配息的 3 倍、年配息的 12 倍，最不易觸及 2 萬元門檻。</span>
+          </div>
+          <div class="tip-card">
+            <span class="tip-title">🛡️ 債券型 ETF 零健保費</span>
+            <span class="tip-desc">美債、投資級債 ETF 配息全數屬海外利息所得 (代碼 71)，法規 100% 免扣二代健保補充保費。</span>
+          </div>
+          <div class="tip-card">
+            <span class="tip-title">⚖️ 收益平準金與資本公積免計</span>
+            <span class="tip-desc">配息中的價差 (76) 與平準金不列入 54C 股利所得；實務上即便單次破 2 萬，若 54C 低於 2 萬亦免扣。</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      ETF 智能資產配置分析系統 · 真實市場行情對接 · 試算結果僅供策略模擬參考，不構成任何實質投資買賣建議
+    </footer>
+  </div>
+
+  <!-- Add / Search ETF Modal -->
+  <div class="modal-overlay" id="addModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>全市場即時線上查詢 / 新增 ETF</h3>
+        <button class="modal-close-btn" onclick="closeAddModal()">&times;</button>
+      </div>
+
+      <!-- Real-time Live Search Input -->
+      <div style="font-size: 13px; color: var(--text-muted);">
+        輸入任意台股或美股 ETF 代號（如 00915, 00757, 00935, 006208, VOO, QQQ）：
+      </div>
+
+      <div class="live-search-box">
+        <input type="text" id="liveSearchInput" placeholder="輸入代號，例如: 00915" onkeydown="if(event.key==='Enter') executeLiveSearch()">
+        <button class="btn-search-online" onclick="executeLiveSearch()">線上即時查詢</button>
+      </div>
+
+      <!-- Search Result Display Card -->
+      <div class="search-result-card" id="searchResultCard">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:16px; font-weight:800; color:#fff;" id="resSymbol">00915.TW</span>
+          <span style="font-size:14px; font-weight:700; color:var(--accent-cyan);" id="resPrice">NT$ 32.93</span>
+        </div>
+        <div style="font-size:12.5px; color:var(--text-muted);" id="resName">凱基台灣優選高股息30 ETF</div>
+        <div style="display:flex; gap:16px; font-size:12px; margin-top:4px;">
+          <span>真實殖利率: <strong style="color:var(--accent-green);" id="resYield">6.38%</strong></span>
+          <span>近1年配息次數: <strong id="resCount">4 次</strong></span>
+          <span>配息週期: <strong id="resFreq">季配息</strong></span>
+        </div>
+        <button class="btn-action" style="margin-top:8px; justify-content:center;" onclick="confirmAddSearchResult()">
+          ✔ 加入此標的至投資組合
+        </button>
+      </div>
+
+      <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); margin-top: 4px;">
+        或直接從最新市場資料庫點選：
+      </div>
+
+      <div class="quick-add-grid" id="quickAddGrid">
+        <!-- Rendered by JS -->
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeAddModal()">關閉視窗</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save Portfolio Modal -->
+  <div class="modal-overlay" id="savePortfolioModal">
+    <div class="modal-box" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3>儲存投資組合方案</h3>
+        <button class="modal-close-btn" onclick="closeSaveModal()">&times;</button>
+      </div>
+
+      <div style="font-size: 13px; color: var(--text-muted);">
+        為您目前的自選 ETF 配置命名（方便日後在選單中一鍵切換）：
+      </div>
+
+      <div class="live-search-box">
+        <input type="text" id="customPortfolioNameInput" placeholder="例如: 高息月配主力組" style="width:100%;">
+      </div>
+
+      <div style="font-size: 11.5px; color: var(--text-dim);" id="saveDefaultHint">
+        提示：留空將自動以「股票代碼排列」作為名稱
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeSaveModal()">取消</button>
+        <button class="btn-action" onclick="confirmSaveCurrentPortfolio()">✔ 確定儲存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Unsaved Changes Prompt Modal -->
+  <div class="modal-overlay" id="unsavedPromptModal">
+    <div class="modal-box" style="max-width: 500px; border-color: rgba(251, 146, 60, 0.4);">
+      <div class="modal-header">
+        <h3 style="color: var(--accent-orange); display:flex; align-items:center; gap:8px;">
+          <span>⚠️ 尚未儲存的變更提示</span>
+        </h3>
+        <button class="modal-close-btn" onclick="cancelPendingSwitch()">&times;</button>
+      </div>
+
+      <div style="font-size: 13.5px; color: var(--text-main); line-height: 1.6;" id="unsavedPromptMessage">
+        您在目前組合中所做的權重或標的變更尚未儲存！切換到其他方案將會遺失這些調整。
+      </div>
+
+      <div style="font-size: 12px; color: var(--text-muted);">
+        請問您希望如何處理？
+      </div>
+
+      <div class="modal-footer" style="flex-wrap: wrap; gap: 8px;">
+        <button class="btn-secondary" onclick="cancelPendingSwitch()">取消切換</button>
+        <button class="btn-preset-tool danger" onclick="discardAndSwitch()">⚠️ 放棄變更直接切換</button>
+        <button class="btn-action" onclick="saveAndThenSwitch()">💾 先儲存並切換</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Live Market Database (Populated dynamically from online API / Cache)
+    let LIVE_ETF_DB = {};
+    let currentSearchResult = null;
+
+    // Current State
+    let currentTotalCapital = 1694700;
+    let currentChartMode = 'capital'; // 'capital' or 'dividend'
+    let currentCalcMode = 'budget';   // 'budget' or 'shares'
+    let portfolioItems = [
+      { code: '00406A', weight: 0.207, lots: 34, oddShares: 0 },
+      { code: '00940', weight: 0.420, lots: 54, oddShares: 0 },
+      { code: '00937B', weight: 0.373, lots: 46, oddShares: 0 }
+    ];
+
+    // Official Preset Strategies
+    const OFFICIAL_PRESETS = {
+      'user_image': {
+        name: '★ 三核心月配組 (00406A + 00940 + 00937B)',
+        items: [
+          { code: '00406A', weight: 0.2066 },
+          { code: '00940', weight: 0.4204 },
+          { code: '00937B', weight: 0.3730 }
+        ]
+      },
+      'classic_monthly': {
+        name: '三季配月月領組 (0056 + 00878 + 00919)',
+        items: [
+          { code: '0056', weight: 0.3333 },
+          { code: '00878', weight: 0.3333 },
+          { code: '00919', weight: 0.3334 }
+        ]
+      },
+      'growth_shield': {
+        name: '攻守兼備股債平衡組 (0050 + 00713 + 00679B)',
+        items: [
+          { code: '0050', weight: 0.40 },
+          { code: '00713', weight: 0.30 },
+          { code: '00679B', weight: 0.30 }
+        ]
+      },
+      'high_yield_tech': {
+        name: '高息科技旗艦組 (00929 + 00919 + 00918)',
+        items: [
+          { code: '00919', weight: 0.40 },
+          { code: '00929', weight: 0.35 },
+          { code: '00918', weight: 0.25 }
+        ]
+      },
+      'all_weather': {
+        name: '全天候穩健防禦組 (00713 + 00937B + 00687B)',
+        items: [
+          { code: '00713', weight: 0.35 },
+          { code: '00937B', weight: 0.35 },
+          { code: '00687B', weight: 0.30 }
+        ]
+      }
+    };
+
+    // Custom Portfolios & Strategy Management
+    let customPortfolios = {};
+    let currentStrategyId = 'user_image';
+    let isDirty = false;
+    let pendingSwitchStrategyId = null;
+
+    // Load custom portfolios from localStorage
+    function loadCustomPortfolios() {
+      try {
+        const raw = localStorage.getItem('ETF_PORTFOLIO_CUSTOM_STRATEGIES');
+        if (raw) {
+          customPortfolios = JSON.parse(raw);
+        }
+      } catch (e) {
+        customPortfolios = {};
+      }
+    }
+
+    function saveCustomPortfoliosToStorage() {
+      try {
+        localStorage.setItem('ETF_PORTFOLIO_CUSTOM_STRATEGIES', JSON.stringify(customPortfolios));
+      } catch (e) {
+        console.error('Failed to save to localStorage:', e);
+      }
+    }
+
+    function markDirty(dirty = true) {
+      isDirty = dirty;
+      const badge = document.getElementById('dirtyBadge');
+      if (badge) {
+        badge.style.display = isDirty ? 'inline-flex' : 'none';
+      }
+    }
+
+    function renderPresetDropdown() {
+      const select = document.getElementById('presetSelect');
+      if (!select) return;
+      select.innerHTML = '';
+
+      // 1. Custom Portfolios Group
+      const customKeys = Object.keys(customPortfolios);
+      if (customKeys.length > 0) {
+        const optgroupCustom = document.createElement('optgroup');
+        optgroupCustom.label = '⭐ 我的自訂組合';
+        customKeys.forEach(key => {
+          const opt = document.createElement('option');
+          opt.value = key;
+          opt.textContent = customPortfolios[key].name;
+          if (key === currentStrategyId) opt.selected = true;
+          optgroupCustom.appendChild(opt);
+        });
+        select.appendChild(optgroupCustom);
+      }
+
+      // 2. Official Presets Group
+      const optgroupOfficial = document.createElement('optgroup');
+      optgroupOfficial.label = '🏛️ 官方經典範本';
+      Object.keys(OFFICIAL_PRESETS).forEach(key => {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = OFFICIAL_PRESETS[key].name;
+        if (key === currentStrategyId) opt.selected = true;
+        optgroupOfficial.appendChild(opt);
+      });
+      select.appendChild(optgroupOfficial);
+
+      // Check if delete button should show
+      const btnDel = document.getElementById('btnDeleteCustom');
+      if (btnDel) {
+        btnDel.style.display = (currentStrategyId in customPortfolios) ? 'inline-flex' : 'none';
+      }
+    }
+
+    function onPresetSelectChange(newStrategyId) {
+      if (newStrategyId === currentStrategyId) {
+        // If clicking the currently selected strategy and it is dirty, ask to reset
+        if (isDirty) {
+          if (confirm('您目前已對此組合進行過更動。是否要還原回原始預設值？')) {
+            resetCurrentStrategy();
+          }
+        }
+        return;
+      }
+
+      if (isDirty) {
+        // Prevent instant change, show custom modal prompt
+        pendingSwitchStrategyId = newStrategyId;
+        // Revert select display back to current
+        document.getElementById('presetSelect').value = currentStrategyId;
+
+        const curName = getStrategyName(currentStrategyId);
+        const targetName = getStrategyName(newStrategyId);
+        document.getElementById('unsavedPromptMessage').innerHTML = 
+          `您在目前組合「<strong>${curName}</strong>」所做的權重調整或標的增刪尚未儲存！<br>切換至「<strong>${targetName}</strong>」將會放棄這些修改。`;
+        document.getElementById('unsavedPromptModal').classList.add('active');
+      } else {
+        applyStrategy(newStrategyId);
+      }
+    }
+
+    function getStrategyName(id) {
+      if (OFFICIAL_PRESETS[id]) return OFFICIAL_PRESETS[id].name;
+      if (customPortfolios[id]) return customPortfolios[id].name;
+      return id;
+    }
+
+    function applyStrategy(strategyId) {
+      let targetItems = null;
+      if (OFFICIAL_PRESETS[strategyId]) {
+        targetItems = OFFICIAL_PRESETS[strategyId].items;
+      } else if (customPortfolios[strategyId]) {
+        targetItems = customPortfolios[strategyId].items;
+        if (customPortfolios[strategyId].capital) {
+          currentTotalCapital = customPortfolios[strategyId].capital;
+          document.getElementById('totalCapitalInput').value = Math.round(currentTotalCapital).toLocaleString('en-US');
+        }
+        if (customPortfolios[strategyId].calcMode && customPortfolios[strategyId].calcMode !== currentCalcMode) {
+          switchCalcMode(customPortfolios[strategyId].calcMode);
+        }
+      }
+
+      if (targetItems) {
+        portfolioItems = JSON.parse(JSON.stringify(targetItems));
+        currentStrategyId = strategyId;
+        markDirty(false);
+        normalizeWeights();
+        renderPresetDropdown();
+        recalculate();
+      }
+    }
+
+    function resetCurrentStrategy() {
+      applyStrategy(currentStrategyId);
+    }
+
+    function promptSaveCurrentPortfolio() {
+      const defaultName = portfolioItems.map(i => i.code).join(' + ');
+      const input = document.getElementById('customPortfolioNameInput');
+      input.value = defaultName;
+      document.getElementById('saveDefaultHint').innerText = `預設名稱: ${defaultName}`;
+      document.getElementById('savePortfolioModal').classList.add('active');
+      input.focus();
+      input.select();
+    }
+
+    function closeSaveModal() {
+      document.getElementById('savePortfolioModal').classList.remove('active');
+    }
+
+    function confirmSaveCurrentPortfolio() {
+      let name = document.getElementById('customPortfolioNameInput').value.trim();
+      if (!name) {
+        name = portfolioItems.map(i => i.code).join(' + ');
+      }
+
+      const id = 'custom_' + Date.now();
+      customPortfolios[id] = {
+        id: id,
+        name: name,
+        capital: currentTotalCapital,
+        calcMode: currentCalcMode,
+        items: JSON.parse(JSON.stringify(portfolioItems)),
+        savedAt: new Date().toLocaleString()
+      };
+
+      saveCustomPortfoliosToStorage();
+      currentStrategyId = id;
+      markDirty(false);
+      closeSaveModal();
+      renderPresetDropdown();
+
+      // If there was a pending switch
+      if (pendingSwitchStrategyId) {
+        const next = pendingSwitchStrategyId;
+        pendingSwitchStrategyId = null;
+        applyStrategy(next);
+      }
+    }
+
+    function cancelPendingSwitch() {
+      pendingSwitchStrategyId = null;
+      document.getElementById('unsavedPromptModal').classList.remove('active');
+      document.getElementById('presetSelect').value = currentStrategyId;
+    }
+
+    function discardAndSwitch() {
+      document.getElementById('unsavedPromptModal').classList.remove('active');
+      if (pendingSwitchStrategyId) {
+        const next = pendingSwitchStrategyId;
+        pendingSwitchStrategyId = null;
+        markDirty(false);
+        applyStrategy(next);
+      }
+    }
+
+    function saveAndThenSwitch() {
+      document.getElementById('unsavedPromptModal').classList.remove('active');
+      promptSaveCurrentPortfolio();
+    }
+
+    function deleteCurrentCustomPortfolio() {
+      if (!(currentStrategyId in customPortfolios)) return;
+      const name = customPortfolios[currentStrategyId].name;
+      if (confirm(`確定要刪除自訂組合「${name}」嗎？`)) {
+        delete customPortfolios[currentStrategyId];
+        saveCustomPortfoliosToStorage();
+        currentStrategyId = 'user_image';
+        applyStrategy('user_image');
+      }
+    }
+
+    // Color Palette
+    const PALETTE = ['#38bdf8', '#34d399', '#60a5fa', '#f43f5e', '#a855f7', '#fbbf24', '#fb923c', '#2dd4bf'];
+
+    // Initialize: Try to fetch live data from server or local cache
+    window.addEventListener('DOMContentLoaded', async () => {
+      loadCustomPortfolios();
+      renderPresetDropdown();
+      await loadMarketData();
+      recalculate();
+    });
+
+    async function loadMarketData() {
+      // 1. Try local server endpoint /api/cache
+      try {
+        const resp = await fetch('/api/cache');
+        if (resp.ok) {
+          LIVE_ETF_DB = await resp.json();
+          document.getElementById('liveStatusText').innerText = `已連線本機 API · ${Object.keys(LIVE_ETF_DB).length} 檔最新實體行情`;
+          renderQuickAddList();
+          return;
+        }
+      } catch (e) {
+        // Not running on server.py
+      }
+
+      // 2. Try loading etf_live_cache.json directly (if served via static web server)
+      try {
+        const resp = await fetch('etf_live_cache.json');
+        if (resp.ok) {
+          LIVE_ETF_DB = await resp.json();
+          document.getElementById('liveStatusText').innerText = `即時快取行情已載入 · ${Object.keys(LIVE_ETF_DB).length} 檔`;
+          renderQuickAddList();
+          return;
+        }
+      } catch (e) {
+        // Fallback
+      }
+
+      // 3. Fallback baseline if strictly opened via raw file:/// with no server
+      LIVE_ETF_DB = {
+        '00406A': { code:'00406A', name:'統一美債20年主動/主動收益', price:10.32, yield_rate:0.1165, yield_pct:11.65, frequency:'monthly', payout_months:[1,2,3,4,5,6,7,8,9,10,11,12], category:'active', beta:0.85, mdd_1y:-0.16 },
+        '00940': { code:'00940', name:'元大台灣價值高息', price:13.27, yield_rate:0.0568, yield_pct:5.68, frequency:'monthly', payout_months:[1,2,3,4,5,6,7,8,9,10,11,12], category:'stock', beta:0.72, mdd_1y:-0.18 },
+        '00937B': { code:'00937B', name:'群益ESG投等債20+', price:13.63, yield_rate:0.0638, yield_pct:6.38, frequency:'monthly', payout_months:[1,2,3,4,5,6,7,8,9,10,11,12], category:'bond', beta:0.45, mdd_1y:-0.19 },
+        '0050': { code:'0050', name:'元大台灣50', price:115.85, yield_rate:0.032, yield_pct:3.2, frequency:'semi-annual', payout_months:[1,7], category:'stock', beta:1.0, mdd_1y:-0.27 },
+        '0056': { code:'0056', name:'元大高股息', price:57.8, yield_rate:0.0706, yield_pct:7.06, frequency:'quarterly', payout_months:[1,4,7,10], category:'stock', beta:0.82, mdd_1y:-0.21 },
+        '00878': { code:'00878', name:'國泰永續高股息', price:35.13, yield_rate:0.0709, yield_pct:7.09, frequency:'quarterly', payout_months:[2,5,8,11], category:'stock', beta:0.65, mdd_1y:-0.15 },
+        '00919': { code:'00919', name:'群益台灣精選高息', price:31.65, yield_rate:0.1081, yield_pct:10.81, frequency:'quarterly', payout_months:[3,6,9,12], category:'stock', beta:0.88, mdd_1y:-0.19 }
+      };
+      document.getElementById('liveStatusText').innerText = `離線基準模式 (啟動 server.py 可連網任意搜尋)`;
+      renderQuickAddList();
+    }
+
+    async function reloadLiveCache() {
+      document.getElementById('liveStatusText').innerText = '正在向金融 API 請求最新數據...';
+      await loadMarketData();
+      recalculate();
+    }
+
+    // Execute Live Search for ANY user-typed ETF ticker
+    async function executeLiveSearch() {
+      const input = document.getElementById('liveSearchInput');
+      const code = input.value.trim().toUpperCase();
+      if (!code) return;
+
+      const card = document.getElementById('searchResultCard');
+      card.style.display = 'flex';
+      card.innerHTML = `<div style="color:var(--accent-cyan); font-size:13px;">正在連線抓取 ${code} 即時報價與除息數據...</div>`;
+
+      try {
+        const resp = await fetch(`/api/fetch?code=${encodeURIComponent(code)}`);
+        if (resp.ok) {
+          const resJson = await resp.json();
+          if (resJson.status === 'success' && resJson.data) {
+            currentSearchResult = resJson.data;
+            LIVE_ETF_DB[code] = resJson.data;
+            card.innerHTML = `
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:16px; font-weight:800; color:#fff;">${resJson.data.symbol}</span>
+                <span style="font-size:14px; font-weight:700; color:var(--accent-cyan);">NT$ ${resJson.data.price}</span>
+              </div>
+              <div style="font-size:12.5px; color:var(--text-muted);">${resJson.data.name}</div>
+              <div style="display:flex; gap:16px; font-size:12px; margin-top:4px;">
+                <span>真實殖利率: <strong style="color:var(--accent-green);">${resJson.data.yield_pct}%</strong></span>
+                <span>近1年配息: <strong>NT$ ${resJson.data.annual_dividend} (${resJson.data.dividend_count}次)</strong></span>
+                <span>週期: <strong>${resJson.data.frequency_desc}</strong></span>
+              </div>
+              <button class="btn-action" style="margin-top:8px; justify-content:center;" onclick="confirmAddSearchResult()">
+                ✔ 加入此標的至投資組合
+              </button>
+            `;
+            return;
+          }
+        }
+      } catch (e) {
+        // Server not available
+      }
+
+      card.innerHTML = `
+        <div style="color:var(--accent-rose); font-size:13px;">
+          無法直接在線獲取 ${code}。請確保已執行 <code>server.py</code> 以啟用全市場代理查詢功能。
+        </div>
+      `;
+    }
+
+    function confirmAddSearchResult() {
+      if (currentSearchResult) {
+        addETFByData(currentSearchResult);
+        closeAddModal();
+      }
+    }
+
+    function addETFByData(data) {
+      if (portfolioItems.some(i => i.code === data.code)) {
+        alert(`${data.code} 已在您的投資組合中！`);
+        return;
+      }
+      if (currentCalcMode === 'shares') {
+        portfolioItems.push({ code: data.code, weight: 0, lots: 1, oddShares: 0 });
+      } else {
+        const newWeight = 1 / (portfolioItems.length + 1);
+        portfolioItems.forEach(i => i.weight = i.weight * (portfolioItems.length / (portfolioItems.length + 1)));
+        portfolioItems.push({ code: data.code, weight: newWeight, lots: 1, oddShares: 0 });
+        normalizeWeights();
+      }
+      markDirty(true);
+      recalculate();
+    }
+
+    function normalizeWeights() {
+      const sum = portfolioItems.reduce((acc, cur) => acc + cur.weight, 0);
+      if (sum > 0) {
+        portfolioItems.forEach(item => item.weight = item.weight / sum);
+      }
+    }
+
+    function switchChartMode(mode) {
+      currentChartMode = mode;
+      document.getElementById('tabCapital').classList.toggle('active', mode === 'capital');
+      document.getElementById('tabDividend').classList.toggle('active', mode === 'dividend');
+      recalculate();
+    }
+
+    // Switch between Budget Mode (%) and Shares/Holding Mode (張數/股數算現值)
+    function switchCalcMode(mode) {
+      if (currentCalcMode === mode) return;
+      currentCalcMode = mode;
+
+      const btnBudget = document.getElementById('btnModeBudget');
+      const btnShares = document.getElementById('btnModeShares');
+      const cardBudget = document.getElementById('budgetModeCard');
+      const cardShares = document.getElementById('sharesModeCard');
+
+      if (mode === 'shares') {
+        btnBudget.classList.remove('active');
+        btnShares.classList.add('active');
+        cardBudget.style.display = 'none';
+        cardShares.style.display = 'flex';
+
+        // Synchronize current lots & oddShares from calculated values so there's no zero-out glitch
+        portfolioItems.forEach(item => {
+          const meta = LIVE_ETF_DB[item.code] || { price: 15.0 };
+          const currentPrice = (meta.price && meta.price > 0) ? meta.price : 15.0;
+          const pricePerLot = currentPrice * 1000;
+          if (item.lots === undefined || item.lots === null) {
+            const allocatedCapital = currentTotalCapital * (item.weight || (1 / portfolioItems.length));
+            item.lots = Math.floor(allocatedCapital / pricePerLot);
+            item.oddShares = Math.floor((allocatedCapital - (item.lots * pricePerLot)) / currentPrice);
+          }
+        });
+      } else {
+        btnShares.classList.remove('active');
+        btnBudget.classList.add('active');
+        cardShares.style.display = 'none';
+        cardBudget.style.display = 'flex';
+
+        // Synchronize total capital input with currentTotalCapital
+        document.getElementById('totalCapitalInput').value = Math.round(currentTotalCapital).toLocaleString('en-US');
+      }
+
+      markDirty(true);
+      recalculate();
+    }
+
+    function adjustLots(index, delta) {
+      if (!portfolioItems[index]) return;
+      let cur = parseInt(portfolioItems[index].lots) || 0;
+      cur = Math.max(0, cur + delta);
+      portfolioItems[index].lots = cur;
+      markDirty(true);
+      recalculate();
+    }
+
+    function setExactLots(index, val) {
+      if (!portfolioItems[index]) return;
+      let n = parseInt(val);
+      if (isNaN(n) || n < 0) n = 0;
+      portfolioItems[index].lots = n;
+      markDirty(true);
+      recalculate();
+    }
+
+    function setExactOddShares(index, val) {
+      if (!portfolioItems[index]) return;
+      let n = parseInt(val);
+      if (isNaN(n) || n < 0) n = 0;
+      portfolioItems[index].oddShares = Math.min(999, n);
+      markDirty(true);
+      recalculate();
+    }
+
+    function handleCapitalChange(val) {
+      const cleaned = val.replace(/,/g, '').trim();
+      const num = parseFloat(cleaned);
+      if (!isNaN(num) && num > 0) {
+        currentTotalCapital = num;
+        markDirty(true);
+        recalculate();
+      }
+    }
+
+    function setQuickCapital(amt) {
+      currentTotalCapital = amt;
+      document.getElementById('totalCapitalInput').value = amt.toLocaleString('en-US');
+      markDirty(true);
+      recalculate();
+    }
+
+    function updateWeight(index, newPct) {
+      const targetWeight = newPct / 100;
+      const oldWeight = portfolioItems[index].weight;
+      portfolioItems[index].weight = targetWeight;
+      
+      const otherCount = portfolioItems.length - 1;
+      if (otherCount > 0) {
+        const diff = targetWeight - oldWeight;
+        const adjPerOther = diff / otherCount;
+        portfolioItems.forEach((item, i) => {
+          if (i !== index) {
+            item.weight = Math.max(0.02, item.weight - adjPerOther);
+          }
+        });
+      }
+      markDirty(true);
+      normalizeWeights();
+      recalculate();
+    }
+
+    function removeETF(index) {
+      if (portfolioItems.length <= 1) {
+        alert('組合內至少須保留 1 檔 ETF！');
+        return;
+      }
+      portfolioItems.splice(index, 1);
+      markDirty(true);
+      if (currentCalcMode === 'budget') {
+        normalizeWeights();
+      }
+      recalculate();
+    }
+
+    function openAddModal() {
+      document.getElementById('addModal').classList.add('active');
+    }
+
+    function closeAddModal() {
+      document.getElementById('addModal').classList.remove('active');
+    }
+
+    function renderQuickAddList() {
+      const container = document.getElementById('quickAddGrid');
+      container.innerHTML = '';
+      Object.keys(LIVE_ETF_DB).forEach(code => {
+        const info = LIVE_ETF_DB[code];
+        const btn = document.createElement('div');
+        btn.className = 'btn-etf-preset-pick';
+        btn.onclick = () => {
+          addETFByData(info);
+          closeAddModal();
+        };
+        btn.innerHTML = `
+          <div class="pick-code">${code} <span style="font-size:10px; color:var(--text-dim); font-weight:normal;">$${info.price}</span></div>
+          <div class="pick-name">${info.name}</div>
+          <div class="pick-rate">殖利率 ${info.yield_pct}% (${info.frequency === 'monthly' ? '月配' : info.frequency === 'quarterly' ? '季配' : '半年配'})</div>
+        `;
+        container.appendChild(btn);
+      });
+    }
+
+    // Main Engine: Recalculate (Dual Mode: Budget vs Shares)
+    function recalculate() {
+      let weightedYield = 0;
+      let weightedBeta = 0;
+      let totalStockWeight = 0;
+      let totalBondWeight = 0;
+      let totalAnnualDividend = 0;
+      let mddSum = 0;
+
+      // Mode B: If in Shares Mode, compute current market values and dynamic weights first
+      if (currentCalcMode === 'shares') {
+        let sumMarketVal = 0;
+        portfolioItems.forEach(item => {
+          const meta = LIVE_ETF_DB[item.code] || { price: 15.0 };
+          const currentPrice = (meta.price && meta.price > 0) ? meta.price : 15.0;
+          const lots = (item.lots !== undefined) ? Number(item.lots) : 0;
+          const odd = (item.oddShares !== undefined) ? Number(item.oddShares) : 0;
+          const totalShares = lots * 1000 + odd;
+          sumMarketVal += totalShares * currentPrice;
+        });
+
+        currentTotalCapital = sumMarketVal > 0 ? sumMarketVal : 1;
+        portfolioItems.forEach(item => {
+          const meta = LIVE_ETF_DB[item.code] || { price: 15.0 };
+          const currentPrice = (meta.price && meta.price > 0) ? meta.price : 15.0;
+          const lots = (item.lots !== undefined) ? Number(item.lots) : 0;
+          const odd = (item.oddShares !== undefined) ? Number(item.oddShares) : 0;
+          const totalShares = lots * 1000 + odd;
+          const mVal = totalShares * currentPrice;
+          item.weight = sumMarketVal > 0 ? (mVal / sumMarketVal) : (1 / portfolioItems.length);
+        });
+
+        const sharesTotalEl = document.getElementById('sharesModeTotalVal');
+        if (sharesTotalEl) {
+          sharesTotalEl.innerText = 'NT$ ' + Math.round(sumMarketVal).toLocaleString('en-US');
+        }
+      }
+
+      const monthlyBuckets = new Array(12).fill(0);
+      const computedList = [];
+
+      portfolioItems.forEach((item, index) => {
+        const meta = LIVE_ETF_DB[item.code] || {
+          code: item.code,
+          name: item.code,
+          price: 15.0,
+          yield_rate: 0.05,
+          yield_pct: 5.0,
+          frequency: 'monthly',
+          payout_months: [1,2,3,4,5,6,7,8,9,10,11,12],
+          category: 'stock',
+          beta: 0.85,
+          mdd_1y: -0.15
+        };
+
+        const color = PALETTE[index % PALETTE.length];
+        const currentPrice = (meta.price && meta.price > 0) ? meta.price : 15.0;
+        const pricePerLot = currentPrice * 1000;
+
+        let allocatedCapital = 0;
+        let intLots = 0;
+        let oddShares = 0;
+        let totalLotsFloat = 0;
+        let totalSharesCount = 0;
+
+        if (currentCalcMode === 'shares') {
+          intLots = (item.lots !== undefined) ? Math.max(0, parseInt(item.lots) || 0) : 0;
+          oddShares = (item.oddShares !== undefined) ? Math.max(0, parseInt(item.oddShares) || 0) : 0;
+          totalSharesCount = intLots * 1000 + oddShares;
+          allocatedCapital = Math.round(totalSharesCount * currentPrice);
+          totalLotsFloat = totalSharesCount / 1000;
+        } else {
+          allocatedCapital = Math.round(currentTotalCapital * item.weight);
+          totalLotsFloat = allocatedCapital / pricePerLot;
+          intLots = Math.floor(totalLotsFloat);
+          oddShares = Math.floor((allocatedCapital - (intLots * pricePerLot)) / currentPrice);
+          totalSharesCount = intLots * 1000 + oddShares;
+          item.lots = intLots;
+          item.oddShares = oddShares;
+        }
+
+        const annualDiv = allocatedCapital * meta.yield_rate;
+        const monthlyEst = Math.round(annualDiv / 12);
+
+        // 2nd-Gen NHI (二代健保補充保費 2.11% 門檻計算)
+        const isBondExempt = (meta.category === 'bond');
+        const payCount = (meta.payout_months && meta.payout_months.length > 0)
+          ? meta.payout_months.length
+          : (meta.frequency === 'monthly' ? 12 : meta.frequency === 'quarterly' ? 4 : 2);
+        const perPayout = annualDiv / payCount;
+        const curLots = totalLotsFloat > 0 ? totalLotsFloat : (totalSharesCount / 1000);
+        const divPerLotPerPayout = curLots > 0 ? (perPayout / curLots) : ((currentPrice * meta.yield_rate * 1000) / payCount);
+        const safeMaxLots = (divPerLotPerPayout > 0 && !isBondExempt) ? Math.floor(19999 / divPerLotPerPayout) : 999;
+        const remainingLots = Math.max(0, safeMaxLots - Math.floor(curLots));
+
+        let nhiStatus = 'safe';
+        let nhiBadgeText = '🛡️ 免二代健保';
+        let nhiFee = 0;
+
+        if (isBondExempt) {
+          nhiStatus = 'exempt';
+          nhiBadgeText = '🛡️ 債券海外所得免保費';
+        } else if (perPayout >= 20000) {
+          nhiStatus = 'alert';
+          nhiFee = Math.round(perPayout * 0.0211);
+          nhiBadgeText = `⚠️ 達2萬門檻 (預估保費約 NT$ ${nhiFee.toLocaleString('en-US')})`;
+        } else {
+          nhiStatus = 'safe';
+          nhiBadgeText = '🛡️ 未達2萬門檻 (免扣保費)';
+        }
+
+        // Distribute to calendar months
+        meta.payout_months.forEach(m => {
+          monthlyBuckets[m - 1] += perPayout;
+        });
+
+        weightedYield += item.weight * meta.yield_rate;
+        weightedBeta += item.weight * meta.beta;
+        if (meta.category === 'bond') totalBondWeight += item.weight;
+        else totalStockWeight += item.weight;
+
+        mddSum += item.weight * (meta.mdd_1y || -0.18);
+        totalAnnualDividend += annualDiv;
+
+        computedList.push({
+          index: index,
+          code: item.code,
+          meta: meta,
+          color: color,
+          weight: item.weight,
+          allocatedCapital: allocatedCapital,
+          monthlyEst: monthlyEst,
+          annualDiv: annualDiv,
+          currentPrice: currentPrice,
+          pricePerLot: pricePerLot,
+          totalLotsFloat: totalLotsFloat,
+          intLots: intLots,
+          oddShares: oddShares,
+          totalSharesCount: totalSharesCount,
+          isBondExempt: isBondExempt,
+          payCount: payCount,
+          perPayout: perPayout,
+          divPerLotPerPayout: divPerLotPerPayout,
+          safeMaxLots: safeMaxLots,
+          remainingLots: remainingLots,
+          nhiStatus: nhiStatus,
+          nhiBadgeText: nhiBadgeText,
+          nhiFee: nhiFee
+        });
+      });
+
+      const totalMonthlyIncome = Math.round(totalAnnualDividend / 12);
+      const totalLotsCombined = computedList.reduce((acc, cur) => acc + cur.totalLotsFloat, 0);
+      const totalSharesCombined = computedList.reduce((acc, cur) => acc + cur.totalSharesCount, 0);
+
+      // 1. Update Top KPI Cards
+      document.getElementById('kpiTotalCapital').innerText = 'NT$ ' + Math.round(currentTotalCapital).toLocaleString('en-US');
+      if (currentCalcMode === 'shares') {
+        document.getElementById('kpiCapitalAlloc').innerText = `持股總現值 · 總計 ${totalLotsCombined.toFixed(1)} 張 (${totalSharesCombined.toLocaleString('en-US')} 股)`;
+      } else {
+        document.getElementById('kpiCapitalAlloc').innerText = `100.0% 本金配置完成 · 總計約 ${totalLotsCombined.toFixed(1)} 張`;
+      }
+
+      document.getElementById('kpiMonthlyIncome').innerText = 'NT$ ' + totalMonthlyIncome.toLocaleString('en-US');
+      document.getElementById('kpiYearlyIncome').innerText = '年息約 NT$ ' + Math.round(totalAnnualDividend).toLocaleString('en-US');
+      document.getElementById('kpiYield').innerHTML = (weightedYield * 100).toFixed(2) + '<span class="unit">%</span>';
+      document.getElementById('kpiRiskBeta').innerHTML = weightedBeta.toFixed(2) + '<span class="unit">β</span>';
+
+      if (weightedBeta < 0.65) {
+        document.getElementById('kpiRiskText').innerText = '高度防禦型 (波動遠低於大盤)';
+      } else if (weightedBeta < 0.85) {
+        document.getElementById('kpiRiskText').innerText = '平衡抗震型 (市場防禦優)';
+      } else {
+        document.getElementById('kpiRiskText').innerText = '積極成長型 (同頻大盤波動)';
+      }
+
+      document.getElementById('portfolioCountTag').innerText = `(${portfolioItems.length} 檔配置中)`;
+
+      // 2. Render ETF Cards
+      renderETFCards(computedList, totalMonthlyIncome);
+
+      // 3. Render Donut Chart
+      renderDonutChart(computedList, totalMonthlyIncome);
+
+      // 4. Render 1~12 Monthly Bar Chart
+      renderMonthlyBarChart(monthlyBuckets);
+
+      // 5. Render Stress Matrix & Diagnostics
+      renderStressMatrix(mddSum, weightedBeta, totalStockWeight, totalBondWeight);
+
+      // 6. Render 2nd-Gen NHI Diagnostic
+      renderNHIDiagnostic(computedList);
+    }
+
+    function renderETFCards(list, totalMonthlyIncome) {
+      const container = document.getElementById('etfCardList');
+      container.innerHTML = '';
+
+      list.forEach(item => {
+        const capitalPct = (item.weight * 100).toFixed(1);
+        const divPct = totalMonthlyIncome > 0 
+          ? ((item.monthlyEst / totalMonthlyIncome) * 100).toFixed(1)
+          : '0.0';
+
+        const card = document.createElement('div');
+        card.className = 'etf-card';
+        card.innerHTML = `
+          <div class="etf-top-row">
+            <div class="etf-info-box">
+              <span class="color-dot" style="background-color: ${item.color}; color: ${item.color};"></span>
+              <span class="etf-ticker">${item.code}</span>
+              <span class="etf-live-price-tag">最新市價 $${item.meta.price || '--'}</span>
+              ${currentCalcMode === 'shares' 
+                ? `<span style="font-size:12px; padding:2px 8px; border-radius:6px; font-weight:700; background:rgba(56, 189, 248, 0.15); color:var(--accent-cyan); font-family:'JetBrains Mono',monospace;">庫存現值 NT$ ${item.allocatedCapital.toLocaleString('en-US')}</span>`
+                : `<span style="font-size:12px; padding:2px 8px; border-radius:6px; font-weight:700; background:rgba(52, 211, 153, 0.15); color:var(--accent-emerald); font-family:'JetBrains Mono',monospace;">可買約 ${item.totalLotsFloat.toFixed(2)} 張</span>`
+              }
+              <span class="etf-tag">${item.meta.category === 'bond' ? '債券型' : item.meta.category === 'active' ? '主動型' : '股票型'}</span>
+              <span class="nhi-badge ${item.nhiStatus}">${item.nhiBadgeText}</span>
+              <span class="etf-subtitle">${item.meta.name}</span>
+            </div>
+            <button class="btn-delete-etf" title="刪除此標的" onclick="removeETF(${item.index})">✕</button>
+          </div>
+
+          <div class="etf-metrics-grid">
+            <div class="metric-col">
+              <span class="metric-col-label">${currentCalcMode === 'shares' ? '持股市值現值 (佔比)' : '投入本金 (佔比)'}</span>
+              <span class="metric-col-val" style="${currentCalcMode === 'shares' ? 'color:var(--accent-emerald);' : ''}">NT$ ${item.allocatedCapital.toLocaleString('en-US')}</span>
+              <span class="metric-col-sub">${capitalPct}% ${currentCalcMode === 'shares' ? '資產總值佔比' : '本金分配'}</span>
+            </div>
+            <div class="metric-col">
+              <span class="metric-col-label">${currentCalcMode === 'shares' ? '實際持有總股數' : '當日換算張數 (1張=1000股)'}</span>
+              <span class="metric-col-val" style="color:var(--accent-emerald)">${item.intLots} <span style="font-size:11px; font-weight:normal; color:var(--text-muted)">張</span> + ${item.oddShares} <span style="font-size:11px; font-weight:normal; color:var(--text-muted)">股</span></span>
+              <span class="metric-col-sub">合計 ${item.totalSharesCount.toLocaleString('en-US')} 股 (每張 NT$ ${Math.round(item.pricePerLot).toLocaleString('en-US')})</span>
+            </div>
+            <div class="metric-col">
+              <span class="metric-col-label">預估月息 (貢獻比)</span>
+              <span class="metric-col-val" style="color:var(--accent-green)">NT$ ${item.monthlyEst.toLocaleString('en-US')}</span>
+              <span class="metric-col-sub">${divPct}% 息收佔比</span>
+            </div>
+            <div class="metric-col">
+              <span class="metric-col-label">真實年化殖利率</span>
+              <span class="metric-col-val" style="color:var(--accent-cyan)">${(item.meta.yield_rate * 100).toFixed(2)}%</span>
+              <span class="metric-col-sub">年息約 NT$ ${Math.round(item.annualDiv).toLocaleString('en-US')}</span>
+            </div>
+            <div class="metric-col">
+              <span class="metric-col-label">配息頻率 (說明書條款)</span>
+              <span class="metric-col-val" style="font-size:13px; font-weight:700;">${item.meta.frequency_desc || (item.meta.frequency === 'monthly' ? '月配息 (每月評價)' : '季配息')}</span>
+              <span class="metric-col-sub">${item.meta.payout_months && item.meta.payout_months.length > 0 ? '評價月份: ' + item.meta.payout_months.join(', ') + '月' : '收益全數累積再投資'}</span>
+            </div>
+            <div class="metric-col">
+              <span class="metric-col-label">二代健保門檻 (單次2萬)</span>
+              ${item.isBondExempt 
+                ? `
+                <span class="metric-col-val" style="color:var(--accent-cyan); font-size:13px; font-weight:700;">🛡️ 100% 免扣繳</span>
+                <span class="metric-col-sub">債券海外利息全免徵</span>
+                `
+                : (item.perPayout >= 20000
+                  ? `
+                  <span class="metric-col-val" style="color:var(--accent-rose); font-size:13px; font-weight:700;">⚠️ NT$ ${Math.round(item.perPayout).toLocaleString('en-US')}</span>
+                  <span class="metric-col-sub">單次破2萬 (預估保費 NT$ ${item.nhiFee.toLocaleString('en-US')})</span>
+                  `
+                  : `
+                  <span class="metric-col-val" style="color:var(--accent-green); font-size:13px; font-weight:700;">🛡️ NT$ ${Math.round(item.perPayout).toLocaleString('en-US')}</span>
+                  <span class="metric-col-sub">上限約 ${item.safeMaxLots} 張 (尚可買 ${item.remainingLots} 張)</span>
+                  `
+                )
+              }
+            </div>
+          </div>
+
+          ${currentCalcMode === 'shares'
+            ? `
+            <div class="shares-control-row">
+              <div class="shares-stepper-box">
+                <span style="font-size:12.5px; color:#fff; font-weight:700;">調整持有張數:</span>
+                <button class="btn-step" onclick="adjustLots(${item.index}, -5)">-5</button>
+                <button class="btn-step" onclick="adjustLots(${item.index}, -1)">-1</button>
+                <div class="input-lot-unit">
+                  <input type="number" min="0" value="${item.intLots}" onchange="setExactLots(${item.index}, this.value)">
+                  <span class="lot-tag">張</span>
+                </div>
+                <button class="btn-step" onclick="adjustLots(${item.index}, 1)">+1</button>
+                <button class="btn-step" onclick="adjustLots(${item.index}, 5)">+5</button>
+                <button class="btn-step" onclick="adjustLots(${item.index}, 10)">+10</button>
+
+                <span style="font-size:12px; color:var(--text-muted); margin-left:6px;">＋零股:</span>
+                <div class="input-lot-unit" style="width:78px;">
+                  <input type="number" min="0" max="999" style="width:78px;" value="${item.oddShares}" onchange="setExactOddShares(${item.index}, this.value)">
+                  <span class="lot-tag">股</span>
+                </div>
+              </div>
+
+              <div class="shares-val-badge">
+                <span style="color:var(--text-muted); font-size:12px; font-weight:normal;">標的現值:</span>
+                <span>NT$ ${item.allocatedCapital.toLocaleString('en-US')}</span>
+                <span style="font-size:11.5px; color:var(--accent-cyan); font-weight:700;">(${capitalPct}%)</span>
+              </div>
+            </div>
+            `
+            : `
+            <div class="etf-slider-row">
+              <span style="font-size:12px; color:var(--text-muted); font-weight:600;">調整權重:</span>
+              <input type="range" class="weight-slider" min="2" max="90" step="1" value="${Math.round(item.weight * 100)}" 
+                oninput="updateWeight(${item.index}, this.value)" style="accent-color: ${item.color}">
+              <span class="slider-pct-badge" style="color: ${item.color}">${capitalPct}%</span>
+              <button class="quick-chip-btn" onclick="snapToExactLot(${item.index})" title="微調本金剛好買整數張">整張下單對齊 (${Math.round(item.totalLotsFloat)}張)</button>
+            </div>
+            `
+          }
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function snapToExactLot(index) {
+      const item = portfolioItems[index];
+      const meta = LIVE_ETF_DB[item.code] || { price: 15.0 };
+      const currentPrice = (meta.price && meta.price > 0) ? meta.price : 15.0;
+      const pricePerLot = currentPrice * 1000;
+      const curAllocated = currentTotalCapital * item.weight;
+      const targetLots = Math.max(1, Math.round(curAllocated / pricePerLot));
+      const targetCapital = targetLots * pricePerLot;
+      
+      const newWeight = targetCapital / currentTotalCapital;
+      updateWeight(index, Math.round(newWeight * 100));
+    }
+
+    function renderDonutChart(list, totalMonthlyIncome) {
+      const svg = document.getElementById('donutSvg');
+      svg.innerHTML = '';
+      const radius = 38;
+      const circumference = 2 * Math.PI * radius;
+      let accumulatedPercent = 0;
+
+      list.forEach(item => {
+        let percent = currentChartMode === 'capital' 
+          ? item.weight 
+          : (totalMonthlyIncome > 0 ? (item.monthlyEst / totalMonthlyIncome) : item.weight);
+
+        const strokeDasharray = `${percent * circumference} ${circumference}`;
+        const strokeDashoffset = -accumulatedPercent * circumference;
+
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', '50');
+        circle.setAttribute('cy', '50');
+        circle.setAttribute('r', radius);
+        circle.setAttribute('fill', 'transparent');
+        circle.setAttribute('stroke', item.color);
+        circle.setAttribute('stroke-width', '24');
+        circle.setAttribute('stroke-dasharray', strokeDasharray);
+        circle.setAttribute('stroke-dashoffset', strokeDashoffset);
+        circle.classList.add('donut-slice');
+
+        const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        title.textContent = `${item.code} - ${(percent * 100).toFixed(1)}%`;
+        circle.appendChild(title);
+
+        svg.appendChild(circle);
+        accumulatedPercent += percent;
+      });
+
+      if (currentChartMode === 'capital') {
+        document.getElementById('donutCenterTitle').innerText = currentCalcMode === 'shares' ? '庫存總市值' : '總預估本金';
+        const wan = (currentTotalCapital / 10000).toFixed(1);
+        document.getElementById('donutCenterVal').innerText = `${wan}萬`;
+      } else {
+        document.getElementById('donutCenterTitle').innerText = '預估每月總息';
+        document.getElementById('donutCenterVal').innerText = `$${totalMonthlyIncome.toLocaleString('en-US')}`;
+      }
+    }
+
+    function renderMonthlyBarChart(buckets) {
+      const container = document.getElementById('monthlyBars');
+      container.innerHTML = '';
+
+      const maxVal = Math.max(...buckets, 1);
+      const avgVal = buckets.reduce((a, b) => a + b, 0) / 12;
+
+      buckets.forEach((val, i) => {
+        const heightPct = Math.max(8, (val / maxVal) * 100);
+        const group = document.createElement('div');
+        group.className = 'month-bar-group';
+
+        group.innerHTML = `
+          <div class="bar-tooltip">$${Math.round(val).toLocaleString('en-US')}</div>
+          <div class="bar-pill" style="height: ${heightPct}%;"></div>
+          <span class="month-label">${i + 1}月</span>
+        `;
+        container.appendChild(group);
+      });
+
+      const variance = buckets.reduce((acc, v) => acc + Math.pow(v - avgVal, 2), 0) / 12;
+      const stdDev = Math.sqrt(variance);
+      const cv = (stdDev / avgVal) * 100;
+
+      const badgeContainer = document.getElementById('cashflowStabilityBadge');
+      if (cv < 12) {
+        badgeContainer.innerHTML = `
+          <div class="diagnostic-badge safe">
+            <span>● 現金流極度均衡：各月份息收變異度僅 ${cv.toFixed(1)}% (完美月月領)</span>
+          </div>
+        `;
+      } else if (cv < 35) {
+        badgeContainer.innerHTML = `
+          <div class="diagnostic-badge warning">
+            <span>▲ 現金流次均衡：變異度 ${cv.toFixed(1)}% (受季配息發放月份影響有些微起伏)</span>
+          </div>
+        `;
+      } else {
+        badgeContainer.innerHTML = `
+          <div class="diagnostic-badge alert">
+            <span>✕ 現金流起伏較大：變異度 ${cv.toFixed(1)}% (配息高度集中於特定月份)</span>
+          </div>
+        `;
+      }
+    }
+
+    function renderStressMatrix(mdd, beta, stockW, bondW) {
+      const el2022 = document.getElementById('stress2022');
+      const el2020 = document.getElementById('stress2020');
+      const elCorrection = document.getElementById('stressCorrection');
+
+      const pct2022 = (mdd * 0.95 * 100).toFixed(1);
+      const pct2020 = (mdd * 0.75 * 100).toFixed(1);
+      const correction = (-beta * 4.2).toFixed(1);
+
+      el2022.innerText = `${pct2022}%`;
+      el2020.innerText = `${pct2020}%`;
+      elCorrection.innerText = `${correction}%`;
+
+      document.getElementById('badgeStockBond').innerText = 
+        `資產股債比 ${(stockW * 100).toFixed(0)} : ${(bondW * 100).toFixed(0)}`;
+      document.getElementById('badgeFee').innerText = 
+        `市場加權年化波動 MDD: ${(mdd * 100).toFixed(1)}%`;
+    }
+
+    function renderNHIDiagnostic(list) {
+      const grid = document.getElementById('nhiDiagnosticGrid');
+      const overallBadge = document.getElementById('nhiOverallStatusBadge');
+      if (!grid) return;
+      grid.innerHTML = '';
+
+      let hasAlert = false;
+      let totalEstimatedFee = 0;
+
+      list.forEach(item => {
+        if (!item.isBondExempt && item.perPayout >= 20000) {
+          hasAlert = true;
+          totalEstimatedFee += item.nhiFee;
+        }
+
+        const card = document.createElement('div');
+        card.className = `nhi-item-card ${item.nhiStatus}`;
+
+        const pctOf20k = item.isBondExempt 
+          ? 0 
+          : Math.min(100, (item.perPayout / 20000) * 100);
+
+        const progressColor = item.isBondExempt 
+          ? 'var(--accent-cyan)' 
+          : (item.perPayout >= 20000 ? 'var(--accent-rose)' : 'var(--accent-emerald)');
+
+        let statusDescHtml = '';
+        if (item.isBondExempt) {
+          statusDescHtml = `
+            <div style="font-size:12px; color:var(--accent-cyan); font-weight:600;">
+              ✓ 債券型 ETF 收益屬於海外利息所得 (所得代碼 71)，依法全額免徵二代健保補充保費！
+            </div>
+            <div style="font-size:11px; color:var(--text-dim); margin-top:2px;">
+              不管持有多少張皆免扣 2.11%，為大額資金避費之核心配置。
+            </div>
+          `;
+        } else if (item.perPayout >= 20000) {
+          statusDescHtml = `
+            <div style="font-size:12px; color:var(--accent-rose); font-weight:700;">
+              ⚠️ 單次除息逾 2 萬元：若該期 54C (境內股利) 達 2 萬，預估扣繳約 NT$ ${item.nhiFee.toLocaleString('en-US')} 補充保費。
+            </div>
+            <div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">
+              避費建議：單一標的持有控制在 <strong>${item.safeMaxLots} 張以內</strong>，即可確保單次配息低於 2 萬元門檻！
+            </div>
+          `;
+        } else {
+          statusDescHtml = `
+            <div style="font-size:12px; color:var(--accent-emerald); font-weight:600;">
+              ✓ 單次除息未達 2 萬元門檻：目前可享有 <strong>100% 免扣繳</strong> 補充保費優惠！
+            </div>
+            <div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">
+              門檻緩衝：距 2 萬元上限尚可加碼約 <strong>${item.remainingLots} 張</strong> (安全上限約 ${item.safeMaxLots} 張)。
+            </div>
+          `;
+        }
+
+        card.innerHTML = `
+          <div class="nhi-item-header">
+            <div class="nhi-item-title">
+              <span class="color-dot" style="background-color: ${item.color};"></span>
+              <span>${item.code} ${item.meta.name}</span>
+            </div>
+            <span class="nhi-badge ${item.nhiStatus}">
+              ${item.isBondExempt ? '🛡️ 免扣繳' : (item.perPayout >= 20000 ? '⚠️ 達門檻' : '🛡️ 安全')}
+            </span>
+          </div>
+
+          <div class="nhi-metric-row">
+            <span style="color:var(--text-muted);">單次預估除息金額 (${item.payCount}次/年):</span>
+            <span class="nhi-payout-val" style="color: ${item.isBondExempt ? 'var(--accent-cyan)' : (item.perPayout >= 20000 ? 'var(--accent-rose)' : 'var(--accent-emerald)')};">
+              NT$ ${Math.round(item.perPayout).toLocaleString('en-US')}
+            </span>
+          </div>
+
+          <div>
+            <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-dim);">
+              <span>單次 2 萬元扣繳門檻水位</span>
+              <span>${item.isBondExempt ? '免計 (0%)' : (item.perPayout >= 20000 ? ((item.perPayout / 20000) * 100).toFixed(0) + '% (超額)' : pctOf20k.toFixed(1) + '%')}</span>
+            </div>
+            <div class="nhi-progress-bar-bg">
+              <div class="nhi-progress-bar-fill" style="width: ${item.isBondExempt ? '0%' : Math.min(100, pctOf20k)}%; background: ${progressColor};"></div>
+            </div>
+          </div>
+
+          ${statusDescHtml}
+        `;
+
+        grid.appendChild(card);
+      });
+
+      if (overallBadge) {
+        if (hasAlert) {
+          overallBadge.className = 'nhi-badge alert';
+          overallBadge.innerText = `⚠️ 組合中含達 2 萬門檻標的 (預估潛在補充保費約 NT$ ${totalEstimatedFee.toLocaleString('en-US')})`;
+        } else {
+          overallBadge.className = 'nhi-badge safe';
+          overallBadge.innerText = `🛡️ 全組合安全無虞：單次除息全數未達 2 萬門檻 (免扣 2.11% 補充保費)`;
+        }
+      }
+    }
+  </script>
+</body>
+</html>

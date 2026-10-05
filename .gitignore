@@ -20,3 +20,7 @@ backups/
 
 # ESP8266 中繼編譯產物
 ESP32_TPMS_Receiver/poc_minimal_tester/build/
+
+# Python cache
+__pycache__/
+*.py[cod]

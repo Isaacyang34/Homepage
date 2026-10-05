@@ -1,0 +1,979 @@
+{
+  "00406A": {
+    "code": "00406A",
+    "symbol": "00406A.TW",
+    "name": "中國信託台灣主動收益ETF",
+    "price": 10.3,
+    "currency": "TWD",
+    "annual_dividend": 1.596,
+    "dividend_count": 2,
+    "yield_rate": 0.155,
+    "yield_pct": 15.5,
+    "frequency": "monthly",
+    "frequency_desc": "月配息 (依公開說明書每月評價配發)",
+    "payout_months": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "has_smoothing": true,
+    "category": "active",
+    "beta": 0.85,
+    "fee": 0.0055,
+    "mdd_1y": -0.166,
+    "updated_at": "2026-10-05 12:25:21",
+    "dividend_history": [
+      {
+        "date": "2026-09-02",
+        "month": 9,
+        "amount": 0.138
+      },
+      {
+        "date": "2026-07-31",
+        "month": 7,
+        "amount": 0.128
+      }
+    ],
+    "prospectus_verified": true
+  },
+  "00940": {
+    "code": "00940",
+    "symbol": "00940.TW",
+    "name": "元大台灣價值高息ETF",
+    "price": 13.26,
+    "currency": "TWD",
+    "annual_dividend": 0.62,
+    "dividend_count": 11,
+    "yield_rate": 0.0468,
+    "yield_pct": 4.68,
+    "frequency": "monthly",
+    "frequency_desc": "月配息 (依公開說明書每月評價配發)",
+    "payout_months": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "has_smoothing": true,
+    "category": "stock",
+    "beta": 0.72,
+    "fee": 0.004,
+    "mdd_1y": -0.3017,
+    "updated_at": "2026-10-05 12:25:21",
+    "dividend_history": [
+      {
+        "date": "2026-09-08",
+        "month": 9,
+        "amount": 0.055
+      },
+      {
+        "date": "2026-08-11",
+        "month": 8,
+        "amount": 0.05
+      },
+      {
+        "date": "2026-07-09",
+        "month": 7,
+        "amount": 0.05
+      },
+      {
+        "date": "2026-06-09",
+        "month": 6,
+        "amount": 0.05
+      },
+      {
+        "date": "2026-05-07",
+        "month": 5,
+        "amount": 0.045
+      },
+      {
+        "date": "2026-04-09",
+        "month": 4,
+        "amount": 0.045
+      },
+      {
+        "date": "2026-03-11",
+        "month": 3,
+        "amount": 0.045
+      },
+      {
+        "date": "2026-02-02",
+        "month": 2,
+        "amount": 0.045
+      },
+      {
+        "date": "2026-01-08",
+        "month": 1,
+        "amount": 0.045
+      },
+      {
+        "date": "2025-12-10",
+        "month": 12,
+        "amount": 0.045
+      },
+      {
+        "date": "2025-11-06",
+        "month": 11,
+        "amount": 0.04
+      }
+    ],
+    "prospectus_verified": true
+  },
+  "00937B": {
+    "code": "00937B",
+    "symbol": "00937B.TWO",
+    "name": "群益ESG投等債20+ETF",
+    "price": 13.63,
+    "currency": "TWD",
+    "annual_dividend": 0.864,
+    "dividend_count": 11,
+    "yield_rate": 0.0634,
+    "yield_pct": 6.34,
+    "frequency": "monthly",
+    "frequency_desc": "月配息 (依公開說明書每月評價配發)",
+    "payout_months": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "has_smoothing": true,
+    "category": "bond",
+    "beta": 0.45,
+    "fee": 0.0035,
+    "mdd_1y": -0.1086,
+    "updated_at": "2026-10-05 12:25:22",
+    "dividend_history": [
+      {
+        "date": "2026-09-16",
+        "month": 9,
+        "amount": 0.072
+      },
+      {
+        "date": "2026-08-18",
+        "month": 8,
+        "amount": 0.072
+      },
+      {
+        "date": "2026-07-16",
+        "month": 7,
+        "amount": 0.072
+      },
+      {
+        "date": "2026-06-16",
+        "month": 6,
+        "amount": 0.072
+      },
+      {
+        "date": "2026-05-19",
+        "month": 5,
+        "amount": 0.072
+      },
+      {
+        "date": "2026-04-20",
+        "month": 4,
+        "amount": 0.072
+      },
+      {
+        "date": "2026-03-17",
+        "month": 3,
+        "amount": 0.072
+      },
+      {
+        "date": "2026-02-26",
+        "month": 2,
+        "amount": 0.072
+      },
+      {
+        "date": "2026-01-20",
+        "month": 1,
+        "amount": 0.072
+      },
+      {
+        "date": "2025-12-16",
+        "month": 12,
+        "amount": 0.072
+      },
+      {
+        "date": "2025-11-18",
+        "month": 11,
+        "amount": 0.072
+      }
+    ],
+    "prospectus_verified": true
+  },
+  "00929": {
+    "code": "00929",
+    "symbol": "00929.TW",
+    "name": "復華台灣科技優息ETF",
+    "price": 30.01,
+    "currency": "TWD",
+    "annual_dividend": 4.56,
+    "dividend_count": 11,
+    "yield_rate": 0.1519,
+    "yield_pct": 15.19,
+    "frequency": "monthly",
+    "frequency_desc": "月配息 (依公開說明書每月評價配發)",
+    "payout_months": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "has_smoothing": true,
+    "category": "stock",
+    "beta": 0.95,
+    "fee": 0.0039,
+    "mdd_1y": -0.4233,
+    "updated_at": "2026-10-05 12:25:22",
+    "dividend_history": [
+      {
+        "date": "2026-09-17",
+        "month": 9,
+        "amount": 0.38
+      },
+      {
+        "date": "2026-08-19",
+        "month": 8,
+        "amount": 0.38
+      },
+      {
+        "date": "2026-07-21",
+        "month": 7,
+        "amount": 0.38
+      },
+      {
+        "date": "2026-06-17",
+        "month": 6,
+        "amount": 0.26
+      },
+      {
+        "date": "2026-05-20",
+        "month": 5,
+        "amount": 0.13
+      },
+      {
+        "date": "2026-04-21",
+        "month": 4,
+        "amount": 0.13
+      },
+      {
+        "date": "2026-03-18",
+        "month": 3,
+        "amount": 0.11
+      },
+      {
+        "date": "2026-03-03",
+        "month": 3,
+        "amount": 0.1
+      },
+      {
+        "date": "2026-01-20",
+        "month": 1,
+        "amount": 0.1
+      },
+      {
+        "date": "2025-12-17",
+        "month": 12,
+        "amount": 0.09
+      },
+      {
+        "date": "2025-11-19",
+        "month": 11,
+        "amount": 0.09
+      }
+    ],
+    "prospectus_verified": true
+  },
+  "00933B": {
+    "code": "00933B",
+    "symbol": "00933B.TWO",
+    "name": "國泰10Y+金融債ETF",
+    "price": 14.86,
+    "currency": "TWD",
+    "annual_dividend": 0.876,
+    "dividend_count": 11,
+    "yield_rate": 0.059,
+    "yield_pct": 5.9,
+    "frequency": "monthly",
+    "frequency_desc": "月配息 (依公開說明書每月評價配發)",
+    "payout_months": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "has_smoothing": true,
+    "category": "bond",
+    "beta": 0.46,
+    "fee": 0.0033,
+    "mdd_1y": -0.1037,
+    "updated_at": "2026-10-05 12:25:23",
+    "dividend_history": [
+      {
+        "date": "2026-09-16",
+        "month": 9,
+        "amount": 0.073
+      },
+      {
+        "date": "2026-08-18",
+        "month": 8,
+        "amount": 0.073
+      },
+      {
+        "date": "2026-07-16",
+        "month": 7,
+        "amount": 0.073
+      },
+      {
+        "date": "2026-06-16",
+        "month": 6,
+        "amount": 0.073
+      },
+      {
+        "date": "2026-05-19",
+        "month": 5,
+        "amount": 0.072
+      },
+      {
+        "date": "2026-04-20",
+        "month": 4,
+        "amount": 0.072
+      },
+      {
+        "date": "2026-03-17",
+        "month": 3,
+        "amount": 0.072
+      },
+      {
+        "date": "2026-02-26",
+        "month": 2,
+        "amount": 0.072
+      },
+      {
+        "date": "2026-01-20",
+        "month": 1,
+        "amount": 0.072
+      },
+      {
+        "date": "2025-12-16",
+        "month": 12,
+        "amount": 0.072
+      },
+      {
+        "date": "2025-11-18",
+        "month": 11,
+        "amount": 0.072
+      }
+    ],
+    "prospectus_verified": true
+  },
+  "00878": {
+    "code": "00878",
+    "symbol": "00878.TW",
+    "name": "國泰永續高股息ETF",
+    "price": 35.13,
+    "currency": "TWD",
+    "annual_dividend": 2.49,
+    "dividend_count": 4,
+    "yield_rate": 0.0709,
+    "yield_pct": 7.09,
+    "frequency": "quarterly",
+    "frequency_desc": "季配息 (依公開說明書每季 2, 5, 8, 11 月評價)",
+    "payout_months": [
+      2,
+      5,
+      8,
+      11
+    ],
+    "has_smoothing": true,
+    "category": "stock",
+    "beta": 0.65,
+    "fee": 0.003,
+    "mdd_1y": -0.4071,
+    "updated_at": "2026-10-05 12:25:23",
+    "dividend_history": [
+      {
+        "date": "2026-08-18",
+        "month": 8,
+        "amount": 1.01
+      },
+      {
+        "date": "2026-05-19",
+        "month": 5,
+        "amount": 0.66
+      },
+      {
+        "date": "2026-02-26",
+        "month": 2,
+        "amount": 0.42
+      },
+      {
+        "date": "2025-11-18",
+        "month": 11,
+        "amount": 0.4
+      }
+    ],
+    "prospectus_verified": true
+  },
+  "0056": {
+    "code": "0056",
+    "symbol": "0056.TW",
+    "name": "元大高股息ETF",
+    "price": 57.8,
+    "currency": "TWD",
+    "annual_dividend": 4.082,
+    "dividend_count": 4,
+    "yield_rate": 0.0706,
+    "yield_pct": 7.06,
+    "frequency": "quarterly",
+    "frequency_desc": "季配息 (依公開說明書每季 1, 4, 7, 10 月評價)",
+    "payout_months": [
+      1,
+      4,
+      7,
+      10
+    ],
+    "has_smoothing": true,
+    "category": "stock",
+    "beta": 0.82,
+    "fee": 0.0039,
+    "mdd_1y": -0.3768,
+    "updated_at": "2026-10-05 12:25:24",
+    "dividend_history": [
+      {
+        "date": "2026-07-21",
+        "month": 7,
+        "amount": 1.35
+      },
+      {
+        "date": "2026-04-23",
+        "month": 4,
+        "amount": 1.0
+      },
+      {
+        "date": "2026-01-22",
+        "month": 1,
+        "amount": 0.866
+      },
+      {
+        "date": "2025-10-23",
+        "month": 10,
+        "amount": 0.866
+      }
+    ],
+    "prospectus_verified": true
+  },
+  "00919": {
+    "code": "00919",
+    "symbol": "00919.TW",
+    "name": "群益台灣精選高息ETF",
+    "price": 31.65,
+    "currency": "TWD",
+    "annual_dividend": 3.42,
+    "dividend_count": 4,
+    "yield_rate": 0.1081,
+    "yield_pct": 10.81,
+    "frequency": "quarterly",
+    "frequency_desc": "季配息 (依公開說明書每季 3, 6, 9, 12 月評價)",
+    "payout_months": [
+      3,
+      6,
+      9,
+      12
+    ],
+    "has_smoothing": true,
+    "category": "stock",
+    "beta": 0.88,
+    "fee": 0.0038,
+    "mdd_1y": -0.3282,
+    "updated_at": "2026-10-05 12:25:24",
+    "dividend_history": [
+      {
+        "date": "2026-09-16",
+        "month": 9,
+        "amount": 1.1
+      },
+      {
+        "date": "2026-06-16",
+        "month": 6,
+        "amount": 1.0
+      },
+      {
+        "date": "2026-03-17",
+        "month": 3,
+        "amount": 0.78
+      },
+      {
+        "date": "2025-12-16",
+        "month": 12,
+        "amount": 0.54
+      }
+    ],
+    "prospectus_verified": true
+  },
+  "00713": {
+    "code": "00713",
+    "symbol": "00713.TW",
+    "name": "元大台灣高息低波ETF",
+    "price": 62.9,
+    "currency": "TWD",
+    "annual_dividend": 3.81,
+    "dividend_count": 4,
+    "yield_rate": 0.0606,
+    "yield_pct": 6.06,
+    "frequency": "quarterly",
+    "frequency_desc": "季配息 (依公開說明書每季 3, 6, 9, 12 月評價)",
+    "payout_months": [
+      3,
+      6,
+      9,
+      12
+    ],
+    "has_smoothing": true,
+    "category": "stock",
+    "beta": 0.58,
+    "fee": 0.0042,
+    "mdd_1y": -0.2008,
+    "updated_at": "2026-10-05 12:25:25",
+    "dividend_history": [
+      {
+        "date": "2026-09-21",
+        "month": 9,
+        "amount": 1.25
+      },
+      {
+        "date": "2026-06-22",
+        "month": 6,
+        "amount": 1.0
+      },
+      {
+        "date": "2026-03-20",
+        "month": 3,
+        "amount": 0.78
+      },
+      {
+        "date": "2025-12-19",
+        "month": 12,
+        "amount": 0.78
+      }
+    ],
+    "prospectus_verified": true
+  },
+  "00918": {
+    "code": "00918",
+    "symbol": "00918.TW",
+    "name": "大華優利高填息30ETF",
+    "price": 33.89,
+    "currency": "TWD",
+    "annual_dividend": 4.195,
+    "dividend_count": 4,
+    "yield_rate": 0.1238,
+    "yield_pct": 12.38,
+    "frequency": "quarterly",
+    "frequency_desc": "季配息 (依公開說明書每季 3, 6, 9, 12 月評價)",
+    "payout_months": [
+      3,
+      6,
+      9,
+      12
+    ],
+    "has_smoothing": true,
+    "category": "stock",
+    "beta": 0.86,
+    "fee": 0.0038,
+    "mdd_1y": -0.3759,
+    "updated_at": "2026-10-05 12:25:25",
+    "dividend_history": [
+      {
+        "date": "2026-09-18",
+        "month": 9,
+        "amount": 1.75
+      },
+      {
+        "date": "2026-06-18",
+        "month": 6,
+        "amount": 1.26
+      },
+      {
+        "date": "2026-03-19",
+        "month": 3,
+        "amount": 0.62
+      },
+      {
+        "date": "2025-12-18",
+        "month": 12,
+        "amount": 0.565
+      }
+    ],
+    "prospectus_verified": true
+  },
+  "00915": {
+    "code": "00915",
+    "symbol": "00915.TW",
+    "name": "凱基優選高股息30ETF",
+    "price": 32.91,
+    "currency": "TWD",
+    "annual_dividend": 1.75,
+    "dividend_count": 5,
+    "yield_rate": 0.0532,
+    "yield_pct": 5.32,
+    "frequency": "quarterly",
+    "frequency_desc": "季配息 (依公開說明書每季 3, 6, 9, 12 月評價)",
+    "payout_months": [
+      3,
+      6,
+      9,
+      12
+    ],
+    "has_smoothing": true,
+    "category": "stock",
+    "beta": 0.82,
+    "fee": 0.0035,
+    "mdd_1y": -0.3323,
+    "updated_at": "2026-10-05 12:25:25",
+    "dividend_history": [
+      {
+        "date": "2026-09-16",
+        "month": 9,
+        "amount": 0.6
+      },
+      {
+        "date": "2026-08-18",
+        "month": 8,
+        "amount": 0.32
+      },
+      {
+        "date": "2026-06-16",
+        "month": 6,
+        "amount": 0.45
+      },
+      {
+        "date": "2026-03-17",
+        "month": 3,
+        "amount": 0.38
+      },
+      {
+        "date": "2025-12-16",
+        "month": 12,
+        "amount": 0.35
+      }
+    ],
+    "prospectus_verified": true
+  },
+  "00679B": {
+    "code": "00679B",
+    "symbol": "00679B.TWO",
+    "name": "元大美債20年ETF",
+    "price": 24.52,
+    "currency": "TWD",
+    "annual_dividend": 1.12,
+    "dividend_count": 4,
+    "yield_rate": 0.0457,
+    "yield_pct": 4.57,
+    "frequency": "quarterly",
+    "frequency_desc": "季配息 (依公開說明書每季 2, 5, 8, 11 月評價)",
+    "payout_months": [
+      2,
+      5,
+      8,
+      11
+    ],
+    "has_smoothing": false,
+    "category": "bond",
+    "beta": 0.3,
+    "fee": 0.0022,
+    "mdd_1y": -0.1183,
+    "updated_at": "2026-10-05 12:25:26",
+    "dividend_history": [
+      {
+        "date": "2026-08-21",
+        "month": 8,
+        "amount": 0.28
+      },
+      {
+        "date": "2026-05-22",
+        "month": 5,
+        "amount": 0.28
+      },
+      {
+        "date": "2026-02-26",
+        "month": 2,
+        "amount": 0.28
+      },
+      {
+        "date": "2025-11-21",
+        "month": 11,
+        "amount": 0.28
+      }
+    ],
+    "prospectus_verified": true
+  },
+  "00687B": {
+    "code": "00687B",
+    "symbol": "00687B.TWO",
+    "name": "國泰20年美債ETF",
+    "price": 25.47,
+    "currency": "TWD",
+    "annual_dividend": 1.157,
+    "dividend_count": 4,
+    "yield_rate": 0.0454,
+    "yield_pct": 4.54,
+    "frequency": "quarterly",
+    "frequency_desc": "季配息 (依公開說明書每季 1, 4, 7, 10 月評價)",
+    "payout_months": [
+      1,
+      4,
+      7,
+      10
+    ],
+    "has_smoothing": false,
+    "category": "bond",
+    "beta": 0.31,
+    "fee": 0.0023,
+    "mdd_1y": -0.1265,
+    "updated_at": "2026-10-05 12:25:27",
+    "dividend_history": [
+      {
+        "date": "2026-09-16",
+        "month": 9,
+        "amount": 0.335
+      },
+      {
+        "date": "2026-06-16",
+        "month": 6,
+        "amount": 0.262
+      },
+      {
+        "date": "2026-03-17",
+        "month": 3,
+        "amount": 0.28
+      },
+      {
+        "date": "2025-12-16",
+        "month": 12,
+        "amount": 0.28
+      }
+    ],
+    "prospectus_verified": true
+  },
+  "00720B": {
+    "code": "00720B",
+    "symbol": "00720B.TWO",
+    "name": "元大投資級公司債ETF",
+    "price": 30.61,
+    "currency": "TWD",
+    "annual_dividend": 1.85,
+    "dividend_count": 4,
+    "yield_rate": 0.0604,
+    "yield_pct": 6.04,
+    "frequency": "quarterly",
+    "frequency_desc": "季配息 (依公開說明書每季 1, 4, 7, 10 月評價)",
+    "payout_months": [
+      1,
+      4,
+      7,
+      10
+    ],
+    "has_smoothing": false,
+    "category": "bond",
+    "beta": 0.4,
+    "fee": 0.0028,
+    "mdd_1y": -0.101,
+    "updated_at": "2026-10-05 12:25:27",
+    "dividend_history": [
+      {
+        "date": "2026-07-21",
+        "month": 7,
+        "amount": 0.47
+      },
+      {
+        "date": "2026-04-23",
+        "month": 4,
+        "amount": 0.48
+      },
+      {
+        "date": "2026-01-22",
+        "month": 1,
+        "amount": 0.44
+      },
+      {
+        "date": "2025-10-23",
+        "month": 10,
+        "amount": 0.46
+      }
+    ],
+    "prospectus_verified": true
+  },
+  "0050": {
+    "code": "0050",
+    "symbol": "0050.TW",
+    "name": "元大台灣50ETF",
+    "price": 115.8,
+    "currency": "TWD",
+    "annual_dividend": 1.6,
+    "dividend_count": 2,
+    "yield_rate": 0.0138,
+    "yield_pct": 1.38,
+    "frequency": "semi-annual",
+    "frequency_desc": "半年配 (依公開說明書每半年 1, 7 月評價)",
+    "payout_months": [
+      1,
+      7
+    ],
+    "has_smoothing": false,
+    "category": "stock",
+    "beta": 1.0,
+    "fee": 0.0035,
+    "mdd_1y": -0.4616,
+    "updated_at": "2026-10-05 12:25:28",
+    "dividend_history": [
+      {
+        "date": "2026-07-21",
+        "month": 7,
+        "amount": 0.6
+      },
+      {
+        "date": "2026-01-22",
+        "month": 1,
+        "amount": 1.0
+      }
+    ],
+    "prospectus_verified": true
+  },
+  "006208": {
+    "code": "006208",
+    "symbol": "006208.TW",
+    "name": "富邦台灣釆擷50ETF",
+    "price": 265.05,
+    "currency": "TWD",
+    "annual_dividend": 8.198,
+    "dividend_count": 2,
+    "yield_rate": 0.0309,
+    "yield_pct": 3.09,
+    "frequency": "semi-annual",
+    "frequency_desc": "半年配 (依公開說明書每半年 7, 11 月評價)",
+    "payout_months": [
+      7,
+      11
+    ],
+    "has_smoothing": false,
+    "category": "stock",
+    "beta": 0.99,
+    "fee": 0.0015,
+    "mdd_1y": -0.461,
+    "updated_at": "2026-10-05 12:25:28",
+    "dividend_history": [
+      {
+        "date": "2026-07-16",
+        "month": 7,
+        "amount": 4.75
+      },
+      {
+        "date": "2025-11-18",
+        "month": 11,
+        "amount": 3.448
+      }
+    ],
+    "prospectus_verified": true
+  },
+  "00757": {
+    "code": "00757",
+    "symbol": "00757.TW",
+    "name": "統一FANG+ ETF",
+    "price": 143.7,
+    "currency": "TWD",
+    "annual_dividend": 0.0,
+    "dividend_count": 0,
+    "yield_rate": 0.0,
+    "yield_pct": 0.0,
+    "frequency": "none",
+    "frequency_desc": "不配息 (公開說明書規定收益全數再投資累積)",
+    "payout_months": [],
+    "has_smoothing": false,
+    "category": "stock",
+    "beta": 1.35,
+    "fee": 0.0085,
+    "mdd_1y": -0.2981,
+    "updated_at": "2026-10-05 12:25:28",
+    "dividend_history": [],
+    "prospectus_verified": true
+  },
+  "00935": {
+    "code": "00935",
+    "symbol": "00935.TW",
+    "name": "NEXT FUNDS - Nomura Taiwan Innovative Technology 50 ETF",
+    "price": 63.5,
+    "currency": "TWD",
+    "annual_dividend": 3.03,
+    "dividend_count": 2,
+    "yield_rate": 0.0477,
+    "yield_pct": 4.77,
+    "frequency": "semi-annual",
+    "frequency_desc": "半年/年配",
+    "payout_months": [
+      3,
+      9
+    ],
+    "has_smoothing": true,
+    "category": "stock",
+    "beta": 0.85,
+    "fee": 0.004,
+    "mdd_1y": -0.5424,
+    "updated_at": "2026-10-05 12:25:29",
+    "dividend_history": [
+      {
+        "date": "2026-09-16",
+        "month": 9,
+        "amount": 1.83
+      },
+      {
+        "date": "2026-03-17",
+        "month": 3,
+        "amount": 1.2
+      }
+    ],
+    "prospectus_verified": false
+  }
+}
