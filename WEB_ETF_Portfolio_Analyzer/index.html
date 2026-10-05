@@ -956,6 +956,38 @@
     .stress-impact.negative { color: var(--accent-rose); }
     .stress-impact.moderate { color: var(--accent-orange); }
     .stress-impact.safe { color: var(--accent-green); }
+    .stress-impact.gain { color: #10b981; }
+
+    .scenario-tabs {
+      display: inline-flex;
+      gap: 4px;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 3px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    .scenario-tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 11.5px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .scenario-tab-btn:hover {
+      color: #fff;
+    }
+
+    .scenario-tab-btn.active {
+      background: var(--accent-cyan);
+      color: #0b0f19;
+      font-weight: 700;
+    }
 
     /* Risk Diagnostic Badges */
     .risk-diagnostic-row {
@@ -1330,8 +1362,11 @@
             <!-- Options dynamically rendered by renderPresetDropdown() -->
           </select>
           <span id="dirtyBadge" class="dirty-badge" style="display:none;" title="當前配置有未儲存的變更">● 未儲存</span>
-          <button class="btn-preset-tool primary" onclick="promptSaveCurrentPortfolio()" title="儲存當前修改之組合">💾 儲存組合</button>
+          <button class="btn-preset-tool primary" onclick="promptSaveCurrentPortfolio()" title="儲存當前修改之組合至本機瀏覽器">💾 儲存組合</button>
           <button class="btn-preset-tool" onclick="resetCurrentStrategy()" title="還原此方案原始預設值">↺ 重設本組合</button>
+          <button class="btn-preset-tool" onclick="exportStrategiesJSON()" title="將所有自訂組合匯出成 JSON 備份檔 (本機保存防遺失)">📤 備份匯出</button>
+          <button class="btn-preset-tool" onclick="document.getElementById('importFileInput').click()" title="從本機 JSON 備份檔匯入自訂組合">📥 匯入還原</button>
+          <input type="file" id="importFileInput" accept=".json" style="display:none;" onchange="importStrategiesJSON(event)" />
           <button class="btn-preset-tool danger" id="btnDeleteCustom" style="display:none;" onclick="deleteCurrentCustomPortfolio()" title="刪除此自訂組合">🗑️ 刪除</button>
         </div>
       </div>
@@ -1463,44 +1498,78 @@
         </div>
       </div>
 
-      <!-- Stress Testing & Risk -->
+      <!-- Historical Scenarios: Dual Bull & Bear Simulation -->
       <div class="glass-card">
-        <div class="section-title">
-          <span>極端歷史情境壓力測試 (Stress Testing)</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 4px;">
+          <div class="section-title" style="margin-bottom: 0;">
+            <span>歷史重大情境多空模擬 (Bull & Bear Scenario Testing)</span>
+          </div>
+          <div class="scenario-tabs">
+            <button class="scenario-tab-btn active" id="tabScenarioAll" onclick="switchScenarioTab('all')">⚖️ 多空對照總覽</button>
+            <button class="scenario-tab-btn" id="tabScenarioBull" onclick="switchScenarioTab('bull')">🟢 牛市進攻 (漲)</button>
+            <button class="scenario-tab-btn" id="tabScenarioBear" onclick="switchScenarioTab('bear')">🔴 熊市抗跌 (跌)</button>
+          </div>
         </div>
-        <p style="font-size: 12px; color: var(--text-muted); margin-top: -6px;">
-          依真實持股類別與 Beta 係數，模擬歷史重大黑天鵝事件最大回撤 (MDD)
+        <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+          結合資產類別 (股票/債券)、加權 Beta 敏感度與存續期間，全方位評估「牛市獲利進攻」與「熊市黑天鵝防守」預估表現
         </p>
 
-        <div class="stress-matrix">
-          <div class="stress-item">
+        <div class="stress-matrix" id="scenarioContainer">
+          <!-- Bull Scenarios (漲) -->
+          <div class="stress-item scenario-item-bull">
             <div class="stress-desc">
-              <span class="stress-name">2022 年激進升息 (股債雙殺波段)</span>
+              <span class="stress-name">🚀 2023~2024 AI 狂潮大多頭主升段 (大盤衝刺 +38.5%)</span>
+              <span class="stress-sub">科技權值股領軍台股攻上兩萬點，股票隨加權 Beta 放大進攻，債券穩健定錨</span>
+            </div>
+            <span class="stress-impact gain" id="bullAiRally">+34.8%</span>
+          </div>
+
+          <div class="stress-item scenario-item-bull">
+            <div class="stress-desc">
+              <span class="stress-name">📈 降息循環啟動波段 (股債齊揚甜蜜期 +22.0%)</span>
+              <span class="stress-sub">資金寬鬆推升股市估值，長天期美債受存續期間拉動資本利得暴增 (+16.5%)，股債平衡爆發力</span>
+            </div>
+            <span class="stress-impact gain" id="bullRateCut">+19.5%</span>
+          </div>
+
+          <div class="stress-item scenario-item-bull">
+            <div class="stress-desc">
+              <span class="stress-name">⚡ 台股大盤報復性強彈 1,000 點衝擊 (+4.5%)</span>
+              <span class="stress-sub">短線利空出盡急行軍反彈，檢視投資組合跟漲敏感度與即時捕獲能力</span>
+            </div>
+            <span class="stress-impact gain" id="bullBounce">+4.1%</span>
+          </div>
+
+          <!-- Bear Scenarios (跌) -->
+          <div class="stress-item scenario-item-bear">
+            <div class="stress-desc">
+              <span class="stress-name">📉 2022 年激進升息 (股債雙殺波段 -14.2%)</span>
               <span class="stress-sub">通膨高企、無風險利率暴升，高估值股票與長天期債券承壓</span>
             </div>
             <span class="stress-impact moderate" id="stress2022">-14.2%</span>
           </div>
 
-          <div class="stress-item">
+          <div class="stress-item scenario-item-bear">
             <div class="stress-desc">
-              <span class="stress-name">2020 年新冠疫情黑天鵝 (流動性休克)</span>
+              <span class="stress-name">🩸 2020 年新冠疫情黑天鵝 (流動性休克 -11.8%)</span>
               <span class="stress-sub">全球股市閃崩近 30%，投資級債展現避險定錨效果</span>
             </div>
             <span class="stress-impact safe" id="stress2020">-11.8%</span>
           </div>
 
-          <div class="stress-item">
+          <div class="stress-item scenario-item-bear">
             <div class="stress-desc">
-              <span class="stress-name">台股大盤指數回檔 1,000 點衝擊</span>
+              <span class="stress-name">⚠️ 台股大盤指數回檔 1,000 點衝擊 (-4.2%)</span>
               <span class="stress-sub">短期獲利了結賣壓測試，高股息價值股與債息保護力</span>
             </div>
             <span class="stress-impact safe" id="stressCorrection">-2.4%</span>
           </div>
         </div>
 
-        <div class="risk-diagnostic-row" style="margin-top: 4px;">
-          <div class="diagnostic-badge safe" id="badgeStockBond">股債配置比 63 : 37</div>
-          <div class="diagnostic-badge safe" id="badgeFee">加權年化費用率約: 0.41%</div>
+        <div class="risk-diagnostic-row" style="margin-top: 6px;">
+          <div class="diagnostic-badge safe" id="badgeStockBond">資產股債比 63 : 37</div>
+          <div class="diagnostic-badge safe" id="badgeUpsideCapture">牛市進攻捕獲率: 88.5%</div>
+          <div class="diagnostic-badge safe" id="badgeDownsideDefense">加權綜合波動: 0.78β (穩健抗震)</div>
         </div>
       </div>
 
@@ -1917,6 +1986,88 @@
         currentStrategyId = 'user_image';
         applyStrategy('user_image');
       }
+    }
+
+    // Export & Import Portfolios to JSON (100% Local Backup)
+    function exportStrategiesJSON() {
+      const exportData = {
+        app: 'ETF_Portfolio_Analyzer',
+        version: '1.0',
+        exportTime: new Date().toLocaleString(),
+        customPortfolios: customPortfolios,
+        currentPortfolio: {
+          name: getStrategyName(currentStrategyId),
+          capital: currentTotalCapital,
+          calcMode: currentCalcMode,
+          items: portfolioItems
+        }
+      };
+      const jsonStr = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const dateStr = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `ETF_Portfolio_Backup_${dateStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function importStrategiesJSON(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (data && data.customPortfolios && typeof data.customPortfolios === 'object') {
+            const count = Object.keys(data.customPortfolios).length;
+            customPortfolios = { ...customPortfolios, ...data.customPortfolios };
+            saveCustomPortfoliosToStorage();
+            renderPresetDropdown();
+            alert(`成功匯入 ${count} 組自訂投資組合！已同步保存至您的本機瀏覽器。`);
+          } else if (data && data.items && Array.isArray(data.items)) {
+            const id = 'imported_' + Date.now();
+            customPortfolios[id] = {
+              id: id,
+              name: data.name || '匯入之投資組合',
+              capital: data.capital || 1000000,
+              calcMode: data.calcMode || 'budget',
+              items: data.items,
+              savedAt: new Date().toLocaleString()
+            };
+            saveCustomPortfoliosToStorage();
+            applyStrategy(id);
+            renderPresetDropdown();
+            alert('成功匯入投資組合！已套用並儲存至本機。');
+          } else {
+            alert('匯入失敗：JSON 檔案格式不符合投資組合規範。');
+          }
+        } catch (err) {
+          alert('解析 JSON 檔案失敗：' + err.message);
+        }
+        event.target.value = '';
+      };
+      reader.readAsText(file);
+    }
+
+    // Switch Scenario Tabs (All / Bull / Bear)
+    let currentScenarioTab = 'all';
+    function switchScenarioTab(tab) {
+      currentScenarioTab = tab;
+      const tabAll = document.getElementById('tabScenarioAll');
+      const tabBull = document.getElementById('tabScenarioBull');
+      const tabBear = document.getElementById('tabScenarioBear');
+      if (tabAll) tabAll.classList.toggle('active', tab === 'all');
+      if (tabBull) tabBull.classList.toggle('active', tab === 'bull');
+      if (tabBear) tabBear.classList.toggle('active', tab === 'bear');
+
+      const bullItems = document.querySelectorAll('.scenario-item-bull');
+      const bearItems = document.querySelectorAll('.scenario-item-bear');
+      bullItems.forEach(el => el.style.display = (tab === 'bear') ? 'none' : 'flex');
+      bearItems.forEach(el => el.style.display = (tab === 'bull') ? 'none' : 'flex');
     }
 
     // Color Palette
@@ -2697,22 +2848,61 @@
     }
 
     function renderStressMatrix(mdd, beta, stockW, bondW) {
+      // 1. Bear Scenarios (跌 - 歷史極端壓力)
       const el2022 = document.getElementById('stress2022');
       const el2020 = document.getElementById('stress2020');
       const elCorrection = document.getElementById('stressCorrection');
 
-      const pct2022 = (mdd * 0.95 * 100).toFixed(1);
-      const pct2020 = (mdd * 0.75 * 100).toFixed(1);
-      const correction = (-beta * 4.2).toFixed(1);
+      // 2022 激進升息雙殺：股票隨加權 Beta 下跌約 18.5%，長天期債券受利率暴升下跌約 14.0%
+      const impact2022 = -((stockW * beta * 18.5) + (bondW * 14.0));
+      // 2020 疫情閃崩：股票閃崩 22.0%*beta，債券發揮避險定錨抗跌或小漲
+      const impact2020 = -Math.max(1.0, (stockW * beta * 22.0) - (bondW * 3.5));
+      // 大盤單波回檔 1,000 點 (-4.2%)：
+      const impactCorrection = -((stockW * beta * 4.2) + (bondW * 0.2));
 
-      el2022.innerText = `${pct2022}%`;
-      el2020.innerText = `${pct2020}%`;
-      elCorrection.innerText = `${correction}%`;
+      if (el2022) el2022.innerText = `${impact2022.toFixed(1)}%`;
+      if (el2020) el2020.innerText = `${impact2020.toFixed(1)}%`;
+      if (elCorrection) elCorrection.innerText = `${impactCorrection.toFixed(1)}%`;
 
-      document.getElementById('badgeStockBond').innerText = 
-        `資產股債比 ${(stockW * 100).toFixed(0)} : ${(bondW * 100).toFixed(0)}`;
-      document.getElementById('badgeFee').innerText = 
-        `市場加權年化波動 MDD: ${(mdd * 100).toFixed(1)}%`;
+      // 2. Bull Scenarios (漲 - 歷史大多頭進攻)
+      const elBullAi = document.getElementById('bullAiRally');
+      const elBullCut = document.getElementById('bullRateCut');
+      const elBullBounce = document.getElementById('bullBounce');
+
+      // 2023~2024 AI 狂潮主升段 (+38.5% 大牛市)：股票隨 Beta 放大衝刺，債券提供穩健利息約 +2.5%
+      const impactAi = (stockW * beta * 38.5) + (bondW * 2.5);
+      // 降息循環啟動波段 (+22.0% 股債齊揚)：股市 PE 擴張 (+18.0%*beta)，美債受存續期間拉動資本利得暴增 (+16.5%)
+      const impactCut = (stockW * beta * 18.0) + (bondW * 16.5);
+      // 大盤報復性強彈 1,000 點衝擊 (+4.5%)：
+      const impactBounce = (stockW * beta * 4.5) + (bondW * 0.3);
+
+      if (elBullAi) elBullAi.innerText = `+${impactAi.toFixed(1)}%`;
+      if (elBullCut) elBullCut.innerText = `+${impactCut.toFixed(1)}%`;
+      if (elBullBounce) elBullBounce.innerText = `+${impactBounce.toFixed(1)}%`;
+
+      // 3. Diagnostics: 股債比、牛市進攻捕獲率、加權綜合防禦
+      const elStockBond = document.getElementById('badgeStockBond');
+      if (elStockBond) {
+        elStockBond.innerText = `資產股債比 ${(stockW * 100).toFixed(0)} : ${(bondW * 100).toFixed(0)}`;
+      }
+
+      // 牛市進攻捕獲率 (Upside Capture Ratio)：相對於純大盤大牛市 (+38.5%) 能跟上多少 %
+      const upsideCapture = (impactAi / 38.5) * 100;
+      const elUpside = document.getElementById('badgeUpsideCapture');
+      if (elUpside) {
+        elUpside.innerText = `牛市進攻捕獲率: ${Math.max(0, upsideCapture).toFixed(1)}%`;
+      }
+
+      // 加權綜合波動與抗跌防禦
+      const elDefense = document.getElementById('badgeDownsideDefense');
+      if (elDefense) {
+        const effBeta = (stockW * beta) + (bondW * 0.35);
+        let defenseLevel = '防禦均衡';
+        if (effBeta < 0.65) defenseLevel = '極高抗跌 (債券護城河)';
+        else if (effBeta < 0.85) defenseLevel = '穩健抗震';
+        else defenseLevel = '成長進攻型';
+        elDefense.innerText = `加權綜合波動: ${effBeta.toFixed(2)}β (${defenseLevel})`;
+      }
     }
 
     function renderNHIDiagnostic(list) {
