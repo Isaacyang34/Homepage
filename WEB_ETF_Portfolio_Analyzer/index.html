@@ -1467,12 +1467,12 @@
           ETF 智能投資組合與獲利風險動態評估系統
           <span class="live-status-pill"><span class="live-dot"></span><span id="liveStatusText">即時市場數據連動中</span></span>
         </h1>
-        <p>連線公開即時金融 API · 拒絕寫死常數與假數據 · 全市場上市櫃 ETF 任意自由配置</p>
+        <p>連線公開即時金融 API · 全市場上市櫃 ETF 任意自由配置</p>
       </div>
 
       <div class="header-right-controls">
-        <!-- Real Visitor Counter Pill (Clickable for Advanced Stats) -->
-        <div id="headerVisitorBadge" class="visitor-counter-pill clickable" onclick="openVisitorStatsModal()" title="點擊檢視即時人次、今日/本週/本月完整遙測儀表板">
+        <!-- Visitor Counter Pill (Clickable for Advanced Stats) -->
+        <div id="headerVisitorBadge" class="visitor-counter-pill clickable" onclick="openVisitorStatsModal()" title="點擊檢視即時人次、今日/本週/本月統計儀表板">
           <span class="visitor-pulse-dot"></span>
           <span>即時人次：<strong id="visitorCountVal">連線中...</strong></span>
           <span style="font-size: 9px; opacity: 0.65; margin-left: 2px;">📊 詳情</span>
@@ -1513,7 +1513,7 @@
       </div>
 
       <div class="kpi-card purple">
-        <span class="kpi-label">加權年化殖利率 (真實配息率)</span>
+        <span class="kpi-label">加權年化殖利率 (平均配息率)</span>
         <div class="kpi-value" id="kpiYield">0.00<span class="unit">%</span></div>
         <div class="kpi-subtext purple" id="kpiYieldQuality">依據近 12 個月實收配息總額 / 最新市價</div>
       </div>
@@ -1610,7 +1610,7 @@
           <span>1~12 月現金流落袋矩陣 (淡旺季月曆)</span>
         </div>
         <p style="font-size: 12px; color: var(--text-muted); margin-top: -6px;">
-          依據各 ETF 真實除息月份紀錄，精確繪製 12 個月份的實收現金流
+          依據各 ETF 除息月份紀錄，精確繪製 12 個月份的實收現金流
         </p>
 
         <div class="month-chart-container" id="monthlyBars">
@@ -1738,7 +1738,7 @@
     </div>
 
     <footer>
-      <div>ETF 智能資產配置分析系統 · 真實市場行情對接 · 試算結果僅供策略模擬參考，不構成任何實質投資買賣建議</div>
+      <div>ETF 智能資產配置分析系統 · 整合即時市場行情 · 試算結果僅供策略模擬參考，不構成任何實質投資買賣建議</div>
       <div style="margin-top: 8px;">
         <span id="footerVisitorBadge" class="visitor-counter-pill clickable" onclick="openVisitorStatsModal()" style="font-size: 11px; padding: 3px 9px;" title="點擊檢視今日、本週、本月存取明細">
           <span class="visitor-pulse-dot" style="width: 5px; height: 5px;"></span>
@@ -1775,7 +1775,7 @@
         </div>
         <div style="font-size:12.5px; color:var(--text-muted);" id="resName">凱基台灣優選高股息30 ETF</div>
         <div style="display:flex; gap:16px; font-size:12px; margin-top:4px;">
-          <span>真實殖利率: <strong style="color:var(--accent-green);" id="resYield">6.38%</strong></span>
+          <span>年化殖利率: <strong style="color:var(--accent-green);" id="resYield">6.38%</strong></span>
           <span>近1年配息次數: <strong id="resCount">4 次</strong></span>
           <span>配息週期: <strong id="resFreq">季配息</strong></span>
         </div>
@@ -1858,13 +1858,13 @@
       <div class="modal-header">
         <h3 style="display:flex; align-items:center; gap:8px;">
           <span>📊</span>
-          <span>即時雲端訪客與使用量統計儀表板</span>
+          <span>訪客與使用量統計儀表板</span>
         </h3>
         <button class="modal-close-btn" onclick="closeVisitorStatsModal()">&times;</button>
       </div>
 
       <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">
-        數據源自 Google Firebase Realtime Database 實體雲端遙測節點 · 100% 真實存取無作假
+        數據源自 Google Firebase Realtime Database 即時統計節點
       </div>
 
       <!-- Top KPI: Daily / Weekly / Monthly -->
@@ -2393,7 +2393,7 @@
 
       const footerText = document.getElementById('footerVisitorText');
       if (footerText) {
-        footerText.innerHTML = `累計服務 <strong>${formattedTotal}</strong> 次存取 · 累計 <strong>${formattedUniq}</strong> 位獨立投資人 · 100% 真實雲端遙測`;
+        footerText.innerHTML = `累計服務 <strong>${formattedTotal}</strong> 次存取 · 累計 <strong>${formattedUniq}</strong> 位獨立投資人`;
       }
     }
 
@@ -2562,7 +2562,7 @@
         </div>
         <div style="font-size:12.5px; color:var(--text-muted);">${data.name}</div>
         <div style="display:flex; gap:16px; font-size:12px; margin-top:4px; flex-wrap:wrap;">
-          <span>真實殖利率: <strong style="color:var(--accent-green);">${data.yield_pct}%</strong></span>
+          <span>年化殖利率: <strong style="color:var(--accent-green);">${data.yield_pct}%</strong></span>
           <span>近1年配息: <strong>NT$ ${data.annual_dividend} (${data.dividend_count || 1}次)</strong></span>
           <span>週期: <strong>${data.frequency_desc || data.frequency}</strong></span>
         </div>
@@ -3281,7 +3281,7 @@
               <span class="metric-col-sub">${divPct}% 息收佔比</span>
             </div>
             <div class="metric-col">
-              <span class="metric-col-label">真實年化殖利率</span>
+              <span class="metric-col-label">年化殖利率</span>
               <span class="metric-col-val" style="color:var(--accent-cyan)">${(item.meta.yield_rate * 100).toFixed(2)}%</span>
               <span class="metric-col-sub">年息約 NT$ ${Math.round(item.annualDiv).toLocaleString('en-US')}</span>
             </div>
