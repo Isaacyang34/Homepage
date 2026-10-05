@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-TW" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>北部環島 3天2夜 雙極點公路之旅 | 互動行程與地圖指南</title>
+  <meta name="description" content="台灣北部環島3天2夜機車與公路旅行完整規劃：解鎖極東點三貂角與極北點富貴角，包含晴天北橫明池線與雨天大溪碧潭線雙備案、即時氣象與加油補給指南。">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+
+  <!-- Custom Design System -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Top Sticky Navigation Bar -->
+  <header class="site-header">
+    <div class="header-inner">
+      <!-- Brand & Title -->
+      <div class="header-brand">
+        <div class="brand-badge">🏍️</div>
+        <div class="brand-info">
+          <h1>台灣北部環島・雙極點公路之旅</h1>
+          <p>3天2夜 | 台中出發 ⇄ 極東三貂角 ⇄ 極北富貴角 | 晴雨雙備案全導覽</p>
+        </div>
+      </div>
+
+      <!-- Controls & Filters -->
+      <div class="header-controls">
+        <!-- Weather Branch Switcher (Day 1 Decision) -->
+        <div class="weather-switcher" title="第一天走線模式切換 (合興車站決策點)">
+          <button id="btn-sunny" class="switch-btn active sunny">
+            <span>☀️ 好天氣線 (北橫·宇老)</span>
+          </button>
+          <button id="btn-rainy" class="switch-btn rainy">
+            <span>🌧️ 下雨天線 (大溪·碧潭)</span>
+          </button>
+        </div>
+
+        <!-- Day Filter -->
+        <div class="day-pills">
+          <button class="pill-btn active" data-day="all">全部</button>
+          <button class="pill-btn day-1" data-day="1">DAY 1</button>
+          <button class="pill-btn day-2" data-day="2">DAY 2</button>
+          <button class="pill-btn day-3" data-day="3">DAY 3</button>
+        </div>
+
+        <!-- Utility Buttons -->
+        <button id="btn-share" class="icon-btn" title="分享 / 複製文字版行程">📋</button>
+        <button id="btn-print" class="icon-btn" title="列印行程表">🖨️</button>
+        <button id="btn-toggle-theme" class="icon-btn" title="切換深色/淺色模式">🌙</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main 2-Column App Grid -->
+  <main class="main-wrapper">
+
+    <!-- Left Column: Interactive Map -->
+    <section class="map-container-wrapper" aria-label="行程地圖">
+      <div id="map"></div>
+
+      <!-- Floating Map Status Badge -->
+      <div class="map-floating-panel">
+        <div class="status-pill">
+          <div class="pulse-dot"></div>
+          <span>目前模式：<strong id="branch-mode-desc">北橫・明池・宇老高山線</strong></span>
+        </div>
+      </div>
+
+      <!-- Floating Map Tool Buttons -->
+      <div class="map-tool-buttons">
+        <button id="btn-map-fit" class="map-action-btn" title="適應全部路徑">🎯</button>
+        <button id="btn-toggle-tiles" class="map-action-btn" title="切換地圖風格 (淺色/深色)">🗺️</button>
+      </div>
+
+      <!-- Map Legend Bar -->
+      <div class="map-legends">
+        <div class="legend-item">
+          <span class="legend-line d1-sun"></span>
+          <span>D1 晴天線 (台7北橫)</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-line d1-rain"></span>
+          <span>D1 雨天線 (台3/台9北宜)</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-line d2"></span>
+          <span>D2 雙極點海岸線 (台2)</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-line d3"></span>
+          <span>D3 返程 (台1/台66)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Sidebar & Timeline -->
+    <aside class="sidebar-wrapper" aria-label="行程詳細資訊">
+      <!-- Tabs Header -->
+      <div class="sidebar-tabs">
+        <button class="tab-btn active" data-tab="timeline">
+          <span>📋</span> 行程規劃
+        </button>
+        <button class="tab-btn" data-tab="weather">
+          <span>🌦️</span> 即時天氣
+        </button>
+        <button class="tab-btn" data-tab="checklist">
+          <span>🎒</span> 裝備檢核
+        </button>
+        <button class="tab-btn" data-tab="food">
+          <span>🍜</span> 美食伴手禮
+        </button>
+      </div>
+
+      <!-- Tab Content Area -->
+      <div class="sidebar-content-area">
+
+        <!-- ================= PANEL 1: TIMELINE ================= -->
+        <div id="panel-timeline" class="tab-panel" style="display: block;">
+
+          <!-- Top Hero Summary Card -->
+          <div class="trip-banner-card">
+            <div class="banner-header">
+              <div>
+                <div class="banner-title">北部環島 3天2夜 追風里程碑</div>
+                <div style="font-size: 0.75rem; color: #cbd5e1; margin-top: 2px;">橫跨台中、苗栗、新竹、桃園、新北、宜蘭、基隆、台北</div>
+              </div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="banner-stats-grid">
+              <div class="stat-box">
+                <div class="stat-val" id="stat-total-dist">596 km</div>
+                <div class="stat-label">預估總里程</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-val" id="stat-total-stops">24 站</div>
+                <div class="stat-label">規劃打卡點</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-val" id="stat-completed">0/24</div>
+                <div class="stat-label">已抵達進度</div>
+              </div>
+            </div>
+
+            <!-- Dual Cape Milestones Badges -->
+            <div class="capes-badge-row">
+              <div class="cape-pill">
+                <span>📍</span>
+                <div>
+                  <strong>極東點：三貂角燈塔</strong>
+                  <div style="font-size: 0.65rem; opacity: 0.85;">東經 122° 00' 11" (DAY 2)</div>
+                </div>
+              </div>
+              <div class="cape-pill north">
+                <span>📍</span>
+                <div>
+                  <strong>極北點：富貴角燈塔</strong>
+                  <div style="font-size: 0.65rem; opacity: 0.85;">北緯 25° 17' 59" (DAY 2)</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Weather Fork Decision Card -->
+          <div class="decision-alert-card">
+            <div class="decision-icon">⚡</div>
+            <div class="decision-info">
+              <h4>合興車站 分支決策點提醒</h4>
+              <p>在抵達新竹橫山合興車站（合興豬腳飯）時，請依當天山區氣候決定走線：</p>
+              <table class="branch-compare-table">
+                <tbody>
+                  <tr>
+                    <td class="branch-name-sun">☀️ 晴天 (分支二)</td>
+                    <td>內灣 ➔ 尖石 ➔ 宇老觀景台 (1450m) ➔ 巴陵 ➔ 明池 ➔ 羅東</td>
+                  </tr>
+                  <tr>
+                    <td class="branch-name-rain">🌧️ 雨天 (分支一)</td>
+                    <td>關西 ➔ 大溪老街 (吃豆干避雨) ➔ 碧潭風景區 ➔ 坪林 ➔ 礁溪</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Timeline Container (Dynamically Rendered by app.js) -->
+          <div id="timeline-list" class="timeline-list">
+            <!-- Cards will be populated here -->
+          </div>
+
+        </div>
+
+        <!-- ================= PANEL 2: WEATHER ================= -->
+        <div id="panel-weather" class="tab-panel" style="display: none;">
+          <div style="margin-bottom: 0.85rem;">
+            <h3 style="font-size: 0.95rem; font-weight: 700; color: #ffffff; margin-bottom: 0.25rem;">即時山區與沿海氣象觀測</h3>
+            <p style="font-size: 0.775rem; color: #94a3b8;">資料來源：Open-Meteo 即時預報。北橫高山（宇老 1,450m）請注意防寒與午後濃霧。</p>
+          </div>
+          <div id="weather-cards-container" class="weather-cards-grid">
+            <!-- Dynamically loaded -->
+          </div>
+        </div>
+
+        <!-- ================= PANEL 3: CHECKLIST ================= -->
+        <div id="panel-checklist" class="tab-panel" style="display: none;">
+          <div style="margin-bottom: 0.85rem;">
+            <h3 style="font-size: 0.95rem; font-weight: 700; color: #ffffff; margin-bottom: 0.25rem;">騎士行前與裝備檢核表</h3>
+            <p style="font-size: 0.775rem; color: #94a3b8;">勾選項目會自動儲存於瀏覽器，出發前逐一確認萬無一失。</p>
+          </div>
+
+          <div class="checklist-group">
+            <h4>🏍️ 車輛安全檢查</h4>
+            <label class="check-item"><input type="checkbox" data-key="chk_tire"> 前後輪胎壓檢查與胎紋深度確認</label>
+            <label class="check-item"><input type="checkbox" data-key="chk_brake"> 煞車皮厚度與煞車油量檢查</label>
+            <label class="check-item"><input type="checkbox" data-key="chk_oil"> 機油里程、傳動/鏈條潤滑檢查</label>
+            <label class="check-item"><input type="checkbox" data-key="chk_light"> 車燈、煞車燈、方向燈運作正常</label>
+          </div>
+
+          <div class="checklist-group">
+            <h4>🌧️ 人身裝備與雨備</h4>
+            <label class="check-item"><input type="checkbox" data-key="chk_raincoat"> 兩件式防暴雨雨衣與防水雨褲</label>
+            <label class="check-item"><input type="checkbox" data-key="chk_gloves"> 防水防摔手套（建議多帶一雙乾手套替換）</label>
+            <label class="check-item"><input type="checkbox" data-key="chk_shoes"> 防水鞋套或防水騎士車靴</label>
+            <label class="check-item"><input type="checkbox" data-key="chk_warm"> 宇老高山保暖內層 / 防風外套 (1450m約降9度)</label>
+          </div>
+
+          <div class="checklist-group">
+            <h4>📱 導航與電子配件</h4>
+            <label class="check-item"><input type="checkbox" data-key="chk_powerbank"> 大容量行動電源與充電線</label>
+            <label class="check-item"><input type="checkbox" data-key="chk_dashcam"> 行車記錄器記憶卡清空與格式化確認</label>
+            <label class="check-item"><input type="checkbox" data-key="chk_mount"> 防震減震手機架螺絲鎖緊</label>
+          </div>
+
+          <div class="checklist-group">
+            <h4>🏨 預約與重要提醒</h4>
+            <label class="check-item"><input type="checkbox" data-key="chk_yanshao"> 羅東【猿燒季節料理】17:30 訂位已確認</label>
+            <label class="check-item"><input type="checkbox" data-key="chk_airbnb"> Day 1 礁溪民宿 (三妹爌肉飯2F) 房東聯絡方式</label>
+            <label class="check-item"><input type="checkbox" data-key="chk_hotel"> Day 2 北投馥悅溫泉酒店 入住憑證確認</label>
+            <label class="check-item"><input type="checkbox" data-key="chk_gas"> 尖石中油站【務必加滿油】（北橫山區補給少）</label>
+          </div>
+        </div>
+
+        <!-- ================= PANEL 4: FOOD & SOUVENIR ================= -->
+        <div id="panel-food" class="tab-panel" style="display: none;">
+          <div style="margin-bottom: 0.85rem;">
+            <h3 style="font-size: 0.95rem; font-weight: 700; color: #ffffff; margin-bottom: 0.25rem;">沿線必吃美食與伴手禮地圖</h3>
+            <p style="font-size: 0.775rem; color: #94a3b8;">環島不忘大飽口福！精選沿線口碑名產：</p>
+          </div>
+
+          <div class="checklist-group">
+            <h4>🛍️ 苗栗卓蘭・江記永安喜餅</h4>
+            <p style="font-size: 0.775rem; color: #cbd5e1; margin-bottom: 0.4rem;">旗艦店備有高山熱茶與大餅免費試吃！推薦：招牌豆沙核桃、紅豆麻糬餅、素麻糬餅。</p>
+            <span style="font-size: 0.7rem; color: #38bdf8;">📍 苗栗縣卓蘭鎮新厝里3697-12號 (DAY 1 09:00)</span>
+          </div>
+
+          <div class="checklist-group">
+            <h4>🛍️ 宜蘭羅東・奕順軒 (民權店)</h4>
+            <p style="font-size: 0.775rem; color: #cbd5e1; margin-bottom: 0.4rem;">宜蘭伴手禮扛壩子！推薦：純芋奶凍捲、切達乳酪狀元餅、原味/黑椒超薄宜蘭餅。</p>
+            <span style="font-size: 0.7rem; color: #38bdf8;">📍 宜蘭縣羅東鎮民權路160號 (DAY 1 17:13)</span>
+          </div>
+
+          <div class="checklist-group">
+            <h4>🍣 宜蘭羅東・猿燒 季節料理</h4>
+            <p style="font-size: 0.775rem; color: #cbd5e1; margin-bottom: 0.4rem;">【17:30 預約】高CP值日式無菜單與握壽司盛合、炙燒鮭魚丼、茶碗蒸與烤物。</p>
+            <span style="font-size: 0.7rem; color: #38bdf8;">📍 宜蘭縣羅東鎮復興路一段115號 (DAY 1 17:53)</span>
+          </div>
+
+          <div class="checklist-group">
+            <h4>🍜 基隆廟口夜市 & 百年李鵠餅店</h4>
+            <p style="font-size: 0.775rem; color: #cbd5e1; margin-bottom: 0.4rem;">廟口必吃：邢記鼎邊趖、天婦羅、紅燒鰻羹；李鵠餅店（仁三路90號）必買鳳梨酥與綠豆椪！</p>
+            <span style="font-size: 0.7rem; color: #38bdf8;">📍 基隆市仁愛區仁三路 (DAY 2 12:47)</span>
+          </div>
+
+          <div class="checklist-group">
+            <h4>🍢 淡水老街金色水岸</h4>
+            <p style="font-size: 0.775rem; color: #cbd5e1; margin-bottom: 0.4rem;">傍晚看淡水夕照，品嘗正宗阿給配魚丸湯、許義魚酥與阿婆鐵蛋。</p>
+            <span style="font-size: 0.7rem; color: #38bdf8;">📍 新北市淡水區中正路 (DAY 2 16:52)</span>
+          </div>
+
+          <div class="checklist-group">
+            <h4>🍲 新竹・海瑞摃丸總店</h4>
+            <p style="font-size: 0.775rem; color: #cbd5e1; margin-bottom: 0.4rem;">新竹70年老字號！吃鮮甜彈牙原味摃丸湯配炒米粉，採買真空包摃丸回台中送禮！</p>
+            <span style="font-size: 0.7rem; color: #38bdf8;">📍 新竹市北區西門街98號 (DAY 3 12:40)</span>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- Share & Export Modal Dialog -->
+  <div id="share-modal" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 class="modal-title">📋 匯出 / 分享文字行程 (LINE/SMS 格式)</h3>
+        <button id="btn-close-modal" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="color: #94a3b8; font-size: 0.8rem; margin-bottom: 0.6rem;">
+          已自動產生包含當前模式（晴天/雨天）、每日抵達時間、停靠站與備註的排版文字：
+        </p>
+        <textarea id="share-text-content" class="copy-textarea" readonly></textarea>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-copy-share" class="btn-nav" style="padding: 0.5rem 1.2rem; font-size: 0.85rem;">
+          📑 複製全文至剪貼簿
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- Pre-calculated Route Coordinates & Stop Data -->
+  <script src="data.js"></script>
+
+  <!-- Application Logic -->
+  <script src="js/app.js"></script>
+</body>
+</html>
