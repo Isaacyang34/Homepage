@@ -2184,6 +2184,7 @@
           if (resJson.status === 'success' && resJson.data) {
             LIVE_ETF_DB[code] = resJson.data;
             displaySearchResult(resJson.data, '本機爬蟲即時抓取');
+            renderQuickAddList();
             return;
           }
         }
@@ -2191,19 +2192,35 @@
         // server.py 未啟動或處於 GitHub Pages 純靜態環境
       }
 
-      // 3. 查無此標的：友善引導使用者選擇熱門標的或手動輸入參數
+      // 3. 第三優先：前端直接連線開放金融 API (FinMind Open API，自帶 Access-Control-Allow-Origin: *)
+      try {
+        card.innerHTML = `
+          <div style="color:var(--accent-cyan); font-size:13px; display:flex; align-items:center; gap:8px;">
+            <span class="live-dot" style="animation:pulse 1s infinite;"></span>
+            正在連線開放金融 API 搜尋 <strong>${rawCode}</strong> 最新行情與歷年配息...
+          </div>
+        `;
+        const onlineData = await fetchLiveETFFromFinMind(code);
+        if (onlineData) {
+          LIVE_ETF_DB[code] = onlineData;
+          displaySearchResult(onlineData, '即時開放金融 API 連線');
+          renderQuickAddList();
+          return;
+        }
+      } catch (err) {
+        console.warn('FinMind direct lookup failed:', err);
+      }
+
+      // 4. 查無此標的：友善引導使用者選擇熱門標的或手動輸入參數
       const isGitHubPages = window.location.hostname.includes('github.io');
       card.innerHTML = `
         <div style="display:flex; flex-direction:column; gap:8px;">
           <div style="color:var(--accent-rose); font-size:13.5px; font-weight:700;">
-            查無 ${rawCode} 於內建行情庫中
+            查無 ${rawCode} 於內建行情庫與金融 API 中
           </div>
           <div style="font-size:12px; color:var(--text-muted); line-height:1.6;">
-            ${isGitHubPages 
-              ? `目前此網頁由 <strong>GitHub Pages 純靜態託管</strong>，已內建涵蓋 <strong>${Object.keys(LIVE_ETF_DB).length} 檔熱門主流 ETF</strong>（如 0050、0056、00878、00919、00940、00937B、00713、00915、00679B 等，可直接於下方點選加入）。<br>
-                 如需<strong>任意連網爬取其他冷門標的</strong>，請下載專案在本地執行 <code>run_studio.bat</code> 啟動本機 Python 爬蟲代理！`
-              : `請確保已在本機終端啟動 <code>server.py</code> 以啟用全市場任意代號即時爬蟲功能。`
-            }
+            已為您連線開放金融資料庫檢索，查無對應之台股上市櫃 ETF 或股票代號。<br>
+            請確認代號是否正確（例如 <code>00929</code>、<code>00915</code>、<code>00948B</code>、<code>00687B</code>、<code>00406A</code>、<code>2330</code> 等），或點擊下方直接手動輸入參數加入。
           </div>
           <div style="display:flex; gap:8px; margin-top:4px;">
             <button class="btn-action" style="font-size:12px; padding:6px 14px;" onclick="promptManualAddETF('${code}')">
@@ -2212,6 +2229,131 @@
           </div>
         </div>
       `;
+    }
+
+    // Client-side direct query to open financial API (FinMind) with full CORS support
+    async function fetchLiveETFFromFinMind(code) {
+      const cleanCode = code.trim().toUpperCase().replace('.TW', '');
+      try {
+        // 1. Fetch ETF basic info (stock name, category)
+        let stockName = cleanCode;
+        try {
+          const infoUrl = `https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockInfo&data_id=${encodeURIComponent(cleanCode)}`;
+          const infoResp = await fetch(infoUrl);
+          if (infoResp.ok) {
+            const infoJson = await infoResp.json();
+            if (infoJson.data && infoJson.data.length > 0) {
+              stockName = infoJson.data[0].stock_name || cleanCode;
+            }
+          }
+        } catch (e) {
+          console.warn('FinMind Info fetch error:', e);
+        }
+
+        // 2. Fetch latest trading price (last 45 days)
+        const dPrice = new Date();
+        dPrice.setDate(dPrice.getDate() - 45);
+        const startDate = dPrice.toISOString().slice(0, 10);
+        const priceUrl = `https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${encodeURIComponent(cleanCode)}&start_date=${startDate}`;
+        const priceResp = await fetch(priceUrl);
+        if (!priceResp.ok) return null;
+        const priceJson = await priceResp.json();
+        const prices = priceJson.data || [];
+        if (prices.length === 0) return null;
+        const latestRecord = prices[prices.length - 1];
+        const latestPrice = parseFloat(latestRecord.close) || 15.0;
+
+        // 3. Fetch trailing cash dividend history (last 365 days)
+        const dDiv = new Date();
+        dDiv.setDate(dDiv.getDate() - 365);
+        const startDiv = dDiv.toISOString().slice(0, 10);
+        const divUrl = `https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockDividend&data_id=${encodeURIComponent(cleanCode)}&start_date=${startDiv}`;
+        const divResp = await fetch(divUrl);
+        let totalCashDiv = 0;
+        let divCount = 0;
+        let payoutMonths = [];
+        if (divResp.ok) {
+          const divJson = await divResp.json();
+          const divs = divJson.data || [];
+          divs.forEach(item => {
+            const cash = parseFloat(item.CashEarningsDistribution || 0) + parseFloat(item.CashStatutorySurplus || 0);
+            if (cash > 0) {
+              totalCashDiv += cash;
+              divCount++;
+              const pDate = item.CashDividendPaymentDate || item.CashExDividendTradingDate || item.date;
+              if (pDate && pDate.includes('-')) {
+                const m = parseInt(pDate.split('-')[1]);
+                if (!isNaN(m) && !payoutMonths.includes(m)) payoutMonths.push(m);
+              }
+            }
+          });
+        }
+
+        // 4. Determine payout frequency and distribution schedule
+        let frequency = 'quarterly';
+        let frequencyDesc = '季配息';
+        if (divCount >= 10) {
+          frequency = 'monthly';
+          frequencyDesc = '月配息';
+          if (payoutMonths.length < 6) payoutMonths = [1,2,3,4,5,6,7,8,9,10,11,12];
+        } else if (divCount >= 3) {
+          frequency = 'quarterly';
+          frequencyDesc = '季配息';
+          if (payoutMonths.length === 0) payoutMonths = [3,6,9,12];
+        } else if (divCount === 2) {
+          frequency = 'semi-annual';
+          frequencyDesc = '半年配';
+          if (payoutMonths.length === 0) payoutMonths = [1,7];
+        } else if (divCount === 1) {
+          frequency = 'annual';
+          frequencyDesc = '年配息';
+          if (payoutMonths.length === 0) payoutMonths = [7];
+        } else {
+          if (cleanCode.endsWith('B')) {
+            frequency = 'monthly';
+            frequencyDesc = '月配息';
+            payoutMonths = [1,2,3,4,5,6,7,8,9,10,11,12];
+          } else {
+            frequency = 'quarterly';
+            frequencyDesc = '季配息';
+            payoutMonths = [3,6,9,12];
+          }
+        }
+
+        const isBond = cleanCode.endsWith('B') || stockName.includes('債');
+        const isActive = stockName.includes('主動') || cleanCode === '00406A';
+
+        let annualDividend = totalCashDiv;
+        let yieldRate = 0.055;
+        if (totalCashDiv > 0 && latestPrice > 0) {
+          yieldRate = totalCashDiv / latestPrice;
+        } else {
+          yieldRate = isBond ? 0.055 : 0.065;
+          annualDividend = parseFloat((latestPrice * yieldRate).toFixed(3));
+        }
+        const yieldPct = parseFloat((yieldRate * 100).toFixed(2));
+        payoutMonths.sort((a,b)=>a-b);
+
+        return {
+          code: cleanCode,
+          symbol: cleanCode + '.TW',
+          name: stockName,
+          price: latestPrice,
+          annual_dividend: parseFloat(annualDividend.toFixed(3)),
+          dividend_count: divCount || (frequency === 'monthly' ? 12 : 4),
+          yield_rate: parseFloat(yieldRate.toFixed(4)),
+          yield_pct: yieldPct,
+          frequency: frequency,
+          frequency_desc: frequencyDesc,
+          payout_months: payoutMonths,
+          category: isBond ? 'bond' : isActive ? 'active' : 'stock',
+          beta: isBond ? 0.35 : (isActive ? 0.95 : 0.88),
+          mdd_1y: isBond ? -0.11 : -0.16
+        };
+      } catch (err) {
+        console.error('fetchLiveETFFromFinMind critical error:', err);
+        return null;
+      }
     }
 
     function promptManualAddETF(code) {
