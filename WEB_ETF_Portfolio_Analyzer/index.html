@@ -1659,7 +1659,8 @@
         <!-- Rendered by JS -->
       </div>
 
-      <div class="modal-footer">
+      <div class="modal-footer" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <button class="btn-preset-tool" style="font-size:11.5px; padding:6px 12px;" onclick="promptConfigCustomProxy()" title="設定自訂 Cloudflare Worker 代理以即時查詢全市場任意個股">⚙️ 設定 Cloudflare Worker 代理</button>
         <button class="btn-secondary" onclick="closeAddModal()">關閉視窗</button>
       </div>
     </div>
@@ -2211,6 +2212,32 @@
         console.warn('FinMind direct lookup failed:', err);
       }
 
+      // 3.5 支援自訂 Cloudflare Worker 代理 (查詢全台 1800+ 檔任意個股與冷門標的)
+      try {
+        const customProxy = localStorage.getItem('CUSTOM_CORS_PROXY_URL');
+        if (customProxy) {
+          card.innerHTML = `
+            <div style="color:var(--accent-cyan); font-size:13px; display:flex; align-items:center; gap:8px;">
+              <span class="live-dot" style="animation:pulse 1s infinite;"></span>
+              正在透過 Cloudflare Worker 代理連線抓取 <strong>${rawCode}</strong> 即時行情...
+            </div>
+          `;
+          const workerUrl = `${customProxy.replace(/\/$/, '')}/?code=${encodeURIComponent(code)}`;
+          const wResp = await fetch(workerUrl);
+          if (wResp.ok) {
+            const wData = await wResp.json();
+            if (wData && wData.price) {
+              LIVE_ETF_DB[code] = wData;
+              displaySearchResult(wData, 'Cloudflare Worker 代理即時連線');
+              renderQuickAddList();
+              return;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Custom worker lookup failed:', err);
+      }
+
       // 4. 查無此標的：友善引導使用者選擇熱門標的或手動輸入參數
       const isGitHubPages = window.location.hostname.includes('github.io');
       card.innerHTML = `
@@ -2226,9 +2253,25 @@
             <button class="btn-action" style="font-size:12px; padding:6px 14px;" onclick="promptManualAddETF('${code}')">
               ✎ 自訂手動輸入 ${code} 參數直接加入
             </button>
+            <button class="btn-preset-tool" style="font-size:12px; padding:6px 14px;" onclick="promptConfigCustomProxy()">
+              ⚙️ 設定 Cloudflare Worker 代理
+            </button>
           </div>
         </div>
       `;
+    }
+
+    function promptConfigCustomProxy() {
+      const current = localStorage.getItem('CUSTOM_CORS_PROXY_URL') || '';
+      const val = prompt('【Cloudflare Worker 代理設定】\n若您已將專案 tools/cloudflare_worker_proxy.js 部署至 Cloudflare，請貼上專屬 Worker 網址 (例如: https://tw-stock-proxy.yourname.workers.dev)：\n(留空送出可清除並恢復預設模式)', current);
+      if (val === null) return;
+      if (val.trim()) {
+        localStorage.setItem('CUSTOM_CORS_PROXY_URL', val.trim());
+        alert('已成功設定 Cloudflare Worker 代理！未來搜尋任意個股與冷門標的將優先透過此代理查詢。');
+      } else {
+        localStorage.removeItem('CUSTOM_CORS_PROXY_URL');
+        alert('已清除自訂代理，已恢復為內建行情快取與開放金融 API。');
+      }
     }
 
     // Client-side direct query to open financial API (FinMind) with full CORS support
