@@ -2677,10 +2677,14 @@
         } else if (perPayout >= 20000) {
           nhiStatus = 'alert';
           nhiFee = Math.round(perPayout * 0.0211);
-          nhiBadgeText = `⚠️ 達2萬門檻 (預估保費約 NT$ ${nhiFee.toLocaleString('en-US')})`;
+          nhiBadgeText = (meta.category === 'single_stock')
+            ? `⚠️ 達2萬門檻 (個股54C全額扣保費 NT$ ${nhiFee.toLocaleString('en-US')})`
+            : `⚠️ 達2萬門檻 (預估保費約 NT$ ${nhiFee.toLocaleString('en-US')})`;
         } else {
           nhiStatus = 'safe';
-          nhiBadgeText = '🛡️ 未達2萬門檻 (免扣保費)';
+          nhiBadgeText = (meta.category === 'single_stock')
+            ? '🛡️ 未達2萬門檻 (免扣保費，100%屬54C)'
+            : '🛡️ 未達2萬門檻 (免扣保費)';
         }
 
         // Distribute to calendar months
@@ -2788,7 +2792,7 @@
                 ? `<span style="font-size:12px; padding:2px 8px; border-radius:6px; font-weight:700; background:rgba(56, 189, 248, 0.15); color:var(--accent-cyan); font-family:'JetBrains Mono',monospace;">庫存現值 NT$ ${item.allocatedCapital.toLocaleString('en-US')}</span>`
                 : `<span style="font-size:12px; padding:2px 8px; border-radius:6px; font-weight:700; background:rgba(52, 211, 153, 0.15); color:var(--accent-emerald); font-family:'JetBrains Mono',monospace;">可買約 ${item.totalLotsFloat.toFixed(2)} 張</span>`
               }
-              <span class="etf-tag">${item.meta.category === 'bond' ? '債券型' : item.meta.category === 'active' ? '主動型' : '股票型'}</span>
+              <span class="etf-tag">${item.meta.category === 'bond' ? '債券型' : item.meta.category === 'single_stock' ? '一般個股' : item.meta.category === 'active' ? '主動型' : '股票型'}</span>
               <span class="nhi-badge ${item.nhiStatus}">${item.nhiBadgeText}</span>
               <span class="etf-subtitle">${item.meta.name}</span>
             </div>
@@ -3084,9 +3088,10 @@
             </div>
           `;
         } else if (item.perPayout >= 20000) {
+          const isStock = item.meta.category === 'single_stock';
           statusDescHtml = `
             <div style="font-size:12px; color:var(--accent-rose); font-weight:700;">
-              ⚠️ 單次除息逾 2 萬元：若該期 54C (境內股利) 達 2 萬，預估扣繳約 NT$ ${item.nhiFee.toLocaleString('en-US')} 補充保費。
+              ⚠️ 單次除息逾 2 萬元：${isStock ? '<strong>一般個股現金股利 100% 屬 54C 營利所得</strong>，必須全額扣繳' : '若該期 54C (境內股利) 達 2 萬，預估扣繳約'} NT$ ${item.nhiFee.toLocaleString('en-US')} 補充保費${isStock ? '並併入綜所稅！' : '。'}
             </div>
             <div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">
               避費建議：單一標的持有控制在 <strong>${item.safeMaxLots} 張以內</strong>，即可確保單次配息低於 2 萬元門檻！

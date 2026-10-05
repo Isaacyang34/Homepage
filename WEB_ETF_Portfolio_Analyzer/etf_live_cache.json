@@ -1413,5 +1413,477 @@
     "category": "bond",
     "beta": 0.35,
     "mdd_1y": -0.11
+  },
+  "2330": {
+    "code": "2330",
+    "symbol": "2330.TW",
+    "name": "台積電 (個股)",
+    "price": 2570.0,
+    "annual_dividend": 24.0,
+    "dividend_count": 4,
+    "yield_rate": 0.0093,
+    "yield_pct": 0.93,
+    "frequency": "quarterly",
+    "frequency_desc": "季配息",
+    "payout_months": [
+      3,
+      6,
+      9,
+      12
+    ],
+    "category": "single_stock",
+    "beta": 1.15,
+    "mdd_1y": -0.32
+  },
+  "2317": {
+    "code": "2317",
+    "symbol": "2317.TW",
+    "name": "鴻海 (個股)",
+    "price": 254.5,
+    "annual_dividend": 7.172,
+    "dividend_count": 1,
+    "yield_rate": 0.0282,
+    "yield_pct": 2.82,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      7
+    ],
+    "category": "single_stock",
+    "beta": 1.05,
+    "mdd_1y": -0.28
+  },
+  "2454": {
+    "code": "2454",
+    "symbol": "2454.TW",
+    "name": "聯發科 (個股)",
+    "price": 5130.0,
+    "annual_dividend": 53.5,
+    "dividend_count": 2,
+    "yield_rate": 0.0104,
+    "yield_pct": 1.04,
+    "frequency": "semi-annual",
+    "frequency_desc": "半年配",
+    "payout_months": [
+      1,
+      7
+    ],
+    "category": "single_stock",
+    "beta": 1.25,
+    "mdd_1y": -0.38
+  },
+  "2382": {
+    "code": "2382",
+    "symbol": "2382.TW",
+    "name": "廣達 (個股)",
+    "price": 331.0,
+    "annual_dividend": 15.6,
+    "dividend_count": 1,
+    "yield_rate": 0.0471,
+    "yield_pct": 4.71,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      5
+    ],
+    "category": "single_stock",
+    "beta": 1.2,
+    "mdd_1y": -0.35
+  },
+  "2308": {
+    "code": "2308",
+    "symbol": "2308.TW",
+    "name": "台達電 (個股)",
+    "price": 2010.0,
+    "annual_dividend": 11.6,
+    "dividend_count": 1,
+    "yield_rate": 0.0058,
+    "yield_pct": 0.58,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      7
+    ],
+    "category": "single_stock",
+    "beta": 0.95,
+    "mdd_1y": -0.26
+  },
+  "2303": {
+    "code": "2303",
+    "symbol": "2303.TW",
+    "name": "聯電 (個股)",
+    "price": 152.5,
+    "annual_dividend": 2.608,
+    "dividend_count": 1,
+    "yield_rate": 0.0171,
+    "yield_pct": 1.71,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      7
+    ],
+    "category": "single_stock",
+    "beta": 0.98,
+    "mdd_1y": -0.3
+  },
+  "2357": {
+    "code": "2357",
+    "symbol": "2357.TW",
+    "name": "華碩 (個股)",
+    "price": 994.0,
+    "annual_dividend": 42.0,
+    "dividend_count": 1,
+    "yield_rate": 0.0423,
+    "yield_pct": 4.23,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      7
+    ],
+    "category": "single_stock",
+    "beta": 1.05,
+    "mdd_1y": -0.33
+  },
+  "3231": {
+    "code": "3231",
+    "symbol": "3231.TW",
+    "name": "緯創 (個股)",
+    "price": 189.0,
+    "annual_dividend": 5.501,
+    "dividend_count": 1,
+    "yield_rate": 0.0291,
+    "yield_pct": 2.91,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      7
+    ],
+    "category": "single_stock",
+    "beta": 1.3,
+    "mdd_1y": -0.4
+  },
+  "2881": {
+    "code": "2881",
+    "symbol": "2881.TW",
+    "name": "富邦金 (個股)",
+    "price": 151.5,
+    "annual_dividend": 4.25,
+    "dividend_count": 1,
+    "yield_rate": 0.0281,
+    "yield_pct": 2.81,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      7
+    ],
+    "category": "single_stock",
+    "beta": 0.85,
+    "mdd_1y": -0.22
+  },
+  "2882": {
+    "code": "2882",
+    "symbol": "2882.TW",
+    "name": "國泰金 (個股)",
+    "price": 112.0,
+    "annual_dividend": 3.5,
+    "dividend_count": 1,
+    "yield_rate": 0.0312,
+    "yield_pct": 3.12,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      7
+    ],
+    "category": "single_stock",
+    "beta": 0.88,
+    "mdd_1y": -0.24
+  },
+  "2891": {
+    "code": "2891",
+    "symbol": "2891.TW",
+    "name": "中信金 (個股)",
+    "price": 67.5,
+    "annual_dividend": 2.5,
+    "dividend_count": 1,
+    "yield_rate": 0.037,
+    "yield_pct": 3.7,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      7
+    ],
+    "category": "single_stock",
+    "beta": 0.78,
+    "mdd_1y": -0.19
+  },
+  "2886": {
+    "code": "2886",
+    "symbol": "2886.TW",
+    "name": "兆豐金 (個股)",
+    "price": 48.7,
+    "annual_dividend": 1.75,
+    "dividend_count": 1,
+    "yield_rate": 0.0359,
+    "yield_pct": 3.59,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      8
+    ],
+    "category": "single_stock",
+    "beta": 0.72,
+    "mdd_1y": -0.18
+  },
+  "2884": {
+    "code": "2884",
+    "symbol": "2884.TW",
+    "name": "玉山金 (個股)",
+    "price": 44.8,
+    "annual_dividend": 1.4,
+    "dividend_count": 1,
+    "yield_rate": 0.0312,
+    "yield_pct": 3.12,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      8
+    ],
+    "category": "single_stock",
+    "beta": 0.75,
+    "mdd_1y": -0.2
+  },
+  "2885": {
+    "code": "2885",
+    "symbol": "2885.TW",
+    "name": "元大金 (個股)",
+    "price": 68.1,
+    "annual_dividend": 1.731,
+    "dividend_count": 1,
+    "yield_rate": 0.0254,
+    "yield_pct": 2.54,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      7
+    ],
+    "category": "single_stock",
+    "beta": 0.82,
+    "mdd_1y": -0.21
+  },
+  "2892": {
+    "code": "2892",
+    "symbol": "2892.TW",
+    "name": "第一金 (個股)",
+    "price": 38.1,
+    "annual_dividend": 1.3,
+    "dividend_count": 1,
+    "yield_rate": 0.0341,
+    "yield_pct": 3.41,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      8
+    ],
+    "category": "single_stock",
+    "beta": 0.7,
+    "mdd_1y": -0.17
+  },
+  "2880": {
+    "code": "2880",
+    "symbol": "2880.TW",
+    "name": "華南金 (個股)",
+    "price": 44.6,
+    "annual_dividend": 1.35,
+    "dividend_count": 1,
+    "yield_rate": 0.0303,
+    "yield_pct": 3.03,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      8
+    ],
+    "category": "single_stock",
+    "beta": 0.68,
+    "mdd_1y": -0.16
+  },
+  "5880": {
+    "code": "5880",
+    "symbol": "5880.TW",
+    "name": "合庫金 (個股)",
+    "price": 25.9,
+    "annual_dividend": 0.8,
+    "dividend_count": 1,
+    "yield_rate": 0.0309,
+    "yield_pct": 3.09,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      8
+    ],
+    "category": "single_stock",
+    "beta": 0.65,
+    "mdd_1y": -0.16
+  },
+  "2890": {
+    "code": "2890",
+    "symbol": "2890.TW",
+    "name": "永豐金 (個股)",
+    "price": 44.15,
+    "annual_dividend": 1.1,
+    "dividend_count": 1,
+    "yield_rate": 0.0249,
+    "yield_pct": 2.49,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      8
+    ],
+    "category": "single_stock",
+    "beta": 0.76,
+    "mdd_1y": -0.19
+  },
+  "2887": {
+    "code": "2887",
+    "symbol": "2887.TW",
+    "name": "台新金 (個股)",
+    "price": 40.95,
+    "annual_dividend": 1.0,
+    "dividend_count": 1,
+    "yield_rate": 0.0244,
+    "yield_pct": 2.44,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      8
+    ],
+    "category": "single_stock",
+    "beta": 0.77,
+    "mdd_1y": -0.2
+  },
+  "2603": {
+    "code": "2603",
+    "symbol": "2603.TW",
+    "name": "長榮 (個股)",
+    "price": 235.5,
+    "annual_dividend": 16.0,
+    "dividend_count": 1,
+    "yield_rate": 0.0679,
+    "yield_pct": 6.79,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      6
+    ],
+    "category": "single_stock",
+    "beta": 1.35,
+    "mdd_1y": -0.45
+  },
+  "2609": {
+    "code": "2609",
+    "symbol": "2609.TW",
+    "name": "陽明 (個股)",
+    "price": 58.9,
+    "annual_dividend": 2.0,
+    "dividend_count": 1,
+    "yield_rate": 0.034,
+    "yield_pct": 3.4,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      7
+    ],
+    "category": "single_stock",
+    "beta": 1.4,
+    "mdd_1y": -0.48
+  },
+  "2412": {
+    "code": "2412",
+    "symbol": "2412.TW",
+    "name": "中華電 (個股)",
+    "price": 146.0,
+    "annual_dividend": 5.2,
+    "dividend_count": 1,
+    "yield_rate": 0.0356,
+    "yield_pct": 3.56,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      7
+    ],
+    "category": "single_stock",
+    "beta": 0.45,
+    "mdd_1y": -0.12
+  },
+  "3045": {
+    "code": "3045",
+    "symbol": "3045.TW",
+    "name": "台灣大 (個股)",
+    "price": 122.0,
+    "annual_dividend": 4.744,
+    "dividend_count": 1,
+    "yield_rate": 0.0389,
+    "yield_pct": 3.89,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      7
+    ],
+    "category": "single_stock",
+    "beta": 0.5,
+    "mdd_1y": -0.13
+  },
+  "1216": {
+    "code": "1216",
+    "symbol": "1216.TW",
+    "name": "統一 (個股)",
+    "price": 72.7,
+    "annual_dividend": 3.0,
+    "dividend_count": 1,
+    "yield_rate": 0.0413,
+    "yield_pct": 4.13,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      7
+    ],
+    "category": "single_stock",
+    "beta": 0.6,
+    "mdd_1y": -0.15
+  },
+  "2002": {
+    "code": "2002",
+    "symbol": "2002.TW",
+    "name": "中鋼 (個股)",
+    "price": 18.9,
+    "annual_dividend": 0.15,
+    "dividend_count": 1,
+    "yield_rate": 0.0079,
+    "yield_pct": 0.79,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      7
+    ],
+    "category": "single_stock",
+    "beta": 0.75,
+    "mdd_1y": -0.25
+  },
+  "1301": {
+    "code": "1301",
+    "symbol": "1301.TW",
+    "name": "台塑 (個股)",
+    "price": 68.5,
+    "annual_dividend": 0.5,
+    "dividend_count": 1,
+    "yield_rate": 0.0073,
+    "yield_pct": 0.73,
+    "frequency": "annual",
+    "frequency_desc": "年配息",
+    "payout_months": [
+      7
+    ],
+    "category": "single_stock",
+    "beta": 0.72,
+    "mdd_1y": -0.28
   }
 }
