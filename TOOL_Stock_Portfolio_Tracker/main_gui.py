@@ -143,10 +143,10 @@ class PortfolioApp(tk.Tk):
             ("market_val", "預估市值", 95, "e"),
             ("unrealized_pnl", "未實現損益", 105, "e"),
             ("roi_pct", "報酬率%", 80, "e"),
-            ("cash_dividend", "每股股息", 75, "e"),
-            ("total_dividend", "預估總股息", 85, "e"),
+            ("cash_dividend", "每股年股息(單期)", 125, "e"),
+            ("total_dividend", "預估年總股息", 95, "e"),
             ("yield_on_cost", "成本殖利率%", 90, "e"),
-            ("div_status", "股息狀態/除息日", 125, "center"),
+            ("div_status", "除息日期 / 期別", 155, "center"),
             ("note", "備註", 100, "w")
         ]
 
@@ -307,13 +307,24 @@ class PortfolioApp(tk.Tk):
             pnl_sign = "+" if pnl_val > 0 else ""
             chg_sign = "+" if change > 0 else ""
 
-            # 股息狀態字串呈現
-            if pnl["is_announced"] == 1:
-                div_display = f"{pnl['ex_date']} [已公布]"
-            elif pnl["cash_dividend"] > 0:
-                div_display = f"{pnl['div_status']}"
+            # 股息與除息日資訊格式化
+            ann_div = pnl["cash_dividend"]
+            single_d = pnl.get("single_dividend", ann_div)
+            if ann_div > 0 and abs(single_d - ann_div) > 0.001:
+                div_val_str = f"{ann_div:.2f} (期{single_d:.2f})"
+            elif ann_div > 0:
+                div_val_str = f"{ann_div:.2f}"
             else:
-                div_display = "尚未公布"
+                div_val_str = "--"
+
+            ex_d = pnl.get("ex_date", "")
+            status_txt = pnl.get("div_status", "")
+            if ex_d and ex_d != "無":
+                div_display = f"{ex_d} [{status_txt}]"
+            elif status_txt:
+                div_display = f"[{status_txt}]"
+            else:
+                div_display = "暫無資料"
 
             # 格式化持股數 (整數或小數)
             shares_val = pnl["shares"]
@@ -331,7 +342,7 @@ class PortfolioApp(tk.Tk):
                 f"{pnl['market_val']:,}",
                 f"{pnl_sign}{pnl['unrealized_pnl']:,}",
                 f"{pnl_sign}{pnl['roi_pct']:.2f}%",
-                f"{pnl['cash_dividend']:.2f}",
+                div_val_str,
                 f"{pnl['total_dividend']:,}",
                 f"{pnl['yield_on_cost']:.2f}%",
                 div_display,

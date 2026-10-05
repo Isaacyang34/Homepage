@@ -58,12 +58,13 @@ def calculate_position_pnl(pos: Dict[str, Any], quote: Dict[str, Any], div_info:
 
     # --- 股息與殖利率精算 ---
     div_info = div_info or {}
-    cash_div = float(div_info.get("cash_dividend", 0.0))
-    ex_date = div_info.get("ex_date", "-")
+    cash_div = float(div_info.get("annual_div") or div_info.get("cash_dividend", 0.0))
+    single_div = float(div_info.get("single_amt") or div_info.get("single_dividend", cash_div))
+    ex_date = div_info.get("latest_ex_date") or div_info.get("ex_date", "-")
     div_status = div_info.get("status", "無資料")
     is_announced = div_info.get("is_announced", 0)
 
-    # 預估應領總股息 (NT$)
+    # 預估應領全年總股息 (NT$)
     total_dividend = round(shares * cash_div)
     # 成本殖利率 % (存股族最看重的報酬)
     yield_on_cost = (cash_div / cost_price * 100) if cost_price > 0 else 0.0
@@ -88,6 +89,7 @@ def calculate_position_pnl(pos: Dict[str, Any], quote: Dict[str, Any], div_info:
         "sell_fee": sell_fee,
         "tax": tax,
         "cash_dividend": cash_div,
+        "single_dividend": single_div,
         "ex_date": ex_date,
         "div_status": div_status,
         "is_announced": is_announced,

@@ -58,6 +58,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS dividend_records (
                 symbol TEXT PRIMARY KEY,
                 cash_dividend REAL DEFAULT 0.0,
+                single_dividend REAL DEFAULT 0.0,
                 ex_date TEXT DEFAULT '',
                 status TEXT DEFAULT '',
                 dividend_year TEXT DEFAULT '',
@@ -65,6 +66,12 @@ def init_db():
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        # 自動升級既有資料表欄位
+        try:
+            cursor.execute("ALTER TABLE dividend_records ADD COLUMN single_dividend REAL DEFAULT 0.0")
+        except sqlite3.OperationalError:
+            pass
 
         # 4. 系統設定 (例如自動刷新頻率)
         cursor.execute("""
