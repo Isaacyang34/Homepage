@@ -1115,6 +1115,70 @@
       flex-wrap: wrap;
     }
 
+    /* Small Info Button on KPI Cards */
+    .kpi-info-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      background: rgba(251, 146, 60, 0.15);
+      border: 1px solid rgba(251, 146, 60, 0.4);
+      color: var(--accent-orange);
+      font-size: 10.5px;
+      font-weight: 800;
+      cursor: pointer;
+      margin-left: 6px;
+      vertical-align: middle;
+      transition: all 0.2s ease;
+      line-height: 1;
+    }
+
+    .kpi-info-btn:hover {
+      background: var(--accent-orange);
+      color: #0b0f19;
+      box-shadow: 0 0 10px rgba(251, 146, 60, 0.4);
+      transform: scale(1.1);
+    }
+
+    /* Beta Explainer Breakdown Table */
+    .beta-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+      margin: 12px 0;
+    }
+
+    .beta-table th, .beta-table td {
+      padding: 9px 12px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .beta-table th {
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 11.5px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .beta-table td.num {
+      text-align: right;
+      font-family: 'JetBrains Mono', monospace;
+      font-feature-settings: "tnum";
+    }
+
+    .beta-formula-box {
+      background: rgba(251, 146, 60, 0.05);
+      border: 1px solid rgba(251, 146, 60, 0.25);
+      border-radius: 10px;
+      padding: 14px;
+      margin: 12px 0;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
     .diagnostic-badge {
       display: flex;
       align-items: center;
@@ -1519,7 +1583,10 @@
       </div>
 
       <div class="kpi-card orange">
-        <span class="kpi-label">綜合防禦指數 / 加權 Beta</span>
+        <span class="kpi-label">
+          綜合防禦指數 / 加權 Beta
+          <button class="kpi-info-btn" onclick="openBetaExplainerModal()" title="點擊查看加權 Beta 與防禦指數計算公式與標的拆解">?</button>
+        </span>
         <div class="kpi-value" id="kpiRiskBeta">0.68 <span class="unit">β</span></div>
         <div class="kpi-subtext orange" id="kpiRiskText">防禦型波動 (市場敏感度低)</div>
       </div>
@@ -1930,6 +1997,80 @@
       <div class="modal-footer" style="display:flex; justify-content:space-between; align-items:center;">
         <button class="btn-preset-tool" style="font-size:11.5px; padding:6px 12px;" onclick="refreshVisitorStatsData()">↻ 重新整理數據</button>
         <button class="btn-secondary" onclick="closeVisitorStatsModal()">關閉視窗</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Beta Explainer Modal -->
+  <div class="modal-overlay" id="betaExplainerModal">
+    <div class="modal-box" style="max-width: 640px;">
+      <div class="modal-header">
+        <h3 style="display:flex; align-items:center; gap:8px; color:var(--accent-orange);">
+          <span>🛡️</span>
+          <span>綜合防禦指數 (加權 Beta) 計算說明</span>
+        </h3>
+        <button class="modal-close-btn" onclick="closeBetaExplainerModal()">&times;</button>
+      </div>
+
+      <div style="font-size: 13px; color: var(--text-main); line-height: 1.6;">
+        <strong>Beta (β) 係數</strong> 是衡量投資標的或投資組合相對於<strong>整體市場大盤（台灣加權指數，基準 β = 1.0）</strong>波動劇烈程度的風險指標。
+      </div>
+
+      <!-- Core Formula Box -->
+      <div class="beta-formula-box">
+        <div style="font-size: 11.5px; font-weight: 700; color: var(--accent-orange); margin-bottom: 4px;">
+          🧮 投資組合加權 Beta 計算公式：
+        </div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 13.5px; color: #fff; background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 6px; margin: 6px 0;">
+          Portfolio β = ∑ (各標的權重 Wᵢ × 標的 Beta βᵢ)
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+          意即：依據每檔 ETF/股票在目前組合中所佔的<strong>資金比例（權重）</strong>，將各標的之 Beta 值進行乘積加總。
+        </div>
+      </div>
+
+      <!-- Live Dynamic Breakdown Table -->
+      <div style="font-size: 13px; font-weight: 700; color: #fff; margin-top: 14px;">
+        當前投資組合之個別標的貢獻拆解：
+      </div>
+
+      <div style="overflow-x: auto;">
+        <table class="beta-table">
+          <thead>
+            <tr>
+              <th>標的</th>
+              <th>名稱 / 屬性</th>
+              <th style="text-align:right;">配置權重 (Wᵢ)</th>
+              <th style="text-align:right;">個別 Beta (βᵢ)</th>
+              <th style="text-align:right;">加權貢獻 (Wᵢ × βᵢ)</th>
+            </tr>
+          </thead>
+          <tbody id="betaBreakdownTbody">
+            <!-- Rendered dynamically by JS -->
+          </tbody>
+          <tfoot>
+            <tr style="font-weight: 800; background: rgba(251, 146, 60, 0.08); border-top: 1px solid rgba(251, 146, 60, 0.3);">
+              <td colspan="2" style="color: var(--accent-orange);">總計組合綜合防禦指數</td>
+              <td class="num" id="betaSumWeight">100.0%</td>
+              <td class="num" style="color: var(--text-muted);">-</td>
+              <td class="num" style="color: var(--accent-orange); font-size: 15px;" id="betaSumTotal">0.68 β</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- Rating Guidelines -->
+      <div style="margin-top: 14px; font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
+        <div style="font-weight: 700; color: #fff; margin-bottom: 6px;">防禦等級劃分標準：</div>
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <div><strong style="color:var(--accent-green);">● β &lt; 0.65 (高度防禦型)</strong>：多數為長天期美債或投資級債券，當股市劇烈回檔時，具備高度抗震與資金避風港特性。</div>
+          <div><strong style="color:var(--accent-cyan);">● 0.65 ≤ β &lt; 0.85 (平衡抗震型)</strong>：兼具高股息優質藍籌與適度債券防禦，波動明顯低於大盤，適合追求穩定息收的投資人。</div>
+          <div><strong style="color:var(--accent-orange);">● β ≥ 0.85 (積極成長型)</strong>：多數為市值型或科技權值股（如 0050），波動貼近甚至超過大盤，多頭爆發力強但需承擔同等下檔波動。</div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="margin-top: 18px; text-align: right;">
+        <button class="btn-secondary" onclick="closeBetaExplainerModal()">我知道了，關閉說明</button>
       </div>
     </div>
   </div>
@@ -2375,6 +2516,61 @@
     function closeVisitorStatsModal() {
       const modal = document.getElementById('visitorStatsModal');
       if (modal) modal.classList.remove('active');
+    }
+
+    // ==========================================
+    // Beta Explainer Modal Controller
+    // ==========================================
+    function openBetaExplainerModal() {
+      const modal = document.getElementById('betaExplainerModal');
+      if (modal) {
+        modal.classList.add('active');
+        renderBetaBreakdownTable();
+      }
+    }
+
+    function closeBetaExplainerModal() {
+      const modal = document.getElementById('betaExplainerModal');
+      if (modal) modal.classList.remove('active');
+    }
+
+    function renderBetaBreakdownTable() {
+      const tbody = document.getElementById('betaBreakdownTbody');
+      if (!tbody) return;
+
+      let totalWeight = 0;
+      let totalWeightedBeta = 0;
+
+      const rows = portfolioItems.map(item => {
+        const meta = LIVE_ETF_DB[item.code] || { name: item.code, beta: 0.80, category: 'stock' };
+        const weight = item.weight || 0;
+        const beta = meta.beta || 0.80;
+        const weightedContribution = weight * beta;
+
+        totalWeight += weight;
+        totalWeightedBeta += weightedContribution;
+
+        const catName = meta.category === 'bond' ? '債券型' : (meta.category === 'single_stock' ? '個股' : '股票型');
+        const betaColor = beta < 0.6 ? 'var(--accent-green)' : (beta > 0.9 ? 'var(--accent-orange)' : 'var(--accent-cyan)');
+
+        return `
+          <tr>
+            <td><strong style="color:#fff;">${item.code}</strong></td>
+            <td style="color:var(--text-muted); font-size:12px;">${meta.name} <span style="font-size:10px; background:rgba(255,255,255,0.06); padding:1px 5px; border-radius:4px; margin-left:4px;">${catName}</span></td>
+            <td class="num">${(weight * 100).toFixed(1)}%</td>
+            <td class="num" style="color:${betaColor}; font-weight:700;">${beta.toFixed(2)} β</td>
+            <td class="num" style="color:#fff; font-weight:700;">${weightedContribution.toFixed(3)}</td>
+          </tr>
+        `;
+      }).join('');
+
+      tbody.innerHTML = rows;
+
+      const elSumWeight = document.getElementById('betaSumWeight');
+      if (elSumWeight) elSumWeight.innerText = (totalWeight * 100).toFixed(1) + '%';
+
+      const elSumTotal = document.getElementById('betaSumTotal');
+      if (elSumTotal) elSumTotal.innerText = totalWeightedBeta.toFixed(2) + ' β';
     }
 
     async function refreshVisitorStatsData() {
