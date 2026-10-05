@@ -2,7 +2,9 @@
 
 > 作者：**Built by [羽球狂熱份子] using Gemini**  
 > 版本：**羽樂排 (ShuttleJoy) v1.0 官方正式版**  
-> 預設球局：**快樂打羽球 🏸**
+> 預設球局：**快樂打羽球 🏸**  
+> 官方短網址：**https://tinyurl.com/shuttlejoy**  
+> 完整網址：**https://isaacyang34.github.io/Homepage/WEB_ShuttleFlow_Badminton_Queue/**
 
 ---
 
