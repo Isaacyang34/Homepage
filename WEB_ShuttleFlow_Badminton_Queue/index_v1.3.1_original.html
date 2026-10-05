@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShuttleFlow 雲端實戰正式版 v1.3.1</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  
+  <style>
+    .no-select {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      -khtml-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useMemo } = React;
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyA2Mo3yHX-i7a4w9feC5SASU3uKAx2SJzw",
+      authDomain: "shuttleflow-ed597.firebaseapp.com",
+      databaseURL: "https://shuttleflow-ed597-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "shuttleflow-ed597",
+      storageBucket: "shuttleflow-ed597.firebasestorage.app",
+      messagingSenderId: "947671765741",
+      appId: "1:947671765741:web:737f4d1d0aa86be96872e4"
+    };
+
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // ==========================================
+    // UserCard 元件 (React.memo 優化渲染)
+    // ==========================================
+    const UserCard = React.memo(({ user, isCoolingDown, timeString, bgClass, isSelected, canMoveCard, operable, isMine, isUserMainAdmin, isUserSubAdmin, isAdmin, onSelect, onEdit, onTogglePayment }) => {
+      const touchTimer = useRef(null);
+      const isLongPress = useRef(false);
+      const touchStartPos = useRef({ x: 0, y: 0 });
+
+      const getGenderColor = (gender) => {
+        switch (gender) { case 'blue': return 'text-blue-600 font-bold'; case 'red': return 'text-red-500 font-bold'; case 'green': return 'text-green-600 font-bold'; default: return 'text-gray-800'; }
+      };
+
+      const handleStart = (e) => {
+        if (!operable) return;
+        isLongPress.current = false;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        touchStartPos.current = { x: clientX, y: clientY };
+
+        touchTimer.current = setTimeout(() => {
+          isLongPress.current = true;
+          if (navigator.vibrate) navigator.vibrate(50);
+          onEdit(user);
+        }, 600); 
+      };
+
+      const handleMove = (e) => {
+        if (!touchTimer.current) return;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        if (Math.abs(clientX - touchStartPos.current.x) > 10 || Math.abs(clientY - touchStartPos.current.y) > 10) {
+           clearTimeout(touchTimer.current);
+        }
+      };
+
+      const handleEnd = (e) => {
+        clearTimeout(touchTimer.current);
+      };
+
+      const handleClick = (e) => {
+        e.stopPropagation();
+        if (isLongPress.current) return; 
+        if (canMoveCard) onSelect(user.id);
+      };
+
+      const hasCrown = isUserMainAdmin || isUserSubAdmin;
+      const crownTitle = isUserMainAdmin ? "主管理員" : (isUserSubAdmin ? "副管理員" : "");
+
+      return (
+        <div 
+          onTouchStart={handleStart} onTouchMove={handleMove} onTouchEnd={handleEnd} onMouseDown={handleStart} onMouseMove={handleMove} onMouseUp={handleEnd} onMouseLeave={handleEnd}
+          onClick={handleClick}
+          onContextMenu={(e) => { e.preventDefault(); if (operable) onEdit(user); }}
+          className={`no-select relative flex flex-col px-3 py-1.5 rounded-md shadow-sm border text-sm select-none transition-all duration-200 
+            ${canMoveCard ? 'cursor-pointer hover:border-teal-400' : 'cursor-not-allowed opacity-80'} 
+            ${isSelected ? 'ring-4 ring-teal-500 scale-110 z-10 bg-teal-50 shadow-lg' : bgClass}`}
+        >
+          <div className="flex items-center">
+            <span className={getGenderColor(user.gender)}>{user.name}</span>
+            {user.level ? <span className="ml-1 text-gray-500 text-xs">({user.level})</span> : null}
+            {hasCrown ? <span className="ml-1 text-blue-500 text-xs" title={crownTitle}>👑</span> : null}
+            {isAdmin && user.customTags && user.customTags !== '💰' ? (
+              <span className="ml-1 bg-indigo-100 text-indigo-700 border border-indigo-200 px-1 rounded text-[10px]">{user.customTags}</span>
+            ) : null}
+            {isCoolingDown ? <span className="ml-1 text-yellow-700 text-xs font-bold font-mono bg-yellow-200 px-1 rounded">⏱ {timeString}</span> : null}
+            {isAdmin ? (
+              <button onClick={(e) => { e.stopPropagation(); onTogglePayment(user.id); }} className={`ml-2 px-1 rounded text-xs transition-all active:scale-90 ${user.customTags === '💰' ? 'bg-green-100 border border-green-400 text-green-700' : 'bg-gray-100 border border-gray-300 text-gray-400 opacity-60'}`}>💰</button>
+            ) : null}
+          </div>
+          {isMine && !hasCrown ? <span className="absolute -top-2 -right-2 bg-teal-500 text-white text-[10px] px-1.5 rounded-full shadow border border-teal-600">我的</span> : null}
+        </div>
+      );
+    });
+
+    // ==========================================
+    // 大廳元件 (Landing Page)
+    // ==========================================
+    function LandingPage({ onJoinRoom }) {
+      const [roomInput, setRoomInput] = useState('');
+      const [roomName, setRoomName] = useState('熱血羽球團');
+      const [maxUsers, setMaxUsers] = useState(32);
+      
+      const createNewRoom = () => {
+        if (!roomName.trim()) return alert("請輸入球局名稱！");
+        if (maxUsers < 1 || maxUsers > 32) return alert("人數上限請設定在 1 到 32 之間！");
+        const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+        onJoinRoom(newRoomId, roomName, maxUsers);
+      };
+
+      return (
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 text-slate-100 font-sans">
+          <div className="bg-slate-800 p-8 rounded-3xl shadow-2xl max-w-md w-full relative overflow-hidden border border-slate-700">
+            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-teal-400 to-blue-500"></div>
+            <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-blue-400 mb-2 text-center">ShuttleFlow</h1>
+            <p className="text-slate-400 mb-8 text-center text-sm tracking-widest">極簡即時排隊系統</p>
+            
+            <div className="bg-slate-750 p-4 rounded-xl mb-6 border border-slate-600 bg-slate-700/50">
+              <h2 className="font-bold text-teal-300 mb-4 text-center">✨ 建立全新球局</h2>
+              <label className="block text-xs text-slate-400 mb-1">球局名稱</label>
+              <input type="text" value={roomName} onChange={e => setRoomName(e.target.value)} className="w-full px-4 py-2 rounded-lg bg-slate-800 border border-slate-600 text-white focus:outline-none focus:border-teal-500 mb-3" />
+              <label className="block text-xs text-slate-400 mb-1">人數上限 (最多 32 人)</label>
+              <input type="number" value={maxUsers} max={32} min={1} onChange={e => setMaxUsers(Number(e.target.value))} className="w-full px-4 py-2 rounded-lg bg-slate-800 border border-slate-600 text-white focus:outline-none focus:border-teal-500 mb-4" />
+              <button onClick={createNewRoom} className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 rounded-lg shadow-lg transition active:scale-95 text-sm">產生專屬房間</button>
+            </div>
+            
+            <div className="flex items-center my-4 opacity-50">
+              <div className="flex-1 h-px bg-slate-500"></div>
+              <span className="px-3 text-slate-400 text-xs">或加入現有球局</span>
+              <div className="flex-1 h-px bg-slate-500"></div>
+            </div>
+
+            <div className="flex gap-2 mb-8">
+              <input type="text" placeholder="輸入 6 碼代號" value={roomInput} onChange={e => setRoomInput(e.target.value.toUpperCase())} className="flex-1 px-4 py-2 rounded-lg bg-slate-800 border border-slate-600 text-white focus:outline-none focus:border-blue-500 text-center tracking-widest font-bold uppercase text-sm" maxLength={6} />
+              <button onClick={() => { if(roomInput.length === 6) onJoinRoom(roomInput); else alert('請輸入完整的 6 碼代號'); }} className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 rounded-lg transition active:scale-95 text-sm">加入</button>
+            </div>
+
+            <div className="mt-8 pt-4 border-t border-slate-700 text-center text-slate-500 text-xs font-mono">
+              <p>ShuttleFlow v1.3.1</p>
+              <p>Developed by Hansel C.</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 房間主程式元件
+    // ==========================================
+    function ShuttleFlowRoom({ roomId, initRoomName, initMaxUsers, onLeave }) {
+      const roomRef = db.ref(`rooms/${roomId}`);
+      const [deviceId] = useState(() => {
+        let id = localStorage.getItem('shuttleflow_device_id');
+        if (!id) { id = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9); localStorage.setItem('shuttleflow_device_id', id); }
+        return id;
+      });
+
+      const [showBrowserWarning, setShowBrowserWarning] = useState(() => localStorage.getItem('shuttleflow_browser_warned') !== 'true');
+      const [now, setNow] = useState(Date.now());
+      useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
+
+      const [data, setData] = useState(null);
+      const [isDbConnected, setIsDbConnected] = useState(false);
+
+      const [selectedUserId, setSelectedUserId] = useState(null);
+      
+      const [editingUser, setEditingUser] = useState(null);
+      const [editName, setEditName] = useState('');
+      const [editGender, setEditGender] = useState('blue');
+      const [editLevel, setEditLevel] = useState('');
+      const [editCustomTag, setEditCustomTag] = useState('');
+      
+      const [newName, setNewName] = useState('');
+      const [newGender, setNewGender] = useState('blue');
+      const [newLevel, setNewLevel] = useState('');
+      
+      const [editingCourtId, setEditingCourtId] = useState(null);
+      const [editCourtName, setEditCourtName] = useState('');
+      const [showQRModal, setShowQRModal] = useState(false);
+      const [showSettings, setShowSettings] = useState(false);
+
+      useEffect(() => {
+        roomRef.on('value', (snapshot) => {
+          const val = snapshot.val();
+          if (val) {
+            setData(val);
+            setIsDbConnected(true);
+
+            // 🎯 【網址授權邏輯】攔截並註冊副管理員裝置
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('role') === 'subadmin') {
+              const subAdmins = val.subAdminDevices || [];
+              if (deviceId !== val.adminId && !subAdmins.includes(deviceId)) {
+                if (subAdmins.length < 2) {
+                  roomRef.update({ subAdminDevices: [...subAdmins, deviceId] });
+                  alert("🎉 授權成功！您已取得「副管理員」權限！");
+                } else {
+                  alert("⚠️ 副管理員名額已滿 (最多2位)！");
+                }
+              }
+              const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?room=' + roomId;
+              window.history.replaceState({path:newUrl}, '', newUrl);
+            }
+          } else {
+            roomRef.set({ 
+              adminId: deviceId, roomName: initRoomName || '熱血羽球團', maxUsers: initMaxUsers || 32,
+              courts: [{ id: 'c1', name: '1 號場地', playing: [], waiting: [], isMatchStarted: false }], 
+              freeUsers: [], isLocked: false, enableRestRule: true, restMinutes: 5, adminOnlyDrag: false,
+              subAdminDevices: [] 
+            });
+          }
+        });
+        return () => roomRef.off();
+      }, [roomId, deviceId, initRoomName, initMaxUsers]);
+
+      const syncData = (updates) => roomRef.update(updates);
+
+      if (!isDbConnected || !data) return <div className="flex items-center justify-center min-h-screen bg-slate-900 font-bold text-teal-500 animate-pulse">雲端資料同步中...</div>;
+
+      const courts = data.courts || [];
+      const freeUsers = data.freeUsers || [];
+      const subAdminDevices = data.subAdminDevices || [];
+      const { isLocked, enableRestRule, restMinutes, roomName, maxUsers, adminOnlyDrag } = data;
+
+      const allUsers = [...freeUsers, ...courts.flatMap(c => [...(c.playing||[]), ...(c.waiting||[])])];
+      
+      // 【終極權限判定：依賴裝置 ID】
+      const isMainAdmin = deviceId === data.adminId;
+      const isSubAdmin = subAdminDevices.includes(deviceId);
+      const isAdmin = isMainAdmin || isSubAdmin;
+      const currentSubAdminCount = subAdminDevices.length;
+
+      // 嚴格權限邊界檢查
+      const canOperate = (user) => {
+        if (!user) return false;
+        if (user.ownerId === deviceId) return true; // 球員永遠可編輯自己的分身
+        if (isMainAdmin) return true; // 主管可以操作任何人
+        
+        if (isSubAdmin) {
+          if (user.ownerId === data.adminId) return false; // 副管【不可】觸碰主管卡片
+          if (subAdminDevices.includes(user.ownerId) && user.ownerId !== deviceId) return false; // 副管【不可】操作其他副管
+          return true; // 副管可管理一般球員
+        }
+        return false;
+      };
+
+      const checkIsCoolingDown = (user) => user.unlockTime ? Boolean(user.unlockTime > now) : false;
+      const totalUsersCount = allUsers.length;
+      const isRoomFull = totalUsersCount >= (maxUsers || 32);
+
+      const handleAddMember = () => {
+        if (isRoomFull) return alert(`房間人數已達 ${maxUsers} 人上限！`);
+        if (!newName.trim()) return alert("請輸入名稱！");
+        
+        const newUser = { 
+          id: 'u_' + Date.now(), name: newName.trim(), gender: newGender, level: newLevel, 
+          customTags: '', unlockTime: 0, ownerId: deviceId 
+        };
+        syncData({ freeUsers: [...freeUsers, newUser] });
+        setNewName('');
+      };
+
+      const startEditUser = (user) => {
+        if (!canOperate(user)) return;
+        setEditingUser(user); setEditName(user.name); setEditGender(user.gender); setEditLevel(user.level); 
+        setEditCustomTag(user.customTags || '');
+      };
+
+      const saveUserEdit = () => {
+        const update = (list) => (list || []).map(u => u.id === editingUser.id ? { 
+          ...u, name: editName, gender: editGender, level: editLevel, customTags: editCustomTag.trim()
+        } : u);
+        syncData({ freeUsers: update(freeUsers), courts: courts.map(c => ({ ...c, playing: update(c.playing), waiting: update(c.waiting) })) });
+        setEditingUser(null);
+      };
+
+      const handleDeleteUser = () => {
+        if (!window.confirm(`確定要移除成員【${editingUser.name}】嗎？移除後將釋放名額。`)) return;
+        const remove = (list) => (list || []).filter(u => u.id !== editingUser.id);
+        syncData({ freeUsers: remove(freeUsers), courts: courts.map(c => ({ ...c, playing: remove(c.playing), waiting: remove(c.waiting) })) });
+        setEditingUser(null);
+      };
+
+      const handleGenerateSubAdminLink = () => {
+        if (currentSubAdminCount >= 2) return alert("副管理員已達 2 位上限！請先清除舊有副管。");
+        const subAdminUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?room=' + roomId + '&role=subadmin';
+        navigator.clipboard.writeText(subAdminUrl);
+        alert("🔗 副管專屬連結已複製！\n請傳送給指定的球友，對方點擊進入即可獲得權限。");
+        setShowSettings(false);
+      };
+
+      const handleClearSubAdmins = () => {
+        if (!window.confirm("確定要撤銷所有副管理員的權限嗎？")) return;
+        syncData({ subAdminDevices: [] });
+        setShowSettings(false);
+      };
+
+      const handleAddCourt = () => {
+        if (courts.length >= 4) return alert("場地已達上限 (最高 4 面)！\n若需新增，請先刪除現存場地。");
+        syncData({ courts: [...courts, { id: 'court_' + Date.now(), name: (courts.length + 1) + ' 號場地', playing: [], waiting: [], isMatchStarted: false }] });
+      };
+
+      const handleSaveCourtName = (id) => {
+        if (!editCourtName.trim()) return alert("名稱不能為空！");
+        syncData({ courts: courts.map(c => c.id === id ? { ...c, name: editCourtName.trim() } : c) });
+        setEditingCourtId(null);
+      };
+
+      const handleDeleteCourt = (id) => {
+        const courtToDelete = courts.find(c => c.id === id);
+        let playing = courtToDelete.playing || []; let waiting = courtToDelete.waiting || [];
+        if (playing.length > 0 || waiting.length > 0) {
+          if (!window.confirm(`【${courtToDelete.name}】上還有成員！確定刪除並將他們移回「自由區」嗎？`)) return;
+          syncData({ freeUsers: [...freeUsers, ...playing, ...waiting], courts: courts.filter(c => c.id !== id) });
+        } else {
+          if (!window.confirm(`確定要刪除【${courtToDelete.name}】嗎？`)) return;
+          syncData({ courts: courts.filter(c => c.id !== id) });
+        }
+        setEditingCourtId(null);
+      };
+
+      const toggleMatchLock = (courtId) => syncData({ courts: courts.map(c => c.id === courtId ? { ...c, isMatchStarted: !c.isMatchStarted } : c) });
+
+      const handleUpdateMaxUsers = () => {
+        const newMax = prompt(`請輸入新的人數上限 (目前: ${maxUsers}人，最高可設定32人):`, maxUsers);
+        if (newMax === null) return;
+        const parsed = parseInt(newMax, 10);
+        if (isNaN(parsed) || parsed < 1 || parsed > 32) return alert("請輸入 1 到 32 之間的有效數字！");
+        if (parsed < totalUsersCount) return alert(`目前房間內已有 ${totalUsersCount} 人，上限不能低於當前人數！`);
+        syncData({ maxUsers: parsed });
+      };
+
+      const handleClearRoom = () => {
+        if (!window.confirm("⚠️ 警告：確定要清空整場球局嗎？\n這將會移除所有場上、排隊區與自由區的成員，並解除所有比賽鎖定！(此動作無法復原)")) return;
+        const resetCourts = courts.map(c => ({ ...c, playing: [], waiting: [], isMatchStarted: false }));
+        syncData({ freeUsers: [], courts: resetCourts });
+      };
+
+      const processMove = (user, sourceZone, sourceCourtId, targetZone, targetCourtId) => {
+        if (checkIsCoolingDown(user) && !isAdmin) return alert("成員尚在休息冷卻中，僅管理員可強制操作！");
+        if (sourceCourtId) {
+          const sCourt = courts.find(c => c.id === sourceCourtId);
+          if (sCourt && sCourt.isMatchStarted && sourceZone === 'playing') return alert("該場地比賽鎖定中，無法將球員移出！");
+        }
+        if (targetCourtId) {
+          const tCourt = courts.find(c => c.id === targetCourtId);
+          if (tCourt && tCourt.isMatchStarted && targetZone === 'playing') return alert("該場地比賽鎖定中，無法加入新球員！");
+        }
+        if (sourceZone === targetZone && sourceCourtId === targetCourtId) return;
+
+        let updatedFree = [...freeUsers];
+        let updatedCourts = JSON.parse(JSON.stringify(courts));
+
+        if (sourceZone === 'free') updatedFree = updatedFree.filter(u => u.id !== user.id);
+        else if (sourceZone === 'waiting' || sourceZone === 'playing') {
+          const sCourt = updatedCourts.find(c => c.id === sourceCourtId);
+          sCourt[sourceZone] = (sCourt[sourceZone] || []).filter(u => u.id !== user.id);
+        }
+
+        const movedUser = { ...user, unlockTime: 0 };
+        if (targetZone === 'free') updatedFree.push(movedUser);
+        else if (targetZone === 'waiting' || targetZone === 'playing') {
+          const tCourt = updatedCourts.find(c => c.id === targetCourtId);
+          if (!tCourt[targetZone]) tCourt[targetZone] = [];
+          if (targetZone === 'waiting' && tCourt.waiting.length >= 4) return alert("等待區已滿 (上限 4 人)！");
+          tCourt[targetZone].push(movedUser);
+        }
+        syncData({ freeUsers: updatedFree, courts: updatedCourts });
+      };
+
+      const handleZoneClick = (targetZone, targetCourtId = null) => {
+        if (!selectedUserId) return;
+        let user = freeUsers.find(u => u.id === selectedUserId);
+        let sourceZone = 'free', sourceCourtId = null;
+        if (!user) { for (let c of courts) { user = (c.waiting || []).find(u => u.id === selectedUserId); if (user) { sourceZone = 'waiting'; sourceCourtId = c.id; break; } } }
+        if (!user) { for (let c of courts) { user = (c.playing || []).find(u => u.id === selectedUserId); if (user) { sourceZone = 'playing'; sourceCourtId = c.id; break; } } }
+        
+        if (user) processMove(user, sourceZone, sourceCourtId, targetZone, targetCourtId);
+        setSelectedUserId(null);
+      };
+
+      const handleFinishGame = (courtId) => {
+        let updatedCourts = JSON.parse(JSON.stringify(courts));
+        let updatedFree = [...freeUsers];
+        const court = updatedCourts.find(c => c.id === courtId);
+        if (!court.playing || court.playing.length === 0) return;
+
+        const newUnlockTime = (court.isMatchStarted && enableRestRule) ? Date.now() + (restMinutes * 60 * 1000) : 0;
+        const finishedPlayers = court.playing.map(u => ({ ...u, unlockTime: newUnlockTime }));
+        
+        updatedFree = [...updatedFree, ...finishedPlayers];
+        court.playing = [...(court.waiting || [])];
+        court.waiting = [];
+        court.isMatchStarted = false; 
+
+        syncData({ courts: updatedCourts, freeUsers: updatedFree });
+      };
+
+      const togglePayment = (userId) => {
+        if (!isAdmin) return;
+        const update = (list) => (list || []).map(u => u.id === userId ? { ...u, customTags: u.customTags === '💰' ? '' : '💰' } : u);
+        syncData({ freeUsers: update(freeUsers), courts: courts.map(c => ({ ...c, playing: update(c.playing), waiting: update(c.waiting) })) });
+      };
+
+      // 🎯 核心修正：精確判斷卡片屬性
+      const renderUserCard = (user, sourceZone, courtId) => {
+        const isMainAdminCard = user.ownerId === data.adminId && (user.isAdminUser || allUsers.filter(u => u.ownerId === data.adminId)[0]?.id === user.id);
+        const isSubAdminCard = subAdminDevices.includes(user.ownerId) && (allUsers.filter(u => u.ownerId === user.ownerId)[0]?.id === user.id);
+
+        const isCoolingDown = checkIsCoolingDown(user);
+        let bgClass = 'bg-white border-gray-200';
+        
+        if (isCoolingDown) {
+          bgClass = 'bg-yellow-100 border-yellow-300';
+        } else if (isMainAdminCard || isSubAdminCard) {
+          bgClass = 'bg-blue-50 border-blue-200';
+        }
+
+        const court = courtId ? courts.find(c => c.id === courtId) : null;
+        const isCourtLocked = court && court.isMatchStarted && sourceZone === 'playing';
+        
+        const operable = canOperate(user);
+        const canMoveCard = operable && (!adminOnlyDrag || isAdmin) && !isCourtLocked;
+
+        let timeString = '';
+        if (isCoolingDown) {
+          const remainingMs = user.unlockTime - now;
+          const mins = Math.floor(remainingMs / 60000);
+          const secs = Math.floor((remainingMs % 60000) / 1000);
+          timeString = `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        return (
+          <UserCard 
+            key={user.id} user={user} isCoolingDown={isCoolingDown} timeString={timeString} bgClass={bgClass} 
+            isSelected={selectedUserId === user.id} canMoveCard={canMoveCard} operable={operable} 
+            isMine={user.ownerId === deviceId} 
+            isUserMainAdmin={isMainAdminCard} 
+            isUserSubAdmin={isSubAdminCard}   
+            isAdmin={isAdmin} 
+            onSelect={setSelectedUserId} onEdit={startEditUser} onTogglePayment={togglePayment} 
+          />
+        );
+      };
+
+      const sortedFreeUsers = [...freeUsers].sort((a, b) => {
+         const aIsMine = a.ownerId === deviceId ? 1 : 0;
+         const bIsMine = b.ownerId === deviceId ? 1 : 0;
+         return bIsMine - aIsMine;
+      });
+
+      const currentUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?room=' + roomId;
+      const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(currentUrl)}`;
+
+      return (
+        <div className="min-h-screen bg-slate-100 text-slate-800 font-sans flex flex-col relative pb-10">
+          
+          {showBrowserWarning && (
+            <div className="bg-yellow-100/95 backdrop-blur-sm text-yellow-800 text-xs sm:text-sm p-3 font-bold flex justify-between items-center z-50 shadow-sm border-b border-yellow-200 sticky top-0">
+              <span className="flex-1">⚠️ 強烈建議：請點擊右上角「以預設瀏覽器(Safari/Chrome)開啟」，以免跳出畫面後遺失卡片權限！</span>
+              <button onClick={() => { setShowBrowserWarning(false); localStorage.setItem('shuttleflow_browser_warned', 'true'); }} className="ml-3 bg-yellow-200 hover:bg-yellow-300 px-2 py-1 rounded text-yellow-900 transition active:scale-95">✖ 關閉</button>
+            </div>
+          )}
+
+          {selectedUserId && (
+             <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-teal-600 text-white px-6 py-3 rounded-full shadow-2xl font-bold z-50 flex items-center gap-3 animate-bounce border-2 border-white">
+                👇 請點擊目標區域
+                <button onClick={() => setSelectedUserId(null)} className="bg-teal-800 px-3 py-1 rounded-full text-xs hover:bg-teal-900 border border-teal-500">取消</button>
+             </div>
+          )}
+
+          <header className="bg-slate-800 text-white p-4 shadow-md flex justify-between items-center z-10 relative">
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl font-bold tracking-wide text-teal-400">{roomName || 'ShuttleFlow'}</h1>
+              <span className="bg-slate-700 text-xs px-2 py-1 rounded font-mono border border-slate-600 hidden sm:inline-block">房號: {roomId}</span>
+              {isAdmin && <span className="bg-blue-600 text-xs px-2 py-0.5 rounded-full font-bold">{isMainAdmin ? '主管理員' : '副管理員'}</span>}
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <button onClick={() => setShowQRModal(true)} className="bg-white/20 hover:bg-white/30 text-white text-xs px-3 py-1.5 rounded-full font-bold transition flex items-center gap-1">📱 邀請碼</button>
+              <button onClick={onLeave} className="text-slate-400 hover:text-white text-xs underline">離開</button>
+            </div>
+          </header>
+
+          {showQRModal && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+              <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center relative">
+                <button className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 text-xl font-bold" onClick={() => setShowQRModal(false)}>✖</button>
+                <h2 className="text-xl font-bold text-slate-800 mb-1">{roomName}</h2>
+                <p className="text-slate-500 mb-6 text-sm">請朋友掃描下方 QR Code 進入球局</p>
+                <div className="bg-slate-100 p-4 rounded-xl inline-block mb-6 border border-slate-200">
+                  <img src={qrCodeUrl} alt="Room QR Code" className="w-48 h-48" />
+                </div>
+                <div className="bg-slate-800 text-white font-mono text-3xl font-bold py-3 rounded-lg tracking-widest mb-4">{roomId}</div>
+                <button onClick={() => { navigator.clipboard.writeText(currentUrl); alert('連結已複製！'); }} className="w-full bg-teal-500 text-white py-3 rounded-xl font-bold active:scale-95">🔗 複製房間連結</button>
+              </div>
+            </div>
+          )}
+
+          {isAdmin && (
+            <div className="bg-slate-200/80 backdrop-blur border-b border-slate-300 p-3 px-4 flex flex-wrap items-center justify-between gap-4 text-sm shadow-sm relative z-20">
+              <div className="flex flex-wrap items-center gap-4">
+                <button onClick={() => syncData({ isLocked: !isLocked })} className={`px-3 py-1.5 rounded font-bold shadow-sm transition active:scale-95 flex items-center gap-1 ${isLocked ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}`}>
+                  {isLocked ? '🔐 停止新增' : '🔓 開放新增'}
+                </button>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <button onClick={handleAddCourt} className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded shadow-sm font-bold flex items-center gap-1 transition active:scale-95">＋ 新增場地</button>
+                
+                <div className="relative">
+                  <button onClick={() => setShowSettings(!showSettings)} className="bg-slate-700 hover:bg-slate-800 text-white text-xs px-3 py-1.5 rounded shadow-sm font-bold flex items-center gap-1 transition active:scale-95">
+                    ⚙️ 設定
+                  </button>
+                  
+                  {showSettings && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowSettings(false)}></div>
+                      <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 p-4 flex flex-col gap-4 text-slate-800 transition-all origin-top-right">
+                        <h3 className="font-bold text-xs text-slate-500 border-b pb-2">管理員專屬設定</h3>
+                        
+                        <div className="flex flex-col gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-slate-700">
+                            <input type="checkbox" checked={enableRestRule} onChange={(e) => syncData({ enableRestRule: e.target.checked })} className="w-4 h-4 accent-yellow-500"/>
+                            打一休一
+                          </label>
+                          {enableRestRule && (
+                            <select value={restMinutes} onChange={(e) => syncData({ restMinutes: Number(e.target.value) })} className="bg-slate-50 border border-slate-200 rounded font-bold px-2 py-1 text-xs ml-6">
+                              {Array.from({length: 10}, (_, i) => i + 1).map(m => <option key={m} value={m}>{m} 分鐘</option>)}
+                            </select>
+                          )}
+                        </div>
+                        
+                        <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-red-700">
+                          <input type="checkbox" checked={adminOnlyDrag} onChange={(e) => syncData({ adminOnlyDrag: e.target.checked })} className="w-4 h-4 accent-red-600"/>
+                          ⛔ 排隊管理
+                        </label>
+                        
+                        <div className="border-t border-slate-100 pt-3 flex flex-col gap-2">
+                          {isMainAdmin && (
+                            <>
+                              <button onClick={handleGenerateSubAdminLink} className="bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm px-3 py-2 rounded-lg border border-blue-200 font-bold shadow-sm active:scale-95 transition text-left flex items-center justify-between">
+                                <span>🔗 複製副管連結</span>
+                                <span className="text-xs bg-blue-200 px-1.5 py-0.5 rounded">{currentSubAdminCount}/2</span>
+                              </button>
+                              
+                              {currentSubAdminCount > 0 && (
+                                <button onClick={handleClearSubAdmins} className="bg-orange-50 hover:bg-orange-100 text-orange-600 text-sm px-3 py-2 rounded-lg border border-orange-200 font-bold shadow-sm active:scale-95 transition text-left flex items-center gap-2">
+                                  🗑️ 撤銷所有副管
+                                </button>
+                              )}
+                            </>
+                          )}
+
+                          <button onClick={() => { handleUpdateMaxUsers(); setShowSettings(false); }} className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm px-3 py-2 rounded-lg border border-slate-300 font-bold shadow-sm active:scale-95 transition text-left flex items-center justify-between">
+                            <span>👥 調整上限</span>
+                            <span className="text-xs bg-slate-300 px-1.5 py-0.5 rounded">{maxUsers} 人</span>
+                          </button>
+                          
+                          <button onClick={() => { handleClearRoom(); setShowSettings(false); }} className="bg-red-50 hover:bg-red-100 text-red-600 text-sm px-3 py-2 rounded-lg border border-red-200 font-bold shadow-sm active:scale-95 transition text-left flex items-center gap-2">
+                            🧹 清空房間
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isLocked && <div className="bg-red-100 border-b border-red-300 text-red-700 text-center py-2 text-sm font-bold shadow-inner">🔐 房間已鎖定，暫停開放加入成員。</div>}
+
+          <main className="flex-1 p-4 flex flex-col md:flex-row gap-6 overflow-hidden">
+            <section className="w-full md:w-2/3 flex flex-col gap-4">
+              <h2 className="text-lg font-bold text-slate-700 border-b-2 border-slate-300 pb-1">場地區</h2>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 overflow-y-auto pr-2">
+                {courts.map(court => {
+                  const playingCount = (court.playing || []).length;
+                  const canManageCourt = isAdmin || (court.playing || []).some(u => u.ownerId === deviceId);
+                  
+                  return (
+                    <div key={court.id} className={`bg-white rounded-xl shadow border overflow-hidden flex flex-col transition-all ${court.isMatchStarted ? 'border-red-400 ring-1 ring-red-200' : 'border-slate-200'}`}>
+                      <div className="bg-slate-200 px-4 py-2 font-bold text-slate-700 flex justify-between items-center">
+                        {editingCourtId === court.id ? (
+                          <div className="flex w-full gap-2 items-center">
+                            <input type="text" value={editCourtName} onChange={(e) => setEditCourtName(e.target.value)} className="flex-1 px-2 py-1 text-sm rounded border" autoFocus />
+                            <button onClick={() => handleSaveCourtName(court.id)} className="bg-teal-500 text-white px-2 py-1 rounded text-xs">儲存</button>
+                            <button onClick={() => handleDeleteCourt(court.id)} className="bg-red-500 text-white px-2 py-1 rounded text-xs">刪除</button>
+                            <button onClick={() => setEditingCourtId(null)} className="bg-gray-400 text-white px-2 py-1 rounded text-xs">取消</button>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="flex items-center gap-2">
+                              {court.name}
+                              {court.isMatchStarted ? <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full shadow-sm">鎖定中</span> : null}
+                            </span>
+                            {isAdmin ? <button onClick={() => { setEditingCourtId(court.id); setEditCourtName(court.name); }} className="text-xs text-slate-500 bg-white border px-2 py-1 rounded hover:bg-slate-100">⚙️ 編輯</button> : null}
+                          </>
+                        )}
+                      </div>
+                      
+                      <div 
+                        onClick={() => handleZoneClick('playing', court.id)} 
+                        className={`p-3 border-b border-slate-100 min-h-[100px] transition-all 
+                          ${court.isMatchStarted ? 'bg-red-50/50' : 'bg-teal-50/30'} 
+                          ${selectedUserId && !court.isMatchStarted ? 'cursor-pointer hover:bg-teal-100 ring-2 ring-inset ring-teal-400' : ''}`}
+                      >
+                        <div className="flex justify-between items-center mb-2 pointer-events-auto">
+                          <span className="text-xs font-bold text-teal-700 pointer-events-none">打球中 (1v1~2v2)</span>
+                          <div className="flex gap-2">
+                            {canManageCourt && playingCount >= 2 ? (
+                              <button onClick={(e) => { e.stopPropagation(); toggleMatchLock(court.id); }} className={`text-xs px-3 py-1 rounded shadow-sm transition active:scale-95 font-bold ${court.isMatchStarted ? 'bg-slate-600 text-white hover:bg-slate-700' : 'bg-red-100 text-red-600 border border-red-300 hover:bg-red-200'}`}>
+                                {court.isMatchStarted ? '🔓 解除鎖定' : '🛡️ 鎖定比賽'}
+                              </button>
+                            ) : null}
+                            {canManageCourt ? (
+                              <button onClick={(e) => { e.stopPropagation(); handleFinishGame(court.id); }} className="text-xs text-white px-3 py-1 rounded shadow-sm active:scale-95 bg-red-500 hover:bg-red-600">
+                                下場
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div className={`flex flex-wrap gap-2 p-2 rounded ${court.isMatchStarted ? 'border border-red-200 bg-white' : 'border border-teal-200 bg-white/50 pointer-events-auto'}`}>
+                          {(court.playing || []).map(user => renderUserCard(user, 'playing', court.id))}
+                          {(court.playing || []).length === 0 ? <span className="text-xs text-teal-400/70 m-auto pointer-events-none">點擊此區域指派上場...</span> : null}
+                        </div>
+                      </div>
+
+                      <div 
+                        onClick={() => handleZoneClick('waiting', court.id)} 
+                        className={`p-3 bg-slate-50 min-h-[90px] transition-all 
+                          ${selectedUserId ? 'cursor-pointer hover:bg-slate-200 ring-2 ring-inset ring-slate-400' : ''}`}
+                      >
+                        <div className="flex justify-between items-center mb-2 pointer-events-none">
+                          <span className="text-xs font-bold text-slate-500">等待區 (Max: 4)</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2 p-2 bg-white rounded border border-slate-300 pointer-events-auto min-h-[46px]">
+                          {(court.waiting || []).map(user => renderUserCard(user, 'waiting', court.id))}
+                          {(court.waiting || []).length === 0 ? <span className="text-xs text-slate-400/70 m-auto pointer-events-none">點擊此區域指派排隊...</span> : null}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="w-full md:w-1/3 flex flex-col gap-4">
+              <h2 className="text-lg font-bold text-slate-700 border-b-2 border-slate-300 pb-1">自由區</h2>
+              <div className="flex flex-col bg-white rounded-xl shadow border border-slate-200 overflow-hidden flex-1">
+                <div className="bg-slate-700 px-4 py-2 font-bold text-white flex justify-between items-center">
+                  <span>閒置成員</span>
+                  <span className={`text-xs px-2 py-1 rounded-full font-bold shadow-inner border border-slate-600 ${isRoomFull ? 'bg-red-500 text-white border-red-400' : 'bg-slate-600'}`}>{totalUsersCount} / {maxUsers}</span>
+                </div>
+                
+                {adminOnlyDrag ? (
+                   <div className="text-center text-red-600 font-bold py-1.5 bg-red-50 border-b border-red-200 text-sm tracking-widest shadow-inner">
+                     ⛔ 管理員指定上場
+                   </div>
+                ) : null}
+                
+                <div 
+                  onClick={() => handleZoneClick('free')} 
+                  className={`p-4 flex-1 overflow-y-auto transition-all ${selectedUserId ? 'cursor-pointer hover:bg-slate-100 ring-4 ring-inset ring-slate-400 bg-slate-50' : ''}`}
+                >
+                  <div className="flex flex-wrap gap-2 p-2 min-h-[200px] border border-slate-300 rounded content-start pointer-events-auto bg-slate-50">
+                    {sortedFreeUsers.map(user => renderUserCard(user, 'free', null))}
+                    {sortedFreeUsers.length === 0 ? <span className="text-sm text-gray-400 m-auto pointer-events-none">自由區目前無人</span> : null}
+                  </div>
+                </div>
+
+                {!isLocked ? (
+                  <div className={`p-4 border-t border-slate-300 ${isRoomFull ? 'bg-red-50' : 'bg-slate-100'}`}>
+                    <h3 className="font-bold text-sm mb-2 text-slate-600">🙋 加入球局 / 新增攜伴</h3>
+                    {isRoomFull ? (
+                      <div className="text-center text-red-600 font-bold py-4 border-2 border-dashed border-red-300 rounded bg-red-50">🔴 人數已滿，暫停加入。</div>
+                    ) : (
+                      <>
+                        <input type="text" placeholder="輸入名稱" value={newName} onChange={e => setNewName(e.target.value)} className="w-full px-3 py-2 border rounded text-sm mb-2 shadow-inner" />
+                        <div className="flex gap-2 mb-3">
+                          <select value={newGender} onChange={e => setNewGender(e.target.value)} className="flex-1 px-2 py-1 border rounded text-sm bg-white shadow-sm"><option value="blue">男</option><option value="red">女</option><option value="green">不顯示</option></select>
+                          <select value={newLevel} onChange={e => setNewLevel(e.target.value)} className="flex-1 px-2 py-1 border rounded text-sm bg-white shadow-sm"><option value="">強度不顯示</option><option value="高階">高階</option><option value="中階">中階</option><option value="初階">初階</option><option value="新手">新手</option></select>
+                        </div>
+                        <button onClick={handleAddMember} className="w-full bg-teal-600 text-white py-2 rounded font-bold text-sm hover:bg-teal-700 active:scale-95 shadow">確定新增</button>
+                      </>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          </main>
+
+          {editingUser ? (
+             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+               <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm border border-slate-200">
+                 <h2 className="font-bold text-lg mb-4 text-slate-800 border-b pb-2">編輯成員：{editingUser.name}</h2>
+                 <label className="block text-sm font-bold text-slate-600 mb-1">名稱</label>
+                 <input className="w-full border border-slate-300 p-2 mb-3 rounded focus:ring-2 focus:ring-teal-400 outline-none" value={editName} onChange={e => setEditName(e.target.value)} autoFocus/>
+                 <div className="flex gap-2 mb-3">
+                   <div className="flex-1">
+                     <label className="block text-sm font-bold text-slate-600 mb-1">性別</label>
+                     <select className="w-full border p-2 rounded focus:ring-2 focus:ring-teal-400 outline-none" value={editGender} onChange={e => setEditGender(e.target.value)}><option value="blue">男</option><option value="red">女</option><option value="green">無</option></select>
+                   </div>
+                   <div className="flex-1">
+                     <label className="block text-sm font-bold text-slate-600 mb-1">強度</label>
+                     <select className="w-full border p-2 rounded focus:ring-2 focus:ring-teal-400 outline-none" value={editLevel} onChange={e => setEditLevel(e.target.value)}><option value="">無</option><option value="高階">高階</option><option value="中階">中階</option><option value="初階">初階</option><option value="新手">新手</option></select>
+                   </div>
+                 </div>
+                 
+                 {isAdmin ? (
+                   <div className="mb-4 bg-indigo-50 p-3 rounded border border-indigo-200">
+                     <label className="block text-sm font-bold text-indigo-700 mb-1">自定義標籤 (限 5 字)</label>
+                     <input className="w-full border border-indigo-300 p-2 rounded focus:ring-2 focus:ring-indigo-400 outline-none" maxLength={5} placeholder="如: 季繳/早退" value={editCustomTag} onChange={e => setEditCustomTag(e.target.value)} />
+                   </div>
+                 ) : null}
+                 
+                 <div className="flex gap-2">
+                   <button className="flex-1 bg-teal-500 text-white py-2 rounded font-bold active:scale-95 shadow" onClick={saveUserEdit}>儲存</button>
+                   <button className="flex-1 bg-slate-200 text-slate-700 py-2 rounded font-bold active:scale-95 shadow" onClick={() => setEditingUser(null)}>取消</button>
+                 </div>
+                 <button className="w-full mt-4 bg-red-50 border border-red-200 text-red-600 py-2 rounded font-bold active:scale-95 hover:bg-red-100 transition" onClick={handleDeleteUser}>
+                   🗑️ 刪除此成員
+                 </button>
+               </div>
+             </div>
+           ) : null}
+        </div>
+      );
+    }
+
+    function AppRouter() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const initialRoom = urlParams.get('room');
+      const [currentRoom, setCurrentRoom] = useState(initialRoom);
+      const [initRoomName, setInitRoomName] = useState('');
+      const [initMaxUsers, setInitMaxUsers] = useState(32);
+
+      const handleJoinRoom = (roomId, name, max) => {
+        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?room=' + roomId;
+        window.history.pushState({path:newUrl}, '', newUrl);
+        setInitRoomName(name);
+        setInitMaxUsers(max);
+        setCurrentRoom(roomId);
+      };
+
+      const handleLeaveRoom = () => {
+        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+        window.history.pushState({path:newUrl}, '', newUrl);
+        setCurrentRoom(null);
+      };
+
+      if (currentRoom) return <ShuttleFlowRoom roomId={currentRoom} initRoomName={initRoomName} initMaxUsers={initMaxUsers} onLeave={handleLeaveRoom} />;
+      return <LandingPage onJoinRoom={handleJoinRoom} />;
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<AppRouter />);
+  </script>
+</body>
+</html>
