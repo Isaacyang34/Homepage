@@ -2255,74 +2255,117 @@
 
   <!-- Beta Explainer Modal -->
   <div class="modal-overlay" id="betaExplainerModal">
-    <div class="modal-box" style="max-width: 640px;">
+    <div class="modal-box" style="max-width: 680px; max-height: 88vh; overflow-y: auto;">
       <div class="modal-header">
         <h3 style="display:flex; align-items:center; gap:8px; color:var(--accent-orange);">
           <span>🛡️</span>
-          <span>綜合防禦指數 (加權 Beta) 計算說明</span>
+          <span>綜合防禦指數 (加權 Beta) 計算與統計限制說明</span>
         </h3>
         <button class="modal-close-btn" onclick="closeBetaExplainerModal()">&times;</button>
       </div>
 
-      <div style="font-size: 13px; color: var(--text-main); line-height: 1.6;">
-        <strong>Beta (β) 係數</strong> 是衡量投資標的或投資組合相對於<strong>整體市場大盤（台灣加權指數，基準 β = 1.0）</strong>波動劇烈程度的風險指標。
+      <!-- 1. 白話解讀與即時情境速算 -->
+      <div style="background: rgba(251, 146, 60, 0.08); border: 1px solid rgba(251, 146, 60, 0.3); border-radius: 10px; padding: 14px; margin-bottom: 14px;">
+        <div style="font-size: 13.5px; font-weight: 700; color: #fff; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+          <span>💡 白話核心解讀</span>
+          <span style="font-size: 12px; color: var(--accent-orange);" id="betaHeadlineVal">組合 β = 0.62</span>
+        </div>
+        <div style="font-size: 13px; color: var(--text-main); line-height: 1.6; margin-top: 6px;" id="betaPlainExplanation">
+          以目前組合 β 估算，若台灣加權指數單日或短期<strong>下跌 10%</strong>，組合理論上約<strong>下跌 6.2%</strong>；若大盤<strong>上漲 10%</strong>，則組合理論上約<strong>上漲 6.2%</strong>。
+        </div>
+
+        <!-- Scenario Stress Quick Table -->
+        <div style="margin-top: 10px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center;">
+          <div style="background: rgba(0,0,0,0.25); padding: 8px 4px; border-radius: 6px; border: 1px solid rgba(244,63,94,0.2);">
+            <div style="font-size: 10.5px; color: var(--text-muted);">大盤重挫 -20%</div>
+            <div style="font-size: 13.5px; font-weight: 800; color: var(--accent-rose);" id="scenarioDrop20">-12.4%</div>
+          </div>
+          <div style="background: rgba(0,0,0,0.25); padding: 8px 4px; border-radius: 6px; border: 1px solid rgba(251,146,60,0.2);">
+            <div style="font-size: 10.5px; color: var(--text-muted);">大盤修正 -10%</div>
+            <div style="font-size: 13.5px; font-weight: 800; color: var(--accent-orange);" id="scenarioDrop10">-6.2%</div>
+          </div>
+          <div style="background: rgba(0,0,0,0.25); padding: 8px 4px; border-radius: 6px; border: 1px solid rgba(56,189,248,0.2);">
+            <div style="font-size: 10.5px; color: var(--text-muted);">大盤上漲 +10%</div>
+            <div style="font-size: 13.5px; font-weight: 800; color: var(--accent-cyan);" id="scenarioRise10">+6.2%</div>
+          </div>
+          <div style="background: rgba(0,0,0,0.25); padding: 8px 4px; border-radius: 6px; border: 1px solid rgba(52,211,153,0.2);">
+            <div style="font-size: 10.5px; color: var(--text-muted);">大盤大漲 +20%</div>
+            <div style="font-size: 13.5px; font-weight: 800; color: var(--accent-green);" id="scenarioRise20">+12.4%</div>
+          </div>
+        </div>
       </div>
 
-      <!-- Core Formula Box -->
+      <!-- 2. 數學定義與權重加總原理 -->
       <div class="beta-formula-box">
-        <div style="font-size: 11.5px; font-weight: 700; color: var(--accent-orange); margin-bottom: 4px;">
-          🧮 投資組合加權 Beta 計算公式：
+        <div style="font-size: 12px; font-weight: 700; color: var(--accent-orange); margin-bottom: 4px;">
+          📐 Beta (β) 數學統計定義與組合線性定理：
         </div>
-        <div style="font-family: 'JetBrains Mono', monospace; font-size: 13.5px; color: #fff; background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 6px; margin: 6px 0;">
-          Portfolio β = ∑ (各標的權重 Wᵢ × 標的 Beta βᵢ)
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #fff; background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 6px; margin: 6px 0; line-height: 1.5;">
+          βᵢ = Cov(Rᵢ, Rₘ) / Var(Rₘ)<br>
+          Portfolio β = ∑ (Wᵢ × βᵢ)
         </div>
-        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
-          意即：依據每檔 ETF/股票在目前組合中所佔的<strong>資金比例（權重）</strong>，將各標的之 Beta 值進行乘積加總。
+        <div style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+          • <strong>數學本質</strong>：Beta 為標的報酬率與大盤報酬率之<strong>共變異數除以大盤變異數</strong>。由於共變異數具線性加成性質，因此<strong>「各標的權重 × Beta 總和」在財務數學上完全嚴密成立</strong>。<br>
+          • <strong>權重基準</strong>：本系統依各標的<strong>目前即時市值（Market Value）</strong>動態計算權重 $W_i$；若股價隨市場波動產生漂移，權重與整體 Beta 亦會同步即時重新評價。
         </div>
       </div>
 
-      <!-- Live Dynamic Breakdown Table -->
+      <!-- 3. 動態標的拆解表 -->
       <div style="font-size: 13px; font-weight: 700; color: #fff; margin-top: 14px;">
-        當前投資組合之個別標的貢獻拆解：
+        當前配置各標的貢獻拆解：
       </div>
 
       <div style="overflow-x: auto;">
         <table class="beta-table">
           <thead>
             <tr>
-              <th>標的</th>
-              <th>名稱 / 屬性</th>
-              <th style="text-align:right;">配置權重 (Wᵢ)</th>
+              <th>標的代號</th>
+              <th>資產類型</th>
+              <th style="text-align:right;">即時市值權重 (Wᵢ)</th>
               <th style="text-align:right;">個別 Beta (βᵢ)</th>
               <th style="text-align:right;">加權貢獻 (Wᵢ × βᵢ)</th>
             </tr>
           </thead>
           <tbody id="betaBreakdownTbody">
-            <!-- Rendered dynamically by JS -->
+            <!-- Dynamic Rows -->
           </tbody>
           <tfoot>
             <tr style="font-weight: 800; background: rgba(251, 146, 60, 0.08); border-top: 1px solid rgba(251, 146, 60, 0.3);">
-              <td colspan="2" style="color: var(--accent-orange);">總計組合綜合防禦指數</td>
+              <td colspan="2" style="color: var(--accent-orange);">整體組合加權 Beta</td>
               <td class="num" id="betaSumWeight">100.0%</td>
               <td class="num" style="color: var(--text-muted);">-</td>
-              <td class="num" style="color: var(--accent-orange); font-size: 15px;" id="betaSumTotal">0.68 β</td>
+              <td class="num" style="color: var(--accent-orange); font-size: 15px;" id="betaSumTotal">0.62 β</td>
             </tr>
           </tfoot>
         </table>
       </div>
 
-      <!-- Rating Guidelines -->
-      <div style="margin-top: 14px; font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
-        <div style="font-weight: 700; color: #fff; margin-bottom: 6px;">防禦等級劃分標準：</div>
-        <div style="display:flex; flex-direction:column; gap:4px;">
-          <div><strong style="color:var(--accent-green);">● β &lt; 0.65 (高度防禦型)</strong>：多數為長天期美債或投資級債券，當股市劇烈回檔時，具備高度抗震與資金避風港特性。</div>
-          <div><strong style="color:var(--accent-cyan);">● 0.65 ≤ β &lt; 0.85 (平衡抗震型)</strong>：兼具高股息優質藍籌與適度債券防禦，波動明顯低於大盤，適合追求穩定息收的投資人。</div>
-          <div><strong style="color:var(--accent-orange);">● β ≥ 0.85 (積極成長型)</strong>：多數為市值型或科技權值股（如 0050），波動貼近甚至超過大盤，多頭爆發力強但需承擔同等下檔波動。</div>
+      <!-- 4. 修正後的客觀等級劃分說明 (聚焦於大盤波動敏感度) -->
+      <div style="margin-top: 12px; font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
+        <div style="font-weight: 700; color: #fff; margin-bottom: 6px;">敏感度等級劃分（客觀依 Beta 數值區間分類，不預設資產類型）：</div>
+        <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
+          <div><strong style="color:var(--accent-green);">● β &lt; 0.65 低敏感度</strong>：波動幅度明顯小於大盤。適合保守抗震型投資人。<span id="boundaryNote" style="color:var(--accent-orange); margin-left:4px;"></span></div>
+          <div><strong style="color:var(--accent-cyan);">● 0.65 ≤ β &lt; 0.85 中低敏感度</strong>：波動適度低於大盤，多數由高股息優質藍籌或股債平衡組合呈現。</div>
+          <div><strong style="color:var(--accent-orange);">● β ≥ 0.85 高敏感度</strong>：波動貼近甚至超過大盤（如市值型或科技成長型），多頭動能強但下檔波動亦大。</div>
         </div>
       </div>
 
-      <div class="modal-footer" style="margin-top: 18px; text-align: right;">
-        <button class="btn-secondary" onclick="closeBetaExplainerModal()">我知道了，關閉說明</button>
+      <!-- 5. 統計限制與風險警語 (依專業回饋完整補充) -->
+      <div style="margin-top: 14px; background: rgba(244, 63, 94, 0.05); border: 1px solid rgba(244, 63, 94, 0.25); border-radius: 10px; padding: 12px 14px; font-size: 12px; color: var(--text-dim); line-height: 1.6;">
+        <div style="font-weight: 700; color: var(--accent-rose); margin-bottom: 4px; display:flex; align-items:center; gap:6px;">
+          <span>⚠️ 統計限制與風險聲明 (使用前必讀)：</span>
+        </div>
+        <ul style="margin: 0; padding-left: 18px; display:flex; flex-direction:column; gap:4px;">
+          <li><strong>資料來源與計算區間</strong>：個別標的 Beta 採<strong>近 1~2 年週報酬率</strong>相對於<strong>台灣加權指數（TAIEX）</strong>進行線性迴歸。基準指數未計入含息總報酬。</li>
+          <li><strong>歷史統計不保證未來</strong>：Beta 是過去一段時間的歷史統計值，未來市場結構變動時相關係數可能發生結構性改變。</li>
+          <li><strong>債券 Beta 不等於零風險</strong>：債券 ETF（如 00937B）對台股 Beta 低（約 0.32），<strong>主因是其與台股走勢相關性較低，絕非表示債券本身沒有風險</strong>。長天期債券的主要風險在於<strong>利率風險（存續期間）與美金匯率波動</strong>；例如 2022 年全球升息循環時，長天期美債與全球股市同步重挫。</li>
+          <li><strong>新掛牌標的樣本限制</strong>：若組合包含近期新上市掛牌之 ETF（如 00406A 等），因歷史交易樣本天數較短，統計之 Beta 穩定度與代表性較低，僅供參考。</li>
+          <li><strong>極端情境相關性驟升</strong>：在突發性系統性金融危機或流動性緊縮時，股債各資產相關係數常會迅速趨近於 1，實際短期下檔回撤可能大於 Beta 理論值。</li>
+        </ul>
+      </div>
+
+      <div class="modal-footer" style="margin-top: 16px; text-align: right;">
+        <button class="btn-secondary" onclick="closeBetaExplainerModal()">確認了解，關閉說明</button>
       </div>
     </div>
   </div>
@@ -2802,12 +2845,16 @@
         totalWeight += weight;
         totalWeightedBeta += weightedContribution;
 
-        const catName = meta.category === 'bond' ? '債券型' : (meta.category === 'single_stock' ? '個股' : '股票型');
+        const catName = meta.category === 'bond' ? '債券型' : (meta.category === 'single_stock' ? '個股' : (meta.category === 'active' ? '主動型股票' : '股票型'));
         const betaColor = beta < 0.6 ? 'var(--accent-green)' : (beta > 0.9 ? 'var(--accent-orange)' : 'var(--accent-cyan)');
+        const isShortHistory = (item.code === '00406A' || item.code === '00940');
 
         return `
           <tr>
-            <td><strong style="color:#fff;">${item.code}</strong></td>
+            <td>
+              <strong style="color:#fff;">${item.code}</strong>
+              ${isShortHistory ? '<span style="font-size:9.5px; color:var(--accent-orange); margin-left:4px;" title="掛牌歷史較短，Beta僅供參考">⚠️ 歷史較短</span>' : ''}
+            </td>
             <td style="color:var(--text-muted); font-size:12px;">${meta.name} <span style="font-size:10px; background:rgba(255,255,255,0.06); padding:1px 5px; border-radius:4px; margin-left:4px;">${catName}</span></td>
             <td class="num">${(weight * 100).toFixed(1)}%</td>
             <td class="num" style="color:${betaColor}; font-weight:700;">${beta.toFixed(2)} β</td>
@@ -2821,8 +2868,41 @@
       const elSumWeight = document.getElementById('betaSumWeight');
       if (elSumWeight) elSumWeight.innerText = (totalWeight * 100).toFixed(1) + '%';
 
+      const finalBetaStr = totalWeightedBeta.toFixed(2);
       const elSumTotal = document.getElementById('betaSumTotal');
-      if (elSumTotal) elSumTotal.innerText = totalWeightedBeta.toFixed(2) + ' β';
+      if (elSumTotal) elSumTotal.innerText = finalBetaStr + ' β';
+
+      // Update Plain Explanation & Headline
+      const elHeadline = document.getElementById('betaHeadlineVal');
+      if (elHeadline) elHeadline.innerText = `目前組合 β = ${finalBetaStr}`;
+
+      const elPlain = document.getElementById('betaPlainExplanation');
+      const drop10Pct = (totalWeightedBeta * 10).toFixed(1);
+      const drop20Pct = (totalWeightedBeta * 20).toFixed(1);
+
+      if (elPlain) {
+        elPlain.innerHTML = `以目前組合 <strong>β = ${finalBetaStr}</strong> 估算：若大盤單日或短期<strong>下跌 10%</strong>，組合理論上約<strong>下跌 ${drop10Pct}%</strong>；大盤<strong>上漲 10%</strong>，則組合理論上約<strong>上漲 ${drop10Pct}%</strong>。`;
+      }
+
+      // Update Scenario Stress Cards
+      const elDrop20 = document.getElementById('scenarioDrop20');
+      if (elDrop20) elDrop20.innerText = `-${drop20Pct}%`;
+      const elDrop10 = document.getElementById('scenarioDrop10');
+      if (elDrop10) elDrop10.innerText = `-${drop10Pct}%`;
+      const elRise10 = document.getElementById('scenarioRise10');
+      if (elRise10) elRise10.innerText = `+${drop10Pct}%`;
+      const elRise20 = document.getElementById('scenarioRise20');
+      if (elRise20) elRise20.innerText = `+${drop20Pct}%`;
+
+      // Boundary Note
+      const elBoundary = document.getElementById('boundaryNote');
+      if (elBoundary) {
+        if (totalWeightedBeta >= 0.58 && totalWeightedBeta <= 0.65) {
+          elBoundary.innerText = `(註：目前組合 β=${finalBetaStr} 鄰近 0.65 臨界值，屬偏邊界防禦水準)`;
+        } else {
+          elBoundary.innerText = '';
+        }
+      }
     }
 
     async function refreshVisitorStatsData() {
@@ -3802,11 +3882,11 @@
       document.getElementById('kpiRiskBeta').innerHTML = weightedBeta.toFixed(2) + '<span class="unit">β</span>';
 
       if (weightedBeta < 0.65) {
-        document.getElementById('kpiRiskText').innerText = '高度防禦型 (波動遠低於大盤)';
+        document.getElementById('kpiRiskText').innerText = `低敏感度 β=${weightedBeta.toFixed(2)} (波動小於大盤)`;
       } else if (weightedBeta < 0.85) {
-        document.getElementById('kpiRiskText').innerText = '平衡抗震型 (市場防禦優)';
+        document.getElementById('kpiRiskText').innerText = `中低敏感度 β=${weightedBeta.toFixed(2)} (略低於大盤)`;
       } else {
-        document.getElementById('kpiRiskText').innerText = '積極成長型 (同頻大盤波動)';
+        document.getElementById('kpiRiskText').innerText = `高敏感度 β=${weightedBeta.toFixed(2)} (貼近大盤波動)`;
       }
 
       document.getElementById('portfolioCountTag').innerText = `(${portfolioItems.length} 檔配置中)`;
