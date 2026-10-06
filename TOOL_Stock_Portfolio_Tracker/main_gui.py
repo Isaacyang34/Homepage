@@ -79,6 +79,22 @@ class PortfolioApp(tk.Tk):
         self.geometry("1420x820")
         self.minsize(1120, 640)
 
+        # 設定視窗左上角與工作列專屬 Icon
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(base_dir, "app_icon.ico")
+        png_icon_path = os.path.join(base_dir, "app_icon.png")
+        if os.path.exists(icon_path):
+            try:
+                self.iconbitmap(default=icon_path)
+            except Exception:
+                pass
+        if os.path.exists(png_icon_path):
+            try:
+                self._app_icon_img = tk.PhotoImage(file=png_icon_path)
+                self.iconphoto(True, self._app_icon_img)
+            except Exception:
+                pass
+
         # 初始化資料庫
         init_db()
 
