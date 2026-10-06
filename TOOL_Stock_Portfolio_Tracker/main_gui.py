@@ -1180,7 +1180,7 @@ class CloudSyncDialog(tk.Toplevel):
     def __init__(self, parent, on_restored=None):
         super().__init__(parent)
         self.title("零知識加密雲端同步 (OWASP 600K + 雙因子金鑰)")
-        self.geometry("520x540")
+        self.geometry("560x660")
         self.resizable(False, False)
         self.configure(bg="#202028")
         self.transient(parent)
@@ -1188,6 +1188,7 @@ class CloudSyncDialog(tk.Toplevel):
 
         self.on_restored = on_restored
         self.secret_key = get_or_create_secret_key()
+        self.web_url = "https://tinyurl.com/25g5elkq"
         self.build_ui()
 
     def build_ui(self):
@@ -1213,40 +1214,175 @@ class CloudSyncDialog(tk.Toplevel):
 
         # 雙因子 128-bit 設備金鑰 (Secret Key)
         sk_frame = tk.Frame(form, bg="#202028")
-        sk_frame.pack(fill=tk.X, pady=(8, 2))
-        tk.Label(sk_frame, text="雙因子設備金鑰 (Secret Key - 抗 GPU 離線暴破):", bg="#202028", fg="#ffd166", font=("Microsoft JhengHei UI", 9, "bold")).pack(side=tk.LEFT)
-        btn_copy_sk = tk.Button(sk_frame, text="複製金鑰", bg="#3a3a46", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=self.copy_secret_key)
+        sk_frame.pack(fill=tk.X, pady=(10, 2))
+        tk.Label(sk_frame, text="雙因子設備金鑰 (Secret Key):", bg="#202028", fg="#ffd166", font=("Microsoft JhengHei UI", 9, "bold")).pack(side=tk.LEFT)
+        
+        btn_sk_help = tk.Button(sk_frame, text="❓ 這是什麼？如何使用？", bg="#202028", fg="#00f090", activebackground="#202028", activeforeground="#ffffff", font=("Microsoft JhengHei UI", 8, "underline"), relief="flat", bd=0, cursor="hand2", command=self.show_secret_key_help)
+        btn_sk_help.pack(side=tk.LEFT, padx=8)
+
+        btn_copy_sk = tk.Button(sk_frame, text="📋 複製金鑰", bg="#3a3a46", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=self.copy_secret_key)
         btn_copy_sk.pack(side=tk.RIGHT)
 
         self.ent_sk = tk.Entry(form, bg="#1a1a22", fg="#00f090", font=("Consolas", 10, "bold"), relief="flat")
         self.ent_sk.insert(0, self.secret_key)
         self.ent_sk.configure(state="readonly")
         self.ent_sk.pack(fill=tk.X, ipady=3)
-        tk.Label(form, text="類似 1Password 之 128-bit 熵。手機網頁端登入時需一併輸入，否則無法解密", bg="#202028", fg="#8e95a5", font=("Microsoft JhengHei UI", 8)).pack(anchor="w", pady=(2, 0))
+        tk.Label(form, text="💡 手機/平板登入網頁時需填入此金鑰。就像 1Password，無此金鑰即使猜中密碼也無法解密", bg="#202028", fg="#8e95a5", font=("Microsoft JhengHei UI", 8)).pack(anchor="w", pady=(2, 0))
 
-        tk.Label(form, text="Firebase RTDB 網址 (可留空使用預設):", bg="#202028", fg="#8e95a5", font=("Microsoft JhengHei UI", 8)).pack(anchor="w", pady=(8, 2))
+        # Firebase RTDB 設定區塊
+        fb_frame = tk.Frame(form, bg="#202028")
+        fb_frame.pack(fill=tk.X, pady=(10, 2))
+        tk.Label(fb_frame, text="Firebase RTDB 網址 (可留空使用預設):", bg="#202028", fg="#8e95a5", font=("Microsoft JhengHei UI", 8)).pack(side=tk.LEFT)
+        btn_fb_help = tk.Button(fb_frame, text="📖 自行申請與設定教學", bg="#202028", fg="#3a86ff", activebackground="#202028", activeforeground="#ffffff", font=("Microsoft JhengHei UI", 8, "underline"), relief="flat", bd=0, cursor="hand2", command=self.show_firebase_help)
+        btn_fb_help.pack(side=tk.RIGHT)
+
         self.ent_url = tk.Entry(form, bg="#2d2d38", fg="#a0a0b0", insertbackground="#ffffff", font=("Microsoft JhengHei UI", 9), relief="flat")
         saved_url = get_setting("cloud_firebase_url", DEFAULT_FIREBASE_URL)
         self.ent_url.insert(0, saved_url)
         self.ent_url.pack(fill=tk.X, ipady=3)
 
-        self.lbl_status = tk.Label(form, text="", bg="#202028", fg="#52c41a", font=("Microsoft JhengHei UI", 9), wraplength=470, justify="left")
-        self.lbl_status.pack(anchor="w", pady=(10, 0))
+        # 手機端網頁指引卡片
+        web_card = tk.Frame(form, bg="#181822", padx=10, pady=8, highlightthickness=1, highlightbackground="#2d2d3d")
+        web_card.pack(fill=tk.X, pady=(12, 0))
+        tk.Label(web_card, text="📱 跨平台手機/平板看盤網頁短網址：", bg="#181822", fg="#8e95a5", font=("Microsoft JhengHei UI", 8)).pack(anchor="w")
+        
+        web_sub = tk.Frame(web_card, bg="#181822")
+        web_sub.pack(fill=tk.X, pady=(2, 0))
+        tk.Label(web_sub, text=self.web_url, bg="#181822", fg="#00f090", font=("Consolas", 9, "bold")).pack(side=tk.LEFT)
+        btn_copy_url = tk.Button(web_sub, text="📋 複製短網址", bg="#2d2d38", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=self.copy_web_url)
+        btn_copy_url.pack(side=tk.RIGHT)
+
+        self.lbl_status = tk.Label(form, text="", bg="#202028", fg="#52c41a", font=("Microsoft JhengHei UI", 9), wraplength=510, justify="left")
+        self.lbl_status.pack(anchor="w", pady=(8, 0))
 
         # 按鈕區
-        btns = tk.Frame(self, bg="#202028", padx=20, pady=14)
+        btns = tk.Frame(self, bg="#202028", padx=20, pady=12)
         btns.pack(fill=tk.X)
 
         self.btn_sync = tk.Button(btns, text="[🚀 一鍵加密並同步到雲端]", bg="#3a86ff", fg="#ffffff", font=("Microsoft JhengHei UI", 10, "bold"), relief="flat", command=self.do_upload)
-        self.btn_sync.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=5, padx=(0, 6))
+        self.btn_sync.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=6, padx=(0, 8))
 
         btn_cancel = tk.Button(btns, text="關閉", bg="#3a3a46", fg="#ffffff", font=("Microsoft JhengHei UI", 9), relief="flat", command=self.destroy)
-        btn_cancel.pack(side=tk.RIGHT, ipadx=10, ipady=5)
+        btn_cancel.pack(side=tk.RIGHT, ipadx=12, ipady=6)
 
     def copy_secret_key(self):
         self.clipboard_clear()
         self.clipboard_append(self.secret_key)
-        messagebox.showinfo("已複製", "Secret Key 已複製到剪貼簿！請妥善存入手機備忘錄或密碼庫。", parent=self)
+        messagebox.showinfo("已複製", "雙因子金鑰 (Secret Key) 已複製到剪貼簿！\n\n可傳給自己的手機 LINE 或備忘錄，在手機網頁登入時填入一次即可。", parent=self)
+
+    def copy_web_url(self):
+        self.clipboard_clear()
+        self.clipboard_append(self.web_url)
+        messagebox.showinfo("已複製", f"看盤網頁短網址已複製到剪貼簿：\n{self.web_url}\n\n傳到手機即可在瀏覽器開啟並加入主畫面！", parent=self)
+
+    def show_secret_key_help(self):
+        """展示雙因子設備金鑰詳細原理與具體操作指引"""
+        help_win = tk.Toplevel(self)
+        help_win.title("❓ 什麼是雙因子設備金鑰 (Secret Key)？")
+        help_win.geometry("540x480")
+        help_win.resizable(False, False)
+        help_win.configure(bg="#1e1e26")
+        help_win.transient(self)
+        help_win.grab_set()
+
+        content = tk.Frame(help_win, bg="#1e1e26", padx=20, pady=16)
+        content.pack(fill=tk.BOTH, expand=True)
+
+        tk.Label(content, text="🔐 雙因子設備金鑰 (Secret Key) 使用指引", bg="#1e1e26", fg="#ffd166", font=("Microsoft JhengHei UI", 12, "bold")).pack(anchor="w")
+
+        info_text = (
+            "【為什麼需要這串金鑰？】\n"
+            "一般使用者設定的密碼如果較短或包含常見單字，駭客拿到加密資料後能用電腦字典高速暴力猜測。\n"
+            "本系統借鏡國際密碼庫 1Password 的最高安全架構：在您的電腦本地隨機產生 128 位元亂數「設備金鑰」。\n"
+            "它與您的主密碼結合在一起加密，即使駭客猜中您的密碼，沒有這串金鑰也絕對解不開資料！\n\n"
+            "【為什麼要點擊『複製金鑰』？具體該怎麼做？】\n"
+            "1. 點擊「複製金鑰」，透過 LINE、通訊軟體傳給自己，或存入手機備忘錄。\n"
+            "2. 在本機電腦點擊「一鍵加密並同步到雲端」。\n"
+            "3. 用手機瀏覽器打開看盤網頁 (https://tinyurl.com/25g5elkq)。\n"
+            "4. 在網頁登入時填寫：\n"
+            "   • 使用者代號 (User ID)\n"
+            "   • 專屬加密主密碼 (Master Password)\n"
+            "   • 設備雙因子金鑰 (Secret Key 貼在此處)\n"
+            "5. 手機瀏覽器會自動記住這組金鑰，日後打開網頁就不用重複輸入了！"
+        )
+        msg_lbl = tk.Label(content, text=info_text, bg="#1e1e26", fg="#d0d0dc", font=("Microsoft JhengHei UI", 9), justify="left", wraplength=490, lineheight=1.4 if hasattr(tk.Label, 'lineheight') else 1)
+        msg_lbl.pack(anchor="w", pady=(10, 16))
+
+        btn_box = tk.Frame(content, bg="#1e1e26")
+        btn_box.pack(fill=tk.X, side=tk.BOTTOM)
+        tk.Button(btn_box, text="我了解了", bg="#3a86ff", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), relief="flat", command=help_win.destroy).pack(fill=tk.X, ipady=5)
+
+    def show_firebase_help(self):
+        """展示自行申請與設定 Firebase RTDB 的詳細指引"""
+        help_win = tk.Toplevel(self)
+        help_win.title("📖 Firebase Realtime Database 申請與安全設定教學")
+        help_win.geometry("560x520")
+        help_win.resizable(False, False)
+        help_win.configure(bg="#1e1e26")
+        help_win.transient(self)
+        help_win.grab_set()
+
+        content = tk.Frame(help_win, bg="#1e1e26", padx=20, pady=16)
+        content.pack(fill=tk.BOTH, expand=True)
+
+        tk.Label(content, text="☁️ Firebase 免費資料庫申請步驟 (個人終身免費)", bg="#1e1e26", fg="#3a86ff", font=("Microsoft JhengHei UI", 12, "bold")).pack(anchor="w")
+
+        guide_text = (
+            "Firebase 是 Google 提供的雲端服務，Spark 免費方案提供 1GB 空間與 10GB/月 流量。\n"
+            "儲存加密股票庫存終身完全免費，請依以下步驟建立：\n\n"
+            "【步驟 1：建立專案】\n"
+            "1. 前往 https://console.firebase.google.com/ 登入 Google 帳號。\n"
+            "2. 點擊「新增專案」，輸入自訂名稱，關閉 Google Analytics 後建立。\n\n"
+            "【步驟 2：啟用 Realtime Database】\n"
+            "1. 左側選單點擊「建構 (Build)」➔「Realtime Database」➔「建立資料庫」。\n"
+            "2. 地區建議選「asia-southeast1 (新加坡)」，模式先選「鎖定模式」。\n\n"
+            "【步驟 3：套用零知識安全規則 (防列舉與防覆寫)】\n"
+            "1. 切換至上方「規則 (Rules)」分頁。\n"
+            "2. 點擊下方按鈕複製安全規則 JSON，貼上並覆蓋原有內容，點擊「發布 (Publish)」。\n\n"
+            "【步驟 4：取得網址】\n"
+            "切換回「資料 (Data)」分頁，複製頂部的 https://... 網址，貼回本視窗之欄位。"
+        )
+        msg_lbl = tk.Label(content, text=guide_text, bg="#1e1e26", fg="#d0d0dc", font=("Microsoft JhengHei UI", 9), justify="left", wraplength=510)
+        msg_lbl.pack(anchor="w", pady=(8, 12))
+
+        btn_box = tk.Frame(content, bg="#1e1e26")
+        btn_box.pack(fill=tk.X, side=tk.BOTTOM)
+
+        def copy_rules():
+            rules_json = (
+                "{\n"
+                "  \"rules\": {\n"
+                "    \".read\": false,\n"
+                "    \".write\": false,\n"
+                "    \"portfolios\": {\n"
+                "      \".read\": false,\n"
+                "      \".write\": false,\n"
+                "      \"$user_id\": {\n"
+                "        \".read\": true,\n"
+                "        \".write\": \"!data.exists() || (newData.child('write_token').val() === data.child('write_token').val())\",\n"
+                "        \".validate\": \"newData.hasChildren(['ciphertext_b64', 'salt_hex', 'nonce_hex', 'write_token', 'sync_seq'])\"\n"
+                "      }\n"
+                "    }\n"
+                "  }\n"
+                "}"
+            )
+            self.clipboard_clear()
+            self.clipboard_append(rules_json)
+            messagebox.showinfo("已複製", "Firebase 安全規則 (JSON) 已成功複製到剪貼簿！\n請直接至 Firebase 控制台的 Rules 分頁貼上並發布即可。", parent=help_win)
+
+        def open_guide_doc():
+            doc_path = os.path.join(os.path.dirname(__file__), "docs", "FIREBASE_SETUP_GUIDE.md")
+            if os.path.exists(doc_path):
+                os.startfile(doc_path)
+            else:
+                messagebox.showinfo("檔案位置", f"完整手冊位於：{doc_path}", parent=help_win)
+
+        tk.Button(btn_box, text="📋 一鍵複製 Firebase 安全規則 (JSON)", bg="#00f090", fg="#101014", font=("Microsoft JhengHei UI", 9, "bold"), relief="flat", command=copy_rules).pack(fill=tk.X, ipady=4, pady=(0, 4))
+        
+        sub_btns = tk.Frame(btn_box, bg="#1e1e26")
+        sub_btns.pack(fill=tk.X)
+        tk.Button(sub_btns, text="📄 打開詳細說明文件 (FIREBASE_SETUP_GUIDE.md)", bg="#2d2d38", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=open_guide_doc).pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=3, padx=(0, 4))
+        tk.Button(sub_btns, text="關閉", bg="#3a3a46", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=help_win.destroy).pack(side=tk.RIGHT, ipadx=10, ipady=3)
 
     def do_upload(self):
         user = self.ent_user.get().strip()
@@ -1270,7 +1406,7 @@ class CloudSyncDialog(tk.Toplevel):
         self.btn_sync.configure(state=tk.NORMAL, text="[🚀 一鍵加密並同步到雲端]")
         if ok:
             self.lbl_status.configure(text=f"✔ {msg}", fg="#52c41a")
-            messagebox.showinfo("成功", f"{msg}\n\n您現在可使用手機或平板開啟雲端網頁，輸入代號、密碼與 Secret Key 即可安全解密！", parent=self)
+            messagebox.showinfo("成功", f"{msg}\n\n您現在可使用手機或平板開啟雲端網頁：\n{self.web_url}\n\n輸入使用者代號、主密碼與 Secret Key 即可安全解密！", parent=self)
         else:
             self.lbl_status.configure(text=f"[!] {msg}", fg="#ff4d4f")
             messagebox.showerror("失敗", msg, parent=self)
