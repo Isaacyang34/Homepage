@@ -1,0 +1,30 @@
+{
+  "rules": {
+    /* 
+      OWASP 2023 & 密碼學零知識安全規範 (Zero-Knowledge E2EE Realtime Database Rules)
+      
+      1. 根目錄閉鎖：嚴格禁止遍歷或列舉所有使用者帳號 (.read: false)
+      2. 獨立路徑讀取：僅允許已知使用者代碼者讀取其加密封包 (密文經 600K PBKDF2 + 128-bit Secret Key 保護)
+      3. 寫入憑證防禦：覆寫或更新時強制比對 write_token，杜絕他人惡意清空或覆寫庫存資料
+    */
+    ".read": false,
+    ".write": false,
+
+    "portfolios": {
+      ".read": false,
+      ".write": false,
+
+      "$user_id": {
+        // 僅允許對特定使用者路徑進行讀取 (密文具備抗 GPU 離線暴破防禦)
+        ".read": true,
+        
+        // 寫入防護：
+        // 1. 若資料庫原本為空 (首次同步)，允許建立並寫入隨機生成的 write_token
+        // 2. 若資料庫已有資料，新資料必須攜帶相同的 write_token，否則拒絕寫入 (防止惡意覆寫)
+        // 3. 封包必須具備 ciphertext_b64, salt_hex, nonce_hex 等核心加密欄位
+        ".write": "!data.exists() || (newData.child('write_token').val() === data.child('write_token').val())",
+        ".validate": "newData.hasChildren(['ciphertext_b64', 'salt_hex', 'nonce_hex', 'write_token', 'sync_seq'])"
+      }
+    }
+  }
+}

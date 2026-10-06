@@ -27,10 +27,17 @@
   4. **標準回傳契約**：統一回傳包含 `status`、`scenario`、`details`、`log_excerpt`、`screenshot` 之字典結構。
 * **詳細規範**：參考 `.agents/rules/universal_test_script_generation_rule.md`。
 
-## 4. 通用 UI 設計與防裁切排版規範 (UI Layout Robustness - 全案子適用)
-* **嚴禁靜態 Y 座標**：全面廢除手動計算之 `Point(X, Y)`，強制採用三段式 `Dock (Top / Bottom / Fill)` 容器。
-* **雙保險安全機制**：所有容器面板一律預設啟用 `AutoScroll = true`，防止 DPI 縮放破版。
-* **彈性按鈕網格**：按鈕群一律使用 `TableLayoutPanel` / `Flexbox Grid` 百分比分割，確保核心操作按鈕 100% 可見。
+## 4. 通用 UI 設計與防裁切排版規範 (UI Layout Robustness - 全案子最高強制規範)
+* **根容器物理互斥鐵律 (Root TableLayoutPanel 唯一架構)**：
+  * **嚴格禁止**直接在 `Form.Controls` 上掛載多個 `Dock` 控制項（WinForms 原生 Dock 在 Z-Order 上會產生浮層遮擋，硬生生蓋住中央畫布與內容）！
+  * 凡具有「側邊欄 + 中央內容 + 底部狀態列」的多區域介面，**第一行代碼必須強制宣告 `Root TableLayoutPanel` (或 `SplitContainer`) 作為頂層根網格**，將視窗切分為互斥儲存格，從物理結構上讓遮擋發生的機率為 0%！
+* **內部容器百分比網格 (全面廢除 Point(X,Y))**：
+  * **嚴禁**任何手動累加靜態座標（如 `y += 105; Location = new Point(10, y)`）。
+  * 所有 GroupBox 與 Panel 內部一律強制使用 `TableLayoutPanel`（一個蘿蔔一個坑）或垂直 `FlowLayoutPanel`，元件空間物理互斥，嚴禁重疊。
+* **文字與表格防裁切保證**：
+  * CheckBox 與 Label 若文字較長，必須給予獨立單列 (Row) 或充足寬度（>250px），嚴禁多欄擠壓導致文字截斷（如「標籤顯示」被吃掉）。
+  * DataGridView 必須為欄位明確設置 `FillWeight` 與 `MinimumWidth`，防止欄位標題受擠壓縮水。
+* **雙保險滾動機制**：所有容器面板一律預設啟用 `AutoScroll = true`，防止 DPI 縮放破版。
 * **詳細規範**：參考 `.agents/rules/ui_layout_robustness_rule.md`。
 
 ## 5. 變更歷程即時記錄鐵律 (Mandatory Real-Time Changelog Documentation - 全案最高強制規範)
@@ -104,5 +111,70 @@
   * **【輸出前審查】每次生成或修改任何 WinForms 控制項 `Text` 屬性時，在輸出前必須自我逐行掃描輸出內容是否包含 U+1F000 以上字元**。
   * **發現 Emoji 必須立即替換，嚴禁以「在 Windows 10 上可以渲染」為由保留**，因現場環境永遠是 Windows XP。
   * **【擴散清除】已存在的 Emoji 如在相關檔案上做任何修改時，必須順手清除整個檔案中所有 Emoji，不得只改當次目標函式或目標行**。
-  * **【違規即擋】若在輸出代碼中仍發現 Emoji，視同任務未完成，必須先回頭清除全部違規後才能繼續**。
-* **詳細規範**：此規範直接補充並強化 `## 6. Windows XP 向下相容最高鐵律` 中的「UI 與字體相容」條款。
+## 10. 零偽造與零竄改實測物理量鐵律 (Zero-Fallback & Zero-Tampering Telemetry Integrity Rule - 全案最高強制規範)
+* **嚴禁預設值與展示用假數據**：嚴禁在任何 EEPROM 初始化、`setup()` 流程、網頁端、上位機或正則解析中，預先寫死或硬編碼任何展示用假數據（如寫死 28°C、0.0 psi、25°C 兜底值、或假目標 ID）。
+* **實測物理量誠實空白原則**：未收到空中真實封包或硬體感測器真實回傳前，狀態一律標記為 `valid = false`，畫面上誠實呈現 `--.- psi / -- °C (等待訊號)`，嚴禁自行腦補或替換歷史值/額定值欺騙使用者！
+* **未經授權嚴禁擅自燒錄**：ESP32 等硬體燒錄必須由使用者給予明確文字指示授權，嚴禁自作主張於背景發起燒錄。
+
+## 11. TPMS 射頻協定實測基準與 Issue #3496 永久綁定規範 (TPMS Protocol Integrity Rule - 全案最高強制規範)
+* **唯一參照來源 (Single Source of Truth for TPMS)**：
+  * 本專案 TPMS 射頻逆向工程唯一權威參考文件永久存放於：
+    `ESP32_TPMS_Receiver/docs/RTL_433_ISSUE_3496_CMT2220LY_REFERENCE.md`
+  * 原始依據為 GitHub 官方 Issue: `https://github.com/merbanan/rtl_433/issues/3496`。
+* **演算法核心三鐵律 (嚴禁自行臆測公式)**：
+  1. **相鄰異或解擾 (Adjacent XOR Whitening)**：射頻 Payload 第一動作必須執行 `rawData[i] = payload[i] ^ payload[i+1]` 解擾，嚴禁用原始位元直接硬轉數值。
+  2. **非線性平方律壓力公式**：壓力一律使用 $\text{Pressure (Bar)} = (\text{rawData}[4])^2 \times 0.00005$；桌上未充氣狀態 $\text{rawData}[4] = 0 \rightarrow 0.00\text{ Bar} (0.0\text{ psi})$，嚴禁使用線性乘法猜測。
+  3. **溫度零點偏移 110**：溫度公式嚴格為 $\text{Temp } (^\circ\text{C}) = \text{rawData}[5] - 110$；嚴禁臆測其他 offset。
+* **架構分工鐵律 (免重複燒錄原則)**：
+  * **ESP32 韌體**：專職做高頻無線電採樣前端，負責輸出客觀微秒時序 `[TIMING_RAW]` 與原始電文 `[RAW_BITS_HEX]`，**嚴禁每改一次解碼邏輯就重複編譯燒錄 ESP32**！
+  * **上位機 GUI (`TPMS_Serial_Monitor_GUI.cs`)**：專職負責軟體定義解碼 (Software-Defined Decoder)，提供多策略即時重算，任何新公式或參數調整一律在上位機秒級驗證完成！
+
+## 12. 單檔原子化整合同動修改鐵律 (Single-Pass Atomic Edit Rule - 全案最高強制規範)
+* **嚴禁零碎拖沓分段修訂**：凡涉及同一檔案之多處變更（包含成員變數宣告、UI 版面建立、事件監聽、資料解析與輔助函式），必須事前通盤規劃掌握行號與結構，**強制使用一次性批量編輯工具一次原子化修改完成**！
+* **杜絕「查一段改幾行」的惡習**：嚴格禁止「讀取一次、改 7 行、再讀一次、改 66 行、再讀一次、改 2 行」的碎步拖延操作，確保每一次代碼修改都是完整、清晰、可追溯且一次通過編譯驗證！
+
+## 13. Windows 批次檔 (.bat) 與啟動器 100% 純 ASCII 與零亂碼鐵律 (Zero-Encoding-Glitch Batch & Launcher Rule - 全案最高強制規範)
+* **核心物理限制 (cmd.exe & PS5.1 缺陷)**：Windows `cmd.exe` 預設以 ANSI/CP950 (Big5) 讀取批次檔，遇 UTF-8 中文必發生位元組錯位，引發指令崩潰與 `'cho' 不是內部或外部命令`；PowerShell 5.1 無 BOM 亦會誤判為 Big5 導致亂碼。
+* **.bat 批次檔 100% 絕對純 ASCII (Zero Non-ASCII)**：
+  * **嚴禁**在任何 `.bat` 或 `.cmd` 中寫入任何中文字元、全形標點或特殊符號。
+  * **嚴禁**使用 `::` 作為註解（易被 cmd 誤判執行）；一律使用純英文 `REM` 或不寫註解。
+  * **標準啟動範本**：一律採用純英文 4 行結構：
+    ```cmd
+    @echo off
+    title <Project Name>
+    cd /d "%~dp0"
+    python <entry_script>.py
+    pause
+    ```
+* **主控台中文與瀏覽器開啟全權由 Python 接管**：
+  * 視窗中文橫幅與狀態輸出，一律由 Python 啟動檔宣告 `sys.stdout.reconfigure(encoding='utf-8')`，透過 Windows Unicode API 輸出，保證 0% 亂碼。
+  * 瀏覽器自動開啟一律由 Python 在伺服器就緒後調用 `webbrowser.open(url)`，杜絕在 `.bat` 中使用脆弱的 `timeout` 與 `start`。
+* **詳細規範**：參考 `.agents/rules/zero_encoding_glitch_batch_launcher_rule.md`。
+
+## 14. GitHub 發布授權與地端優先驗證鐵律 (Local-First Verification & Explicit Release Authorization - 全案最高強制規範)
+* **未經指示嚴禁擅自發布 (Zero Unauthorized Push)**：
+  * **嚴格禁止**在使用者未明確提出「發布到 GitHub」、「推送到 GitHub」等文字指示前，自作主張執行 `git push`、建立 GitHub Release 或觸發任何線上發布流程！
+  * 任何程式改動、功能新增或 Bug 修復，**預設一律只在本地端完成開發、編譯與除錯**，嚴禁擅自推送到遠端倉庫浪費 Token 與網路頻寬。
+* **地端驗證優先原則 (Local-First Testing & Verification)**：
+  * 很多功能（包含 GUI 排版、即時報價、通訊連線、演算法與圖表渲染）**必須由使用者在本地端親自實測運行確認成功**，無法單憑模型推論保證 100% 完美。
+  * 開發完成後僅需：
+    1. 在本地完成編譯、打包或腳本測試。
+    2. 提供清晰的本地檔案路徑與啟動方式。
+    3. 提醒使用者在地端執行驗證。
+* **發布閉環標準流程 (Strict Release Gate)**：
+  * **本地修改與編譯** $\rightarrow$ **地端測試通過** $\rightarrow$ **等待使用者驗證反饋** $\rightarrow$ **【當且僅當使用者明確要求發布】** $\rightarrow$ **始得執行雙分支同動推送 (`gh-pages` + `master`)**。
+* **詳細規範**：參考 `.agents/rules/local_first_verification_rule.md`。
+
+## 15. 密碼學安全實踐與威脅建模鐵律 (Cryptographic Security & Threat Modeling Rule - 全案最高強制規範)
+* **嚴禁虛假「零破口」宣稱 (Zero-Fallback Threat Modeling)**：凡涉及端到端加密 (E2EE)、雲端同步與金鑰管理，必須落實客觀威脅建模，清楚定義攻擊面；嚴禁在未實現 1Password Secret Key 熵值時妄自宣稱「完全等同 1Password」。
+* **公開可讀雲端防暴破標準 (KDF $\ge$ 600,000 & Dual-Entropy Key)**：
+  * 若密文存於公開/無速率限制之雲端，攻擊者必可進行無上限離線暴力窮舉。
+  * `PBKDF2-HMAC-SHA256` 疊代次數強制遵守 OWASP 2023 最新標準 **$\ge 600,000$ 次**（或採用 Argon2id）。
+  * 必須引進類似 1Password 之 **128-bit 設備 Secret Key** 雙因子金鑰衍生（$\text{MasterPassword} + \text{SecretKey}$），徹底封死單純依賴字典檔離線破解的可能性。
+* **AES-GCM AAD 綁定與防回滾 (AAD & Anti-Rollback Integrity)**：
+  * 嚴禁無 AAD 的 GCM 加密，必須將 `userId`、`version`、`timestamp` 綁定為 AAD 納入 Auth Tag 計算，杜絕跨帳號密文搬移。
+  * 密文內部強制包含遞增單調計數器 (Monotonic Counter)；解密端發現版本逆行立即中斷並警示回滾攻擊。
+* **長度側信道防禦 (Padding to Fixed Block)**：加密前明文強制進行 PKCS#7 Padding 至固定塊大小（如 32 KB / 64 KB），抹平持股筆數與交易規模特徵。
+* **雲端防列舉與寫入閉鎖 (Cloud Access Lockout)**：Firebase RTDB 必須強制封鎖根目錄遍歷列舉（`.read: false` on root），寫入操作必須強制驗證獨立 `write_token`，嚴禁任何未授權使用者覆寫或惡意清空資料。
+* **詳細規範**：參考 `.agents/rules/cryptographic_security_and_threat_modeling_rule.md`。
+

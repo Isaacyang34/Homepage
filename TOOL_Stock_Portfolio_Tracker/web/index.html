@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://*.firebaseio.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline';">
+  <title>零知識加密投資庫存分析儀表板 | Stock Portfolio Viewer</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- 登入與解密卡片 (未解密時顯示) -->
+  <div id="login-modal" class="modal-overlay">
+    <div class="login-card glass-panel">
+      <div class="brand-header">
+        <div class="brand-badge">🛡️ OWASP 600K E2EE 雙因子</div>
+        <h2>投資庫存雲端儀表板</h2>
+        <p class="subtitle">端到端 AES-256-GCM + AAD 防護 ‧ 雲端零隱私洩漏</p>
+      </div>
+
+      <form id="login-form">
+        <div class="form-group">
+          <label for="input-user">使用者代號 (User ID)</label>
+          <input type="text" id="input-user" placeholder="例如: peter" required autocomplete="username">
+        </div>
+
+        <div class="form-group">
+          <label for="input-password">專屬加密主密碼 (Master Password)</label>
+          <input type="password" id="input-password" placeholder="請輸入本機同步時所設之密碼" required autocomplete="current-password">
+          <span class="hint-text">密碼僅於您的手機/瀏覽器本地記憶體解密，絕不傳送到網路</span>
+        </div>
+
+        <div class="form-group">
+          <label for="input-secret-key">設備雙因子金鑰 (Secret Key)</label>
+          <input type="text" id="input-secret-key" placeholder="例如: A8F2-99CD-31E0-74BA" autocomplete="off" spellcheck="false">
+          <span class="hint-text">本機電腦軟體「雲端同步」中顯示之 128-bit 設備金鑰 (抗離線暴力破解)</span>
+        </div>
+
+        <div class="advanced-toggle" id="toggle-advanced">
+          <span>⚙ 進階伺服器設定 (選填)</span>
+        </div>
+
+        <div class="form-group advanced-group hidden" id="advanced-group">
+          <label for="input-rtdb">自訂 Firebase RTDB 網址</label>
+          <input type="url" id="input-rtdb" placeholder="https://your-rtdb.firebaseio.com">
+        </div>
+
+        <button type="submit" id="btn-unlock" class="btn-primary">
+          <span class="btn-icon">🔓</span> 解密並載入資產分析
+        </button>
+
+        <div id="login-status" class="status-msg"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 主要儀表板 (解密成功後顯示) -->
+  <div id="app-container" class="app-layout hidden">
+    <!-- 頂部導航列 -->
+    <header class="top-navbar glass-panel">
+      <div class="nav-left">
+        <div class="logo-text">PORTFOLIO <span class="highlight">INSIGHT</span></div>
+        <div class="badge-user" id="user-badge">👤 使用者: -</div>
+        <div class="badge-device" id="device-badge">📱 偵測設備中...</div>
+        <div class="sync-time" id="sync-time-lbl">同步時間: -</div>
+      </div>
+      <div class="nav-right desktop-actions">
+        <!-- 視圖切換按鈕 (卡片 / 表格) -->
+        <div class="view-switch-group">
+          <button id="btn-view-cards" class="btn-switch" title="切換為卡片流視圖">📱 卡片</button>
+          <button id="btn-view-table" class="btn-switch" title="切換為完整表格視圖"> 表格</button>
+        </div>
+        <button id="btn-toggle-privacy" class="btn-tool" title="切換隱私脫敏模式">
+          <span class="tool-icon">👁</span> <span id="privacy-text">隱藏金額</span>
+        </button>
+        <button id="btn-refresh" class="btn-tool" title="重新載入雲端密文">
+          <span class="tool-icon">🔄</span> 重新整理
+        </button>
+        <button id="btn-logout" class="btn-tool btn-danger" title="銷毀記憶體並登出">
+          <span class="tool-icon">🔒</span> 安全登出
+        </button>
+      </div>
+    </header>
+
+    <!-- 頂部核心指標卡片 (自動響應式網格) -->
+    <section class="metrics-grid">
+      <div class="metric-card glass-panel">
+        <div class="metric-title">總投資成本 (NT$)</div>
+        <div class="metric-val" id="val-total-cost">$ 0</div>
+        <div class="metric-sub">累計買入原始成本</div>
+      </div>
+
+      <div class="metric-card glass-panel">
+        <div class="metric-title">預估目前總市值 (NT$)</div>
+        <div class="metric-val text-accent" id="val-total-market">$ 0</div>
+        <div class="metric-sub">現價總資產現值</div>
+      </div>
+
+      <div class="metric-card glass-panel">
+        <div class="metric-title">總未實現損益 (報酬率)</div>
+        <div class="metric-val" id="val-total-pnl">$ 0 (+0.00%)</div>
+        <div class="metric-sub">資本利得總結算</div>
+      </div>
+
+      <div class="metric-card glass-panel">
+        <div class="metric-title">預估全年總股息 (年化殖利率)</div>
+        <div class="metric-val text-gold" id="val-total-div">$ 0 (0.00%)</div>
+        <div class="metric-sub">年度被動現金流預估</div>
+      </div>
+    </section>
+
+    <!-- 資產權重與分佈 -->
+    <section class="allocation-section glass-panel">
+      <div class="section-header">
+        <h3>標的資產配置佔比 (Asset Allocation)</h3>
+        <span class="stock-count-badge" id="stock-count-badge">在庫標的: 0 檔</span>
+      </div>
+      <div class="allocation-bar" id="allocation-bar"></div>
+      <div class="allocation-legend" id="allocation-legend"></div>
+    </section>
+
+    <!-- 持股部位展示區塊 (支援卡片模式與表格模式自動切換) -->
+    <section class="portfolio-container glass-panel">
+      <div class="section-top-bar">
+        <div class="bar-title-group">
+          <h3>持股部位明細 (Portfolio Positions)</h3>
+          <span id="active-view-indicator" class="active-view-indicator">已依您的設備優化顯示</span>
+        </div>
+        <div class="bar-controls">
+          <input type="text" id="filter-input" placeholder="🔍 搜尋代碼或名稱..." class="search-input">
+        </div>
+      </div>
+
+      <!-- 模式 A：手機/平板專屬自適應卡片流 (Mobile Card Stream) -->
+      <div id="mobile-cards-view" class="cards-view-grid">
+        <!-- 動態注入手機卡片 -->
+      </div>
+
+      <!-- 模式 B：桌面/寬螢幕專業表格 (Desktop Table) -->
+      <div id="desktop-table-view" class="table-responsive hidden">
+        <table class="portfolio-table">
+          <thead>
+            <tr>
+              <th>標的代碼</th>
+              <th>名稱</th>
+              <th>市場</th>
+              <th>持有股數</th>
+              <th>成本均價</th>
+              <th>參考現價</th>
+              <th>未實現損益</th>
+              <th>報酬率</th>
+              <th>配息頻率</th>
+              <th>每股股息</th>
+              <th>預估年股息</th>
+              <th>取得時間/批次</th>
+            </tr>
+          </thead>
+          <tbody id="portfolio-tbody">
+            <!-- 動態注入表格行 -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 手機端專屬底部懸浮快捷列 (Mobile Floating Action Bar) -->
+    <nav class="mobile-bottom-bar glass-panel mobile-only">
+      <button id="m-btn-view-toggle" class="m-nav-btn">
+        <span class="m-icon">🔀</span>
+        <span class="m-label" id="m-view-label">表格</span>
+      </button>
+      <button id="m-btn-privacy" class="m-nav-btn">
+        <span class="m-icon">👁</span>
+        <span class="m-label">隱私</span>
+      </button>
+      <button id="m-btn-refresh" class="m-nav-btn">
+        <span class="m-icon">🔄</span>
+        <span class="m-label">更新</span>
+      </button>
+      <button id="m-btn-logout" class="m-nav-btn text-danger">
+        <span class="m-icon">🔒</span>
+        <span class="m-label">登出</span>
+      </button>
+    </nav>
+
+    <!-- 底部安全宣告 -->
+    <footer class="app-footer">
+      <span>🛡 零知識端到端加密 ‧ 智慧自適應設備佈局 ‧ 伺服器端零明文</span>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
