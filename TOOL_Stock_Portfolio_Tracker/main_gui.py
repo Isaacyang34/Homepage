@@ -45,28 +45,28 @@ def clean_number(val_str: str, default: float = 0.0) -> float:
 
 # 欄位完整定義清單 (欄位ID, 顯示名稱, 預設寬度, 對齊方式, 分類)
 ALL_COLUMN_SPECS = [
-    ("symbol", "代碼", 75, "center", "基本"),
-    ("name", "名稱", 105, "center", "基本"),
-    ("market", "市場", 55, "center", "基本"),
-    ("shares", "持股數", 75, "e", "部位"),
-    ("cost_price", "成本均價", 85, "e", "部位"),
-    ("current_price", "現價", 85, "e", "行情"),
-    ("change_pct", "今日漲跌", 90, "e", "行情"),
-    ("total_cost", "總成本", 95, "e", "損益"),
-    ("market_val", "預估市值", 95, "e", "損益"),
-    ("unrealized_pnl", "未實現損益", 105, "e", "損益"),
-    ("roi_pct", "報酬率%", 80, "e", "損益"),
-    ("day_pnl", "日損益", 95, "e", "週期損益"),
-    ("week_pnl", "週損益", 95, "e", "週期損益"),
-    ("month_pnl", "月損益", 95, "e", "週期損益"),
-    ("frequency", "分配頻率", 75, "center", "股息"),
-    ("cash_dividend", "每股年股息(單期)", 125, "e", "股息"),
-    ("total_dividend", "預估年總股息", 100, "e", "股息"),
-    ("yield_on_cost", "成本殖利率%", 90, "e", "股息"),
-    ("ex_date", "除息日期/期別", 155, "center", "股息"),
-    ("payment_month", "預估發放月", 85, "center", "股息"),
-    ("hist_div_received", "累計已領股息", 105, "e", "股息歷史"),
-    ("note", "備註", 100, "w", "其他")
+    ("symbol", "代碼", 80, "center", "基本"),
+    ("name", "名稱", 120, "center", "基本"),
+    ("market", "市場", 60, "center", "基本"),
+    ("shares", "持股數", 85, "e", "部位"),
+    ("cost_price", "成本均價", 90, "e", "部位"),
+    ("current_price", "現價", 90, "e", "行情"),
+    ("change_pct", "今日漲跌", 130, "e", "行情"),
+    ("total_cost", "總成本", 105, "e", "損益"),
+    ("market_val", "預估市值", 110, "e", "損益"),
+    ("unrealized_pnl", "未實現損益", 115, "e", "損益"),
+    ("roi_pct", "報酬率%", 90, "e", "損益"),
+    ("day_pnl", "日損益", 125, "e", "週期損益"),
+    ("week_pnl", "週損益", 125, "e", "週期損益"),
+    ("month_pnl", "月損益", 125, "e", "週期損益"),
+    ("frequency", "分配頻率", 80, "center", "股息"),
+    ("cash_dividend", "每股年股息(單期)", 135, "e", "股息"),
+    ("total_dividend", "預估年總股息", 110, "e", "股息"),
+    ("yield_on_cost", "成本殖利率%", 95, "e", "股息"),
+    ("ex_date", "除息日期/期別", 160, "center", "股息"),
+    ("payment_month", "預估發放月", 90, "center", "股息"),
+    ("hist_div_received", "累計已領股息", 120, "e", "股息歷史"),
+    ("note", "備註", 110, "w", "其他")
 ]
 
 # 卡片完整定義清單 (卡片ID, 標題, 預設顏色, 說明)
@@ -304,6 +304,35 @@ class PortfolioApp(tk.Tk):
         self.tree.tag_configure("down", foreground=self.down_color)
         self.tree.tag_configure("flat", foreground="#ffffff")
 
+    def autofit_columns(self):
+        """依據標題與儲存格內容文字長度，自動適應欄位寬度（防文字裁切）"""
+        try:
+            import tkinter.font as tkfont
+            cell_font = tkfont.Font(family="Microsoft JhengHei UI", size=10)
+            heading_font = tkfont.Font(family="Microsoft JhengHei UI", size=10, weight="bold")
+            spec_dict = {s[0]: s for s in ALL_COLUMN_SPECS}
+
+            for col_id in self.visible_columns:
+                spec = spec_dict.get(col_id)
+                title = spec[1] if spec else col_id
+
+                # 表頭標題寬度 + 排序箭頭與左右 padding
+                max_w = heading_font.measure(title) + 32
+
+                # 計算該欄所有儲存格的最大文字像素寬度
+                for item in self.tree.get_children():
+                    val = str(self.tree.set(item, col_id))
+                    if val:
+                        w = cell_font.measure(val) + 30
+                        if w > max_w:
+                            max_w = w
+
+                base_w = spec[2] if spec else 60
+                final_w = max(max_w, base_w)
+                self.tree.column(col_id, width=final_w, minwidth=final_w)
+        except Exception as e:
+            print(f"[autofit_columns] 自動適應寬度異常: {e}")
+
     def reload_positions(self):
         self.positions = get_all_positions()
         if "stock_count" in self.cards:
@@ -459,6 +488,9 @@ class PortfolioApp(tk.Tk):
         if selected_iid and self.tree.exists(selected_iid):
             self.tree.selection_set(selected_iid)
             self.tree.focus(selected_iid)
+
+        # 自動依文字長度適應各欄位寬度，確保所有內容與符號完整顯示
+        self.autofit_columns()
 
         # 更新可見的頂部卡片
         if "total_cost" in self.cards:
