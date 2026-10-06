@@ -169,6 +169,13 @@ def gather_full_portfolio_data() -> Dict[str, Any]:
     positions = get_all_positions()
     quote_service = QuoteService()
     
+    # 批次抓取最新報價
+    try:
+        quotes = quote_service.fetch_realtime_quotes(positions)
+    except Exception as e:
+        print(f"[crypto_sync] 批次報價查詢異常: {e}")
+        quotes = {}
+
     total_cost_sum = 0.0
     market_val_sum = 0.0
     total_pnl_sum = 0.0
@@ -187,13 +194,14 @@ def gather_full_portfolio_data() -> Dict[str, Any]:
         market = pos.get("market", "TW").upper()
         lots_by_symbol[sym] = get_trade_lots(sym)
         
-        # 1. 取得最新報價 (本地快取優先，若無則查詢)
-        try:
-            quote = quote_service.get_quote(sym, market)
-        except Exception:
+        # 1. 取得最新報價
+        quote = quotes.get(sym)
+        if not quote or not quote.get("current_price"):
+            cost_p = float(pos["cost_price"])
             quote = {
-                "current_price": float(pos["cost_price"]),
-                "yesterday_close": float(pos["cost_price"]),
+                "symbol": sym,
+                "current_price": cost_p,
+                "yesterday_close": cost_p,
                 "change": 0.0,
                 "change_pct": 0.0
             }

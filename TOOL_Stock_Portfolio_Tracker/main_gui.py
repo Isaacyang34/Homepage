@@ -1235,7 +1235,13 @@ class CloudSyncDialog(tk.Toplevel):
 
         tk.Label(form, text="專屬加密主密碼 (Master Password):", bg="#202028", fg="#ffffff", font=("Microsoft JhengHei UI", 9)).pack(anchor="w", pady=(8, 2))
         self.ent_pass = tk.Entry(form, bg="#2d2d38", fg="#ffffff", insertbackground="#ffffff", font=("Microsoft JhengHei UI", 10), relief="flat", show="*")
+        saved_pass = get_setting("cloud_password", "")
+        self.ent_pass.insert(0, saved_pass)
         self.ent_pass.pack(fill=tk.X, ipady=3)
+
+        self.var_remember = tk.BooleanVar(value=True if saved_pass else True)
+        self.chk_remember = tk.Checkbutton(form, text="記住在本機電腦 (下次同步自動帶入帳號密碼)", variable=self.var_remember, bg="#202028", fg="#d0d0dc", selectcolor="#2d2d38", activebackground="#202028", activeforeground="#ffffff", font=("Microsoft JhengHei UI", 8))
+        self.chk_remember.pack(anchor="w", pady=(4, 0))
 
         # 雙因子 128-bit 設備金鑰 (Secret Key)
         sk_frame = tk.Frame(form, bg="#202028")
@@ -1417,6 +1423,14 @@ class CloudSyncDialog(tk.Toplevel):
         if not user or not pwd:
             messagebox.showerror("錯誤", "請輸入使用者代號與專屬密碼！", parent=self)
             return
+
+        # 儲存連線設定與帳號密碼 (依記住核取方塊決定)
+        set_setting("cloud_user_id", user)
+        set_setting("cloud_firebase_url", url)
+        if self.var_remember.get():
+            set_setting("cloud_password", pwd)
+        else:
+            set_setting("cloud_password", "")
 
         self.btn_sync.configure(state=tk.DISABLED, text="正在本機加密與上傳...")
         self.lbl_status.configure(text="正在執行 PBKDF2 (600,000次) + AAD + 32KB Padding...", fg="#52c41a")
