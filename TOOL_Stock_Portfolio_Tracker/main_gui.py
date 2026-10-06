@@ -1,9 +1,19 @@
+import os
+import sys
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 import time
 from datetime import datetime
 from typing import Dict, List, Any, Optional
+
+def get_resource_path(relative_path: str) -> str:
+    """取得靜態資源路徑，相容開發環境與 PyInstaller 打包 (_MEIPASS)"""
+    if hasattr(sys, '_MEIPASS'):
+        base_path = sys._MEIPASS
+    else:
+        base_path = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_path, relative_path)
 
 from database import (
     init_db, get_all_positions, add_position, update_position, 
@@ -80,9 +90,8 @@ class PortfolioApp(tk.Tk):
         self.minsize(1120, 640)
 
         # 設定視窗左上角與工作列專屬 Icon
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        icon_path = os.path.join(base_dir, "app_icon.ico")
-        png_icon_path = os.path.join(base_dir, "app_icon.png")
+        icon_path = get_resource_path("app_icon.ico")
+        png_icon_path = get_resource_path("app_icon.png")
         if os.path.exists(icon_path):
             try:
                 self.iconbitmap(default=icon_path)
