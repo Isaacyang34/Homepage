@@ -1010,56 +1010,118 @@ class TradeLotManagerDialog(tk.Toplevel):
 
 
 class SettingsDialog(tk.Toplevel):
-    """介面自訂設定對話框 (支援勾選主表格顯示欄位與頂部卡片)"""
+    """介面自訂設定對話框 (支援主表格欄位左右順序編輯、增減顯示與頂部卡片勾選)"""
     def __init__(self, parent, on_applied=None):
         super().__init__(parent)
-        self.title("自訂介面顯示項目設定")
-        self.geometry("680x560")
+        self.title("自訂介面顯示與欄位排序設定")
+        self.geometry("760x600")
         self.resizable(False, False)
         self.configure(bg="#22222a")
         self.transient(parent)
         self.grab_set()
 
         self.on_applied = on_applied
-        self.cur_cols = set(get_visible_columns())
+        self.spec_dict = {s[0]: s for s in ALL_COLUMN_SPECS}
+
+        # 讀取目前順序的欄位清單
+        saved_cols = get_visible_columns()
+        self.active_cols = [cid for cid in saved_cols if cid in self.spec_dict]
+        # 隱藏欄位庫
+        self.hidden_cols = [cid for cid, _, _, _, _ in ALL_COLUMN_SPECS if cid not in self.active_cols]
+
         self.cur_cards = set(get_visible_cards())
 
         self.build_ui()
+        self.refresh_lists()
 
     def build_ui(self):
         nb = ttk.Notebook(self)
         nb.pack(fill=tk.BOTH, expand=True, padx=12, pady=10)
 
-        # 分頁 1: 表格欄位設定
+        # ==========================================
+        # 分頁 1: 表格欄位順序與增減設定 (左右順序編輯)
+        # ==========================================
         tab_cols = tk.Frame(nb, bg="#22222a")
-        nb.add(tab_cols, text="  主表格顯示欄位勾選  ")
+        nb.add(tab_cols, text="  主表格顯示欄位與左右排序  ")
 
-        lbl_c = tk.Label(tab_cols, text="勾選您希望在持股行情表格中顯示的欄位項目 (可隨時調整)：", bg="#22222a", fg="#a0a0b0", font=("Microsoft JhengHei UI", 9))
-        lbl_c.pack(anchor="w", padx=12, pady=8)
+        lbl_hint = tk.Label(
+            tab_cols,
+            text="💡 列表順序代表表格中【由左至右】的顯示順序。選取欄位後，可透過中間按鈕調整左右位置、增減或置頂置底：",
+            bg="#22222a", fg="#a0a0b0", font=("Microsoft JhengHei UI", 9)
+        )
+        lbl_hint.pack(anchor="w", padx=12, pady=(8, 4))
 
-        cols_container = tk.Frame(tab_cols, bg="#22222a")
-        cols_container.pack(fill=tk.BOTH, expand=True, padx=12, pady=4)
+        # 主工作區 (左欄位清單 + 中間按鈕群 + 右隱藏欄位清單)
+        work_frame = tk.Frame(tab_cols, bg="#22222a")
+        work_frame.pack(fill=tk.BOTH, expand=True, padx=12, pady=4)
 
-        self.col_vars = {}
-        row = 0
-        col = 0
-        for cid, cname, w, align, category in ALL_COLUMN_SPECS:
-            var = tk.BooleanVar(value=(cid in self.cur_cols))
-            self.col_vars[cid] = var
-            chk = tk.Checkbutton(cols_container, text=f"{cname} ({category})", variable=var, bg="#22222a", fg="#ffffff", selectcolor="#2d2d38", font=("Microsoft JhengHei UI", 9))
-            chk.grid(row=row, column=col, sticky="w", padx=8, pady=4)
-            col += 1
-            if col >= 3:
-                col = 0
-                row += 1
+        # 1. 左側：已啟用顯示欄位 (有順序)
+        left_box = tk.Frame(work_frame, bg="#22222a")
+        left_box.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        # 全選/重設按鈕
+        self.lbl_active_title = tk.Label(left_box, text="[目前顯示欄位 - 由左至右]", bg="#22222a", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"))
+        self.lbl_active_title.pack(anchor="w", pady=(0, 4))
+
+        active_scroll_frame = tk.Frame(left_box, bg="#181820", relief="solid", bd=1)
+        active_scroll_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.list_active = tk.Listbox(
+            active_scroll_frame, bg="#181820", fg="#ffffff", selectbackground="#3a86ff",
+            selectforeground="#ffffff", font=("Microsoft JhengHei UI", 9),
+            activestyle="none", highlightthickness=0, bd=0, exportselection=False
+        )
+        active_sb = tk.Scrollbar(active_scroll_frame, orient="vertical", command=self.list_active.yview)
+        self.list_active.configure(yscrollcommand=active_sb.set)
+        self.list_active.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=4, pady=4)
+        active_sb.pack(side=tk.RIGHT, fill=tk.Y)
+        self.list_active.bind("<Double-Button-1>", lambda e: self.remove_from_active())
+
+        # 2. 中間：操作按鈕欄
+        mid_box = tk.Frame(work_frame, bg="#22222a", padx=10)
+        mid_box.pack(side=tk.LEFT, fill=tk.Y, pady=20)
+
+        btn_w = 14
+        tk.Button(mid_box, text="◀ 加入顯示", bg="#323242", fg="#ffffff", font=("Microsoft JhengHei UI", 9), width=btn_w, relief="flat", command=self.add_to_active).pack(pady=3)
+        tk.Button(mid_box, text="移除隱藏 ▶", bg="#323242", fg="#ffffff", font=("Microsoft JhengHei UI", 9), width=btn_w, relief="flat", command=self.remove_from_active).pack(pady=3)
+
+        tk.Frame(mid_box, bg="#3a3a46", height=1).pack(fill=tk.X, pady=10)
+
+        tk.Button(mid_box, text="▲ 往左 (上移)", bg="#2b4c7e", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), width=btn_w, relief="flat", command=self.move_up).pack(pady=3)
+        tk.Button(mid_box, text="▼ 往右 (下移)", bg="#2b4c7e", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), width=btn_w, relief="flat", command=self.move_down).pack(pady=3)
+        tk.Button(mid_box, text="[置頂] 最左", bg="#323242", fg="#ffffff", font=("Microsoft JhengHei UI", 9), width=btn_w, relief="flat", command=self.move_top).pack(pady=3)
+        tk.Button(mid_box, text="[置底] 最右", bg="#323242", fg="#ffffff", font=("Microsoft JhengHei UI", 9), width=btn_w, relief="flat", command=self.move_bottom).pack(pady=3)
+
+        # 3. 右側：未顯示/隱藏欄位庫
+        right_box = tk.Frame(work_frame, bg="#22222a")
+        right_box.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
+        self.lbl_hidden_title = tk.Label(right_box, text="[可選隱藏欄位庫]", bg="#22222a", fg="#a0a0b0", font=("Microsoft JhengHei UI", 9, "bold"))
+        self.lbl_hidden_title.pack(anchor="w", pady=(0, 4))
+
+        hidden_scroll_frame = tk.Frame(right_box, bg="#181820", relief="solid", bd=1)
+        hidden_scroll_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.list_hidden = tk.Listbox(
+            hidden_scroll_frame, bg="#181820", fg="#d0d0d8", selectbackground="#3a86ff",
+            selectforeground="#ffffff", font=("Microsoft JhengHei UI", 9),
+            activestyle="none", highlightthickness=0, bd=0, exportselection=False
+        )
+        hidden_sb = tk.Scrollbar(hidden_scroll_frame, orient="vertical", command=self.list_hidden.yview)
+        self.list_hidden.configure(yscrollcommand=hidden_sb.set)
+        self.list_hidden.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=4, pady=4)
+        hidden_sb.pack(side=tk.RIGHT, fill=tk.Y)
+        self.list_hidden.bind("<Double-Button-1>", lambda e: self.add_to_active())
+
+        # 底部快捷按鈕列 (全選 / 重設)
         btn_col_box = tk.Frame(tab_cols, bg="#22222a")
         btn_col_box.pack(fill=tk.X, padx=12, pady=6)
-        tk.Button(btn_col_box, text="全部勾選", bg="#323242", fg="#ffffff", relief="flat", font=("Microsoft JhengHei UI", 8), command=self.select_all_cols).pack(side=tk.LEFT, padx=3)
-        tk.Button(btn_col_box, text="恢復預設", bg="#323242", fg="#ffffff", relief="flat", font=("Microsoft JhengHei UI", 8), command=self.reset_default_cols).pack(side=tk.LEFT, padx=3)
+        tk.Button(btn_col_box, text="全部加入顯示", bg="#323242", fg="#ffffff", relief="flat", font=("Microsoft JhengHei UI", 8), command=self.select_all_cols).pack(side=tk.LEFT, padx=3)
+        tk.Button(btn_col_box, text="恢復預設順序與欄位", bg="#323242", fg="#ffffff", relief="flat", font=("Microsoft JhengHei UI", 8), command=self.reset_default_cols).pack(side=tk.LEFT, padx=3)
+        tk.Label(btn_col_box, text="* 支援雙擊項目快速加入或移除", bg="#22222a", fg="#7a7a8c", font=("Microsoft JhengHei UI", 8)).pack(side=tk.RIGHT)
 
+        # ==========================================
         # 分頁 2: 頂部資訊卡片設定
+        # ==========================================
         tab_cards = tk.Frame(nb, bg="#22222a")
         nb.add(tab_cards, text="  頂部儀表板卡片勾選  ")
 
@@ -1076,30 +1138,149 @@ class SettingsDialog(tk.Toplevel):
             chk = tk.Checkbutton(cards_container, text=f"{title} - [{desc}]", variable=var, bg="#22222a", fg="#ffffff", selectcolor="#2d2d38", font=("Microsoft JhengHei UI", 9))
             chk.pack(anchor="w", padx=15, pady=4)
 
+        # ==========================================
         # 底部儲存列
+        # ==========================================
         bot = tk.Frame(self, bg="#22222a")
         bot.pack(fill=tk.X, padx=12, pady=(0, 12))
         tk.Button(bot, text="儲存並立即套用", bg="#3a86ff", fg="#ffffff", font=("Microsoft JhengHei UI", 10, "bold"), relief="flat", command=self.save_settings).pack(side=tk.RIGHT, ipadx=10, ipady=3)
         tk.Button(bot, text="取消", bg="#3a3a46", fg="#ffffff", relief="flat", font=("Microsoft JhengHei UI", 9), command=self.destroy).pack(side=tk.RIGHT, padx=8, ipadx=8, ipady=3)
 
+    def refresh_lists(self):
+        """刷新左右兩側清單顯示與序號"""
+        # 左側
+        self.list_active.delete(0, tk.END)
+        for i, cid in enumerate(self.active_cols, 1):
+            spec = self.spec_dict.get(cid)
+            name = spec[1] if spec else cid
+            cat = spec[4] if spec else "其他"
+            self.list_active.insert(tk.END, f"{i:02d}. {name:<10} [{cat}]")
+
+        # 右側
+        self.list_hidden.delete(0, tk.END)
+        for cid in self.hidden_cols:
+            spec = self.spec_dict.get(cid)
+            name = spec[1] if spec else cid
+            cat = spec[4] if spec else "其他"
+            self.list_hidden.insert(tk.END, f"  {name:<10} [{cat}]")
+
+        self.lbl_active_title.configure(text=f"[目前顯示欄位 - 由左至右] (共 {len(self.active_cols)} 欄)")
+        self.lbl_hidden_title.configure(text=f"[可選隱藏欄位庫] (共 {len(self.hidden_cols)} 欄)")
+
+    def move_up(self):
+        """將選定欄位往左 (在清單中上移)"""
+        sel = self.list_active.curselection()
+        if not sel:
+            return
+        idx = sel[0]
+        if idx > 0:
+            item = self.active_cols.pop(idx)
+            self.active_cols.insert(idx - 1, item)
+            self.refresh_lists()
+            self.list_active.selection_set(idx - 1)
+            self.list_active.activate(idx - 1)
+            self.list_active.see(idx - 1)
+
+    def move_down(self):
+        """將選定欄位往右 (在清單中下移)"""
+        sel = self.list_active.curselection()
+        if not sel:
+            return
+        idx = sel[0]
+        if idx < len(self.active_cols) - 1:
+            item = self.active_cols.pop(idx)
+            self.active_cols.insert(idx + 1, item)
+            self.refresh_lists()
+            self.list_active.selection_set(idx + 1)
+            self.list_active.activate(idx + 1)
+            self.list_active.see(idx + 1)
+
+    def move_top(self):
+        """將選定欄位移至最左邊 (第 1 欄)"""
+        sel = self.list_active.curselection()
+        if not sel or sel[0] == 0:
+            return
+        idx = sel[0]
+        item = self.active_cols.pop(idx)
+        self.active_cols.insert(0, item)
+        self.refresh_lists()
+        self.list_active.selection_set(0)
+        self.list_active.activate(0)
+        self.list_active.see(0)
+
+    def move_bottom(self):
+        """將選定欄位移至最右邊 (最後 1 欄)"""
+        sel = self.list_active.curselection()
+        if not sel or sel[0] == len(self.active_cols) - 1:
+            return
+        idx = sel[0]
+        item = self.active_cols.pop(idx)
+        self.active_cols.append(item)
+        self.refresh_lists()
+        last_idx = len(self.active_cols) - 1
+        self.list_active.selection_set(last_idx)
+        self.list_active.activate(last_idx)
+        self.list_active.see(last_idx)
+
+    def add_to_active(self):
+        """將右側隱藏欄位加入至顯示清單"""
+        sel = self.list_hidden.curselection()
+        if not sel:
+            return
+        idx = sel[0]
+        cid = self.hidden_cols.pop(idx)
+
+        # 插入在左側選取位置下方，若無選取則插入至最後
+        active_sel = self.list_active.curselection()
+        insert_pos = (active_sel[0] + 1) if active_sel else len(self.active_cols)
+        self.active_cols.insert(insert_pos, cid)
+
+        self.refresh_lists()
+        self.list_active.selection_set(insert_pos)
+        self.list_active.activate(insert_pos)
+        self.list_active.see(insert_pos)
+
+        if self.hidden_cols:
+            next_idx = min(idx, len(self.hidden_cols) - 1)
+            self.list_hidden.selection_set(next_idx)
+
+    def remove_from_active(self):
+        """將左側欄位移至隱藏庫"""
+        sel = self.list_active.curselection()
+        if not sel:
+            return
+        if len(self.active_cols) <= 1:
+            messagebox.showwarning("提示", "主表格至少必須保留一個顯示欄位！", parent=self)
+            return
+        idx = sel[0]
+        cid = self.active_cols.pop(idx)
+        self.hidden_cols.append(cid)
+
+        self.refresh_lists()
+        if self.active_cols:
+            next_idx = min(idx, len(self.active_cols) - 1)
+            self.list_active.selection_set(next_idx)
+            self.list_active.activate(next_idx)
+
     def select_all_cols(self):
-        for v in self.col_vars.values():
-            v.set(True)
+        for cid in list(self.hidden_cols):
+            self.active_cols.append(cid)
+        self.hidden_cols.clear()
+        self.refresh_lists()
 
     def reset_default_cols(self):
-        def_set = set(DEFAULT_VISIBLE_COLUMNS)
-        for cid, v in self.col_vars.items():
-            v.set(cid in def_set)
+        self.active_cols = [cid for cid in DEFAULT_VISIBLE_COLUMNS if cid in self.spec_dict]
+        self.hidden_cols = [cid for cid, _, _, _, _ in ALL_COLUMN_SPECS if cid not in self.active_cols]
+        self.refresh_lists()
 
     def save_settings(self):
-        selected_cols = [cid for cid, v in self.col_vars.items() if v.get()]
-        if not selected_cols:
-            messagebox.showerror("錯誤", "至少必須勾選一個表格顯示欄位！", parent=self)
+        if not self.active_cols:
+            messagebox.showerror("錯誤", "至少必須保留一個表格顯示欄位！", parent=self)
             return
 
         selected_cards = [cid for cid, v in self.card_vars.items() if v.get()]
 
-        set_visible_columns(selected_cols)
+        set_visible_columns(self.active_cols)
         set_visible_cards(selected_cards)
 
         if self.on_applied:
