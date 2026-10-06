@@ -192,8 +192,37 @@ document.addEventListener("DOMContentLoaded", () => {
   const cachedUser = localStorage.getItem("last_portfolio_user");
   if (cachedUser) inputUser.value = cachedUser;
 
+  const savedKeyTag = document.getElementById("saved-key-tag");
+  const btnClearKey = document.getElementById("btn-clear-key");
+
   const cachedSecretKey = localStorage.getItem("last_portfolio_secret_key");
-  if (cachedSecretKey && inputSecretKey) inputSecretKey.value = cachedSecretKey;
+  if (cachedSecretKey && inputSecretKey) {
+    inputSecretKey.value = cachedSecretKey;
+    if (savedKeyTag) savedKeyTag.style.display = "inline";
+    if (btnClearKey) btnClearKey.style.display = "inline";
+  }
+
+  if (btnClearKey) {
+    btnClearKey.addEventListener("click", () => {
+      localStorage.removeItem("last_portfolio_secret_key");
+      if (inputSecretKey) inputSecretKey.value = "";
+      if (savedKeyTag) savedKeyTag.style.display = "none";
+      btnClearKey.style.display = "none";
+    });
+  }
+
+  if (inputSecretKey) {
+    inputSecretKey.addEventListener("input", () => {
+      const val = inputSecretKey.value.trim();
+      if (val) {
+        if (savedKeyTag) savedKeyTag.style.display = "inline";
+        if (btnClearKey) btnClearKey.style.display = "inline";
+      } else {
+        if (savedKeyTag) savedKeyTag.style.display = "none";
+        if (btnClearKey) btnClearKey.style.display = "none";
+      }
+    });
+  }
 
   const cachedUrl = localStorage.getItem("last_rtdb_url");
   if (cachedUrl) inputRtdb.value = cachedUrl;
@@ -245,10 +274,14 @@ document.addEventListener("DOMContentLoaded", () => {
     state.rtdbUrl = customUrl ? customUrl.replace(/\/$/, "") : DEFAULT_FIREBASE_URL;
 
     localStorage.setItem("last_portfolio_user", user);
-    if (secretKey) localStorage.setItem("last_portfolio_secret_key", secretKey);
+    if (secretKey) {
+      localStorage.setItem("last_portfolio_secret_key", secretKey);
+      if (savedKeyTag) savedKeyTag.style.display = "inline";
+      if (btnClearKey) btnClearKey.style.display = "inline";
+    }
     if (customUrl) localStorage.setItem("last_rtdb_url", customUrl);
 
-    showStatus("正在連線雲端並拉取加密封包...", "ok");
+    showStatus("正在連線雲端資料庫...", "ok");
 
     try {
       const endpoint = `${state.rtdbUrl}/portfolios/${user}.json`;
@@ -257,10 +290,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const encPayload = await resp.json();
       if (!encPayload || !encPayload.ciphertext_b64) {
-        throw new Error(`找不到使用者 [${user}] 的密文！請先於電腦本機軟體執行同步。`);
+        throw new Error(`找不到使用者 [${user}] 的資料！請先於電腦本機點擊「一鍵同步」。`);
       }
 
-      showStatus("已取得密文，正在進行本地 PBKDF2 (600,000次) + AES-GCM 原生解密...", "ok");
+      showStatus("已取得資料，正在本機解密中...", "ok");
 
       const decrypted = await decryptAesGcm(encPayload, pass, secretKey);
       state.decryptedData = decrypted;

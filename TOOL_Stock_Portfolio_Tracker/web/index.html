@@ -17,27 +17,30 @@
   <div id="login-modal" class="modal-overlay">
     <div class="login-card glass-panel">
       <div class="brand-header">
-        <div class="brand-badge">🛡️ OWASP 600K E2EE 雙因子</div>
         <h2>投資庫存雲端儀表板</h2>
-        <p class="subtitle">端到端 AES-256-GCM + AAD 防護 ‧ 雲端零隱私洩漏</p>
       </div>
 
       <form id="login-form">
         <div class="form-group">
           <label for="input-user">使用者代號 (User ID)</label>
-          <input type="text" id="input-user" placeholder="例如: peter" required autocomplete="username">
+          <input type="text" id="input-user" placeholder="請輸入代號 (例如: isaac)" required autocomplete="username">
         </div>
 
         <div class="form-group">
-          <label for="input-password">專屬加密主密碼 (Master Password)</label>
-          <input type="password" id="input-password" placeholder="請輸入本機同步時所設之密碼" required autocomplete="current-password">
-          <span class="hint-text">密碼僅於您的手機/瀏覽器本地記憶體解密，絕不傳送到網路</span>
+          <label for="input-password">專屬加密主密碼</label>
+          <input type="password" id="input-password" placeholder="請輸入主密碼" required autocomplete="current-password">
         </div>
 
         <div class="form-group">
-          <label for="input-secret-key">設備雙因子金鑰 (Secret Key)</label>
-          <input type="text" id="input-secret-key" placeholder="例如: A8F2-99CD-31E0-74BA" autocomplete="off" spellcheck="false">
-          <span class="hint-text">本機電腦軟體「雲端同步」中顯示之 128-bit 設備金鑰 (抗離線暴力破解)</span>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label for="input-secret-key" style="margin-bottom: 0;">設備金鑰 (Secret Key)</label>
+            <span id="saved-key-tag" style="display: none; font-size: 11px; color: #00f090; font-weight: 600;">✅ 本設備已記憶</span>
+          </div>
+          <input type="text" id="input-secret-key" placeholder="首次登入請輸入電腦端顯示的金鑰" autocomplete="off" spellcheck="false">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
+            <span style="font-size: 11px; color: #8e95a5;">只要登入一次，手機/電腦會自動永久記住</span>
+            <button type="button" id="btn-clear-key" style="background: none; border: none; color: #8e95a5; font-size: 11px; cursor: pointer; text-decoration: underline; display: none;">清除金鑰</button>
+          </div>
         </div>
 
         <div class="advanced-toggle" id="toggle-advanced">
