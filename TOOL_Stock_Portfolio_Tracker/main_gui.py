@@ -29,6 +29,7 @@ from pnl_calculator import calculate_position_pnl
 from kline_chart import KLineChartCanvas
 from stock_detector import detect_stock_metadata
 from crypto_sync import sync_to_cloud, fetch_and_decrypt_from_cloud, DEFAULT_FIREBASE_URL, get_or_create_secret_key
+from updater import APP_VERSION, fetch_update_manifest, is_newer_version, UpdateDialog
 
 def clean_number(val_str: str, default: float = 0.0) -> float:
     """寬容解析數值：自動相容千分位逗號、全形小數點(．/。)、全形逗點與貨幣符號"""
@@ -85,7 +86,7 @@ ALL_CARD_SPECS = [
 class PortfolioApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker)")
+        self.title(f"本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker) {APP_VERSION}")
         self.geometry("1420x820")
         self.minsize(1120, 640)
 
@@ -134,6 +135,10 @@ class PortfolioApp(tk.Tk):
         self.trigger_refresh()
         self.trigger_dividend_update(silent=True)
         self.start_auto_refresh_timer()
+
+        # 啟動後自動比對盤後資料與線上更新檢查 (延遲啟動確保 UI 流暢)
+        self.after(2000, self.auto_check_post_market_history)
+        self.after(3500, self.check_online_update_silently)
 
     def setup_styles(self):
         self.style = ttk.Style(self)
@@ -219,6 +224,9 @@ class PortfolioApp(tk.Tk):
 
         btn_cloud = ttk.Button(bottom_frame, text="[☁ 雲端] 加密同步", command=self.on_open_cloud_sync, style="Action.TButton")
         btn_cloud.pack(side=tk.LEFT, padx=2)
+
+        self.btn_update = ttk.Button(bottom_frame, text="[⬆ 更新] 線上更新", command=self.on_check_online_update, style="Action.TButton")
+        self.btn_update.pack(side=tk.LEFT, padx=2)
 
         # 右側控制：自動刷新頻率
         self.auto_refresh_var = tk.BooleanVar(value=True)
@@ -639,6 +647,55 @@ class PortfolioApp(tk.Tk):
     def on_open_cloud_sync(self):
         CloudSyncDialog(self, on_restored=self._on_position_saved)
 
+    def on_check_online_update(self):
+        """使用者手動點擊檢查線上更新"""
+        self.status_lbl.configure(text="正在連線檢查線上最新版本...")
+        def worker():
+            ok, manifest, source = fetch_update_manifest()
+            if not ok or not manifest:
+                self.after(0, lambda: messagebox.showinfo("線上更新", "目前無法連線至雲端版本伺服器，請確認網路連線。", parent=self))
+                self.after(0, lambda: self.status_lbl.configure(text="系統就緒"))
+                return
+            cloud_ver = manifest.get("version", APP_VERSION)
+            is_newer = is_newer_version(cloud_ver, APP_VERSION)
+            self.after(0, lambda: UpdateDialog(self, manifest, is_newer))
+            self.after(0, lambda: self.status_lbl.configure(text="系統就緒"))
+        threading.Thread(target=worker, daemon=True).start()
+
+    def check_online_update_silently(self):
+        """背景靜默檢查更新 (啟動後自動探測，若有新版提示使用者)"""
+        def worker():
+            ok, manifest, source = fetch_update_manifest()
+            if ok and manifest:
+                cloud_ver = manifest.get("version", APP_VERSION)
+                if is_newer_version(cloud_ver, APP_VERSION):
+                    self.after(0, self._on_found_newer_version, cloud_ver)
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_found_newer_version(self, cloud_ver: str):
+        self.btn_update.configure(text=f"[!] 有新版 {cloud_ver}")
+        self.status_lbl.configure(text=f"💡 發現新版本 {cloud_ver}，點擊「[!] 有新版」即可一鍵升級！")
+
+    def auto_check_post_market_history(self):
+        """軟體開啟後自動比對盤後歷史資料是否要更新"""
+        if not self.positions:
+            return
+        def worker():
+            needs_update, reason, symbols = HistoryService.check_needs_update(self.positions)
+            if needs_update:
+                self.after(0, lambda r=reason: self._start_auto_post_market_update(r))
+            else:
+                self.after(0, lambda r=reason: self._show_post_market_up_to_date(r))
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _show_post_market_up_to_date(self, reason: str):
+        self.history_progress_lbl.configure(text=f"✔ 盤後資料已是最新", fg="#52c41a")
+        self.after(6000, self._reset_history_progress_ui)
+
+    def _start_auto_post_market_update(self, reason: str):
+        self.status_lbl.configure(text=f"[自動比對] {reason}")
+        self.on_update_history_all(silent=True)
+
     def _on_settings_applied(self):
         self.visible_columns = get_visible_columns()
         self.visible_cards = get_visible_cards()
@@ -648,14 +705,16 @@ class PortfolioApp(tk.Tk):
 
     # --- 盤後更新與歷史查詢 (背景非同步執行，不佔用視窗) ---
 
-    def on_update_history_all(self):
+    def on_update_history_all(self, silent: bool = False):
         """背景非同步更新盤後歷史資料 (不佔用視窗、不鎖定畫面、底部狀態列顯示進度)"""
         if self.is_history_updating:
-            messagebox.showinfo("提示", "盤後歷史資料已在背景更新中，請稍候...", parent=self)
+            if not silent:
+                messagebox.showinfo("提示", "盤後歷史資料已在背景更新中，請稍候...", parent=self)
             return
 
         if not self.positions:
-            messagebox.showinfo("提示", "目前沒有持股可更新！", parent=self)
+            if not silent:
+                messagebox.showinfo("提示", "目前沒有持股可更新！", parent=self)
             return
 
         self.is_history_updating = True
@@ -712,6 +771,8 @@ class PortfolioApp(tk.Tk):
             text=f"✔ 盤後歷史更新完成 (共 {count} 檔，新增 {total_days} 筆日K)", 
             fg="#52c41a"
         )
+        self.benchmarks_cache.clear()
+        self.trigger_refresh()
         self.after(8000, self._reset_history_progress_ui)
 
     def _on_history_update_failed(self, err: str):

@@ -9,6 +9,8 @@ try:
 except ImportError:
     HAS_YFINANCE = False
 
+from database import get_last_trading_day_quote
+
 # 證交所即時查詢端點
 TWSE_MIS_URL = "https://mis.twse.com.tw/stock/api/getStockInfo.jsp"
 
@@ -61,6 +63,7 @@ class QuoteService:
         """
         批次抓取台股 (上市/上櫃) 即時盤中行情
         一次請求查多檔，防爬蟲最安全！
+        若非交易日或未開盤 (無成交價 z)，則自動保留最後一個交易日的交易狀況與漲跌。
         """
         quotes = {}
         # 防高頻調用
@@ -94,38 +97,55 @@ class QuoteService:
                 for item in msg_array:
                     c = item.get("c") # 股票代碼
                     n = item.get("n", "") # 股票簡稱
-                    y = float(item.get("y", 0.0)) # 昨收價
+                    y = float(item.get("y", 0.0)) # 昨收價 (或前一交易日收盤價)
                     
-                    # 成交價 z (盤中可能無成交，則取買一委買價 b 的第一檔，或取 y)
+                    # 成交價 z (盤中真實撮合成交價)
                     z_str = item.get("z", "-")
-                    if z_str != "-":
+                    has_realtime_trade = (z_str != "-" and z_str != "")
+
+                    if has_realtime_trade:
+                        # === 盤中正在交易中 ===
                         current_price = float(z_str)
+                        yesterday_close = y
+                        open_p = float(item.get("o", 0.0)) if item.get("o", "-") != "-" else y
+                        high_p = float(item.get("h", 0.0)) if item.get("h", "-") != "-" else y
+                        low_p = float(item.get("l", 0.0)) if item.get("l", "-") != "-" else y
+                        vol = int(item.get("v", 0)) if item.get("v", "-") != "-" else 0
+                        t_time = item.get("t", "")
+
+                        change = current_price - yesterday_close if yesterday_close > 0 else 0.0
+                        change_pct = (change / yesterday_close * 100) if yesterday_close > 0 else 0.0
                     else:
-                        # 若尚無成交，嘗試取最佳買賣價或昨收價
-                        b_str = item.get("b", "_")
-                        first_b = b_str.split("_")[0] if b_str else "-"
-                        if first_b != "-" and first_b != "":
-                            try:
-                                current_price = float(first_b)
-                            except ValueError:
-                                current_price = y
+                        # === 非交易日、休市或開盤前 (尚未有當日成交撮合) ===
+                        # 依據規範保留「最後一個交易日」的交易狀況 (收盤價、漲跌金額與幅度)
+                        last_q = get_last_trading_day_quote(c)
+                        if last_q:
+                            current_price = y if y > 0 else last_q["current_price"]
+                            yesterday_close = last_q["yesterday_close"]
+                            change = last_q["change"]
+                            change_pct = last_q["change_pct"]
+                            open_p = last_q["open"]
+                            high_p = last_q["high"]
+                            low_p = last_q["low"]
+                            vol = last_q["volume"]
+                            t_time = f"非交易日/盤前 (保留 {last_q['date']} 交易)"
                         else:
+                            # 資料庫尚無歷史日K，嘗試以昨收為現價
                             current_price = y
-
-                    open_p = float(item.get("o", 0.0)) if item.get("o", "-") != "-" else y
-                    high_p = float(item.get("h", 0.0)) if item.get("h", "-") != "-" else y
-                    low_p = float(item.get("l", 0.0)) if item.get("l", "-") != "-" else y
-                    vol = int(item.get("v", 0)) if item.get("v", "-") != "-" else 0
-                    t_time = item.get("t", "")
-
-                    change = current_price - y if y > 0 else 0.0
-                    change_pct = (change / y * 100) if y > 0 else 0.0
+                            yesterday_close = y
+                            open_p = y
+                            high_p = y
+                            low_p = y
+                            vol = 0
+                            change = 0.0
+                            change_pct = 0.0
+                            t_time = "休市/無歷史資料"
 
                     quotes[c.upper()] = {
                         "symbol": c.upper(),
                         "name": n,
                         "current_price": current_price,
-                        "yesterday_close": y,
+                        "yesterday_close": yesterday_close,
                         "open": open_p,
                         "high": high_p,
                         "low": low_p,

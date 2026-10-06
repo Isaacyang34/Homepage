@@ -288,6 +288,38 @@ def get_history_kline(symbol: str, limit: int = 60) -> List[Dict[str, Any]]:
         rows = cursor.fetchall()
         return [dict(r) for r in reversed(rows)]
 
+def get_last_trading_day_quote(symbol: str) -> Optional[Dict[str, Any]]:
+    """
+    取得該股票本地歷史日K中「最後一個交易日」的完整交易狀況
+    (用於非交易日或盤前，保留最後一天的收盤價、昨收價、漲跌金額與幅度)
+    """
+    records = get_history_kline(symbol, limit=2)
+    if not records:
+        return None
+    latest = records[-1]
+    if len(records) >= 2:
+        prev = records[-2]
+        prev_close = float(prev.get("close", 0.0))
+    else:
+        open_val = float(latest.get("open", 0.0))
+        prev_close = open_val if open_val > 0 else float(latest.get("close", 0.0))
+
+    curr_close = float(latest.get("close", 0.0))
+    change = curr_close - prev_close if prev_close > 0 else 0.0
+    change_pct = (change / prev_close * 100) if prev_close > 0 else 0.0
+
+    return {
+        "date": latest.get("date", ""),
+        "current_price": round(curr_close, 2),
+        "yesterday_close": round(prev_close, 2),
+        "open": round(float(latest.get("open", curr_close)), 2),
+        "high": round(float(latest.get("high", curr_close)), 2),
+        "low": round(float(latest.get("low", curr_close)), 2),
+        "volume": int(latest.get("volume", 0)),
+        "change": round(change, 2),
+        "change_pct": round(change_pct, 2)
+    }
+
 # --- 設定操作與介面欄位配置持久化 ---
 
 DEFAULT_VISIBLE_COLUMNS = [

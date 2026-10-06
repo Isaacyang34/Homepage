@@ -15,12 +15,18 @@
 - 每天收盤後（13:30 後）點擊 `[盤後] 更新歷史資料庫`。
 - 系統會自動比對本地 SQLite 中每檔股票記錄的「最晚日期」，**只向伺服器下載缺漏的最新幾天資料**，而不是每次重抓整年，極省流量、秒級完成，同時將網路請求次數壓至最低。
 
-### 3. 精確台股交易成本計算
+### 3. 精確台股交易成本與除權息計算
 - **買進成本**：`買入價格 × 股數 + 買進手續費 (0.1425% × 折扣，低消 20 元)`
 - **預估淨賣出**：`現價 × 股數 - 賣出手續費 - 證券交易稅`
   - 一般股票：證交稅 `0.3%`
-  - ETF 標的：享有優惠證交稅 `0.1%`（新增持股時勾選 ETF 即自動套用）
-- **即時總覽**：隨時掌握未實現損益、淨報酬率 %、單日浮動損益。
+  - ETF 標的：享有優惠證交稅 `0.1%`（系統自動判別 00/01/02 開頭代碼或債券 ETF 並自動套用優惠稅率）
+- **除權息自動同步**：免手動輸入！系統自動追蹤除息日與配息金額，若無今年資料自動追溯前一期/去年度。
+- **買入批次管理 (取得時間)**：支援同一檔股票多筆不同取得時間，精算歷年實領股息。
+- **自訂欄位左右排序與寬度自適應**：點擊 `[⚙ 設定] 介面欄位` 可自由增減欄位並上下（左右）排序調整；表格具備 GDI 字型內容自動適應 (Auto-fit)，文字永不被裁切。
+- **線上軟體更新 (V1.0)**：點擊 `[⬆ 更新] 線上更新` 支援一鍵連線遠端伺服器檢測版本、下載新版 exe 並自動重啟覆蓋升級。
+- **啟動自動比對盤後歷史資料**：開機背景智慧判定本地持股歷史資料是否落後，缺漏時自動於背景增量補齊日 K 線。
+- **非交易日與盤前行情保留**：週末、假日或開盤前自動保留「最後一個交易日」之收盤價、今日漲跌與日損益，不再歸零空白。
+- **E2EE 零知識雲端加密同步**：支援本機端點擊 `[☁ 雲端] 加密同步`，採用軍規 **AES-256-GCM + PBKDF2 (100,000次)** 本機加密後推送；手機/平板瀏覽器打開 `web/index.html` 輸入專屬密碼原生解密，伺服器零明文、零隱私洩漏！詳細參閱 [架構說明書](file:///c:/Users/peter/OneDrive/Desktop/AI_Projects/TOOL_Stock_Portfolio_Tracker/docs/ZERO_KNOWLEDGE_CLOUD_SYNC_ARCHITECTURE.md)。
 
 ---
 
@@ -28,17 +34,31 @@
 
 ```
 TOOL_Stock_Portfolio_Tracker/
-├── portfolio.db          # 本地 SQLite 資料庫 (持股、歷史K線、系統設定，自動生成)
-├── database.py           # 資料庫存取層 (CRUD、增量寫入)
-├── quote_service.py      # 即時報價引擎 (TWSE MIS 批次 + yfinance 備援)
-├── history_service.py    # 歷史日 K 線增量下載與盤後更新
-├── pnl_calculator.py     # 台美股交易手續費與未實現損益精算
-├── main_gui.py           # 現代深色質感 Tkinter 桌面介面
-├── main.py               # 程式進入點
-├── requirements.txt      # Python 相依套件
-├── run.bat               # 雙擊一鍵啟動腳本 (純 ASCII)
-└── README.md             # 說明文件
+├── Stock_Portfolio_Tracker.exe # 單一便攜執行檔 (免 Python、零黑框、開箱即用)
+├── portfolio.db                # 本地 SQLite 資料庫 (持股、歷史K線、除權息、買入批次)
+├── database.py                 # 資料庫存取層 (CRUD、增量寫入、自訂設定)
+├── crypto_sync.py              # E2EE 零知識端到端加密同步引擎 (PBKDF2 + AES-256-GCM)
+├── stock_detector.py           # 智慧標的辨識 (代碼/名稱/市場/ETF自動判別)
+├── dividend_service.py         # 除權息事件抓取與歷年股息精算引擎
+├── quote_service.py            # 即時報價引擎 (TWSE MIS 批次 + yfinance 備援)
+├── history_service.py          # 歷史日 K 線增量下載與盤後更新
+├── pnl_calculator.py           # 台美股交易手續費、日/週/月損益與報酬率精算
+├── kline_chart.py              # Tkinter Canvas 60FPS 互動式紅綠蠟燭圖與均線
+├── main_gui.py                 # 現代深色質感桌面介面與各項彈窗
+├── main.py                     # 程式進入點
+├── web/                        # 跨平台雲端視覺化介面 (純前端 Web Crypto 原生解密)
+│   ├── index.html              # 跨平台儀表板主頁 (支援手機/平板/電腦)
+│   ├── style.css               # 現代沉浸深色玻璃擬態樣式
+│   └── app.js                  # 瀏覽器原生 AES-256-GCM 解密與動態渲染
+├── docs/                       # 詳細架構技術文件
+│   └── ZERO_KNOWLEDGE_CLOUD_SYNC_ARCHITECTURE.md # 零知識 E2EE 密碼學規格書
+├── requirements.txt            # Python 相依套件
+├── start.vbs                   # 100% 純桌面無黑框啟動器
+├── run.bat                     # 雙擊啟動腳本 (純 ASCII)
+└── README.md                   # 說明文件
 ```
+
+
 
 ---
 

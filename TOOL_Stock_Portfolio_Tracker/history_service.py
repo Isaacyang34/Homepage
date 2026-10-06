@@ -1,7 +1,7 @@
 import datetime
 import time
 import requests
-from typing import List, Dict, Any, Callable, Optional
+from typing import List, Dict, Any, Callable, Optional, Tuple
 from database import get_latest_history_date, save_kline_batch, get_connection
 
 try:
@@ -217,3 +217,43 @@ class HistoryService:
             count = cls.update_stock_history(sym, mkt, on_progress=on_progress)
             results[sym] = count
         return results
+
+    @classmethod
+    def check_needs_update(cls, positions: List[Dict[str, Any]]) -> Tuple[bool, str, List[str]]:
+        """
+        自動比對本地持股的歷史資料是否需要進行盤後更新
+        回傳 (是否需要更新, 說明原因, 需更新的股票代號清單)
+        """
+        if not positions:
+            return False, "目前無持股", []
+
+        today = datetime.date.today()
+        now_dt = datetime.datetime.now()
+        is_weekday = today.weekday() < 5
+        # 13:40 之後視為今日盤後資料已產出
+        market_closed_today = now_dt.time() >= datetime.time(13, 40)
+
+        if is_weekday and market_closed_today:
+            target_date = today
+        elif is_weekday and not market_closed_today:
+            target_date = today - datetime.timedelta(days=1)
+            while target_date.weekday() >= 5:
+                target_date -= datetime.timedelta(days=1)
+        else:
+            # 週末，應包含上週五
+            target_date = today - datetime.timedelta(days=1)
+            while target_date.weekday() >= 5:
+                target_date -= datetime.timedelta(days=1)
+
+        target_date_str = target_date.strftime("%Y-%m-%d")
+        needs_symbols = []
+
+        for pos in positions:
+            sym = pos["symbol"].strip().upper()
+            latest = get_latest_history_date(sym)
+            if not latest or latest < target_date_str:
+                needs_symbols.append(sym)
+
+        if needs_symbols:
+            return True, f"有 {len(needs_symbols)} 檔持股需要同步盤後資料 (基準日: {target_date_str})", needs_symbols
+        return False, f"本地資料已是最新 (基準日: {target_date_str})", []

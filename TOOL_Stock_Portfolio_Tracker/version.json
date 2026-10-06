@@ -1,0 +1,6 @@
+{
+  "version": "V1.0",
+  "release_date": "2026-10-07",
+  "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
+  "changelog": "1. 新增線上軟體更新功能 (支援一鍵自動下載升級與重啟)\n2. 啟動後自動比對盤後歷史資料庫完整性，缺漏自動背景增量同步\n3. 非交易日或盤前自動保留最後交易日完整市場行情與損益資訊\n4. 支援介面欄位左右自由排序與表格欄寬內容自動適應 (Auto-fit)\n5. 版本正式定錨為 V1.0"
+}
