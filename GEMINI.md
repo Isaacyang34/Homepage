@@ -178,3 +178,9 @@
 * **雲端防列舉與寫入閉鎖 (Cloud Access Lockout)**：Firebase RTDB 必須強制封鎖根目錄遍歷列舉（`.read: false` on root），寫入操作必須強制驗證獨立 `write_token`，嚴禁任何未授權使用者覆寫或惡意清空資料。
 * **詳細規範**：參考 `.agents/rules/cryptographic_security_and_threat_modeling_rule.md`。
 
+## 16. 應用程式圖標 (Icon) 生成無外框與滿版鐵律 (Zero-Framed Icon Integrity Rule - 全案最高強制規範)
+* **嚴禁任何手機卡片/圓角外框**：凡為桌面應用、Web Favicon 或系統生成任何 Icon，**嚴格禁止生成任何帶有圓角矩形 (Squircle)、App 浮層卡片外框、手機圖示外襯、或周圍多餘留白/邊界的圖像**！
+* **100% 滿版或透明去背原則 (Full-Bleed or Transparent)**：
+  * 圖標圖形與背景紋理**必須 100% 滿版無縫延伸至圖片的四個邊界 (Full bleed, Edge-to-edge)**，或直接採用透明去背 (Transparent Alpha)。
+  * 主視覺符號（如幣別符號、走勢圖、Logo）居中飽滿呈現，絕不允許出現「在一個背景上方浮著一個圓角卡片」的二重外框醜態！
+* **生成 Prompt 強制關鍵字約束**：每次生成 Icon 時，Prompt 必須明確加入：`FULL BLEED, EDGE TO EDGE. ABSOLUTELY NO rounded square frame, NO squircle border, NO app icon container frame, NO outer border or surrounding margin.`
