@@ -310,8 +310,8 @@ body {
 /* 指標卡片 (響應式網格) */
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
   margin-bottom: 20px;
 }
 
@@ -580,34 +580,123 @@ body {
   text-overflow: ellipsis;
 }
 
-/* --- 桌面專業表格 --- */
+/* --- 專業完整數據表格 (Table View) --- */
 .table-responsive {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card-inner);
 }
 
 .portfolio-table {
   width: 100%;
-  border-collapse: collapse;
-  font-size: 0.86rem;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.85rem;
 }
 
 .portfolio-table th {
   text-align: left;
-  padding: 10px 12px;
+  padding: 12px 14px;
   color: var(--text-muted);
   font-weight: 600;
   border-bottom: 1px solid var(--border-subtle);
   white-space: nowrap;
+  background: #161926;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+.portfolio-table th.th-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  background: #161926;
+  box-shadow: 3px 0 8px rgba(0, 0, 0, 0.35);
+}
+
+.portfolio-table th.th-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.portfolio-table th.th-sortable:hover {
+  color: #60a5fa;
+  background: #1c2133;
 }
 
 .portfolio-table td {
-  padding: 11px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 11px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   white-space: nowrap;
+  vertical-align: middle;
 }
 
 .portfolio-table tr:hover td {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.portfolio-table td.td-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: #131622;
+  box-shadow: 3px 0 8px rgba(0, 0, 0, 0.35);
+}
+
+.portfolio-table tr:hover td.td-sticky {
+  background: #181c2b;
+}
+
+/* 標的代碼名稱雙行盒 */
+.sym-cell-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sym-row-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sym-code {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #ffffff;
+}
+
+.sym-name {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.cell-sub {
+  font-size: 0.72rem;
+  display: block;
+  margin-top: 1px;
+}
+
+/* 表格底部合計列 (Footer Summary) */
+.portfolio-table tfoot {
+  background: #171a28;
+  border-top: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+.portfolio-table tfoot td {
+  padding: 13px 14px;
+  font-weight: 700;
+  border-bottom: none;
+  color: #ffffff;
+}
+
+.portfolio-table tfoot td.td-sticky {
+  background: #171a28;
+  z-index: 4;
 }
 
 .badge-tag {
@@ -685,7 +774,7 @@ body {
   
   .mobile-bottom-bar { display: flex; } /* 啟動手機專屬懸浮列 */
 
-  /* 指標卡片在手機端為緊湊 2x2 網格 */
+  /* 指標卡片在手機端為緊湊 2 欄網格 */
   .metrics-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
@@ -693,8 +782,8 @@ body {
   }
   .metric-card { padding: 12px 14px; }
   .metric-title { font-size: 0.72rem; margin-bottom: 4px; }
-  .metric-val { font-size: 1.25rem; }
-  .metric-sub { display: none; }
+  .metric-val { font-size: 1.18rem; }
+  .metric-sub { font-size: 0.68rem; color: var(--text-dim); }
 
   .allocation-section { padding: 14px 16px; margin-bottom: 14px; }
   .portfolio-container { padding: 14px 14px; }
@@ -713,6 +802,6 @@ body {
     grid-template-columns: repeat(2, 1fr); /* 平板雙欄卡片 */
   }
   .metrics-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 }

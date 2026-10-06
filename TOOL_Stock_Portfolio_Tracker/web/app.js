@@ -14,7 +14,9 @@ let state = {
   privacyMode: false,
   rawPositions: [],
   deviceType: "desktop", // "mobile" | "tablet" | "desktop"
-  currentViewMode: "cards" // "cards" | "table"
+  currentViewMode: "table", // 預設以表格視圖為主
+  sortField: "symbol",
+  sortOrder: "asc"
 };
 
 // --- 設備智慧分析引擎 ---
@@ -184,7 +186,7 @@ document.addEventListener("DOMContentLoaded", () => {
   
   // 檢查是否有手動喜好，若無則依設備自動切換：手機/平板預設卡片流，桌機預設專業表格
   const savedPrefView = localStorage.getItem("portfolio_pref_view");
-  state.currentViewMode = savedPrefView || (state.deviceType === "desktop" ? "table" : "cards");
+  state.currentViewMode = savedPrefView || "table";
 
   document.getElementById("device-badge").textContent = profile.label;
 
@@ -351,6 +353,34 @@ document.addEventListener("DOMContentLoaded", () => {
     renderContentByMode(q);
   });
 
+  // 表頭點擊排序監聽
+  const sortHeaders = document.querySelectorAll("#portfolio-table th.th-sortable");
+  sortHeaders.forEach(th => {
+    th.addEventListener("click", () => {
+      const field = th.getAttribute("data-sort");
+      if (!field) return;
+      if (state.sortField === field) {
+        state.sortOrder = state.sortOrder === "asc" ? "desc" : "asc";
+      } else {
+        state.sortField = field;
+        state.sortOrder = ["symbol", "name"].includes(field) ? "asc" : "desc";
+      }
+      updateSortHeaderUI();
+      renderContentByMode(filterInput.value.trim().toLowerCase());
+    });
+  });
+
+  function updateSortHeaderUI() {
+    const headers = document.querySelectorAll("#portfolio-table th.th-sortable");
+    headers.forEach(th => {
+      const field = th.getAttribute("data-sort");
+      th.classList.remove("sorted-asc", "sorted-desc");
+      if (field === state.sortField) {
+        th.classList.add(state.sortOrder === "asc" ? "sorted-asc" : "sorted-desc");
+      }
+    });
+  }
+
   function showStatus(msg, type) {
     loginStatus.textContent = msg;
     loginStatus.className = `status-msg status-${type}`;
@@ -379,64 +409,158 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const indicator = document.getElementById("active-view-indicator");
     if (indicator) {
-      indicator.textContent = isCards ? "模式：直覺式卡片流 (推薦手機/觸控)" : "模式：專業完整數據表格 (推薦桌機/寬螢幕)";
+      indicator.textContent = isCards ? "卡片模式 ‧ 點擊上方按鈕可切換專業表格" : "完整數據表格 ‧ 點擊表頭可快速排序";
     }
   }
 });
 
-// --- 渲染畫面 ---
+// --- 數據標準化與格式化輔助函式 ---
+
+function normalizePosition(pos, divs = {}) {
+  const shares = parseFloat(pos.shares) || 0;
+  const costPrice = parseFloat(pos.cost_price) || 0;
+  const curPrice = parseFloat(pos.current_price !== undefined ? pos.current_price : pos.cost_price) || 0;
+
+  const totalCost = parseFloat(pos.total_cost !== undefined ? pos.total_cost : (shares * costPrice)) || 0;
+  const marketVal = parseFloat(pos.market_val !== undefined ? pos.market_val : (shares * curPrice)) || 0;
+
+  const unrealizedPnl = parseFloat(pos.unrealized_pnl !== undefined ? pos.unrealized_pnl : (marketVal - totalCost)) || 0;
+  const roiPct = parseFloat(pos.roi_pct !== undefined ? pos.roi_pct : (totalCost > 0 ? (unrealizedPnl / totalCost) * 100 : 0)) || 0;
+
+  // 當日損益
+  const yClose = parseFloat(pos.yesterday_close !== undefined ? pos.yesterday_close : curPrice) || curPrice;
+  const dayPnl = parseFloat(pos.day_pnl !== undefined ? pos.day_pnl : ((curPrice - yClose) * shares)) || 0;
+  const dayPct = parseFloat(pos.day_pct !== undefined ? pos.day_pct : (yClose > 0 ? ((curPrice - yClose) / yClose) * 100 : 0)) || 0;
+
+  // 當週損益
+  const wClose = parseFloat(pos.week_close !== undefined ? pos.week_close : yClose) || yClose;
+  const weekPnl = parseFloat(pos.week_pnl !== undefined ? pos.week_pnl : ((curPrice - wClose) * shares)) || 0;
+  const weekPct = parseFloat(pos.week_pct !== undefined ? pos.week_pct : (wClose > 0 ? ((curPrice - wClose) / wClose) * 100 : 0)) || 0;
+
+  // 股息資訊
+  const divInfo = divs[pos.symbol] || {};
+  const cashDiv = parseFloat(pos.cash_dividend !== undefined ? pos.cash_dividend : (divInfo.annual_div || divInfo.cash_dividend || 0)) || 0;
+  const singleDiv = parseFloat(pos.single_dividend !== undefined ? pos.single_dividend : (divInfo.single_amt || divInfo.single_dividend || cashDiv)) || 0;
+  const frequency = pos.frequency || divInfo.frequency || "年配";
+  const totalDiv = parseFloat(pos.total_dividend !== undefined ? pos.total_dividend : (shares * cashDiv)) || 0;
+  const yieldOnCost = parseFloat(pos.yield_on_cost !== undefined ? pos.yield_on_cost : (costPrice > 0 ? (cashDiv / costPrice) * 100 : 0)) || 0;
+  const yieldOnPrice = parseFloat(pos.yield_on_price !== undefined ? pos.yield_on_price : (curPrice > 0 ? (cashDiv / curPrice) * 100 : 0)) || 0;
+  const histDiv = parseFloat(pos.hist_div_received !== undefined ? pos.hist_div_received : (divInfo.hist_div_received || 0)) || 0;
+
+  return {
+    ...pos,
+    shares,
+    cost_price: costPrice,
+    current_price: curPrice,
+    total_cost: totalCost,
+    market_val: marketVal,
+    unrealized_pnl: unrealizedPnl,
+    roi_pct: roiPct,
+    yesterday_close: yClose,
+    day_pnl: dayPnl,
+    day_pct: dayPct,
+    week_close: wClose,
+    week_pnl: weekPnl,
+    week_pct: weekPct,
+    cash_dividend: cashDiv,
+    single_dividend: singleDiv,
+    frequency,
+    total_dividend: totalDiv,
+    yield_on_cost: yieldOnCost,
+    yield_on_price: yieldOnPrice,
+    hist_div_received: histDiv
+  };
+}
+
+function fmtNum(n) {
+  if (isNaN(n) || n === null || n === undefined) return "--";
+  return Number(n).toLocaleString("en-US");
+}
+
+function fmtSign(n, prefix = "$ ") {
+  if (isNaN(n) || n === null || n === undefined) return "--";
+  const num = Math.round(n);
+  const sign = num > 0 ? "+" : (num < 0 ? "-" : "");
+  return `${sign}${prefix}${fmtNum(Math.abs(num))}`;
+}
+
+function fmtPctSign(n) {
+  if (isNaN(n) || n === null || n === undefined) return "--";
+  const num = Number(n);
+  const sign = num > 0 ? "+" : (num < 0 ? "-" : "");
+  return `${sign}${Math.abs(num).toFixed(2)}%`;
+}
+
+// --- 渲染畫面核心 ---
 
 function renderDashboard(data, cloudUpdateTime) {
   document.getElementById("user-badge").textContent = `👤 使用者: ${state.user}`;
   const syncTime = cloudUpdateTime || data.exported_at || "剛剛";
   document.getElementById("sync-time-lbl").textContent = `同步時間: ${syncTime}`;
 
-  const positions = data.positions || [];
   const divs = data.dividends || {};
+  const rawPositions = data.positions || [];
+  const normalized = rawPositions.map(p => normalizePosition(p, divs));
+  state.normalizedPositions = normalized;
 
+  // 計算全庫存總合指標
   let totalCost = 0;
   let totalMarketVal = 0;
+  let totalUnrealizedPnl = 0;
+  let totalDayPnl = 0;
+  let totalWeekPnl = 0;
   let totalEstDiv = 0;
+  let totalHistDiv = 0;
 
-  positions.forEach(pos => {
-    const shares = parseFloat(pos.shares) || 0;
-    const costPrice = parseFloat(pos.cost_price) || 0;
-    const curPrice = parseFloat(pos.current_price || pos.cost_price) || 0;
-
-    const cost = shares * costPrice;
-    const mVal = shares * curPrice;
-    totalCost += cost;
-    totalMarketVal += mVal;
-
-    const divInfo = divs[pos.symbol];
-    if (divInfo && divInfo.cash_dividend) {
-      totalEstDiv += (parseFloat(divInfo.cash_dividend) || 0) * shares;
-    }
+  normalized.forEach(p => {
+    totalCost += p.total_cost;
+    totalMarketVal += p.market_val;
+    totalUnrealizedPnl += p.unrealized_pnl;
+    totalDayPnl += p.day_pnl;
+    totalWeekPnl += p.week_pnl;
+    totalEstDiv += p.total_dividend;
+    totalHistDiv += p.hist_div_received;
   });
 
-  const totalPnl = totalMarketVal - totalCost;
-  const totalRoi = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
-  const totalYield = totalMarketVal > 0 ? (totalEstDiv / totalMarketVal) * 100 : 0;
+  const totalRoiPct = totalCost > 0 ? (totalUnrealizedPnl / totalCost) * 100 : 0;
+  const totalDayPct = (totalMarketVal - totalDayPnl > 0) ? (totalDayPnl / (totalMarketVal - totalDayPnl)) * 100 : 0;
+  const totalWeekPct = (totalMarketVal - totalWeekPnl > 0) ? (totalWeekPnl / (totalMarketVal - totalWeekPnl)) * 100 : 0;
+  const portfolioYield = totalCost > 0 ? (totalEstDiv / totalCost) * 100 : 0;
 
-  // 頂部指標卡片渲染 (支援脫敏模式)
   const isPrivate = state.privacyMode;
-  document.getElementById("val-total-cost").textContent = isPrivate ? "$ ********" : `$ ${fmtNum(Math.round(totalCost))}`;
+
+  // 1. 總市值 / 投資成本
   document.getElementById("val-total-market").textContent = isPrivate ? "$ ********" : `$ ${fmtNum(Math.round(totalMarketVal))}`;
+  document.getElementById("val-total-cost").textContent = isPrivate ? "原始成本: $ ********" : `原始成本: $ ${fmtNum(Math.round(totalCost))}`;
 
+  // 2. 總未實現損益 (報酬率)
   const pnlEl = document.getElementById("val-total-pnl");
-  const pnlSign = totalPnl >= 0 ? "+" : "";
-  const pnlColorClass = totalPnl >= 0 ? "text-red" : "text-green"; // 台灣紅漲綠跌
-  pnlEl.className = `metric-val ${pnlColorClass}`;
-  pnlEl.textContent = isPrivate ? `${pnlSign}${totalRoi.toFixed(2)}%` : `$ ${pnlSign}${fmtNum(Math.round(totalPnl))} (${pnlSign}${totalRoi.toFixed(2)}%)`;
+  pnlEl.className = `metric-val ${totalUnrealizedPnl >= 0 ? "text-red" : "text-green"}`;
+  pnlEl.textContent = isPrivate ? `${fmtPctSign(totalRoiPct)}` : `${fmtSign(totalUnrealizedPnl)} (${fmtPctSign(totalRoiPct)})`;
 
-  document.getElementById("val-total-div").textContent = isPrivate ? `${totalYield.toFixed(2)}%` : `$ ${fmtNum(Math.round(totalEstDiv))} (${totalYield.toFixed(2)}%)`;
-  document.getElementById("stock-count-badge").textContent = `在庫標的: ${positions.length} 檔`;
+  // 3. 當日總損益 (今日波動)
+  const dayEl = document.getElementById("val-day-pnl");
+  dayEl.className = `metric-val ${totalDayPnl >= 0 ? "text-red" : "text-green"}`;
+  dayEl.textContent = isPrivate ? `${fmtPctSign(totalDayPct)}` : `${fmtSign(totalDayPnl)} (${fmtPctSign(totalDayPct)})`;
+
+  // 4. 當週總損益 (本週波動)
+  const weekEl = document.getElementById("val-week-pnl");
+  weekEl.className = `metric-val ${totalWeekPnl >= 0 ? "text-red" : "text-green"}`;
+  weekEl.textContent = isPrivate ? `${fmtPctSign(totalWeekPct)}` : `${fmtSign(totalWeekPnl)} (${fmtPctSign(totalWeekPct)})`;
+
+  // 5. 預估全年總股息 (年化殖利率)
+  document.getElementById("val-total-div").textContent = isPrivate ? `${portfolioYield.toFixed(2)}%` : `$ ${fmtNum(Math.round(totalEstDiv))} (${portfolioYield.toFixed(2)}%)`;
+
+  // 6. 歷年累計已領股息
+  document.getElementById("val-hist-div").textContent = isPrivate ? "$ ********" : `$ ${fmtNum(Math.round(totalHistDiv))}`;
+
+  document.getElementById("stock-count-badge").textContent = `在庫標的: ${normalized.length} 檔`;
 
   // 渲染資產配置條
-  renderAllocation(positions, totalMarketVal);
+  renderAllocation(normalized, totalMarketVal);
 
   // 渲染當前視圖模式
-  renderContentByMode("");
+  renderContentByMode(document.getElementById("filter-input").value.trim().toLowerCase());
 }
 
 function renderContentByMode(keyword) {
@@ -455,15 +579,10 @@ function renderAllocation(positions, totalMarketVal) {
 
   if (totalMarketVal <= 0 || positions.length === 0) return;
 
-  const sorted = [...positions].sort((a, b) => {
-    const ma = (a.shares || 0) * (a.current_price || a.cost_price || 0);
-    const mb = (b.shares || 0) * (b.current_price || b.cost_price || 0);
-    return mb - ma;
-  });
+  const sorted = [...positions].sort((a, b) => b.market_val - a.market_val);
 
   sorted.forEach((pos, idx) => {
-    const mVal = (pos.shares || 0) * (pos.current_price || pos.cost_price || 0);
-    const pct = ((mVal / totalMarketVal) * 100).toFixed(1);
+    const pct = ((pos.market_val / totalMarketVal) * 100).toFixed(1);
     if (parseFloat(pct) <= 0) return;
 
     const color = PALETTE[idx % PALETTE.length];
@@ -485,14 +604,168 @@ function renderAllocation(positions, totalMarketVal) {
   });
 }
 
-// --- 渲染：手機專屬卡片流 (Cards View) ---
+// --- 渲染：專業完整數據表格 (Table View) ---
+
+function renderTableView(keyword) {
+  const tbody = document.getElementById("portfolio-tbody");
+  const tfoot = document.getElementById("portfolio-tfoot");
+  tbody.innerHTML = "";
+  if (tfoot) tfoot.innerHTML = "";
+
+  const positions = state.normalizedPositions || [];
+  const isPrivate = state.privacyMode;
+
+  let filtered = positions.filter(pos => {
+    if (!keyword) return true;
+    const s = (pos.symbol || "").toLowerCase();
+    const n = (pos.name || "").toLowerCase();
+    return s.includes(keyword) || n.includes(keyword);
+  });
+
+  // 排序
+  if (state.sortField) {
+    const f = state.sortField;
+    const isAsc = state.sortOrder === "asc";
+    filtered.sort((a, b) => {
+      let va = a[f];
+      let vb = b[f];
+      if (typeof va === "string") {
+        return isAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+      }
+      va = parseFloat(va) || 0;
+      vb = parseFloat(vb) || 0;
+      return isAsc ? va - vb : vb - va;
+    });
+  }
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="11" style="text-align: center; color: #8e95a5; padding: 30px;">無符合標的</td></tr>`;
+    return;
+  }
+
+  // 累計合計列數據
+  let totalShares = 0;
+  let totalCost = 0;
+  let totalMarketVal = 0;
+  let totalUnrealizedPnl = 0;
+  let totalDayPnl = 0;
+  let totalWeekPnl = 0;
+  let totalEstDiv = 0;
+  let totalHistDiv = 0;
+
+  filtered.forEach(p => {
+    totalShares += p.shares;
+    totalCost += p.total_cost;
+    totalMarketVal += p.market_val;
+    totalUnrealizedPnl += p.unrealized_pnl;
+    totalDayPnl += p.day_pnl;
+    totalWeekPnl += p.week_pnl;
+    totalEstDiv += p.total_dividend;
+    totalHistDiv += p.hist_div_received;
+
+    const mkt = p.market || "TW";
+    const tagMktClass = mkt === "TW" ? "tag-tw" : (mkt === "TWO" ? "tag-two" : "tag-us");
+    const etfTag = p.is_etf ? `<span class="badge-tag tag-etf">ETF</span>` : "";
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="td-sticky">
+        <div class="sym-cell-box">
+          <div class="sym-row-top">
+            <span class="sym-code">${p.symbol}</span>
+            <span class="badge-tag ${tagMktClass}">${mkt}</span>
+            ${etfTag}
+          </div>
+          <span class="sym-name">${p.name || p.symbol}</span>
+        </div>
+      </td>
+      <td>${isPrivate ? "***" : fmtNum(p.shares)}</td>
+      <td>${isPrivate ? "***" : p.cost_price.toFixed(2)}</td>
+      <td>
+        <b>${p.current_price > 0 ? p.current_price.toFixed(2) : "--"}</b>
+        <span class="cell-sub ${p.day_pct >= 0 ? "text-red" : "text-green"}">${fmtPctSign(p.day_pct)}</span>
+      </td>
+      <td>
+        <b class="${p.unrealized_pnl >= 0 ? "text-red" : "text-green"}">${isPrivate ? "***" : fmtSign(p.unrealized_pnl)}</b>
+        <span class="cell-sub ${p.roi_pct >= 0 ? "text-red" : "text-green"}">${fmtPctSign(p.roi_pct)}</span>
+      </td>
+      <td>
+        <b class="${p.day_pnl >= 0 ? "text-red" : "text-green"}">${isPrivate ? "***" : fmtSign(p.day_pnl)}</b>
+        <span class="cell-sub ${p.day_pct >= 0 ? "text-red" : "text-green"}">${fmtPctSign(p.day_pct)}</span>
+      </td>
+      <td>
+        <b class="${p.week_pnl >= 0 ? "text-red" : "text-green"}">${isPrivate ? "***" : fmtSign(p.week_pnl)}</b>
+        <span class="cell-sub ${p.week_pct >= 0 ? "text-red" : "text-green"}">${fmtPctSign(p.week_pct)}</span>
+      </td>
+      <td>
+        <span>${p.cash_dividend > 0 ? `$ ${p.cash_dividend.toFixed(2)}` : "--"}</span>
+        <span class="cell-sub text-dim">${p.frequency}</span>
+      </td>
+      <td>
+        <span class="text-gold font-bold">${p.yield_on_cost > 0 ? `${p.yield_on_cost.toFixed(2)}%` : "--"}</span>
+      </td>
+      <td>
+        <span class="text-gold font-bold">${isPrivate ? "***" : (p.total_dividend > 0 ? `$ ${fmtNum(Math.round(p.total_dividend))}` : "--")}</span>
+      </td>
+      <td>
+        <span class="text-green font-bold">${isPrivate ? "***" : (p.hist_div_received > 0 ? `$ ${fmtNum(Math.round(p.hist_div_received))}` : "$ 0")}</span>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // 渲染底部合計列 (Footer Summary Row)
+  if (tfoot) {
+    const totalRoiPct = totalCost > 0 ? (totalUnrealizedPnl / totalCost) * 100 : 0;
+    const totalDayPct = (totalMarketVal - totalDayPnl > 0) ? (totalDayPnl / (totalMarketVal - totalDayPnl)) * 100 : 0;
+    const totalWeekPct = (totalMarketVal - totalWeekPnl > 0) ? (totalWeekPnl / (totalMarketVal - totalWeekPnl)) * 100 : 0;
+    const portfolioYield = totalCost > 0 ? (totalEstDiv / totalCost) * 100 : 0;
+
+    const tfootRow = document.createElement("tr");
+    tfootRow.innerHTML = `
+      <td class="td-sticky">
+        <div class="sym-cell-box">
+          <span class="sym-code">總計</span>
+          <span class="sym-name">${filtered.length} 檔標的</span>
+        </div>
+      </td>
+      <td>${isPrivate ? "***" : fmtNum(totalShares)}</td>
+      <td>-</td>
+      <td>-</td>
+      <td>
+        <b class="${totalUnrealizedPnl >= 0 ? "text-red" : "text-green"}">${isPrivate ? "***" : fmtSign(totalUnrealizedPnl)}</b>
+        <span class="cell-sub ${totalRoiPct >= 0 ? "text-red" : "text-green"}">${fmtPctSign(totalRoiPct)}</span>
+      </td>
+      <td>
+        <b class="${totalDayPnl >= 0 ? "text-red" : "text-green"}">${isPrivate ? "***" : fmtSign(totalDayPnl)}</b>
+        <span class="cell-sub ${totalDayPct >= 0 ? "text-red" : "text-green"}">${fmtPctSign(totalDayPct)}</span>
+      </td>
+      <td>
+        <b class="${totalWeekPnl >= 0 ? "text-red" : "text-green"}">${isPrivate ? "***" : fmtSign(totalWeekPnl)}</b>
+        <span class="cell-sub ${totalWeekPct >= 0 ? "text-red" : "text-green"}">${fmtPctSign(totalWeekPct)}</span>
+      </td>
+      <td>-</td>
+      <td>
+        <span class="text-gold font-bold">${portfolioYield > 0 ? `${portfolioYield.toFixed(2)}%` : "--"}</span>
+      </td>
+      <td>
+        <span class="text-gold font-bold">${isPrivate ? "***" : `$ ${fmtNum(Math.round(totalEstDiv))}`}</span>
+      </td>
+      <td>
+        <span class="text-green font-bold">${isPrivate ? "***" : `$ ${fmtNum(Math.round(totalHistDiv))}`}</span>
+      </td>
+    `;
+    tfoot.appendChild(tfootRow);
+  }
+}
+
+// --- 渲染：手機自適應卡片流 (Cards View) ---
 
 function renderCardsView(keyword) {
   const container = document.getElementById("mobile-cards-view");
   container.innerHTML = "";
 
-  const positions = state.rawPositions || [];
-  const divs = (state.decryptedData && state.decryptedData.dividends) || {};
+  const positions = state.normalizedPositions || [];
   const isPrivate = state.privacyMode;
 
   const filtered = positions.filter(pos => {
@@ -507,32 +780,22 @@ function renderCardsView(keyword) {
     return;
   }
 
-  filtered.forEach(pos => {
-    const shares = parseFloat(pos.shares) || 0;
-    const cost = parseFloat(pos.cost_price) || 0;
-    const price = parseFloat(pos.current_price || pos.cost_price) || 0;
+  filtered.forEach(p => {
+    const pnlSign = p.unrealized_pnl >= 0 ? "+" : "";
+    const pillClass = p.unrealized_pnl >= 0 ? "pill-red" : "pill-green";
+    const pnlColorClass = p.unrealized_pnl >= 0 ? "text-red" : "text-green";
 
-    const pnl = (price - cost) * shares;
-    const roi = cost > 0 ? ((price - cost) / cost) * 100 : 0;
-    const pnlSign = pnl >= 0 ? "+" : "";
-    const pillClass = pnl >= 0 ? "pill-red" : "pill-green";
-    const pnlColorClass = pnl >= 0 ? "text-red" : "text-green";
-
-    const divInfo = divs[pos.symbol] || {};
-    const singleDiv = divInfo.single_dividend || divInfo.cash_dividend || 0;
-    const estAnnualDiv = (divInfo.cash_dividend || 0) * shares;
-
-    const mkt = pos.market || "TW";
+    const mkt = p.market || "TW";
     const tagMktClass = mkt === "TW" ? "tag-tw" : (mkt === "TWO" ? "tag-two" : "tag-us");
-    const etfTag = pos.is_etf ? `<span class="badge-tag tag-etf">ETF 0.1%</span>` : "";
+    const etfTag = p.is_etf ? `<span class="badge-tag tag-etf">ETF</span>` : "";
 
     const card = document.createElement("div");
     card.className = "stock-card";
     card.innerHTML = `
       <div class="sc-header">
         <div class="sc-title-box">
-          <span class="sc-symbol">${pos.symbol}</span>
-          <span class="sc-name">${pos.name}</span>
+          <span class="sc-symbol">${p.symbol}</span>
+          <span class="sc-name">${p.name}</span>
         </div>
         <div class="sc-tags">
           <span class="badge-tag ${tagMktClass}">${mkt}</span>
@@ -542,92 +805,43 @@ function renderCardsView(keyword) {
 
       <div class="sc-hero">
         <div class="sc-price-box">
-          <span class="sc-price-label">參考現價</span>
-          <span class="sc-price-val">${price > 0 ? price.toFixed(2) : "--"}</span>
+          <span class="sc-price-label">參考現價 (今日)</span>
+          <span class="sc-price-val">${p.current_price > 0 ? p.current_price.toFixed(2) : "--"}</span>
+          <span class="cell-sub ${p.day_pct >= 0 ? "text-red" : "text-green"}">${fmtPctSign(p.day_pct)}</span>
         </div>
         <div class="sc-pnl-box">
-          <span class="sc-pnl-pill ${pillClass}">${pnlSign}${roi.toFixed(2)}%</span>
-          <span class="sc-pnl-amt ${pnlColorClass}">${isPrivate ? "***" : `${pnlSign}${fmtNum(Math.round(pnl))}`}</span>
+          <span class="sc-pnl-pill ${pillClass}">${pnlSign}${p.roi_pct.toFixed(2)}%</span>
+          <span class="sc-pnl-amt ${pnlColorClass}">${isPrivate ? "***" : fmtSign(p.unrealized_pnl)}</span>
         </div>
       </div>
 
       <div class="sc-details-grid">
         <div class="sc-detail-cell">
           <span class="sc-cell-lbl">持有股數</span>
-          <span class="sc-cell-val">${isPrivate ? "***" : fmtNum(shares)}</span>
+          <span class="sc-cell-val">${isPrivate ? "***" : fmtNum(p.shares)}</span>
         </div>
         <div class="sc-detail-cell">
           <span class="sc-cell-lbl">成本均價</span>
-          <span class="sc-cell-val">${isPrivate ? "***" : cost.toFixed(2)}</span>
+          <span class="sc-cell-val">${isPrivate ? "***" : p.cost_price.toFixed(2)}</span>
         </div>
         <div class="sc-detail-cell">
-          <span class="sc-cell-lbl">預估年股息</span>
-          <span class="sc-cell-val text-gold">${isPrivate ? "***" : (estAnnualDiv > 0 ? `$ ${fmtNum(Math.round(estAnnualDiv))}` : "--")}</span>
+          <span class="sc-cell-lbl">當日損益</span>
+          <span class="sc-cell-val ${p.day_pnl >= 0 ? "text-red" : "text-green"}">${isPrivate ? "***" : fmtSign(p.day_pnl)}</span>
+        </div>
+        <div class="sc-detail-cell">
+          <span class="sc-cell-lbl">當週損益</span>
+          <span class="sc-cell-val ${p.week_pnl >= 0 ? "text-red" : "text-green"}">${isPrivate ? "***" : fmtSign(p.week_pnl)}</span>
+        </div>
+        <div class="sc-detail-cell">
+          <span class="sc-cell-lbl">預估年股息 (殖利率)</span>
+          <span class="sc-cell-val text-gold">${isPrivate ? "***" : (p.total_dividend > 0 ? `$ ${fmtNum(Math.round(p.total_dividend))}` : "--")} (${p.yield_on_cost.toFixed(1)}%)</span>
+        </div>
+        <div class="sc-detail-cell">
+          <span class="sc-cell-lbl">歷年已領股息</span>
+          <span class="sc-cell-val text-green">${isPrivate ? "***" : (p.hist_div_received > 0 ? `$ ${fmtNum(Math.round(p.hist_div_received))}` : "$ 0")}</span>
         </div>
       </div>
     `;
     container.appendChild(card);
   });
-}
-
-// --- 渲染：桌面專業表格 (Table View) ---
-
-function renderTableView(keyword) {
-  const tbody = document.getElementById("portfolio-tbody");
-  tbody.innerHTML = "";
-
-  const positions = state.rawPositions || [];
-  const divs = (state.decryptedData && state.decryptedData.dividends) || {};
-  const lots = (state.decryptedData && state.decryptedData.trade_lots) || {};
-  const isPrivate = state.privacyMode;
-
-  const filtered = positions.filter(pos => {
-    if (!keyword) return true;
-    const s = (pos.symbol || "").toLowerCase();
-    const n = (pos.name || "").toLowerCase();
-    return s.includes(keyword) || n.includes(keyword);
-  });
-
-  filtered.forEach(pos => {
-    const shares = parseFloat(pos.shares) || 0;
-    const cost = parseFloat(pos.cost_price) || 0;
-    const price = parseFloat(pos.current_price || pos.cost_price) || 0;
-
-    const pnl = (price - cost) * shares;
-    const roi = cost > 0 ? ((price - cost) / cost) * 100 : 0;
-    const pnlSign = pnl >= 0 ? "+" : "";
-    const pnlClass = pnl >= 0 ? "text-red" : "text-green";
-
-    const divInfo = divs[pos.symbol] || {};
-    const singleDiv = divInfo.single_dividend || divInfo.cash_dividend || 0;
-    const estAnnualDiv = (divInfo.cash_dividend || 0) * shares;
-
-    const mkt = pos.market || "TW";
-    const tagMktClass = mkt === "TW" ? "tag-tw" : (mkt === "TWO" ? "tag-two" : "tag-us");
-    const etfTag = pos.is_etf ? `<span class="badge-tag tag-etf">ETF</span>` : "";
-
-    const lotCount = (lots[pos.symbol] || []).length;
-    const lotText = lotCount > 0 ? `${lotCount} 筆取得明細` : "單一成本";
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><b>${pos.symbol}</b></td>
-      <td>${pos.name}</td>
-      <td><span class="badge-tag ${tagMktClass}">${mkt}</span>${etfTag}</td>
-      <td>${isPrivate ? "***" : fmtNum(shares)}</td>
-      <td>${isPrivate ? "***" : cost.toFixed(2)}</td>
-      <td>${price > 0 ? price.toFixed(2) : "--"}</td>
-      <td class="${pnlClass}"><b>${isPrivate ? "***" : `${pnlSign}${fmtNum(Math.round(pnl))}`}</b></td>
-      <td class="${pnlClass}">${pnlSign}${roi.toFixed(2)}%</td>
-      <td>${divInfo.frequency || "年配"}</td>
-      <td>${singleDiv > 0 ? singleDiv.toFixed(2) : "--"}</td>
-      <td class="text-gold">${isPrivate ? "***" : (estAnnualDiv > 0 ? `$ ${fmtNum(Math.round(estAnnualDiv))}` : "--")}</td>
-      <td><span style="color: #8e95a5; font-size: 0.8rem;">${lotText}</span></td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-function fmtNum(n) {
-  return Number(n).toLocaleString("en-US");
 }

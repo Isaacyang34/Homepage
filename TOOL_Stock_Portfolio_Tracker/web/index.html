@@ -89,30 +89,42 @@
       </div>
     </header>
 
-    <!-- 頂部核心指標卡片 (自動響應式網格) -->
+    <!-- 頂部核心指標卡片 (6大總和指標網格) -->
     <section class="metrics-grid">
       <div class="metric-card glass-panel">
-        <div class="metric-title">總投資成本 (NT$)</div>
-        <div class="metric-val" id="val-total-cost">$ 0</div>
-        <div class="metric-sub">累計買入原始成本</div>
-      </div>
-
-      <div class="metric-card glass-panel">
-        <div class="metric-title">預估目前總市值 (NT$)</div>
+        <div class="metric-title">總市值 / 投資成本 (NT$)</div>
         <div class="metric-val text-accent" id="val-total-market">$ 0</div>
-        <div class="metric-sub">現價總資產現值</div>
+        <div class="metric-sub" id="val-total-cost">原始成本: $ 0</div>
       </div>
 
       <div class="metric-card glass-panel">
-        <div class="metric-title">總未實現損益 (報酬率)</div>
+        <div class="metric-title">總未實現損益 (累積報酬率)</div>
         <div class="metric-val" id="val-total-pnl">$ 0 (+0.00%)</div>
         <div class="metric-sub">資本利得總結算</div>
+      </div>
+
+      <div class="metric-card glass-panel">
+        <div class="metric-title">當日總損益 (今日波動)</div>
+        <div class="metric-val" id="val-day-pnl">$ 0 (+0.00%)</div>
+        <div class="metric-sub">較昨日收盤價變動總額</div>
+      </div>
+
+      <div class="metric-card glass-panel">
+        <div class="metric-title">當週總損益 (本週波動)</div>
+        <div class="metric-val" id="val-week-pnl">$ 0 (+0.00%)</div>
+        <div class="metric-sub">較上週基準變動總額</div>
       </div>
 
       <div class="metric-card glass-panel">
         <div class="metric-title">預估全年總股息 (年化殖利率)</div>
         <div class="metric-val text-gold" id="val-total-div">$ 0 (0.00%)</div>
         <div class="metric-sub">年度被動現金流預估</div>
+      </div>
+
+      <div class="metric-card glass-panel">
+        <div class="metric-title">歷年累計已領股息 (已入帳)</div>
+        <div class="metric-val text-green" id="val-hist-div">$ 0</div>
+        <div class="metric-sub">歷史批次實收現金股利總和</div>
       </div>
     </section>
 
@@ -126,46 +138,48 @@
       <div class="allocation-legend" id="allocation-legend"></div>
     </section>
 
-    <!-- 持股部位展示區塊 (支援卡片模式與表格模式自動切換) -->
+    <!-- 持股部位展示區塊 (預設採用專業表格形式) -->
     <section class="portfolio-container glass-panel">
       <div class="section-top-bar">
         <div class="bar-title-group">
           <h3>持股部位明細 (Portfolio Positions)</h3>
-          <span id="active-view-indicator" class="active-view-indicator">已依您的設備優化顯示</span>
+          <span id="active-view-indicator" class="active-view-indicator">完整數據表格 ‧ 支援點擊表頭排序</span>
         </div>
         <div class="bar-controls">
           <input type="text" id="filter-input" placeholder="🔍 搜尋代碼或名稱..." class="search-input">
         </div>
       </div>
 
-      <!-- 模式 A：手機/平板專屬自適應卡片流 (Mobile Card Stream) -->
-      <div id="mobile-cards-view" class="cards-view-grid">
-        <!-- 動態注入手機卡片 -->
-      </div>
-
-      <!-- 模式 B：桌面/寬螢幕專業表格 (Desktop Table) -->
-      <div id="desktop-table-view" class="table-responsive hidden">
-        <table class="portfolio-table">
+      <!-- 模式 B：專業表格 (預設主視圖，支援首欄凍結與平滑橫向滑動) -->
+      <div id="desktop-table-view" class="table-responsive">
+        <table class="portfolio-table" id="portfolio-table">
           <thead>
             <tr>
-              <th>標的代碼</th>
-              <th>名稱</th>
-              <th>市場</th>
-              <th>持有股數</th>
-              <th>成本均價</th>
-              <th>參考現價</th>
-              <th>未實現損益</th>
-              <th>報酬率</th>
-              <th>配息頻率</th>
-              <th>每股股息</th>
-              <th>預估年股息</th>
-              <th>取得時間/批次</th>
+              <th class="th-sticky th-sortable" data-sort="symbol">標的代碼 / 名稱 ⇕</th>
+              <th class="th-sortable" data-sort="shares">持有股數 ⇕</th>
+              <th class="th-sortable" data-sort="cost_price">成本均價 ⇕</th>
+              <th class="th-sortable" data-sort="current_price">參考現價 ⇕</th>
+              <th class="th-sortable" data-sort="unrealized_pnl">未實現損益 ⇕</th>
+              <th class="th-sortable" data-sort="day_pnl">當日損益 ⇕</th>
+              <th class="th-sortable" data-sort="week_pnl">當週損益 ⇕</th>
+              <th class="th-sortable" data-sort="cash_dividend">每股股息 (頻率) ⇕</th>
+              <th class="th-sortable" data-sort="yield_on_cost">成本殖利率 ⇕</th>
+              <th class="th-sortable" data-sort="total_dividend">預估年股息 ⇕</th>
+              <th class="th-sortable" data-sort="hist_div_received">歷年已領股息 ⇕</th>
             </tr>
           </thead>
           <tbody id="portfolio-tbody">
             <!-- 動態注入表格行 -->
           </tbody>
+          <tfoot id="portfolio-tfoot">
+            <!-- 動態注入總和合計列 -->
+          </tfoot>
         </table>
+      </div>
+
+      <!-- 模式 A：自適應卡片流 (備用切換視圖) -->
+      <div id="mobile-cards-view" class="cards-view-grid hidden">
+        <!-- 動態注入卡片 -->
       </div>
     </section>
 

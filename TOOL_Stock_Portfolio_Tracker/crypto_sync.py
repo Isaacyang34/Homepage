@@ -11,8 +11,10 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-from database import get_all_positions, get_trade_lots, get_setting, set_setting
+from database import get_all_positions, get_trade_lots, get_setting, set_setting, get_price_benchmarks
 from dividend_service import DividendService
+from quote_service import QuoteService
+from pnl_calculator import calculate_position_pnl
 
 DEFAULT_FIREBASE_URL = "https://my-stock-tracker-2a94e-default-rtdb.asia-southeast1.firebasedatabase.app"
 PBKDF2_ITERATIONS = 600000  # OWASP 2023 最新密碼學安全標準 (抗 GPU 字典窮舉)
@@ -163,20 +165,91 @@ def decrypt_portfolio_payload(encrypted_dict: Dict[str, Any], password: str, sec
     return json.loads(plain_bytes.decode("utf-8"))
 
 def gather_full_portfolio_data() -> Dict[str, Any]:
-    """打包本地 SQLite 所有部位、買入批次明細與股息資訊"""
+    """打包本地 SQLite 所有部位、買入批次明細與精算損益、當日/當週損益與股息資訊"""
     positions = get_all_positions()
+    quote_service = QuoteService()
+    
+    total_cost_sum = 0.0
+    market_val_sum = 0.0
+    total_pnl_sum = 0.0
+    day_pnl_sum = 0.0
+    week_pnl_sum = 0.0
+    month_pnl_sum = 0.0
+    total_div_sum = 0.0
+    hist_div_sum = 0.0
+    
+    enriched_positions = []
     lots_by_symbol = {}
     divs_by_symbol = {}
+
     for pos in positions:
-        sym = pos["symbol"]
+        sym = pos["symbol"].upper()
+        market = pos.get("market", "TW").upper()
         lots_by_symbol[sym] = get_trade_lots(sym)
-        div = DividendService.get_db_dividend(sym)
-        if div:
-            divs_by_symbol[sym] = div
+        
+        # 1. 取得最新報價 (本地快取優先，若無則查詢)
+        try:
+            quote = quote_service.get_quote(sym, market)
+        except Exception:
+            quote = {
+                "current_price": float(pos["cost_price"]),
+                "yesterday_close": float(pos["cost_price"]),
+                "change": 0.0,
+                "change_pct": 0.0
+            }
+
+        curr_price = float(quote.get("current_price", pos["cost_price"]))
+        
+        # 2. 取得歷史收盤價基準 (日/週/月)
+        benchmarks = get_price_benchmarks(sym, curr_price)
+        
+        # 3. 取得股息資訊 (含歷年批次實收已領股息)
+        div_info = DividendService.get_stock_dividend_info(sym, market)
+        if div_info:
+            divs_by_symbol[sym] = div_info
+            
+        # 4. 精算損益
+        pnl = calculate_position_pnl(pos, quote, benchmarks, div_info)
+        pnl["id"] = pos.get("id")
+        pnl["market"] = market
+        pnl["note"] = pos.get("note", "")
+        enriched_positions.append(pnl)
+
+        total_cost_sum += pnl.get("total_cost", 0.0)
+        market_val_sum += pnl.get("market_val", 0.0)
+        total_pnl_sum += pnl.get("unrealized_pnl", 0.0)
+        day_pnl_sum += pnl.get("day_pnl", 0.0)
+        week_pnl_sum += pnl.get("week_pnl", 0.0)
+        month_pnl_sum += pnl.get("month_pnl", 0.0)
+        total_div_sum += pnl.get("total_dividend", 0.0)
+        hist_div_sum += pnl.get("hist_div_received", 0.0)
+
+    # 5. 計算全庫存總合指標
+    roi_pct = (total_pnl_sum / total_cost_sum * 100) if total_cost_sum > 0 else 0.0
+    day_pct = (day_pnl_sum / (market_val_sum - day_pnl_sum) * 100) if (market_val_sum - day_pnl_sum) > 0 else 0.0
+    week_pct = (week_pnl_sum / (market_val_sum - week_pnl_sum) * 100) if (market_val_sum - week_pnl_sum) > 0 else 0.0
+    portfolio_yield = (total_div_sum / total_cost_sum * 100) if total_cost_sum > 0 else 0.0
+
+    summary = {
+        "stock_count": len(positions),
+        "total_cost": round(total_cost_sum),
+        "market_val": round(market_val_sum),
+        "unrealized_pnl": round(total_pnl_sum),
+        "roi_pct": round(roi_pct, 2),
+        "day_pnl": round(day_pnl_sum),
+        "day_pct": round(day_pct, 2),
+        "week_pnl": round(week_pnl_sum),
+        "week_pct": round(week_pct, 2),
+        "month_pnl": round(month_pnl_sum),
+        "total_dividend": round(total_div_sum),
+        "portfolio_yield": round(portfolio_yield, 2),
+        "hist_div_received": round(hist_div_sum)
+    }
 
     return {
         "exported_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "positions": positions,
+        "summary": summary,
+        "positions": enriched_positions,
         "trade_lots": lots_by_symbol,
         "dividends": divs_by_symbol
     }

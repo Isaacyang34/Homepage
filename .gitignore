@@ -4,6 +4,7 @@
 !Dyanmometer/Release/**/*.exe
 !Release/**/*.exe
 !TOOL_Stock_Portfolio_Tracker/**/*.exe
+TOOL_Stock_Portfolio_Tracker/*_old.exe
 TOOL_Stock_Portfolio_Tracker/build/
 TOOL_Stock_Portfolio_Tracker/dist/
 *.zip
