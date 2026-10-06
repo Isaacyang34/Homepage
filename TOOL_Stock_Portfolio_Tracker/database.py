@@ -235,20 +235,9 @@ def get_price_benchmarks(symbol: str, current_price: float) -> Dict[str, float]:
         """, (sym,))
         rows = [r["close"] for r in cursor.fetchall()]
 
-    y_close = current_price
-    w_close = current_price
-    m_close = current_price
-
-    if len(rows) >= 1:
-        y_close = rows[0]
-    if len(rows) >= 5:
-        w_close = rows[4]
-    elif len(rows) > 0:
-        w_close = rows[-1]
-    if len(rows) >= 20:
-        m_close = rows[19]
-    elif len(rows) > 0:
-        m_close = rows[-1]
+    y_close = rows[0] if len(rows) >= 1 else 0.0
+    w_close = rows[4] if len(rows) >= 5 else (rows[-1] if len(rows) > 0 else 0.0)
+    m_close = rows[19] if len(rows) >= 20 else (rows[-1] if len(rows) > 0 else 0.0)
 
     return {
         "yesterday_close": y_close,

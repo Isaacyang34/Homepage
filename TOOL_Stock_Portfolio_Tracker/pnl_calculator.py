@@ -20,11 +20,17 @@ def calculate_position_pnl(pos: Dict[str, Any],
 
     curr_price = float(quote.get("current_price", cost_price))
     
-    # 歷史基準收盤價 (日/週/月)
-    benchmarks = benchmarks or {}
-    y_close = float(benchmarks.get("yesterday_close", quote.get("yesterday_close", curr_price)))
-    w_close = float(benchmarks.get("week_close", y_close))
-    m_close = float(benchmarks.get("month_close", y_close))
+    # 昨收價優先採用即時行情官方昨日收盤價 (TWSE MIS 官方昨天收盤)，若無才依序降級為歷史K線昨收或現價
+    q_yclose = float(quote.get("yesterday_close") or 0.0)
+    b_yclose = float((benchmarks or {}).get("yesterday_close") or 0.0)
+    y_close = q_yclose if q_yclose > 0 else (b_yclose if b_yclose > 0 else curr_price)
+    
+    w_close = float((benchmarks or {}).get("week_close") or y_close)
+    if w_close <= 0:
+        w_close = y_close
+    m_close = float((benchmarks or {}).get("month_close") or y_close)
+    if m_close <= 0:
+        m_close = y_close
 
     if market in ["TW", "TWO"]:
         # --- 台股交易成本規則 ---
