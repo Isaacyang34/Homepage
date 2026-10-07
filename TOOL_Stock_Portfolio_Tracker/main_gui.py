@@ -86,7 +86,7 @@ ALL_CARD_SPECS = [
 ]
 
 class PortfolioApp(tk.Tk):
-    def __init__(self):
+    def __init__(self, preloaded_quotes: Optional[Dict[str, Dict[str, Any]]] = None):
         super().__init__()
         self.title(f"本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker) {APP_VERSION}")
         self.geometry("1420x820")
@@ -116,7 +116,7 @@ class PortfolioApp(tk.Tk):
 
         self.quote_service = QuoteService()
         self.positions: List[Dict[str, Any]] = []
-        self.latest_quotes: Dict[str, Dict[str, Any]] = {}
+        self.latest_quotes: Dict[str, Dict[str, Any]] = dict(preloaded_quotes) if preloaded_quotes else {}
         self.dividend_cache: Dict[str, Dict[str, Any]] = {}
         self.benchmarks_cache: Dict[str, Dict[str, float]] = {}
 
@@ -138,9 +138,16 @@ class PortfolioApp(tk.Tk):
         self.setup_styles()
         self.build_ui()
 
-        # 初始載入庫存與股息並啟動背景輪詢
+        # 初始載入庫存與立即繪製表格 (開窗瞬間秒顯持股資訊，0秒空白等待)
         self.reload_positions()
-        self.trigger_refresh()
+        self.refresh_ui_table()
+
+        if self.latest_quotes:
+            now_str = datetime.now().strftime("%H:%M:%S")
+            self.status_lbl.configure(text=f"最後更新時間: {now_str} (啟動預先載入)")
+        else:
+            self.trigger_refresh()
+
         self.trigger_dividend_update(silent=True)
         self.start_auto_refresh_timer()
 

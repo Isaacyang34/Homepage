@@ -400,26 +400,34 @@ class SplashScreen:
             self.canvas.create_text(tx + 29, ty, text=badge_text, fill="#ffffff", font=("Segoe UI", 9, "bold"), tags="chart")
 
     def _background_preload(self):
-        """背景預熱載入模組與資料庫"""
+        """背景預熱載入模組、讀取持股資料庫並預先同步即時行情報價 (讓等待留在啟動畫面)"""
         try:
-            time.sleep(0.3)
-            self.set_status("✦ 蓄勢整理：讀取本地資料庫與歷史行情...", 0.40)
-            from database import init_db
+            self.set_status("✦ 蓄勢整理：讀取本地庫存資料庫與模組...", 0.25)
+            from database import init_db, get_all_positions
             init_db()
+            positions = get_all_positions()
 
-            time.sleep(0.35)
-            self.set_status("✦ 放量攻頂：初始化即時報價引擎與自訂外觀...", 0.75)
+            self.set_status("✦ 放量上攻：正在同步台美股最新即時報價...", 0.65)
             import quote_service
             import dividend_service
             import history_service
             import main_gui
+            from quote_service import QuoteService
 
-            time.sleep(0.2)
-            self.set_status("✦ 突破創新高！系統就緒，即刻啟動...", 1.0)
+            qs = QuoteService()
+            if positions:
+                # 在啟動動畫畫面期間，真正於後台完成所有持股的最新即時價格獲取
+                quotes = qs.fetch_realtime_quotes(positions)
+                self.preloaded_quotes = quotes
+            else:
+                self.preloaded_quotes = {}
+
+            self.set_status("✦ 突破創新高：即時損益計算完畢，即刻進入！", 1.0)
             self.preload_done = True
         except Exception as e:
             print(f"[Splash] 背景預載異常: {e}")
-            self.set_status("✦ 載入就緒...", 1.0)
+            self.preloaded_quotes = {}
+            self.set_status("✦ 載入完成，即刻進入！", 1.0)
             self.preload_done = True
 
     def set_status(self, text: str, progress: float):
@@ -428,14 +436,17 @@ class SplashScreen:
 
 
 def show_splash_and_start_app():
-    """以折線圖向上強勢突破動畫開場，完成後流暢進入主程式"""
-    # 1. 播放趨勢突破動畫與背景模組預熱
+    """以折線圖向上強勢突破動畫開場，完成資料與即時行情獲取後無縫秒開主程式 (0秒空白等待)"""
+    # 1. 播放趨勢突破動畫並在背景同步獲取即時報價
     splash = SplashScreen()
     splash.root.mainloop()
 
-    # 2. Splash 視窗銷毀後，啟動主視窗
+    # 取出啟動畫面預先抓好的報價快取
+    preloaded = getattr(splash, "preloaded_quotes", None)
+
+    # 2. Splash 視窗銷毀後，啟動主視窗 (立即無縫秒開，帶有完整持股資訊，0秒空白等待)
     from main_gui import PortfolioApp
-    app = PortfolioApp()
+    app = PortfolioApp(preloaded_quotes=preloaded)
     app.lift()
     app.focus_force()
     app.mainloop()
