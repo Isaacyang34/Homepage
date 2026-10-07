@@ -11,6 +11,14 @@ from typing import Optional, Dict, Any, Tuple
 
 APP_VERSION = "V1.0"
 
+def get_resource_path(relative_path: str) -> str:
+    """取得靜態資源路徑，相容開發環境與 PyInstaller 打包 (_MEIPASS)"""
+    if hasattr(sys, '_MEIPASS'):
+        base_path = sys._MEIPASS
+    else:
+        base_path = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_path, relative_path)
+
 # 遠端更新指標端點 (GitHub Raw 與 Firebase RTDB 雙保險)
 GITHUB_MANIFEST_URL = "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/version.json"
 FIREBASE_MANIFEST_URL = "https://my-stock-tracker-2a94e-default-rtdb.asia-southeast1.firebasedatabase.app/update/version.json"
@@ -85,11 +93,24 @@ class UpdateDialog(tk.Toplevel):
     def __init__(self, parent, manifest: Dict[str, Any], is_newer: bool):
         super().__init__(parent)
         self.title("軟體版本更新")
-        self.geometry("600x480")
-        self.resizable(False, False)
+        self.geometry("620x540")
+        self.minsize(580, 480)
         self.configure(bg="#20202a")
         self.transient(parent)
         self.grab_set()
+
+        # 設定專屬更新圖示 (徹底消除預設藍色羽毛)
+        upd_ico = get_resource_path("update_icon.ico")
+        if not os.path.exists(upd_ico):
+            upd_ico = get_resource_path("app_icon.ico")
+        if os.path.exists(upd_ico):
+            try:
+                self.iconbitmap(upd_ico)
+            except Exception:
+                try:
+                    self.iconbitmap(default=upd_ico)
+                except Exception:
+                    pass
 
         self.parent = parent
         self.manifest = manifest
@@ -103,9 +124,9 @@ class UpdateDialog(tk.Toplevel):
         rel_date = self.manifest.get("release_date", "近期")
         changelog = self.manifest.get("changelog", "無詳細說明")
 
-        # 頂部狀態橫幅
-        top_bar = tk.Frame(self, bg="#282834", padx=18, pady=14)
-        top_bar.pack(fill=tk.X)
+        # 1. 頂部狀態橫幅 (TOP)
+        top_bar = tk.Frame(self, bg="#282834", padx=18, pady=12)
+        top_bar.pack(side=tk.TOP, fill=tk.X)
 
         if self.is_newer:
             status_title = f"✦ 發現軟體新版本: {cloud_ver}"
@@ -119,64 +140,67 @@ class UpdateDialog(tk.Toplevel):
         tk.Label(top_bar, text=status_title, bg="#282834", fg=status_color, font=("Microsoft JhengHei UI", 13, "bold")).pack(anchor="w")
         tk.Label(top_bar, text=status_desc, bg="#282834", fg="#d0d0d8", font=("Microsoft JhengHei UI", 9)).pack(anchor="w", pady=(4, 0))
 
-        # 中間資訊區
-        info_frame = tk.Frame(self, bg="#20202a", padx=18, pady=12)
-        info_frame.pack(fill=tk.BOTH, expand=True)
+        # 2. 底部操作按鈕列 (優先於中間內容區 pack 到 BOTTOM，保證絕對永遠可見、絕不被文字框擠壓)
+        bot = tk.Frame(self, bg="#1a1a24", padx=18, pady=12)
+        bot.pack(side=tk.BOTTOM, fill=tk.X)
+
+        if self.is_newer:
+            self.btn_download = tk.Button(
+                bot, text=f"立即下載升級至 {cloud_ver}", bg="#2563eb", fg="#ffffff",
+                activebackground="#1d4ed8", activeforeground="#ffffff",
+                font=("Microsoft JhengHei UI", 10, "bold"), relief="flat", cursor="hand2",
+                command=self.start_download
+            )
+            self.btn_download.pack(side=tk.RIGHT, ipadx=14, ipady=5)
+
+            self.btn_cancel = tk.Button(
+                bot, text="稍後再說 (暫不更新)", bg="#323242", fg="#d0d0d8",
+                activebackground="#3e3e50", activeforeground="#ffffff",
+                font=("Microsoft JhengHei UI", 9), relief="flat", cursor="hand2",
+                command=self.destroy
+            )
+            self.btn_cancel.pack(side=tk.RIGHT, padx=10, ipadx=10, ipady=5)
+        else:
+            self.btn_close = tk.Button(
+                bot, text="確定關閉", bg="#323242", fg="#ffffff",
+                activebackground="#3e3e50", activeforeground="#ffffff",
+                font=("Microsoft JhengHei UI", 9), relief="flat", cursor="hand2",
+                command=self.destroy
+            )
+            self.btn_close.pack(side=tk.RIGHT, ipadx=14, ipady=4)
+
+        # 3. 下載進度條與狀態文字 (BOTTOM，緊貼按鈕列上方)
+        self.progress_frame = tk.Frame(self, bg="#20202a", padx=18)
+        self.progress_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(0, 4))
+
+        self.pbar = ttk.Progressbar(self.progress_frame, orient="horizontal", mode="determinate")
+        self.lbl_download_status = tk.Label(self.progress_frame, text="", bg="#20202a", fg="#38bdf8", font=("Microsoft JhengHei UI", 9))
+
+        # 4. 中間資訊與改版公告區 (最後 pack，fill BOTH/EXPAND 自適應中央所有區域)
+        info_frame = tk.Frame(self, bg="#20202a", padx=18, pady=8)
+        info_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
         meta_box = tk.Frame(info_frame, bg="#16161f", padx=12, pady=8, relief="solid", bd=1)
-        meta_box.pack(fill=tk.X, pady=(0, 8))
+        meta_box.pack(fill=tk.X, pady=(0, 6))
 
         tk.Label(meta_box, text=f"本機目前版本:   {APP_VERSION}", bg="#16161f", fg="#94a3b8", font=("Microsoft JhengHei UI", 9)).grid(row=0, column=0, sticky="w", pady=2)
         
         target_color = "#f59e0b" if self.is_newer else "#38bdf8"
         tk.Label(meta_box, text=f"雲端最新版本:   {cloud_ver}  (發布日期: {rel_date})", bg="#16161f", fg=target_color, font=("Microsoft JhengHei UI", 9, "bold")).grid(row=1, column=0, sticky="w", pady=2)
 
-        tk.Label(info_frame, text="版本更新內容與修復詳情:", bg="#20202a", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold")).pack(anchor="w", pady=(4, 4))
+        tk.Label(info_frame, text="版本更新內容與修復詳情:", bg="#20202a", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold")).pack(anchor="w", pady=(2, 4))
 
         txt_frame = tk.Frame(info_frame, bg="#14141c", relief="solid", bd=1)
         txt_frame.pack(fill=tk.BOTH, expand=True)
 
-        self.txt_changelog = tk.Text(txt_frame, bg="#14141c", fg="#f0f2f8", font=("Microsoft JhengHei UI", 9), relief="flat", wrap=tk.WORD, bd=0)
+        self.txt_changelog = tk.Text(txt_frame, bg="#14141c", fg="#f0f2f8", font=("Microsoft JhengHei UI", 9), relief="flat", wrap=tk.WORD, bd=0, height=8)
         sb = tk.Scrollbar(txt_frame, orient="vertical", command=self.txt_changelog.yview)
         self.txt_changelog.configure(yscrollcommand=sb.set)
-        self.txt_changelog.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=8, pady=8)
+        self.txt_changelog.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=8, pady=6)
         sb.pack(side=tk.RIGHT, fill=tk.Y)
 
         self.txt_changelog.insert("1.0", changelog)
         self.txt_changelog.configure(state=tk.DISABLED)
-
-        # 下載進度條與狀態文字 (下載時顯示)
-        self.progress_frame = tk.Frame(self, bg="#20202a", padx=18)
-        self.progress_frame.pack(fill=tk.X, pady=(0, 4))
-
-        self.pbar = ttk.Progressbar(self.progress_frame, orient="horizontal", mode="determinate")
-        self.lbl_download_status = tk.Label(self.progress_frame, text="", bg="#20202a", fg="#38bdf8", font=("Microsoft JhengHei UI", 9))
-
-        # 底部按鈕列
-        bot = tk.Frame(self, bg="#20202a", padx=18, pady=12)
-        bot.pack(fill=tk.X, side=tk.BOTTOM)
-
-        if self.is_newer:
-            self.btn_download = tk.Button(
-                bot, text=f"立即下載升級至 {cloud_ver}", bg="#2563eb", fg="#ffffff",
-                font=("Microsoft JhengHei UI", 10, "bold"), relief="flat", cursor="hand2",
-                command=self.start_download
-            )
-            self.btn_download.pack(side=tk.RIGHT, ipadx=12, ipady=4)
-
-            self.btn_cancel = tk.Button(
-                bot, text="稍後再說 (暫不更新)", bg="#323242", fg="#d0d0d8",
-                font=("Microsoft JhengHei UI", 9), relief="flat", cursor="hand2",
-                command=self.destroy
-            )
-            self.btn_cancel.pack(side=tk.RIGHT, padx=8, ipadx=8, ipady=4)
-        else:
-            self.btn_close = tk.Button(
-                bot, text="確定關閉", bg="#323242", fg="#ffffff",
-                font=("Microsoft JhengHei UI", 9), relief="flat", cursor="hand2",
-                command=self.destroy
-            )
-            self.btn_close.pack(side=tk.RIGHT, ipadx=12, ipady=3)
 
     def start_download(self):
         download_url = self.manifest.get("download_url")
