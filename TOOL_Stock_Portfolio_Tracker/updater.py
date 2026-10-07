@@ -11,12 +11,35 @@ from typing import Optional, Dict, Any, Tuple
 
 APP_VERSION = "V1.0.2.3"
 
+def get_app_dir() -> str:
+    """取得應用程式根目錄 (相容 PyInstaller 凍結執行與原始碼執行)"""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+def log_update_debug(msg: str):
+    """將更新與啟動日誌寫入 update_debug.log，供問題診斷與分析"""
+    try:
+        log_path = os.path.join(get_app_dir(), "update_debug.log")
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"[{ts}] {msg}\n")
+    except Exception:
+        pass
+
+# 模組載入時立即記錄 (全域第一時間抓取進程啟動特徵)
+try:
+    _mei_init = getattr(sys, '_MEIPASS', 'None')
+    log_update_debug(f"[INIT] updater module loaded! PID={os.getpid()}, APP_VERSION={APP_VERSION}, _MEIPASS={_mei_init}")
+except Exception:
+    pass
+
 def get_resource_path(relative_path: str) -> str:
     """取得靜態資源路徑，相容開發環境與 PyInstaller 打包 (_MEIPASS)"""
     if hasattr(sys, '_MEIPASS'):
         base_path = sys._MEIPASS
     else:
-        base_path = os.path.dirname(os.path.abspath(__file__))
+        base_path = get_app_dir()
     return os.path.join(base_path, relative_path)
 
 # 遠端更新指標端點 (GitHub Raw 與 Firebase RTDB 雙保險)
@@ -177,6 +200,14 @@ class UpdateDialog(tk.Toplevel):
             )
             self.btn_reinstall.pack(side=tk.RIGHT, padx=10, ipadx=10, ipady=4)
 
+        self.btn_view_log = tk.Button(
+            bot, text="檢視更新日誌", bg="#262633", fg="#94a3b8",
+            activebackground="#333344", activeforeground="#ffffff",
+            font=("Microsoft JhengHei UI", 9), relief="flat", cursor="hand2",
+            command=self._open_log_file
+        )
+        self.btn_view_log.pack(side=tk.LEFT, ipadx=8, ipady=4)
+
         # 3. 下載進度條與狀態文字 (BOTTOM，緊貼按鈕列上方)
         self.progress_frame = tk.Frame(self, bg="#20202a", padx=18)
         self.progress_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(0, 4))
@@ -210,6 +241,16 @@ class UpdateDialog(tk.Toplevel):
         self.txt_changelog.insert("1.0", changelog)
         self.txt_changelog.configure(state=tk.DISABLED)
 
+    def _open_log_file(self):
+        log_path = os.path.join(get_app_dir(), "update_debug.log")
+        if os.path.exists(log_path):
+            try:
+                os.startfile(log_path)
+            except Exception as e:
+                messagebox.showerror("開啟失敗", f"無法開啟日誌檔: {e}", parent=self)
+        else:
+            messagebox.showinfo("提示", "目前尚無更新日誌記錄！", parent=self)
+
     def start_download(self):
         download_url = self.manifest.get("download_url")
         if not download_url:
@@ -217,6 +258,7 @@ class UpdateDialog(tk.Toplevel):
             return
 
         self.is_downloading = True
+        log_update_debug(f"[UPDATE] User clicked download for version {self.manifest.get('version', '')}")
         if hasattr(self, 'btn_download'):
             self.btn_download.configure(state=tk.DISABLED, text="下載升級中...")
         if hasattr(self, 'btn_reinstall'):
@@ -232,16 +274,19 @@ class UpdateDialog(tk.Toplevel):
         threading.Thread(target=self._download_worker, args=(download_url,), daemon=True).start()
 
     def _download_worker(self, url: str):
-        target_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+        target_dir = get_app_dir()
         temp_exe = os.path.join(target_dir, "Stock_Portfolio_Tracker_update.exe")
+        log_update_debug(f"[DOWNLOAD] Starting download from {url}")
+        log_update_debug(f"[DOWNLOAD] Target dir: {target_dir}, Temp target: {temp_exe}")
 
         try:
-            resp = requests.get(url, stream=True, timeout=30)
+            resp = requests.get(url, stream=True, timeout=45)
             if resp.status_code != 200:
                 raise RuntimeError(f"伺服器回應代碼: {resp.status_code}")
 
             total_size = int(resp.headers.get("content-length", 0))
             downloaded = 0
+            log_update_debug(f"[DOWNLOAD] Server returned 200 OK, total_size={total_size} bytes")
 
             with open(temp_exe, "wb") as f:
                 for chunk in resp.iter_content(chunk_size=65536):
@@ -258,11 +303,14 @@ class UpdateDialog(tk.Toplevel):
                         self.after(0, lambda m=msg: self._update_pbar(50, m))
 
             # 驗證檔案是否有效 (PyInstaller 執行檔通常 > 10MB)
-            if os.path.getsize(temp_exe) < 5 * 1024 * 1024:
-                raise RuntimeError("下載檔案大小異常，可能下載失敗或檔案不完整！")
+            actual_size = os.path.getsize(temp_exe)
+            log_update_debug(f"[DOWNLOAD] Completed. Actual downloaded size={actual_size} bytes")
+            if actual_size < 5 * 1024 * 1024:
+                raise RuntimeError("下載檔案大小異常 (<5MB)，可能檔案不完整！")
 
             self.after(0, lambda: self._on_download_success(target_dir, temp_exe))
         except Exception as e:
+            log_update_debug(f"[DOWNLOAD] ERROR: {e}")
             self.after(0, lambda err=str(e): self._on_download_failed(err))
 
     def _update_pbar(self, val: int, msg: str):
@@ -272,71 +320,101 @@ class UpdateDialog(tk.Toplevel):
     def _on_download_success(self, target_dir: str, temp_exe: str):
         self.lbl_download_status.configure(text="✔ 下載完成！正在啟動自替換更新批次檔...", fg="#52c41a")
         
-        # 產生純 ASCII Windows 更新批次檔
+        # 產生純 ASCII Windows 更新批次檔，全程將操作日誌追加記錄至 update_debug.log
         bat_path = os.path.join(target_dir, "apply_update.bat")
         target_exe_name = "Stock_Portfolio_Tracker.exe"
         temp_exe_name = os.path.basename(temp_exe)
         current_pid = os.getpid()
 
-        # 核心關鍵防禦：
-        # 1. 舊 process 正在結束時，其 _MEI 暫存目錄正在被 Windows 標記刪除
-        # 2. 透過 taskkill /PID 與 timeout 確保舊行程與其 _MEI 暫存目錄 100% 徹底釋放 Teardown
-        # 3. set _MEIPASS= 徹底清除繼承之環境變數
-        # 4. 關鍵突破：透過 Windows Shell 原生 explorer.exe "%~dp0<target_exe>" 喚醒新程式！
-        #    這相當於使用者手動滑鼠雙擊，100% 擺脫 cmd/subprocess 所有的父行程繼承與 DLL 鎖定問題！
+        log_update_debug(f"[APPLY] Entering _on_download_success. current_pid={current_pid}")
+        log_update_debug(f"[APPLY] sys.executable={sys.executable}, frozen={getattr(sys, 'frozen', False)}")
+        log_update_debug(f"[APPLY] Current _MEIPASS={getattr(sys, '_MEIPASS', 'None')}")
+
         bat_content = f"""@echo off
 REM Stock Portfolio Tracker Auto Update Script
-set _MEIPASS2=
+set LOG_FILE=%~dp0update_debug.log
+
+echo ====================================================== >> "%LOG_FILE%"
+echo [%DATE% %TIME%] [BATCH] ===== Update Script Started ===== >> "%LOG_FILE%"
+echo [%DATE% %TIME%] [BATCH] Script path: %~f0 >> "%LOG_FILE%"
+echo [%DATE% %TIME%] [BATCH] Working directory: %cd% >> "%LOG_FILE%"
+echo [%DATE% %TIME%] [BATCH] Target PID to terminate: {current_pid} >> "%LOG_FILE%"
+echo [%DATE% %TIME%] [BATCH] Inherited _MEIPASS: '%_MEIPASS%' >> "%LOG_FILE%"
+echo [%DATE% %TIME%] [BATCH] Inherited _MEIPASS2: '%_MEIPASS2%' >> "%LOG_FILE%"
+
+echo [%DATE% %TIME%] [BATCH] Clearing PyInstaller and Python environment variables... >> "%LOG_FILE%"
 set _MEIPASS=
+set _MEIPASS2=
 set PYTHONHOME=
 set PYTHONPATH=
+echo [%DATE% %TIME%] [BATCH] _MEIPASS after clear: '%_MEIPASS%' >> "%LOG_FILE%"
 
-REM Wait for parent process {current_pid} to completely exit
-taskkill /PID {current_pid} /F > nul 2>&1
+cd /d "%~dp0"
+echo [%DATE% %TIME%] [BATCH] Changed working dir to: %cd% >> "%LOG_FILE%"
+
+echo [%DATE% %TIME%] [BATCH] Terminating parent PID {current_pid}... >> "%LOG_FILE%"
+taskkill /PID {current_pid} /F >> "%LOG_FILE%" 2>&1
 timeout /t 2 /nobreak > nul
 
-:RETRY
-copy /y "{temp_exe_name}" "{target_exe_name}" > nul
+set RETRY=0
+:RETRY_LOOP
+set /a RETRY+=1
+echo [%DATE% %TIME%] [BATCH] Overwrite attempt %RETRY%: Copying "{temp_exe_name}" to "{target_exe_name}"... >> "%LOG_FILE%"
+copy /y "{temp_exe_name}" "{target_exe_name}" >> "%LOG_FILE%" 2>&1
 if errorlevel 1 (
+    echo [%DATE% %TIME%] [BATCH] Overwrite locked, waiting 1s (retry %RETRY%)... >> "%LOG_FILE%"
     timeout /t 1 /nobreak > nul
-    goto RETRY
+    if %RETRY% leq 10 goto RETRY_LOOP
+    echo [%DATE% %TIME%] [BATCH] FATAL ERROR: Failed to overwrite {target_exe_name} after 10 retries! >> "%LOG_FILE%"
+    exit /b 1
 )
-del /f /q "{temp_exe_name}" > nul
 
-REM Start the updated application cleanly via Windows Shell (equivalent to user double-click)
+echo [%DATE% %TIME%] [BATCH] Overwrite succeeded! Target file info: >> "%LOG_FILE%"
+dir "{target_exe_name}" >> "%LOG_FILE%" 2>&1
+
+echo [%DATE% %TIME%] [BATCH] Removing temporary download file... >> "%LOG_FILE%"
+del /f /q "{temp_exe_name}" >> "%LOG_FILE%" 2>&1
+
+echo [%DATE% %TIME%] [BATCH] Launching updated {target_exe_name} via Windows Shell (explorer.exe)... >> "%LOG_FILE%"
 explorer.exe "%~dp0{target_exe_name}"
-timeout /t 1 /nobreak > nul
-del /f /q "%~f0" > nul
+set LAUNCH_ERR=%errorlevel%
+echo [%DATE% %TIME%] [BATCH] Explorer launched with errorlevel: %LAUNCH_ERR% >> "%LOG_FILE%"
+echo [%DATE% %TIME%] [BATCH] ===== Update Script Completed ===== >> "%LOG_FILE%"
 exit
 """
         try:
             with open(bat_path, "w", encoding="ascii") as f:
                 f.write(bat_content)
 
+            log_update_debug(f"[APPLY] Written batch script to {bat_path}")
+
             # 啟動批次檔時建立全新獨立行程群組 (DETACHED_PROCESS)，完全切斷父子繼承關係
             creation_flags = 0x00000008 | (subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)  # DETACHED_PROCESS
-            # 清除子環境中的 _MEIPASS 相關變數
             clean_env = os.environ.copy()
             clean_env.pop('_MEIPASS2', None)
             clean_env.pop('_MEIPASS', None)
 
+            log_update_debug("[APPLY] Spawning detached cmd.exe /c apply_update.bat")
             subprocess.Popen(
                 ["cmd.exe", "/c", bat_path],
                 cwd=target_dir,
                 env=clean_env,
                 creationflags=creation_flags
             )
+            log_update_debug("[APPLY] Subprocess spawned. Exiting Python GUI process now.")
             self.destroy()
             if self.parent:
                 self.parent.destroy()
             sys.exit(0)
         except Exception as e:
-            messagebox.showerror("更新失敗", f"啟動更新替換腳本失敗: {e}", parent=self)
+            log_update_debug(f"[APPLY] FATAL ERROR spawning updater script: {e}")
+            messagebox.showerror("更新失敗", f"啟動更新替換腳本失敗: {e}\n詳情已記錄於 update_debug.log", parent=self)
             self.btn_cancel.configure(state=tk.NORMAL)
 
     def _on_download_failed(self, err: str):
+        log_update_debug(f"[UPDATE] Download failed: {err}")
         self.lbl_download_status.configure(text=f"[!] 下載失敗: {err}", fg="#ff4d4f")
-        messagebox.showerror("下載失敗", f"下載更新檔時發生錯誤: {err}\n請檢查網路連線或稍後再試。", parent=self)
+        messagebox.showerror("下載失敗", f"下載更新檔時發生錯誤: {err}\n詳情請檢視 update_debug.log。", parent=self)
         if hasattr(self, 'btn_download'):
             self.btn_download.configure(state=tk.NORMAL, text="重試下載")
         if hasattr(self, 'btn_reinstall'):

@@ -7,6 +7,18 @@ if hasattr(sys.stdout, "reconfigure"):
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
+# 記錄啟動日誌 (證明全新程序啟動成功，便於追蹤更新鏈條)
+try:
+    from updater import log_update_debug, APP_VERSION
+    _mei = getattr(sys, '_MEIPASS', 'None')
+    log_update_debug(f"[BOOT] Stock_Portfolio_Tracker booted cleanly! PID={os.getpid()}, Version={APP_VERSION}, _MEIPASS={_mei}")
+except Exception as e:
+    try:
+        with open("boot_error.txt", "w", encoding="utf-8") as f:
+            f.write(f"Boot error: {e}\n")
+    except Exception:
+        pass
+
 def main():
     try:
         from splash_screen import show_splash_and_start_app

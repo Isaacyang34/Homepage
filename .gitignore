@@ -28,3 +28,11 @@ ESP32_TPMS_Receiver/poc_minimal_tester/build/
 # Python cache
 __pycache__/
 *.py[cod]
+
+# 本地資料庫與個人持股檔案 (保護使用者隱私與資料安全)
+*.db
+*.sqlite
+*.sqlite3
+TOOL_Stock_Portfolio_Tracker/*.db
+TOOL_Stock_Portfolio_Tracker/*.log
+*.log
