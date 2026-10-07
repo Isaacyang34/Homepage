@@ -190,6 +190,37 @@ class PortfolioApp(tk.Tk):
         self.style.map("Treeview.Heading", background=[("active", "#404055")])
         self.style.configure("Action.TButton", font=(self.font_family, self.font_size, "bold"), padding=5)
 
+        # 下拉選單 (Combobox) 深度優化：黑底白字極致高對比，徹底根除淺灰底白字無法閱讀之問題
+        combo_bg = "#14141c"
+        combo_btn_bg = "#282836"
+        self.style.configure("TCombobox", 
+                             fieldbackground=combo_bg, 
+                             background=combo_btn_bg, 
+                             foreground="#ffffff", 
+                             darkcolor=combo_bg, 
+                             lightcolor=combo_bg,
+                             bordercolor="#3f3f50",
+                             selectbackground="#2563eb", 
+                             selectforeground="#ffffff",
+                             arrowcolor="#38bdf8",
+                             arrowsize=14,
+                             padding=4)
+        self.style.map("TCombobox", 
+                       fieldbackground=[("readonly", combo_bg), ("focus", combo_bg), ("!disabled", combo_bg)],
+                       foreground=[("readonly", "#ffffff"), ("focus", "#ffffff"), ("!disabled", "#ffffff")],
+                       selectbackground=[("readonly", "#2563eb"), ("focus", "#2563eb")],
+                       selectforeground=[("readonly", "#ffffff"), ("focus", "#ffffff")],
+                       background=[("active", "#3b3b4d"), ("!disabled", combo_btn_bg)],
+                       arrowcolor=[("readonly", "#38bdf8"), ("active", "#60a5fa")])
+
+        # 下拉清單展開面板 (Popdown Listbox) 黑底白字高對比設定
+        self.option_add("*TCombobox*Listbox.background", combo_bg)
+        self.option_add("*TCombobox*Listbox.foreground", "#ffffff")
+        self.option_add("*TCombobox*Listbox.selectBackground", "#2563eb")
+        self.option_add("*TCombobox*Listbox.selectForeground", "#ffffff")
+        self.option_add("*TCombobox*Listbox.font", (self.font_family, self.font_size))
+        self.option_add("*TCombobox*Listbox.relief", "flat")
+
     def build_ui(self):
         """建構主介面排版 (依據自訂設定動態生成卡片與表格)"""
         # 1. 頂部儀表板卡片
@@ -1277,21 +1308,21 @@ class TradeLotManagerDialog(tk.Toplevel):
         input_frame.pack(fill=tk.X, padx=12, pady=(0, 6))
 
         tk.Label(input_frame, text="取得日期 (YYYY-MM-DD):", bg="#282835", fg="#ffffff").grid(row=0, column=0, padx=4, pady=2)
-        self.ent_date = tk.Entry(input_frame, width=12, font=("Microsoft JhengHei UI", 9))
+        self.ent_date = tk.Entry(input_frame, width=12, font=("Microsoft JhengHei UI", 9), bg="#1e1e28", fg="#ffffff", insertbackground="#ffffff", relief="flat")
         self.ent_date.insert(0, datetime.now().strftime("%Y-%m-%d"))
         self.ent_date.grid(row=0, column=1, padx=4, pady=2)
 
         tk.Label(input_frame, text="股數:", bg="#282835", fg="#ffffff").grid(row=0, column=2, padx=4, pady=2)
-        self.ent_shares = tk.Entry(input_frame, width=10, font=("Microsoft JhengHei UI", 9))
+        self.ent_shares = tk.Entry(input_frame, width=10, font=("Microsoft JhengHei UI", 9), bg="#1e1e28", fg="#ffffff", insertbackground="#ffffff", relief="flat")
         self.ent_shares.insert(0, "1000")
         self.ent_shares.grid(row=0, column=3, padx=4, pady=2)
 
         tk.Label(input_frame, text="單價:", bg="#282835", fg="#ffffff").grid(row=0, column=4, padx=4, pady=2)
-        self.ent_price = tk.Entry(input_frame, width=10, font=("Microsoft JhengHei UI", 9))
+        self.ent_price = tk.Entry(input_frame, width=10, font=("Microsoft JhengHei UI", 9), bg="#1e1e28", fg="#ffffff", insertbackground="#ffffff", relief="flat")
         self.ent_price.grid(row=0, column=5, padx=4, pady=2)
 
         tk.Label(input_frame, text="備註:", bg="#282835", fg="#ffffff").grid(row=0, column=6, padx=4, pady=2)
-        self.ent_note = tk.Entry(input_frame, width=12, font=("Microsoft JhengHei UI", 9))
+        self.ent_note = tk.Entry(input_frame, width=12, font=("Microsoft JhengHei UI", 9), bg="#1e1e28", fg="#ffffff", insertbackground="#ffffff", relief="flat")
         self.ent_note.grid(row=0, column=7, padx=4, pady=2)
 
         btn_add_lot = tk.Button(input_frame, text="[+] 新增此批次", bg="#3a86ff", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), relief="flat", command=self.on_add_lot)
@@ -1530,6 +1561,13 @@ class SettingsDialog(tk.Toplevel):
             "hist_div_color": self.theme_settings.get("hist_div_color", "#38bdf8"),
         }
 
+        # 確保對話框內所有下拉選單均為黑底白字高對比
+        self.option_add("*TCombobox*Listbox.background", "#14141c")
+        self.option_add("*TCombobox*Listbox.foreground", "#ffffff")
+        self.option_add("*TCombobox*Listbox.selectBackground", "#2563eb")
+        self.option_add("*TCombobox*Listbox.selectForeground", "#ffffff")
+        self.option_add("*TCombobox*Listbox.font", ("Microsoft JhengHei UI", 9))
+
         self.build_ui()
         self.refresh_lists()
         self.update_preview()
@@ -1697,28 +1735,28 @@ class SettingsDialog(tk.Toplevel):
         # 字型名稱
         f_row1 = tk.Frame(font_grp, bg="#20202a")
         f_row1.pack(fill=tk.X, pady=3)
-        tk.Label(f_row1, text="字型家族:", bg="#20202a", fg="#d0d0d8", font=("Microsoft JhengHei UI", 9), width=10, anchor="w").pack(side=tk.LEFT)
-        combo_font = ttk.Combobox(f_row1, textvariable=self.cur_font_family, values=["Microsoft JhengHei UI", "微軟正黑體", "Segoe UI", "Consolas", "Arial"], state="readonly", width=20)
+        tk.Label(f_row1, text="字型家族:", bg="#20202a", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), width=10, anchor="w").pack(side=tk.LEFT)
+        combo_font = ttk.Combobox(f_row1, textvariable=self.cur_font_family, values=["Microsoft JhengHei UI", "微軟正黑體", "Segoe UI", "Consolas", "Arial"], state="readonly", width=20, font=("Microsoft JhengHei UI", 9, "bold"))
         combo_font.pack(side=tk.LEFT, padx=4)
         combo_font.bind("<<ComboboxSelected>>", lambda e: self.update_preview())
 
         # 字型大小
         f_row2 = tk.Frame(font_grp, bg="#20202a")
         f_row2.pack(fill=tk.X, pady=3)
-        tk.Label(f_row2, text="字型大小:", bg="#20202a", fg="#d0d0d8", font=("Microsoft JhengHei UI", 9), width=10, anchor="w").pack(side=tk.LEFT)
-        combo_sz = ttk.Combobox(f_row2, textvariable=self.cur_font_size, values=["9", "10", "11", "12", "13", "14", "16"], state="readonly", width=8)
+        tk.Label(f_row2, text="字型大小:", bg="#20202a", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), width=10, anchor="w").pack(side=tk.LEFT)
+        combo_sz = ttk.Combobox(f_row2, textvariable=self.cur_font_size, values=["9", "10", "11", "12", "13", "14", "16"], state="readonly", width=8, font=("Microsoft JhengHei UI", 9, "bold"))
         combo_sz.pack(side=tk.LEFT, padx=4)
         combo_sz.bind("<<ComboboxSelected>>", lambda e: self.update_preview())
-        tk.Label(f_row2, text="pt (預設 10pt)", bg="#20202a", fg="#8e95a5", font=("Microsoft JhengHei UI", 8)).pack(side=tk.LEFT, padx=4)
+        tk.Label(f_row2, text="pt (預設 10pt)", bg="#20202a", fg="#94a3b8", font=("Microsoft JhengHei UI", 8)).pack(side=tk.LEFT, padx=4)
 
         # 列高
         f_row3 = tk.Frame(font_grp, bg="#20202a")
         f_row3.pack(fill=tk.X, pady=3)
-        tk.Label(f_row3, text="表格單列高:", bg="#20202a", fg="#d0d0d8", font=("Microsoft JhengHei UI", 9), width=10, anchor="w").pack(side=tk.LEFT)
-        combo_rh = ttk.Combobox(f_row3, textvariable=self.cur_row_height, values=["26", "28", "30", "32", "36", "40"], state="readonly", width=8)
+        tk.Label(f_row3, text="表格單列高:", bg="#20202a", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), width=10, anchor="w").pack(side=tk.LEFT)
+        combo_rh = ttk.Combobox(f_row3, textvariable=self.cur_row_height, values=["26", "28", "30", "32", "36", "40"], state="readonly", width=8, font=("Microsoft JhengHei UI", 9, "bold"))
         combo_rh.pack(side=tk.LEFT, padx=4)
         combo_rh.bind("<<ComboboxSelected>>", lambda e: self.update_preview())
-        tk.Label(f_row3, text="px (預設 32px)", bg="#20202a", fg="#8e95a5", font=("Microsoft JhengHei UI", 8)).pack(side=tk.LEFT, padx=4)
+        tk.Label(f_row3, text="px (預設 32px)", bg="#20202a", fg="#94a3b8", font=("Microsoft JhengHei UI", 8)).pack(side=tk.LEFT, padx=4)
 
         # 2. 快速主題方案群組
         theme_grp = tk.LabelFrame(left_app, text=" 【一鍵套用熱門配色主題】 ", bg="#20202a", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), padx=10, pady=8)
