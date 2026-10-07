@@ -371,3 +371,13 @@ def set_setting(key: str, value: str):
             ON CONFLICT(key) DO UPDATE SET value=excluded.value
         """, (key, value))
         conn.commit()
+
+def get_update_timestamp(key: str) -> str:
+    """取得資料最後更新時間字串 (quotes/dividends/history)"""
+    return get_setting(f"last_{key}_update_time", "尚未更新")
+
+def set_update_timestamp(key: str, ts_str: Optional[str] = None):
+    """記錄資料最後更新時間"""
+    if ts_str is None:
+        ts_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    set_setting(f"last_{key}_update_time", ts_str)

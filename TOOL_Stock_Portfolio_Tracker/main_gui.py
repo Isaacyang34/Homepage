@@ -20,6 +20,7 @@ from database import (
     delete_position, get_history_kline, get_setting, set_setting,
     get_trade_lots, add_trade_lot, delete_trade_lot, get_price_benchmarks,
     get_visible_columns, set_visible_columns, get_visible_cards, set_visible_cards,
+    get_update_timestamp, set_update_timestamp,
     DEFAULT_VISIBLE_COLUMNS, DEFAULT_VISIBLE_CARDS
 )
 from quote_service import QuoteService
@@ -125,6 +126,8 @@ class PortfolioApp(tk.Tk):
         self._sort_reverse = False
         self._sort_col = "unrealized_pnl"
         self.is_history_updating = False
+        self.active_update_dialog = None
+        self.btn_post_market = None
 
         # 設定風格與配色
         self.setup_styles()
@@ -136,9 +139,10 @@ class PortfolioApp(tk.Tk):
         self.trigger_dividend_update(silent=True)
         self.start_auto_refresh_timer()
 
-        # 啟動後自動比對盤後資料與線上更新檢查 (延遲啟動確保 UI 流暢)
+        # 啟動後自動比對盤後資料、線上更新檢查與每日 15:00 定時同步監控 (延遲啟動確保 UI 流暢)
         self.after(2000, self.auto_check_post_market_history)
         self.after(3500, self.check_online_update_silently)
+        self.after(5000, self.start_daily_1500_scheduler)
 
     def setup_styles(self):
         self.style = ttk.Style(self)
@@ -207,14 +211,8 @@ class PortfolioApp(tk.Tk):
 
         ttk.Separator(bottom_frame, orient="vertical").pack(side=tk.LEFT, fill=tk.Y, padx=5)
 
-        btn_refresh = ttk.Button(bottom_frame, text="[更新] 刷新行情", command=self.trigger_refresh, style="Action.TButton")
-        btn_refresh.pack(side=tk.LEFT, padx=2)
-
-        btn_div = ttk.Button(bottom_frame, text="[股息] 同步除權息", command=lambda: self.trigger_dividend_update(silent=False), style="Action.TButton")
-        btn_div.pack(side=tk.LEFT, padx=2)
-
-        self.btn_post_market = ttk.Button(bottom_frame, text="[盤後] 更新歷史資料", command=self.on_update_history_all, style="Action.TButton")
-        self.btn_post_market.pack(side=tk.LEFT, padx=2)
+        btn_data_update = ttk.Button(bottom_frame, text="[⟳ 資料更新]", command=self.on_open_data_update, style="Action.TButton")
+        btn_data_update.pack(side=tk.LEFT, padx=2)
 
         btn_view_kline = ttk.Button(bottom_frame, text="[K線] 個股走勢圖", command=self.on_view_kline, style="Action.TButton")
         btn_view_kline.pack(side=tk.LEFT, padx=2)
@@ -369,8 +367,11 @@ class PortfolioApp(tk.Tk):
         threading.Thread(target=worker, daemon=True).start()
 
     def _on_dividend_updated(self):
+        set_update_timestamp("dividends")
         self.refresh_ui_table()
         self.status_lbl.configure(text="股息與除息日期已同步")
+        if self.active_update_dialog and self.active_update_dialog.winfo_exists():
+            self.active_update_dialog.refresh_timestamps()
 
     def refresh_ui_table(self):
         """重新計算並填入表格與頂部卡片 (包含日/週/月週期損益與取得批次股息)"""
@@ -557,8 +558,11 @@ class PortfolioApp(tk.Tk):
 
     def _on_fetch_success(self, update_time: str):
         self._is_fetching = False
+        set_update_timestamp("quotes")
         self.refresh_ui_table()
         self.status_lbl.configure(text=f"最後更新時間: {update_time}")
+        if self.active_update_dialog and self.active_update_dialog.winfo_exists():
+            self.active_update_dialog.refresh_timestamps()
 
     def _on_fetch_failed(self, err_msg: str):
         self._is_fetching = False
@@ -646,6 +650,31 @@ class PortfolioApp(tk.Tk):
 
     def on_open_cloud_sync(self):
         CloudSyncDialog(self, on_restored=self._on_position_saved)
+
+    def on_open_data_update(self):
+        """開啟資料更新管理視窗 (手動更新行情/股息/盤後與檢視最後更新時間)"""
+        DataUpdateDialog(self)
+
+    def start_daily_1500_scheduler(self):
+        """啟動每日 15:00 自動定時更新盤後與股息資料監控"""
+        def check_daily_task():
+            now = datetime.now()
+            today_str = now.strftime("%Y-%m-%d")
+            last_run = get_setting("last_daily_1500_run_date", "")
+
+            # 若到了 15:00 (且今天尚未執行過，且為週一至週五交易日)
+            if now.hour == 15 and now.minute >= 0 and last_run != today_str:
+                if now.weekday() < 5:
+                    print(f"[Scheduler] 觸發每日 15:00 盤後與股息自動同步任務...")
+                    set_setting("last_daily_1500_run_date", today_str)
+                    self.status_lbl.configure(text="[定時任務 15:00] 正在自動同步盤後日K與最新除權息公告...")
+                    self.trigger_dividend_update(silent=True)
+                    self.on_update_history_all(silent=True)
+
+            # 每 30 秒輪詢一次
+            self.after(30000, check_daily_task)
+
+        self.after(1000, check_daily_task)
 
     def on_check_online_update(self):
         """使用者手動點擊檢查線上更新"""
@@ -765,7 +794,9 @@ class PortfolioApp(tk.Tk):
 
     def _on_history_update_completed(self, count: int, total_days: int):
         self.is_history_updating = False
-        self.btn_post_market.configure(text="[盤後] 更新歷史資料", state=tk.NORMAL)
+        set_update_timestamp("history")
+        if self.btn_post_market:
+            self.btn_post_market.configure(text="[盤後] 更新歷史資料", state=tk.NORMAL)
         self.history_pbar["value"] = self.history_pbar["maximum"]
         self.history_progress_lbl.configure(
             text=f"✔ 盤後歷史更新完成 (共 {count} 檔，新增 {total_days} 筆日K)", 
@@ -773,11 +804,14 @@ class PortfolioApp(tk.Tk):
         )
         self.benchmarks_cache.clear()
         self.trigger_refresh()
+        if self.active_update_dialog and self.active_update_dialog.winfo_exists():
+            self.active_update_dialog.refresh_timestamps()
         self.after(8000, self._reset_history_progress_ui)
 
     def _on_history_update_failed(self, err: str):
         self.is_history_updating = False
-        self.btn_post_market.configure(text="[盤後] 更新歷史資料", state=tk.NORMAL)
+        if self.btn_post_market:
+            self.btn_post_market.configure(text="[盤後] 更新歷史資料", state=tk.NORMAL)
         self.history_pbar.pack_forget()
         self.history_progress_lbl.configure(text=f"[!] 盤後更新異常: {err}", fg="#ff7875")
         self.after(8000, self._reset_history_progress_ui)
@@ -1068,6 +1102,132 @@ class TradeLotManagerDialog(tk.Toplevel):
         self.reload_lots()
         if self.on_lots_changed:
             self.on_lots_changed()
+
+
+class DataUpdateDialog(tk.Toplevel):
+    """資料更新管理彈窗 (手動更新三個項目與顯示最後更新時間)"""
+    def __init__(self, parent_app):
+        super().__init__(parent_app)
+        self.app = parent_app
+        self.app.active_update_dialog = self
+        self.title("資料更新管理")
+        self.geometry("560x420")
+        self.resizable(False, False)
+        self.configure(bg="#22222a")
+        self.transient(parent_app)
+        self.grab_set()
+
+        self.build_ui()
+        self.refresh_timestamps()
+
+    def build_ui(self):
+        # 頂部提示說明
+        top_frame = tk.Frame(self, bg="#2a2a36", padx=16, pady=12)
+        top_frame.pack(fill=tk.X)
+
+        tk.Label(
+            top_frame,
+            text="[⟳] 資料更新與同步中心",
+            bg="#2a2a36", fg="#ffffff", font=("Microsoft JhengHei UI", 12, "bold")
+        ).pack(anchor="w")
+
+        tk.Label(
+            top_frame,
+            text="自動同步時機：軟體啟動時自動比對 ‧ 每日 15:00 定時同步。\n在此可針對各個項目手動即時刷新：",
+            bg="#2a2a36", fg="#a0a0b0", font=("Microsoft JhengHei UI", 9), justify=tk.LEFT
+        ).pack(anchor="w", pady=(4, 0))
+
+        # 主體內容卡片區
+        content_frame = tk.Frame(self, bg="#22222a", padx=16, pady=12)
+        content_frame.pack(fill=tk.BOTH, expand=True)
+
+        # 1. 即時盤中行情卡片
+        card1 = tk.Frame(content_frame, bg="#1a1a22", padx=12, pady=10, relief="solid", bd=1)
+        card1.pack(fill=tk.X, pady=5)
+
+        self.btn_quote = tk.Button(
+            card1, text="[更新即時行情]", bg="#3a86ff", fg="#ffffff",
+            font=("Microsoft JhengHei UI", 9, "bold"), width=16, relief="flat",
+            command=self.on_refresh_quotes
+        )
+        self.btn_quote.pack(side=tk.LEFT, padx=(0, 12))
+
+        c1_txt = tk.Frame(card1, bg="#1a1a22")
+        c1_txt.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.lbl_quote_time = tk.Label(c1_txt, text="最後更新時間: 讀取中...", bg="#1a1a22", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"))
+        self.lbl_quote_time.pack(anchor="w")
+        tk.Label(c1_txt, text="連線證交所 MIS 查詢持股最新成交價、昨收價與漲跌幅", bg="#1a1a22", fg="#808090", font=("Microsoft JhengHei UI", 8)).pack(anchor="w")
+
+        # 2. 除權息與股利卡片
+        card2 = tk.Frame(content_frame, bg="#1a1a22", padx=12, pady=10, relief="solid", bd=1)
+        card2.pack(fill=tk.X, pady=5)
+
+        self.btn_div = tk.Button(
+            card2, text="[同步除權息資訊]", bg="#2b4c7e", fg="#ffffff",
+            font=("Microsoft JhengHei UI", 9, "bold"), width=16, relief="flat",
+            command=self.on_refresh_dividend
+        )
+        self.btn_div.pack(side=tk.LEFT, padx=(0, 12))
+
+        c2_txt = tk.Frame(card2, bg="#1a1a22")
+        c2_txt.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.lbl_div_time = tk.Label(c2_txt, text="最後更新時間: 讀取中...", bg="#1a1a22", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"))
+        self.lbl_div_time.pack(anchor="w")
+        tk.Label(c2_txt, text="查詢官方公告除息日、配息金額、預估發放月與配息頻率", bg="#1a1a22", fg="#808090", font=("Microsoft JhengHei UI", 8)).pack(anchor="w")
+
+        # 3. 盤後歷史日 K 線卡片
+        card3 = tk.Frame(content_frame, bg="#1a1a22", padx=12, pady=10, relief="solid", bd=1)
+        card3.pack(fill=tk.X, pady=5)
+
+        self.btn_history = tk.Button(
+            card3, text="[更新盤後歷史資料]", bg="#2b4c7e", fg="#ffffff",
+            font=("Microsoft JhengHei UI", 9, "bold"), width=16, relief="flat",
+            command=self.on_refresh_history
+        )
+        self.btn_history.pack(side=tk.LEFT, padx=(0, 12))
+
+        c3_txt = tk.Frame(card3, bg="#1a1a22")
+        c3_txt.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.lbl_hist_time = tk.Label(c3_txt, text="最後更新時間: 讀取中...", bg="#1a1a22", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"))
+        self.lbl_hist_time.pack(anchor="w")
+        tk.Label(c3_txt, text="增量補齊每檔股票每日收盤日K線 (供週/月損益與K線圖計算)", bg="#1a1a22", fg="#808090", font=("Microsoft JhengHei UI", 8)).pack(anchor="w")
+
+        # 底部動作列
+        bot = tk.Frame(self, bg="#22222a", padx=16, pady=10)
+        bot.pack(fill=tk.X, side=tk.BOTTOM)
+
+        tk.Button(bot, text="一鍵全部更新", bg="#52c41a", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), relief="flat", command=self.on_update_all).pack(side=tk.LEFT, ipadx=10, ipady=3)
+        tk.Button(bot, text="關閉", bg="#3a3a46", fg="#ffffff", font=("Microsoft JhengHei UI", 9), relief="flat", command=self.destroy).pack(side=tk.RIGHT, ipadx=12, ipady=3)
+
+    def refresh_timestamps(self):
+        """刷新三個項目各自的最後更新時間顯示"""
+        q_time = get_update_timestamp("quotes")
+        d_time = get_update_timestamp("dividends")
+        h_time = get_update_timestamp("history")
+
+        self.lbl_quote_time.configure(text=f"最後更新時間:  {q_time}")
+        self.lbl_div_time.configure(text=f"最後更新時間:  {d_time}")
+        self.lbl_hist_time.configure(text=f"最後更新時間:  {h_time}")
+
+    def on_refresh_quotes(self):
+        self.btn_quote.configure(state=tk.DISABLED, text="行情更新中...")
+        self.app.trigger_refresh()
+        self.after(1500, lambda: self.btn_quote.configure(state=tk.NORMAL, text="[更新即時行情]"))
+
+    def on_refresh_dividend(self):
+        self.btn_div.configure(state=tk.DISABLED, text="股息同步中...")
+        self.app.trigger_dividend_update(silent=False)
+        self.after(2000, lambda: self.btn_div.configure(state=tk.NORMAL, text="[同步除權息資訊]"))
+
+    def on_refresh_history(self):
+        self.btn_history.configure(state=tk.DISABLED, text="盤後下載中...")
+        self.app.on_update_history_all(silent=False)
+        self.after(2000, lambda: self.btn_history.configure(state=tk.NORMAL, text="[更新盤後歷史資料]"))
+
+    def on_update_all(self):
+        self.on_refresh_quotes()
+        self.on_refresh_dividend()
+        self.on_refresh_history()
 
 
 class SettingsDialog(tk.Toplevel):
