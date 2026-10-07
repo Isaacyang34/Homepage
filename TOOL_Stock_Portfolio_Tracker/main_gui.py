@@ -330,21 +330,29 @@ class PortfolioApp(tk.Tk):
         self.mid_frame.grid_rowconfigure(0, weight=1)
         self.mid_frame.grid_columnconfigure(0, weight=1)
 
-        # 建立選定持股反白時在代碼左側出現的快捷工具框 [✎][－]
+        # 建立選定持股反白時在代碼左側出現的快捷工具框 [✏][刪] (兩者尺寸完全均等)
         self.row_action_frame = tk.Frame(self.tree, bg="#181820", bd=1, relief="solid")
+        self.row_action_frame.grid_columnconfigure(0, weight=1, uniform="row_act_btn")
+        self.row_action_frame.grid_columnconfigure(1, weight=1, uniform="row_act_btn")
+        self.row_action_frame.grid_rowconfigure(0, weight=1)
+
+        # 修改持股按鈕：明確易辨識的標準鉛筆圖示 (✏)
         self.btn_row_edit = tk.Button(
-            self.row_action_frame, text="✎", bg="#3a86ff", fg="#ffffff",
-            font=("Microsoft JhengHei UI", 8, "bold"), relief="flat", padx=3, pady=0,
+            self.row_action_frame, text="✏", bg="#2563eb", fg="#ffffff",
+            activebackground="#1d4ed8", activeforeground="#ffffff",
+            font=("Segoe UI Emoji", 8, "bold"), relief="flat", bd=0, padx=0, pady=0,
             cursor="hand2", command=self.on_edit_position
         )
-        self.btn_row_edit.pack(side=tk.LEFT, padx=(1, 2))
+        self.btn_row_edit.grid(row=0, column=0, sticky="nsew", padx=(1, 1), pady=1)
 
+        # 刪除持股按鈕：中文字 [刪]
         self.btn_row_del = tk.Button(
-            self.row_action_frame, text="－", bg="#ff4d4f", fg="#ffffff",
-            font=("Microsoft JhengHei UI", 8, "bold"), relief="flat", padx=3, pady=0,
+            self.row_action_frame, text="刪", bg="#dc2626", fg="#ffffff",
+            activebackground="#b91c1c", activeforeground="#ffffff",
+            font=("Microsoft JhengHei UI", 8, "bold"), relief="flat", bd=0, padx=0, pady=0,
             cursor="hand2", command=self.on_delete_position
         )
-        self.btn_row_del.pack(side=tk.LEFT, padx=(0, 1))
+        self.btn_row_del.grid(row=0, column=1, sticky="nsew", padx=(1, 1), pady=1)
 
         # 綁定選取反白與點擊/雙擊事件
         self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
@@ -711,10 +719,10 @@ class PortfolioApp(tk.Tk):
         bbox = self.tree.bbox(item_id, column="symbol")
         if bbox:
             x, y, w, h = bbox
-            btn_w = 46
-            btn_h = max(20, h - 4)
+            btn_w = 54
+            btn_h = max(20, min(24, h - 4))
             pos_x = x + 2
-            pos_y = y + 2
+            pos_y = y + (h - btn_h) // 2
             self.row_action_frame.place(x=pos_x, y=pos_y, width=btn_w, height=btn_h)
             self.row_action_frame.lift()
         else:
