@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Optional, Dict, Any, Tuple
 
-APP_VERSION = "V1.0.2.4"
+APP_VERSION = "V1.0.2.5"
 
 # 延遲更新狀態管理 (使用者可選擇「稍後於關閉程式時自動置換」)
 _PENDING_UPDATE: Dict[str, Any] = {
@@ -236,7 +236,7 @@ class UpdateDialog(tk.Toplevel):
         self.minsize(580, 480)
         self.configure(bg="#20202a")
         self.transient(parent)
-        self.grab_set()
+        # 不啟用 grab_set()，確保下載過程中主程式維持 100% 可自由操作與點選
 
         # 設定專屬更新圖示 (徹底消除預設藍色羽毛)
         upd_ico = get_resource_path("update_icon.ico")
@@ -433,6 +433,8 @@ class UpdateDialog(tk.Toplevel):
     def _update_pbar(self, val: int, msg: str):
         self.pbar["value"] = val
         self.lbl_download_status.configure(text=msg)
+        if hasattr(self.parent, "status_lbl") and self.parent.status_lbl:
+            self.parent.status_lbl.configure(text=f"⬇ {msg}")
 
     def _on_download_success(self, target_dir: str, temp_exe: str):
         cloud_ver = self.manifest.get("version", "新版本")
@@ -440,9 +442,11 @@ class UpdateDialog(tk.Toplevel):
         
         self.pbar["value"] = 100
         self.lbl_download_status.configure(
-            text=f"✔ 新版本 ({cloud_ver}) 已下載就緒！您可以選擇「立即重啟更新」或「待關閉時自動置換」：",
+            text=f"✔ 新版本 ({cloud_ver}) 已下載完畢！您可以選擇「馬上更新」或「待關閉主程式後再更新」：",
             fg="#52c41a"
         )
+        if hasattr(self.parent, "status_lbl") and self.parent.status_lbl:
+            self.parent.status_lbl.configure(text=f"✔ 新版本 ({cloud_ver}) 已下載完畢")
 
         # 隱藏下載階段的按鈕
         for btn_name in ('btn_download', 'btn_reinstall', 'btn_cancel', 'btn_close'):
@@ -454,7 +458,7 @@ class UpdateDialog(tk.Toplevel):
 
         # 建立兩個明確操作按鈕供使用者決定何時升級
         self.btn_apply_now = tk.Button(
-            self.bot_frame, text=f"🚀 立即重啟並套用 ({cloud_ver})", bg="#2563eb", fg="#ffffff",
+            self.bot_frame, text=f"🚀 馬上更新 ({cloud_ver})", bg="#2563eb", fg="#ffffff",
             activebackground="#1d4ed8", activeforeground="#ffffff",
             font=("Microsoft JhengHei UI", 10, "bold"), relief="flat", cursor="hand2",
             command=lambda: self._do_apply(target_dir, temp_exe, restart=True)
@@ -462,21 +466,22 @@ class UpdateDialog(tk.Toplevel):
         self.btn_apply_now.pack(side=tk.RIGHT, ipadx=12, ipady=5)
 
         self.btn_apply_later = tk.Button(
-            self.bot_frame, text="稍後更新 (待程式關閉時自動置換)", bg="#334155", fg="#e2e8f0",
+            self.bot_frame, text="稍後更新 (待關閉主程式後再更新)", bg="#334155", fg="#e2e8f0",
             activebackground="#475569", activeforeground="#ffffff",
             font=("Microsoft JhengHei UI", 9), relief="flat", cursor="hand2",
             command=lambda: self._do_defer(target_dir, temp_exe, cloud_ver)
         )
         self.btn_apply_later.pack(side=tk.RIGHT, padx=10, ipadx=10, ipady=5)
 
-        # 主動彈出提示對話框，讓使用者自主決定
+        # 主動彈出提示對話框，詢問使用者是否要馬上更新
+        parent_target = self.parent if (self.parent and self.parent.winfo_exists()) else self
         choice = messagebox.askyesno(
-            "新版本已下載就緒",
-            f"新版本【{cloud_ver}】已成功下載就緒！\n\n"
-            f"您是否要【立即關閉程式並套用更新】？\n\n"
-            f"• 點選【是 (Yes)】：立即儲存並重啟至新版本。\n"
-            f"• 點選【否 (No)】：您可繼續使用當前軟體，系統將在您【下次正常關閉程式時】自動替換升級，完全不中斷手邊工作。",
-            parent=self
+            "軟體更新提醒",
+            f"新版本【{cloud_ver}】已下載完畢！\n\n"
+            f"是否要馬上更新？\n\n"
+            f"• 按【是 (Yes)】：馬上關閉程式並執行更新\n"
+            f"• 按【否 (No)】：等到您關閉主程式後再更新",
+            parent=parent_target
         )
         if choice:
             self._do_apply(target_dir, temp_exe, restart=True)
@@ -496,10 +501,11 @@ class UpdateDialog(tk.Toplevel):
         set_pending_update(target_dir, temp_exe, cloud_ver)
         if hasattr(self.parent, "on_update_deferred"):
             self.parent.on_update_deferred(cloud_ver)
+        parent_target = self.parent if (self.parent and self.parent.winfo_exists()) else self
         messagebox.showinfo(
-            "已排程自動更新",
-            f"已為您排程更新！\n\n新版本【{cloud_ver}】將在您下次正常關閉本軟體時自動無聲置換。\n您現在可以繼續安心操作！",
-            parent=self
+            "已排程更新",
+            f"已記錄更新！\n\n軟體將在您關閉主程式後再自動執行置換。\n您現在可以繼續正常使用！",
+            parent=parent_target
         )
         self.destroy()
 
