@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Optional, Dict, Any, Tuple
 
-APP_VERSION = "V1.0.2.5"
+APP_VERSION = "V1.0.2.6"
 
 # 延遲更新狀態管理 (使用者可選擇「稍後於關閉程式時自動置換」)
 _PENDING_UPDATE: Dict[str, Any] = {
@@ -72,10 +72,13 @@ def apply_update_now(target_dir: str, temp_exe: str, restart: bool = True):
     log_update_debug(f"[APPLY] apply_update_now triggered. PID={current_pid}, restart={restart}")
 
     if restart:
-        restart_action = f"""echo [%DATE% %TIME%] [BATCH] Launching updated {target_exe_name} via Windows Shell (explorer.exe)... >> "%LOG_FILE%"
-explorer.exe "%~dp0{target_exe_name}"
+        restart_action = f"""echo [%DATE% %TIME%] [BATCH] Overwrite succeeded! Waiting 2s for disk cache and antivirus scan release... >> "%LOG_FILE%"
+timeout /t 2 /nobreak > nul
+
+echo [%DATE% %TIME%] [BATCH] Launching updated {target_exe_name} via detached start... >> "%LOG_FILE%"
+start "" "%~dp0{target_exe_name}"
 set LAUNCH_ERR=%errorlevel%
-echo [%DATE% %TIME%] [BATCH] Explorer launched with errorlevel: %LAUNCH_ERR% >> "%LOG_FILE%"
+echo [%DATE% %TIME%] [BATCH] Process started with errorlevel: %LAUNCH_ERR% >> "%LOG_FILE%"
 """
     else:
         restart_action = f"""echo [%DATE% %TIME%] [BATCH] Silent update on app exit completed. Not restarting. >> "%LOG_FILE%"
@@ -92,38 +95,40 @@ echo [%DATE% %TIME%] [BATCH] Working directory: %cd% >> "%LOG_FILE%"
 echo [%DATE% %TIME%] [BATCH] Target PID to terminate: {current_pid} >> "%LOG_FILE%"
 echo [%DATE% %TIME%] [BATCH] Inherited _MEIPASS: '%_MEIPASS%' >> "%LOG_FILE%"
 
-echo [%DATE% %TIME%] [BATCH] Clearing PyInstaller and Python environment variables... >> "%LOG_FILE%"
+echo [%DATE% %TIME%] [BATCH] Resetting PATH and clearing Python/PyInstaller environment... >> "%LOG_FILE%"
 set _MEIPASS=
 set _MEIPASS2=
 set PYTHONHOME=
 set PYTHONPATH=
-echo [%DATE% %TIME%] [BATCH] _MEIPASS after clear: '%_MEIPASS%' >> "%LOG_FILE%"
+set PATH=%SystemRoot%\\system32;%SystemRoot%;%SystemRoot%\\System32\\Wbem;%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\
 
 cd /d "%~dp0"
 echo [%DATE% %TIME%] [BATCH] Changed working dir to: %cd% >> "%LOG_FILE%"
 
 echo [%DATE% %TIME%] [BATCH] Terminating parent PID {current_pid}... >> "%LOG_FILE%"
 taskkill /PID {current_pid} /F >> "%LOG_FILE%" 2>&1
-timeout /t 2 /nobreak > nul
+timeout /t 1 /nobreak > nul
 
 set RETRY=0
 :RETRY_LOOP
 set /a RETRY+=1
-echo [%DATE% %TIME%] [BATCH] Overwrite attempt %RETRY%: Copying "{temp_exe_name}" to "{target_exe_name}"... >> "%LOG_FILE%"
-copy /y "{temp_exe_name}" "{target_exe_name}" >> "%LOG_FILE%" 2>&1
+echo [%DATE% %TIME%] [BATCH] Overwrite attempt %RETRY%: Moving "{temp_exe_name}" to "{target_exe_name}"... >> "%LOG_FILE%"
+move /y "{temp_exe_name}" "{target_exe_name}" >> "%LOG_FILE%" 2>&1
 if errorlevel 1 (
-    echo [%DATE% %TIME%] [BATCH] Overwrite locked, waiting 1s (retry %RETRY%)... >> "%LOG_FILE%"
-    timeout /t 1 /nobreak > nul
-    if %RETRY% leq 10 goto RETRY_LOOP
-    echo [%DATE% %TIME%] [BATCH] FATAL ERROR: Failed to overwrite {target_exe_name} after 10 retries! >> "%LOG_FILE%"
-    exit /b 1
+    echo [%DATE% %TIME%] [BATCH] Move locked, trying copy /y... >> "%LOG_FILE%"
+    copy /y "{temp_exe_name}" "{target_exe_name}" >> "%LOG_FILE%" 2>&1
+    if errorlevel 1 (
+        echo [%DATE% %TIME%] [BATCH] Overwrite locked, waiting 1s (retry %RETRY%)... >> "%LOG_FILE%"
+        timeout /t 1 /nobreak > nul
+        if %RETRY% leq 10 goto RETRY_LOOP
+        echo [%DATE% %TIME%] [BATCH] FATAL ERROR: Failed to overwrite {target_exe_name} after 10 retries! >> "%LOG_FILE%"
+        exit /b 1
+    )
+    del /f /q "{temp_exe_name}" >> "%LOG_FILE%" 2>&1
 )
 
 echo [%DATE% %TIME%] [BATCH] Overwrite succeeded! Target file info: >> "%LOG_FILE%"
 dir "{target_exe_name}" >> "%LOG_FILE%" 2>&1
-
-echo [%DATE% %TIME%] [BATCH] Removing temporary download file... >> "%LOG_FILE%"
-del /f /q "{temp_exe_name}" >> "%LOG_FILE%" 2>&1
 
 {restart_action}
 echo [%DATE% %TIME%] [BATCH] ===== Update Script Completed ===== >> "%LOG_FILE%"
@@ -139,6 +144,11 @@ exit
         clean_env = os.environ.copy()
         clean_env.pop('_MEIPASS2', None)
         clean_env.pop('_MEIPASS', None)
+        clean_env.pop('PYTHONHOME', None)
+        clean_env.pop('PYTHONPATH', None)
+        if 'PATH' in clean_env:
+            parts = clean_env['PATH'].split(os.pathsep)
+            clean_env['PATH'] = os.pathsep.join([p for p in parts if '_MEI' not in p.upper()])
 
         log_update_debug(f"[APPLY] Spawning detached cmd.exe /c apply_update.bat (restart={restart})")
         subprocess.Popen(
@@ -256,6 +266,7 @@ class UpdateDialog(tk.Toplevel):
         self.is_newer = is_newer
         self.is_downloading = False
 
+        self.protocol("WM_DELETE_WINDOW", self._on_dialog_close)
         self.build_ui()
 
     def build_ui(self):
@@ -430,6 +441,22 @@ class UpdateDialog(tk.Toplevel):
             log_update_debug(f"[DOWNLOAD] ERROR: {e}")
             self.after(0, lambda err=str(e): self._on_download_failed(err))
 
+    def _on_dialog_close(self):
+        """處理更新視窗關閉事件：若下載中，提示是否縮小至背景繼續下載"""
+        if self.is_downloading:
+            res = messagebox.askyesno(
+                "背景下載提醒",
+                "新版本更新檔正在下載中。\n\n是否將下載視窗縮小至背景繼續下載？\n\n• 按【是 (Yes)】：視窗縮小至背景下載，下載完成時會主動跳出提醒\n• 按【否 (No)】：取消本次下載並關閉視窗",
+                parent=self
+            )
+            if res:
+                self.withdraw()
+                return
+            else:
+                self.destroy()
+                return
+        self.destroy()
+
     def _update_pbar(self, val: int, msg: str):
         self.pbar["value"] = val
         self.lbl_download_status.configure(text=msg)
@@ -439,6 +466,14 @@ class UpdateDialog(tk.Toplevel):
     def _on_download_success(self, target_dir: str, temp_exe: str):
         cloud_ver = self.manifest.get("version", "新版本")
         log_update_debug(f"[DOWNLOAD_SUCCESS] temp_exe={temp_exe}, size={os.path.getsize(temp_exe)} bytes")
+        
+        # 若視窗先前被縮小至背景，重新顯現並置頂提醒使用者
+        try:
+            self.deiconify()
+            self.lift()
+            self.focus_force()
+        except Exception:
+            pass
         
         self.pbar["value"] = 100
         self.lbl_download_status.configure(
