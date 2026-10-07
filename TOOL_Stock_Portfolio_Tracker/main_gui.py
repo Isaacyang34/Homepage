@@ -900,7 +900,8 @@ class PortfolioApp(tk.Tk):
             return
 
         self.is_history_updating = True
-        self.btn_post_market.configure(text="[盤後] 更新中...", state=tk.DISABLED)
+        if self.btn_post_market:
+            self.btn_post_market.configure(text="[盤後] 更新中...", state=tk.DISABLED)
         self.history_pbar.pack(side=tk.RIGHT, padx=8, pady=3)
         self.history_pbar["value"] = 0
         self.history_pbar["maximum"] = len(self.positions)
@@ -934,16 +935,17 @@ class PortfolioApp(tk.Tk):
 
     def _update_history_step(self, cur_idx: int, total: int, sym: str, name: str):
         self.history_pbar["value"] = cur_idx - 1
-        self.history_progress_lbl.configure(
-            text=f"[盤後更新中 {cur_idx}/{total}] 正在同步 {sym} {name}...", 
-            fg="#52c41a"
-        )
+        msg = f"[盤後更新中 {cur_idx}/{total}] 正在同步 {sym} {name}..."
+        self.history_progress_lbl.configure(text=msg, fg="#52c41a")
+        if self.active_update_dialog and self.active_update_dialog.winfo_exists():
+            self.active_update_dialog.lbl_hist_time.configure(text=f"下載進度: {sym} {name} ({cur_idx}/{total})")
 
     def _update_history_progress_text(self, msg: str):
         # 顯示更詳細的細項進度，例如月份或狀態
-        if len(msg) > 42:
-            msg = msg[:39] + "..."
-        self.history_progress_lbl.configure(text=msg, fg="#87d068")
+        disp_msg = msg if len(msg) <= 42 else msg[:39] + "..."
+        self.history_progress_lbl.configure(text=disp_msg, fg="#87d068")
+        if self.active_update_dialog and self.active_update_dialog.winfo_exists():
+            self.active_update_dialog.lbl_hist_time.configure(text=f"進度: {disp_msg}")
 
     def _on_history_update_completed(self, count: int, total_days: int):
         self.is_history_updating = False
@@ -958,7 +960,7 @@ class PortfolioApp(tk.Tk):
         self.benchmarks_cache.clear()
         self.trigger_refresh()
         if self.active_update_dialog and self.active_update_dialog.winfo_exists():
-            self.active_update_dialog.refresh_timestamps()
+            self.active_update_dialog.on_history_sync_done()
         self.after(8000, self._reset_history_progress_ui)
 
     def _on_history_update_failed(self, err: str):
@@ -967,6 +969,8 @@ class PortfolioApp(tk.Tk):
             self.btn_post_market.configure(text="[盤後] 更新歷史資料", state=tk.NORMAL)
         self.history_pbar.pack_forget()
         self.history_progress_lbl.configure(text=f"[!] 盤後更新異常: {err}", fg="#ff7875")
+        if self.active_update_dialog and self.active_update_dialog.winfo_exists():
+            self.active_update_dialog.on_history_sync_done()
         self.after(8000, self._reset_history_progress_ui)
 
     def _reset_history_progress_ui(self):
@@ -1473,6 +1477,13 @@ class DataUpdateDialog(tk.Toplevel):
         self.transient(parent_app)
         self.grab_set()
 
+        try:
+            icon_ico = get_resource_path("app_icon.ico")
+            if os.path.exists(icon_ico):
+                self.iconbitmap(icon_ico)
+        except Exception:
+            pass
+
         self.build_ui()
         self.refresh_timestamps()
 
@@ -1576,9 +1587,25 @@ class DataUpdateDialog(tk.Toplevel):
         self.after(2000, lambda: self.btn_div.configure(state=tk.NORMAL, text="[同步除權息資訊]"))
 
     def on_refresh_history(self):
+        if self.app.is_history_updating:
+            messagebox.showinfo("提示", "盤後歷史資料已在背景下載中，請稍候...", parent=self)
+            return
         self.btn_history.configure(state=tk.DISABLED, text="盤後下載中...")
+        self.lbl_hist_time.configure(text="最後更新時間:  正在連線證交所下載日K線...")
         self.app.on_update_history_all(silent=False)
-        self.after(2000, lambda: self.btn_history.configure(state=tk.NORMAL, text="[更新盤後歷史資料]"))
+        # 防呆保險：若 45 秒後仍未完成，自動解除按鈕禁用
+        self.after(45000, self._ensure_history_button_released)
+
+    def on_history_sync_done(self):
+        """由背景更新完成/失敗後安全回調"""
+        if self.winfo_exists():
+            self.btn_history.configure(state=tk.NORMAL, text="[更新盤後歷史資料]")
+            self.refresh_timestamps()
+
+    def _ensure_history_button_released(self):
+        if self.winfo_exists() and not self.app.is_history_updating:
+            self.btn_history.configure(state=tk.NORMAL, text="[更新盤後歷史資料]")
+            self.refresh_timestamps()
 
     def on_update_all(self):
         self.on_refresh_quotes()
