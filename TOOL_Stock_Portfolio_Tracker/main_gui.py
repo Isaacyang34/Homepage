@@ -92,20 +92,24 @@ class PortfolioApp(tk.Tk):
         self.geometry("1420x820")
         self.minsize(1120, 640)
 
-        # 設定視窗左上角與工作列專屬 Icon
+        # 設定 Windows 應用程式專屬 AppUserModelID (確保工作列與標題列永久綁定專屬 ICON)
+        try:
+            import ctypes
+            myappid = 'isaacyang.stockportfoliotracker.app.v1'
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+        except Exception:
+            pass
+
+        # 設定視窗左上角與工作列專屬金融美金圖示 (Windows 原生 .ico，徹底杜絕 Tkinter 預設藍色羽毛)
         icon_path = get_resource_path("app_icon.ico")
-        png_icon_path = get_resource_path("app_icon.png")
         if os.path.exists(icon_path):
             try:
-                self.iconbitmap(default=icon_path)
+                self.iconbitmap(icon_path)
             except Exception:
-                pass
-        if os.path.exists(png_icon_path):
-            try:
-                self._app_icon_img = tk.PhotoImage(file=png_icon_path)
-                self.iconphoto(True, self._app_icon_img)
-            except Exception:
-                pass
+                try:
+                    self.iconbitmap(default=icon_path)
+                except Exception:
+                    pass
 
         # 初始化資料庫
         init_db()
