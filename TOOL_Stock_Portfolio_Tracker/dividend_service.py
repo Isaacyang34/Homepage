@@ -105,6 +105,9 @@ class DividendService:
 
         # 3. 儲存至資料庫
         if parsed and parsed.get("annual_div", 0) > 0:
+            import json
+            raw_evs = cls._raw_div_events_cache.get(sym, [])
+            ev_json = json.dumps([[dt.strftime("%Y-%m-%d"), amt] for dt, amt in raw_evs]) if raw_evs else ""
             cls.save_dividend_record(
                 sym, 
                 cash_div=parsed["annual_div"], 
@@ -114,7 +117,8 @@ class DividendService:
                 frequency=parsed.get("frequency", "年配"),
                 status=parsed["status"], 
                 div_year=str(parsed.get("dividend_year", current_year)), 
-                is_announced=parsed["is_announced"]
+                is_announced=parsed["is_announced"],
+                raw_events=ev_json
             )
         else:
             # 嘗試讀取本地歷史紀錄
@@ -150,6 +154,57 @@ class DividendService:
         parsed["hist_div_received"] = hist_div_total
         parsed["lot_count"] = len(lots)
 
+        return parsed
+
+    @classmethod
+    def get_cached_or_db_dividend(cls, symbol: str) -> Dict[str, Any]:
+        """極速離線讀取：直接自本地 SQLite 取得快取資料，保證 0 毫秒極速開窗 (絕不發起網路請求)"""
+        sym = symbol.strip().upper()
+        today = datetime.date.today()
+        current_year = today.year
+        last_year = current_year - 1
+
+        db_record = cls.get_db_dividend(sym)
+        if db_record and db_record.get("cash_dividend", 0) > 0:
+            parsed = {
+                "symbol": sym,
+                "latest_ex_date": db_record.get("ex_date", f"留存{last_year}"),
+                "single_amt": db_record.get("single_dividend", db_record.get("cash_dividend", 0.0)),
+                "annual_div": db_record.get("cash_dividend", 0.0),
+                "payment_month": db_record.get("payment_month", ""),
+                "frequency": db_record.get("frequency", "年配"),
+                "status": db_record.get("status", f"留存{last_year}年數據"),
+                "dividend_year": db_record.get("dividend_year", str(last_year)),
+                "is_announced": db_record.get("is_announced", 0)
+            }
+            # 嘗試反序列化 raw_events 快取
+            raw_ev_str = db_record.get("raw_events", "")
+            if raw_ev_str and sym not in cls._raw_div_events_cache:
+                try:
+                    import json
+                    ev_list = json.loads(raw_ev_str)
+                    cls._raw_div_events_cache[sym] = [
+                        (datetime.date.fromisoformat(item[0]), float(item[1])) for item in ev_list
+                    ]
+                except Exception:
+                    pass
+        else:
+            parsed = {
+                "symbol": sym,
+                "latest_ex_date": "無",
+                "single_amt": 0.0,
+                "annual_div": 0.0,
+                "payment_month": "--",
+                "frequency": "--",
+                "status": "等待更新",
+                "dividend_year": str(last_year),
+                "is_announced": 0
+            }
+
+        lots = get_trade_lots(sym)
+        hist_div_total, lot_calc_count = cls.calc_historical_received(sym, lots)
+        parsed["hist_div_received"] = hist_div_total
+        parsed["lot_count"] = len(lots)
         return parsed
 
     @classmethod
@@ -261,15 +316,26 @@ class DividendService:
         """
         依據買入取得時間批次，計算歷年已領取歷史現金股利總額
         若無任何取得時間明細，回傳 (0.0, 0)
+        純本地運算，絕不在主線程進行阻塞式網路請求
         """
         if not trade_lots:
             return 0.0, 0
 
-        events = cls._raw_div_events_cache.get(symbol)
+        sym = symbol.strip().upper()
+        events = cls._raw_div_events_cache.get(sym)
         if not events:
-            # 嘗試重新取得
-            cls._fetch_dividend_from_yahoo_api(symbol, "TW")
-            events = cls._raw_div_events_cache.get(symbol, [])
+            # 嘗試自本地 SQLite dividend_records 讀取持久化的 raw_events (0毫秒)
+            db_record = cls.get_db_dividend(sym)
+            if db_record and db_record.get("raw_events"):
+                try:
+                    import json
+                    ev_list = json.loads(db_record["raw_events"])
+                    events = [
+                        (datetime.date.fromisoformat(item[0]), float(item[1])) for item in ev_list
+                    ]
+                    cls._raw_div_events_cache[sym] = events
+                except Exception:
+                    pass
 
         if not events:
             return 0.0, len(trade_lots)
@@ -303,13 +369,13 @@ class DividendService:
 
     @classmethod
     def save_dividend_record(cls, symbol: str, cash_div: float, single_div: float, ex_date: str, 
-                             payment_month: str, frequency: str, status: str, div_year: str, is_announced: int):
+                             payment_month: str, frequency: str, status: str, div_year: str, is_announced: int, raw_events: str = ""):
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO dividend_records (symbol, cash_dividend, single_dividend, ex_date, payment_month, frequency, status, dividend_year, is_announced, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO dividend_records (symbol, cash_dividend, single_dividend, ex_date, payment_month, frequency, status, dividend_year, is_announced, raw_events, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(symbol) DO UPDATE SET
                     cash_dividend = excluded.cash_dividend,
                     single_dividend = excluded.single_dividend,
@@ -319,6 +385,7 @@ class DividendService:
                     status = excluded.status,
                     dividend_year = excluded.dividend_year,
                     is_announced = excluded.is_announced,
+                    raw_events = CASE WHEN excluded.raw_events != '' THEN excluded.raw_events ELSE dividend_records.raw_events END,
                     updated_at = excluded.updated_at
-            """, (symbol.upper(), cash_div, single_div, ex_date, payment_month, frequency, status, div_year, is_announced, now_str))
+            """, (symbol.upper(), cash_div, single_div, ex_date, payment_month, frequency, status, div_year, is_announced, raw_events, now_str))
             conn.commit()

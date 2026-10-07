@@ -88,7 +88,8 @@ def init_db():
         for col_def in [
             ("single_dividend", "REAL DEFAULT 0.0"),
             ("payment_month", "TEXT DEFAULT ''"),
-            ("frequency", "TEXT DEFAULT ''")
+            ("frequency", "TEXT DEFAULT ''"),
+            ("raw_events", "TEXT DEFAULT ''")
         ]:
             try:
                 cursor.execute(f"ALTER TABLE dividend_records ADD COLUMN {col_def[0]} {col_def[1]}")
@@ -182,6 +183,19 @@ def add_trade_lot(symbol: str, acquire_date: str, shares: float, price: float, f
     # 自動同步匯總回 portfolio
     sync_portfolio_from_lots(sym)
     return last_id
+
+def update_trade_lot(lot_id: int, symbol: str, acquire_date: str, shares: float, price: float, fee: float = 0.0, note: str = ""):
+    """修改特定買入批次"""
+    sym = symbol.strip().upper()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE trade_lots 
+            SET acquire_date = ?, shares = ?, price = ?, fee = ?, note = ?
+            WHERE id = ? AND symbol = ?
+        """, (acquire_date.strip(), shares, price, fee, note.strip(), lot_id, sym))
+        conn.commit()
+    sync_portfolio_from_lots(sym)
 
 def delete_trade_lot(lot_id: int, symbol: str):
     """刪除特定批次"""

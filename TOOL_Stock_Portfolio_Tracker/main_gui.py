@@ -18,7 +18,7 @@ def get_resource_path(relative_path: str) -> str:
 from database import (
     init_db, get_all_positions, add_position, update_position, 
     delete_position, get_history_kline, get_setting, set_setting,
-    get_trade_lots, add_trade_lot, delete_trade_lot, get_price_benchmarks,
+    get_trade_lots, add_trade_lot, update_trade_lot, delete_trade_lot, get_price_benchmarks,
     get_visible_columns, set_visible_columns, get_visible_cards, set_visible_cards,
     get_update_timestamp, set_update_timestamp,
     get_theme_settings, set_theme_settings, DEFAULT_THEME_SETTINGS,
@@ -46,6 +46,130 @@ def clean_number(val_str: str, default: float = 0.0) -> float:
         return float(s)
     except ValueError:
         return default
+
+def enable_numeric_input_guard(entry: tk.Entry, allow_decimal: bool = True):
+    """
+    數值欄位專屬防護機制：
+    1. 專屬綁定右側九宮格數字鍵盤小數點 (<KP_Decimal>) 與主鍵盤點號 (<period>)，
+       不管 Windows 系統語系將小數點識別為點或逗號、也不管中文輸入法狀態，直接強制插入半形 '.' 並中斷預設冒泡。
+    2. 透過 Win32 ImmAssociateContext 與 ImmSetOpenStatus 深入視窗頂層 (GA_ROOT) 關閉輸入法 (IME)。
+    3. <KeyRelease> 即時字元洗淨器：若輸入法組合送出全形數字 (０-９)、全形句號 (。/．/·) 或逗號 (,)，
+       立即自動清洗替換為標準半形數字與小數點，並確保游標位置不遺失。
+    """
+    def disable_ime(event=None):
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            imm32 = ctypes.windll.imm32
+            h_entry = entry.winfo_id()
+            h_root = user32.GetAncestor(h_entry, 3) if h_entry else 0  # 3 = GA_ROOT
+            for h in [h_entry, h_root]:
+                if not h:
+                    continue
+                imc = imm32.ImmGetContext(h)
+                if imc:
+                    imm32.ImmSetOpenStatus(imc, 0)
+                    imm32.ImmReleaseContext(h, imc)
+                imm32.ImmAssociateContext(h, 0)
+        except Exception:
+            pass
+
+    def on_kp_decimal(event):
+        """專門處理九宮格數字鍵盤的小數點 (KP_Decimal)"""
+        if not allow_decimal:
+            return "break"
+        cur = entry.get()
+        if "." not in cur or entry.selection_present():
+            # 若已有選取反白區塊，先刪除選取再插入
+            if entry.selection_present():
+                try:
+                    entry.delete(tk.SEL_FIRST, tk.SEL_LAST)
+                except Exception:
+                    pass
+            entry.insert(tk.INSERT, ".")
+        return "break"
+
+    def on_key_press(event):
+        char = event.char
+        keysym = event.keysym
+
+        # 若按下主鍵盤 period 或數字鍵盤 KP_Decimal
+        if keysym in ["KP_Decimal", "period"] or char == ".":
+            if not allow_decimal:
+                return "break"
+            cur = entry.get()
+            if "." not in cur or entry.selection_present():
+                if entry.selection_present():
+                    try:
+                        entry.delete(tk.SEL_FIRST, tk.SEL_LAST)
+                    except Exception:
+                        pass
+                entry.insert(tk.INSERT, ".")
+            return "break"
+
+        # 攔截全形數字 ０-９ (0xFF10 - 0xFF19) 自動轉半形
+        if char and "０" <= char <= "９":
+            digit = chr(ord(char) - 0xFEE0)
+            entry.insert(tk.INSERT, digit)
+            return "break"
+
+        # 攔截全形標點 (。/．/·/・/、)
+        if char in ["。", "．", "·", "・", "、"]:
+            if allow_decimal:
+                cur = entry.get()
+                if "." not in cur or entry.selection_present():
+                    if entry.selection_present():
+                        try:
+                            entry.delete(tk.SEL_FIRST, tk.SEL_LAST)
+                        except Exception:
+                            pass
+                    entry.insert(tk.INSERT, ".")
+            return "break"
+
+    def on_key_release(event):
+        """防止微軟輸入法在 Enter 確認送出文字後混入全形符號或逗點，即時進行文字淨化"""
+        cur = entry.get()
+        if not cur:
+            return
+
+        cleaned = []
+        has_dot = False
+        changed = False
+
+        for ch in cur:
+            if "０" <= ch <= "９":
+                cleaned.append(chr(ord(ch) - 0xFEE0))
+                changed = True
+            elif ch in ["。", "．", "·", "・", "、", "."]:
+                if allow_decimal and not has_dot:
+                    cleaned.append(".")
+                    has_dot = True
+                else:
+                    changed = True
+                if ch != ".":
+                    changed = True
+            elif ch.isdigit():
+                cleaned.append(ch)
+            elif ch == "-" and len(cleaned) == 0:
+                cleaned.append("-")
+            else:
+                # 過濾所有其他注音符號或非數字
+                changed = True
+
+        if changed:
+            new_text = "".join(cleaned)
+            idx = entry.index(tk.INSERT)
+            entry.delete(0, tk.END)
+            entry.insert(0, new_text)
+            entry.icursor(min(idx, len(new_text)))
+
+    # 綁定焦點、滑鼠點擊與鍵盤事件
+    entry.bind("<FocusIn>", disable_ime, add="+")
+    entry.bind("<Button-1>", disable_ime, add="+")
+    entry.bind("<KP_Decimal>", on_kp_decimal)
+    entry.bind("<KeyPress>", on_key_press)
+    entry.bind("<KeyRelease>", on_key_release)
+    entry.after(150, disable_ime)
 
 # 欄位完整定義清單 (欄位ID, 顯示名稱, 預設寬度, 對齊方式, 分類)
 ALL_COLUMN_SPECS = [
@@ -87,8 +211,10 @@ ALL_CARD_SPECS = [
 ]
 
 class PortfolioApp(tk.Tk):
-    def __init__(self, preloaded_quotes: Optional[Dict[str, Dict[str, Any]]] = None):
+    def __init__(self, preloaded_quotes: Optional[Dict[str, Dict[str, Any]]] = None, preloaded_divs: Optional[Dict[str, Dict[str, Any]]] = None):
         super().__init__()
+        # 關鍵核心：啟動時先隱藏主視窗 (withdraw)，杜絕 Windows 繪製空白白色畫布與未響應殘影！
+        self.withdraw()
         self.title(f"本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker) {APP_VERSION}")
         self.geometry("1420x820")
         self.minsize(1120, 640)
@@ -118,7 +244,7 @@ class PortfolioApp(tk.Tk):
         self.quote_service = QuoteService()
         self.positions: List[Dict[str, Any]] = []
         self.latest_quotes: Dict[str, Dict[str, Any]] = dict(preloaded_quotes) if preloaded_quotes else {}
-        self.dividend_cache: Dict[str, Dict[str, Any]] = {}
+        self.dividend_cache: Dict[str, Dict[str, Any]] = dict(preloaded_divs) if preloaded_divs else {}
         self.benchmarks_cache: Dict[str, Dict[str, float]] = {}
 
         self.auto_refresh_active = True
@@ -141,7 +267,20 @@ class PortfolioApp(tk.Tk):
 
         # 初始載入庫存與立即繪製表格 (開窗瞬間秒顯持股資訊，0秒空白等待)
         self.reload_positions()
+
+        # 預先自本地 SQLite 補齊所有持股的股息快取 (極速純本地讀取，0 毫秒，絕無網路請求)
+        for pos in self.positions:
+            sym = pos["symbol"].upper()
+            if sym not in self.dividend_cache:
+                self.dividend_cache[sym] = DividendService.get_cached_or_db_dividend(sym)
+
         self.refresh_ui_table()
+
+        # 完成所有 UI 元件與深色主題佈局後，強制更新繪圖緩衝區並秒級亮出主視窗 (0 秒白屏)
+        self.update_idletasks()
+        self.deiconify()
+        self.lift()
+        self.focus_force()
 
         if self.latest_quotes:
             now_str = datetime.now().strftime("%H:%M:%S")
@@ -492,8 +631,8 @@ class PortfolioApp(tk.Tk):
                 self.benchmarks_cache[sym] = get_price_benchmarks(sym, quote["current_price"])
             benchmarks = self.benchmarks_cache[sym]
 
-            # 取得股息資訊 (含頻率、發放月、依批次計算已領歷史股息)
-            div_info = self.dividend_cache.get(sym) or DividendService.get_stock_dividend_info(sym, pos.get("market", "TW"))
+            # 取得股息資訊 (含頻率、發放月、依批次計算已領歷史股息，純本地或記憶體快取，絕不卡住 UI 線程)
+            div_info = self.dividend_cache.get(sym) or DividendService.get_cached_or_db_dividend(sym)
 
             pnl = calculate_position_pnl(pos, quote, benchmarks, div_info)
             pnl["id"] = pos["id"]
@@ -1042,6 +1181,7 @@ class PositionEditDialog(tk.Toplevel):
             "is_etf": pos["is_etf"] if pos else 0
         }
 
+        self.editing_lot_id = None
         self.build_ui()
         if self.pos:
             self.trigger_detect(self.pos["symbol"])
@@ -1075,19 +1215,22 @@ class PositionEditDialog(tk.Toplevel):
 
         tk.Label(r2, text="持有總股數:", bg="#262633", fg="#ffffff", font=("Microsoft JhengHei UI", 9)).grid(row=0, column=0, sticky="w", pady=2)
         self.ent_shares = tk.Entry(r2, bg="#1e1e28", fg="#ffffff", insertbackground="#ffffff", font=("Microsoft JhengHei UI", 10), width=12, relief="flat")
-        self.ent_shares.insert(0, str(self.pos["shares"]) if self.pos else "1000")
+        self.ent_shares.insert(0, str(self.pos["shares"]) if self.pos else "")
         self.ent_shares.grid(row=0, column=1, padx=(6, 16), pady=2, ipady=2)
+        enable_numeric_input_guard(self.ent_shares, allow_decimal=False)
 
         tk.Label(r2, text="買入成本均價:", bg="#262633", fg="#ffffff", font=("Microsoft JhengHei UI", 9)).grid(row=0, column=2, sticky="w", pady=2)
         self.ent_price = tk.Entry(r2, bg="#1e1e28", fg="#ffffff", insertbackground="#ffffff", font=("Microsoft JhengHei UI", 10), width=12, relief="flat")
         if self.pos:
             self.ent_price.insert(0, str(self.pos["cost_price"]))
         self.ent_price.grid(row=0, column=3, padx=(6, 16), pady=2, ipady=2)
+        enable_numeric_input_guard(self.ent_price, allow_decimal=True)
 
         tk.Label(r2, text="手續費折扣:", bg="#262633", fg="#ffffff", font=("Microsoft JhengHei UI", 9)).grid(row=0, column=4, sticky="w", pady=2)
         self.ent_discount = tk.Entry(r2, bg="#1e1e28", fg="#ffffff", insertbackground="#ffffff", font=("Microsoft JhengHei UI", 10), width=8, relief="flat")
         self.ent_discount.insert(0, str(self.pos["fee_discount"]) if self.pos else "0.6")
         self.ent_discount.grid(row=0, column=5, padx=(6, 16), pady=2, ipady=2)
+        enable_numeric_input_guard(self.ent_discount, allow_decimal=True)
 
         tk.Label(r2, text="備註:", bg="#262633", fg="#ffffff", font=("Microsoft JhengHei UI", 9)).grid(row=0, column=6, sticky="w", pady=2)
         self.ent_note = tk.Entry(r2, bg="#1e1e28", fg="#ffffff", insertbackground="#ffffff", font=("Microsoft JhengHei UI", 10), width=14, relief="flat")
@@ -1128,8 +1271,9 @@ class PositionEditDialog(tk.Toplevel):
 
         self.lot_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         lot_vsb.pack(side=tk.RIGHT, fill=tk.Y)
+        self.lot_tree.bind("<Double-1>", lambda e: self.on_start_edit_lot())
 
-        # 快速新增批次輸入列
+        # 快速新增/修改批次輸入列
         add_box = tk.Frame(self.lot_frame, bg="#262633")
         add_box.pack(fill=tk.X, pady=4)
 
@@ -1142,19 +1286,27 @@ class PositionEditDialog(tk.Toplevel):
         self.ent_lot_shares = tk.Entry(add_box, width=9, font=("Microsoft JhengHei UI", 9), bg="#1e1e28", fg="#ffffff", relief="flat")
         self.ent_lot_shares.insert(0, "1000")
         self.ent_lot_shares.pack(side=tk.LEFT, padx=4, ipady=1)
+        enable_numeric_input_guard(self.ent_lot_shares, allow_decimal=False)
 
         tk.Label(add_box, text="單價:", bg="#262633", fg="#ffffff", font=("Microsoft JhengHei UI", 9)).pack(side=tk.LEFT, padx=(4, 0))
         self.ent_lot_price = tk.Entry(add_box, width=9, font=("Microsoft JhengHei UI", 9), bg="#1e1e28", fg="#ffffff", relief="flat")
         if self.pos:
             self.ent_lot_price.insert(0, str(self.pos["cost_price"]))
         self.ent_lot_price.pack(side=tk.LEFT, padx=4, ipady=1)
+        enable_numeric_input_guard(self.ent_lot_price, allow_decimal=True)
+        self.ent_lot_price.bind("<Return>", lambda e: self.on_add_lot())
+        self.ent_lot_price.bind("<KP_Enter>", lambda e: self.on_add_lot())
 
         tk.Label(add_box, text="備註:", bg="#262633", fg="#ffffff", font=("Microsoft JhengHei UI", 9)).pack(side=tk.LEFT, padx=(4, 0))
         self.ent_lot_note = tk.Entry(add_box, width=12, font=("Microsoft JhengHei UI", 9), bg="#1e1e28", fg="#ffffff", relief="flat")
         self.ent_lot_note.pack(side=tk.LEFT, padx=4, ipady=1)
+        self.ent_lot_note.bind("<Return>", lambda e: self.on_add_lot())
+        self.ent_lot_note.bind("<KP_Enter>", lambda e: self.on_add_lot())
 
-        btn_add_lot = tk.Button(add_box, text="[+] 新增此批次", bg="#3a86ff", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), relief="flat", command=self.on_add_lot)
-        btn_add_lot.pack(side=tk.LEFT, padx=8)
+        self.btn_add_lot = tk.Button(add_box, text="[+] 新增此批次", bg="#3a86ff", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), relief="flat", command=self.on_add_lot)
+        self.btn_add_lot.pack(side=tk.LEFT, padx=6)
+
+        self.btn_cancel_lot_edit = tk.Button(add_box, text="[✕ 放棄修改]", bg="#4a4a5a", fg="#ffffff", font=("Microsoft JhengHei UI", 9), relief="flat", command=self.on_cancel_edit_lot)
 
         # 批次工具與統計資訊條
         lot_bar = tk.Frame(self.lot_frame, bg="#262633")
@@ -1168,6 +1320,9 @@ class PositionEditDialog(tk.Toplevel):
 
         btn_del_lot = tk.Button(lot_bar, text="[-] 刪除選取批次", bg="#ff4d4f", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=self.on_delete_selected_lot)
         btn_del_lot.pack(side=tk.RIGHT, padx=4)
+
+        btn_edit_lot = tk.Button(lot_bar, text="[✏ 編輯修改選取批次]", bg="#d97706", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=self.on_start_edit_lot)
+        btn_edit_lot.pack(side=tk.RIGHT, padx=4)
 
         # ==========================================
         # 3. 底部動作列
@@ -1185,11 +1340,13 @@ class PositionEditDialog(tk.Toplevel):
         val = self.ent_symbol.get().strip().upper()
         if len(val) >= 4 or (val.isalpha() and len(val) >= 2):
             self.trigger_detect(val)
+            self.reload_lots()
 
     def on_symbol_focus_out(self, event):
         val = self.ent_symbol.get().strip().upper()
         if val:
             self.trigger_detect(val)
+            self.reload_lots()
 
     def trigger_detect(self, val: str):
         def worker():
@@ -1199,7 +1356,7 @@ class PositionEditDialog(tk.Toplevel):
         threading.Thread(target=worker, daemon=True).start()
 
     def reload_lots(self):
-        """讀取並重新繪製買入批次明細"""
+        """讀取並重新繪製買入批次明細，且自動將加權平均均價與總股數同步回填至上方欄位"""
         sym = self.ent_symbol.get().strip().upper()
         if not sym:
             return
@@ -1210,9 +1367,9 @@ class PositionEditDialog(tk.Toplevel):
         total_val = sum(l["shares"] * l["price"] for l in lots)
         avg_price = (total_val / total_shares) if total_shares > 0 else 0.0
 
-        for l in lots:
+        for idx, l in enumerate(lots, start=1):
             self.lot_tree.insert("", tk.END, iid=str(l["id"]), values=(
-                l["id"],
+                idx,
                 l["acquire_date"],
                 f"{l['shares']:,.0f}" if l["shares"].is_integer() else f"{l['shares']:,.2f}",
                 f"{l['price']:,.2f}",
@@ -1230,8 +1387,59 @@ class PositionEditDialog(tk.Toplevel):
             summary_text = "尚未登記取得時間批次 (可在上方輸入取得日期與股數加入)"
         self.lbl_lot_summary.configure(text=summary_text)
 
+        # 核心優化：只要下方有登記取得批次，就自動幫使用者回填上方的總股數與加權均價，免除手動重打
+        if total_shares > 0:
+            self.ent_shares.delete(0, tk.END)
+            self.ent_shares.insert(0, str(int(total_shares) if total_shares.is_integer() else total_shares))
+            self.ent_price.delete(0, tk.END)
+            self.ent_price.insert(0, f"{avg_price:.2f}")
+
+    def on_start_edit_lot(self):
+        """點擊編輯或雙擊批次行時，載入該批次進行修改"""
+        sel = self.lot_tree.selection()
+        if not sel:
+            messagebox.showinfo("提示", "請先點選欲修改的買入批次！", parent=self)
+            return
+        lot_id = int(sel[0])
+        sym = self.ent_symbol.get().strip().upper()
+        lots = get_trade_lots(sym)
+        target = next((l for l in lots if l["id"] == lot_id), None)
+        if not target:
+            return
+
+        self.editing_lot_id = lot_id
+        self.ent_lot_date.delete(0, tk.END)
+        self.ent_lot_date.insert(0, target["acquire_date"])
+
+        self.ent_lot_shares.delete(0, tk.END)
+        sh_val = target["shares"]
+        self.ent_lot_shares.insert(0, str(int(sh_val) if sh_val.is_integer() else sh_val))
+
+        self.ent_lot_price.delete(0, tk.END)
+        self.ent_lot_price.insert(0, str(target["price"]))
+
+        self.ent_lot_note.delete(0, tk.END)
+        self.ent_lot_note.insert(0, target.get("note", ""))
+
+        self.btn_add_lot.configure(text="[💾 儲存修改批次]", bg="#f59e0b", activebackground="#d97706")
+        self.btn_cancel_lot_edit.pack(side=tk.LEFT, padx=4)
+
+    def on_cancel_edit_lot(self):
+        """取消批次修改模式，重設輸入欄位"""
+        self.editing_lot_id = None
+        self.btn_add_lot.configure(text="[+] 新增此批次", bg="#3a86ff", activebackground="#2563eb")
+        self.btn_cancel_lot_edit.pack_forget()
+        self.ent_lot_date.delete(0, tk.END)
+        self.ent_lot_date.insert(0, datetime.now().strftime("%Y-%m-%d"))
+        self.ent_lot_shares.delete(0, tk.END)
+        self.ent_lot_shares.insert(0, "1000")
+        self.ent_lot_price.delete(0, tk.END)
+        if self.pos:
+            self.ent_lot_price.insert(0, str(self.pos["cost_price"]))
+        self.ent_lot_note.delete(0, tk.END)
+
     def on_add_lot(self):
-        """新增單筆買入批次"""
+        """新增或儲存修改買入批次"""
         sym = self.ent_symbol.get().strip().upper()
         if not sym:
             messagebox.showerror("錯誤", "請先輸入上方股票代碼！", parent=self)
@@ -1255,8 +1463,22 @@ class PositionEditDialog(tk.Toplevel):
             return
 
         fee = max(20.0, round(shares * price * 0.001425 * disc, 0))
-        add_trade_lot(sym, dt_str, shares, price, fee, note)
+
+        if self.editing_lot_id is not None:
+            update_trade_lot(self.editing_lot_id, sym, dt_str, shares, price, fee, note)
+            self.on_cancel_edit_lot()
+        else:
+            add_trade_lot(sym, dt_str, shares, price, fee, note)
+            self.ent_lot_note.delete(0, tk.END)
+
         self.reload_lots()
+
+        # 友善體驗：新增/修改成功後自動將游標焦點切回「取得日期」，並反白文字方便下一筆連續輸入
+        try:
+            self.ent_lot_date.focus_set()
+            self.ent_lot_date.selection_range(0, tk.END)
+        except Exception:
+            pass
 
     def on_delete_selected_lot(self):
         sel = self.lot_tree.selection()
@@ -1289,21 +1511,38 @@ class PositionEditDialog(tk.Toplevel):
 
     def save(self):
         sym_input = self.ent_symbol.get().strip().upper()
+        if not sym_input:
+            messagebox.showerror("錯誤", "請輸入股票代碼！", parent=self)
+            return
+
+        # 智慧回算與容錯機制：
+        # 1. 優先檢查下方是否已建立買入批次 (Trade Lots)
+        lots = get_trade_lots(sym_input)
+        total_lot_shares = sum(l["shares"] for l in lots)
+        total_lot_val = sum(l["shares"] * l["price"] for l in lots)
+        avg_lot_price = (total_lot_val / total_lot_shares) if total_lot_shares > 0 else 0.0
+
         shares_str = self.ent_shares.get().strip()
         cost_str = self.ent_price.get().strip()
         disc_str = self.ent_discount.get().strip()
         note = self.ent_note.get().strip()
 
-        if not sym_input:
-            messagebox.showerror("錯誤", "請輸入股票代碼！", parent=self)
-            return
-
         shares = clean_number(shares_str, default=-1)
         cost_price = clean_number(cost_str, default=-1)
         fee_discount = clean_number(disc_str, default=0.6)
 
+        # 若使用者上方未輸入或為空，但下方有批次，自動無縫採用批次累計數據
+        if (shares <= 0 or cost_price < 0) and total_lot_shares > 0:
+            shares = total_lot_shares
+            cost_price = round(avg_lot_price, 2)
+            # 同步回填畫面上
+            self.ent_shares.delete(0, tk.END)
+            self.ent_shares.insert(0, str(int(shares) if shares.is_integer() else shares))
+            self.ent_price.delete(0, tk.END)
+            self.ent_price.insert(0, f"{cost_price:.2f}")
+
         if shares <= 0 or cost_price < 0:
-            messagebox.showerror("錯誤", "持股數必須大於 0，成本均價必須為有效小數！", parent=self)
+            messagebox.showerror("錯誤", "持股數必須大於 0，成本均價必須為有效小數！\n(請於上方填入股數與均價，或於下方登記買入批次明細)", parent=self)
             return
 
         meta = detect_stock_metadata(sym_input)
@@ -1336,6 +1575,7 @@ class TradeLotManagerDialog(tk.Toplevel):
         self.symbol = symbol
         self.name = name
         self.on_lots_changed = on_lots_changed
+        self.editing_lot_id = None
 
         self.build_ui()
         self.reload_lots()
@@ -1363,9 +1603,10 @@ class TradeLotManagerDialog(tk.Toplevel):
 
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
+        self.tree.bind("<Double-1>", lambda e: self.on_start_edit_lot())
 
-        # 新增批次輸入面板
-        input_frame = tk.LabelFrame(self, text="新增買入批次", bg="#282835", fg="#d0d0e0", font=("Microsoft JhengHei UI", 9, "bold"), padx=10, pady=6)
+        # 新增/修改批次輸入面板
+        input_frame = tk.LabelFrame(self, text="新增/修改買入批次", bg="#282835", fg="#d0d0e0", font=("Microsoft JhengHei UI", 9, "bold"), padx=10, pady=6)
         input_frame.pack(fill=tk.X, padx=12, pady=(0, 6))
 
         tk.Label(input_frame, text="取得日期 (YYYY-MM-DD):", bg="#282835", fg="#ffffff").grid(row=0, column=0, padx=4, pady=2)
@@ -1377,17 +1618,25 @@ class TradeLotManagerDialog(tk.Toplevel):
         self.ent_shares = tk.Entry(input_frame, width=10, font=("Microsoft JhengHei UI", 9), bg="#1e1e28", fg="#ffffff", insertbackground="#ffffff", relief="flat")
         self.ent_shares.insert(0, "1000")
         self.ent_shares.grid(row=0, column=3, padx=4, pady=2)
+        enable_numeric_input_guard(self.ent_shares, allow_decimal=False)
 
         tk.Label(input_frame, text="單價:", bg="#282835", fg="#ffffff").grid(row=0, column=4, padx=4, pady=2)
         self.ent_price = tk.Entry(input_frame, width=10, font=("Microsoft JhengHei UI", 9), bg="#1e1e28", fg="#ffffff", insertbackground="#ffffff", relief="flat")
         self.ent_price.grid(row=0, column=5, padx=4, pady=2)
+        enable_numeric_input_guard(self.ent_price, allow_decimal=True)
+        self.ent_price.bind("<Return>", lambda e: self.on_add_lot())
+        self.ent_price.bind("<KP_Enter>", lambda e: self.on_add_lot())
 
         tk.Label(input_frame, text="備註:", bg="#282835", fg="#ffffff").grid(row=0, column=6, padx=4, pady=2)
         self.ent_note = tk.Entry(input_frame, width=12, font=("Microsoft JhengHei UI", 9), bg="#1e1e28", fg="#ffffff", insertbackground="#ffffff", relief="flat")
         self.ent_note.grid(row=0, column=7, padx=4, pady=2)
+        self.ent_note.bind("<Return>", lambda e: self.on_add_lot())
+        self.ent_note.bind("<KP_Enter>", lambda e: self.on_add_lot())
 
-        btn_add_lot = tk.Button(input_frame, text="[+] 新增此批次", bg="#3a86ff", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), relief="flat", command=self.on_add_lot)
-        btn_add_lot.grid(row=0, column=8, padx=8, pady=2)
+        self.btn_add_lot = tk.Button(input_frame, text="[+] 新增此批次", bg="#3a86ff", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), relief="flat", command=self.on_add_lot)
+        self.btn_add_lot.grid(row=0, column=8, padx=6, pady=2)
+
+        self.btn_cancel_edit = tk.Button(input_frame, text="[✕ 放棄修改]", bg="#4a4a5a", fg="#ffffff", font=("Microsoft JhengHei UI", 9), relief="flat", command=self.on_cancel_edit)
 
         # 底部統計資訊與關閉
         bot_bar = tk.Frame(self, bg="#20202a", height=42)
@@ -1396,11 +1645,14 @@ class TradeLotManagerDialog(tk.Toplevel):
         self.summary_lbl = tk.Label(bot_bar, text="統計計算中...", bg="#20202a", fg="#ffd166", font=("Microsoft JhengHei UI", 10, "bold"))
         self.summary_lbl.pack(side=tk.LEFT, padx=12, pady=8)
 
-        btn_del = tk.Button(bot_bar, text="[-] 刪除選取批次", bg="#ff4d4f", fg="#ffffff", relief="flat", font=("Microsoft JhengHei UI", 9), command=self.on_delete_selected)
-        btn_del.pack(side=tk.RIGHT, padx=12, pady=8, ipadx=8)
-
         btn_close = tk.Button(bot_bar, text="關閉完成", bg="#3a3a46", fg="#ffffff", relief="flat", font=("Microsoft JhengHei UI", 9), command=self.destroy)
         btn_close.pack(side=tk.RIGHT, padx=4, pady=8, ipadx=8)
+
+        btn_del = tk.Button(bot_bar, text="[-] 刪除選取批次", bg="#ff4d4f", fg="#ffffff", relief="flat", font=("Microsoft JhengHei UI", 9), command=self.on_delete_selected)
+        btn_del.pack(side=tk.RIGHT, padx=6, pady=8, ipadx=8)
+
+        btn_edit = tk.Button(bot_bar, text="[✏ 編輯選取批次]", bg="#d97706", fg="#ffffff", relief="flat", font=("Microsoft JhengHei UI", 9), command=self.on_start_edit_lot)
+        btn_edit.pack(side=tk.RIGHT, padx=6, pady=8, ipadx=8)
 
     def reload_lots(self):
         self.tree.delete(*self.tree.get_children())
@@ -1409,9 +1661,9 @@ class TradeLotManagerDialog(tk.Toplevel):
         total_val = sum(l["shares"] * l["price"] for l in lots)
         avg_price = (total_val / total_shares) if total_shares > 0 else 0.0
 
-        for l in lots:
+        for idx, l in enumerate(lots, start=1):
             self.tree.insert("", tk.END, iid=str(l["id"]), values=(
-                l["id"],
+                idx,
                 l["acquire_date"],
                 f"{l['shares']:,.0f}" if l["shares"].is_integer() else f"{l['shares']:,.2f}",
                 f"{l['price']:,.2f}",
@@ -1428,7 +1680,49 @@ class TradeLotManagerDialog(tk.Toplevel):
         )
         self.summary_lbl.configure(text=summary_text)
 
+    def on_start_edit_lot(self):
+        """點擊編輯或雙擊批次行時，載入該批次進行修改"""
+        sel = self.tree.selection()
+        if not sel:
+            messagebox.showinfo("提示", "請先點選欲修改的批次！", parent=self)
+            return
+        lot_id = int(sel[0])
+        lots = get_trade_lots(self.symbol)
+        target = next((l for l in lots if l["id"] == lot_id), None)
+        if not target:
+            return
+
+        self.editing_lot_id = lot_id
+        self.ent_date.delete(0, tk.END)
+        self.ent_date.insert(0, target["acquire_date"])
+
+        self.ent_shares.delete(0, tk.END)
+        sh_val = target["shares"]
+        self.ent_shares.insert(0, str(int(sh_val) if sh_val.is_integer() else sh_val))
+
+        self.ent_price.delete(0, tk.END)
+        self.ent_price.insert(0, str(target["price"]))
+
+        self.ent_note.delete(0, tk.END)
+        self.ent_note.insert(0, target.get("note", ""))
+
+        self.btn_add_lot.configure(text="[💾 儲存修改批次]", bg="#f59e0b", activebackground="#d97706")
+        self.btn_cancel_edit.grid(row=0, column=9, padx=4, pady=2)
+
+    def on_cancel_edit(self):
+        """取消批次修改模式，重設輸入欄位"""
+        self.editing_lot_id = None
+        self.btn_add_lot.configure(text="[+] 新增此批次", bg="#3a86ff", activebackground="#2563eb")
+        self.btn_cancel_edit.grid_remove()
+        self.ent_date.delete(0, tk.END)
+        self.ent_date.insert(0, datetime.now().strftime("%Y-%m-%d"))
+        self.ent_shares.delete(0, tk.END)
+        self.ent_shares.insert(0, "1000")
+        self.ent_price.delete(0, tk.END)
+        self.ent_note.delete(0, tk.END)
+
     def on_add_lot(self):
+        """新增或儲存修改買入批次"""
         dt_str = self.ent_date.get().strip()
         sh_str = self.ent_shares.get().strip()
         pr_str = self.ent_price.get().strip()
@@ -1444,11 +1738,24 @@ class TradeLotManagerDialog(tk.Toplevel):
             messagebox.showerror("錯誤", "買入股數與單價必須為有效大於 0 之數字！", parent=self)
             return
 
-        add_trade_lot(self.symbol, dt_str, shares, price, 0.0, note)
-        self.ent_price.delete(0, tk.END)
+        if self.editing_lot_id is not None:
+            update_trade_lot(self.editing_lot_id, self.symbol, dt_str, shares, price, 0.0, note)
+            self.on_cancel_edit()
+        else:
+            add_trade_lot(self.symbol, dt_str, shares, price, 0.0, note)
+            self.ent_price.delete(0, tk.END)
+            self.ent_note.delete(0, tk.END)
+
         self.reload_lots()
         if self.on_lots_changed:
             self.on_lots_changed()
+
+        # 友善體驗：新增/修改成功後自動將游標焦點切回「取得日期」，並反白文字方便下一筆連續輸入
+        try:
+            self.ent_date.focus_set()
+            self.ent_date.selection_range(0, tk.END)
+        except Exception:
+            pass
 
     def on_delete_selected(self):
         sel = self.tree.selection()
@@ -1457,6 +1764,8 @@ class TradeLotManagerDialog(tk.Toplevel):
             return
         lot_id = int(sel[0])
         delete_trade_lot(lot_id, self.symbol)
+        if self.editing_lot_id == lot_id:
+            self.on_cancel_edit()
         self.reload_lots()
         if self.on_lots_changed:
             self.on_lots_changed()
