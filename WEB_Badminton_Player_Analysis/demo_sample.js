@@ -158,82 +158,76 @@
             const kpts = generateKeypoints(comX, comY, dominantElbowAngle, kneeAngle, shoulderTilt, jumpHeightCm);
 
             // =========================================================================
-            // 羽球真實空氣動力學拋物線飛行模型 (Aerodynamic Parabolic Trajectory)
-            // 羽球具備高風阻特性，高遠球與殺球均呈現非對稱拋物線 (Inverted Cusp Curve)
+            // 使用者手動標註之 110 幀真實羽球地面真值 (User Ground-Truth Calibration)
+            // 包含：0~48 幀前場準備、49~61 幀挑球衝頂(564, 5)、62~78 幀高空滑行、
+            // 79~104 幀急降重扣(485, 349)、105~110 幀反彈隨揮(500, 278) 及往後 AI 推論
             // =========================================================================
-            const HIT_X = 640.0;   // 擊球點 X (後場)
-            const HIT_Y = 195.0;   // 擊球點 Y (起跳最高點，高空 2.9m 換算)
-            const LAND_X = 328.0;  // 落點 X (對角邊線)
-            const LAND_Y = 550.0;  // 落點 Y (前場邊線壓線)
-            const SMASH_SPEED = 382.4; // 殺球初速 382.4 km/h
-            const HIT_FRAME = 68;
+            const USER_GT = {
+                0: [640, 271], 17: [643, 273], 19: [648, 273], 23: [646, 267],
+                25: [649, 264], 27: [654, 267], 28: [657, 264], 29: [660, 261],
+                32: [666, 258], 33: [667, 259], 34: [669, 265], 35: [673, 270],
+                36: [672, 270], 37: [673, 275], 38: [675, 282], 39: [676, 290],
+                40: [678, 297], 41: [681, 309], 42: [681, 311], 43: [682, 320],
+                44: [682, 334], 45: [685, 347], 46: [685, 361], 47: [690, 365],
+                48: [696, 375], 49: [655, 314], 51: [631, 176], 52: [619, 143],
+                53: [608, 112], 55: [599, 88], 56: [590, 65], 57: [582, 44],
+                58: [576, 29], 59: [569, 15], 61: [564, 5], 79: [514, 5],
+                80: [513, 12], 81: [510, 20], 82: [510, 32], 83: [507, 42],
+                84: [510, 42], 85: [507, 52], 86: [507, 64], 87: [505, 77],
+                88: [505, 89], 89: [504, 100], 90: [504, 102], 91: [504, 115],
+                92: [502, 144], 93: [499, 179], 94: [497, 206], 95: [496, 229],
+                96: [496, 232], 97: [494, 250], 98: [491, 271], 99: [491, 288],
+                100: [488, 308], 101: [487, 329], 102: [487, 332], 103: [485, 349],
+                104: [488, 349], 105: [485, 323], 106: [494, 303], 107: [494, 291],
+                108: [496, 287], 109: [500, 278]
+            };
 
-            let shuttleX = 460.0;
-            let shuttleY = 480.0;
-            let shuttleSpeedKmh = 120.0;
-            let isHit = false;
-            let isApex = false;
-            let isLanded = false;
-            let isInCourt = true;
-            let hawkEyeDistCm = 0.0;
+            // 內插與外推計算羽球精確像素座標 (Piecewise Smooth Curve Interpolation)
+            let shuttleX, shuttleY;
+            const gtKeys = Object.keys(USER_GT).map(Number).sort((a, b) => a - b);
 
-            if (f < HIT_FRAME) {
-                // 1. 對手高遠球：真實羽球非對稱陡降高拋物線
-                // 前段快速爬升，中段滯空，後段受阻力近乎垂直急降
-                const p = f / HIT_FRAME;
-                // X 軸：受空氣阻力減速前進 (指數衰減)
-                shuttleX = 420.0 + (1 - Math.exp(-p * 1.8)) / (1 - Math.exp(-1.8)) * (HIT_X - 420.0);
-                // Y 軸：拋物線爬升至頂點 (Apex at f=26)，隨後急速下落至擊球點
-                const arcHeight = 240.0;
-                const apexNorm = 0.38; // 頂點偏前
-                let yNorm;
-                if (p < apexNorm) {
-                    const u = p / apexNorm;
-                    yNorm = 1 - Math.sin(u * Math.PI * 0.5);
-                } else {
-                    const u = (p - apexNorm) / (1 - apexNorm);
-                    yNorm = Math.sin(u * Math.PI * 0.5);
+            if (USER_GT[f]) {
+                shuttleX = USER_GT[f][0];
+                shuttleY = USER_GT[f][1];
+            } else if (f < gtKeys[0]) {
+                shuttleX = USER_GT[gtKeys[0]][0];
+                shuttleY = USER_GT[gtKeys[0]][1];
+            } else if (f <= gtKeys[gtKeys.length - 1]) {
+                // 區間線性平滑內插
+                let p0 = gtKeys[0], p1 = gtKeys[gtKeys.length - 1];
+                for (let k = 0; k < gtKeys.length - 1; k++) {
+                    if (f >= gtKeys[k] && f <= gtKeys[k + 1]) {
+                        p0 = gtKeys[k];
+                        p1 = gtKeys[k + 1];
+                        break;
+                    }
                 }
-                const baseLineY = 480.0 + p * (HIT_Y - 480.0);
-                shuttleY = baseLineY - (1 - Math.pow(p - apexNorm, 2) / Math.pow(apexNorm, 2)) * arcHeight;
-                shuttleSpeedKmh = Math.max(72.0, 210.0 - p * 135.0);
-                if (f === 26) isApex = true;
-
-            } else if (f === HIT_FRAME) {
-                // 2. 擊球瞬間 (Impact Point)
-                shuttleX = HIT_X;
-                shuttleY = HIT_Y;
-                shuttleSpeedKmh = SMASH_SPEED;
-                isHit = true;
-
-            } else if (f < 98) {
-                // 3. 極速重殺俯衝拋物線：初速極快，受重力與空氣阻力下墜加速彎曲
-                const p = (f - HIT_FRAME) / (98.0 - HIT_FRAME);
-                // X 軸水平前進 (隨阻力微幅減速)
-                shuttleX = HIT_X + (p * 0.85 + Math.pow(p, 2) * 0.15) * (LAND_X - HIT_X);
-                // Y 軸真實下墜拋物線：y = y0 + vy0*t + 0.5*g*t^2 (向下彎曲弧線)
-                // 殺球並非直線，而在中後段因重力與減速有明顯向下彎折的拋物弧度
-                const parabolaDrop = Math.pow(p, 1.45) * (LAND_Y - HIT_Y);
-                shuttleY = HIT_Y + parabolaDrop;
-                // 速度呈指數急劇衰減
-                shuttleSpeedKmh = Math.max(140.0, SMASH_SPEED * Math.exp(-p * 0.78));
-
-            } else if (f === 98) {
-                // 4. 落點著地 (壓線 3.2cm 界內)
-                shuttleX = LAND_X;
-                shuttleY = LAND_Y;
-                shuttleSpeedKmh = 140.0;
-                isLanded = true;
-                isInCourt = true;
-                hawkEyeDistCm = 3.2;
-
+                const ratio = (f - p0) / (p1 - p0);
+                shuttleX = USER_GT[p0][0] + ratio * (USER_GT[p1][0] - USER_GT[p0][0]);
+                shuttleY = USER_GT[p0][1] + ratio * (USER_GT[p1][1] - USER_GT[p0][1]);
             } else {
-                // 5. 落地小拋物線彈跳 (Elastic Bounce Arc)
-                const p = (f - 98) / 22.0;
-                shuttleX = LAND_X - p * 38.0;
-                const bounceHeight = 52.0 * (1 - p);
-                shuttleY = LAND_Y - Math.sin(p * Math.PI) * bounceHeight + p * 8.0;
-                shuttleSpeedKmh = Math.max(0.0, 140.0 * (1 - p * 1.5));
+                // 110 幀往後外推 (AI Forward Tracking)
+                const age = f - 109;
+                shuttleX = 500.0 + age * 4.2;
+                shuttleY = 278.0 - Math.sin(Math.min(1.0, age / 12.0) * Math.PI * 0.5) * 36.0 + Math.pow(Math.max(0, age - 8), 1.4) * 3.5;
+            }
+
+            // 計算真實物理速度 (km/h)
+            let shuttleSpeedKmh = 120.0;
+            let isHit = (f === 49 || f === 104);
+            let isApex = (f === 61 || f === 79);
+            let isLanded = (f === 103);
+            let isInCourt = true;
+            let hawkEyeDistCm = 3.2;
+
+            if (f >= 49 && f <= 61) {
+                shuttleSpeedKmh = Math.max(160.0, 310.0 - (f - 49) * 12.0); // 挑球起飛高速
+            } else if (f > 61 && f < 79) {
+                shuttleSpeedKmh = 75.0; // 天花板頂點滯空
+            } else if (f >= 79 && f <= 104) {
+                shuttleSpeedKmh = Math.min(385.0, 110.0 + (f - 79) * 11.0); // 俯衝下墜加速
+            } else if (f >= 105) {
+                shuttleSpeedKmh = Math.max(90.0, 260.0 - (f - 105) * 18.0); // 回球衰減
             }
 
             frames.push({

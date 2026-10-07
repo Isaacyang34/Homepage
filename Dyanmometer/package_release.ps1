@@ -195,10 +195,10 @@ if (!$gitExe) {
     $trackedExeRel = "Dyanmometer/Release/Dynamometer_HMI_V${Version}_Portable/Dynamometer_HMI_Pro.exe"
     $checkTracked = & $gitExe -C $repoRoot ls-files --stage $trackedExeRel
     if ([string]::IsNullOrEmpty($checkTracked)) {
-        Write-Error "❌ 致命發布錯誤: $trackedExeRel 未被 Git 追蹤！請檢查 .gitignore 白名單或使用 git add -f。"
+        Write-Error "ERROR: Release binary $trackedExeRel is NOT tracked by Git! Check .gitignore or run git add -f."
         exit 1
     } else {
-        Write-Host "✅ Git 追蹤確認: $trackedExeRel 已成功納入暫存區 (Stage OK)"
+        Write-Host "OK: Release binary tracking verified: $trackedExeRel (Stage OK)"
     }
 
     & $gitExe -C $repoRoot commit -m $commitMsg 2>&1 | Write-Host
@@ -208,11 +208,11 @@ if (!$gitExe) {
         & $gitExe -C $repoRoot push origin gh-pages 2>&1 | Write-Host
         & $gitExe -C $repoRoot push origin gh-pages:master --force 2>&1 | Write-Host
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✅ Successfully pushed to GitHub (gh-pages & master)!"
+            Write-Host "[OK] Successfully pushed to GitHub (gh-pages and master)!"
 
             # 5. Auto-update Firebase version manifest (download_url must include Dyanmometer/ prefix)
             Write-Host ""
-            Write-Host "☁️ Updating Firebase version manifest..."
+            Write-Host "[CLOUD] Updating Firebase version manifest..."
             $exeGhPagesPath = "Dyanmometer/Release/Dynamometer_HMI_V${Version}_Portable/Dynamometer_HMI_Pro.exe"
             $dlUrl = "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/$exeGhPagesPath"
             $releaseDate = Get-Date -Format "yyyy-MM-dd"
@@ -308,10 +308,10 @@ if (!$gitExe) {
                 $mreader = New-Object System.IO.StreamReader($mresp.GetResponseStream())
                 $mreader.ReadToEnd() | Out-Null
                 $mreader.Close()
-                Write-Host "✅ Firebase manifest updated: V$appVer (Target V$Version) -> $dlUrl"
+                Write-Host "Firebase manifest updated: V$appVer (Target V$Version) -> $dlUrl"
 
                 # 5-2. 線上發布 200 OK 探測閉鎖檢驗 (Post-Release 200-OK Probe Lockout)
-                Write-Host "🔍 正在探測驗證雲端下載網址可用性: $dlUrl"
+                Write-Host "Probing cloud download URL: $dlUrl"
                 $probeOk = $false
                 for ($attempt = 1; $attempt -le 5; $attempt++) {
                     try {
@@ -323,25 +323,26 @@ if (!$gitExe) {
                         $pLen = $probeResp.ContentLength
                         $probeResp.Close()
                         if ($pCode -eq 200 -and $pLen -gt 500000) {
-                            Write-Host "✅ 雲端下載點 200 OK 驗證通過！(HTTP $pCode, 大小: $([math]::Round($pLen/1048576, 2)) MB)"
+                            $mbSize = [math]::Round($pLen/1048576, 2)
+                            Write-Host "OK: Cloud download URL 200 OK verified! (HTTP $pCode, Size: $mbSize MB)"
                             $probeOk = $true
                             break
                         }
                     } catch {
-                        Write-Host "   嘗試第 $attempt 次探測 (等待 GitHub CDN 鏡像同步 2 秒)..."
+                        Write-Host "   Attempt $attempt probing (waiting for GitHub CDN sync 2s)..."
                         Start-Sleep -Seconds 2
                     }
                 }
                 if (-not $probeOk) {
-                    Write-Warning "⚠️ 警告: 下載網址尚未回傳 200 OK，請手動確認網址: $dlUrl"
+                    Write-Warning "WARN: Download URL did not return 200 OK: $dlUrl"
                 }
             } catch {
-                Write-Warning "⚠️  Firebase manifest update failed: $_  (Please run scratch\fix_manifest.ps1 manually)"
+                Write-Warning "WARN: Firebase manifest update failed: $_  (Please run scratch\fix_manifest.ps1 manually)"
             }
 
             # 6. Rule 7: Auto GitHub Official Release & Binary Asset Upload (Three-Point Release Alignment)
             Write-Host ""
-            Write-Host "📦 Creating/Updating GitHub Release v$appVer and uploading asset..."
+            Write-Host "[PACKAGE] Creating/Updating GitHub Release v$appVer and uploading asset..."
             try {
                 $ghTag = "v$appVer"
                 $ghTitle = "Dynamometer HMI Pro v$appVer"

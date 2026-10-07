@@ -7,7 +7,7 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>ESP8266 TPMS 射頻掃描與胎壓監控儀</title>
+  <title>ESP32 TPMS 射頻雷達與四輪胎壓監控儀 (rtl_433)</title>
   <style>
     :root {
       --bg: #0b1120;
@@ -75,11 +75,7 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
     .card { background: var(--card); border-radius: 12px; padding: 14px; border: 1px solid var(--border); margin-bottom: 14px; }
     .card-title { font-size: 0.95rem; font-weight: 700; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
     
-    /* 模式切換按鈕組 */
-    .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
-    .btn-mode { background: #162032; border: 1px solid #334155; color: #cbd5e1; padding: 8px; border-radius: 8px; font-size: 0.75rem; text-align: left; cursor: pointer; transition: all 0.2s; }
-    .btn-mode.active { border-color: var(--accent); background: rgba(56, 189, 248, 0.15); color: var(--accent); font-weight: 700; }
-    .btn-mode small { display: block; font-size: 0.65rem; color: var(--text-muted); }
+
 
     /* 開關組件 */
     .switch-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; }
@@ -145,7 +141,7 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
 <body>
   <!-- 頂部標題與防干擾狀態 -->
   <div class="top-bar">
-    <div class="top-title">TPMS 射頻雷達 <span style="font-size:0.7rem; color:#a5f3fc; background:#0f172a; padding:2px 6px; border-radius:4px; border:1px solid #38bdf8;">v2.8 (距離圖示與GitHub自動更新版)</span></div>
+    <div class="top-title">ESP32 TPMS 射頻雷達 <span style="font-size:0.7rem; color:#a5f3fc; background:#0f172a; padding:2px 6px; border-radius:4px; border:1px solid #38bdf8;">rtl_433 旗艦解碼版</span></div>
     <div id="badge-lock" class="badge-lock badge-open" onclick="switchTab('setup')">[學習模式: 未鎖定]</div>
   </div>
 
@@ -154,9 +150,9 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
     <div class="rf-hud-header">
       <div class="rf-title">
         <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--green);" id="rf-dot"></span>
-        <span>CC1101 即時場強雷達</span>
+        <span>CC1101 即時場強雷達 (433.92 MHz)</span>
       </div>
-      <div class="rf-mode-badge" id="hud-mode-name">FSK 9.6k (自動巡檢)</div>
+      <div class="rf-mode-badge" id="hud-mode-name">rtl_433 全自動解碼</div>
     </div>
 
     <!-- 即時 RSSI 表針與數值 -->
@@ -183,19 +179,18 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
 
     <!-- 底層晶片狀態列 -->
     <div class="hw-status-row">
-      <span>晶片: <b id="hw-chip" style="color:#38bdf8">--</b></span>
-      <span>MARCSTATE: <b id="hw-marc" style="color:var(--green)">--</b></span>
-      <span>GDO0(D1): <b id="hw-gdo0">0</b></span>
-      <span>封包總數: <b id="hw-pkts">0</b></span>
+      <span>射頻模組: <b style="color:#38bdf8">CC1101 @ 433.92M</b></span>
+      <span>解碼引擎: <b style="color:var(--green)">rtl_433_ESP (200+ 協議)</b></span>
+      <span>可用記憶體: <b id="hw-heap" style="color:var(--accent)">--</b></span>
+      <span>接收封包: <b id="hw-pkts" style="color:#cbd5e1">0</b></span>
     </div>
   </div>
 
-  <!-- 分頁選單 -->
+  <!-- 分頁選單 (已移除無效的手動射頻模式切換) -->
   <div class="tabs">
     <button class="tab-btn active" onclick="switchTab('dashboard')">四輪儀表</button>
-    <button class="tab-btn" onclick="switchTab('scanner')">射頻掃描</button>
     <button class="tab-btn" onclick="switchTab('setup')">輪位防干擾</button>
-    <button class="tab-btn" onclick="switchTab('logs')">原始日誌</button>
+    <button class="tab-btn" onclick="switchTab('logs')">封包日誌</button>
     <button class="tab-btn" onclick="switchTab('ota')">線上更新</button>
   </div>
 
@@ -241,60 +236,7 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
     </div>
   </div>
 
-  <!-- 分頁 2: 射頻協議掃描器控制台 (核心新功能) -->
-  <div id="tab-scanner" class="tab-content">
-    <div class="card">
-      <div class="switch-row">
-        <div class="switch-info">
-          <h4>全協議自動巡檢掃描 (Auto Scan)</h4>
-          <p>每 4 秒自動切換不同調變協議 (FSK / ASK / OOK)，捕捉任意胎壓感測器</p>
-        </div>
-        <label class="switch">
-          <input type="checkbox" id="chk-autoscan" onchange="toggleAutoScan()">
-          <span class="slider"></span>
-        </label>
-      </div>
-
-      <div style="margin-top:10px; font-size:0.8rem; color:var(--text-muted);">
-        手動指定鎖定射頻協議 (若已知感測器型態可手動鎖定)：
-      </div>
-
-      <div class="mode-grid">
-        <button class="btn-mode" id="btn-mode-0" onclick="setScanMode(0)">
-          <b>1. 泛捕獲全抓</b>
-          <small>433.92M 寬鬆全抓 / 智慧解碼</small>
-        </button>
-        <button class="btn-mode" id="btn-mode-1" onclick="setScanMode(1)">
-          <b>2. FSK 9.6k (CB56)</b>
-          <small>433.92M 專屬外置胎壓 (免雜訊)</small>
-        </button>
-        <button class="btn-mode" id="btn-mode-2" onclick="setScanMode(2)">
-          <b>3. FSK 9.6k (D391)</b>
-          <small>433.92M 豐田/日系/主流車系</small>
-        </button>
-        <button class="btn-mode" id="btn-mode-3" onclick="setScanMode(3)">
-          <b>4. OOK 4.1k (5569)</b>
-          <small>433.92M 太陽能外置主機</small>
-        </button>
-        <button class="btn-mode" id="btn-mode-4" onclick="setScanMode(4)">
-          <b>5. FSK 19.2k</b>
-          <small>433.92M 歐美/Schrader</small>
-        </button>
-        <button class="btn-mode" id="btn-mode-5" onclick="setScanMode(5)">
-          <b>6. FSK 4.8k</b>
-          <small>433.92M 低速長距專用</small>
-        </button>
-      </div>
-
-      <div style="margin-top: 14px; text-align: center;">
-        <button class="btn-action" style="padding: 8px 16px; background:#475569;" onclick="resetRadio()">
-          [重置 CC1101 射頻晶片]
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 分頁 3: 輪位手動配置與防干擾白名單鎖定 -->
+  <!-- 分頁 2: 輪位手動配置與防干擾白名單鎖定 -->
   <div id="tab-setup" class="tab-content">
     <!-- 防干擾白名單鎖定開關 -->
     <div class="card">
@@ -367,25 +309,25 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
       
       <div class="slot-row">
         <span class="slot-label">左前 (FL)</span>
-        <input class="slot-input" id="inp-fl" placeholder="0x00000000">
+        <input class="slot-input" id="inp-fl" placeholder="0x00000000" oninput="this.dataset.dirty='1'">
         <button class="btn-slot-save" onclick="saveManualSlot(0)">儲存</button>
         <button class="btn-slot-clear" onclick="clearSlot(0)">清空</button>
       </div>
       <div class="slot-row">
         <span class="slot-label">右前 (FR)</span>
-        <input class="slot-input" id="inp-fr" placeholder="0x00000000">
+        <input class="slot-input" id="inp-fr" placeholder="0x00000000" oninput="this.dataset.dirty='1'">
         <button class="btn-slot-save" onclick="saveManualSlot(1)">儲存</button>
         <button class="btn-slot-clear" onclick="clearSlot(1)">清空</button>
       </div>
       <div class="slot-row">
         <span class="slot-label">左後 (RL)</span>
-        <input class="slot-input" id="inp-rl" placeholder="0x00000000">
+        <input class="slot-input" id="inp-rl" placeholder="0x00000000" oninput="this.dataset.dirty='1'">
         <button class="btn-slot-save" onclick="saveManualSlot(2)">儲存</button>
         <button class="btn-slot-clear" onclick="clearSlot(2)">清空</button>
       </div>
       <div class="slot-row">
         <span class="slot-label">右後 (RR)</span>
-        <input class="slot-input" id="inp-rr" placeholder="0x00000000">
+        <input class="slot-input" id="inp-rr" placeholder="0x00000000" oninput="this.dataset.dirty='1'">
         <button class="btn-slot-save" onclick="saveManualSlot(3)">儲存</button>
         <button class="btn-slot-clear" onclick="clearSlot(3)">清空</button>
       </div>
@@ -434,7 +376,7 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
         <span style="font-size:0.75rem; color:var(--green);" id="ota-sys-ver">v2.6 在線</span>
       </div>
       <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:12px; line-height:1.5;">
-        支援免插 USB 傳輸線！只要手機連上此熱點，選取編譯好的 <b>firmware.bin</b> 檔案，點擊開始升級即可無線寫入 ESP8266 Flash！
+        支援免插 USB 傳輸線！只要手機連上此熱點，選取編譯好的 <b>firmware.bin</b> 檔案，點擊開始升級即可無線寫入 ESP32 Flash！
       </div>
 
       <!-- 系統硬體規格 -->
@@ -449,7 +391,7 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
       <div style="background:#0f172a; border:1px solid #38bdf8; border-radius:10px; padding:12px; margin-bottom:14px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
           <div style="font-size:0.85rem; font-weight:700; color:#38bdf8; display:flex; align-items:center; gap:6px;">
-            <span>☁️ GitHub 雲端一鍵自動更新</span>
+            <span>[Cloud] GitHub 雲端一鍵自動更新</span>
           </div>
           <span style="font-size:0.7rem; color:#94a3b8;" id="gh-online-stat">點擊檢查雲端版本</span>
         </div>
@@ -498,57 +440,37 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
     let currentConfig = { lock: false, ids: [0, 0, 0, 0] };
 
     const switchTab = (tabId) => {
-      const tabNames = ['dashboard', 'scanner', 'setup', 'logs', 'ota'];
+      const tabNames = ['dashboard', 'setup', 'logs', 'ota'];
       document.querySelectorAll('.tab-btn').forEach((btn, idx) => {
         btn.classList.toggle('active', tabNames[idx] === tabId);
       });
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       document.getElementById('tab-' + tabId).classList.add('active');
+      if (tabId === 'logs') loadLogs();
     };
 
-    // 高頻率射頻雷達輪詢 (每 250ms 一次，提供流暢場強針)
-    const updateRfHud = async () => {
+    const loadLogs = async () => {
       try {
-        const res = await fetch('/api/rf_scan');
+        const res = await fetch('/api/logs');
         const data = await res.json();
-        
-        // 1. 場強數值與條
-        const rssi = data.rssi;
-        const peak = data.peakRssi;
-        document.getElementById('hud-rssi').innerText = rssi.toFixed(1);
-        document.getElementById('hud-peak').innerText = peak.toFixed(1);
-
-        // 換算成百分比 (-115dBm = 0%, -40dBm = 100%)
-        let pct = Math.round(((rssi + 115) / 75) * 100);
-        pct = Math.max(2, Math.min(100, pct));
-        document.getElementById('hud-meter-bar').style.width = pct + '%';
-
-        // 2. 脈衝強訊號提示 (> -75 dBm)
-        const surgeEl = document.getElementById('hud-surge');
-        if (rssi > -75.0 || data.surge) {
-          surgeEl.style.display = 'block';
-          surgeEl.innerText = `[!] 偵測到 433MHz 強烈射頻脈衝 (${rssi.toFixed(1)} dBm)！感測器發射中！`;
+        const list = document.getElementById('log-list');
+        if (data.logs && data.logs.length > 0) {
+          list.innerHTML = data.logs.map(log => `
+            <div class="log-item ${log.filtered ? 'filtered' : ''}">
+              <div class="log-meta">
+                <span>#${log.id} | RSSI: ${log.rssi.toFixed(1)} dBm ${log.filtered ? '<span style="color:var(--yellow)">[已攔截外來訊號]</span>' : ''}</span>
+                <span>長度: ${log.len} B</span>
+              </div>
+              <div class="log-hex">${log.hex}</div>
+            </div>
+          `).join('');
         } else {
-          surgeEl.style.display = 'none';
+          list.innerHTML = '<div style="text-align:center; color:var(--text-muted); padding:16px; font-size:0.8rem;">等待射頻訊號接收...</div>';
         }
-
-        // 3. 模式徽章
-        document.getElementById('hud-mode-name').innerText = data.scanMode + (data.autoScan ? " (自動巡檢)" : " (手動鎖定)");
-        document.getElementById('chk-autoscan').checked = data.autoScan;
-
-        // 4. 高亮當前選中按鈕
-        for (let i = 0; i < 6; i++) {
-          const btn = document.getElementById('btn-mode-' + i);
-          if (btn) btn.classList.toggle('active', i === data.scanModeIdx);
-        }
-
-        // 5. 底層硬體狀態
-        document.getElementById('hw-chip').innerText = data.chipVerDesc;
-        document.getElementById('hw-marc').innerText = data.marcStateDesc;
-        document.getElementById('hw-gdo0').innerText = data.gdo0;
-        document.getElementById('hw-pkts').innerText = data.totalPackets;
       } catch (err) {}
     };
+
+    // 射頻雷達已整合至單一 updateDashboard 週期，不再單獨發起 300ms 高頻輪詢避免干擾 CC1101 採樣
 
     // 距離與訊號強弱換算函式 (依據 433.92MHz 實測場強衰減模型)
     const getProximityInfo = (rssi) => {
@@ -557,28 +479,28 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
           bars: 4,
           colorClass: 'sig-act-green',
           tagClass: 'prox-immediate',
-          text: '🔥 極近 (&lt;1m / 氣嘴放氣中)'
+          text: '[**] 極近 (&lt;1m / 氣嘴放氣中)'
         };
       } else if (rssi >= -80.0) {
         return {
           bars: 3,
           colorClass: 'sig-act-cyan',
           tagClass: 'prox-near',
-          text: '🚗 近距 (1~3m / 本車輪位)'
+          text: '[->] 近距 (1~3m / 本車輪位)'
         };
       } else if (rssi >= -92.0) {
         return {
           bars: 2,
           colorClass: 'sig-act-yellow',
           tagClass: 'prox-mid',
-          text: '⚠️ 中距 (3~8m / 鄰車周遭)'
+          text: '[!] 中距 (3~8m / 鄰車周遥)'
         };
       } else {
         return {
           bars: 1,
           colorClass: 'sig-act-gray',
           tagClass: 'prox-far',
-          text: '📡 遠距 (&gt;8m / 微弱底噪)'
+          text: '[~] 遠距 (&gt;8m / 微弱底噪)'
         };
       }
     };
@@ -594,12 +516,36 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
       `;
     };
 
-    // 常規儀表板更新 (每 1000ms 一次)
+    // 單一整合儀表板輪詢 (每 1500ms 一次，極低 CPU 負擔)
     const updateDashboard = async () => {
       try {
         const res = await fetch('/api/data');
         const data = await res.json();
         
+        // 0. 更新射頻雷達場強與底層狀態
+        if (data.rssi !== undefined) {
+          const rssi = data.rssi;
+          const peak = data.peakRssi !== undefined ? data.peakRssi : -110;
+          document.getElementById('hud-rssi').innerText = rssi.toFixed(1);
+          document.getElementById('hud-peak').innerText = peak.toFixed(1);
+          let pct = Math.round(((rssi + 115) / 75) * 100);
+          pct = Math.max(2, Math.min(100, pct));
+          document.getElementById('hud-meter-bar').style.width = pct + '%';
+
+          const surgeEl = document.getElementById('hud-surge');
+          if (rssi > -75.0 || data.surge) {
+            surgeEl.style.display = 'block';
+            surgeEl.innerText = `[!] 偵測到 433MHz 強烈射頻脈衝 (${rssi.toFixed(1)} dBm)！感測器發射中！`;
+          } else {
+            surgeEl.style.display = 'none';
+          }
+
+          document.getElementById('hw-pkts').innerText = data.totalPackets || 0;
+          if (data.freeHeap) {
+            document.getElementById('hw-heap').innerText = (data.freeHeap / 1024).toFixed(0) + ' KB';
+          }
+        }
+
         // 1. 更新頂部鎖定狀態與系統資訊
         currentConfig.lock = data.config.lockWhitelist;
         currentConfig.minHits = data.config.minHits;
@@ -618,7 +564,7 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
         const chk = document.getElementById('chk-whitelist');
         if (data.config.lockWhitelist) {
           badge.className = 'badge-lock badge-locked';
-          badge.innerText = '🛡️ 防干擾: 已鎖定';
+          badge.innerText = '[V] 防干擾: 已鎖定';
           chk.checked = true;
         } else {
           badge.className = 'badge-lock badge-open';
@@ -643,7 +589,7 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
           const inp = document.getElementById('inp-' + key);
           const hexId = '0x' + (t.id ? t.id.toString(16).toUpperCase().padStart(8, '0') : '00000000');
           
-          if (!inp.matches(':focus')) {
+          if (!inp.dataset.dirty && !inp.matches(':focus')) {
             inp.value = t.id ? hexId : '';
           }
 
@@ -698,43 +644,10 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
             `;
           }).join('');
         } else {
-          discList.innerHTML = '<div style="text-align:center; color:var(--text-muted); padding:16px; font-size:0.8rem;">正在掃描周遭 433MHz 感測器...</div>';
+          discList.innerHTML = '<div style="text-align:center; color:var(--text-muted); padding:16px; font-size:0.85rem;">正在掃描周遭 433MHz 感測器（等待安裝電池或發射信號）...</div>';
         }
 
-        // 4. 更新日誌
-        const list = document.getElementById('log-list');
-        if (data.logs && data.logs.length > 0) {
-          list.innerHTML = data.logs.map(log => `
-            <div class="log-item ${log.filtered ? 'filtered' : ''}">
-              <div class="log-meta">
-                <span>#${log.id} | RSSI: ${log.rssi.toFixed(1)} dBm ${log.filtered ? '<span style="color:var(--yellow)">[已攔截外來訊號]</span>' : ''}</span>
-                <span>長度: ${log.len} B</span>
-              </div>
-              <div class="log-hex">${log.hex}</div>
-            </div>
-          `).join('');
-        } else {
-          list.innerHTML = '<div style="text-align:center; color:var(--text-muted); padding:16px; font-size:0.8rem;">等待射頻訊號接收...</div>';
-        }
       } catch (err) {}
-    };
-
-    // 射頻協議操作
-    const toggleAutoScan = async () => {
-      const enabled = document.getElementById('chk-autoscan').checked ? 1 : 0;
-      await fetch(`/api/set_mode?auto=${enabled}`, { method: 'POST' });
-      updateRfHud();
-    };
-
-    const setScanMode = async (idx) => {
-      await fetch(`/api/set_mode?mode=${idx}&auto=0`, { method: 'POST' });
-      updateRfHud();
-    };
-
-    const resetRadio = async () => {
-      await fetch('/api/reset_rf', { method: 'POST' });
-      alert('CC1101 射頻晶片已重新初始化！');
-      updateRfHud();
     };
 
     // 防干擾與輪位
@@ -746,23 +659,65 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
 
     const saveManualSlot = async (pos) => {
       const keys = ['fl', 'fr', 'rl', 'rr'];
-      const val = document.getElementById('inp-' + keys[pos]).value.trim();
-      if (!val) return;
-      await fetch(`/api/bind?pos=${pos}&id=${encodeURIComponent(val)}`, { method: 'POST' });
+      const posNames = ['左前 (FL)', '右前 (FR)', '左後 (RL)', '右後 (RR)'];
+      const inp = document.getElementById('inp-' + keys[pos]);
+      const btn = inp.parentElement.querySelector('.btn-slot-save');
+      const val = inp.value.trim();
+      if (!val) {
+        alert('請先輸入 8 碼 Hex ID (例如 0xE39E3301)');
+        return;
+      }
+
+      const origText = btn.innerText;
+      btn.innerText = '儲存中...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch(`/api/bind?pos=${pos}&id=${encodeURIComponent(val)}`, { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          inp.dataset.dirty = '';
+          btn.innerText = '[已儲存]';
+          btn.style.background = 'var(--green)';
+          setTimeout(() => {
+            btn.innerText = origText;
+            btn.style.background = '';
+            btn.disabled = false;
+          }, 1500);
+        } else {
+          alert('儲存失敗: ' + (data.msg || '參數錯誤'));
+          btn.innerText = origText;
+          btn.disabled = false;
+        }
+      } catch (err) {
+        alert('網路請求失敗，請確認已連線至 TPMS_PoC_Tester 熱點！');
+        btn.innerText = origText;
+        btn.disabled = false;
+      }
       updateDashboard();
     };
 
     const clearSlot = async (pos) => {
+      const keys = ['fl', 'fr', 'rl', 'rr'];
       if (confirm(`確定清空此輪胎綁定？`)) {
         await fetch(`/api/clear_slot?pos=${pos}`, { method: 'POST' });
+        const inp = document.getElementById('inp-' + keys[pos]);
+        if (inp) { inp.value = ''; inp.dataset.dirty = ''; }
         updateDashboard();
       }
     };
 
     const bindSensor = async (pos, hexId) => {
+      const keys = ['fl', 'fr', 'rl', 'rr'];
       const posNames = ['左前輪 (FL)', '右前輪 (FR)', '左後輪 (RL)', '右後輪 (RR)'];
-      await fetch(`/api/bind?pos=${pos}&id=${encodeURIComponent(hexId)}`, { method: 'POST' });
-      alert(`已將感測器 ${hexId} 綁定至 ${posNames[pos]}！`);
+      try {
+        const res = await fetch(`/api/bind?pos=${pos}&id=${encodeURIComponent(hexId)}`, { method: 'POST' });
+        const inp = document.getElementById('inp-' + keys[pos]);
+        if (inp) { inp.value = hexId; inp.dataset.dirty = ''; }
+        alert(`已成功將感測器 ${hexId} 綁定至 ${posNames[pos]}！`);
+      } catch (e) {
+        alert('綁定請求失敗，請檢查 WiFi 連線！');
+      }
       updateDashboard();
     };
 
@@ -824,7 +779,7 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
         return;
       }
       const file = fi.files[0];
-      if (!confirm(`確定將「${file.name}」無線燒錄至 ESP8266？升級期間請勿斷電！`)) {
+      if (!confirm(`確定將「${file.name}」無線燒錄至 ESP32？升級期間請勿斷電！`)) {
         return;
       }
 
@@ -855,7 +810,7 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
       xhr.onload = () => {
         if (xhr.status === 200) {
           progressBar.style.width = '100%';
-          statusText.innerHTML = '<span style="color:var(--green)">[✓] 韌體上傳成功！ESP8266 正在寫入 Flash 並重啟，請等待 8 秒後自動重整...</span>';
+          statusText.innerHTML = '<span style="color:var(--green)">[✓] 韌體上傳成功！ESP32 正在寫入 Flash 並重啟，請等待 8 秒後自動重整...</span>';
           setTimeout(() => { location.reload(true); }, 8000);
         } else {
           statusText.innerHTML = `<span style="color:var(--red)">升級失敗: ${xhr.responseText || xhr.statusText}</span>`;
@@ -903,7 +858,7 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
 
         statEl.innerText = "已獲取雲端資訊";
 
-        if (confirm(`發現 GitHub 雲端最新版本: ${meta.version}\n說明: ${meta.changelog || ''}\n\n確定立即從 GitHub 下載並直接無線燒錄至 ESP8266？`)) {
+        if (confirm(`發現 GitHub 雲端最新版本: ${meta.version}\n說明: ${meta.changelog || ''}\n\n確定立即從 GitHub 下載並直接無線燒錄至 ESP32？`)) {
           pBox.style.display = "block";
           pBar.style.width = "10%";
           pText.innerText = "正在自 GitHub 雲端下載最新韌體二進制檔...";
@@ -913,7 +868,7 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
           const blob = await binRes.blob();
 
           pBar.style.width = "40%";
-          pText.innerText = `韌體下載完成 (${(blob.size / 1024).toFixed(1)} KB)，正在傳輸寫入 ESP8266 Flash...`;
+          pText.innerText = `韌體下載完成 (${(blob.size / 1024).toFixed(1)} KB)，正在傳輸寫入 ESP32 Flash...`;
 
           const formData = new FormData();
           formData.append("firmware", blob, "firmware.bin");
@@ -932,7 +887,7 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
           xhr.onload = () => {
             if (xhr.status === 200) {
               pBar.style.width = "100%";
-              pText.innerHTML = '<b style="color:var(--green)">[✓ 更新成功] ESP8266 正在重啟... 8 秒後自動重載新韌體！</b>';
+              pText.innerHTML = '<b style="color:var(--green)">[✓ 更新成功] ESP32 正在重啟... 8 秒後自動重載新韌體！</b>';
               setTimeout(() => { window.location.reload(true); }, 8000);
             } else {
               pText.innerHTML = `<b style="color:var(--red)">[寫入失敗] 伺服器回傳 ${xhr.status}</b>`;
@@ -960,10 +915,8 @@ const char PAGE_HTML[] PROGMEM = R"rawliteral(
       }
     };
 
-    // 定時器
-    setInterval(updateRfHud, 300);     // 300ms 刷新射頻雷達
-    setInterval(updateDashboard, 1200); // 1.2s 刷新儀表
-    updateRfHud();
+    // 單一健康定時器 (1500ms 輪詢一次，徹底消除 CPU 阻塞)
+    setInterval(updateDashboard, 1500);
     updateDashboard();
   </script>
 </body>

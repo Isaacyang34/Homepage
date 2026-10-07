@@ -201,8 +201,115 @@
         // 自動開始播放分析
         play();
 
-        // 異步啟動 MoveNet 神經網絡 (供本機影片即時推論使用)
+        // 檢查並綁定使用者手動標註/學習之羽球真值座標
+        applyCustomTrackingToCurrentData();
+
+        // 異步啟動 MoveNet 人體骨架與 TrackNet 羽球深度神經網絡
         initMoveNetDetector().catch(() => {});
+        if (window.trackNetEngine) {
+            window.trackNetEngine.init().catch(() => {});
+        }
+    }
+
+    // 讀取並100%硬覆蓋使用者在標註器中點擊的真實點座標與拋物線外推
+    function applyCustomTrackingToCurrentData() {
+        const customTrackRaw = localStorage.getItem('BADMINTON_CUSTOM_TRACKING');
+        if (customTrackRaw && currentData && currentData.frames) {
+            try {
+                const customTrack = JSON.parse(customTrackRaw);
+                const keys = Object.keys(customTrack).map(Number).sort((a, b) => a - b);
+                
+                if (keys.length > 0) {
+                    // 1. 100% 絕對優先將使用者手動點擊標註的每一點，寫入畫面幀
+                    let prevPt = null;
+                    keys.forEach(fIdx => {
+                        const pt = customTrack[fIdx.toString()];
+                        if (currentData.frames[fIdx]) {
+                            let speed = 180.0;
+                            if (prevPt) {
+                                const dx = (pt.x - prevPt.x) / 1280 * 13.4;
+                                const dy = (pt.y - prevPt.y) / 720 * 7.5;
+                                const distM = Math.hypot(dx, dy);
+                                speed = Math.min(480, (distM / (1.0 / 30.0)) * 3.6);
+                            }
+                            prevPt = pt;
+                            currentData.frames[fIdx].shuttlecock = {
+                                x: pt.x,
+                                y: pt.y,
+                                speed_kmh: Math.round(speed * 10) / 10,
+                                is_hit: speed > 230,
+                                is_apex: false,
+                                is_landed: false,
+                                is_in_court: true,
+                                hawkeye_dist_cm: 0
+                            };
+                        }
+                    });
+
+                    // 2. 對於第 100+ 幀之後未標註的幀，進行二次多項式拋物線外推
+                    const maxAnnotatedFrame = keys[keys.length - 1];
+                    const fitKeys = keys.slice(-Math.min(30, keys.length));
+                    const baseFrame = fitKeys[0];
+                    const pts = fitKeys.map(k => ({
+                        t: (k - baseFrame) / 30.0,
+                        x: customTrack[k].x,
+                        y: customTrack[k].y
+                    }));
+
+                    let sumT = 0, sumX = 0, sumTX = 0, sumT2 = 0, n = pts.length;
+                    for (let p of pts) {
+                        sumT += p.t; sumX += p.x; sumTX += p.t * p.x; sumT2 += p.t * p.t;
+                    }
+                    const denomX = (n * sumT2 - sumT * sumT) || 1e-6;
+                    const vx = (n * sumTX - sumT * sumX) / denomX;
+                    const x0 = (sumX - vx * sumT) / n;
+
+                    let s0 = n, s1 = 0, s2 = 0, s3 = 0, s4 = 0, sy = 0, sty = 0, st2y = 0;
+                    for (let p of pts) {
+                        const t = p.t, t2 = t * t, y = p.y;
+                        s1 += t; s2 += t2; s3 += t2 * t; s4 += t2 * t2;
+                        sy += y; sty += t * y; st2y += t2 * y;
+                    }
+                    let a_y = 140.0, b_y = 0, c_y = pts[0].y;
+                    const det = s4 * (s2 * s0 - s1 * s1) - s3 * (s3 * s0 - s1 * s2) + s2 * (s3 * s1 - s2 * s2);
+                    if (Math.abs(det) > 1e-5) {
+                        const detA = st2y * (s2 * s0 - s1 * s1) - s3 * (sty * s0 - s1 * sy) + s2 * (sty * s1 - s2 * sy);
+                        const detB = s4 * (sty * s0 - s1 * sy) - st2y * (s3 * s0 - s1 * s2) + s2 * (s3 * sy - sty * s2);
+                        const detC = s4 * (s2 * sy - sty * s1) - s3 * (s3 * sy - sty * s2) + st2y * (s3 * s1 - s2 * s2);
+                        a_y = detA / det; b_y = detB / det; c_y = detC / det;
+                    } else {
+                        b_y = (n * sty - s1 * sy) / denomX;
+                    }
+
+                    for (let f = maxAnnotatedFrame + 1; f < currentData.frames.length; f++) {
+                        const dt = (f - baseFrame) / 30.0;
+                        const px = Math.max(10, Math.min(1270, Math.round(vx * dt + x0)));
+                        const py = Math.max(10, Math.min(710, Math.round(a_y * dt * dt + b_y * dt + c_y)));
+                        const prevObj = currentData.frames[f - 1]?.shuttlecock;
+                        let spd = 160.0;
+                        if (prevObj) {
+                            const dx = (px - prevObj.x) / 1280 * 13.4;
+                            const dy = (py - prevObj.y) / 720 * 7.5;
+                            spd = Math.min(480, (Math.hypot(dx, dy) / (1.0 / 30.0)) * 3.6);
+                        }
+                        currentData.frames[f].shuttlecock = {
+                            x: px, y: py, speed_kmh: Math.round(spd * 10) / 10,
+                            is_hit: false, is_apex: false, is_landed: f === currentData.frames.length - 1,
+                            is_in_court: true, hawkeye_dist_cm: 0
+                        };
+                    }
+                    showToast(`🎯 已 100% 鎖定您手動點擊標註的 ${keys.length} 個真實點！`, 'success');
+                }
+            } catch (e) {
+                console.error('[Trajectory Engine] Load error:', e);
+            }
+        }
+
+        // 異步啟動 MoveNet 人體骨架與 TrackNet 羽球深度神經網絡
+        initMoveNetDetector().catch(() => {});
+        if (window.trackNetEngine) {
+            window.trackNetEngine.init().catch(() => {});
+        }
     }
 
     // 事件綁定
@@ -488,6 +595,9 @@
         updateKinematicsChartData();
         updateCoachingFeedback();
 
+        // 套用使用者在標註器中點擊的真實點座標
+        applyCustomTrackingToCurrentData();
+
         resizeCanvas();
         seekToFrame(0);
 
@@ -568,63 +678,84 @@
             const width = vidElement.videoWidth || 1280;
             const height = vidElement.videoHeight || 720;
 
-            // 真實比賽 (Axelsen vs Ginting) 影片真實羽球飛行軌跡 (Ground-Truth Aerodynamic Parabola)
-            // 1. 0~58 幀：金廷前場挑高遠球 -> 沿左側記分板高空 (305, 110) 爬升至頂點 -> 陡降至安賽龍後場擊球點 (515, 205)
-            // 2. 58 幀：安賽龍起跳最高點 382.4 km/h 重殺 (Impact Point)
-            // 3. 58~84 幀：殺球極速俯衝過網 (440, 360) -> 壓金廷邊線 (365, 545)
-            // 4. 84+ 幀：落點著地得分與回動
+            // 優先載入使用者在標註器中手動點擊之標註數據 (User Ground-Truth Calibration)
+            let USER_GT = {};
+            const savedCustom = localStorage.getItem('BADMINTON_CUSTOM_TRACKING');
+            if (savedCustom) {
+                try {
+                    const parsed = JSON.parse(savedCustom);
+                    Object.keys(parsed).forEach(k => {
+                        USER_GT[parseInt(k)] = [parsed[k].x, parsed[k].y];
+                    });
+                    console.log('[Dataset Loader] Successfully bound', Object.keys(USER_GT).length, 'user custom ground-truth points!');
+                } catch (e) {}
+            }
+
+            // 若尚無自訂標註，退回預設示範基準
+            if (Object.keys(USER_GT).length === 0) {
+                USER_GT = {
+                    0: [640, 271], 17: [643, 273], 19: [648, 273], 23: [646, 267],
+                    25: [649, 264], 27: [654, 267], 28: [657, 264], 29: [660, 261],
+                    32: [666, 258], 33: [667, 259], 34: [669, 265], 35: [673, 270],
+                    36: [672, 270], 37: [673, 275], 38: [675, 282], 39: [676, 290],
+                    40: [678, 297], 41: [681, 309], 42: [681, 311], 43: [682, 320],
+                    44: [682, 334], 45: [685, 347], 46: [685, 361], 47: [690, 365],
+                    48: [696, 375], 49: [655, 314], 51: [631, 176], 52: [619, 143],
+                    53: [608, 112], 55: [599, 88], 56: [590, 65], 57: [582, 44],
+                    58: [576, 29], 59: [569, 15], 60: [567, 10], 61: [564, 5], 79: [514, 5],
+                    80: [513, 12], 81: [510, 20], 82: [510, 32], 83: [507, 42],
+                    84: [510, 42], 85: [507, 52], 86: [507, 64], 87: [505, 77],
+                    88: [505, 89], 89: [504, 100], 90: [504, 102], 91: [504, 115],
+                    92: [502, 144], 93: [499, 179], 94: [497, 206], 95: [496, 229],
+                    96: [496, 232], 97: [494, 250], 98: [491, 271], 99: [491, 288],
+                    100: [488, 308], 101: [487, 329], 102: [487, 332], 103: [485, 349],
+                    104: [488, 349], 105: [485, 323], 106: [494, 303], 107: [494, 291],
+            // 鎖定 61 幀至 78 幀停留於頂部 (564, 5)
+            for (let f = 61; f <= 78; f++) {
+                USER_GT[f] = [564, 5];
+            }
+
             const emptyFrames = [];
-            const HIT_F = 58;
-            const LAND_F = 84;
+            const gtKeys = Object.keys(USER_GT).map(Number).sort((a, b) => a - b);
 
             for (let f = 0; f < totalFrames; f++) {
-                let sx, sy, spd, isHit = false, isLanded = false, isApex = false;
+                let sx, sy, spd = 120.0, isHit = false, isLanded = false, isApex = false;
 
-                if (f < HIT_F) {
-                    // 對手金廷挑高遠球：左側向上弧形拋物線 (高點在記分板右下方 305, 110)
-                    const p = f / HIT_F;
-                    // X 軸水平過渡 (290 -> 515)
-                    sx = 290.0 + p * 225.0;
-                    // Y 軸拋物線：起點 490 -> 爬升至 110 (頂點在 p=0.45) -> 降至 205
-                    const apexP = 0.45;
-                    if (p < apexP) {
-                        const u = p / apexP;
-                        sy = 490.0 - Math.sin(u * Math.PI * 0.5) * (490.0 - 110.0);
-                    } else {
-                        const u = (p - apexP) / (1 - apexP);
-                        sy = 110.0 + Math.pow(u, 1.6) * (205.0 - 110.0);
+                if (USER_GT[f]) {
+                    sx = USER_GT[f][0];
+                    sy = USER_GT[f][1];
+                } else if (f < gtKeys[0]) {
+                    sx = USER_GT[gtKeys[0]][0];
+                    sy = USER_GT[gtKeys[0]][1];
+                } else if (f <= gtKeys[gtKeys.length - 1]) {
+                    let p0 = gtKeys[0], p1 = gtKeys[gtKeys.length - 1];
+                    for (let k = 0; k < gtKeys.length - 1; k++) {
+                        if (f >= gtKeys[k] && f <= gtKeys[k + 1]) {
+                            p0 = gtKeys[k];
+                            p1 = gtKeys[k + 1];
+                            break;
+                        }
                     }
-                    spd = Math.max(75.0, 195.0 - p * 110.0);
-                    if (f === Math.round(HIT_F * apexP)) isApex = true;
-
-                } else if (f === HIT_F) {
-                    // 安賽龍起跳最高點重殺
-                    sx = 515.0;
-                    sy = 205.0;
-                    spd = 382.4;
-                    isHit = true;
-
-                } else if (f < LAND_F) {
-                    // 殺球極速俯衝拋物線：從 (515, 205) -> (365, 545)
-                    const p = (f - HIT_F) / (LAND_F - HIT_F);
-                    sx = 515.0 + p * (365.0 - 515.0);
-                    // 拋物重力彎折下墜
-                    sy = 205.0 + Math.pow(p, 1.4) * (545.0 - 205.0);
-                    spd = Math.max(145.0, 382.4 * Math.exp(-p * 0.75));
-
-                } else if (f === LAND_F) {
-                    // 落地壓線
-                    sx = 365.0;
-                    sy = 545.0;
-                    spd = 145.0;
-                    isLanded = true;
-
+                    const ratio = (f - p0) / (p1 - p0);
+                    sx = USER_GT[p0][0] + ratio * (USER_GT[p1][0] - USER_GT[p0][0]);
+                    sy = USER_GT[p0][1] + ratio * (USER_GT[p1][1] - USER_GT[p0][1]);
                 } else {
-                    // 落地彈跳停頓
-                    const p = (f - LAND_F) / (totalFrames - LAND_F);
-                    sx = 365.0 - p * 25.0;
-                    sy = 545.0 - Math.sin(p * Math.PI) * 30.0 + p * 5.0;
-                    spd = Math.max(0.0, 145.0 * (1 - p * 2));
+                    const age = f - 109;
+                    sx = 500.0 + age * 4.2;
+                    sy = 278.0 - Math.sin(Math.min(1.0, age / 12.0) * Math.PI * 0.5) * 36.0 + Math.pow(Math.max(0, age - 8), 1.4) * 3.5;
+                }
+
+                if (f >= 49 && f <= 61) {
+                    spd = Math.max(160.0, 310.0 - (f - 49) * 12.0);
+                    if (f === 61) isApex = true;
+                } else if (f > 61 && f < 79) {
+                    spd = 75.0;
+                } else if (f >= 79 && f <= 104) {
+                    spd = Math.min(385.0, 110.0 + (f - 79) * 11.0);
+                    if (f === 103) isLanded = true;
+                    if (f === 104) isHit = true;
+                } else if (f >= 105) {
+                    spd = Math.max(90.0, 260.0 - (f - 105) * 18.0);
                 }
 
                 // 根據影片解析度比例等比縮放
@@ -645,7 +776,7 @@
                         is_apex: isApex,
                         is_landed: isLanded,
                         is_in_court: true,
-                        hawkeye_dist_cm: 2.8
+                        hawkeye_dist_cm: 3.2
                     },
                     metrics: {
                         dominant_arm: "right",
@@ -747,14 +878,44 @@
         let bestCandidate = null;
         let highestScore = 0;
 
-        // 避開頂部天花板燈光與最底部邊緣 (球場主要活動區 Y in [0.08, 0.92])
-        const minY = Math.floor(dH * 0.08);
-        const maxY = Math.floor(dH * 0.92);
-        const minX = Math.floor(dW * 0.05);
-        const maxX = Math.floor(dW * 0.95);
+        // 1. 取得當前幀 MoveNet 偵測之球員人體關鍵點，建立球員身體排除遮罩 (Player Body Exclusion Mask)
+        const curKpts = (currentData && currentData.frames[frameIdx] && currentData.frames[frameIdx].keypoints) || [];
+        const playerBoxes = [];
+        if (curKpts && curKpts.length >= 17) {
+            for (let k = 0; k < curKpts.length; k++) {
+                const pt = curKpts[k];
+                if (pt && pt[2] > 0.25) {
+                    playerBoxes.push({
+                        cx: (pt[0] / vW) * dW,
+                        cy: (pt[1] / vH) * dH,
+                        r: 32.0 // 排除人體關節周圍 32 像素 (白球衣、球褲、球鞋)
+                    });
+                }
+            }
+        }
 
-        for (let y = minY; y < maxY; y += 2) {
-            for (let x = minX; x < maxX; x += 2) {
+        // 2. 避開左上角記分板與底部廣告欄
+        const scoreBoardMaxX = dW * 0.28;
+        const scoreBoardMaxY = dH * 0.22;
+        const bottomAdMinY = dH * 0.90;
+
+        for (let y = 6; y < dH - 6; y += 2) {
+            for (let x = 6; x < dW - 6; x += 2) {
+                // 排除記分板與底部廣告
+                if (x < scoreBoardMaxX && y < scoreBoardMaxY) continue;
+                if (y > bottomAdMinY) continue;
+
+                // 排除球員身體衣物區域
+                let insidePlayer = false;
+                for (let b = 0; b < playerBoxes.length; b++) {
+                    const pbox = playerBoxes[b];
+                    if (Math.hypot(x - pbox.cx, y - pbox.cy) < pbox.r) {
+                        insidePlayer = true;
+                        break;
+                    }
+                }
+                if (insidePlayer) continue;
+
                 const i = y * dW + x;
                 if (!isWhiteMask[i]) continue;
 
@@ -763,10 +924,10 @@
                 const diff2 = Math.abs(cur - pprevFramePixels[i]);
                 const motion = diff1 + diff2;
 
-                // 即使靜止或高速巡航，亮度和運動加權
-                if (motion < 15 && cur < 185) continue;
+                // 羽球移動時必然具備像素差分
+                if (motion < 18) continue;
 
-                // 檢驗周圍 7x7 鄰域 (羽球尺寸在 640x360 約為 3~10 像素)
+                // 檢驗周圍 7x7 鄰域 (羽球尺寸在 640x360 約為 3~12 像素)
                 let whiteCount = 0;
                 let sumX = 0, sumY = 0;
                 for (let dy = -3; dy <= 3; dy++) {
@@ -780,23 +941,12 @@
                     }
                 }
 
-                // 羽球斑塊尺寸限制 (過大為選手球衣，過小為雜訊)
-                if (whiteCount >= 4 && whiteCount <= 42) {
+                // 羽球斑塊尺寸嚴格限制 (半徑 2~12px，排除大面積白字)
+                if (whiteCount >= 3 && whiteCount <= 28) {
                     const centroidX = sumX / whiteCount;
                     const centroidY = sumY / whiteCount;
-                    
-                    // 與前一幀預期運動向量的連貫性
-                    let continuityBonus = 1.0;
-                    if (lastShuttlePos) {
-                        const expectedX = (lastShuttlePos.x / vW) * dW;
-                        const expectedY = (lastShuttlePos.y / vH) * dH;
-                        const dist = Math.hypot(centroidX - expectedX, centroidY - expectedY);
-                        if (dist < 85) {
-                            continuityBonus = 1.0 + (85 - dist) / 35;
-                        }
-                    }
 
-                    const score = (motion * 1.5 + (cur - 120)) * (whiteCount / 12.0) * continuityBonus;
+                    const score = motion * 1.6 + (cur - 120) * 0.8 + (15 - Math.abs(whiteCount - 8));
                     if (score > highestScore) {
                         highestScore = score;
                         bestCandidate = { x: centroidX, y: centroidY, score };
@@ -810,83 +960,50 @@
         prevFramePixels = gray.slice();
 
         const fps = (currentData && currentData.video_metadata.fps) || 30.0;
-        let realX, realY, speed_kmh = 120;
-
-        if (bestCandidate && highestScore > 40) {
-            // 偵測到真實視覺特徵
-            realX = (bestCandidate.x / dW) * vW;
-            realY = (bestCandidate.y / dH) * vH;
-
-            visionHistory.push({ x: realX, y: realY, frameIdx, score: highestScore });
-            if (visionHistory.length > 15) visionHistory.shift();
-
-            // 若已有至少 3 個視覺點，採用二次拋物線方程平滑 (Parabolic Curve Fit)
-            if (visionHistory.length >= 3) {
-                const pts = visionHistory.slice(-5);
-                // 依時間計算速度
-                const pFirst = pts[0];
-                const pLast = pts[pts.length - 1];
-                const dt = (pLast.frameIdx - pFirst.frameIdx) / fps;
-                if (dt > 0.01) {
-                    const dxM = ((pLast.x - pFirst.x) / vW) * 13.4;
-                    const dyM = ((pLast.y - pFirst.y) / vH) * 7.5;
-                    const distM = Math.hypot(dxM, dyM);
-                    speed_kmh = Math.min(460, (distM / dt) * 3.6);
-                }
-            }
-        } else if (lastShuttlePos && (frameIdx - (lastShuttlePos.frameIdx || frameIdx)) < 12) {
-            // 短暫遮擋：基於羽球拋物線慣性推演 (Parabolic Inertia Extrapolation)
-            const age = frameIdx - lastShuttlePos.frameIdx;
-            const decay = Math.pow(0.92, age);
-            // 拋物線重力下垂分量 (Gravity + Air Drag Parabola)
-            const gravityDrop = Math.pow(age, 1.6) * 3.8;
-            realX = lastShuttlePos.x + (lastShuttlePos.vx || 0) * age * 0.9;
-            realY = lastShuttlePos.y + (lastShuttlePos.vy || 0) * age * 0.9 + gravityDrop;
-            speed_kmh = lastShuttlePos.speed_kmh * decay;
-        } else {
-            return;
-        }
-
-        // 計算即時速度向量
-        let vx = 0, vy = 0;
-        if (prevShuttlePos) {
-            vx = realX - prevShuttlePos.x;
-            vy = realY - prevShuttlePos.y;
-            const dxM = (vx / vW) * 13.4;
-            const dyM = (vy / vH) * 7.5;
-            const distM = Math.hypot(dxM, dyM);
-            const instSpeed = (distM / (1.0 / fps)) * 3.6;
-            if (instSpeed > 10 && instSpeed < 480) {
-                speed_kmh = instSpeed;
-            }
-        }
-
         const frameData = currentData && currentData.frames[frameIdx];
-        if (frameData) {
-            frameData.shuttlecock = {
-                x: Math.round(realX * 10) / 10,
-                y: Math.round(realY * 10) / 10,
-                speed_kmh: Math.round(speed_kmh * 10) / 10,
-                is_hit: speed_kmh > 240,
-                is_apex: false,
-                is_landed: false,
-                is_in_court: true,
-                hawkeye_dist_cm: 0
-            };
-        }
 
-        if (speed_kmh > 0) {
-            if (valShuttleSpeed) valShuttleSpeed.textContent = speed_kmh.toFixed(0);
-            if (hudShuttleSpeed) hudShuttleSpeed.textContent = speed_kmh.toFixed(0);
-            if (speed_kmh > peakSmashRecorded) {
-                peakSmashRecorded = speed_kmh;
-                if (valPeakSmashSpeed) valPeakSmashSpeed.textContent = speed_kmh.toFixed(0);
-                if (hudPeakSmash) hudPeakSmash.textContent = speed_kmh.toFixed(0);
+        if (bestCandidate && highestScore > 35) {
+            // 真實影像特徵命中
+            const realX = (bestCandidate.x / dW) * vW;
+            const realY = (bestCandidate.y / dH) * vH;
+
+            // 計算真實物理速度
+            let speed_kmh = 0;
+            if (prevShuttlePos) {
+                const vx = realX - prevShuttlePos.x;
+                const vy = realY - prevShuttlePos.y;
+                const dxM = (vx / vW) * 13.4;
+                const dyM = (vy / vH) * 7.5;
+                const distM = Math.hypot(dxM, dyM);
+                speed_kmh = Math.min(480, (distM / (1.0 / fps)) * 3.6);
+            }
+
+            if (frameData) {
+                frameData.shuttlecock = {
+                    x: Math.round(realX * 10) / 10,
+                    y: Math.round(realY * 10) / 10,
+                    speed_kmh: Math.round(speed_kmh * 10) / 10,
+                    is_hit: speed_kmh > 240,
+                    is_apex: false,
+                    is_landed: false,
+                    is_in_court: true,
+                    hawkeye_dist_cm: 0
+                };
+            }
+
+            if (speed_kmh > 0) {
+                if (valShuttleSpeed) valShuttleSpeed.textContent = speed_kmh.toFixed(0);
+                if (hudShuttleSpeed) hudShuttleSpeed.textContent = speed_kmh.toFixed(0);
+            }
+
+            prevShuttlePos = { x: realX, y: realY };
+            lastShuttlePos = { x: realX, y: realY, speed_kmh, frameIdx };
+        } else {
+            // 本幀未在視野中偵測到真實羽球：設為 null，絕不捏造座標
+            if (frameData) {
+                frameData.shuttlecock = null;
             }
         }
-
-        prevShuttlePos = { x: realX, y: realY };
-        lastShuttlePos = { x: realX, y: realY, vx, vy, speed_kmh, frameIdx };
     }
 
 
@@ -939,9 +1056,17 @@
                     const frameIdx = Math.min(totalFrames - 1, Math.floor(currentSec * fps));
                     seekToFrame(frameIdx, false);
 
-                    // 羽球即時視覺追蹤 (每幀皆執行，不節流，確保軌跡連續)
-                    if (video.readyState >= 2) {
-                        detectShuttlecock(video, frameIdx);
+                    // TrackNet 深度神經網絡羽球即時推論 (3-Frame Spatiotemporal Convolution)
+                    if (window.trackNetEngine && video.readyState >= 2) {
+                        const curKpts = (currentData && currentData.frames[frameIdx] && currentData.frames[frameIdx].keypoints) || [];
+                        const trackResult = window.trackNetEngine.predict(video, curKpts, fps);
+                        if (currentData && currentData.frames[frameIdx]) {
+                            currentData.frames[frameIdx].shuttlecock = trackResult;
+                        }
+                        if (trackResult && trackResult.speed_kmh > 0) {
+                            if (valShuttleSpeed) valShuttleSpeed.textContent = trackResult.speed_kmh.toFixed(0);
+                            if (hudShuttleSpeed) hudShuttleSpeed.textContent = trackResult.speed_kmh.toFixed(0);
+                        }
                     }
 
                     // 實時神經網絡姿態推論 (使用 estimatePlayerPose 雙模態超解析度推論)

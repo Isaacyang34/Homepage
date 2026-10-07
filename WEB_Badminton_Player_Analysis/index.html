@@ -87,35 +87,35 @@
                             <span class="chip-text">原始影片重合</span>
                         </label>
                         <label class="toggle-chip">
-                            <input type="checkbox" id="chkCourtBounds" checked>
-                            <span class="chip-text highlight-chip-court">📐 3D 球場網格</span>
-                        </label>
-                        <label class="toggle-chip">
-                            <input type="checkbox" id="chkHawkEyeLoupe" checked>
-                            <span class="chip-text highlight-chip-loupe">🔍 鷹眼微距放大鏡</span>
-                        </label>
-                        <label class="toggle-chip">
                             <input type="checkbox" id="chkTrajectory" checked>
                             <span class="chip-text highlight-chip-shuttle">🎯 紅點鎖定羽球</span>
                         </label>
                         <label class="toggle-chip">
-                            <input type="checkbox" id="chkLanding" checked>
+                            <input type="checkbox" id="chkCourtBounds">
+                            <span class="chip-text highlight-chip-court">📐 3D 球場網格</span>
+                        </label>
+                        <label class="toggle-chip">
+                            <input type="checkbox" id="chkHawkEyeLoupe">
+                            <span class="chip-text highlight-chip-loupe">🔍 鷹眼微距放大鏡</span>
+                        </label>
+                        <label class="toggle-chip">
+                            <input type="checkbox" id="chkLanding">
                             <span class="chip-text highlight-chip-landing">🎯 鷹眼落點判定</span>
                         </label>
                         <label class="toggle-chip">
-                            <input type="checkbox" id="chkSkeleton" checked>
+                            <input type="checkbox" id="chkSkeleton">
                             <span class="chip-text">17點骨架</span>
                         </label>
                         <label class="toggle-chip">
-                            <input type="checkbox" id="chkAngles" checked>
+                            <input type="checkbox" id="chkAngles">
                             <span class="chip-text">關節角度</span>
                         </label>
                         <label class="toggle-chip">
-                            <input type="checkbox" id="chkCoM" checked>
+                            <input type="checkbox" id="chkCoM">
                             <span class="chip-text">重心軌跡</span>
                         </label>
                         <label class="toggle-chip">
-                            <input type="checkbox" id="chkJumpApex" checked>
+                            <input type="checkbox" id="chkJumpApex">
                             <span class="chip-text">起跳標尺</span>
                         </label>
                     </div>
@@ -567,6 +567,9 @@
     <!-- TensorFlow.js & MoveNet Real In-Browser AI Pose Detection -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
+
+    <!-- TrackNet AI Shuttlecock Detector Engine -->
+    <script src="tracknet_engine.js"></script>
 
     <!-- Application Script -->
     <script src="demo_sample.js"></script>
