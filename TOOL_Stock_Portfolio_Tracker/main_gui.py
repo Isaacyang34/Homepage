@@ -220,8 +220,13 @@ class PortfolioApp(tk.Tk):
         btn_cloud = ttk.Button(bottom_frame, text="[☁ 雲端] 加密同步", command=self.on_open_cloud_sync, style="Action.TButton")
         btn_cloud.pack(side=tk.LEFT, padx=2)
 
-        self.btn_update = ttk.Button(bottom_frame, text="[⬆ 更新] 線上更新", command=self.on_check_online_update, style="Action.TButton")
-        self.btn_update.pack(side=tk.LEFT, padx=2)
+        self.btn_update = tk.Button(
+            bottom_frame, text="[⬆ 軟體更新]", bg="#323242", fg="#ffffff",
+            activebackground="#3a86ff", activeforeground="#ffffff",
+            font=(self.font_family, self.font_size, "bold"), relief="flat", padx=8, pady=3,
+            cursor="hand2", command=self.on_check_online_update
+        )
+        self.btn_update.pack(side=tk.LEFT, padx=3)
 
         # 右側控制：自動刷新頻率
         self.auto_refresh_var = tk.BooleanVar(value=True)
@@ -764,12 +769,12 @@ class PortfolioApp(tk.Tk):
         self.after(1000, check_daily_task)
 
     def on_check_online_update(self):
-        """使用者手動點擊檢查線上更新"""
-        self.status_lbl.configure(text="正在連線檢查線上最新版本...")
+        """使用者手動點擊檢查軟體更新：彈窗告知版本更新內容並由使用者自主決定"""
+        self.status_lbl.configure(text="正在連線檢查軟體最新版本...")
         def worker():
             ok, manifest, source = fetch_update_manifest()
             if not ok or not manifest:
-                self.after(0, lambda: messagebox.showinfo("線上更新", "目前無法連線至雲端版本伺服器，請確認網路連線。", parent=self))
+                self.after(0, lambda: messagebox.showinfo("軟體更新", "目前版本伺服器離線或同步中，請稍候再試。", parent=self))
                 self.after(0, lambda: self.status_lbl.configure(text="系統就緒"))
                 return
             cloud_ver = manifest.get("version", APP_VERSION)
@@ -779,18 +784,23 @@ class PortfolioApp(tk.Tk):
         threading.Thread(target=worker, daemon=True).start()
 
     def check_online_update_silently(self):
-        """背景靜默檢查更新 (啟動後自動探測，若有新版提示使用者)"""
+        """軟體開啟後自動在背景檢查更新：若有新版本則變色提示"""
         def worker():
             ok, manifest, source = fetch_update_manifest()
             if ok and manifest:
                 cloud_ver = manifest.get("version", APP_VERSION)
                 if is_newer_version(cloud_ver, APP_VERSION):
-                    self.after(0, self._on_found_newer_version, cloud_ver)
+                    self.after(0, lambda: self._on_found_newer_version(cloud_ver))
         threading.Thread(target=worker, daemon=True).start()
 
     def _on_found_newer_version(self, cloud_ver: str):
-        self.btn_update.configure(text=f"[!] 有新版 {cloud_ver}")
-        self.status_lbl.configure(text=f"💡 發現新版本 {cloud_ver}，點擊「[!] 有新版」即可一鍵升級！")
+        """發現新版本時：按鈕變色為鮮明亮橘色高亮警示"""
+        self.btn_update.configure(
+            text=f"[🔥 發現新版 {cloud_ver}]",
+            bg="#f59e0b", fg="#ffffff",
+            activebackground="#d97706", activeforeground="#ffffff"
+        )
+        self.status_lbl.configure(text=f"💡 發現軟體新版本 {cloud_ver}！點擊「[🔥 發現新版]」即可檢視更新內容並決定是否升級。")
 
     def auto_check_post_market_history(self):
         """軟體開啟後自動比對盤後歷史資料是否要更新"""
