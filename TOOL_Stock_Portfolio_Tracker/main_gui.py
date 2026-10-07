@@ -32,6 +32,7 @@ from kline_chart import KLineChartCanvas
 from stock_detector import detect_stock_metadata
 from crypto_sync import sync_to_cloud, fetch_and_decrypt_from_cloud, DEFAULT_FIREBASE_URL, get_or_create_secret_key
 from updater import APP_VERSION, fetch_update_manifest, is_newer_version, UpdateDialog
+from market_ranking_gui import MarketRankingDialog
 
 def clean_number(val_str: str, default: float = 0.0) -> float:
     """寬容解析數值：自動相容千分位逗號、全形小數點(．/。)、全形逗點與貨幣符號"""
@@ -252,6 +253,9 @@ class PortfolioApp(tk.Tk):
 
         btn_data_update = ttk.Button(bottom_frame, text="[⟳ 資料更新]", command=self.on_open_data_update, style="Action.TButton")
         btn_data_update.pack(side=tk.LEFT, padx=2)
+
+        btn_ranking = ttk.Button(bottom_frame, text="[📊 市場排行] 4大指標", command=self.on_open_market_ranking, style="Action.TButton")
+        btn_ranking.pack(side=tk.LEFT, padx=2)
 
         btn_view_kline = ttk.Button(bottom_frame, text="[K線] 個股走勢圖", command=self.on_view_kline, style="Action.TButton")
         btn_view_kline.pack(side=tk.LEFT, padx=2)
@@ -978,6 +982,30 @@ class PortfolioApp(tk.Tk):
         pos = next((p for p in self.positions if p["id"] == pos_id), None)
         if pos:
             HistoryViewerDialog(self, symbol=pos["symbol"], name=pos["name"], market=pos.get("market", "TW"))
+
+    def on_open_market_ranking(self):
+        """開啟台股與 ETF 4 大核心財務指標排行榜視窗"""
+        existing_syms = {p["symbol"].strip().upper() for p in self.positions}
+
+        def on_add_cb(symbol, name, is_etf):
+            pos_seed = {
+                "symbol": symbol,
+                "name": name,
+                "market": "TW",
+                "is_etf": is_etf,
+                "shares": 1000,
+                "cost_price": 0.0,
+                "fee_discount": 0.6,
+                "note": "來自市場排行榜篩選"
+            }
+            PositionEditDialog(
+                self,
+                title=f"新增持股部位 - {symbol} {name}",
+                pos=pos_seed,
+                on_saved=self.reload_positions
+            )
+
+        MarketRankingDialog(self, on_add_position_callback=on_add_cb, existing_symbols=existing_syms)
 
 
 class PositionEditDialog(tk.Toplevel):
