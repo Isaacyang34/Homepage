@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Optional, Dict, Any, Tuple
 
-APP_VERSION = "V1.0.2"
+APP_VERSION = "V1.0.2.1"
 
 def get_resource_path(relative_path: str) -> str:
     """取得靜態資源路徑，相容開發環境與 PyInstaller 打包 (_MEIPASS)"""
@@ -24,21 +24,21 @@ GITHUB_MANIFEST_URL = "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh
 FIREBASE_MANIFEST_URL = "https://my-stock-tracker-2a94e-default-rtdb.asia-southeast1.firebasedatabase.app/update/version.json"
 
 def parse_version_tuple(ver_str: str) -> Tuple[int, ...]:
-    """解析版本字串例如 'V1.0' -> (1, 0, 0), 'V1.0.1' -> (1, 0, 1)"""
+    """解析版本字串例如 'V1.0.2' -> (1, 0, 2, 0), 'V1.0.2.1' -> (1, 0, 2, 1)"""
     try:
         clean = ver_str.strip().lstrip('vV')
         parts = [int(p) for p in clean.split('.') if p.isdigit()]
-        while len(parts) < 3:
+        while len(parts) < 4:
             parts.append(0)
         return tuple(parts)
     except Exception:
-        return (0, 0, 0)
+        return (0, 0, 0, 0)
 
 def is_newer_version(cloud_ver: str, local_ver: str) -> bool:
     """判斷雲端版本是否大於本地版本"""
     c_tup = parse_version_tuple(cloud_ver)
     l_tup = parse_version_tuple(local_ver)
-    if c_tup != (0, 0, 0) and l_tup != (0, 0, 0):
+    if c_tup != (0, 0, 0, 0) and l_tup != (0, 0, 0, 0):
         return c_tup > l_tup
     return cloud_ver.strip().lower() != local_ver.strip().lower()
 
