@@ -169,6 +169,14 @@ class UpdateDialog(tk.Toplevel):
             )
             self.btn_close.pack(side=tk.RIGHT, ipadx=14, ipady=4)
 
+            self.btn_reinstall = tk.Button(
+                bot, text=f"重新下載/覆蓋版本 ({cloud_ver})", bg="#2563eb", fg="#ffffff",
+                activebackground="#1d4ed8", activeforeground="#ffffff",
+                font=("Microsoft JhengHei UI", 9, "bold"), relief="flat", cursor="hand2",
+                command=self.start_download
+            )
+            self.btn_reinstall.pack(side=tk.RIGHT, padx=10, ipadx=10, ipady=4)
+
         # 3. 下載進度條與狀態文字 (BOTTOM，緊貼按鈕列上方)
         self.progress_frame = tk.Frame(self, bg="#20202a", padx=18)
         self.progress_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(0, 4))
@@ -209,8 +217,12 @@ class UpdateDialog(tk.Toplevel):
             return
 
         self.is_downloading = True
-        self.btn_download.configure(state=tk.DISABLED, text="下載升級中...")
-        self.btn_cancel.configure(state=tk.DISABLED)
+        if hasattr(self, 'btn_download'):
+            self.btn_download.configure(state=tk.DISABLED, text="下載升級中...")
+        if hasattr(self, 'btn_reinstall'):
+            self.btn_reinstall.configure(state=tk.DISABLED, text="下載中...")
+        if hasattr(self, 'btn_cancel'):
+            self.btn_cancel.configure(state=tk.DISABLED)
 
         self.pbar.pack(fill=tk.X, pady=(0, 4))
         self.lbl_download_status.pack(anchor="w")
@@ -296,5 +308,9 @@ exit
     def _on_download_failed(self, err: str):
         self.lbl_download_status.configure(text=f"[!] 下載失敗: {err}", fg="#ff4d4f")
         messagebox.showerror("下載失敗", f"下載更新檔時發生錯誤: {err}\n請檢查網路連線或稍後再試。", parent=self)
-        self.btn_download.configure(state=tk.NORMAL, text="重試下載")
-        self.btn_cancel.configure(state=tk.NORMAL)
+        if hasattr(self, 'btn_download'):
+            self.btn_download.configure(state=tk.NORMAL, text="重試下載")
+        if hasattr(self, 'btn_reinstall'):
+            self.btn_reinstall.configure(state=tk.NORMAL, text=f"重新下載/覆蓋版本 ({self.manifest.get('version', '')})")
+        if hasattr(self, 'btn_cancel'):
+            self.btn_cancel.configure(state=tk.NORMAL)
