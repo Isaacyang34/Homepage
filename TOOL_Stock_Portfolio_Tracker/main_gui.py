@@ -1,7 +1,7 @@
 import os
 import sys
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, colorchooser
 import threading
 import time
 from datetime import datetime
@@ -21,6 +21,7 @@ from database import (
     get_trade_lots, add_trade_lot, delete_trade_lot, get_price_benchmarks,
     get_visible_columns, set_visible_columns, get_visible_cards, set_visible_cards,
     get_update_timestamp, set_update_timestamp,
+    get_theme_settings, set_theme_settings, DEFAULT_THEME_SETTINGS,
     DEFAULT_VISIBLE_COLUMNS, DEFAULT_VISIBLE_CARDS
 )
 from quote_service import QuoteService
@@ -80,7 +81,7 @@ ALL_CARD_SPECS = [
     ("week_pnl", "本週損益 (NT$)", "#ffffff", "相比 5 日前收盤"),
     ("month_pnl", "本月損益 (NT$)", "#ffffff", "相比 20 日前收盤"),
     ("total_div", "預估年總股息 (殖利率)", "#ffd166", "全庫存預估全年被動現金流"),
-    ("hist_div", "歷年累計已領股息", "#a0e0a0", "依買入取得時間精算"),
+    ("hist_div", "歷年累計已領股息", "#38bdf8", "依買入取得時間精算"),
     ("stock_count", "在庫標的數", "#3a86ff", "持股檔數與批次數")
 ]
 
@@ -151,35 +152,43 @@ class PortfolioApp(tk.Tk):
         except Exception:
             pass
 
-        self.bg_color = "#1e1e24"
-        self.card_bg = "#2b2b36"
-        self.text_color = "#ffffff"
+        self.theme_settings = get_theme_settings()
+        ts = self.theme_settings
+
+        self.bg_color = ts.get("bg_color", "#1e1e24")
+        self.card_bg = ts.get("card_bg", "#2b2b36")
+        self.table_bg = ts.get("table_bg", "#252530")
+        self.text_color = ts.get("text_color", "#ffffff")
         self.muted_text = "#a0a0b0"
         self.accent_blue = "#3a86ff"
+        self.hist_div_color = ts.get("hist_div_color", "#38bdf8")
+        self.font_family = ts.get("font_family", "Microsoft JhengHei UI")
+        self.font_size = int(ts.get("font_size", 10))
+        self.row_height = int(ts.get("row_height", 32))
         
         self.configure(bg=self.bg_color)
 
-        self.style.configure(".", background=self.bg_color, foreground=self.text_color, font=("Microsoft JhengHei UI", 10))
+        self.style.configure(".", background=self.bg_color, foreground=self.text_color, font=(self.font_family, self.font_size))
         self.style.configure("TFrame", background=self.bg_color)
         self.style.configure("Card.TFrame", background=self.card_bg, relief="flat")
-        self.style.configure("TLabel", background=self.bg_color, foreground=self.text_color, font=("Microsoft JhengHei UI", 10))
-        self.style.configure("CardTitle.TLabel", background=self.card_bg, foreground=self.muted_text, font=("Microsoft JhengHei UI", 9))
-        self.style.configure("CardVal.TLabel", background=self.card_bg, foreground="#ffffff", font=("Microsoft JhengHei UI", 13, "bold"))
+        self.style.configure("TLabel", background=self.bg_color, foreground=self.text_color, font=(self.font_family, self.font_size))
+        self.style.configure("CardTitle.TLabel", background=self.card_bg, foreground=self.muted_text, font=(self.font_family, max(8, self.font_size - 1)))
+        self.style.configure("CardVal.TLabel", background=self.card_bg, foreground=self.text_color, font=(self.font_family, self.font_size + 3, "bold"))
 
         self.style.configure("Treeview", 
-                             background="#252530", 
-                             foreground="#f0f0f0", 
-                             fieldbackground="#252530",
-                             rowheight=32,
-                             font=("Microsoft JhengHei UI", 10))
+                             background=self.table_bg, 
+                             foreground=self.text_color, 
+                             fieldbackground=self.table_bg,
+                             rowheight=self.row_height,
+                             font=(self.font_family, self.font_size))
         self.style.configure("Treeview.Heading", 
                              background="#323242", 
                              foreground="#ffffff", 
                              relief="flat", 
-                             font=("Microsoft JhengHei UI", 10, "bold"))
+                             font=(self.font_family, self.font_size, "bold"))
         self.style.map("Treeview", background=[("selected", "#3a86ff")], foreground=[("selected", "#ffffff")])
         self.style.map("Treeview.Heading", background=[("active", "#404055")])
-        self.style.configure("Action.TButton", font=("Microsoft JhengHei UI", 10, "bold"), padding=5)
+        self.style.configure("Action.TButton", font=(self.font_family, self.font_size, "bold"), padding=5)
 
     def build_ui(self):
         """建構主介面排版 (依據自訂設定動態生成卡片與表格)"""
@@ -205,7 +214,7 @@ class PortfolioApp(tk.Tk):
         btn_view_kline = ttk.Button(bottom_frame, text="[K線] 個股走勢圖", command=self.on_view_kline, style="Action.TButton")
         btn_view_kline.pack(side=tk.LEFT, padx=2)
 
-        btn_settings = ttk.Button(bottom_frame, text="[⚙ 設定] 介面欄位", command=self.on_open_settings, style="Action.TButton")
+        btn_settings = ttk.Button(bottom_frame, text="[⚙ 設定] 介面與外觀", command=self.on_open_settings, style="Action.TButton")
         btn_settings.pack(side=tk.LEFT, padx=2)
 
         btn_cloud = ttk.Button(bottom_frame, text="[☁ 雲端] 加密同步", command=self.on_open_cloud_sync, style="Action.TButton")
@@ -251,6 +260,8 @@ class PortfolioApp(tk.Tk):
             if card_id not in spec_dict:
                 continue
             cid, title, text_col, desc = spec_dict[card_id]
+            if cid == "hist_div":
+                text_col = getattr(self, "hist_div_color", "#38bdf8")
             card = ttk.Frame(self.top_cards_container, style="Card.TFrame", padding=(10, 7))
             card.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=3)
             lbl_title = ttk.Label(card, text=title, style="CardTitle.TLabel")
@@ -332,8 +343,8 @@ class PortfolioApp(tk.Tk):
         """依據標題與儲存格內容文字長度，自動適應欄位寬度（防文字裁切）"""
         try:
             import tkinter.font as tkfont
-            cell_font = tkfont.Font(family="Microsoft JhengHei UI", size=10)
-            heading_font = tkfont.Font(family="Microsoft JhengHei UI", size=10, weight="bold")
+            cell_font = tkfont.Font(family=getattr(self, "font_family", "Microsoft JhengHei UI"), size=getattr(self, "font_size", 10))
+            heading_font = tkfont.Font(family=getattr(self, "font_family", "Microsoft JhengHei UI"), size=getattr(self, "font_size", 10), weight="bold")
             spec_dict = {s[0]: s for s in ALL_COLUMN_SPECS}
 
             for col_id in self.visible_columns:
@@ -563,7 +574,7 @@ class PortfolioApp(tk.Tk):
             self.cards["total_div"].configure(text=f"$ {total_div_sum:,.0f} ({avg_yield:.2f}%)")
 
         if "hist_div" in self.cards:
-            self.cards["hist_div"].configure(text=f"$ {hist_div_sum:,.0f}")
+            self.cards["hist_div"].configure(text=f"$ {hist_div_sum:,.0f}", foreground=getattr(self, "hist_div_color", "#38bdf8"))
 
         if "stock_count" in self.cards:
             self.cards["stock_count"].configure(text=f"{len(self.positions)} 檔")
@@ -802,6 +813,7 @@ class PortfolioApp(tk.Tk):
         self.on_update_history_all(silent=True)
 
     def _on_settings_applied(self):
+        self.setup_styles()
         self.visible_columns = get_visible_columns()
         self.visible_cards = get_visible_cards()
         self.rebuild_cards()
@@ -1475,13 +1487,13 @@ class DataUpdateDialog(tk.Toplevel):
 
 
 class SettingsDialog(tk.Toplevel):
-    """介面自訂設定對話框 (支援主表格欄位左右順序編輯、增減顯示與頂部卡片勾選)"""
+    """介面自訂設定對話框 (支援高對比分頁切換、主表格欄位排序、頂部卡片勾選、字型大小顏色與背景設定)"""
     def __init__(self, parent, on_applied=None):
         super().__init__(parent)
-        self.title("自訂介面顯示與欄位排序設定")
-        self.geometry("760x600")
+        self.title("自訂介面顯示、字型色彩與欄位設定")
+        self.geometry("860x650")
         self.resizable(False, False)
-        self.configure(bg="#22222a")
+        self.configure(bg="#181820")
         self.transient(parent)
         self.grab_set()
 
@@ -1491,47 +1503,86 @@ class SettingsDialog(tk.Toplevel):
         # 讀取目前順序的欄位清單
         saved_cols = get_visible_columns()
         self.active_cols = [cid for cid in saved_cols if cid in self.spec_dict]
-        # 隱藏欄位庫
         self.hidden_cols = [cid for cid, _, _, _, _ in ALL_COLUMN_SPECS if cid not in self.active_cols]
-
         self.cur_cards = set(get_visible_cards())
+
+        # 讀取外觀與色彩設定
+        self.theme_settings = dict(get_theme_settings())
+        self.cur_font_family = tk.StringVar(value=self.theme_settings.get("font_family", "Microsoft JhengHei UI"))
+        self.cur_font_size = tk.StringVar(value=str(self.theme_settings.get("font_size", 10)))
+        self.cur_row_height = tk.StringVar(value=str(self.theme_settings.get("row_height", 32)))
+
+        self.color_vars = {
+            "bg_color": self.theme_settings.get("bg_color", "#1e1e24"),
+            "card_bg": self.theme_settings.get("card_bg", "#2b2b36"),
+            "table_bg": self.theme_settings.get("table_bg", "#252530"),
+            "text_color": self.theme_settings.get("text_color", "#ffffff"),
+            "hist_div_color": self.theme_settings.get("hist_div_color", "#38bdf8"),
+        }
 
         self.build_ui()
         self.refresh_lists()
+        self.update_preview()
 
     def build_ui(self):
-        nb = ttk.Notebook(self)
-        nb.pack(fill=tk.BOTH, expand=True, padx=12, pady=10)
+        # ==========================================
+        # 頂部高對比客製化導航分頁列 (保證 100% 清晰可見)
+        # ==========================================
+        tab_bar = tk.Frame(self, bg="#13131a", height=44)
+        tab_bar.pack(fill=tk.X, padx=12, pady=(10, 0))
+
+        self.tab_container = tk.Frame(self, bg="#20202a")
+        self.tab_container.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 10))
+
+        self.tab_frames = {}
+        self.tab_buttons = {}
+
+        tabs = [
+            ("cols", "主表格顯示欄位與左右排序"),
+            ("cards", "頂部儀表板卡片勾選"),
+            ("appearance", "字型大小、顏色與背景設定")
+        ]
+
+        for key, title in tabs:
+            btn = tk.Button(
+                tab_bar, text=f"  {title}  ", bg="#262634", fg="#94a3b8",
+                activebackground="#3b82f6", activeforeground="#ffffff",
+                relief="flat", font=("Microsoft JhengHei UI", 10),
+                cursor="hand2", padx=14, pady=6,
+                command=lambda k=key: self.switch_tab(k)
+            )
+            btn.pack(side=tk.LEFT, padx=(0, 4))
+            self.tab_buttons[key] = btn
+
+            frame = tk.Frame(self.tab_container, bg="#20202a")
+            self.tab_frames[key] = frame
 
         # ==========================================
         # 分頁 1: 表格欄位順序與增減設定 (左右順序編輯)
         # ==========================================
-        tab_cols = tk.Frame(nb, bg="#22222a")
-        nb.add(tab_cols, text="  主表格顯示欄位與左右排序  ")
-
+        tab_cols = self.tab_frames["cols"]
         lbl_hint = tk.Label(
             tab_cols,
             text="💡 列表順序代表表格中【由左至右】的顯示順序。選取欄位後，可透過中間按鈕調整左右位置、增減或置頂置底：",
-            bg="#22222a", fg="#a0a0b0", font=("Microsoft JhengHei UI", 9)
+            bg="#20202a", fg="#a0a0b0", font=("Microsoft JhengHei UI", 9)
         )
-        lbl_hint.pack(anchor="w", padx=12, pady=(8, 4))
+        lbl_hint.pack(anchor="w", padx=12, pady=(10, 6))
 
-        # 主工作區 (左欄位清單 + 中間按鈕群 + 右隱藏欄位清單)
-        work_frame = tk.Frame(tab_cols, bg="#22222a")
+        work_frame = tk.Frame(tab_cols, bg="#20202a")
         work_frame.pack(fill=tk.BOTH, expand=True, padx=12, pady=4)
 
-        # 1. 左側：已啟用顯示欄位 (有順序)
-        left_box = tk.Frame(work_frame, bg="#22222a")
+        # 1. 左側：已啟用顯示欄位
+        left_box = tk.Frame(work_frame, bg="#20202a")
         left_box.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        self.lbl_active_title = tk.Label(left_box, text="[目前顯示欄位 - 由左至右]", bg="#22222a", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"))
+        self.lbl_active_title = tk.Label(left_box, text="[目前顯示欄位 - 由左至右]", bg="#20202a", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"))
         self.lbl_active_title.pack(anchor="w", pady=(0, 4))
 
-        active_scroll_frame = tk.Frame(left_box, bg="#181820", relief="solid", bd=1)
+        active_scroll_frame = tk.Frame(left_box, bg="#14141b", relief="solid", bd=1)
         active_scroll_frame.pack(fill=tk.BOTH, expand=True)
 
         self.list_active = tk.Listbox(
-            active_scroll_frame, bg="#181820", fg="#ffffff", selectbackground="#3a86ff",
+            active_scroll_frame, bg="#14141b", fg="#ffffff", selectbackground="#2563eb",
             selectforeground="#ffffff", font=("Microsoft JhengHei UI", 9),
             activestyle="none", highlightthickness=0, bd=0, exportselection=False
         )
@@ -1542,7 +1593,7 @@ class SettingsDialog(tk.Toplevel):
         self.list_active.bind("<Double-Button-1>", lambda e: self.remove_from_active())
 
         # 2. 中間：操作按鈕欄
-        mid_box = tk.Frame(work_frame, bg="#22222a", padx=10)
+        mid_box = tk.Frame(work_frame, bg="#20202a", padx=10)
         mid_box.pack(side=tk.LEFT, fill=tk.Y, pady=20)
 
         btn_w = 14
@@ -1551,23 +1602,23 @@ class SettingsDialog(tk.Toplevel):
 
         tk.Frame(mid_box, bg="#3a3a46", height=1).pack(fill=tk.X, pady=10)
 
-        tk.Button(mid_box, text="▲ 往左 (上移)", bg="#2b4c7e", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), width=btn_w, relief="flat", command=self.move_up).pack(pady=3)
-        tk.Button(mid_box, text="▼ 往右 (下移)", bg="#2b4c7e", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), width=btn_w, relief="flat", command=self.move_down).pack(pady=3)
+        tk.Button(mid_box, text="▲ 往左 (上移)", bg="#1d4ed8", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), width=btn_w, relief="flat", command=self.move_up).pack(pady=3)
+        tk.Button(mid_box, text="▼ 往右 (下移)", bg="#1d4ed8", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), width=btn_w, relief="flat", command=self.move_down).pack(pady=3)
         tk.Button(mid_box, text="[置頂] 最左", bg="#323242", fg="#ffffff", font=("Microsoft JhengHei UI", 9), width=btn_w, relief="flat", command=self.move_top).pack(pady=3)
         tk.Button(mid_box, text="[置底] 最右", bg="#323242", fg="#ffffff", font=("Microsoft JhengHei UI", 9), width=btn_w, relief="flat", command=self.move_bottom).pack(pady=3)
 
         # 3. 右側：未顯示/隱藏欄位庫
-        right_box = tk.Frame(work_frame, bg="#22222a")
+        right_box = tk.Frame(work_frame, bg="#20202a")
         right_box.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
-        self.lbl_hidden_title = tk.Label(right_box, text="[可選隱藏欄位庫]", bg="#22222a", fg="#a0a0b0", font=("Microsoft JhengHei UI", 9, "bold"))
+        self.lbl_hidden_title = tk.Label(right_box, text="[可選隱藏欄位庫]", bg="#20202a", fg="#a0a0b0", font=("Microsoft JhengHei UI", 9, "bold"))
         self.lbl_hidden_title.pack(anchor="w", pady=(0, 4))
 
-        hidden_scroll_frame = tk.Frame(right_box, bg="#181820", relief="solid", bd=1)
+        hidden_scroll_frame = tk.Frame(right_box, bg="#14141b", relief="solid", bd=1)
         hidden_scroll_frame.pack(fill=tk.BOTH, expand=True)
 
         self.list_hidden = tk.Listbox(
-            hidden_scroll_frame, bg="#181820", fg="#d0d0d8", selectbackground="#3a86ff",
+            hidden_scroll_frame, bg="#14141b", fg="#d0d0d8", selectbackground="#2563eb",
             selectforeground="#ffffff", font=("Microsoft JhengHei UI", 9),
             activestyle="none", highlightthickness=0, bd=0, exportselection=False
         )
@@ -1578,38 +1629,253 @@ class SettingsDialog(tk.Toplevel):
         self.list_hidden.bind("<Double-Button-1>", lambda e: self.add_to_active())
 
         # 底部快捷按鈕列 (全選 / 重設)
-        btn_col_box = tk.Frame(tab_cols, bg="#22222a")
-        btn_col_box.pack(fill=tk.X, padx=12, pady=6)
+        btn_col_box = tk.Frame(tab_cols, bg="#20202a")
+        btn_col_box.pack(fill=tk.X, padx=12, pady=8)
         tk.Button(btn_col_box, text="全部加入顯示", bg="#323242", fg="#ffffff", relief="flat", font=("Microsoft JhengHei UI", 8), command=self.select_all_cols).pack(side=tk.LEFT, padx=3)
         tk.Button(btn_col_box, text="恢復預設順序與欄位", bg="#323242", fg="#ffffff", relief="flat", font=("Microsoft JhengHei UI", 8), command=self.reset_default_cols).pack(side=tk.LEFT, padx=3)
-        tk.Label(btn_col_box, text="* 支援雙擊項目快速加入或移除", bg="#22222a", fg="#7a7a8c", font=("Microsoft JhengHei UI", 8)).pack(side=tk.RIGHT)
+        tk.Label(btn_col_box, text="* 支援雙擊項目快速加入或移除", bg="#20202a", fg="#7a7a8c", font=("Microsoft JhengHei UI", 8)).pack(side=tk.RIGHT)
 
         # ==========================================
         # 分頁 2: 頂部資訊卡片設定
         # ==========================================
-        tab_cards = tk.Frame(nb, bg="#22222a")
-        nb.add(tab_cards, text="  頂部儀表板卡片勾選  ")
+        tab_cards = self.tab_frames["cards"]
+        lbl_k = tk.Label(tab_cards, text="勾選您希望在視窗最上方儀表板顯示的概覽卡片：", bg="#20202a", fg="#cbd5e1", font=("Microsoft JhengHei UI", 9, "bold"))
+        lbl_k.pack(anchor="w", padx=16, pady=(14, 8))
 
-        lbl_k = tk.Label(tab_cards, text="勾選您希望在視窗最上方儀表板顯示的概覽卡片：", bg="#22222a", fg="#a0a0b0", font=("Microsoft JhengHei UI", 9))
-        lbl_k.pack(anchor="w", padx=12, pady=8)
-
-        cards_container = tk.Frame(tab_cards, bg="#22222a")
-        cards_container.pack(fill=tk.BOTH, expand=True, padx=12, pady=4)
+        cards_container = tk.Frame(tab_cards, bg="#20202a")
+        cards_container.pack(fill=tk.BOTH, expand=True, padx=16, pady=4)
 
         self.card_vars = {}
-        for i, (cid, title, text_col, desc) in enumerate(ALL_CARD_SPECS):
+        for cid, title, text_col, desc in ALL_CARD_SPECS:
             var = tk.BooleanVar(value=(cid in self.cur_cards))
             self.card_vars[cid] = var
-            chk = tk.Checkbutton(cards_container, text=f"{title} - [{desc}]", variable=var, bg="#22222a", fg="#ffffff", selectcolor="#2d2d38", font=("Microsoft JhengHei UI", 9))
-            chk.pack(anchor="w", padx=15, pady=4)
+            desc_tag = f"[{desc}]"
+            if cid == "hist_div":
+                desc_tag = f"[{desc} ★ 亮藍色字體，防綠色忌諱]"
+            chk = tk.Checkbutton(
+                cards_container, text=f"{title} - {desc_tag}",
+                variable=var, bg="#20202a", fg="#ffffff", selectcolor="#2b2b3a",
+                activebackground="#20202a", activeforeground="#ffffff",
+                font=("Microsoft JhengHei UI", 9)
+            )
+            chk.pack(anchor="w", padx=10, pady=5)
+
+        # ==========================================
+        # 分頁 3: 字型大小、顏色與背景設定
+        # ==========================================
+        tab_app = self.tab_frames["appearance"]
+
+        # 頂部提示
+        lbl_app_hint = tk.Label(
+            tab_app,
+            text="客製化主介面字型大小、主題背景色與數字色彩。台股最忌諱綠色數字，已領股息預設為亮藍色：",
+            bg="#20202a", fg="#a0a0b0", font=("Microsoft JhengHei UI", 9)
+        )
+        lbl_app_hint.pack(anchor="w", padx=14, pady=(10, 6))
+
+        app_work = tk.Frame(tab_app, bg="#20202a")
+        app_work.pack(fill=tk.BOTH, expand=True, padx=14, pady=4)
+
+        # 左側欄位：字型大小 + 快速主題
+        left_app = tk.Frame(app_work, bg="#20202a", width=360)
+        left_app.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
+
+        # 1. 字型設定群組
+        font_grp = tk.LabelFrame(left_app, text=" 【表格字型與排版大小】 ", bg="#20202a", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), padx=10, pady=8)
+        font_grp.pack(fill=tk.X, pady=(0, 10))
+
+        # 字型名稱
+        f_row1 = tk.Frame(font_grp, bg="#20202a")
+        f_row1.pack(fill=tk.X, pady=3)
+        tk.Label(f_row1, text="字型家族:", bg="#20202a", fg="#d0d0d8", font=("Microsoft JhengHei UI", 9), width=10, anchor="w").pack(side=tk.LEFT)
+        combo_font = ttk.Combobox(f_row1, textvariable=self.cur_font_family, values=["Microsoft JhengHei UI", "微軟正黑體", "Segoe UI", "Consolas", "Arial"], state="readonly", width=20)
+        combo_font.pack(side=tk.LEFT, padx=4)
+        combo_font.bind("<<ComboboxSelected>>", lambda e: self.update_preview())
+
+        # 字型大小
+        f_row2 = tk.Frame(font_grp, bg="#20202a")
+        f_row2.pack(fill=tk.X, pady=3)
+        tk.Label(f_row2, text="字型大小:", bg="#20202a", fg="#d0d0d8", font=("Microsoft JhengHei UI", 9), width=10, anchor="w").pack(side=tk.LEFT)
+        combo_sz = ttk.Combobox(f_row2, textvariable=self.cur_font_size, values=["9", "10", "11", "12", "13", "14", "16"], state="readonly", width=8)
+        combo_sz.pack(side=tk.LEFT, padx=4)
+        combo_sz.bind("<<ComboboxSelected>>", lambda e: self.update_preview())
+        tk.Label(f_row2, text="pt (預設 10pt)", bg="#20202a", fg="#8e95a5", font=("Microsoft JhengHei UI", 8)).pack(side=tk.LEFT, padx=4)
+
+        # 列高
+        f_row3 = tk.Frame(font_grp, bg="#20202a")
+        f_row3.pack(fill=tk.X, pady=3)
+        tk.Label(f_row3, text="表格單列高:", bg="#20202a", fg="#d0d0d8", font=("Microsoft JhengHei UI", 9), width=10, anchor="w").pack(side=tk.LEFT)
+        combo_rh = ttk.Combobox(f_row3, textvariable=self.cur_row_height, values=["26", "28", "30", "32", "36", "40"], state="readonly", width=8)
+        combo_rh.pack(side=tk.LEFT, padx=4)
+        combo_rh.bind("<<ComboboxSelected>>", lambda e: self.update_preview())
+        tk.Label(f_row3, text="px (預設 32px)", bg="#20202a", fg="#8e95a5", font=("Microsoft JhengHei UI", 8)).pack(side=tk.LEFT, padx=4)
+
+        # 2. 快速主題方案群組
+        theme_grp = tk.LabelFrame(left_app, text=" 【一鍵套用熱門配色主題】 ", bg="#20202a", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), padx=10, pady=8)
+        theme_grp.pack(fill=tk.X)
+
+        theme_presets = [
+            ("科技深灰 (預設)", "#1e1e24", "#2b2b36", "#252530", "#ffffff", "#38bdf8"),
+            ("曜石極黑 (AMOLED)", "#101014", "#18181f", "#14141a", "#f8fafc", "#00e5ff"),
+            ("沉穩海藍 (Navy)", "#0f172a", "#1e293b", "#1e293b", "#f1f5f9", "#38bdf8"),
+            ("高對比炭黑 (高清晰)", "#18181b", "#27272a", "#202024", "#ffffff", "#60a5fa")
+        ]
+
+        for name, bg_c, card_c, tbl_c, txt_c, hist_c in theme_presets:
+            btn_t = tk.Button(
+                theme_grp, text=f"✦ {name}", bg="#2b2b3a", fg="#ffffff",
+                relief="flat", font=("Microsoft JhengHei UI", 9), anchor="w",
+                padx=8, pady=4, cursor="hand2",
+                command=lambda b=bg_c, c=card_c, tb=tbl_c, tx=txt_c, h=hist_c: self.apply_preset_theme(b, c, tb, tx, h)
+            )
+            btn_t.pack(fill=tk.X, pady=2)
+
+        # 右側欄位：細部色彩選色器 + 即時預覽面板
+        right_app = tk.Frame(app_work, bg="#20202a")
+        right_app.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
+        color_grp = tk.LabelFrame(right_app, text=" 【背景與文字色彩自訂 (點選色塊更換)】 ", bg="#20202a", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), padx=10, pady=8)
+        color_grp.pack(fill=tk.X, pady=(0, 10))
+
+        self.color_pick_widgets = {}
+
+        color_items = [
+            ("bg_color", "視窗主背景顏色", "主程式四周與容器基底"),
+            ("card_bg", "概覽卡片背景色", "頂部 9 大指標卡片底色"),
+            ("table_bg", "庫存表格背景色", "持股清單背景底色"),
+            ("text_color", "主要文字字體顏色", "持股清單與表頭預設文字"),
+            ("hist_div_color", "歷年已領股息顏色", "★ 亮藍色呈現，防綠色忌諱"),
+        ]
+
+        for key, name, hint in color_items:
+            row = tk.Frame(color_grp, bg="#20202a")
+            row.pack(fill=tk.X, pady=3)
+
+            tk.Label(row, text=name, bg="#20202a", fg="#ffffff", font=("Microsoft JhengHei UI", 9), width=16, anchor="w").pack(side=tk.LEFT)
+
+            # 色塊預覽按鈕
+            cur_hex = self.color_vars[key]
+            lbl_preview = tk.Button(row, bg=cur_hex, width=4, height=1, relief="solid", bd=1, cursor="hand2", command=lambda k=key: self.pick_color(k))
+            lbl_preview.pack(side=tk.LEFT, padx=4)
+
+            lbl_hex = tk.Label(row, text=cur_hex, bg="#20202a", fg="#a0a0b0", font=("Consolas", 9), width=8, anchor="w")
+            lbl_hex.pack(side=tk.LEFT, padx=2)
+
+            btn_pick = tk.Button(row, text="選擇顏色", bg="#323242", fg="#ffffff", relief="flat", font=("Microsoft JhengHei UI", 8), command=lambda k=key: self.pick_color(k))
+            btn_pick.pack(side=tk.LEFT, padx=4)
+
+            tk.Label(row, text=hint, bg="#20202a", fg="#7a7a8c", font=("Microsoft JhengHei UI", 8)).pack(side=tk.LEFT, padx=4)
+
+            self.color_pick_widgets[key] = (lbl_preview, lbl_hex)
+
+        # 3. 即時色彩預覽面板
+        prev_grp = tk.LabelFrame(right_app, text=" 【即時樣式效果預覽】 ", bg="#20202a", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), padx=10, pady=8)
+        prev_grp.pack(fill=tk.BOTH, expand=True)
+
+        self.preview_container = tk.Frame(prev_grp, bg=self.color_vars["bg_color"], padx=10, pady=10)
+        self.preview_container.pack(fill=tk.BOTH, expand=True)
+
+        # 預覽卡片
+        self.prev_card_frame = tk.Frame(self.preview_container, bg=self.color_vars["card_bg"], padx=8, pady=6)
+        self.prev_card_frame.pack(fill=tk.X, pady=(0, 6))
+
+        self.prev_card_title = tk.Label(self.prev_card_frame, text="歷年累計已領股息", bg=self.color_vars["card_bg"], fg="#a0a0b0", font=("Microsoft JhengHei UI", 8))
+        self.prev_card_title.pack(anchor="w")
+
+        self.prev_card_val = tk.Label(self.prev_card_frame, text="$ 168,500", bg=self.color_vars["card_bg"], fg=self.color_vars["hist_div_color"], font=("Microsoft JhengHei UI", 12, "bold"))
+        self.prev_card_val.pack(anchor="w", pady=(2, 0))
+
+        # 預覽表格行
+        self.prev_table_frame = tk.Frame(self.preview_container, bg=self.color_vars["table_bg"], padx=8, pady=8)
+        self.prev_table_frame.pack(fill=tk.X)
+
+        self.prev_row_text = tk.Label(
+            self.prev_table_frame,
+            text="2330 台積電   1,000股   $580.00   +5.20%   已領股息: $14,000",
+            bg=self.color_vars["table_bg"], fg=self.color_vars["text_color"],
+            font=(self.cur_font_family.get(), int(self.cur_font_size.get()))
+        )
+        self.prev_row_text.pack(anchor="w")
+
+        # 預設開啟第 1 個分頁
+        self.switch_tab("cols")
 
         # ==========================================
         # 底部儲存列
         # ==========================================
-        bot = tk.Frame(self, bg="#22222a")
+        bot = tk.Frame(self, bg="#181820")
         bot.pack(fill=tk.X, padx=12, pady=(0, 12))
-        tk.Button(bot, text="儲存並立即套用", bg="#3a86ff", fg="#ffffff", font=("Microsoft JhengHei UI", 10, "bold"), relief="flat", command=self.save_settings).pack(side=tk.RIGHT, ipadx=10, ipady=3)
-        tk.Button(bot, text="取消", bg="#3a3a46", fg="#ffffff", relief="flat", font=("Microsoft JhengHei UI", 9), command=self.destroy).pack(side=tk.RIGHT, padx=8, ipadx=8, ipady=3)
+        tk.Button(bot, text="儲存並立即套用", bg="#2563eb", fg="#ffffff", font=("Microsoft JhengHei UI", 10, "bold"), relief="flat", cursor="hand2", command=self.save_settings).pack(side=tk.RIGHT, ipadx=12, ipady=3)
+        tk.Button(bot, text="取消", bg="#3a3a46", fg="#ffffff", relief="flat", font=("Microsoft JhengHei UI", 9), cursor="hand2", command=self.destroy).pack(side=tk.RIGHT, padx=8, ipadx=8, ipady=3)
+
+    def switch_tab(self, target_key: str):
+        """切換分頁，具備極度強烈對比的高亮按鈕與頁面顯示"""
+        for key, frame in self.tab_frames.items():
+            btn = self.tab_buttons[key]
+            if key == target_key:
+                frame.pack(fill=tk.BOTH, expand=True)
+                btn.configure(
+                    bg="#2563eb", fg="#ffffff",
+                    font=("Microsoft JhengHei UI", 10, "bold"),
+                    relief="solid", bd=0
+                )
+            else:
+                frame.pack_forget()
+                btn.configure(
+                    bg="#262634", fg="#94a3b8",
+                    font=("Microsoft JhengHei UI", 10),
+                    relief="flat"
+                )
+
+    def pick_color(self, key: str):
+        """開啟調色盤選擇顏色並更新色塊"""
+        cur = self.color_vars[key]
+        chosen = colorchooser.askcolor(color=cur, title=f"選擇顏色 - {key}", parent=self)
+        if chosen and chosen[1]:
+            new_hex = chosen[1].lower()
+            self.color_vars[key] = new_hex
+            btn_prev, lbl_hex = self.color_pick_widgets[key]
+            btn_prev.configure(bg=new_hex)
+            lbl_hex.configure(text=new_hex)
+            self.update_preview()
+
+    def apply_preset_theme(self, bg_c: str, card_c: str, tbl_c: str, txt_c: str, hist_c: str):
+        """一鍵套用主題預設色系"""
+        self.color_vars["bg_color"] = bg_c
+        self.color_vars["card_bg"] = card_c
+        self.color_vars["table_bg"] = tbl_c
+        self.color_vars["text_color"] = txt_c
+        self.color_vars["hist_div_color"] = hist_c
+
+        for key, val in self.color_vars.items():
+            if key in self.color_pick_widgets:
+                btn_prev, lbl_hex = self.color_pick_widgets[key]
+                btn_prev.configure(bg=val)
+                lbl_hex.configure(text=val)
+
+        self.update_preview()
+
+    def update_preview(self):
+        """更新即時預覽方塊的配色與字型"""
+        try:
+            bg_c = self.color_vars["bg_color"]
+            card_c = self.color_vars["card_bg"]
+            tbl_c = self.color_vars["table_bg"]
+            txt_c = self.color_vars["text_color"]
+            hist_c = self.color_vars["hist_div_color"]
+
+            f_fam = self.cur_font_family.get()
+            f_sz = int(self.cur_font_size.get())
+
+            self.preview_container.configure(bg=bg_c)
+            self.prev_card_frame.configure(bg=card_c)
+            self.prev_card_title.configure(bg=card_c)
+            self.prev_card_val.configure(bg=card_c, fg=hist_c)
+
+            self.prev_table_frame.configure(bg=tbl_c)
+            self.prev_row_text.configure(bg=tbl_c, fg=txt_c, font=(f_fam, f_sz))
+        except Exception:
+            pass
 
     def refresh_lists(self):
         """刷新左右兩側清單顯示與序號"""
@@ -1745,8 +2011,22 @@ class SettingsDialog(tk.Toplevel):
 
         selected_cards = [cid for cid, v in self.card_vars.items() if v.get()]
 
+        # 儲存欄位與卡片
         set_visible_columns(self.active_cols)
         set_visible_cards(selected_cards)
+
+        # 儲存外觀字型與色彩設定
+        theme_payload = {
+            "font_family": self.cur_font_family.get(),
+            "font_size": int(self.cur_font_size.get()),
+            "row_height": int(self.cur_row_height.get()),
+            "bg_color": self.color_vars["bg_color"],
+            "card_bg": self.color_vars["card_bg"],
+            "table_bg": self.color_vars["table_bg"],
+            "text_color": self.color_vars["text_color"],
+            "hist_div_color": self.color_vars["hist_div_color"],
+        }
+        set_theme_settings(theme_payload)
 
         if self.on_applied:
             self.on_applied()

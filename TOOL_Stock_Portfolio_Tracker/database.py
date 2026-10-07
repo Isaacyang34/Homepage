@@ -381,3 +381,31 @@ def set_update_timestamp(key: str, ts_str: Optional[str] = None):
     if ts_str is None:
         ts_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     set_setting(f"last_{key}_update_time", ts_str)
+
+DEFAULT_THEME_SETTINGS = {
+    "font_family": "Microsoft JhengHei UI",
+    "font_size": 10,
+    "row_height": 32,
+    "bg_color": "#1e1e24",
+    "card_bg": "#2b2b36",
+    "table_bg": "#252530",
+    "text_color": "#ffffff",
+    "hist_div_color": "#38bdf8",
+    "theme_preset": "default"
+}
+
+def get_theme_settings() -> Dict[str, Any]:
+    raw = get_setting("theme_settings", "")
+    if not raw:
+        return dict(DEFAULT_THEME_SETTINGS)
+    try:
+        data = json.loads(raw)
+        res = dict(DEFAULT_THEME_SETTINGS)
+        res.update(data)
+        return res
+    except Exception:
+        return dict(DEFAULT_THEME_SETTINGS)
+
+def set_theme_settings(settings: Dict[str, Any]):
+    set_setting("theme_settings", json.dumps(settings))
+

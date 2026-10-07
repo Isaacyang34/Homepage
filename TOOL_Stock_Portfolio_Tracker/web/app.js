@@ -708,7 +708,7 @@ function renderTableView(keyword) {
         <span class="text-gold font-bold">${isPrivate ? "***" : (p.total_dividend > 0 ? `$ ${fmtNum(Math.round(p.total_dividend))}` : "--")}</span>
       </td>
       <td>
-        <span class="text-green font-bold">${isPrivate ? "***" : (p.hist_div_received > 0 ? `$ ${fmtNum(Math.round(p.hist_div_received))}` : "$ 0")}</span>
+        <span class="text-cyan font-bold">${isPrivate ? "***" : (p.hist_div_received > 0 ? `$ ${fmtNum(Math.round(p.hist_div_received))}` : "$ 0")}</span>
       </td>
     `;
     tbody.appendChild(tr);
@@ -752,7 +752,7 @@ function renderTableView(keyword) {
         <span class="text-gold font-bold">${isPrivate ? "***" : `$ ${fmtNum(Math.round(totalEstDiv))}`}</span>
       </td>
       <td>
-        <span class="text-green font-bold">${isPrivate ? "***" : `$ ${fmtNum(Math.round(totalHistDiv))}`}</span>
+        <span class="text-cyan font-bold">${isPrivate ? "***" : `$ ${fmtNum(Math.round(totalHistDiv))}`}</span>
       </td>
     `;
     tfoot.appendChild(tfootRow);
@@ -838,7 +838,7 @@ function renderCardsView(keyword) {
         </div>
         <div class="sc-detail-cell">
           <span class="sc-cell-lbl">歷年已領股息</span>
-          <span class="sc-cell-val text-green">${isPrivate ? "***" : (p.hist_div_received > 0 ? `$ ${fmtNum(Math.round(p.hist_div_received))}` : "$ 0")}</span>
+          <span class="sc-cell-val text-cyan">${isPrivate ? "***" : (p.hist_div_received > 0 ? `$ ${fmtNum(Math.round(p.hist_div_received))}` : "$ 0")}</span>
         </div>
       </div>
     `;

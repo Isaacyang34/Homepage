@@ -343,6 +343,7 @@ body {
 .text-green { color: var(--accent-green) !important; }
 .text-red { color: var(--accent-red) !important; }
 .text-gold { color: var(--accent-gold) !important; }
+.text-cyan, .text-blue { color: #38bdf8 !important; }
 
 /* 資產分佈權重條 */
 .allocation-section {
