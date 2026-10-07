@@ -284,6 +284,15 @@ class MarketRankingDialog(tk.Toplevel):
         self.apply_filter_and_render()
 
     def load_data_async(self, force_refresh: bool = False):
+        # 若已有本地快取，開窗瞬間 0ms 同步秒開渲染
+        if not force_refresh:
+            cached = MarketRankingService.load_cache()
+            if cached and cached.get("stocks") and cached.get("revenues"):
+                cached_time_str = cached.get("cached_time_str", "剛剛")
+                self.status_var.set(f"數據已就緒 (資料時間: {cached_time_str})")
+                self.apply_filter_and_render()
+                return
+
         self.status_var.set("正在獲取證交所全市場最新資料，請稍候...")
         self.btn_refresh.configure(state="disabled")
 

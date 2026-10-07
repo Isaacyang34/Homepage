@@ -152,10 +152,11 @@ class PortfolioApp(tk.Tk):
         self.trigger_dividend_update(silent=True)
         self.start_auto_refresh_timer()
 
-        # 啟動後自動比對盤後資料、線上更新檢查與每日 15:00 定時同步監控 (延遲啟動確保 UI 流暢)
-        self.after(2000, self.auto_check_post_market_history)
-        self.after(3500, self.check_online_update_silently)
-        self.after(5000, self.start_daily_1500_scheduler)
+        # 啟動後自動預熱市場排行快取、比對盤後資料、線上更新檢查與每日 15:00 定時同步監控 (延遲啟動確保 UI 流暢)
+        self.after(1500, self.prewarm_market_ranking_cache)
+        self.after(2500, self.auto_check_post_market_history)
+        self.after(4000, self.check_online_update_silently)
+        self.after(5500, self.start_daily_1500_scheduler)
 
     def setup_styles(self):
         self.style = ttk.Style(self)
@@ -982,6 +983,17 @@ class PortfolioApp(tk.Tk):
         pos = next((p for p in self.positions if p["id"] == pos_id), None)
         if pos:
             HistoryViewerDialog(self, symbol=pos["symbol"], name=pos["name"], market=pos.get("market", "TW"))
+
+    def prewarm_market_ranking_cache(self):
+        """主畫面載入完成後，在背景靜默預先抓取/快取市場 4 大指標排行數據，確保使用者點開時 0 秒秒開"""
+        def worker():
+            try:
+                from ranking_service import MarketRankingService
+                MarketRankingService.get_market_data(force_refresh=False)
+            except Exception as e:
+                print(f"[MarketRanking] 背景預熱失敗: {e}")
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def on_open_market_ranking(self):
         """開啟台股與 ETF 4 大核心財務指標排行榜視窗"""
