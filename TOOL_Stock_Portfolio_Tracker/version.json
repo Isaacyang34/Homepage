@@ -1,6 +1,6 @@
 {
-  "version": "V1.0.2.2",
+  "version": "V1.0.2.3",
   "release_date": "2026-10-07",
   "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
-  "changelog": "【V1.0.2.2 靜默進度優化與更新彈窗體驗升級】\n\n1. [零干擾體驗] 全面廢除盤後歷史更新中的阻塞式 MessageBox 彈窗，所有進度與狀態完全移至底部狀態列與面板即時呈現。\n2. [版本覆蓋下載] 軟體更新視窗即使版本一致亦常態提供 [重新下載/覆蓋版本] 按鈕，方便隨時校驗與手動重灌。\n3. [進度連動] 「資料更新管理」彈窗深度連動證交所下載日K即時進度。\n4. [狀態解鎖] 完成或異常時自動解鎖按鈕並更新時間戳記，徹底消除按鈕死鎖現象。"
+  "changelog": "【V1.0.2.3 熱更新通道徹底修復與操作體驗升級】\n\n1. [線上更新重啟修復] 徹底根治自動更新後跳出 Failed to load Python DLL 錯誤，採用 Windows Shell 乾淨獨立啟動架構。\n2. [鍵盤連續輸入] 買入批次單價輸入完成後按下 Enter (主鍵盤與九宮格) 自動新增批次，游標自動切回取得日期並反白。\n3. [取消反白選取] 表格反白選取後，支援按下 ESC 鍵或點擊下方黑色空白處一秒取消反白。\n4. [注音輸入法小數點] 專屬綁定數字九宮格小數點鍵與全形符號清洗器，杜絕注音輸入法吞小數點問題。"
 }

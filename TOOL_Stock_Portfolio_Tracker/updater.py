@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Optional, Dict, Any, Tuple
 
-APP_VERSION = "V1.0.2.2"
+APP_VERSION = "V1.0.2.3"
 
 def get_resource_path(relative_path: str) -> str:
     """取得靜態資源路徑，相容開發環境與 PyInstaller 打包 (_MEIPASS)"""
@@ -279,9 +279,11 @@ class UpdateDialog(tk.Toplevel):
         current_pid = os.getpid()
 
         # 核心關鍵防禦：
-        # 1. 舊 process 正在結束時，其 _MEI0000759c2 暫存目錄正在被 Windows 標記刪除
+        # 1. 舊 process 正在結束時，其 _MEI 暫存目錄正在被 Windows 標記刪除
         # 2. 透過 taskkill /PID 與 timeout 確保舊行程與其 _MEI 暫存目錄 100% 徹底釋放 Teardown
-        # 3. set _MEIPASS2= 與 set _MEIPASS= 徹底清除繼承之環境變數，杜絕新版 exe 誤讀舊版已刪除之 _MEI 導致 Failed to load Python DLL
+        # 3. set _MEIPASS= 徹底清除繼承之環境變數
+        # 4. 關鍵突破：透過 Windows Shell 原生 explorer.exe "%~dp0<target_exe>" 喚醒新程式！
+        #    這相當於使用者手動滑鼠雙擊，100% 擺脫 cmd/subprocess 所有的父行程繼承與 DLL 鎖定問題！
         bat_content = f"""@echo off
 REM Stock Portfolio Tracker Auto Update Script
 set _MEIPASS2=
@@ -301,8 +303,9 @@ if errorlevel 1 (
 )
 del /f /q "{temp_exe_name}" > nul
 
-REM Start the updated application in a clean independent environment
-start "" "{target_exe_name}"
+REM Start the updated application cleanly via Windows Shell (equivalent to user double-click)
+explorer.exe "%~dp0{target_exe_name}"
+timeout /t 1 /nobreak > nul
 del /f /q "%~f0" > nul
 exit
 """
