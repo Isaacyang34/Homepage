@@ -276,10 +276,23 @@ class UpdateDialog(tk.Toplevel):
         bat_path = os.path.join(target_dir, "apply_update.bat")
         target_exe_name = "Stock_Portfolio_Tracker.exe"
         temp_exe_name = os.path.basename(temp_exe)
+        current_pid = os.getpid()
 
+        # 核心關鍵防禦：
+        # 1. 舊 process 正在結束時，其 _MEI0000759c2 暫存目錄正在被 Windows 標記刪除
+        # 2. 透過 taskkill /PID 與 timeout 確保舊行程與其 _MEI 暫存目錄 100% 徹底釋放 Teardown
+        # 3. set _MEIPASS2= 與 set _MEIPASS= 徹底清除繼承之環境變數，杜絕新版 exe 誤讀舊版已刪除之 _MEI 導致 Failed to load Python DLL
         bat_content = f"""@echo off
 REM Stock Portfolio Tracker Auto Update Script
-timeout /t 1 /nobreak > nul
+set _MEIPASS2=
+set _MEIPASS=
+set PYTHONHOME=
+set PYTHONPATH=
+
+REM Wait for parent process {current_pid} to completely exit
+taskkill /PID {current_pid} /F > nul 2>&1
+timeout /t 2 /nobreak > nul
+
 :RETRY
 copy /y "{temp_exe_name}" "{target_exe_name}" > nul
 if errorlevel 1 (
@@ -287,6 +300,8 @@ if errorlevel 1 (
     goto RETRY
 )
 del /f /q "{temp_exe_name}" > nul
+
+REM Start the updated application in a clean independent environment
 start "" "{target_exe_name}"
 del /f /q "%~f0" > nul
 exit
@@ -295,8 +310,19 @@ exit
             with open(bat_path, "w", encoding="ascii") as f:
                 f.write(bat_content)
 
-            # 啟動批次檔並結束目前主程式
-            subprocess.Popen(["cmd.exe", "/c", bat_path], cwd=target_dir, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+            # 啟動批次檔時建立全新獨立行程群組 (DETACHED_PROCESS)，完全切斷父子繼承關係
+            creation_flags = 0x00000008 | (subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)  # DETACHED_PROCESS
+            # 清除子環境中的 _MEIPASS 相關變數
+            clean_env = os.environ.copy()
+            clean_env.pop('_MEIPASS2', None)
+            clean_env.pop('_MEIPASS', None)
+
+            subprocess.Popen(
+                ["cmd.exe", "/c", bat_path],
+                cwd=target_dir,
+                env=clean_env,
+                creationflags=creation_flags
+            )
             self.destroy()
             if self.parent:
                 self.parent.destroy()

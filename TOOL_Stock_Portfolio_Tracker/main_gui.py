@@ -513,6 +513,11 @@ class PortfolioApp(tk.Tk):
         self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
         self.tree.bind("<Button-1>", self.on_tree_click)
         self.tree.bind("<Double-1>", self.on_tree_double_click)
+        self.tree.bind("<Escape>", self.clear_selection)
+        self.bind("<Escape>", self.clear_selection)
+
+        # 點擊表格容器 mid_frame 空白處亦取消選取
+        self.mid_frame.bind("<Button-1>", lambda e: self.clear_selection())
 
         # 滾動時動態調整/隱藏浮動按鈕
         def on_y_scroll(*args):
@@ -840,7 +845,15 @@ class PortfolioApp(tk.Tk):
             self._sort_reverse = True
         self.refresh_ui_table()
 
-    # --- 持股與批次對話框與行內動作 ---
+    def clear_selection(self, event=None):
+        """取消 Treeview 目前所有的反白選取狀態，並收合浮動按鈕列"""
+        try:
+            sel = self.tree.selection()
+            if sel:
+                self.tree.selection_remove(sel)
+            self.row_action_frame.place_forget()
+        except Exception:
+            pass
 
     def on_tree_click(self, event):
         item = self.tree.identify_row(event.y)
@@ -848,6 +861,9 @@ class PortfolioApp(tk.Tk):
             self.row_action_frame.place_forget()
             self.on_add_position()
             return "break"
+        elif not item:
+            # 點擊下方黑色無資料空白處，直接取消反白選取
+            self.clear_selection()
 
     def on_tree_double_click(self, event):
         item = self.tree.identify_row(event.y)

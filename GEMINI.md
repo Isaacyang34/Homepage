@@ -184,3 +184,8 @@
   * 圖標圖形與背景紋理**必須 100% 滿版無縫延伸至圖片的四個邊界 (Full bleed, Edge-to-edge)**，或直接採用透明去背 (Transparent Alpha)。
   * 主視覺符號（如幣別符號、走勢圖、Logo）居中飽滿呈現，絕不允許出現「在一個背景上方浮著一個圓角卡片」的二重外框醜態！
 * **生成 Prompt 強制關鍵字約束**：每次生成 Icon 時，Prompt 必須明確加入：`FULL BLEED, EDGE TO EDGE. ABSOLUTELY NO rounded square frame, NO squircle border, NO app icon container frame, NO outer border or surrounding margin.`
+
+## 17. GitHub 推送版本即時回報鐵律 (Mandatory Release Version Reporting on Push - 全案最高強制規範)
+* **推送後必報版號**：凡是接收到使用者的 `push`、`推送到 github` 等指示並完成遠端分支推送後，**必須在第一時間主動清楚回報當前推上去的最新軟體版本號 (如 `V1.0.2.2`)、Git Commit 雜湊與同動推送之雙分支名稱 (`gh-pages` 與 `master`)**！
+* **嚴禁僅回報推送成功而遺漏版號**：使用者隨時需要掌握目前雲端/遠端倉庫最新部署的軟體版次，以利核對線上自動更新通道與發布進度。
+
