@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Optional, Dict, Any, Tuple
 
-APP_VERSION = "V1.0"
+APP_VERSION = "V1.0.2"
 
 def get_resource_path(relative_path: str) -> str:
     """取得靜態資源路徑，相容開發環境與 PyInstaller 打包 (_MEIPASS)"""
