@@ -197,19 +197,7 @@ class PortfolioApp(tk.Tk):
         bottom_frame = ttk.Frame(self, padding=(12, 8, 12, 12))
         bottom_frame.pack(fill=tk.X)
 
-        btn_add = ttk.Button(bottom_frame, text="[+] 新增持股", command=self.on_add_position, style="Action.TButton")
-        btn_add.pack(side=tk.LEFT, padx=2)
 
-        btn_edit = ttk.Button(bottom_frame, text="[筆] 修改持股", command=self.on_edit_position, style="Action.TButton")
-        btn_edit.pack(side=tk.LEFT, padx=2)
-
-        btn_lots = ttk.Button(bottom_frame, text="[批次] 取得時間管理", command=self.on_manage_lots, style="Action.TButton")
-        btn_lots.pack(side=tk.LEFT, padx=2)
-
-        btn_del = ttk.Button(bottom_frame, text="[-] 刪除", command=self.on_delete_position, style="Action.TButton")
-        btn_del.pack(side=tk.LEFT, padx=2)
-
-        ttk.Separator(bottom_frame, orient="vertical").pack(side=tk.LEFT, fill=tk.Y, padx=5)
 
         btn_data_update = ttk.Button(bottom_frame, text="[⟳ 資料更新]", command=self.on_open_data_update, style="Action.TButton")
         btn_data_update.pack(side=tk.LEFT, padx=2)
@@ -295,7 +283,36 @@ class PortfolioApp(tk.Tk):
         self.mid_frame.grid_rowconfigure(0, weight=1)
         self.mid_frame.grid_columnconfigure(0, weight=1)
 
-        self.tree.bind("<Double-1>", lambda e: self.on_edit_position())
+        # 建立選定持股反白時在代碼左側出現的快捷工具框 [✎][－]
+        self.row_action_frame = tk.Frame(self.tree, bg="#181820", bd=1, relief="solid")
+        self.btn_row_edit = tk.Button(
+            self.row_action_frame, text="✎", bg="#3a86ff", fg="#ffffff",
+            font=("Microsoft JhengHei UI", 8, "bold"), relief="flat", padx=3, pady=0,
+            cursor="hand2", command=self.on_edit_position
+        )
+        self.btn_row_edit.pack(side=tk.LEFT, padx=(1, 2))
+
+        self.btn_row_del = tk.Button(
+            self.row_action_frame, text="－", bg="#ff4d4f", fg="#ffffff",
+            font=("Microsoft JhengHei UI", 8, "bold"), relief="flat", padx=3, pady=0,
+            cursor="hand2", command=self.on_delete_position
+        )
+        self.btn_row_del.pack(side=tk.LEFT, padx=(0, 1))
+
+        # 綁定選取反白與點擊/雙擊事件
+        self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
+        self.tree.bind("<Button-1>", self.on_tree_click)
+        self.tree.bind("<Double-1>", self.on_tree_double_click)
+
+        # 滾動時動態調整/隱藏浮動按鈕
+        def on_y_scroll(*args):
+            vsb.set(*args)
+            self.on_tree_select()
+        def on_x_scroll(*args):
+            hsb.set(*args)
+            self.on_tree_select()
+        self.tree.configure(yscrollcommand=on_y_scroll, xscrollcommand=on_x_scroll)
+
         self.update_color_tags()
 
     def update_color_tags(self):
@@ -309,6 +326,7 @@ class PortfolioApp(tk.Tk):
         self.tree.tag_configure("up", foreground=self.up_color)
         self.tree.tag_configure("down", foreground=self.down_color)
         self.tree.tag_configure("flat", foreground="#ffffff")
+        self.tree.tag_configure("add_row", foreground="#3a86ff", font=("Microsoft JhengHei UI", 10, "bold"))
 
     def autofit_columns(self):
         """依據標題與儲存格內容文字長度，自動適應欄位寬度（防文字裁切）"""
@@ -464,9 +482,9 @@ class PortfolioApp(tk.Tk):
             else:
                 hist_div_str = "-- (未設批次)"
 
-            # 動態組裝欄位值
+            # 動態組裝欄位值 (在代碼前預留空白供選取時浮貼動作按鈕)
             val_map = {
-                "symbol": pnl["symbol"],
+                "symbol": f"       {pnl['symbol']}",
                 "name": pnl["name"],
                 "market": pnl["market"],
                 "shares": shares_str,
@@ -494,9 +512,24 @@ class PortfolioApp(tk.Tk):
             item_id = str(pnl["id"])
             self.tree.insert("", tk.END, iid=item_id, values=row_values, tags=(tag,))
 
-        if selected_iid and self.tree.exists(selected_iid):
+        # 依需求：[+] 直接顯示在上方目前有的存股最後一檔的代碼下方
+        add_row_id = "__ADD_POSITION_ROW__"
+        add_vals = []
+        for cid in self.visible_columns:
+            if cid == "symbol":
+                add_vals.append("  [+] 新增持股")
+            elif cid == "name":
+                add_vals.append("點擊此處快速新增")
+            else:
+                add_vals.append("")
+        self.tree.insert("", tk.END, iid=add_row_id, values=tuple(add_vals), tags=("add_row",))
+
+        if selected_iid and self.tree.exists(selected_iid) and selected_iid != "__ADD_POSITION_ROW__":
             self.tree.selection_set(selected_iid)
             self.tree.focus(selected_iid)
+            self.after(50, self.on_tree_select)
+        else:
+            self.row_action_frame.place_forget()
 
         # 自動依文字長度適應各欄位寬度，確保所有內容與符號完整顯示
         self.autofit_columns()
@@ -597,25 +630,67 @@ class PortfolioApp(tk.Tk):
             self._sort_reverse = True
         self.refresh_ui_table()
 
-    # --- 持股與批次對話框 ---
+    # --- 持股與批次對話框與行內動作 ---
+
+    def on_tree_click(self, event):
+        item = self.tree.identify_row(event.y)
+        if item == "__ADD_POSITION_ROW__":
+            self.row_action_frame.place_forget()
+            self.on_add_position()
+            return "break"
+
+    def on_tree_double_click(self, event):
+        item = self.tree.identify_row(event.y)
+        if item == "__ADD_POSITION_ROW__":
+            self.row_action_frame.place_forget()
+            self.on_add_position()
+            return "break"
+        elif item:
+            self.on_edit_position()
+            return "break"
+
+    def on_tree_select(self, event=None):
+        """當選定某檔持股後，有反白效果的同時，在代碼的左側出現筆的ICON(✎)，右側為[-]刪除按鈕"""
+        sel = self.tree.selection()
+        if not sel:
+            self.row_action_frame.place_forget()
+            return
+
+        item_id = sel[0]
+        if item_id == "__ADD_POSITION_ROW__":
+            self.row_action_frame.place_forget()
+            return
+
+        bbox = self.tree.bbox(item_id, column="symbol")
+        if bbox:
+            x, y, w, h = bbox
+            btn_w = 46
+            btn_h = max(20, h - 4)
+            pos_x = x + 2
+            pos_y = y + 2
+            self.row_action_frame.place(x=pos_x, y=pos_y, width=btn_w, height=btn_h)
+            self.row_action_frame.lift()
+        else:
+            self.row_action_frame.place_forget()
 
     def on_add_position(self):
+        self.row_action_frame.place_forget()
         PositionEditDialog(self, title="新增持股部位", on_saved=self._on_position_saved)
 
     def on_edit_position(self):
         selected = self.tree.selection()
-        if not selected:
+        if not selected or selected[0] == "__ADD_POSITION_ROW__":
             messagebox.showinfo("提示", "請先點選欲修改的持股！", parent=self)
             return
         pos_id = int(selected[0])
         pos = next((p for p in self.positions if p["id"] == pos_id), None)
         if pos:
-            PositionEditDialog(self, title="修改持股部位", pos=pos, on_saved=self._on_position_saved)
+            PositionEditDialog(self, title=f"修改持股與取得時間管理 - {pos['symbol']}", pos=pos, on_saved=self._on_position_saved)
 
     def on_manage_lots(self):
         """開啟買入批次管理 (取得時間明細)"""
         selected = self.tree.selection()
-        if not selected:
+        if not selected or selected[0] == "__ADD_POSITION_ROW__":
             messagebox.showinfo("提示", "請先點選欲管理買入批次的股票！", parent=self)
             return
         pos_id = int(selected[0])
@@ -625,7 +700,7 @@ class PortfolioApp(tk.Tk):
 
     def on_delete_position(self):
         selected = self.tree.selection()
-        if not selected:
+        if not selected or selected[0] == "__ADD_POSITION_ROW__":
             messagebox.showinfo("提示", "請先點選欲刪除的持股！", parent=self)
             return
         pos_id = int(selected[0])
@@ -634,6 +709,7 @@ class PortfolioApp(tk.Tk):
             return
         confirm = messagebox.askyesno("確認刪除", f"確定要從本地庫存刪除 {pos['symbol']} ({pos['name']}) 及其所有買入批次嗎？", parent=self)
         if confirm:
+            self.row_action_frame.place_forget()
             delete_position(pos_id)
             self.reload_positions()
             self.refresh_ui_table()
@@ -833,12 +909,12 @@ class PortfolioApp(tk.Tk):
 
 
 class PositionEditDialog(tk.Toplevel):
-    """新增/修改持股部位對話框 (極簡輸入：自動判斷市場別、名稱、ETF與除權息資訊)"""
+    """新增/修改持股部位對話框 (整合取得時間批次管理與自動同步股息)"""
     def __init__(self, parent, title: str, pos: Optional[Dict[str, Any]] = None, on_saved=None):
         super().__init__(parent)
         self.title(title)
-        self.geometry("450x410")
-        self.resizable(False, False)
+        self.geometry("820x640")
+        self.minsize(720, 560)
         self.transient(parent)
         self.grab_set()
 
@@ -852,64 +928,144 @@ class PositionEditDialog(tk.Toplevel):
             "is_etf": pos["is_etf"] if pos else 0
         }
 
-        self.build_form()
+        self.build_ui()
+        if self.pos:
+            self.trigger_detect(self.pos["symbol"])
+            self.reload_lots()
 
-    def build_form(self):
-        # 1. 股票代碼/標的 (合併為單一輸入框)
-        lbl_sym = tk.Label(self, text="股票代碼 / 標的 (例 00878 / 2330 / AAPL):", bg="#22222a", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"))
-        lbl_sym.pack(anchor="w", padx=18, pady=(12, 2))
-        
-        self.ent_symbol = tk.Entry(self, bg="#2d2d38", fg="#ffffff", insertbackground="#ffffff", font=("Microsoft JhengHei UI", 11), relief="flat")
+    def build_ui(self):
+        # ==========================================
+        # 1. 上半部：持股部位基本資料設定
+        # ==========================================
+        base_frame = tk.LabelFrame(self, text="持股基本資料維護", bg="#262633", fg="#ffffff", font=("Microsoft JhengHei UI", 10, "bold"), padx=12, pady=8)
+        base_frame.pack(fill=tk.X, padx=14, pady=(10, 6))
+
+        # 第 1 列：股票代碼與辨識標籤
+        r1 = tk.Frame(base_frame, bg="#262633")
+        r1.pack(fill=tk.X, pady=2)
+
+        tk.Label(r1, text="股票代碼/標的:", bg="#262633", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold")).pack(side=tk.LEFT)
+        self.ent_symbol = tk.Entry(r1, bg="#1e1e28", fg="#ffffff", insertbackground="#ffffff", font=("Microsoft JhengHei UI", 10, "bold"), width=14, relief="flat")
         if self.pos:
             self.ent_symbol.insert(0, self.pos["symbol"])
-        self.ent_symbol.pack(fill=tk.X, padx=18, ipady=3)
+        self.ent_symbol.pack(side=tk.LEFT, padx=8, ipady=2)
         self.ent_symbol.bind("<KeyRelease>", self.on_symbol_changed)
         self.ent_symbol.bind("<FocusOut>", self.on_symbol_focus_out)
 
-        # 自動辨識狀態提示標籤
-        self.lbl_detect = tk.Label(self, text="輸入代碼後將自動辨識名稱、市場別與 ETF...", bg="#22222a", fg="#a0e0a0", font=("Microsoft JhengHei UI", 8))
-        self.lbl_detect.pack(anchor="w", padx=18, pady=(2, 6))
+        self.lbl_detect = tk.Label(r1, text="輸入代碼後將自動辨識名稱、市場與 ETF...", bg="#262633", fg="#a0e0a0", font=("Microsoft JhengHei UI", 9))
+        self.lbl_detect.pack(side=tk.LEFT, padx=10)
 
-        # 2. 持有股數
-        lbl_sh = tk.Label(self, text="持有股數 (例 1000 或 0.5 零股):", bg="#22222a", fg="#ffffff", font=("Microsoft JhengHei UI", 9))
-        lbl_sh.pack(anchor="w", padx=18, pady=(4, 2))
-        self.ent_shares = tk.Entry(self, bg="#2d2d38", fg="#ffffff", insertbackground="#ffffff", font=("Microsoft JhengHei UI", 10), relief="flat")
+        # 第 2 列：股數、成本均價、手續費折扣、備註
+        r2 = tk.Frame(base_frame, bg="#262633")
+        r2.pack(fill=tk.X, pady=4)
+
+        tk.Label(r2, text="持有總股數:", bg="#262633", fg="#ffffff", font=("Microsoft JhengHei UI", 9)).grid(row=0, column=0, sticky="w", pady=2)
+        self.ent_shares = tk.Entry(r2, bg="#1e1e28", fg="#ffffff", insertbackground="#ffffff", font=("Microsoft JhengHei UI", 10), width=12, relief="flat")
         self.ent_shares.insert(0, str(self.pos["shares"]) if self.pos else "1000")
-        self.ent_shares.pack(fill=tk.X, padx=18, ipady=3)
+        self.ent_shares.grid(row=0, column=1, padx=(6, 16), pady=2, ipady=2)
 
-        # 3. 買入成本均價
-        lbl_pr = tk.Label(self, text="買入成本均價 (支援小數點，例 35.5 或 2400.25):", bg="#22222a", fg="#ffffff", font=("Microsoft JhengHei UI", 9))
-        lbl_pr.pack(anchor="w", padx=18, pady=(4, 2))
-        self.ent_price = tk.Entry(self, bg="#2d2d38", fg="#ffffff", insertbackground="#ffffff", font=("Microsoft JhengHei UI", 10), relief="flat")
+        tk.Label(r2, text="買入成本均價:", bg="#262633", fg="#ffffff", font=("Microsoft JhengHei UI", 9)).grid(row=0, column=2, sticky="w", pady=2)
+        self.ent_price = tk.Entry(r2, bg="#1e1e28", fg="#ffffff", insertbackground="#ffffff", font=("Microsoft JhengHei UI", 10), width=12, relief="flat")
         if self.pos:
             self.ent_price.insert(0, str(self.pos["cost_price"]))
-        self.ent_price.pack(fill=tk.X, padx=18, ipady=3)
+        self.ent_price.grid(row=0, column=3, padx=(6, 16), pady=2, ipady=2)
 
-        # 4. 手續費折讓
-        lbl_dc = tk.Label(self, text="券商手續費折扣 (預設 0.6 代表 6 折):", bg="#22222a", fg="#ffffff", font=("Microsoft JhengHei UI", 9))
-        lbl_dc.pack(anchor="w", padx=18, pady=(4, 2))
-        self.ent_discount = tk.Entry(self, bg="#2d2d38", fg="#ffffff", insertbackground="#ffffff", font=("Microsoft JhengHei UI", 10), relief="flat")
+        tk.Label(r2, text="手續費折扣:", bg="#262633", fg="#ffffff", font=("Microsoft JhengHei UI", 9)).grid(row=0, column=4, sticky="w", pady=2)
+        self.ent_discount = tk.Entry(r2, bg="#1e1e28", fg="#ffffff", insertbackground="#ffffff", font=("Microsoft JhengHei UI", 10), width=8, relief="flat")
         self.ent_discount.insert(0, str(self.pos["fee_discount"]) if self.pos else "0.6")
-        self.ent_discount.pack(fill=tk.X, padx=18, ipady=3)
+        self.ent_discount.grid(row=0, column=5, padx=(6, 16), pady=2, ipady=2)
 
-        # 5. 備註 (選填)
-        lbl_nt = tk.Label(self, text="備註說明 (選填):", bg="#22222a", fg="#ffffff", font=("Microsoft JhengHei UI", 9))
-        lbl_nt.pack(anchor="w", padx=18, pady=(4, 2))
-        self.ent_note = tk.Entry(self, bg="#2d2d38", fg="#ffffff", insertbackground="#ffffff", font=("Microsoft JhengHei UI", 10), relief="flat")
+        tk.Label(r2, text="備註:", bg="#262633", fg="#ffffff", font=("Microsoft JhengHei UI", 9)).grid(row=0, column=6, sticky="w", pady=2)
+        self.ent_note = tk.Entry(r2, bg="#1e1e28", fg="#ffffff", insertbackground="#ffffff", font=("Microsoft JhengHei UI", 10), width=14, relief="flat")
         if self.pos:
             self.ent_note.insert(0, self.pos.get("note", ""))
-        self.ent_note.pack(fill=tk.X, padx=18, ipady=3)
+        self.ent_note.grid(row=0, column=7, padx=(6, 4), pady=2, ipady=2)
 
-        # 底部按鈕
-        btn_box = tk.Frame(self, bg="#22222a")
-        btn_box.pack(fill=tk.X, padx=18, pady=16)
-        btn_save = tk.Button(btn_box, text="儲存送出 (自動同步股息)", bg="#3a86ff", fg="#ffffff", font=("Microsoft JhengHei UI", 10, "bold"), relief="flat", command=self.save)
-        btn_save.pack(side=tk.RIGHT, ipadx=12, ipady=3)
-        btn_cancel = tk.Button(btn_box, text="取消", bg="#3a3a46", fg="#ffffff", relief="flat", command=self.destroy)
-        btn_cancel.pack(side=tk.RIGHT, padx=8, ipadx=10, ipady=3)
+        # ==========================================
+        # 2. 下半部：整合「取得時間批次管理」
+        # ==========================================
+        self.lot_frame = tk.LabelFrame(
+            self,
+            text="取得時間批次管理 (依取得時間精算歷年實領股息)",
+            bg="#262633", fg="#ffffff", font=("Microsoft JhengHei UI", 10, "bold"),
+            padx=12, pady=8
+        )
+        self.lot_frame.pack(fill=tk.BOTH, expand=True, padx=14, pady=4)
 
+        # 批次明細清單表格
+        table_box = tk.Frame(self.lot_frame, bg="#181820", relief="solid", bd=1)
+        table_box.pack(fill=tk.BOTH, expand=True, pady=(2, 6))
+
+        cols = [
+            ("id", "序號", 50),
+            ("acquire_date", "取得時間", 110),
+            ("shares", "買入股數", 100),
+            ("price", "買入單價", 100),
+            ("fee", "手續費", 80),
+            ("note", "備註說明", 160)
+        ]
+        self.lot_tree = ttk.Treeview(table_box, columns=[c[0] for c in cols], show="headings", height=6)
+        lot_vsb = ttk.Scrollbar(table_box, orient="vertical", command=self.lot_tree.yview)
+        self.lot_tree.configure(yscrollcommand=lot_vsb.set)
+
+        for cid, cname, w in cols:
+            self.lot_tree.heading(cid, text=cname)
+            self.lot_tree.column(cid, width=w, anchor="center" if cid in ["id", "acquire_date"] else ("e" if cid in ["shares", "price", "fee"] else "w"))
+
+        self.lot_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        lot_vsb.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # 快速新增批次輸入列
+        add_box = tk.Frame(self.lot_frame, bg="#262633")
+        add_box.pack(fill=tk.X, pady=4)
+
+        tk.Label(add_box, text="取得日期:", bg="#262633", fg="#ffffff", font=("Microsoft JhengHei UI", 9)).pack(side=tk.LEFT)
+        self.ent_lot_date = tk.Entry(add_box, width=11, font=("Microsoft JhengHei UI", 9), bg="#1e1e28", fg="#ffffff", relief="flat")
+        self.ent_lot_date.insert(0, datetime.now().strftime("%Y-%m-%d"))
+        self.ent_lot_date.pack(side=tk.LEFT, padx=4, ipady=1)
+
+        tk.Label(add_box, text="股數:", bg="#262633", fg="#ffffff", font=("Microsoft JhengHei UI", 9)).pack(side=tk.LEFT, padx=(4, 0))
+        self.ent_lot_shares = tk.Entry(add_box, width=9, font=("Microsoft JhengHei UI", 9), bg="#1e1e28", fg="#ffffff", relief="flat")
+        self.ent_lot_shares.insert(0, "1000")
+        self.ent_lot_shares.pack(side=tk.LEFT, padx=4, ipady=1)
+
+        tk.Label(add_box, text="單價:", bg="#262633", fg="#ffffff", font=("Microsoft JhengHei UI", 9)).pack(side=tk.LEFT, padx=(4, 0))
+        self.ent_lot_price = tk.Entry(add_box, width=9, font=("Microsoft JhengHei UI", 9), bg="#1e1e28", fg="#ffffff", relief="flat")
         if self.pos:
-            self.trigger_detect(self.pos["symbol"])
+            self.ent_lot_price.insert(0, str(self.pos["cost_price"]))
+        self.ent_lot_price.pack(side=tk.LEFT, padx=4, ipady=1)
+
+        tk.Label(add_box, text="備註:", bg="#262633", fg="#ffffff", font=("Microsoft JhengHei UI", 9)).pack(side=tk.LEFT, padx=(4, 0))
+        self.ent_lot_note = tk.Entry(add_box, width=12, font=("Microsoft JhengHei UI", 9), bg="#1e1e28", fg="#ffffff", relief="flat")
+        self.ent_lot_note.pack(side=tk.LEFT, padx=4, ipady=1)
+
+        btn_add_lot = tk.Button(add_box, text="[+] 新增此批次", bg="#3a86ff", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), relief="flat", command=self.on_add_lot)
+        btn_add_lot.pack(side=tk.LEFT, padx=8)
+
+        # 批次工具與統計資訊條
+        lot_bar = tk.Frame(self.lot_frame, bg="#262633")
+        lot_bar.pack(fill=tk.X, pady=(4, 0))
+
+        self.lbl_lot_summary = tk.Label(lot_bar, text="尚未設定取得時間批次", bg="#262633", fg="#ffd166", font=("Microsoft JhengHei UI", 9, "bold"))
+        self.lbl_lot_summary.pack(side=tk.LEFT)
+
+        btn_fill_from_lots = tk.Button(lot_bar, text="[↺ 依批次自動填入總股數與均價]", bg="#2b4c7e", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=self.on_fill_from_lots)
+        btn_fill_from_lots.pack(side=tk.RIGHT, padx=4)
+
+        btn_del_lot = tk.Button(lot_bar, text="[-] 刪除選取批次", bg="#ff4d4f", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=self.on_delete_selected_lot)
+        btn_del_lot.pack(side=tk.RIGHT, padx=4)
+
+        # ==========================================
+        # 3. 底部動作列
+        # ==========================================
+        bot = tk.Frame(self, bg="#22222a", padx=14, pady=10)
+        bot.pack(fill=tk.X, side=tk.BOTTOM)
+
+        btn_save = tk.Button(bot, text="儲存並套用全部 (自動同步股息)", bg="#52c41a", fg="#ffffff", font=("Microsoft JhengHei UI", 10, "bold"), relief="flat", command=self.save)
+        btn_save.pack(side=tk.RIGHT, ipadx=12, ipady=3)
+
+        btn_cancel = tk.Button(bot, text="取消", bg="#3a3a46", fg="#ffffff", font=("Microsoft JhengHei UI", 9), relief="flat", command=self.destroy)
+        btn_cancel.pack(side=tk.RIGHT, padx=8, ipadx=10, ipady=3)
 
     def on_symbol_changed(self, event):
         val = self.ent_symbol.get().strip().upper()
@@ -925,8 +1081,97 @@ class PositionEditDialog(tk.Toplevel):
         def worker():
             meta = detect_stock_metadata(val)
             self.detected_meta = meta
-            self.after(0, lambda: self.lbl_detect.configure(text=f"✔ 已辨識：{meta['display_info']}", foreground="#52c41a"))
+            self.after(0, lambda: self.lbl_detect.configure(text=f"✔ 已辨識：{meta['display_info']}", fg="#52c41a"))
         threading.Thread(target=worker, daemon=True).start()
+
+    def reload_lots(self):
+        """讀取並重新繪製買入批次明細"""
+        sym = self.ent_symbol.get().strip().upper()
+        if not sym:
+            return
+
+        self.lot_tree.delete(*self.lot_tree.get_children())
+        lots = get_trade_lots(sym)
+        total_shares = sum(l["shares"] for l in lots)
+        total_val = sum(l["shares"] * l["price"] for l in lots)
+        avg_price = (total_val / total_shares) if total_shares > 0 else 0.0
+
+        for l in lots:
+            self.lot_tree.insert("", tk.END, iid=str(l["id"]), values=(
+                l["id"],
+                l["acquire_date"],
+                f"{l['shares']:,.0f}" if l["shares"].is_integer() else f"{l['shares']:,.2f}",
+                f"{l['price']:,.2f}",
+                f"{l['fee']:,.0f}",
+                l["note"]
+            ))
+
+        hist_div_total, count = DividendService.calc_historical_received(sym, lots)
+        if count > 0:
+            summary_text = (
+                f"合計總股數: {total_shares:,.0f} 股  |  加權均價: ${avg_price:,.2f}  |  "
+                f"歷年累計已領股息: ${hist_div_total:,.0f} (共{count}批次)"
+            )
+        else:
+            summary_text = "尚未登記取得時間批次 (可在上方輸入取得日期與股數加入)"
+        self.lbl_lot_summary.configure(text=summary_text)
+
+    def on_add_lot(self):
+        """新增單筆買入批次"""
+        sym = self.ent_symbol.get().strip().upper()
+        if not sym:
+            messagebox.showerror("錯誤", "請先輸入上方股票代碼！", parent=self)
+            return
+
+        dt_str = self.ent_lot_date.get().strip()
+        sh_str = self.ent_lot_shares.get().strip()
+        pr_str = self.ent_lot_price.get().strip()
+        note = self.ent_lot_note.get().strip()
+
+        if not dt_str:
+            messagebox.showerror("錯誤", "請輸入取得時間 (YYYY-MM-DD)！", parent=self)
+            return
+
+        shares = clean_number(sh_str, -1)
+        price = clean_number(pr_str, -1)
+        disc = clean_number(self.ent_discount.get().strip(), 0.6)
+
+        if shares <= 0 or price < 0:
+            messagebox.showerror("錯誤", "股數必須大於 0，價格必須大於等於 0！", parent=self)
+            return
+
+        fee = max(20.0, round(shares * price * 0.001425 * disc, 0))
+        add_trade_lot(sym, dt_str, shares, price, fee, note)
+        self.reload_lots()
+
+    def on_delete_selected_lot(self):
+        sel = self.lot_tree.selection()
+        if not sel:
+            messagebox.showinfo("提示", "請先點選欲刪除的買入批次！", parent=self)
+            return
+        lot_id = int(sel[0])
+        sym = self.ent_symbol.get().strip().upper()
+        delete_trade_lot(lot_id, sym)
+        self.reload_lots()
+
+    def on_fill_from_lots(self):
+        """依據已登記的買入批次，自動計算總股數與加權均價回填到上方輸入框"""
+        sym = self.ent_symbol.get().strip().upper()
+        lots = get_trade_lots(sym)
+        if not lots:
+            messagebox.showinfo("提示", "目前尚無任何買入批次可回填！", parent=self)
+            return
+
+        total_shares = sum(l["shares"] for l in lots)
+        total_val = sum(l["shares"] * l["price"] for l in lots)
+        avg_price = (total_val / total_shares) if total_shares > 0 else 0.0
+
+        self.ent_shares.delete(0, tk.END)
+        self.ent_shares.insert(0, str(int(total_shares) if total_shares.is_integer() else total_shares))
+
+        self.ent_price.delete(0, tk.END)
+        self.ent_price.insert(0, f"{avg_price:.2f}")
+        messagebox.showinfo("成功", f"已依據 {len(lots)} 筆批次明細自動回填：\n總股數: {total_shares:,.0f} 股\n加權均價: ${avg_price:.2f}", parent=self)
 
     def save(self):
         sym_input = self.ent_symbol.get().strip().upper()
@@ -947,7 +1192,6 @@ class PositionEditDialog(tk.Toplevel):
             messagebox.showerror("錯誤", "持股數必須大於 0，成本均價必須為有效小數！", parent=self)
             return
 
-        # 自動判斷補齊
         meta = detect_stock_metadata(sym_input)
         symbol = meta["symbol"]
         name = meta["name"]
