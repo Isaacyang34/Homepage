@@ -9,7 +9,30 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Optional, Dict, Any, Tuple
 
-APP_VERSION = "V1.0.2.3"
+APP_VERSION = "V1.0.2.4"
+
+# 延遲更新狀態管理 (使用者可選擇「稍後於關閉程式時自動置換」)
+_PENDING_UPDATE: Dict[str, Any] = {
+    "ready": False,
+    "target_dir": "",
+    "temp_exe": "",
+    "version": ""
+}
+
+def set_pending_update(target_dir: str, temp_exe: str, version: str):
+    _PENDING_UPDATE["ready"] = True
+    _PENDING_UPDATE["target_dir"] = target_dir
+    _PENDING_UPDATE["temp_exe"] = temp_exe
+    _PENDING_UPDATE["version"] = version
+    log_update_debug(f"[PENDING] Update deferred. version={version}, temp_exe={temp_exe}")
+
+def is_pending_update() -> bool:
+    ready = _PENDING_UPDATE.get("ready", False)
+    temp_exe = _PENDING_UPDATE.get("temp_exe", "")
+    return ready and os.path.exists(temp_exe)
+
+def get_pending_version() -> str:
+    return _PENDING_UPDATE.get("version", "")
 
 def get_app_dir() -> str:
     """取得應用程式根目錄 (相容 PyInstaller 凍結執行與原始碼執行)"""
@@ -33,6 +56,99 @@ try:
     log_update_debug(f"[INIT] updater module loaded! PID={os.getpid()}, APP_VERSION={APP_VERSION}, _MEIPASS={_mei_init}")
 except Exception:
     pass
+
+def apply_update_now(target_dir: str, temp_exe: str, restart: bool = True):
+    """
+    執行更新批次置換作業
+    :param target_dir: 應用程式目標目錄
+    :param temp_exe: 下載之暫存更新執行檔
+    :param restart: True 為立即重啟新版；False 為程式關閉時背景安靜置換，不主動重啟
+    """
+    bat_path = os.path.join(target_dir, "apply_update.bat")
+    target_exe_name = "Stock_Portfolio_Tracker.exe"
+    temp_exe_name = os.path.basename(temp_exe)
+    current_pid = os.getpid()
+
+    log_update_debug(f"[APPLY] apply_update_now triggered. PID={current_pid}, restart={restart}")
+
+    if restart:
+        restart_action = f"""echo [%DATE% %TIME%] [BATCH] Launching updated {target_exe_name} via Windows Shell (explorer.exe)... >> "%LOG_FILE%"
+explorer.exe "%~dp0{target_exe_name}"
+set LAUNCH_ERR=%errorlevel%
+echo [%DATE% %TIME%] [BATCH] Explorer launched with errorlevel: %LAUNCH_ERR% >> "%LOG_FILE%"
+"""
+    else:
+        restart_action = f"""echo [%DATE% %TIME%] [BATCH] Silent update on app exit completed. Not restarting. >> "%LOG_FILE%"
+"""
+
+    bat_content = f"""@echo off
+REM Stock Portfolio Tracker Auto Update Script
+set LOG_FILE=%~dp0update_debug.log
+
+echo ====================================================== >> "%LOG_FILE%"
+echo [%DATE% %TIME%] [BATCH] ===== Update Script Started (restart={restart}) ===== >> "%LOG_FILE%"
+echo [%DATE% %TIME%] [BATCH] Script path: %~f0 >> "%LOG_FILE%"
+echo [%DATE% %TIME%] [BATCH] Working directory: %cd% >> "%LOG_FILE%"
+echo [%DATE% %TIME%] [BATCH] Target PID to terminate: {current_pid} >> "%LOG_FILE%"
+echo [%DATE% %TIME%] [BATCH] Inherited _MEIPASS: '%_MEIPASS%' >> "%LOG_FILE%"
+
+echo [%DATE% %TIME%] [BATCH] Clearing PyInstaller and Python environment variables... >> "%LOG_FILE%"
+set _MEIPASS=
+set _MEIPASS2=
+set PYTHONHOME=
+set PYTHONPATH=
+echo [%DATE% %TIME%] [BATCH] _MEIPASS after clear: '%_MEIPASS%' >> "%LOG_FILE%"
+
+cd /d "%~dp0"
+echo [%DATE% %TIME%] [BATCH] Changed working dir to: %cd% >> "%LOG_FILE%"
+
+echo [%DATE% %TIME%] [BATCH] Terminating parent PID {current_pid}... >> "%LOG_FILE%"
+taskkill /PID {current_pid} /F >> "%LOG_FILE%" 2>&1
+timeout /t 2 /nobreak > nul
+
+set RETRY=0
+:RETRY_LOOP
+set /a RETRY+=1
+echo [%DATE% %TIME%] [BATCH] Overwrite attempt %RETRY%: Copying "{temp_exe_name}" to "{target_exe_name}"... >> "%LOG_FILE%"
+copy /y "{temp_exe_name}" "{target_exe_name}" >> "%LOG_FILE%" 2>&1
+if errorlevel 1 (
+    echo [%DATE% %TIME%] [BATCH] Overwrite locked, waiting 1s (retry %RETRY%)... >> "%LOG_FILE%"
+    timeout /t 1 /nobreak > nul
+    if %RETRY% leq 10 goto RETRY_LOOP
+    echo [%DATE% %TIME%] [BATCH] FATAL ERROR: Failed to overwrite {target_exe_name} after 10 retries! >> "%LOG_FILE%"
+    exit /b 1
+)
+
+echo [%DATE% %TIME%] [BATCH] Overwrite succeeded! Target file info: >> "%LOG_FILE%"
+dir "{target_exe_name}" >> "%LOG_FILE%" 2>&1
+
+echo [%DATE% %TIME%] [BATCH] Removing temporary download file... >> "%LOG_FILE%"
+del /f /q "{temp_exe_name}" >> "%LOG_FILE%" 2>&1
+
+{restart_action}
+echo [%DATE% %TIME%] [BATCH] ===== Update Script Completed ===== >> "%LOG_FILE%"
+exit
+"""
+    try:
+        with open(bat_path, "w", encoding="ascii") as f:
+            f.write(bat_content)
+
+        log_update_debug(f"[APPLY] Written batch script to {bat_path}")
+
+        creation_flags = 0x00000008 | (subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+        clean_env = os.environ.copy()
+        clean_env.pop('_MEIPASS2', None)
+        clean_env.pop('_MEIPASS', None)
+
+        log_update_debug(f"[APPLY] Spawning detached cmd.exe /c apply_update.bat (restart={restart})")
+        subprocess.Popen(
+            ["cmd.exe", "/c", bat_path],
+            cwd=target_dir,
+            env=clean_env,
+            creationflags=creation_flags
+        )
+    except Exception as e:
+        log_update_debug(f"[APPLY] FATAL ERROR spawning updater script: {e}")
 
 def get_resource_path(relative_path: str) -> str:
     """取得靜態資源路徑，相容開發環境與 PyInstaller 打包 (_MEIPASS)"""
@@ -166,6 +282,7 @@ class UpdateDialog(tk.Toplevel):
         # 2. 底部操作按鈕列 (優先於中間內容區 pack 到 BOTTOM，保證絕對永遠可見、絕不被文字框擠壓)
         bot = tk.Frame(self, bg="#1a1a24", padx=18, pady=12)
         bot.pack(side=tk.BOTTOM, fill=tk.X)
+        self.bot_frame = bot
 
         if self.is_newer:
             self.btn_download = tk.Button(
@@ -318,98 +435,73 @@ class UpdateDialog(tk.Toplevel):
         self.lbl_download_status.configure(text=msg)
 
     def _on_download_success(self, target_dir: str, temp_exe: str):
-        self.lbl_download_status.configure(text="✔ 下載完成！正在啟動自替換更新批次檔...", fg="#52c41a")
+        cloud_ver = self.manifest.get("version", "新版本")
+        log_update_debug(f"[DOWNLOAD_SUCCESS] temp_exe={temp_exe}, size={os.path.getsize(temp_exe)} bytes")
         
-        # 產生純 ASCII Windows 更新批次檔，全程將操作日誌追加記錄至 update_debug.log
-        bat_path = os.path.join(target_dir, "apply_update.bat")
-        target_exe_name = "Stock_Portfolio_Tracker.exe"
-        temp_exe_name = os.path.basename(temp_exe)
-        current_pid = os.getpid()
+        self.pbar["value"] = 100
+        self.lbl_download_status.configure(
+            text=f"✔ 新版本 ({cloud_ver}) 已下載就緒！您可以選擇「立即重啟更新」或「待關閉時自動置換」：",
+            fg="#52c41a"
+        )
 
-        log_update_debug(f"[APPLY] Entering _on_download_success. current_pid={current_pid}")
-        log_update_debug(f"[APPLY] sys.executable={sys.executable}, frozen={getattr(sys, 'frozen', False)}")
-        log_update_debug(f"[APPLY] Current _MEIPASS={getattr(sys, '_MEIPASS', 'None')}")
+        # 隱藏下載階段的按鈕
+        for btn_name in ('btn_download', 'btn_reinstall', 'btn_cancel', 'btn_close'):
+            if hasattr(self, btn_name):
+                try:
+                    getattr(self, btn_name).pack_forget()
+                except Exception:
+                    pass
 
-        bat_content = f"""@echo off
-REM Stock Portfolio Tracker Auto Update Script
-set LOG_FILE=%~dp0update_debug.log
+        # 建立兩個明確操作按鈕供使用者決定何時升級
+        self.btn_apply_now = tk.Button(
+            self.bot_frame, text=f"🚀 立即重啟並套用 ({cloud_ver})", bg="#2563eb", fg="#ffffff",
+            activebackground="#1d4ed8", activeforeground="#ffffff",
+            font=("Microsoft JhengHei UI", 10, "bold"), relief="flat", cursor="hand2",
+            command=lambda: self._do_apply(target_dir, temp_exe, restart=True)
+        )
+        self.btn_apply_now.pack(side=tk.RIGHT, ipadx=12, ipady=5)
 
-echo ====================================================== >> "%LOG_FILE%"
-echo [%DATE% %TIME%] [BATCH] ===== Update Script Started ===== >> "%LOG_FILE%"
-echo [%DATE% %TIME%] [BATCH] Script path: %~f0 >> "%LOG_FILE%"
-echo [%DATE% %TIME%] [BATCH] Working directory: %cd% >> "%LOG_FILE%"
-echo [%DATE% %TIME%] [BATCH] Target PID to terminate: {current_pid} >> "%LOG_FILE%"
-echo [%DATE% %TIME%] [BATCH] Inherited _MEIPASS: '%_MEIPASS%' >> "%LOG_FILE%"
-echo [%DATE% %TIME%] [BATCH] Inherited _MEIPASS2: '%_MEIPASS2%' >> "%LOG_FILE%"
+        self.btn_apply_later = tk.Button(
+            self.bot_frame, text="稍後更新 (待程式關閉時自動置換)", bg="#334155", fg="#e2e8f0",
+            activebackground="#475569", activeforeground="#ffffff",
+            font=("Microsoft JhengHei UI", 9), relief="flat", cursor="hand2",
+            command=lambda: self._do_defer(target_dir, temp_exe, cloud_ver)
+        )
+        self.btn_apply_later.pack(side=tk.RIGHT, padx=10, ipadx=10, ipady=5)
 
-echo [%DATE% %TIME%] [BATCH] Clearing PyInstaller and Python environment variables... >> "%LOG_FILE%"
-set _MEIPASS=
-set _MEIPASS2=
-set PYTHONHOME=
-set PYTHONPATH=
-echo [%DATE% %TIME%] [BATCH] _MEIPASS after clear: '%_MEIPASS%' >> "%LOG_FILE%"
+        # 主動彈出提示對話框，讓使用者自主決定
+        choice = messagebox.askyesno(
+            "新版本已下載就緒",
+            f"新版本【{cloud_ver}】已成功下載就緒！\n\n"
+            f"您是否要【立即關閉程式並套用更新】？\n\n"
+            f"• 點選【是 (Yes)】：立即儲存並重啟至新版本。\n"
+            f"• 點選【否 (No)】：您可繼續使用當前軟體，系統將在您【下次正常關閉程式時】自動替換升級，完全不中斷手邊工作。",
+            parent=self
+        )
+        if choice:
+            self._do_apply(target_dir, temp_exe, restart=True)
+        else:
+            self._do_defer(target_dir, temp_exe, cloud_ver)
 
-cd /d "%~dp0"
-echo [%DATE% %TIME%] [BATCH] Changed working dir to: %cd% >> "%LOG_FILE%"
+    def _do_apply(self, target_dir: str, temp_exe: str, restart: bool = True):
+        log_update_debug(f"[USER_ACTION] User selected immediate apply (restart={restart})")
+        apply_update_now(target_dir, temp_exe, restart=restart)
+        self.destroy()
+        if self.parent:
+            self.parent.destroy()
+        sys.exit(0)
 
-echo [%DATE% %TIME%] [BATCH] Terminating parent PID {current_pid}... >> "%LOG_FILE%"
-taskkill /PID {current_pid} /F >> "%LOG_FILE%" 2>&1
-timeout /t 2 /nobreak > nul
-
-set RETRY=0
-:RETRY_LOOP
-set /a RETRY+=1
-echo [%DATE% %TIME%] [BATCH] Overwrite attempt %RETRY%: Copying "{temp_exe_name}" to "{target_exe_name}"... >> "%LOG_FILE%"
-copy /y "{temp_exe_name}" "{target_exe_name}" >> "%LOG_FILE%" 2>&1
-if errorlevel 1 (
-    echo [%DATE% %TIME%] [BATCH] Overwrite locked, waiting 1s (retry %RETRY%)... >> "%LOG_FILE%"
-    timeout /t 1 /nobreak > nul
-    if %RETRY% leq 10 goto RETRY_LOOP
-    echo [%DATE% %TIME%] [BATCH] FATAL ERROR: Failed to overwrite {target_exe_name} after 10 retries! >> "%LOG_FILE%"
-    exit /b 1
-)
-
-echo [%DATE% %TIME%] [BATCH] Overwrite succeeded! Target file info: >> "%LOG_FILE%"
-dir "{target_exe_name}" >> "%LOG_FILE%" 2>&1
-
-echo [%DATE% %TIME%] [BATCH] Removing temporary download file... >> "%LOG_FILE%"
-del /f /q "{temp_exe_name}" >> "%LOG_FILE%" 2>&1
-
-echo [%DATE% %TIME%] [BATCH] Launching updated {target_exe_name} via Windows Shell (explorer.exe)... >> "%LOG_FILE%"
-explorer.exe "%~dp0{target_exe_name}"
-set LAUNCH_ERR=%errorlevel%
-echo [%DATE% %TIME%] [BATCH] Explorer launched with errorlevel: %LAUNCH_ERR% >> "%LOG_FILE%"
-echo [%DATE% %TIME%] [BATCH] ===== Update Script Completed ===== >> "%LOG_FILE%"
-exit
-"""
-        try:
-            with open(bat_path, "w", encoding="ascii") as f:
-                f.write(bat_content)
-
-            log_update_debug(f"[APPLY] Written batch script to {bat_path}")
-
-            # 啟動批次檔時建立全新獨立行程群組 (DETACHED_PROCESS)，完全切斷父子繼承關係
-            creation_flags = 0x00000008 | (subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)  # DETACHED_PROCESS
-            clean_env = os.environ.copy()
-            clean_env.pop('_MEIPASS2', None)
-            clean_env.pop('_MEIPASS', None)
-
-            log_update_debug("[APPLY] Spawning detached cmd.exe /c apply_update.bat")
-            subprocess.Popen(
-                ["cmd.exe", "/c", bat_path],
-                cwd=target_dir,
-                env=clean_env,
-                creationflags=creation_flags
-            )
-            log_update_debug("[APPLY] Subprocess spawned. Exiting Python GUI process now.")
-            self.destroy()
-            if self.parent:
-                self.parent.destroy()
-            sys.exit(0)
-        except Exception as e:
-            log_update_debug(f"[APPLY] FATAL ERROR spawning updater script: {e}")
-            messagebox.showerror("更新失敗", f"啟動更新替換腳本失敗: {e}\n詳情已記錄於 update_debug.log", parent=self)
-            self.btn_cancel.configure(state=tk.NORMAL)
+    def _do_defer(self, target_dir: str, temp_exe: str, cloud_ver: str):
+        log_update_debug(f"[USER_ACTION] User deferred update to app exit. cloud_ver={cloud_ver}")
+        set_pending_update(target_dir, temp_exe, cloud_ver)
+        if hasattr(self.parent, "on_update_deferred"):
+            self.parent.on_update_deferred(cloud_ver)
+        messagebox.showinfo(
+            "已排程自動更新",
+            f"已為您排程更新！\n\n新版本【{cloud_ver}】將在您下次正常關閉本軟體時自動無聲置換。\n您現在可以繼續安心操作！",
+            parent=self
+        )
+        self.destroy()
 
     def _on_download_failed(self, err: str):
         log_update_debug(f"[UPDATE] Download failed: {err}")

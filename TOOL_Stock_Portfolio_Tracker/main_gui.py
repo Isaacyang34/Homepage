@@ -297,6 +297,35 @@ class PortfolioApp(tk.Tk):
         self.after(4000, self.check_online_update_silently)
         self.after(5500, self.start_daily_1500_scheduler)
 
+        # 綁定視窗關閉事件，支援在退出時自動無聲套用延遲更新
+        self.protocol("WM_DELETE_WINDOW", self._on_app_close)
+
+    def on_update_deferred(self, cloud_ver: str):
+        """當使用者選擇稍後更新時，在視窗標題與狀態列進行友好提示"""
+        self.title(f"本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker) {APP_VERSION} [🔔 新版 {cloud_ver} 待關閉更新]")
+        if hasattr(self, 'status_lbl') and self.status_lbl:
+            self.status_lbl.configure(text=f"🔔 新版本 {cloud_ver} 已下載就緒，將於程式關閉時自動置換升級")
+
+    def _on_app_close(self):
+        """主視窗關閉事件：檢查是否有待套用的延遲更新"""
+        try:
+            from updater import is_pending_update, apply_update_now, _PENDING_UPDATE, log_update_debug
+            if is_pending_update():
+                t_dir = _PENDING_UPDATE.get("target_dir", "")
+                t_exe = _PENDING_UPDATE.get("temp_exe", "")
+                ver = _PENDING_UPDATE.get("version", "")
+                log_update_debug(f"[CLOSE] Window closing detected pending update {ver}. Triggering silent apply_update (restart=False)...")
+                if t_dir and t_exe:
+                    apply_update_now(t_dir, t_exe, restart=False)
+        except Exception as e:
+            try:
+                from updater import log_update_debug
+                log_update_debug(f"[CLOSE] Error during pending update check on close: {e}")
+            except Exception:
+                pass
+        self.destroy()
+        sys.exit(0)
+
     def setup_styles(self):
         self.style = ttk.Style(self)
         try:
