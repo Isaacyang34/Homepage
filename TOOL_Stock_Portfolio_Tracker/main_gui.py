@@ -890,13 +890,11 @@ class PortfolioApp(tk.Tk):
     def on_update_history_all(self, silent: bool = False):
         """背景非同步更新盤後歷史資料 (不佔用視窗、不鎖定畫面、底部狀態列顯示進度)"""
         if self.is_history_updating:
-            if not silent:
-                messagebox.showinfo("提示", "盤後歷史資料已在背景更新中，請稍候...", parent=self)
+            self.status_lbl.configure(text="💡 盤後歷史資料正在背景同步中，請稍候...")
             return
 
         if not self.positions:
-            if not silent:
-                messagebox.showinfo("提示", "目前沒有持股可更新！", parent=self)
+            self.status_lbl.configure(text="提示: 目前庫存尚無持股部位可供更新。")
             return
 
         self.is_history_updating = True
@@ -1588,7 +1586,7 @@ class DataUpdateDialog(tk.Toplevel):
 
     def on_refresh_history(self):
         if self.app.is_history_updating:
-            messagebox.showinfo("提示", "盤後歷史資料已在背景下載中，請稍候...", parent=self)
+            self.lbl_hist_time.configure(text="提示: 盤後歷史資料正在背景下載中，請稍候...")
             return
         self.btn_history.configure(state=tk.DISABLED, text="盤後下載中...")
         self.lbl_hist_time.configure(text="最後更新時間:  正在連線證交所下載日K線...")
