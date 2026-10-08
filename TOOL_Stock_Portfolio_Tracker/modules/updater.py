@@ -771,21 +771,19 @@ class UpdateDialog(tk.Toplevel):
         self.btn_download_full.pack_forget()
         self.btn_cancel.pack_forget()
 
-        # 呈現更新決策按鈕
+        # 若為輕量補丁包：直接自動執行真・記憶體熱更新，0 次打擾、無需任何二次確認！
         if is_patch:
-            self.btn_apply_now = tk.Button(
-                self.bot_frame, text="⚡ 立即無縫熱更新 (免關閉主程式)", bg="#16a34a", fg="#ffffff",
-                activebackground="#15803d", activeforeground="#ffffff",
-                font=("Microsoft JhengHei UI", 10, "bold"), relief="flat", cursor="hand2",
-                command=lambda: self._do_apply(target_dir, temp_file, restart=False, is_patch=True)
-            )
-        else:
-            self.btn_apply_now = tk.Button(
-                self.bot_frame, text=f"🚀 馬上置換更新 ({version})", bg="#2563eb", fg="#ffffff",
-                activebackground="#1d4ed8", activeforeground="#ffffff",
-                font=("Microsoft JhengHei UI", 10, "bold"), relief="flat", cursor="hand2",
-                command=lambda: self._do_apply(target_dir, temp_file, restart=True, is_patch=False)
-            )
+            log_update_debug(f"[AUTO_APPLY] Patch downloaded. Auto applying hot reload without modal prompt...")
+            self._do_apply(target_dir, temp_file, restart=False, is_patch=True)
+            return
+
+        # 僅當為跨核心完整安裝包 (需重啟主程式) 時，才呈現手動確認與延遲選項
+        self.btn_apply_now = tk.Button(
+            self.bot_frame, text=f"🚀 馬上置換更新 ({version})", bg="#2563eb", fg="#ffffff",
+            activebackground="#1d4ed8", activeforeground="#ffffff",
+            font=("Microsoft JhengHei UI", 10, "bold"), relief="flat", cursor="hand2",
+            command=lambda: self._do_apply(target_dir, temp_file, restart=True, is_patch=False)
+        )
         self.btn_apply_now.pack(side=tk.RIGHT, padx=6, ipadx=12, ipady=5)
 
         self.btn_apply_later = tk.Button(
@@ -796,34 +794,19 @@ class UpdateDialog(tk.Toplevel):
         )
         self.btn_apply_later.pack(side=tk.RIGHT, padx=6, ipadx=10, ipady=5)
 
-        # 彈窗提示
         parent_target = self.parent if (self.parent and self.parent.winfo_exists()) else self
-        if is_patch:
-            choice = messagebox.askyesno(
-                "輕量補丁下載就緒",
-                f"版本【{version}】{pkg_type_name} 已下載完畢！\n\n"
-                f"是否立即進行【無縫記憶體熱更新】？\n\n"
-                f"• 按【是 (Yes)】：立即熱更新（主程式免關閉、0秒重啟，數據即時刷新生效）\n"
-                f"• 按【否 (No)】：等到您下次關閉主程式後再更新",
-                parent=parent_target
-            )
-            if choice:
-                self._do_apply(target_dir, temp_file, restart=False, is_patch=True)
-            else:
-                self._do_defer(target_dir, temp_file, version, is_patch)
+        choice = messagebox.askyesno(
+            "完整安裝包下載就緒",
+            f"版本【{version}】{pkg_type_name} 已下載完畢！\n\n"
+            f"是否要馬上重啟更新？\n\n"
+            f"• 按【是 (Yes)】：自動備份當前版次至 versions/，並關閉重啟主程式\n"
+            f"• 按【否 (No)】：等到您下次關閉主程式後再自動置換",
+            parent=parent_target
+        )
+        if choice:
+            self._do_apply(target_dir, temp_file, restart=True, is_patch=False)
         else:
-            choice = messagebox.askyesno(
-                "完整安裝包下載就緒",
-                f"版本【{version}】{pkg_type_name} 已下載完畢！\n\n"
-                f"是否要馬上重啟更新？\n\n"
-                f"• 按【是 (Yes)】：自動備份當前版次至 versions/，並關閉重啟主程式\n"
-                f"• 按【否 (No)】：等到您下次關閉主程式後再自動置換",
-                parent=parent_target
-            )
-            if choice:
-                self._do_apply(target_dir, temp_file, restart=True, is_patch=False)
-            else:
-                self._do_defer(target_dir, temp_file, version, is_patch)
+            self._do_defer(target_dir, temp_file, version, is_patch)
 
     def _do_apply(self, target_dir: str, temp_file: str, restart: bool = True, is_patch: bool = False):
         log_update_debug(f"[USER_ACTION] Immediate apply triggered for {temp_file}, is_patch={is_patch}")
