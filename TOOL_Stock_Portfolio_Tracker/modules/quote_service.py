@@ -124,15 +124,52 @@ class QuoteService:
 
                     prev_close = float(y_val) if (y_val and y_val != "-") else 0.0
 
+                    # 依序提取盤中真實成交價 (TWSE MIS 完整撮合支援)
+                    curr_price = 0.0
+
+                    # 1. 本盤撮合成交價 (z)
                     if z_val and z_val != "-":
-                        curr_price = float(z_val)
-                    else:
+                        try:
+                            curr_price = float(z_val)
+                        except ValueError:
+                            pass
+
+                    # 2. 若本盤無撮合，取盤中最後一筆撮合成交價 (trade.z)
+                    if curr_price <= 0.0:
+                        trade_obj = item.get("trade")
+                        if isinstance(trade_obj, dict):
+                            tz_val = trade_obj.get("z", "-")
+                            if tz_val and tz_val != "-":
+                                try:
+                                    curr_price = float(tz_val)
+                                except ValueError:
+                                    pass
+
+                    # 3. 若無 trade.z，取盤中五檔最佳買價第一檔 (b[0]) 或賣價第一檔 (a[0])
+                    if curr_price <= 0.0:
+                        b_first = item.get("b", "").split("_")[0]
+                        if b_first and b_first != "-":
+                            try:
+                                curr_price = float(b_first)
+                            except ValueError:
+                                pass
+                    if curr_price <= 0.0:
+                        a_first = item.get("a", "").split("_")[0]
+                        if a_first and a_first != "-":
+                            try:
+                                curr_price = float(a_first)
+                            except ValueError:
+                                pass
+
+                    # 4. 若盤中皆無即時成交價 (未開盤或休市)，才嘗試取歷史收盤價，或昨收價
+                    if curr_price <= 0.0:
                         hist_last = get_last_trading_day_quote(sym)
                         if hist_last and hist_last.get("close", 0) > 0:
                             curr_price = float(hist_last["close"])
-                            prev_close = float(hist_last.get("yesterday_close") or curr_price)
+                            if prev_close <= 0.0:
+                                prev_close = float(hist_last.get("yesterday_close") or curr_price)
                         else:
-                            curr_price = prev_close if prev_close > 0 else 0.0
+                            curr_price = prev_close if prev_close > 0.0 else 0.0
 
                     open_price = float(o_val) if (o_val and o_val != "-") else curr_price
                     high_price = float(h_val) if (h_val and h_val != "-") else curr_price
