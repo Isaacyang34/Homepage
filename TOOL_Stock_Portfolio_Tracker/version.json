@@ -4,7 +4,7 @@
   "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
   "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.0.0.zip",
   "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.0.0_Portable.zip",
-  "changelog": "【V1.1.0.0 模組化架構拆解、秒級輕量更新、健康自癒與雙軌遙測統計系統】\n\n1. [系統全面模組化] 核心引擎與業務模組 (app_core.pkg) 分離，非明碼封裝保密安全。\n2. [輕量秒級補丁更新] 日常更新僅需下載約 190KB 模組包，完全免除 39MB 下載與 Defender 檔案鎖定衝突。\n3. [雙軌營運遙測統計] 支援軟體內部儀表板與線上 Web 看板，即時追蹤累計啟動、更新次數、版本分佈與 GitHub 下載量。\n4. [完整安裝包救援] 保留完整安裝包 (Full Package) 隨時一鍵下載，跨版本或環境受損時可無痛重裝修復。\n5. [開機檔案完整性檢查] 啟動時自動掃描必要檔案與相依庫，若有缺損主動從本機備份自動修復。\n6. [本地端版本迭代快照] 每次更新前自動將當前版次備份至 versions/ 目錄，支援一鍵回滾。\n7. [雲端最後三版次支援] 更新介面提供最近 3 個歷史版次自由挑選、降級或下載。",
+  "changelog": "【V1.1.0.0 模組化架構拆解、秒級輕量更新與全自動開機自癒系統】\n\n1. [系統全面模組化] 核心引擎與業務模組 (app_core.pkg) 分離，非明碼封裝保密安全。\n2. [輕量秒級補丁更新] 日常更新僅需下載約 190KB 模組包，完全免除 39MB 下載與 Defender 檔案鎖定衝突。\n3. [完整安裝包救援] 保留完整安裝包 (Full Package) 隨時一鍵下載，跨版本或環境受損時可無痛重裝修復。\n4. [開機檔案完整性檢查] 啟動時自動掃描必要檔案與相依庫，若有缺損主動從本機備份自動修復。\n5. [本地端版本迭代快照] 每次更新前自動將當前版次備份至 versions/ 目錄，支援一鍵回滾。\n6. [雲端最後三版次支援] 更新介面提供最近 3 個歷史版次自由挑選、降級或下載。",
   "recent_versions": [
     {
       "version": "V1.1.0.0",
@@ -12,7 +12,7 @@
       "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.0.0.zip",
       "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
       "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.0.0_Portable.zip",
-      "changelog": "V1.1.0.0 全面模組化拆解架構，支援秒級輕量更新、健康檢查、雙軌遙測統計、本地版本迭代備份與雲端歷史版本切換。"
+      "changelog": "V1.1.0.0 全面模組化拆解架構，支援秒級輕量更新、健康檢查、本地版本迭代備份與雲端歷史版本切換。"
     },
     {
       "version": "V1.0.2.6",

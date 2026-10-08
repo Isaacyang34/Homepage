@@ -28,9 +28,7 @@ MODULE_FILES = [
     "splash_screen.py",
     "stock_detector.py",
     "crypto_sync.py",
-    "integrity_checker.py",
-    "telemetry_service.py",
-    "telemetry_gui.py"
+    "integrity_checker.py"
 ]
 
 def build_app_core_pkg(output_pkg_path: str = "app_core.pkg") -> bool:

@@ -454,14 +454,6 @@ class UpdateDialog(tk.Toplevel):
         )
         self.btn_rollback.pack(side=tk.LEFT, padx=4, ipadx=6, ipady=4)
 
-        self.btn_telemetry = tk.Button(
-            bot, text="📊 雲端遙測統計", bg="#262633", fg="#38bdf8",
-            activebackground="#333344", activeforeground="#38bdf8",
-            font=("Microsoft JhengHei UI", 9, "bold"), relief="flat", cursor="hand2",
-            command=self._open_telemetry_dialog
-        )
-        self.btn_telemetry.pack(side=tk.LEFT, padx=4, ipadx=6, ipady=4)
-
         # 3. 下載進度條與狀態文字 (BOTTOM，緊貼按鈕列上方)
         self.progress_frame = tk.Frame(self, bg="#20202a", padx=18)
         self.progress_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(0, 4))
@@ -533,13 +525,6 @@ class UpdateDialog(tk.Toplevel):
                 messagebox.showerror("開啟失敗", f"無法開啟日誌檔: {e}", parent=self)
         else:
             messagebox.showinfo("提示", "目前尚無更新日誌記錄！", parent=self)
-
-    def _open_telemetry_dialog(self):
-        try:
-            from telemetry_gui import TelemetryDashboardDialog
-            TelemetryDashboardDialog(self)
-        except Exception as e:
-            messagebox.showerror("開啟失敗", f"無法載入遙測分析介面: {e}", parent=self)
 
     def _on_rollback_clicked(self):
         """處理還原本機歷史版本"""
@@ -728,11 +713,6 @@ class UpdateDialog(tk.Toplevel):
 
     def _do_apply(self, target_dir: str, temp_file: str, restart: bool = True):
         log_update_debug(f"[USER_ACTION] Immediate apply triggered for {temp_file}")
-        try:
-            from telemetry_service import record_update_applied
-            record_update_applied(self.selected_version_data.get("version", APP_VERSION))
-        except Exception:
-            pass
         apply_update_now(target_dir, temp_file, restart=restart)
         self.destroy()
         if self.parent:
@@ -741,11 +721,6 @@ class UpdateDialog(tk.Toplevel):
 
     def _do_defer(self, target_dir: str, temp_file: str, version: str, is_patch: bool):
         log_update_debug(f"[USER_ACTION] Deferred update for {version}")
-        try:
-            from telemetry_service import record_update_applied
-            record_update_applied(version)
-        except Exception:
-            pass
         set_pending_update(target_dir, temp_file, version, is_patch=is_patch)
         if hasattr(self.parent, "on_update_deferred"):
             self.parent.on_update_deferred(version)
