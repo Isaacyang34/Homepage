@@ -40,6 +40,13 @@ except Exception as e:
     except Exception:
         pass
 
+# 4. 動態掃描並載入 plugins/ 目錄之自訂外掛擴充腳本
+try:
+    from plugin_manager import load_plugins
+    load_plugins()
+except Exception as e:
+    pass
+
 def main():
     try:
         from splash_screen import show_splash_and_start_app

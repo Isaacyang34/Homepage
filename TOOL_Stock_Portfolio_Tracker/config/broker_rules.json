@@ -1,0 +1,41 @@
+{
+  "default_broker": "元大證券",
+  "base_fee_rate": 0.001425,
+  "brokers": {
+    "元大證券": {
+      "fee_discount": 0.60,
+      "min_fee": 20,
+      "description": "電子下單 6 折"
+    },
+    "永豐金大戶投": {
+      "fee_discount": 0.28,
+      "min_fee": 20,
+      "description": "100萬內 2.8 折"
+    },
+    "國泰證券": {
+      "fee_discount": 0.28,
+      "min_fee": 1,
+      "description": "電子下單 2.8 折，低消 1 元"
+    },
+    "富邦證券": {
+      "fee_discount": 0.60,
+      "min_fee": 20,
+      "description": "電子下單 6 折"
+    },
+    "凱基證券": {
+      "fee_discount": 0.60,
+      "min_fee": 20,
+      "description": "電子下單 6 折"
+    },
+    "一般無折讓": {
+      "fee_discount": 1.00,
+      "min_fee": 20,
+      "description": "無折讓 (牌告費率)"
+    }
+  },
+  "tax_rates": {
+    "stock_sell": 0.003,
+    "day_trading_sell": 0.0015,
+    "etf_sell": 0.001
+  }
+}

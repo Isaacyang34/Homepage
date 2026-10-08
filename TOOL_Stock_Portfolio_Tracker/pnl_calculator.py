@@ -1,5 +1,37 @@
 import math
+import os
+import json
 from typing import Dict, Any, Optional
+
+_BROKER_CONFIG_CACHE = None
+
+def get_broker_config() -> Dict[str, Any]:
+    global _BROKER_CONFIG_CACHE
+    if _BROKER_CONFIG_CACHE is not None:
+        return _BROKER_CONFIG_CACHE
+    
+    app_dir = os.path.dirname(os.path.abspath(__file__))
+    cfg_path = os.path.join(app_dir, "config", "broker_rules.json")
+    if not os.path.exists(cfg_path):
+        # 往上或當前執行檔目錄檢查
+        root_dir = os.path.dirname(os.path.abspath(__file__))
+        cfg_path = os.path.join(root_dir, "..", "config", "broker_rules.json")
+
+    if os.path.exists(cfg_path):
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                _BROKER_CONFIG_CACHE = json.load(f)
+                return _BROKER_CONFIG_CACHE
+        except Exception:
+            pass
+            
+    # 預設回退設定
+    _BROKER_CONFIG_CACHE = {
+        "base_fee_rate": 0.001425,
+        "default_min_fee": 20,
+        "tax_rates": {"stock_sell": 0.003, "etf_sell": 0.001}
+    }
+    return _BROKER_CONFIG_CACHE
 
 def calculate_position_pnl(pos: Dict[str, Any], 
                            quote: Dict[str, Any], 
@@ -12,6 +44,11 @@ def calculate_position_pnl(pos: Dict[str, Any],
     benchmarks: 包含 yesterday_close, week_close, month_close (從本地歷史K線提取)
     div_info: 包含 annual_div, single_amt, ex_date, frequency, payment_month, hist_div_received
     """
+    b_cfg = get_broker_config()
+    base_fee_rate = float(b_cfg.get("base_fee_rate", 0.001425))
+    default_min_fee = int(b_cfg.get("default_min_fee", 20))
+    tax_rates = b_cfg.get("tax_rates", {})
+
     shares = float(pos["shares"]) # 支援零股與小數點股數
     cost_price = float(pos["cost_price"])
     fee_discount = float(pos.get("fee_discount", 0.6))
@@ -33,17 +70,17 @@ def calculate_position_pnl(pos: Dict[str, Any],
         m_close = y_close
 
     if market in ["TW", "TWO"]:
-        # --- 台股交易成本規則 ---
-        raw_buy_fee = cost_price * shares * 0.001425 * fee_discount
-        buy_fee = max(20, math.floor(raw_buy_fee)) if shares >= 1000 else math.ceil(raw_buy_fee)
+        # --- 台股交易成本規則 (支援外部 JSON 參數) ---
+        raw_buy_fee = cost_price * shares * base_fee_rate * fee_discount
+        buy_fee = max(default_min_fee, math.floor(raw_buy_fee)) if shares >= 1000 else math.ceil(raw_buy_fee)
         total_cost = round(cost_price * shares + buy_fee)
 
         market_val = round(curr_price * shares)
 
-        raw_sell_fee = curr_price * shares * 0.001425 * fee_discount
-        sell_fee = max(20, math.floor(raw_sell_fee)) if shares >= 1000 else math.ceil(raw_sell_fee)
+        raw_sell_fee = curr_price * shares * base_fee_rate * fee_discount
+        sell_fee = max(default_min_fee, math.floor(raw_sell_fee)) if shares >= 1000 else math.ceil(raw_sell_fee)
 
-        tax_rate = 0.001 if is_etf else 0.003
+        tax_rate = float(tax_rates.get("etf_sell", 0.001)) if is_etf else float(tax_rates.get("stock_sell", 0.003))
         tax = math.floor(curr_price * shares * tax_rate)
 
         net_sell_value = market_val - sell_fee - tax

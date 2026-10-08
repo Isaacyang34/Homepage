@@ -1,0 +1,6 @@
+{
+  "twse_mis_url": "https://mis.twse.com.tw/stock/api/getStockInfo.jsp",
+  "twse_stock_day_url": "https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY",
+  "tpex_stock_day_url": "https://www.tpex.org.tw/web/stock/aftertrading/daily_trading_info/st43_result.php",
+  "yahoo_chart_url": "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+}
