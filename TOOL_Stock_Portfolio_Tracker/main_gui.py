@@ -637,7 +637,8 @@ class PortfolioApp(tk.Tk):
 
     def refresh_ui_table(self):
         """重新計算並填入表格與頂部卡片 (包含日/週/月週期損益與取得批次股息)"""
-        selected_iid = self.tree.focus()
+        cur_sel = self.tree.selection()
+        selected_iid = cur_sel[0] if cur_sel else None
         self.tree.delete(*self.tree.get_children())
 
         total_cost_sum = 0.0
@@ -880,6 +881,7 @@ class PortfolioApp(tk.Tk):
             sel = self.tree.selection()
             if sel:
                 self.tree.selection_remove(sel)
+            self.tree.focus("")
             self.row_action_frame.place_forget()
         except Exception:
             pass
