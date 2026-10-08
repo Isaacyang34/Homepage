@@ -129,6 +129,13 @@ def calculate_position_pnl(pos: Dict[str, Any],
     hist_div_received = float(div_info.get("hist_div_received", 0.0))
     lot_count = int(div_info.get("lot_count", 0))
 
+    # ETF 淨值與折溢價 (支援動態即時重算)
+    nav = float(quote.get("nav") or 0.0)
+    prem_disc = quote.get("prem_disc")
+    is_etf_flag = bool(is_etf or quote.get("is_etf", False))
+    if is_etf_flag and nav > 0 and curr_price > 0:
+        prem_disc = round((curr_price - nav) / nav * 100, 2)
+
     return {
         "symbol": pos["symbol"],
         "name": pos.get("name", "") or quote.get("name", pos["symbol"]),
@@ -142,6 +149,9 @@ def calculate_position_pnl(pos: Dict[str, Any],
         "change_pct": round(day_pct, 2),
         "total_cost": total_cost,
         "market_val": market_val,
+        "nav": nav,
+        "prem_disc": prem_disc,
+        "is_etf": is_etf_flag,
         "unrealized_pnl": unrealized_pnl,
         "roi_pct": round(roi_pct, 2),
         # 週期損益

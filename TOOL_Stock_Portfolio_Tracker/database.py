@@ -338,7 +338,7 @@ def get_last_trading_day_quote(symbol: str) -> Optional[Dict[str, Any]]:
 
 DEFAULT_VISIBLE_COLUMNS = [
     "symbol", "name", "market", "shares", "cost_price", "current_price",
-    "change_pct", "total_cost", "market_val", "unrealized_pnl", "roi_pct",
+    "change_pct", "total_cost", "market_val", "nav", "prem_disc", "unrealized_pnl", "roi_pct",
     "day_pnl", "week_pnl", "month_pnl",
     "frequency", "cash_dividend", "total_dividend", "yield_on_cost",
     "ex_date", "payment_month", "hist_div_received", "note"
@@ -349,7 +349,17 @@ def get_visible_columns() -> List[str]:
     if not raw:
         return list(DEFAULT_VISIBLE_COLUMNS)
     try:
-        return json.loads(raw)
+        cols = json.loads(raw)
+        # 自動遷移：若現有使用者設定缺少 nav / prem_disc，自動插入至 market_val 後方
+        if "nav" not in cols:
+            if "market_val" in cols:
+                mv_idx = cols.index("market_val")
+                cols.insert(mv_idx + 1, "nav")
+                cols.insert(mv_idx + 2, "prem_disc")
+            else:
+                cols.extend(["nav", "prem_disc"])
+            set_visible_columns(cols)
+        return cols
     except Exception:
         return list(DEFAULT_VISIBLE_COLUMNS)
 

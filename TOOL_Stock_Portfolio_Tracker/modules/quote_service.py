@@ -49,10 +49,70 @@ class QuoteService:
         })
         self._last_twse_request_time = 0.0
         self._min_interval = 4.0 # 防止高頻被擋，至少間隔 4 秒
+        self._etf_nav_cache: Dict[str, Dict[str, Any]] = {}
+        self._last_etf_nav_time = 0.0
+
+    def fetch_etf_nav_data(self) -> Dict[str, Dict[str, Any]]:
+        """
+        向證交所官方 edge 查詢全市場 ETF 即時預估淨值 (iNAV)、前日結算淨值與預估折溢價%
+        端點: https://mis.twse.com.tw/stock/data/all_etf.txt
+        """
+        now = time.time()
+        if self._etf_nav_cache and (now - self._last_etf_nav_time < 12.0):
+            return self._etf_nav_cache
+
+        try:
+            url = "https://mis.twse.com.tw/stock/data/all_etf.txt"
+            resp = self.session.get(url, timeout=4.0)
+            if resp.status_code == 200:
+                content = resp.content.decode("cp950", errors="ignore")
+                data = json.loads(content)
+                etf_map = {}
+                for group in data.get("a1", []):
+                    for it in group.get("msgArray", []):
+                        sym = it.get("a", "").strip().upper()
+                        if not sym:
+                            continue
+                        try:
+                            m_price = float(it.get("e", 0.0) or 0.0)
+                        except (ValueError, TypeError):
+                            m_price = 0.0
+                        try:
+                            nav = float(it.get("f", 0.0) or 0.0)
+                        except (ValueError, TypeError):
+                            nav = 0.0
+                        try:
+                            prev_nav = float(it.get("h", 0.0) or 0.0)
+                        except (ValueError, TypeError):
+                            prev_nav = 0.0
+                        try:
+                            prem_disc = float(it.get("g", 0.0) or 0.0)
+                        except (ValueError, TypeError):
+                            prem_disc = 0.0
+
+                        # 若盤中估計淨值尚未產出，回退為前一日收盤結算淨值
+                        if nav <= 0.0 and prev_nav > 0.0:
+                            nav = prev_nav
+
+                        etf_map[sym] = {
+                            "symbol": sym,
+                            "nav": round(nav, 4),
+                            "prev_nav": round(prev_nav, 4),
+                            "prem_disc": round(prem_disc, 2),
+                            "market_price": round(m_price, 2),
+                            "is_etf": True
+                        }
+                if etf_map:
+                    self._etf_nav_cache = etf_map
+                    self._last_etf_nav_time = now
+        except Exception as e:
+            print(f"[QuoteService] ETF 淨值抓取失敗: {e}")
+
+        return self._etf_nav_cache
 
     def fetch_realtime_quotes(self, positions: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
         """
-        批次取得持股即時報價
+        批次取得持股即時報價，並自動綁定 ETF 即時淨值與折溢價幅度
         回傳字典 key 為 symbol (大寫)，value 為行情資訊
         """
         results = {}
@@ -79,6 +139,33 @@ class QuoteService:
         if us_symbols:
             us_quotes = self._fetch_us_batch(us_symbols)
             results.update(us_quotes)
+
+        # 3. 補充 ETF 淨值 (NAV) 與折溢價 (%)
+        etf_nav_data = self.fetch_etf_nav_data()
+        pos_by_sym = {p["symbol"].strip().upper(): p for p in positions}
+
+        for sym, q_data in results.items():
+            sym_clean = sym.strip().upper()
+            pos = pos_by_sym.get(sym_clean, {})
+            pos_is_etf = bool(pos.get("is_etf", 0))
+
+            if sym_clean in etf_nav_data:
+                etf_info = etf_nav_data[sym_clean]
+                nav = etf_info["nav"]
+                curr_p = q_data.get("current_price", 0.0)
+                # 即時折溢價動態計算：(市價 - 淨值) / 淨值 * 100
+                if nav > 0 and curr_p > 0:
+                    prem_disc = round((curr_p - nav) / nav * 100, 2)
+                else:
+                    prem_disc = etf_info.get("prem_disc", 0.0)
+
+                q_data["nav"] = nav
+                q_data["prem_disc"] = prem_disc
+                q_data["is_etf"] = True
+            else:
+                q_data["nav"] = 0.0
+                q_data["prem_disc"] = None
+                q_data["is_etf"] = pos_is_etf
 
         return results
 

@@ -182,6 +182,8 @@ ALL_COLUMN_SPECS = [
     ("change_pct", "今日漲跌", 130, "e", "行情"),
     ("total_cost", "總成本", 105, "e", "損益"),
     ("market_val", "預估市值", 110, "e", "損益"),
+    ("nav", "淨值", 90, "e", "行情"),
+    ("prem_disc", "折溢價", 95, "e", "行情"),
     ("unrealized_pnl", "未實現損益", 115, "e", "損益"),
     ("roi_pct", "報酬率%", 90, "e", "損益"),
     ("day_pnl", "日損益", 125, "e", "週期損益"),
@@ -727,6 +729,22 @@ class PortfolioApp(tk.Tk):
             else:
                 hist_div_str = "-- (未設批次)"
 
+            # ETF 淨值與折溢價
+            is_etf = pnl.get("is_etf", False)
+            nav_val = float(pnl.get("nav") or 0.0)
+            prem_val = pnl.get("prem_disc")
+
+            if is_etf and nav_val > 0:
+                nav_str = f"{nav_val:,.2f}"
+            else:
+                nav_str = "--"
+
+            if is_etf and prem_val is not None and nav_val > 0 and prem_val != -999.0:
+                prem_sign = "+" if prem_val > 0 else ""
+                prem_str = f"{prem_sign}{prem_val:.2f}%"
+            else:
+                prem_str = "--"
+
             # 動態組裝欄位值 (在代碼前預留空白供選取時浮貼動作按鈕)
             val_map = {
                 "symbol": f"       {pnl['symbol']}",
@@ -738,6 +756,8 @@ class PortfolioApp(tk.Tk):
                 "change_pct": f"{chg_sign}{pnl['change']:,.2f} ({chg_sign}{pnl['change_pct']:.2f}%)",
                 "total_cost": f"{pnl['total_cost']:,}",
                 "market_val": f"{pnl['market_val']:,}",
+                "nav": nav_str,
+                "prem_disc": prem_str,
                 "unrealized_pnl": f"{pnl_sign}{pnl['unrealized_pnl']:,}",
                 "roi_pct": f"{pnl_sign}{pnl['roi_pct']:.2f}%",
                 "day_pnl": f"{day_sign}{pnl['day_pnl']:,} ({day_sign}{pnl['day_pct']:.2f}%)",
