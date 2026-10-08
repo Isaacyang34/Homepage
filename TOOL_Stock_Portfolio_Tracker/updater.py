@@ -22,7 +22,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Optional, Dict, Any, Tuple, List
 
-APP_VERSION = "V1.1.1.1"
+APP_VERSION = "V1.1.1.2"
 
 # 延遲更新狀態管理 (使用者可選擇「稍後於關閉程式時自動置換」)
 _PENDING_UPDATE: Dict[str, Any] = {

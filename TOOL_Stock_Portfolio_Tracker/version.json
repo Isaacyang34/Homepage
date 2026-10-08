@@ -1,11 +1,19 @@
 {
-  "version": "V1.1.1.1",
+  "version": "V1.1.1.2",
   "release_date": "2026-10-08",
   "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
-  "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.1.1.zip",
-  "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.1.1_Portable.zip",
-  "changelog": "【V1.1.1.1 真・記憶體熱更新與證交所盤中撮合取價全面修復】\n\n1. [真・記憶體熱更新 (Zero Restart)] 輕量補丁包下載後直接於記憶體中熱重載 (Hot Reload)，主程式完全免關閉、免殺進程、0秒重啟，徹底杜絕 Windows Temp DLL 找不到的崩潰！\n2. [盤中撮合報價修復] 深度相容證交所 TWSE MIS 盤中架構，全面提取撮合間隔 trade.z 與買賣五檔最佳檔位，徹底解決盤中現價凍結與 0.00% 漲跌假死現象。\n3. [模組再分離架構優化] 保持 config/ 外部規則分離與 plugins/ 外掛機制。",
+  "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.1.2.zip",
+  "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.1.2_Portable.zip",
+  "changelog": "【V1.1.1.2 幽靈選取徹底根除、ETF即時淨值與折溢價、4大指標秒開極速快取】\n\n1. [徹底修復幽靈選取] 修正 refresh_ui_table 誤讀取 tree.focus() 鍵盤殘留焦點的缺陷，改為嚴格比對 tree.selection() 真實反白；若無選取則刷新後 100% 保持乾淨無選取，且 clear_selection 徹底清空焦點，跳出視窗絕不自動點選股票。\n2. [新增ETF即時淨值與折溢價] 緊鄰預估市值新增 [淨值] 與 [折溢價] 兩大欄位，自動同步 TWSE 全市場 ETF 即時預估淨值 (iNAV) 與動態折溢價幅度 (一般個股顯示 --)。\n3. [4大指標快取秒開修復] 修正快取持久化路徑，全面落實 Stale-While-Revalidate 秒開原則，開窗瞬間 0 毫秒立即呈現，若有過期於背景無聲更新，徹底告別轉圈等待！",
   "recent_versions": [
+    {
+      "version": "V1.1.1.2",
+      "release_date": "2026-10-08",
+      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.1.2.zip",
+      "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
+      "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.1.2_Portable.zip",
+      "changelog": "V1.1.1.2 修復幽靈選取、新增ETF淨值與折溢價、4大指標0ms秒開快取。"
+    },
     {
       "version": "V1.1.1.1",
       "release_date": "2026-10-08",
@@ -21,14 +29,6 @@
       "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
       "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.1.0_Portable.zip",
       "changelog": "V1.1.1.0 三層深度模組再分離：規則外置 (config/)、外掛機制 (plugins/)、底座依賴瘦身 (純 REST 免 numpy/pandas)。"
-    },
-    {
-      "version": "V1.1.0.0",
-      "release_date": "2026-10-08",
-      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.0.0.zip",
-      "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
-      "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.0.0_Portable.zip",
-      "changelog": "V1.1.0.0 全面模組化拆解架構，支援秒級輕量更新、健康檢查、本地版本迭代備份與雲端歷史版本切換。"
     }
   ]
 }
