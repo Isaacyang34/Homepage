@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import sys
 import os
 
@@ -7,7 +8,25 @@ if hasattr(sys.stdout, "reconfigure"):
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
-# 記錄啟動日誌 (證明全新程序啟動成功，便於追蹤更新鏈條)
+# 1. 動態配置模組路徑：確保外置 modules/ 與 assets/ 為最高載入優先級
+app_dir = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, 'frozen', False) else __file__))
+modules_dir = os.path.join(app_dir, "modules")
+assets_dir = os.path.join(app_dir, "assets")
+
+if os.path.exists(modules_dir) and modules_dir not in sys.path:
+    sys.path.insert(0, modules_dir)
+if app_dir not in sys.path:
+    sys.path.insert(1, app_dir)
+
+# 2. 開機自我健康檢查與自癒機制 (Health & Integrity Check)
+try:
+    from integrity_checker import check_and_heal_system_integrity
+    if not check_and_heal_system_integrity():
+        sys.exit(1)
+except Exception as e:
+    print(f"[Warning] 完整性檢查模組載入失敗: {e}")
+
+# 3. 記錄啟動日誌 (證明全新程序啟動成功，便於追蹤更新鏈條)
 try:
     from updater import log_update_debug, APP_VERSION
     _mei = getattr(sys, '_MEIPASS', 'None')
@@ -24,7 +43,7 @@ def main():
         from splash_screen import show_splash_and_start_app
         show_splash_and_start_app()
     except Exception as e:
-        # 防呆降級：若環境異常直接開啟主視窗
+        # 防呆降級：若啟動畫面異常直接開啟主視窗
         print(f"[Warning] 啟動動畫異常，直接開啟主程式: {e}")
         try:
             from main_gui import PortfolioApp

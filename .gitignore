@@ -8,6 +8,8 @@ TOOL_Stock_Portfolio_Tracker/*_old.exe
 TOOL_Stock_Portfolio_Tracker/build/
 TOOL_Stock_Portfolio_Tracker/dist/
 *.zip
+!TOOL_Stock_Portfolio_Tracker/dist_patches/**/*.zip
+!TOOL_Stock_Portfolio_Tracker/dist_releases/**/*.zip
 *.rar
 *.7z
 *.yaml
@@ -18,9 +20,11 @@ Rufus/
 .agents/*
 !.agents/rules/
 
-# 歷史備份
+# 歷史備份與版本迭代快照 (本地保留，不推送至雲端)
 backups/
 !GBD/backups/
+BACKUP_Stock_Portfolio_Tracker_*/
+TOOL_Stock_Portfolio_Tracker/versions/
 
 # ESP8266 中繼編譯產物
 ESP32_TPMS_Receiver/poc_minimal_tester/build/

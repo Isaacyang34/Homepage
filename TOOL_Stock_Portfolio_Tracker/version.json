@@ -1,6 +1,31 @@
 {
-  "version": "V1.0.2.6",
-  "release_date": "2026-10-07",
-  "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
-  "changelog": "【V1.0.2.6 更新啟動隔離強化與完全自主決策】\n\n1. [徹底修復 DLL 載入衝突] 重設批次置換環境變數 (剔除殘留 _MEI 路徑) 並引進 2 秒磁碟快取與防毒釋放緩衝，徹底杜絕 Failed to load Python DLL 錯誤。\n2. [背景下載主程式不中斷] 點擊下載時主程式維持 100% 自由操作看盤，下載中可縮小至背景。\n3. [下載完畢精準提醒] 下載完成後主動提示是否馬上更新；選否繼續正常使用，待使用者退出主程式時自動無聲置換。\n4. [全鏈條診斷日誌] 建立 update_debug.log 完整追蹤下載、替換重試、環境清理與重啟歷程。\n5. [取消反白選取] 支援按下 ESC 鍵或點擊下方黑色空白處一秒取消反白選取。"
+  "version": "V1.1.0.0",
+  "release_date": "2026-10-08",
+  "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.0.0.zip",
+  "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.0.0.zip",
+  "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.0.0_Portable.zip",
+  "changelog": "【V1.1.0.0 模組化架構拆解、秒級輕量更新與開機健康自癒系統】\n\n1. [系統全面模組化] 核心引擎與業務模組 (modules/) 分離，維護除錯更敏捷清晰。\n2. [輕量秒級補丁更新] 日常更新僅需下載約 100KB 模組包，完全免除 38MB 下載與 Defender 檔案鎖定衝突。\n3. [完整安裝包救援] 保留完整安裝包 (Full Package) 隨時一鍵下載，跨版本或環境受損時可無痛重裝修復。\n4. [開機檔案完整性檢查] 啟動時自動掃描必要檔案與相依庫，若有缺損主動從本機備份自動修復。\n5. [本地端版本迭代快照] 每次更新前自動將當前版次備份至 versions/ 目錄，支援一鍵回滾。\n6. [雲端最後三版次支援] 更新介面提供最近 3 個歷史版次自由挑選、降級或下載。",
+  "recent_versions": [
+    {
+      "version": "V1.1.0.0",
+      "release_date": "2026-10-08",
+      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.0.0.zip",
+      "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.0.0_Portable.zip",
+      "changelog": "V1.1.0.0 全面模組化拆解架構，支援秒級輕量更新、健康檢查、本地版本迭代備份與雲端歷史版本切換。"
+    },
+    {
+      "version": "V1.0.2.6",
+      "release_date": "2026-10-07",
+      "patch_url": "",
+      "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.0.2.6_Portable.zip",
+      "changelog": "V1.0.2.6 徹底修復 Windows DLL 載入衝突，加入乾淨環境變數隔離與背景下載不卡介面流程。"
+    },
+    {
+      "version": "V1.0.2.5",
+      "release_date": "2026-10-07",
+      "patch_url": "",
+      "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.0.2.5_Portable.zip",
+      "changelog": "V1.0.2.5 更新時機自主決策與關閉置換體驗升級。"
+    }
+  ]
 }

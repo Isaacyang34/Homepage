@@ -312,11 +312,11 @@ class PortfolioApp(tk.Tk):
             from updater import is_pending_update, apply_update_now, _PENDING_UPDATE, log_update_debug
             if is_pending_update():
                 t_dir = _PENDING_UPDATE.get("target_dir", "")
-                t_exe = _PENDING_UPDATE.get("temp_exe", "")
+                t_file = _PENDING_UPDATE.get("temp_file") or _PENDING_UPDATE.get("temp_exe", "")
                 ver = _PENDING_UPDATE.get("version", "")
                 log_update_debug(f"[CLOSE] Window closing detected pending update {ver}. Triggering silent apply_update (restart=False)...")
-                if t_dir and t_exe:
-                    apply_update_now(t_dir, t_exe, restart=False)
+                if t_dir and t_file:
+                    apply_update_now(t_dir, t_file, restart=False)
         except Exception as e:
             try:
                 from updater import log_update_debug
