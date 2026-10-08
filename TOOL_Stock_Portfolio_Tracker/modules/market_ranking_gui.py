@@ -284,13 +284,24 @@ class MarketRankingDialog(tk.Toplevel):
         self.apply_filter_and_render()
 
     def load_data_async(self, force_refresh: bool = False):
-        # 若已有本地快取，開窗瞬間 0ms 同步秒開渲染
+        # 若已有本地快取，開窗瞬間 0ms 同步秒開渲染 (Stale-While-Revalidate)
         if not force_refresh:
-            cached = MarketRankingService.load_cache()
+            cached = MarketRankingService.load_cache(allow_stale=True)
             if cached and cached.get("stocks") and cached.get("revenues"):
                 cached_time_str = cached.get("cached_time_str", "剛剛")
                 self.status_var.set(f"數據已就緒 (資料時間: {cached_time_str})")
                 self.apply_filter_and_render()
+
+                # 若快取超過 12 小時，在背景無聲更新，使用者完全不受阻礙
+                if MarketRankingService.is_cache_stale():
+                    def bg_worker():
+                        try:
+                            data = MarketRankingService.get_market_data(force_refresh=True)
+                            new_time_str = data.get("cached_time_str", "剛剛")
+                            self.after(0, lambda: self._on_bg_data_updated(new_time_str))
+                        except Exception:
+                            pass
+                    threading.Thread(target=bg_worker, daemon=True).start()
                 return
 
         self.status_var.set("正在獲取證交所全市場最新資料，請稍候...")
@@ -305,6 +316,14 @@ class MarketRankingDialog(tk.Toplevel):
                 self.after(0, lambda: self._on_data_error(str(e)))
 
         threading.Thread(target=worker, daemon=True).start()
+
+    def _on_bg_data_updated(self, new_time_str: str):
+        try:
+            if self.winfo_exists():
+                self.status_var.set(f"數據已同步至最新 (資料時間: {new_time_str})")
+                self.apply_filter_and_render()
+        except Exception:
+            pass
 
     def _on_data_loaded(self, cached_time_str: str):
         self.btn_refresh.configure(state="normal")

@@ -1197,7 +1197,9 @@ class PortfolioApp(tk.Tk):
         def worker():
             try:
                 from ranking_service import MarketRankingService
-                MarketRankingService.get_market_data(force_refresh=False)
+                MarketRankingService.load_cache(allow_stale=True)
+                if MarketRankingService.is_cache_stale():
+                    MarketRankingService.get_market_data(force_refresh=True)
             except Exception as e:
                 print(f"[MarketRanking] 背景預熱失敗: {e}")
 

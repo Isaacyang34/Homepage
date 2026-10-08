@@ -7,7 +7,17 @@ import ssl
 import urllib.request
 from typing import Dict, List, Any, Optional, Tuple
 
-CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "market_ranking_cache.json")
+def get_cache_file_path() -> str:
+    """精確解析 market_ranking_cache.json 的持久化儲存路徑 (永久對齊應用程式根目錄)"""
+    if getattr(sys, 'frozen', False):
+        base_dir = os.path.dirname(os.path.abspath(sys.executable))
+    else:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        if os.path.basename(base_dir) == "modules":
+            base_dir = os.path.dirname(base_dir)
+    return os.path.join(base_dir, "market_ranking_cache.json")
+
+CACHE_FILE = get_cache_file_path()
 CACHE_EXPIRY_HOURS = 12
 
 # 主流熱門台股 ETF 清單（基準年化殖利率、分類與配息特性）
@@ -39,6 +49,30 @@ class MarketRankingService:
     _last_load_time: float = 0.0
 
     @classmethod
+    def get_cache_file_path(cls) -> str:
+        return get_cache_file_path()
+
+    @classmethod
+    def is_cache_stale(cls) -> bool:
+        cache_path = cls.get_cache_file_path()
+        if not os.path.exists(cache_path):
+            alt_path = os.path.join(os.path.dirname(os.path.dirname(cache_path)), "market_ranking_cache.json")
+            if os.path.exists(alt_path):
+                cache_path = alt_path
+            else:
+                return True
+        if cls._cached_data:
+            cached_time = cls._cached_data.get("cached_at", 0)
+        else:
+            try:
+                with open(cache_path, "r", encoding="utf-8") as f:
+                    d = json.load(f)
+                    cached_time = d.get("cached_at", 0)
+            except Exception:
+                return True
+        return (time.time() - cached_time) > (CACHE_EXPIRY_HOURS * 3600)
+
+    @classmethod
     def _get_ssl_context(cls):
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
@@ -46,20 +80,25 @@ class MarketRankingService:
         return ctx
 
     @classmethod
-    def load_cache(cls) -> Optional[Dict[str, Any]]:
-        """從本地檔案載入快取"""
+    def load_cache(cls, allow_stale: bool = True) -> Optional[Dict[str, Any]]:
+        """從本地檔案載入快取 (支援 Stale-While-Revalidate 秒開優先原則)"""
         if cls._cached_data:
             return cls._cached_data
 
-        if not os.path.exists(CACHE_FILE):
-            return None
+        cache_path = cls.get_cache_file_path()
+        if not os.path.exists(cache_path):
+            alt_path = os.path.join(os.path.dirname(os.path.dirname(cache_path)), "market_ranking_cache.json")
+            if os.path.exists(alt_path):
+                cache_path = alt_path
+            else:
+                return None
 
         try:
-            with open(CACHE_FILE, "r", encoding="utf-8") as f:
+            with open(cache_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 cached_time = data.get("cached_at", 0)
-                # 檢查快取是否在有效期間內
-                if time.time() - cached_time < CACHE_EXPIRY_HOURS * 3600:
+                # 只要檔案含有資料，在 allow_stale=True 時一律秒顯，不因過期拒絕回傳！
+                if allow_stale or (time.time() - cached_time < CACHE_EXPIRY_HOURS * 3600):
                     cls._cached_data = data
                     cls._last_load_time = cached_time
                     return data
@@ -70,10 +109,11 @@ class MarketRankingService:
     @classmethod
     def save_cache(cls, data: Dict[str, Any]):
         """將市場數據持久化寫入本地快取"""
+        cache_path = cls.get_cache_file_path()
         try:
             data["cached_at"] = time.time()
             data["cached_time_str"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            with open(CACHE_FILE, "w", encoding="utf-8") as f:
+            with open(cache_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             cls._cached_data = data
             cls._last_load_time = data["cached_at"]
