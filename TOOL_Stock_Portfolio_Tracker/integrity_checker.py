@@ -20,15 +20,8 @@ def get_app_dir() -> str:
 
 # 必要的核心模組與資源清單 (相對路徑)
 CRITICAL_COMPONENTS = [
-    os.path.join("modules", "main_gui.py"),
-    os.path.join("modules", "updater.py"),
-    os.path.join("modules", "database.py"),
-    os.path.join("modules", "quote_service.py"),
-    os.path.join("modules", "pnl_calculator.py"),
-    os.path.join("modules", "dividend_service.py"),
-    os.path.join("modules", "history_service.py"),
-    os.path.join("modules", "splash_screen.py"),
-    os.path.join("version.json")
+    "app_core.pkg",
+    "version.json"
 ]
 
 CRITICAL_ASSETS = [

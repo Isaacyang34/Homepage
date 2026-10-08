@@ -87,6 +87,11 @@ def create_local_version_snapshot(app_dir: str, version_tag: str) -> bool:
             shutil.rmtree(target_snapshot, ignore_errors=True)
         os.makedirs(target_snapshot, exist_ok=True)
 
+        # 備份 app_core.pkg
+        pkg_src = os.path.join(app_dir, "app_core.pkg")
+        if os.path.exists(pkg_src):
+            shutil.copy2(pkg_src, target_snapshot)
+
         # 備份 modules 資料夾
         modules_src = os.path.join(app_dir, "modules")
         if os.path.exists(modules_src):
@@ -238,14 +243,20 @@ def rollback_to_version(app_dir: str, target_ver: str) -> bool:
         if not os.path.exists(backup_dir):
             return False
             
-        # 1. 還原 modules
+        # 1. 還原 app_core.pkg
+        backup_pkg = os.path.join(backup_dir, "app_core.pkg")
+        dst_pkg = os.path.join(app_dir, "app_core.pkg")
+        if os.path.exists(backup_pkg):
+            shutil.copy2(backup_pkg, dst_pkg)
+
+        # 2. 還原 modules (若存在)
         backup_modules = os.path.join(backup_dir, "modules")
         dst_modules = os.path.join(app_dir, "modules")
         if os.path.exists(backup_modules):
             shutil.rmtree(dst_modules, ignore_errors=True)
             shutil.copytree(backup_modules, dst_modules)
             
-        # 2. 還原 version.json
+        # 3. 還原 version.json
         backup_ver_file = os.path.join(backup_dir, "version.json")
         dst_ver_file = os.path.join(app_dir, "version.json")
         if os.path.exists(backup_ver_file):

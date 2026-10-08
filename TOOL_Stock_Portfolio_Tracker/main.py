@@ -8,15 +8,17 @@ if hasattr(sys.stdout, "reconfigure"):
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
-# 1. 動態配置模組路徑：確保外置 modules/ 與 assets/ 為最高載入優先級
+# 1. 動態配置二進位封裝包路徑：優先載入非明碼核心包 app_core.pkg
 app_dir = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, 'frozen', False) else __file__))
-modules_dir = os.path.join(app_dir, "modules")
-assets_dir = os.path.join(app_dir, "assets")
+pkg_path = os.path.join(app_dir, "app_core.pkg")
+if os.path.exists(pkg_path):
+    sys.path.insert(0, pkg_path)
 
+modules_dir = os.path.join(app_dir, "modules")
 if os.path.exists(modules_dir) and modules_dir not in sys.path:
-    sys.path.insert(0, modules_dir)
+    sys.path.insert(1, modules_dir)
 if app_dir not in sys.path:
-    sys.path.insert(1, app_dir)
+    sys.path.insert(2, app_dir)
 
 # 2. 開機自我健康檢查與自癒機制 (Health & Integrity Check)
 try:
