@@ -443,6 +443,14 @@ class PortfolioApp(tk.Tk):
         )
         self.btn_update.pack(side=tk.LEFT, padx=3)
 
+        self.btn_telemetry = tk.Button(
+            bottom_frame, text="[📊 營運分析]", bg="#262633", fg="#38bdf8",
+            activebackground="#333344", activeforeground="#38bdf8",
+            font=(self.font_family, self.font_size, "bold"), relief="flat", padx=8, pady=3,
+            cursor="hand2", command=self.on_open_telemetry
+        )
+        self.btn_telemetry.pack(side=tk.LEFT, padx=3)
+
         # 右側控制：自動刷新頻率
         self.auto_refresh_var = tk.BooleanVar(value=True)
         chk_auto = ttk.Checkbutton(bottom_frame, text="自動刷新", variable=self.auto_refresh_var, command=self.on_toggle_auto_refresh)
@@ -1021,6 +1029,14 @@ class PortfolioApp(tk.Tk):
             self.after(0, lambda: UpdateDialog(self, manifest, is_newer))
             self.after(0, lambda: self.status_lbl.configure(text="系統就緒"))
         threading.Thread(target=worker, daemon=True).start()
+
+    def on_open_telemetry(self):
+        """開啟雲端營運與版本遙測看板視窗"""
+        try:
+            from telemetry_gui import TelemetryDashboardDialog
+            TelemetryDashboardDialog(self)
+        except Exception as e:
+            messagebox.showerror("開啟失敗", f"無法載入遙測分析看板: {e}", parent=self)
 
     def check_online_update_silently(self):
         """軟體開啟後自動在背景檢查更新：若有新版本則變色提示"""

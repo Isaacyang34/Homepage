@@ -6,9 +6,15 @@
       1. 根目錄閉鎖：嚴格禁止遍歷或列舉所有使用者帳號 (.read: false)
       2. 獨立路徑讀取：僅允許已知使用者代碼者讀取其加密封包 (密文經 600K PBKDF2 + 128-bit Secret Key 保護)
       3. 寫入憑證防禦：覆寫或更新時強制比對 write_token，杜絕他人惡意清空或覆寫庫存資料
+      4. 匿名遙測統計：開放 /telemetry 節點供客戶端即時統計啟動與更新次數 (零個資)
     */
     ".read": false,
     ".write": false,
+
+    "telemetry": {
+      ".read": true,
+      ".write": true
+    },
 
     "portfolios": {
       ".read": false,

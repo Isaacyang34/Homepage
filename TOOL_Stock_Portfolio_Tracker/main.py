@@ -40,6 +40,13 @@ except Exception as e:
     except Exception:
         pass
 
+# 4. 雲端遙測統計 (背景非同步紀錄啟動次數，零阻礙開機)
+try:
+    from telemetry_service import record_app_launch
+    record_app_launch(APP_VERSION)
+except Exception:
+    pass
+
 def main():
     try:
         from splash_screen import show_splash_and_start_app
