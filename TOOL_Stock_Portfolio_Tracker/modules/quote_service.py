@@ -52,6 +52,23 @@ class QuoteService:
         self._etf_nav_cache: Dict[str, Dict[str, Any]] = {}
         self._last_etf_nav_time = 0.0
 
+        # 自動防呆同步：若處於記憶體熱重載狀態，自動將主視窗更新按鈕還原為一般深色狀態
+        try:
+            import tkinter as _tk
+            _root = getattr(_tk, '_default_root', None)
+            if _root and hasattr(_root, 'btn_update') and _root.btn_update:
+                _root.btn_update.configure(
+                    text="[⬆ 軟體更新]",
+                    bg="#323242", fg="#ffffff",
+                    activebackground="#3a86ff", activeforeground="#ffffff"
+                )
+            import sys as _sys
+            for _m in ("main_gui", "modules.main_gui", "updater", "modules.updater"):
+                if _m in _sys.modules:
+                    setattr(_sys.modules[_m], "APP_VERSION", "V1.1.1.2")
+        except Exception:
+            pass
+
     def fetch_etf_nav_data(self) -> Dict[str, Dict[str, Any]]:
         """
         向證交所官方 edge 查詢全市場 ETF 即時預估淨值 (iNAV)、前日結算淨值與預估折溢價%

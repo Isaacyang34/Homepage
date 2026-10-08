@@ -24,6 +24,23 @@ from typing import Optional, Dict, Any, Tuple, List
 
 APP_VERSION = "V1.1.1.2"
 
+def get_app_version() -> str:
+    """動態取得當前應用程式版本號，確保熱更新後所有模組取值一致"""
+    global APP_VERSION
+    return APP_VERSION
+
+def set_app_version(new_version: str):
+    """動態更新全域版本號，並同步更新各模組命名空間"""
+    global APP_VERSION
+    APP_VERSION = new_version
+    # 同步更新已載入之 main_gui 與 sys.modules 中的版本變數
+    for mod_name in ("main_gui", "modules.main_gui", "updater", "modules.updater"):
+        if mod_name in sys.modules:
+            try:
+                setattr(sys.modules[mod_name], "APP_VERSION", new_version)
+            except Exception:
+                pass
+
 # 延遲更新狀態管理 (使用者可選擇「稍後於關閉程式時自動置換」)
 _PENDING_UPDATE: Dict[str, Any] = {
     "ready": False,
@@ -158,7 +175,7 @@ def apply_patch_hot_reload(target_dir: str, temp_zip: str, parent_app=None, targ
 
     # 6. 更新全域版本號
     if target_version:
-        APP_VERSION = target_version
+        set_app_version(target_version)
 
     # 7. 記憶體熱重載與介面即時刷新
     if parent_app:
@@ -175,12 +192,21 @@ def apply_patch_hot_reload(target_dir: str, temp_zip: str, parent_app=None, targ
             parent_app.quote_service = QuoteService()
             
             # 更新視窗標題列
-            parent_app.title(f"本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker) {APP_VERSION}")
+            parent_app.title(f"本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker) {get_app_version()}")
             
             # 更新狀態列文字
             if hasattr(parent_app, 'status_lbl') and parent_app.status_lbl:
-                parent_app.status_lbl.configure(text=f"✔ 已無縫熱更新至 {APP_VERSION}！模組已即時生效")
+                parent_app.status_lbl.configure(text=f"✔ 已無縫熱更新至 {get_app_version()}！模組已即時生效")
                 
+            # 重置更新按鈕外觀回一般狀態 (清除「發現新版」高亮警示)
+            if hasattr(parent_app, 'reset_update_button_state'):
+                parent_app.reset_update_button_state()
+            elif hasattr(parent_app, 'btn_update') and parent_app.btn_update:
+                parent_app.btn_update.configure(
+                    text="[⬆ 軟體更新]", bg="#323242", fg="#ffffff",
+                    activebackground="#3a86ff", activeforeground="#ffffff"
+                )
+
             # 立即觸發數據重算與表格重繪
             parent_app.trigger_refresh()
             parent_app.refresh_ui_table()
@@ -482,20 +508,34 @@ class UpdateDialog(tk.Toplevel):
         self.build_ui()
 
     def build_ui(self):
-        cloud_ver = self.manifest.get("version", "未知")
+        local_ver = get_app_version()
+        cloud_ver = self.manifest.get("version", local_ver)
         
+        # 動態重新驗證是否真的有新版 (避免 caller 傳遞過期狀態或熱重載後未同步)
+        is_really_newer = is_newer_version(cloud_ver, local_ver)
+        self.is_newer = is_really_newer
+
         # 1. 頂部狀態橫幅 (TOP)
         top_bar = tk.Frame(self, bg="#282834", padx=18, pady=12)
         top_bar.pack(side=tk.TOP, fill=tk.X)
 
-        if self.is_newer:
+        if is_really_newer:
             status_title = f"✦ 發現軟體新版本: {cloud_ver}"
             status_color = "#f59e0b"
-            status_desc = f"您目前使用的版本為 {APP_VERSION}，官方已釋出新版 {cloud_ver}。可選擇秒級輕量更新或下載完整包："
+            status_desc = f"您目前使用的版本為 {local_ver}，官方已釋出新版 {cloud_ver}。可選擇秒級輕量更新或下載完整包："
         else:
-            status_title = f"✔ 目前已是最新版本: {APP_VERSION}"
+            status_title = f"✔ 目前已是最新版本: {local_ver}"
             status_color = "#38bdf8"
             status_desc = "您目前運行的已是最新版次。您可在此檢視更新日誌，或切換至歷史版次下載/還原。"
+            # 若已經是最新版本，同步讓母視窗更新按鈕復原為一般深色狀態
+            if self.parent:
+                if hasattr(self.parent, 'reset_update_button_state'):
+                    self.parent.reset_update_button_state()
+                elif hasattr(self.parent, 'btn_update') and self.parent.btn_update:
+                    self.parent.btn_update.configure(
+                        text="[⬆ 軟體更新]", bg="#323242", fg="#ffffff",
+                        activebackground="#3a86ff", activeforeground="#ffffff"
+                    )
 
         tk.Label(top_bar, text=status_title, bg="#282834", fg=status_color, font=("Microsoft JhengHei UI", 13, "bold")).pack(anchor="w")
         tk.Label(top_bar, text=status_desc, bg="#282834", fg="#d0d0d8", font=("Microsoft JhengHei UI", 9)).pack(anchor="w", pady=(4, 0))
@@ -560,7 +600,7 @@ class UpdateDialog(tk.Toplevel):
         meta_box = tk.Frame(info_frame, bg="#16161f", padx=12, pady=10, relief="solid", bd=1)
         meta_box.pack(fill=tk.X, pady=(0, 6))
 
-        tk.Label(meta_box, text=f"本機目前版本:   {APP_VERSION}", bg="#16161f", fg="#94a3b8", font=("Microsoft JhengHei UI", 9)).grid(row=0, column=0, sticky="w", pady=2)
+        tk.Label(meta_box, text=f"本機目前版本:   {get_app_version()}", bg="#16161f", fg="#94a3b8", font=("Microsoft JhengHei UI", 9)).grid(row=0, column=0, sticky="w", pady=2)
         
         # 雲端最後三版次選擇下拉框
         tk.Label(meta_box, text="雲端目標版本:   ", bg="#16161f", fg="#38bdf8", font=("Microsoft JhengHei UI", 9, "bold")).grid(row=1, column=0, sticky="w", pady=4)
@@ -592,7 +632,8 @@ class UpdateDialog(tk.Toplevel):
 
     def _update_display_content(self):
         v_data = self.selected_version_data
-        ver_str = v_data.get("version", APP_VERSION)
+        current_local = get_app_version()
+        ver_str = v_data.get("version", current_local)
         changelog = v_data.get("changelog", "無更新詳細說明")
 
         self.txt_changelog.configure(state=tk.NORMAL)
@@ -601,9 +642,9 @@ class UpdateDialog(tk.Toplevel):
         self.txt_changelog.configure(state=tk.DISABLED)
 
         # 更新按鈕文字
-        if is_newer_version(ver_str, APP_VERSION):
+        if is_newer_version(ver_str, current_local):
             self.btn_download_patch.configure(text=f"⚡ 立即輕量升級至 {ver_str}", bg="#2563eb")
-        elif ver_str == APP_VERSION:
+        elif ver_str == current_local:
             self.btn_download_patch.configure(text=f"⚡ 重新下載/覆蓋補丁 ({ver_str})", bg="#3b82f6")
         else:
             self.btn_download_patch.configure(text=f"⚡ 降級/切換至歷史版 {ver_str}", bg="#d97706")

@@ -31,7 +31,7 @@ from pnl_calculator import calculate_position_pnl
 from kline_chart import KLineChartCanvas
 from stock_detector import detect_stock_metadata
 from crypto_sync import sync_to_cloud, fetch_and_decrypt_from_cloud, DEFAULT_FIREBASE_URL, get_or_create_secret_key
-from updater import APP_VERSION, fetch_update_manifest, is_newer_version, UpdateDialog
+from updater import APP_VERSION, fetch_update_manifest, is_newer_version, UpdateDialog, get_app_version, set_app_version
 from market_ranking_gui import MarketRankingDialog
 
 def clean_number(val_str: str, default: float = 0.0) -> float:
@@ -217,7 +217,7 @@ class PortfolioApp(tk.Tk):
         super().__init__()
         # 關鍵核心：啟動時先隱藏主視窗 (withdraw)，杜絕 Windows 繪製空白白色畫布與未響應殘影！
         self.withdraw()
-        self.title(f"本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker) {APP_VERSION}")
+        self.title(f"本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker) {get_app_version()}")
         self.geometry("1420x820")
         self.minsize(1120, 640)
 
@@ -304,7 +304,7 @@ class PortfolioApp(tk.Tk):
 
     def on_update_deferred(self, cloud_ver: str):
         """當使用者選擇稍後更新時，在視窗標題與狀態列進行友好提示"""
-        self.title(f"本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker) {APP_VERSION} [🔔 新版 {cloud_ver} 待關閉更新]")
+        self.title(f"本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker) {get_app_version()} [🔔 新版 {cloud_ver} 待關閉更新]")
         if hasattr(self, 'status_lbl') and self.status_lbl:
             self.status_lbl.configure(text=f"🔔 新版本 {cloud_ver} 已下載就緒，將於程式關閉時自動置換升級")
 
@@ -1038,21 +1038,36 @@ class PortfolioApp(tk.Tk):
                 self.after(0, lambda: messagebox.showinfo("軟體更新", "目前版本伺服器離線或同步中，請稍候再試。", parent=self))
                 self.after(0, lambda: self.status_lbl.configure(text="系統就緒"))
                 return
-            cloud_ver = manifest.get("version", APP_VERSION)
-            is_newer = is_newer_version(cloud_ver, APP_VERSION)
+            local_ver = get_app_version()
+            cloud_ver = manifest.get("version", local_ver)
+            is_newer = is_newer_version(cloud_ver, local_ver)
+            if not is_newer:
+                self.after(0, self.reset_update_button_state)
             self.after(0, lambda: UpdateDialog(self, manifest, is_newer))
             self.after(0, lambda: self.status_lbl.configure(text="系統就緒"))
         threading.Thread(target=worker, daemon=True).start()
 
     def check_online_update_silently(self):
-        """軟體開啟後自動在背景檢查更新：若有新版本則變色提示"""
+        """軟體開啟後自動在背景檢查更新：若有新版本則變色提示，若無則重置為正常外觀"""
         def worker():
             ok, manifest, source = fetch_update_manifest()
             if ok and manifest:
-                cloud_ver = manifest.get("version", APP_VERSION)
-                if is_newer_version(cloud_ver, APP_VERSION):
+                local_ver = get_app_version()
+                cloud_ver = manifest.get("version", local_ver)
+                if is_newer_version(cloud_ver, local_ver):
                     self.after(0, lambda: self._on_found_newer_version(cloud_ver))
+                else:
+                    self.after(0, self.reset_update_button_state)
         threading.Thread(target=worker, daemon=True).start()
+
+    def reset_update_button_state(self):
+        """當已是最新版或熱更新完成時，重置更新按鈕回一般外觀 (消除橘色高亮警示)"""
+        if hasattr(self, 'btn_update') and self.btn_update:
+            self.btn_update.configure(
+                text="[⬆ 軟體更新]",
+                bg="#323242", fg="#ffffff",
+                activebackground="#3a86ff", activeforeground="#ffffff"
+            )
 
     def _on_found_newer_version(self, cloud_ver: str):
         """發現新版本時：按鈕變色為鮮明亮橘色高亮警示"""
