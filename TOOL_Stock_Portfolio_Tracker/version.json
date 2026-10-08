@@ -1,11 +1,19 @@
 {
-  "version": "V1.1.1.0",
+  "version": "V1.1.1.1",
   "release_date": "2026-10-08",
   "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
-  "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.1.0.zip",
-  "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.1.0_Portable.zip",
-  "changelog": "【V1.1.1.0 三層深度模組再分離、外掛擴充機制與底座依賴瘦身】\n\n1. [外部宣告式規則分離] 新增 config/broker_rules.json (券商折讓率與稅率) 與 config/api_endpoints.json (行情端點)，改動規則無需重新編譯代碼。\n2. [外掛擴充機制] 新增 plugins/ 目錄，支援隨插即用自訂 Python 腳本 (*.py)，開機自動掃描掛載。\n3. [底座依賴極致瘦身] 全面改用原生純 Python REST 架構抓取美股與日K線，徹底剔除 yfinance / pandas / numpy / openblas 等巨型庫，執行檔體積砍半！\n4. [秒級輕量補丁更新] 日常功能修復僅需下載約 200KB 模組包，完全免除 39MB 下載與 Defender 衝突。\n5. [完整安裝包救援] 保留完整安裝包 (Full Package) 隨時一鍵下載覆蓋修復。\n6. [本地端版本迭代快照] 更新前自動備份當前版次至 versions/，支援一鍵回滾。\n7. [雲端最後三版次支援] 更新介面提供最近 3 個歷史版次自由挑選、降級或下載。",
+  "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.1.1.zip",
+  "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.1.1_Portable.zip",
+  "changelog": "【V1.1.1.1 真・記憶體熱更新與證交所盤中撮合取價全面修復】\n\n1. [真・記憶體熱更新 (Zero Restart)] 輕量補丁包下載後直接於記憶體中熱重載 (Hot Reload)，主程式完全免關閉、免殺進程、0秒重啟，徹底杜絕 Windows Temp DLL 找不到的崩潰！\n2. [盤中撮合報價修復] 深度相容證交所 TWSE MIS 盤中架構，全面提取撮合間隔 trade.z 與買賣五檔最佳檔位，徹底解決盤中現價凍結與 0.00% 漲跌假死現象。\n3. [模組再分離架構優化] 保持 config/ 外部規則分離與 plugins/ 外掛機制。",
   "recent_versions": [
+    {
+      "version": "V1.1.1.1",
+      "release_date": "2026-10-08",
+      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.1.1.zip",
+      "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
+      "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.1.1_Portable.zip",
+      "changelog": "V1.1.1.1 真・記憶體熱更新 (免關閉主程式) 與證交所 TWSE MIS 盤中撮合成交價全面修復。"
+    },
     {
       "version": "V1.1.1.0",
       "release_date": "2026-10-08",
@@ -21,14 +29,6 @@
       "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
       "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.0.0_Portable.zip",
       "changelog": "V1.1.0.0 全面模組化拆解架構，支援秒級輕量更新、健康檢查、本地版本迭代備份與雲端歷史版本切換。"
-    },
-    {
-      "version": "V1.0.2.6",
-      "release_date": "2026-10-07",
-      "patch_url": "",
-      "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
-      "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.0.2.6_Portable.zip",
-      "changelog": "V1.0.2.6 徹底修復 Windows DLL 載入衝突，加入乾淨環境變數隔離與背景下載不卡介面流程。"
     }
   ]
 }
