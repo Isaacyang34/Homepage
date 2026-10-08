@@ -561,9 +561,10 @@ class UpdateDialog(tk.Toplevel):
 
     def start_download_patch(self):
         v_data = self.selected_version_data
-        url = v_data.get("patch_url") or v_data.get("download_url")
-        if not url:
-            messagebox.showerror("錯誤", "此版本未提供輕量補丁包，請使用「下載完整包」選項！", parent=self)
+        url = v_data.get("patch_url") or self.manifest.get("patch_url")
+        if not url or not url.lower().endswith(".zip"):
+            messagebox.showinfo("提示", "此版次僅提供完整安裝包，即將為您進行完整包下載...", parent=self)
+            self.start_download_full()
             return
         self._start_download_task(url, is_patch=True)
 
