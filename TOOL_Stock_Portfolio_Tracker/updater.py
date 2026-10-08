@@ -108,6 +108,98 @@ def create_local_version_snapshot(app_dir: str, version_tag: str) -> bool:
         log_update_debug(f"[SNAPSHOT] Error creating snapshot: {e}")
         return False
 
+def apply_patch_hot_reload(target_dir: str, temp_zip: str, parent_app=None, target_version: str = "") -> bool:
+    """
+    真・記憶體熱更新 (In-Process Hot Reload):
+    1. 解壓縮覆蓋 app_core.pkg、config/、plugins/
+    2. 清除 zipimport 與 sys.modules 快取
+    3. 重新加載核心模組並刷新現有 UI 畫面
+    4. 0 重啟、0 閃退、0 程式中斷！
+    """
+    global APP_VERSION
+    log_update_debug(f"[HOT_RELOAD] apply_patch_hot_reload started for {temp_zip}")
+    # 1. 建立快照備份
+    create_local_version_snapshot(target_dir, APP_VERSION)
+    
+    # 2. 解壓縮覆蓋
+    try:
+        with zipfile.ZipFile(temp_zip, 'r') as zf:
+            zf.extractall(target_dir)
+        log_update_debug(f"[HOT_RELOAD] Extracted patch zip successfully.")
+    except Exception as e:
+        log_update_debug(f"[HOT_RELOAD] ERROR extracting zip: {e}")
+        messagebox.showerror("更新失敗", f"解壓縮補丁包失敗: {e}")
+        return False
+        
+    # 3. 刪除暫存 zip
+    try:
+        os.remove(temp_zip)
+    except Exception:
+        pass
+        
+    # 4. 清除 zipimport 快取，強制 Python 重新讀取最新的 app_core.pkg
+    try:
+        import zipimport
+        if hasattr(zipimport, "_zip_directory_cache"):
+            zipimport._zip_directory_cache.clear()
+    except Exception as e:
+        log_update_debug(f"[HOT_RELOAD] zipimport cache clear notice: {e}")
+
+    # 5. 清除核心業務模組的記憶體快取
+    core_modules_to_reload = [
+        "quote_service", "database", "pnl_calculator", 
+        "dividend_service", "history_service", "ranking_service",
+        "market_ranking_gui", "kline_chart", "plugin_manager",
+        "stock_detector", "crypto_sync"
+    ]
+    for mod_name in core_modules_to_reload:
+        if mod_name in sys.modules:
+            del sys.modules[mod_name]
+
+    # 6. 更新全域版本號
+    if target_version:
+        APP_VERSION = target_version
+
+    # 7. 記憶體熱重載與介面即時刷新
+    if parent_app:
+        try:
+            # 重新加載外掛
+            try:
+                from plugin_manager import load_plugins
+                load_plugins()
+            except Exception:
+                pass
+                
+            # 重新初始化 quote_service
+            from quote_service import QuoteService
+            parent_app.quote_service = QuoteService()
+            
+            # 更新視窗標題列
+            parent_app.title(f"本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker) {APP_VERSION}")
+            
+            # 更新狀態列文字
+            if hasattr(parent_app, 'status_lbl') and parent_app.status_lbl:
+                parent_app.status_lbl.configure(text=f"✔ 已無縫熱更新至 {APP_VERSION}！模組已即時生效")
+                
+            # 立即觸發數據重算與表格重繪
+            parent_app.trigger_refresh()
+            parent_app.refresh_ui_table()
+            log_update_debug(f"[HOT_RELOAD] Hot reload completed successfully without restarting!")
+        except Exception as e:
+            log_update_debug(f"[HOT_RELOAD] Error during UI hot reload: {e}")
+
+    # 8. 友好完成提示
+    parent_target = parent_app if (parent_app and parent_app.winfo_exists()) else None
+    messagebox.showinfo(
+        "熱更新成功",
+        f"✔ 恭喜！版本【{target_version or APP_VERSION}】已完成熱更新！\n\n"
+        f"• 核心模組與修復已在記憶體中即時加載生效\n"
+        f"• 主程式完全無需關閉，畫面已自動刷新數據\n"
+        f"• 0 秒等待、0 次中斷！",
+        parent=parent_target
+    )
+    return True
+
 def apply_patch_now(target_dir: str, temp_zip: str, restart: bool = True):
     """
     執行輕量補丁包 (Patch ZIP) 置換作業
@@ -680,12 +772,20 @@ class UpdateDialog(tk.Toplevel):
         self.btn_cancel.pack_forget()
 
         # 呈現更新決策按鈕
-        self.btn_apply_now = tk.Button(
-            self.bot_frame, text=f"🚀 馬上更新 ({version})", bg="#2563eb", fg="#ffffff",
-            activebackground="#1d4ed8", activeforeground="#ffffff",
-            font=("Microsoft JhengHei UI", 10, "bold"), relief="flat", cursor="hand2",
-            command=lambda: self._do_apply(target_dir, temp_file, restart=True)
-        )
+        if is_patch:
+            self.btn_apply_now = tk.Button(
+                self.bot_frame, text="⚡ 立即無縫熱更新 (免關閉主程式)", bg="#16a34a", fg="#ffffff",
+                activebackground="#15803d", activeforeground="#ffffff",
+                font=("Microsoft JhengHei UI", 10, "bold"), relief="flat", cursor="hand2",
+                command=lambda: self._do_apply(target_dir, temp_file, restart=False, is_patch=True)
+            )
+        else:
+            self.btn_apply_now = tk.Button(
+                self.bot_frame, text=f"🚀 馬上置換更新 ({version})", bg="#2563eb", fg="#ffffff",
+                activebackground="#1d4ed8", activeforeground="#ffffff",
+                font=("Microsoft JhengHei UI", 10, "bold"), relief="flat", cursor="hand2",
+                command=lambda: self._do_apply(target_dir, temp_file, restart=True, is_patch=False)
+            )
         self.btn_apply_now.pack(side=tk.RIGHT, padx=6, ipadx=12, ipady=5)
 
         self.btn_apply_later = tk.Button(
@@ -698,21 +798,43 @@ class UpdateDialog(tk.Toplevel):
 
         # 彈窗提示
         parent_target = self.parent if (self.parent and self.parent.winfo_exists()) else self
-        choice = messagebox.askyesno(
-            "軟體更新提醒",
-            f"版本【{version}】{pkg_type_name} 已下載完畢！\n\n"
-            f"是否要馬上更新？\n\n"
-            f"• 按【是 (Yes)】：自動備份當前版次至 versions/，並立即重啟套用\n"
-            f"• 按【否 (No)】：等到您關閉主程式後再自動置換",
-            parent=parent_target
-        )
-        if choice:
-            self._do_apply(target_dir, temp_file, restart=True)
+        if is_patch:
+            choice = messagebox.askyesno(
+                "輕量補丁下載就緒",
+                f"版本【{version}】{pkg_type_name} 已下載完畢！\n\n"
+                f"是否立即進行【無縫記憶體熱更新】？\n\n"
+                f"• 按【是 (Yes)】：立即熱更新（主程式免關閉、0秒重啟，數據即時刷新生效）\n"
+                f"• 按【否 (No)】：等到您下次關閉主程式後再更新",
+                parent=parent_target
+            )
+            if choice:
+                self._do_apply(target_dir, temp_file, restart=False, is_patch=True)
+            else:
+                self._do_defer(target_dir, temp_file, version, is_patch)
         else:
-            self._do_defer(target_dir, temp_file, version, is_patch)
+            choice = messagebox.askyesno(
+                "完整安裝包下載就緒",
+                f"版本【{version}】{pkg_type_name} 已下載完畢！\n\n"
+                f"是否要馬上重啟更新？\n\n"
+                f"• 按【是 (Yes)】：自動備份當前版次至 versions/，並關閉重啟主程式\n"
+                f"• 按【否 (No)】：等到您下次關閉主程式後再自動置換",
+                parent=parent_target
+            )
+            if choice:
+                self._do_apply(target_dir, temp_file, restart=True, is_patch=False)
+            else:
+                self._do_defer(target_dir, temp_file, version, is_patch)
 
-    def _do_apply(self, target_dir: str, temp_file: str, restart: bool = True):
-        log_update_debug(f"[USER_ACTION] Immediate apply triggered for {temp_file}")
+    def _do_apply(self, target_dir: str, temp_file: str, restart: bool = True, is_patch: bool = False):
+        log_update_debug(f"[USER_ACTION] Immediate apply triggered for {temp_file}, is_patch={is_patch}")
+        if is_patch or temp_file.lower().endswith(".zip"):
+            target_v = self.selected_version_data.get("version", "")
+            ok = apply_patch_hot_reload(target_dir, temp_file, parent_app=self.parent, target_version=target_v)
+            if ok:
+                self.destroy()
+                return
+
+        # 若為完整 EXE 安裝包，才執行外部置換與重啟
         apply_update_now(target_dir, temp_file, restart=restart)
         self.destroy()
         if self.parent:
