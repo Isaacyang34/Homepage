@@ -189,3 +189,16 @@
 * **推送後必報版號**：凡是接收到使用者的 `push`、`推送到 github` 等指示並完成遠端分支推送後，**必須在第一時間主動清楚回報當前推上去的最新軟體版本號 (如 `V1.0.2.2`)、Git Commit 雜湊與同動推送之雙分支名稱 (`gh-pages` 與 `master`)**！
 * **嚴禁僅回報推送成功而遺漏版號**：使用者隨時需要掌握目前雲端/遠端倉庫最新部署的軟體版次，以利核對線上自動更新通道與發布進度。
 
+## 18. 工作區邊界物理閉鎖與嚴格禁止跨目錄溢出鐵律 (Zero Workspace Boundary Spillover & Explicit Path Authorization Rule - 全案最高強制規範)
+* **工作區邊界物理閉鎖 (Workspace Boundary Physical Lock)**：
+  * AI 執行的所有檔案讀寫、建立、修改、刪除與複製動作（包含使用 `write_to_file`、`replace_file_content` 以及 PowerShell 之 `Copy-Item`、`Move-Item`、`cmd /c copy` 等指令），**其目標操作路徑必須 100% 嚴格限制在當前工作區根目錄 (`c:\Users\peter\OneDrive\Desktop\AI_Projects`) 及其子目錄之內**！
+* **嚴禁未經授權跨目錄溢出 (Zero Out-of-Workspace Spillover)**：
+  * **嚴格禁止**任何自作主張推論、跨出工作區邊界、或私自寫入使用者桌面其他非本專案目錄（例如 `Desktop/Test`、`Desktop/Demo`、下載區、暫存區或系統其他資料夾）！
+  * **嚴格禁止「日誌路徑反向污染」**：即使使用者在測試日誌或對話文字中提供了外部路徑（例如日誌出現 `Target dir: C:\Users\peter\OneDrive\Desktop\Test`），AI **僅能將其視為不可變的診斷文本進行分析**，絕對嚴禁擅自將該路徑作為後續檔案操作、手冊部署或外掛拷貝的目標路徑！
+* **外部路徑操作唯一授權閉鎖 (Explicit Authorization Gate)**：
+  * 當且僅當使用者在提示詞中給予**明確、無歧義的文字授權**（例如明確指令「請將檔案複製到路徑 X」或「請在外部資料夾 Y 建立設定檔」），始得對該外部指定路徑執行單次操作。
+  * 未獲明確授權前，所有程式碼、編譯發布產物、手冊文檔與範例外掛，**一律僅能產生與存放在工作區內部對應專案資料夾中**。
+* **嚴禁自作聰明同步 (Zero Implicit Auto-Sync / Auto-Deploy)**：
+  * 嚴格杜絕以「方便使用者測試」、「幫使用者準備好環境」為藉口在背景私自複製檔案至外部目錄。所有的檔案移動必須可追溯、透明且完全受控於工作區內部。
+* **詳細規範**：參考 `.agents/rules/zero_workspace_boundary_spillover_rule.md`。
+
