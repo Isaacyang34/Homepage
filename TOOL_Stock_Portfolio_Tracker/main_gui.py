@@ -273,30 +273,10 @@ class PortfolioApp(tk.Tk):
         self.build_ui()
         self.update_user_header_ui()
 
-        # 快捷鍵綁定
-        self.bind("<Control-d>", lambda e: self.on_open_dividend_analyzer())
-        self.bind("<Control-D>", lambda e: self.on_open_dividend_analyzer())
-
-        # 綁定視窗關閉事件，支援在退出時自動無聲套用延遲更新
-        self.protocol("WM_DELETE_WINDOW", self._on_app_close)
-
-        # 開機登入攔截門禁：先讓 Tkinter 事件迴圈啟動，隨即彈出登入對話框，登入完成後始載入專屬庫存與亮出主畫面
-        self.after(50, self._startup_login_gate)
-
-    def _startup_login_gate(self):
-        """開機登入視窗攔截：登入後才載入該帳號專屬庫存與亮出主畫面"""
-        LoginDialog(self, on_success=self._on_initial_login_success, allow_cancel=False)
-
-    def _on_initial_login_success(self, user: Dict[str, Any]):
-        """開機登入成功回呼：正式載入庫存並顯示主畫面"""
-        set_current_user(user)
-        self.current_user = user
-        self.update_user_header_ui()
-
-        # 初始載入該帳號庫存與立即繪製表格 (0秒空白等待)
+        # 初始載入當前帳號庫存與立即繪製表格 (開窗瞬間秒顯持股資訊，0秒空白等待)
         self.reload_positions()
 
-        # 預先自本地 SQLite 補齊所有持股的股息快取
+        # 預先自本地 SQLite 補齊所有持股的股息快取 (極速純本地讀取，0 毫秒)
         for pos in self.positions:
             sym = pos["symbol"].upper()
             if sym not in self.dividend_cache:
@@ -324,6 +304,24 @@ class PortfolioApp(tk.Tk):
         self.after(2500, self.auto_check_post_market_history)
         self.after(4000, self.check_online_update_silently)
         self.after(5500, self.start_daily_1500_scheduler)
+
+        # 快捷鍵綁定
+        self.bind("<Control-d>", lambda e: self.on_open_dividend_analyzer())
+        self.bind("<Control-D>", lambda e: self.on_open_dividend_analyzer())
+
+        # 綁定視窗關閉事件，支援在退出時自動無聲套用延遲更新
+        self.protocol("WM_DELETE_WINDOW", self._on_app_close)
+
+        # 密碼安全檢查：若當前帳號設有密碼，立即彈出解鎖視窗
+        self.after(200, self._check_startup_login_gate)
+
+    def _check_startup_login_gate(self):
+        """若當前帳號設有密碼防護，鎖定持股表格並彈出密碼解鎖對話框"""
+        cur_u = get_current_user()
+        if cur_u.get("has_password"):
+            self.tree.delete(*self.tree.get_children())
+            self.status_lbl.configure(text="🔒 此帳戶已啟用安全密碼，請輸入密碼以解鎖持股庫存...")
+            LoginDialog(self, on_success=self._on_switch_user_success, allow_cancel=False)
 
     def update_user_header_ui(self):
         """同步更新標題列與介面上之使用者名稱"""

@@ -59,11 +59,18 @@ class LoginDialog(tk.Toplevel):
         self.bind("<Return>", lambda e: self._do_login())
         self.bind("<Escape>", lambda e: self._on_close())
         
+        self.deiconify()
         self.lift()
         self.focus_force()
+        self.attributes("-topmost", True)
+        self.after_idle(lambda: self.attributes("-topmost", False))
         if parent:
-            self.transient(parent)
-            self.grab_set()
+            try:
+                if parent.state() != "withdrawn":
+                    self.transient(parent)
+                    self.grab_set()
+            except Exception:
+                pass
 
     def _build_ui(self):
         # 頂部裝飾標題區
@@ -270,16 +277,14 @@ class LoginDialog(tk.Toplevel):
         self.msg_lbl.configure(text=f"✅ 登入成功！正在載入 {verified_user.get('display_name')} 的投資庫存...", fg=THEME_SUCCESS)
         self.update_idletasks()
         
-        if self.on_success:
-            self.on_success(verified_user)
-            
-        self.after(200, self._destroy_safe)
-
-    def _destroy_safe(self):
         try:
             self.grab_release()
         except Exception:
             pass
+
+        if self.on_success:
+            self.on_success(verified_user)
+            
         self.destroy()
 
     def _on_close(self):
@@ -326,10 +331,16 @@ class UserManageDialog(tk.Toplevel):
         self._build_ui()
         self._refresh_user_list()
         
-        self.transient(parent)
-        self.grab_set()
+        self.deiconify()
         self.lift()
         self.focus_force()
+        if parent:
+            try:
+                if parent.state() != "withdrawn":
+                    self.transient(parent)
+                    self.grab_set()
+            except Exception:
+                pass
 
     def _build_ui(self):
         header_frame = tk.Frame(self, bg=THEME_BG)

@@ -24,7 +24,10 @@ def get_app_dir() -> str:
     """取得應用程式根目錄"""
     if getattr(sys, 'frozen', False):
         return os.path.dirname(os.path.abspath(sys.executable))
-    return os.path.dirname(os.path.abspath(__file__))
+    p = os.path.dirname(os.path.abspath(__file__))
+    if p.lower().endswith(".pkg") or p.lower().endswith(".zip") or os.path.basename(p) == "modules":
+        p = os.path.dirname(p)
+    return p
 
 # 必要的核心模組與資源清單 (相對路徑)
 CRITICAL_COMPONENTS = [

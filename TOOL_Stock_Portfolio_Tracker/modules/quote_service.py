@@ -63,9 +63,10 @@ class QuoteService:
                     activebackground="#3a86ff", activeforeground="#ffffff"
                 )
             import sys as _sys
+            from updater import APP_VERSION as _CUR_VER
             for _m in ("main_gui", "modules.main_gui", "updater", "modules.updater"):
                 if _m in _sys.modules:
-                    setattr(_sys.modules[_m], "APP_VERSION", "V1.1.1.4")
+                    setattr(_sys.modules[_m], "APP_VERSION", _CUR_VER)
         except Exception:
             pass
 

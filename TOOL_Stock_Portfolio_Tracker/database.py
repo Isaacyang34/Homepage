@@ -21,6 +21,8 @@ if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
 else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    if BASE_DIR.lower().endswith(".pkg") or BASE_DIR.lower().endswith(".zip") or os.path.basename(BASE_DIR) == "modules":
+        BASE_DIR = os.path.dirname(BASE_DIR)
 
 DB_FILE = os.path.join(BASE_DIR, "portfolio.db")
 

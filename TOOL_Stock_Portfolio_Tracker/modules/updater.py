@@ -70,7 +70,10 @@ def get_app_dir() -> str:
     """取得應用程式根目錄 (相容 PyInstaller 凍結執行與原始碼執行)"""
     if getattr(sys, 'frozen', False):
         return os.path.dirname(os.path.abspath(sys.executable))
-    return os.path.dirname(os.path.abspath(__file__))
+    p = os.path.dirname(os.path.abspath(__file__))
+    if p.lower().endswith(".pkg") or p.lower().endswith(".zip") or os.path.basename(p) == "modules":
+        p = os.path.dirname(p)
+    return p
 
 def log_update_debug(msg: str):
     """將更新與啟動日誌寫入 update_debug.log，供問題診斷與分析"""
