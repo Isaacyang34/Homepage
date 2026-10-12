@@ -114,6 +114,25 @@ def step_2_run_quality_gate() -> bool:
     print("  ✔ 單元測試全部 100% 通過 (品質硬閘門 PASS)")
     return True
 
+def step_2_5_run_ui_layout_inspection() -> bool:
+    """Step 2.5: 全自動 GUI 排版防裁切健康檢查 (ui_layout_inspector.py)"""
+    print("\n[Step 2.5/6] 執行全系統 GUI 排版防裁切健康檢查 (ui_layout_inspector.py)...")
+    inspector_script = os.path.join(APP_DIR, "ui_layout_inspector.py")
+    if not os.path.exists(inspector_script):
+        print("  [!] 找不到 ui_layout_inspector.py，跳過獨立檢查")
+        return True
+
+    cmd = [sys.executable, inspector_script]
+    res = subprocess.run(cmd, cwd=APP_DIR, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if res.returncode != 0:
+        print("  [X] 致命錯誤: 偵測到 GUI 元件溢位或視窗裁切！發布流程已強制中斷！")
+        print(res.stdout)
+        print(res.stderr)
+        return False
+
+    print("  ✔ 全系統 GUI 視窗幾何邊界驗證通過 (零裁切、零文字截斷)")
+    return True
+
 def step_3_compile_bytecode() -> bool:
     """Step 3: 編譯二進位核心包 (app_core.pkg)"""
     print("\n[Step 3/6] 編譯位元碼並封裝 app_core.pkg...")
@@ -240,6 +259,8 @@ def main():
     if not step_1_sync_dual_locations():
         sys.exit(1)
     if not step_2_run_quality_gate():
+        sys.exit(1)
+    if not step_2_5_run_ui_layout_inspection():
         sys.exit(1)
     if not step_3_compile_bytecode():
         sys.exit(1)

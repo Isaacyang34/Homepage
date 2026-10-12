@@ -493,6 +493,15 @@ class TestMultiUserSupport(unittest.TestCase):
         self.assertEqual(len(self.db.get_all_positions(test_uid)), 0)
 
 
+class TestUILayoutIntegrity(unittest.TestCase):
+    """驗證 GUI 視窗排版防裁切健康檢查 (自動防文字截斷硬閘門)"""
+
+    def test_all_dialogs_anti_clipping(self):
+        """驗證所有核心對話框皆具備充足幾何尺寸，杜絕任何文字或按鈕被邊界裁切"""
+        from ui_layout_inspector import run_full_ui_layout_inspection
+        self.assertTrue(run_full_ui_layout_inspection(), "發現 GUI 對話框排版裁切瑕疵！")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
 

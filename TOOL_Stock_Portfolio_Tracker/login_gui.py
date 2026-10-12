@@ -5,6 +5,7 @@ Stock Portfolio Tracker - 多使用者登入與帳號管理模組 (login_gui.py)
 1. LoginDialog: 登入視窗，支援帳號切換、密碼驗證 (SHA-256+Salt) 與免密碼快速進入
 2. UserManageDialog: 帳號管理中心，支援新增帳號、修改顯示名稱、變更/清除密碼、刪除帳戶
 3. EditUserDialog: 使用者個人資料與密碼修改小視窗
+4. center_toplevel: 具備 DPI 自適應與防裁切機制之視窗居中引擎
 """
 
 import tkinter as tk
@@ -25,12 +26,25 @@ THEME_BORDER = "#3b3f58"
 FONT_FAMILY = "Microsoft JhengHei UI"
 
 
-def center_toplevel(win: tk.Toplevel, width: int, height: int, parent: Optional[tk.Widget] = None):
+def center_toplevel(win: tk.Toplevel, base_width: int, base_height: int, parent: Optional[tk.Widget] = None, resizable: bool = True):
     """
-    穩健視窗居中函式：
-    若父視窗可見且有效，相對於父視窗中央顯示；否則以主螢幕為中心置中。
+    智慧防裁切視窗置中函式 (Auto-fit & Anti-Clipping Geometry Engine):
+    1. 執行 update_idletasks()，讀取內容實際自然渲染所需尺寸 (reqwidth, reqheight)。
+    2. 自動取 max(base, req + safety_margin)，動態擴展視窗幾何大小，徹底杜絕 Windows DPI 縮放下的文字截斷。
+    3. 自動啟用 minsize 與 resizable，保障使用者可自由拉伸或雙擊最大化。
+    4. 相對於可見之父視窗幾何中心居中，否則相對於螢幕中心居中。
     """
     win.update_idletasks()
+    req_w = win.winfo_reqwidth()
+    req_h = win.winfo_reqheight()
+
+    # 自動適應安全下限與動態擴展，確保 100% 容納內部所有元件
+    final_w = max(base_width, req_w + 24)
+    final_h = max(base_height, req_h + 24)
+
+    win.minsize(base_width, base_height)
+    win.resizable(resizable, resizable)
+
     if parent:
         try:
             if parent.winfo_viewable():
@@ -38,23 +52,23 @@ def center_toplevel(win: tk.Toplevel, width: int, height: int, parent: Optional[
                 py = parent.winfo_rooty()
                 pw = parent.winfo_width()
                 ph = parent.winfo_height()
-                x = max(0, px + (pw - width) // 2)
-                y = max(0, py + (ph - height) // 2)
-                win.geometry(f"{width}x{height}+{x}+{y}")
+                x = max(0, px + (pw - final_w) // 2)
+                y = max(0, py + (ph - final_h) // 2)
+                win.geometry(f"{final_w}x{final_h}+{x}+{y}")
                 return
         except Exception:
             pass
 
     sw = win.winfo_screenwidth()
     sh = win.winfo_screenheight()
-    x = max(0, (sw - width) // 2)
-    y = max(0, (sh - height) // 2)
-    win.geometry(f"{width}x{height}+{x}+{y}")
+    x = max(0, (sw - final_w) // 2)
+    y = max(0, (sh - final_h) // 2)
+    win.geometry(f"{final_w}x{final_h}+{x}+{y}")
 
 
 class LoginDialog(tk.Toplevel):
     """
-    登入與帳號切換對話框 (模態置頂，不閃爍，防死鎖)
+    登入與帳號切換對話框 (模態置頂，不閃爍，防死鎖，防裁切)
     """
     def __init__(self, parent=None, on_success: Optional[Callable[[Dict[str, Any]], None]] = None, allow_cancel: bool = True):
         super().__init__(parent)
@@ -65,7 +79,6 @@ class LoginDialog(tk.Toplevel):
         self.show_password = False
         
         self.title("使用者登入 - 投資組合管理系統")
-        self.resizable(False, False)
         self.configure(bg=THEME_BG)
         
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -73,8 +86,8 @@ class LoginDialog(tk.Toplevel):
         self._build_ui()
         self._load_users()
         
-        # 依父視窗幾何穩健置中
-        center_toplevel(self, 450, 420, parent)
+        # 依父視窗幾何與內容需求動態防裁切置中
+        center_toplevel(self, 460, 440, parent, resizable=True)
         
         # 聚焦與鍵盤監聽
         self.bind("<Return>", lambda e: self._do_login())
@@ -113,7 +126,47 @@ class LoginDialog(tk.Toplevel):
         )
         sub_lbl.pack(anchor="w", pady=(3, 0))
         
-        # 中央卡片容器
+        # 底部動作按鈕區 (先 pack side="bottom"，確保物理空間優先權)
+        btn_box = tk.Frame(self, bg=THEME_BG)
+        btn_box.pack(side="bottom", fill="x", padx=25, pady=(5, 20))
+        
+        # 登入進入按鈕
+        self.login_btn = tk.Button(
+            btn_box, text="🚀 登入並載入庫存",
+            font=(FONT_FAMILY, 11, "bold"),
+            bg=THEME_ACCENT, fg="#0f172a",
+            activebackground="#7dd3fc", activeforeground="#0f172a",
+            relief="flat", cursor="hand2",
+            command=self._do_login
+        )
+        self.login_btn.pack(fill="x", ipady=6, pady=(0, 8))
+        
+        # 次要操作按鈕列
+        sub_row = tk.Frame(btn_box, bg=THEME_BG)
+        sub_row.pack(fill="x")
+        
+        self.manage_btn = tk.Button(
+            sub_row, text="⚙️ 帳號管理中心",
+            font=(FONT_FAMILY, 9),
+            bg=THEME_CARD_BG, fg=THEME_TEXT,
+            activebackground=THEME_BORDER, activeforeground=THEME_TEXT,
+            relief="flat", cursor="hand2",
+            command=self._open_user_manager
+        )
+        self.manage_btn.pack(side="left", fill="x", expand=True, padx=(0, 4), ipady=3)
+        
+        if self.allow_cancel:
+            self.cancel_btn = tk.Button(
+                sub_row, text="取消",
+                font=(FONT_FAMILY, 9),
+                bg=THEME_CARD_BG, fg=THEME_TEXT_MUTED,
+                activebackground=THEME_BORDER, activeforeground=THEME_TEXT,
+                relief="flat", cursor="hand2",
+                command=self._on_close
+            )
+            self.cancel_btn.pack(side="right", fill="x", expand=True, padx=(4, 0), ipady=3)
+
+        # 中央卡片容器 (填補剩餘中間區域)
         card = tk.Frame(self, bg=THEME_CARD_BG, highlightbackground=THEME_BORDER, highlightthickness=1)
         card.pack(fill="both", expand=True, padx=25, pady=10)
         
@@ -187,46 +240,6 @@ class LoginDialog(tk.Toplevel):
             wraplength=380
         )
         self.msg_lbl.pack(fill="x", padx=20, pady=(5, 5))
-        
-        # 底部動作按鈕區
-        btn_box = tk.Frame(self, bg=THEME_BG)
-        btn_box.pack(fill="x", padx=25, pady=(5, 20))
-        
-        # 登入進入按鈕
-        self.login_btn = tk.Button(
-            btn_box, text="🚀 登入並載入庫存",
-            font=(FONT_FAMILY, 11, "bold"),
-            bg=THEME_ACCENT, fg="#0f172a",
-            activebackground="#7dd3fc", activeforeground="#0f172a",
-            relief="flat", cursor="hand2",
-            command=self._do_login
-        )
-        self.login_btn.pack(fill="x", ipady=6, pady=(0, 8))
-        
-        # 次要操作按鈕列
-        sub_row = tk.Frame(btn_box, bg=THEME_BG)
-        sub_row.pack(fill="x")
-        
-        self.manage_btn = tk.Button(
-            sub_row, text="⚙️ 帳號管理中心",
-            font=(FONT_FAMILY, 9),
-            bg=THEME_CARD_BG, fg=THEME_TEXT,
-            activebackground=THEME_BORDER, activeforeground=THEME_TEXT,
-            relief="flat", cursor="hand2",
-            command=self._open_user_manager
-        )
-        self.manage_btn.pack(side="left", fill="x", expand=True, padx=(0, 4), ipady=3)
-        
-        if self.allow_cancel:
-            self.cancel_btn = tk.Button(
-                sub_row, text="取消",
-                font=(FONT_FAMILY, 9),
-                bg=THEME_CARD_BG, fg=THEME_TEXT_MUTED,
-                activebackground=THEME_BORDER, activeforeground=THEME_TEXT,
-                relief="flat", cursor="hand2",
-                command=self._on_close
-            )
-            self.cancel_btn.pack(side="right", fill="x", expand=True, padx=(4, 0), ipady=3)
 
     def _toggle_pwd_visibility(self):
         self.show_password = not self.show_password
@@ -358,6 +371,7 @@ class UserManageDialog(tk.Toplevel):
     """
     使用者帳號管理中心對話框
     支援：新增使用者、編輯顯示名稱、變更/清除密碼、刪除使用者
+    採用反裁切優先排版 (Bottom-First Robust Packing)
     """
     def __init__(self, parent, on_users_changed: Optional[Callable[[], None]] = None, on_close_callback: Optional[Callable[[], None]] = None):
         super().__init__(parent)
@@ -366,7 +380,6 @@ class UserManageDialog(tk.Toplevel):
         self.on_close_callback = on_close_callback
         
         self.title("帳號管理中心 - 投資組合管理系統")
-        self.resizable(False, False)
         self.configure(bg=THEME_BG)
         
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -375,7 +388,8 @@ class UserManageDialog(tk.Toplevel):
         self._build_ui()
         self._refresh_user_list()
         
-        center_toplevel(self, 560, 520, parent)
+        # 基準寬高 620x560，並自適應內部所有元件自然需求尺寸，允許自由縮放
+        center_toplevel(self, 620, 560, parent, resizable=True)
         
         self.deiconify()
         if parent and parent.winfo_viewable():
@@ -409,8 +423,9 @@ class UserManageDialog(tk.Toplevel):
         self._safe_destroy()
 
     def _build_ui(self):
+        # 1. 頂部標題區 (side="top")
         header_frame = tk.Frame(self, bg=THEME_BG)
-        header_frame.pack(fill="x", padx=20, pady=(15, 10))
+        header_frame.pack(side="top", fill="x", padx=20, pady=(15, 8))
         
         tk.Label(
             header_frame, text="⚙️ 使用者帳號管理中心",
@@ -424,9 +439,47 @@ class UserManageDialog(tk.Toplevel):
             fg=THEME_TEXT_MUTED, bg=THEME_BG
         ).pack(anchor="w", pady=(2, 0))
         
-        # 帳號列表與管理主體
+        # 2. 下半部：快速新增帳號區 (以 side="bottom" 優先宣告，保障物理空間絕對優先權，永不被中央擠壓裁切！)
+        add_frame = tk.LabelFrame(
+            self, text=" ➕ 建立新帳號 ",
+            font=(FONT_FAMILY, 9, "bold"),
+            fg=THEME_ACCENT, bg=THEME_BG,
+            highlightbackground=THEME_BORDER, highlightthickness=1
+        )
+        add_frame.pack(side="bottom", fill="x", padx=20, pady=(6, 16))
+        
+        form_grid = tk.Frame(add_frame, bg=THEME_BG)
+        form_grid.pack(fill="x", padx=15, pady=10)
+        
+        # Row 1: Username & Display Name
+        tk.Label(form_grid, text="帳號 (英文/數字):", font=(FONT_FAMILY, 9), fg=THEME_TEXT, bg=THEME_BG).grid(row=0, column=0, sticky="w", pady=4)
+        self.new_user_entry = tk.Entry(form_grid, font=(FONT_FAMILY, 9), bg=THEME_CARD_BG, fg=THEME_TEXT, insertbackground=THEME_TEXT, relief="flat")
+        self.new_user_entry.grid(row=0, column=1, sticky="ew", padx=(5, 15), pady=4, ipady=3)
+        
+        tk.Label(form_grid, text="顯示名稱 (暱稱):", font=(FONT_FAMILY, 9), fg=THEME_TEXT, bg=THEME_BG).grid(row=0, column=2, sticky="w", pady=4)
+        self.new_name_entry = tk.Entry(form_grid, font=(FONT_FAMILY, 9), bg=THEME_CARD_BG, fg=THEME_TEXT, insertbackground=THEME_TEXT, relief="flat")
+        self.new_name_entry.grid(row=0, column=3, sticky="ew", padx=5, pady=4, ipady=3)
+        
+        # Row 2: Password (Optional)
+        tk.Label(form_grid, text="密碼 (留空則免密碼):", font=(FONT_FAMILY, 9), fg=THEME_TEXT, bg=THEME_BG).grid(row=1, column=0, sticky="w", pady=4)
+        self.new_pwd_entry = tk.Entry(form_grid, font=(FONT_FAMILY, 9), show="●", bg=THEME_CARD_BG, fg=THEME_TEXT, insertbackground=THEME_TEXT, relief="flat")
+        self.new_pwd_entry.grid(row=1, column=1, sticky="ew", padx=(5, 15), pady=4, ipady=3)
+        
+        self.add_btn = tk.Button(
+            form_grid, text="確認新增帳戶",
+            font=(FONT_FAMILY, 9, "bold"),
+            bg=THEME_ACCENT, fg="#0f172a",
+            relief="flat", cursor="hand2",
+            command=self._do_add_user
+        )
+        self.add_btn.grid(row=1, column=2, columnspan=2, sticky="ew", padx=5, pady=4, ipady=3)
+        
+        form_grid.columnconfigure(1, weight=1)
+        form_grid.columnconfigure(3, weight=1)
+
+        # 3. 中央主體：帳號列表與管理操作 (side="top", fill="both", expand=True，填滿頂部與底部之間的全部空間)
         body_frame = tk.Frame(self, bg=THEME_CARD_BG, highlightbackground=THEME_BORDER, highlightthickness=1)
-        body_frame.pack(fill="both", expand=True, padx=20, pady=5)
+        body_frame.pack(side="top", fill="both", expand=True, padx=20, pady=4)
         
         # 列表標題
         list_header = tk.Frame(body_frame, bg=THEME_CARD_BG)
@@ -445,7 +498,7 @@ class UserManageDialog(tk.Toplevel):
         columns = ("id", "username", "display_name", "security", "created_at")
         self.tree = ttk.Treeview(
             tree_frame, columns=columns, show="headings",
-            height=6, selectmode="browse"
+            height=5, selectmode="browse"
         )
         
         self.tree.heading("id", text="ID")
@@ -498,44 +551,6 @@ class UserManageDialog(tk.Toplevel):
             command=self._on_close
         )
         close_btn.pack(side="right", ipady=3)
-        
-        # 下半部：快速新增帳號區
-        add_frame = tk.LabelFrame(
-            self, text=" ➕ 建立新帳號 ",
-            font=(FONT_FAMILY, 9, "bold"),
-            fg=THEME_ACCENT, bg=THEME_BG,
-            highlightbackground=THEME_BORDER, highlightthickness=1
-        )
-        add_frame.pack(fill="x", padx=20, pady=(5, 15))
-        
-        form_grid = tk.Frame(add_frame, bg=THEME_BG)
-        form_grid.pack(fill="x", padx=15, pady=8)
-        
-        # Row 1: Username & Display Name
-        tk.Label(form_grid, text="帳號 (英文/數字):", font=(FONT_FAMILY, 9), fg=THEME_TEXT, bg=THEME_BG).grid(row=0, column=0, sticky="w", pady=3)
-        self.new_user_entry = tk.Entry(form_grid, font=(FONT_FAMILY, 9), bg=THEME_CARD_BG, fg=THEME_TEXT, insertbackground=THEME_TEXT, relief="flat")
-        self.new_user_entry.grid(row=0, column=1, sticky="ew", padx=(5, 15), pady=3, ipady=3)
-        
-        tk.Label(form_grid, text="顯示名稱 (暱稱):", font=(FONT_FAMILY, 9), fg=THEME_TEXT, bg=THEME_BG).grid(row=0, column=2, sticky="w", pady=3)
-        self.new_name_entry = tk.Entry(form_grid, font=(FONT_FAMILY, 9), bg=THEME_CARD_BG, fg=THEME_TEXT, insertbackground=THEME_TEXT, relief="flat")
-        self.new_name_entry.grid(row=0, column=3, sticky="ew", padx=5, pady=3, ipady=3)
-        
-        # Row 2: Password (Optional)
-        tk.Label(form_grid, text="密碼 (留空則免密碼):", font=(FONT_FAMILY, 9), fg=THEME_TEXT, bg=THEME_BG).grid(row=1, column=0, sticky="w", pady=3)
-        self.new_pwd_entry = tk.Entry(form_grid, font=(FONT_FAMILY, 9), show="●", bg=THEME_CARD_BG, fg=THEME_TEXT, insertbackground=THEME_TEXT, relief="flat")
-        self.new_pwd_entry.grid(row=1, column=1, sticky="ew", padx=(5, 15), pady=3, ipady=3)
-        
-        self.add_btn = tk.Button(
-            form_grid, text="確認新增帳戶",
-            font=(FONT_FAMILY, 9, "bold"),
-            bg=THEME_ACCENT, fg="#0f172a",
-            relief="flat", cursor="hand2",
-            command=self._do_add_user
-        )
-        self.add_btn.grid(row=1, column=2, columnspan=2, sticky="ew", padx=5, pady=3, ipady=3)
-        
-        form_grid.columnconfigure(1, weight=1)
-        form_grid.columnconfigure(3, weight=1)
 
     def _refresh_user_list(self):
         self.users = database.get_all_users()
@@ -648,7 +663,7 @@ class UserManageDialog(tk.Toplevel):
 
 class EditUserDialog(tk.Toplevel):
     """
-    修改使用者資料與密碼對話框 (模態置頂，防死鎖)
+    修改使用者資料與密碼對話框 (模態置頂，防死鎖，防裁切)
     """
     def __init__(self, parent, user: Dict[str, Any], on_saved: Optional[Callable[[], None]] = None, on_close_callback: Optional[Callable[[], None]] = None):
         super().__init__(parent)
@@ -658,14 +673,13 @@ class EditUserDialog(tk.Toplevel):
         self.on_close_callback = on_close_callback
         
         self.title(f"編輯帳戶 - {user.get('username')}")
-        self.resizable(False, False)
         self.configure(bg=THEME_BG)
         
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.bind("<Escape>", lambda e: self._on_close())
         
         self._build_ui()
-        center_toplevel(self, 400, 330, parent)
+        center_toplevel(self, 440, 360, parent, resizable=True)
         
         self.deiconify()
         if parent and parent.winfo_viewable():
@@ -705,28 +719,9 @@ class EditUserDialog(tk.Toplevel):
             fg=THEME_ACCENT, bg=THEME_BG
         ).pack(anchor="w", padx=25, pady=(20, 5))
         
-        card = tk.Frame(self, bg=THEME_CARD_BG, highlightbackground=THEME_BORDER, highlightthickness=1)
-        card.pack(fill="both", expand=True, padx=25, pady=10)
-        
-        # 顯示名稱
-        tk.Label(card, text="顯示暱稱：", font=(FONT_FAMILY, 9), fg=THEME_TEXT, bg=THEME_CARD_BG).pack(anchor="w", padx=15, pady=(12, 2))
-        self.name_entry = tk.Entry(card, font=(FONT_FAMILY, 10), bg=THEME_ENTRY_BG, fg=THEME_TEXT, insertbackground=THEME_TEXT, relief="flat")
-        self.name_entry.insert(0, self.user.get("display_name", ""))
-        self.name_entry.pack(fill="x", padx=15, ipady=4)
-        
-        # 新密碼
-        tk.Label(card, text="新密碼 (若不修改請留空，輸入空格清除密碼)：", font=(FONT_FAMILY, 9), fg=THEME_TEXT, bg=THEME_CARD_BG).pack(anchor="w", padx=15, pady=(12, 2))
-        self.pwd_entry = tk.Entry(card, font=(FONT_FAMILY, 10), show="●", bg=THEME_ENTRY_BG, fg=THEME_TEXT, insertbackground=THEME_TEXT, relief="flat")
-        self.pwd_entry.pack(fill="x", padx=15, ipady=4)
-        
-        # 密碼確認
-        tk.Label(card, text="再次輸入新密碼確認：", font=(FONT_FAMILY, 9), fg=THEME_TEXT, bg=THEME_CARD_BG).pack(anchor="w", padx=15, pady=(8, 2))
-        self.confirm_entry = tk.Entry(card, font=(FONT_FAMILY, 10), show="●", bg=THEME_ENTRY_BG, fg=THEME_TEXT, insertbackground=THEME_TEXT, relief="flat")
-        self.confirm_entry.pack(fill="x", padx=15, ipady=4)
-        
-        # 按鈕列
+        # 底部按鈕列 (side="bottom"，優先排版)
         btn_box = tk.Frame(self, bg=THEME_BG)
-        btn_box.pack(fill="x", padx=25, pady=(5, 15))
+        btn_box.pack(side="bottom", fill="x", padx=25, pady=(5, 18))
         
         save_btn = tk.Button(
             btn_box, text="儲存變更",
@@ -745,6 +740,26 @@ class EditUserDialog(tk.Toplevel):
             command=self._on_close
         )
         cancel_btn.pack(side="right", fill="x", expand=True, padx=(5, 0), ipady=4)
+
+        # 中央表單卡片
+        card = tk.Frame(self, bg=THEME_CARD_BG, highlightbackground=THEME_BORDER, highlightthickness=1)
+        card.pack(side="top", fill="both", expand=True, padx=25, pady=8)
+        
+        # 顯示名稱
+        tk.Label(card, text="顯示暱稱：", font=(FONT_FAMILY, 9), fg=THEME_TEXT, bg=THEME_CARD_BG).pack(anchor="w", padx=15, pady=(12, 2))
+        self.name_entry = tk.Entry(card, font=(FONT_FAMILY, 10), bg=THEME_ENTRY_BG, fg=THEME_TEXT, insertbackground=THEME_TEXT, relief="flat")
+        self.name_entry.insert(0, self.user.get("display_name", ""))
+        self.name_entry.pack(fill="x", padx=15, ipady=4)
+        
+        # 新密碼
+        tk.Label(card, text="新密碼 (若不修改請留空，輸入空格清除密碼)：", font=(FONT_FAMILY, 9), fg=THEME_TEXT, bg=THEME_CARD_BG).pack(anchor="w", padx=15, pady=(12, 2))
+        self.pwd_entry = tk.Entry(card, font=(FONT_FAMILY, 10), show="●", bg=THEME_ENTRY_BG, fg=THEME_TEXT, insertbackground=THEME_TEXT, relief="flat")
+        self.pwd_entry.pack(fill="x", padx=15, ipady=4)
+        
+        # 密碼確認
+        tk.Label(card, text="再次輸入新密碼確認：", font=(FONT_FAMILY, 9), fg=THEME_TEXT, bg=THEME_CARD_BG).pack(anchor="w", padx=15, pady=(8, 2))
+        self.confirm_entry = tk.Entry(card, font=(FONT_FAMILY, 10), show="●", bg=THEME_ENTRY_BG, fg=THEME_TEXT, insertbackground=THEME_TEXT, relief="flat")
+        self.confirm_entry.pack(fill="x", padx=15, ipady=4)
 
     def _do_save(self):
         new_name = self.name_entry.get().strip() or self.user.get("username")
