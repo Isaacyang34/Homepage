@@ -4,6 +4,7 @@ Stock Portfolio Tracker - 多使用者登入與帳號管理模組 (login_gui.py)
 提供：
 1. LoginDialog: 登入視窗，支援帳號切換、密碼驗證 (SHA-256+Salt) 與免密碼快速進入
 2. UserManageDialog: 帳號管理中心，支援新增帳號、修改顯示名稱、變更/清除密碼、刪除帳戶
+3. EditUserDialog: 使用者個人資料與密碼修改小視窗
 """
 
 import tkinter as tk
@@ -23,9 +24,37 @@ THEME_DANGER = "#ef4444"
 THEME_BORDER = "#3b3f58"
 FONT_FAMILY = "Microsoft JhengHei UI"
 
+
+def center_toplevel(win: tk.Toplevel, width: int, height: int, parent: Optional[tk.Widget] = None):
+    """
+    穩健視窗居中函式：
+    若父視窗可見且有效，相對於父視窗中央顯示；否則以主螢幕為中心置中。
+    """
+    win.update_idletasks()
+    if parent:
+        try:
+            if parent.winfo_viewable():
+                px = parent.winfo_rootx()
+                py = parent.winfo_rooty()
+                pw = parent.winfo_width()
+                ph = parent.winfo_height()
+                x = max(0, px + (pw - width) // 2)
+                y = max(0, py + (ph - height) // 2)
+                win.geometry(f"{width}x{height}+{x}+{y}")
+                return
+        except Exception:
+            pass
+
+    sw = win.winfo_screenwidth()
+    sh = win.winfo_screenheight()
+    x = max(0, (sw - width) // 2)
+    y = max(0, (sh - height) // 2)
+    win.geometry(f"{width}x{height}+{x}+{y}")
+
+
 class LoginDialog(tk.Toplevel):
     """
-    登入與帳號切換對話框
+    登入與帳號切換對話框 (模態置頂，不閃爍，防死鎖)
     """
     def __init__(self, parent=None, on_success: Optional[Callable[[Dict[str, Any]], None]] = None, allow_cancel: bool = True):
         super().__init__(parent)
@@ -36,41 +65,34 @@ class LoginDialog(tk.Toplevel):
         self.show_password = False
         
         self.title("使用者登入 - 投資組合管理系統")
-        self.geometry("450x420")
         self.resizable(False, False)
         self.configure(bg=THEME_BG)
-        
-        # 居中視窗
-        self.update_idletasks()
-        w = 450
-        h = 420
-        sw = self.winfo_screenwidth()
-        sh = self.winfo_screenheight()
-        x = max(0, (sw - w) // 2)
-        y = max(0, (sh - h) // 2)
-        self.geometry(f"{w}x{h}+{x}+{y}")
         
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         
         self._build_ui()
         self._load_users()
         
+        # 依父視窗幾何穩健置中
+        center_toplevel(self, 450, 420, parent)
+        
         # 聚焦與鍵盤監聽
         self.bind("<Return>", lambda e: self._do_login())
         self.bind("<Escape>", lambda e: self._on_close())
         
+        # 視窗層次與模態設定 (避免 topmost 閃爍掉到底層)
         self.deiconify()
-        self.lift()
-        self.focus_force()
-        self.attributes("-topmost", True)
-        self.after_idle(lambda: self.attributes("-topmost", False))
-        if parent:
+        if parent and parent.winfo_viewable():
             try:
-                if parent.state() != "withdrawn":
-                    self.transient(parent)
-                    self.grab_set()
+                self.transient(parent)
             except Exception:
                 pass
+        self.lift()
+        self.focus_force()
+        try:
+            self.grab_set()
+        except Exception:
+            pass
 
     def _build_ui(self):
         # 頂部裝飾標題區
@@ -252,6 +274,21 @@ class LoginDialog(tk.Toplevel):
                 self.msg_lbl.configure(text="💡 此帳號未設密碼，可直接點擊進入", fg=THEME_SUCCESS)
                 self.login_btn.focus_set()
 
+    def _safe_destroy(self):
+        """徹底釋放 Grab 並銷毀視窗，杜絕介面無響應死鎖"""
+        try:
+            self.grab_release()
+        except Exception:
+            pass
+        try:
+            self.destroy()
+        except Exception:
+            pass
+
+    def _destroy_safe(self):
+        """別名相容防呆"""
+        self._safe_destroy()
+
     def _do_login(self):
         idx = self.user_combo.current()
         if not (0 <= idx < len(self.users)):
@@ -277,30 +314,44 @@ class LoginDialog(tk.Toplevel):
         self.msg_lbl.configure(text=f"✅ 登入成功！正在載入 {verified_user.get('display_name')} 的投資庫存...", fg=THEME_SUCCESS)
         self.update_idletasks()
         
+        if self.on_success:
+            try:
+                self.on_success(verified_user)
+            except Exception as e:
+                print(f"[Login] 登入回呼失敗: {e}")
+                
+        self._safe_destroy()
+
+    def _on_close(self):
+        if not self.logged_in_user and not self.allow_cancel:
+            # 強制登入模式下若使用者直接關閉視窗，提示是否結束應用程式
+            if messagebox.askyesno("結束系統", "尚未選擇帳號登入，確定要結束應用程式嗎？", parent=self):
+                if self.parent:
+                    try:
+                        self.parent.destroy()
+                    except Exception:
+                        pass
+                self._safe_destroy()
+            return
+            
+        self._safe_destroy()
+
+    def _open_user_manager(self):
+        """開啟帳號管理中心，暫時釋放當前 grab 以免巢狀模態焦點死鎖"""
         try:
             self.grab_release()
         except Exception:
             pass
+        UserManageDialog(self, on_users_changed=self._load_users, on_close_callback=self._restore_grab)
 
-        if self.on_success:
-            self.on_success(verified_user)
-            
-        self.destroy()
-
-    def _on_close(self):
-        if not self.logged_in_user and not self.allow_cancel:
-            # 強制登入模式下若使用者直接關閉視窗，視同取消結束主應用程式
-            if messagebox.askyesno("結束系統", "尚未選擇帳號登入，確定要結束應用程式嗎？", parent=self):
-                if self.parent:
-                    self.parent.destroy()
-                else:
-                    self.destroy()
-            return
-            
-        self._destroy_safe()
-
-    def _open_user_manager(self):
-        UserManageDialog(self, on_users_changed=self._load_users)
+    def _restore_grab(self):
+        """子管理視窗關閉後恢復自身焦點與 grab"""
+        try:
+            self.lift()
+            self.focus_force()
+            self.grab_set()
+        except Exception:
+            pass
 
 
 class UserManageDialog(tk.Toplevel):
@@ -308,39 +359,54 @@ class UserManageDialog(tk.Toplevel):
     使用者帳號管理中心對話框
     支援：新增使用者、編輯顯示名稱、變更/清除密碼、刪除使用者
     """
-    def __init__(self, parent, on_users_changed: Optional[Callable[[], None]] = None):
+    def __init__(self, parent, on_users_changed: Optional[Callable[[], None]] = None, on_close_callback: Optional[Callable[[], None]] = None):
         super().__init__(parent)
         self.parent = parent
         self.on_users_changed = on_users_changed
+        self.on_close_callback = on_close_callback
         
         self.title("帳號管理中心 - 投資組合管理系統")
-        self.geometry("560x520")
         self.resizable(False, False)
         self.configure(bg=THEME_BG)
         
-        # 居中視窗
-        self.update_idletasks()
-        w = 560
-        h = 520
-        sw = self.winfo_screenwidth()
-        sh = self.winfo_screenheight()
-        x = max(0, (sw - w) // 2)
-        y = max(0, (sh - h) // 2)
-        self.geometry(f"{w}x{h}+{x}+{y}")
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self.bind("<Escape>", lambda e: self._on_close())
         
         self._build_ui()
         self._refresh_user_list()
         
+        center_toplevel(self, 560, 520, parent)
+        
         self.deiconify()
-        self.lift()
-        self.focus_force()
-        if parent:
+        if parent and parent.winfo_viewable():
             try:
-                if parent.state() != "withdrawn":
-                    self.transient(parent)
-                    self.grab_set()
+                self.transient(parent)
             except Exception:
                 pass
+        self.lift()
+        self.focus_force()
+        try:
+            self.grab_set()
+        except Exception:
+            pass
+
+    def _safe_destroy(self):
+        try:
+            self.grab_release()
+        except Exception:
+            pass
+        if self.on_close_callback:
+            try:
+                self.on_close_callback()
+            except Exception:
+                pass
+        try:
+            self.destroy()
+        except Exception:
+            pass
+
+    def _on_close(self):
+        self._safe_destroy()
 
     def _build_ui(self):
         header_frame = tk.Frame(self, bg=THEME_BG)
@@ -401,7 +467,7 @@ class UserManageDialog(tk.Toplevel):
         scrollbar.pack(side="right", fill="y")
         self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
         
-        # 操作按鈕列 (選取帳號後之動作)
+        # 操作按鈕列 (選取帳號後之動作 + 返回關閉)
         actions_bar = tk.Frame(body_frame, bg=THEME_CARD_BG)
         actions_bar.pack(fill="x", padx=15, pady=(5, 12))
         
@@ -422,6 +488,16 @@ class UserManageDialog(tk.Toplevel):
             state="disabled", command=self._delete_selected_user
         )
         self.del_btn.pack(side="left", padx=6, ipady=3)
+        
+        close_btn = tk.Button(
+            actions_bar, text="✖ 返回關閉",
+            font=(FONT_FAMILY, 9),
+            bg=THEME_BG, fg=THEME_TEXT_MUTED,
+            activebackground=THEME_BORDER, activeforeground=THEME_TEXT,
+            relief="flat", cursor="hand2",
+            command=self._on_close
+        )
+        close_btn.pack(side="right", ipady=3)
         
         # 下半部：快速新增帳號區
         add_frame = tk.LabelFrame(
@@ -480,13 +556,15 @@ class UserManageDialog(tk.Toplevel):
         self.edit_btn.configure(state="disabled")
         self.del_btn.configure(state="disabled")
         if self.on_users_changed:
-            self.on_users_changed()
+            try:
+                self.on_users_changed()
+            except Exception:
+                pass
 
     def _on_tree_select(self, event=None):
         sel = self.tree.selection()
         if sel:
             self.edit_btn.configure(state="normal")
-            # 至少保留 1 個使用者
             if len(self.users) > 1:
                 self.del_btn.configure(state="normal")
             else:
@@ -505,7 +583,6 @@ class UserManageDialog(tk.Toplevel):
             self.new_user_entry.focus_set()
             return
             
-        # 建立帳號
         ok, msg, new_uid = database.create_user(username, display_name, password)
         if not ok:
             messagebox.showerror("新增失敗", msg, parent=self)
@@ -526,8 +603,20 @@ class UserManageDialog(tk.Toplevel):
         if not user:
             return
             
-        # 彈出小視窗編輯顯示名稱與變更密碼
-        EditUserDialog(self, user, on_saved=self._refresh_user_list)
+        # 暫時釋放當前 grab 以便子編輯視窗接收事件
+        try:
+            self.grab_release()
+        except Exception:
+            pass
+        EditUserDialog(self, user, on_saved=self._refresh_user_list, on_close_callback=self._restore_grab)
+
+    def _restore_grab(self):
+        try:
+            self.lift()
+            self.focus_force()
+            self.grab_set()
+        except Exception:
+            pass
 
     def _delete_selected_user(self):
         sel = self.tree.selection()
@@ -559,31 +648,55 @@ class UserManageDialog(tk.Toplevel):
 
 class EditUserDialog(tk.Toplevel):
     """
-    修改使用者資料與密碼對話框
+    修改使用者資料與密碼對話框 (模態置頂，防死鎖)
     """
-    def __init__(self, parent, user: Dict[str, Any], on_saved: Optional[Callable[[], None]] = None):
+    def __init__(self, parent, user: Dict[str, Any], on_saved: Optional[Callable[[], None]] = None, on_close_callback: Optional[Callable[[], None]] = None):
         super().__init__(parent)
         self.parent = parent
         self.user = user
         self.on_saved = on_saved
+        self.on_close_callback = on_close_callback
         
         self.title(f"編輯帳戶 - {user.get('username')}")
-        self.geometry("400x330")
         self.resizable(False, False)
         self.configure(bg=THEME_BG)
         
-        self.update_idletasks()
-        w = 400
-        h = 330
-        sw = self.winfo_screenwidth()
-        sh = self.winfo_screenheight()
-        x = max(0, (sw - w) // 2)
-        y = max(0, (sh - h) // 2)
-        self.geometry(f"{w}x{h}+{x}+{y}")
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self.bind("<Escape>", lambda e: self._on_close())
         
         self._build_ui()
-        self.transient(parent)
-        self.grab_set()
+        center_toplevel(self, 400, 330, parent)
+        
+        self.deiconify()
+        if parent and parent.winfo_viewable():
+            try:
+                self.transient(parent)
+            except Exception:
+                pass
+        self.lift()
+        self.focus_force()
+        try:
+            self.grab_set()
+        except Exception:
+            pass
+
+    def _safe_destroy(self):
+        try:
+            self.grab_release()
+        except Exception:
+            pass
+        if self.on_close_callback:
+            try:
+                self.on_close_callback()
+            except Exception:
+                pass
+        try:
+            self.destroy()
+        except Exception:
+            pass
+
+    def _on_close(self):
+        self._safe_destroy()
 
     def _build_ui(self):
         tk.Label(
@@ -629,7 +742,7 @@ class EditUserDialog(tk.Toplevel):
             font=(FONT_FAMILY, 10),
             bg=THEME_CARD_BG, fg=THEME_TEXT_MUTED,
             relief="flat", cursor="hand2",
-            command=self.destroy
+            command=self._on_close
         )
         cancel_btn.pack(side="right", fill="x", expand=True, padx=(5, 0), ipady=4)
 
@@ -656,5 +769,8 @@ class EditUserDialog(tk.Toplevel):
             
         messagebox.showinfo("更新成功", "帳號設定已成功更新！", parent=self)
         if self.on_saved:
-            self.on_saved()
-        self.destroy()
+            try:
+                self.on_saved()
+            except Exception:
+                pass
+        self._safe_destroy()

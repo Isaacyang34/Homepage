@@ -336,7 +336,14 @@ class PortfolioApp(tk.Tk):
 
     def on_switch_user(self):
         """主畫面隨時切換使用者"""
-        LoginDialog(self, on_success=self._on_switch_user_success, allow_cancel=True)
+        if hasattr(self, '_login_dialog') and self._login_dialog and self._login_dialog.winfo_exists():
+            try:
+                self._login_dialog.lift()
+                self._login_dialog.focus_force()
+                return
+            except Exception:
+                pass
+        self._login_dialog = LoginDialog(self, on_success=self._on_switch_user_success, allow_cancel=True)
 
     def _on_switch_user_success(self, user: Dict[str, Any]):
         """切換使用者成功回呼：清空當前視窗，載入新使用者專屬持股"""
