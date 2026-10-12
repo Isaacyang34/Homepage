@@ -1,0 +1,590 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>馬達TN與PN曲線繪製工具</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.6/babel.min.js"></script>
+</head>
+<body>
+    <div id="root" class="min-h-screen bg-gray-100 p-4"></div>
+
+    <script type="text/babel">
+        class ErrorBoundary extends React.Component {
+            state = { hasError: false, error: null };
+            
+            static getDerivedStateFromError(error) {
+                return { hasError: true, error };
+            }
+            
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div className="text-red-500 p-4">
+                            <h1>錯誤</h1>
+                            <p>{this.state.error?.message || '未知錯誤，請檢查輸入並重試'}</p>
+                        </div>
+                    );
+                }
+                return this.props.children;
+            }
+        }
+
+        const App = () => {
+            const [mode, setMode] = React.useState('torque');
+            const [params, setParams] = React.useState({
+                model: '',
+                ratedPower: '',
+                ratedTorque: '',
+                ratedSpeed: '',
+                maxPower: '',
+                maxTorque: '',
+                maxSpeed: ''
+            });
+            const [calculatedValues, setCalculatedValues] = React.useState({
+                ratedPower: '',
+                ratedTorque: '',
+                maxPower: '',
+                maxTorque: ''
+            });
+            const [customAxis, setCustomAxis] = React.useState({
+                enable: false,
+                xMin: '',
+                xMax: '',
+                xStep: '',
+                tnYMin: '',
+                tnYMax: '',
+                tnYStep: '',
+                pnYMin: '',
+                pnYMax: '',
+                pnYStep: ''
+            });
+            const [tnChartData, setTnChartData] = React.useState(null);
+            const [pnChartData, setPnChartData] = React.useState(null);
+            const tnChartRef = React.useRef(null);
+            const pnChartRef = React.useRef(null);
+            const tnChartInstance = React.useRef(null);
+            const pnChartInstance = React.useRef(null);
+            const [isChartReady, setIsChartReady] = React.useState(false);
+            const [error, setError] = React.useState(null);
+
+            React.useEffect(() => {
+                if (typeof Chart !== 'undefined') {
+                    setIsChartReady(true);
+                } else {
+                    setError('Chart.js 載入失敗');
+                }
+            }, []);
+
+            const handleInputChange = (e) => {
+                const { name, value } = e.target;
+                setParams(prev => ({ ...prev, [name]: value }));
+            };
+
+            const handleCustomAxisChange = (e) => {
+                const { name, value, type, checked } = e.target;
+                setCustomAxis(prev => ({
+                    ...prev,
+                    [name]: type === 'checkbox' ? checked : value
+                }));
+            };
+
+            const calculateCurves = () => {
+                try {
+                    setError(null);
+                    const { model, ratedSpeed, maxSpeed, ratedTorque, ratedPower, maxTorque, maxPower } = params;
+                    if (!ratedSpeed || !maxSpeed) {
+                        throw new Error('請輸入額定轉速和最大轉速');
+                    }
+
+                    const ratedSpd = parseFloat(ratedSpeed);
+                    const maxSpd = parseFloat(maxSpeed);
+                    if (isNaN(ratedSpd) || isNaN(maxSpd)) {
+                        throw new Error('轉速必須為有效數字');
+                    }
+                    
+                    let ratedT, ratedP, maxT, maxP;
+                    if (mode === 'torque') {
+                        ratedT = parseFloat(ratedTorque) || 0;
+                        maxT = parseFloat(maxTorque) || 0;
+                        ratedP = (ratedT * ratedSpd * Math.PI / 30 / 1000).toFixed(2); // 轉換為 kW
+                        maxP = (maxT * ratedSpd * Math.PI / 30 / 1000).toFixed(2);    // 轉換為 kW
+                    } else {
+                        ratedP = parseFloat(ratedPower) || 0;
+                        maxP = parseFloat(maxPower) || 0;
+                        ratedT = (ratedP * 1000 * 30 / (ratedSpd * Math.PI)).toFixed(2); // 從 kW 轉換回 W 再算扭力
+                        maxT = (maxP * 1000 * 30 / (ratedSpd * Math.PI)).toFixed(2);
+                    }
+
+                    setCalculatedValues({
+                        ratedPower: ratedP,
+                        ratedTorque: ratedT,
+                        maxPower: maxP,
+                        maxTorque: maxT
+                    });
+
+                    // 生成數據點，確保包含 0, 額定轉速 (轉折點), 最大轉速
+                    const speedSet = new Set([0, ratedSpd, maxSpd]);
+                    // 根據 maxSpd 決定適當間隔
+                    const step = maxSpd > 1000 ? 100 : Math.max(1, Math.floor(maxSpd / 50));
+                    for (let rpm = 0; rpm <= maxSpd; rpm += step) {
+                        speedSet.add(rpm);
+                    }
+                    const speeds = Array.from(speedSet).sort((a, b) => a - b);
+
+                    const ratedTorques = [];
+                    const ratedPowers = [];
+                    const maxTorques = [];
+                    const maxPowers = [];
+                    speeds.forEach(rpm => {
+                        if (rpm <= ratedSpd) {
+                            const rP = (ratedT * rpm * Math.PI / 30 / 1000).toFixed(2);
+                            const mP = (maxT * rpm * Math.PI / 30 / 1000).toFixed(2);
+                            ratedTorques.push({ x: rpm, y: parseFloat(ratedT) });
+                            ratedPowers.push({ x: rpm, y: parseFloat(rP) });
+                            maxTorques.push({ x: rpm, y: parseFloat(maxT) });
+                            maxPowers.push({ x: rpm, y: parseFloat(mP) });
+                        } else {
+                            const ratedMaxPower = ratedT * ratedSpd * Math.PI / 30 / 1000;     // kW
+                            const maxMaxPower = maxT * ratedSpd * Math.PI / 30 / 1000;         // kW
+                            const rT = (ratedMaxPower * 1000 * 30 / (rpm * Math.PI)).toFixed(2);
+                            const mT = (maxMaxPower * 1000 * 30 / (rpm * Math.PI)).toFixed(2);
+                            ratedTorques.push({ x: rpm, y: parseFloat(rT) });
+                            ratedPowers.push({ x: rpm, y: parseFloat(ratedMaxPower.toFixed(2)) });
+                            maxTorques.push({ x: rpm, y: parseFloat(mT) });
+                            maxPowers.push({ x: rpm, y: parseFloat(maxMaxPower.toFixed(2)) });
+                        }
+                    });
+
+                    setTnChartData({
+                        datasets: [
+                            { label: '額定扭力 (N·m)', data: ratedTorques, borderColor: 'rgb(75, 192, 192)', pointRadius: 0 },
+                            { label: '最大扭力 (N·m)', data: maxTorques, borderColor: 'rgb(255, 99, 132)', pointRadius: 0 }
+                        ],
+                        model: model || '未指定型號'
+                    });
+
+                    setPnChartData({
+                        datasets: [
+                            { label: '額定功率 (kW)', data: ratedPowers, borderColor: 'rgb(75, 192, 192)', pointRadius: 0 },
+                            { label: '最大功率 (kW)', data: maxPowers, borderColor: 'rgb(255, 99, 132)', pointRadius: 0 }
+                        ],
+                        model: model || '未指定型號'
+                    });
+                } catch (err) {
+                    console.error('Calculation error:', err);
+                    setError(err.message);
+                }
+            };
+
+            React.useEffect(() => {
+                if (!isChartReady || !tnChartData || !pnChartData || !tnChartRef.current || !pnChartRef.current) return;
+
+                const getAxisConfig = (isTnY) => {
+                    const xConfig = {
+                        type: 'linear',
+                        title: { display: true, text: '轉速 (RPM)' }
+                    };
+                    const yConfig = {
+                        title: { display: true, text: isTnY ? '扭力 (N·m)' : '功率 (kW)' }
+                    };
+
+                    if (customAxis.enable) {
+                        if (customAxis.xMin !== '') xConfig.min = parseFloat(customAxis.xMin);
+                        if (customAxis.xMax !== '') xConfig.max = parseFloat(customAxis.xMax);
+                        if (customAxis.xStep !== '') xConfig.ticks = { stepSize: parseFloat(customAxis.xStep) };
+
+                        const yMin = isTnY ? customAxis.tnYMin : customAxis.pnYMin;
+                        const yMax = isTnY ? customAxis.tnYMax : customAxis.pnYMax;
+                        const yStep = isTnY ? customAxis.tnYStep : customAxis.pnYStep;
+
+                        if (yMin !== '') yConfig.min = parseFloat(yMin);
+                        if (yMax !== '') yConfig.max = parseFloat(yMax);
+                        if (yStep !== '') yConfig.ticks = { stepSize: parseFloat(yStep) };
+                    } else {
+                        xConfig.min = 0;
+                        yConfig.min = 0;
+                    }
+
+                    return { x: xConfig, y: yConfig };
+                };
+
+                try {
+                    const tnCtx = tnChartRef.current.getContext('2d');
+                    if (!tnCtx) throw new Error('無法獲取 TN 圖表上下文');
+                    if (tnChartInstance.current) tnChartInstance.current.destroy();
+                    tnChartInstance.current = new Chart(tnCtx, {
+                        type: 'line',
+                        data: tnChartData,
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: tnChartData.model,
+                                    font: { size: 20 },
+                                    position: 'top',
+                                    align: 'center'
+                                }
+                            },
+                            scales: getAxisConfig(true)
+                        }
+                    });
+
+                    const pnCtx = pnChartRef.current.getContext('2d');
+                    if (!pnCtx) throw new Error('無法獲取 PN 圖表上下文');
+                    if (pnChartInstance.current) pnChartInstance.current.destroy();
+                    pnChartInstance.current = new Chart(pnCtx, {
+                        type: 'line',
+                        data: pnChartData,
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: pnChartData.model,
+                                    font: { size: 20 },
+                                    position: 'top',
+                                    align: 'center'
+                                }
+                            },
+                            scales: getAxisConfig(false)
+                        }
+                    });
+                } catch (error) {
+                    console.error('Chart rendering error:', error);
+                    setError(`圖表渲染錯誤: ${error.message}`);
+                }
+
+                return () => {
+                    if (tnChartInstance.current) tnChartInstance.current.destroy();
+                    if (pnChartInstance.current) pnChartInstance.current.destroy();
+                };
+            }, [isChartReady, tnChartData, pnChartData, customAxis]);
+
+            return (
+                <ErrorBoundary>
+                    <div className="max-w-4xl mx-auto">
+                        <h1 className="text-2xl font-bold mb-4">馬達TN與PN曲線繪製工具</h1>
+                        
+                        <div className="flex gap-4 mb-4">
+                            <button
+                                className={`px-4 py-2 rounded ${mode === 'torque' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+                                onClick={() => setMode('torque')}
+                            >
+                                扭力模式
+                            </button>
+                            <button
+                                className={`px-4 py-2 rounded ${mode === 'power' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+                                onClick={() => setMode('power')}
+                            >
+                                功率模式
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label className="block mb-1">馬達型號</label>
+                                <input
+                                    type="text"
+                                    name="model"
+                                    value={params.model}
+                                    onChange={handleInputChange}
+                                    className="w-full p-2 border rounded"
+                                />
+                            </div>
+                            <div>
+                                <label className="block mb-1">額定轉速 (RPM)*</label>
+                                <input
+                                    type="number"
+                                    name="ratedSpeed"
+                                    value={params.ratedSpeed}
+                                    onChange={handleInputChange}
+                                    className="w-full p-2 border rounded"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block mb-1">最大轉速 (RPM)*</label>
+                                <input
+                                    type="number"
+                                    name="maxSpeed"
+                                    value={params.maxSpeed}
+                                    onChange={handleInputChange}
+                                    className="w-full p-2 border rounded"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block mb-1">額定扭力 (N·m)</label>
+                                <input
+                                    type="number"
+                                    name="ratedTorque"
+                                    value={params.ratedTorque}
+                                    onChange={handleInputChange}
+                                    className="w-full p-2 border rounded"
+                                    disabled={mode === 'power'}
+                                />
+                                {mode === 'power' && calculatedValues.ratedTorque && (
+                                    <p className="text-sm text-gray-600">計算值: {calculatedValues.ratedTorque} N·m</p>
+                                )}
+                            </div>
+                            <div>
+                                <label className="block mb-1">額定功率 (kW)</label>
+                                <input
+                                    type="number"
+                                    name="ratedPower"
+                                    value={params.ratedPower}
+                                    onChange={handleInputChange}
+                                    className="w-full p-2 border rounded"
+                                    disabled={mode === 'torque'}
+                                />
+                                {mode === 'torque' && calculatedValues.ratedPower && (
+                                    <p className="text-sm text-gray-600">計算值: {calculatedValues.ratedPower} kW</p>
+                                )}
+                            </div>
+                            <div>
+                                <label className="block mb-1">最大扭力 (N·m)</label>
+                                <input
+                                    type="number"
+                                    name="maxTorque"
+                                    value={params.maxTorque}
+                                    onChange={handleInputChange}
+                                    className="w-full p-2 border rounded"
+                                    disabled={mode === 'power'}
+                                />
+                                {mode === 'power' && calculatedValues.maxTorque && (
+                                    <p className="text-sm text-gray-600">計算值: {calculatedValues.maxTorque} N·m</p>
+                                )}
+                            </div>
+                            <div>
+                                <label className="block mb-1">最大功率 (kW)</label>
+                                <input
+                                    type="number"
+                                    name="maxPower"
+                                    value={params.maxPower}
+                                    onChange={handleInputChange}
+                                    className="w-full p-2 border rounded"
+                                    disabled={mode === 'torque'}
+                                />
+                                {mode === 'torque' && calculatedValues.maxPower && (
+                                    <p className="text-sm text-gray-600">計算值: {calculatedValues.maxPower} kW</p>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* 座標軸手動調整面板 */}
+                        <div className="bg-white p-4 rounded shadow mb-4 border">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-semibold text-gray-700">座標軸邊界與刻度調整</h3>
+                                <label className="flex items-center gap-2 cursor-pointer text-sm text-blue-600 font-medium">
+                                    <input
+                                        type="checkbox"
+                                        name="enable"
+                                        checked={customAxis.enable}
+                                        onChange={handleCustomAxisChange}
+                                        className="w-4 h-4"
+                                    />
+                                    啟用手動座標軸設定 (預設為自動調整)
+                                </label>
+                            </div>
+
+                            {customAxis.enable && (
+                                <div className="space-y-4 pt-2 border-t text-sm">
+                                    {/* X 軸 - TN/PN 共用 */}
+                                    <div>
+                                        <div className="font-medium text-gray-600 mb-1">X 軸 (轉速 RPM - TN 與 PN 共用)</div>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            <div>
+                                                <label className="text-xs text-gray-500">最小值 (Min)</label>
+                                                <input
+                                                    type="number"
+                                                    name="xMin"
+                                                    placeholder="0"
+                                                    value={customAxis.xMin}
+                                                    onChange={handleCustomAxisChange}
+                                                    className="w-full p-1.5 border rounded"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-gray-500">最大值 (Max)</label>
+                                                <input
+                                                    type="number"
+                                                    name="xMax"
+                                                    placeholder="自動"
+                                                    value={customAxis.xMax}
+                                                    onChange={handleCustomAxisChange}
+                                                    className="w-full p-1.5 border rounded"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-gray-500">刻度間距 (Step)</label>
+                                                <input
+                                                    type="number"
+                                                    name="xStep"
+                                                    placeholder="自動"
+                                                    value={customAxis.xStep}
+                                                    onChange={handleCustomAxisChange}
+                                                    className="w-full p-1.5 border rounded"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* TN Y 軸 - N·m 獨立 */}
+                                    <div>
+                                        <div className="font-medium text-gray-600 mb-1">TN Y 軸 (扭力 N·m)</div>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            <div>
+                                                <label className="text-xs text-gray-500">最小值 (Min)</label>
+                                                <input
+                                                    type="number"
+                                                    name="tnYMin"
+                                                    placeholder="0"
+                                                    value={customAxis.tnYMin}
+                                                    onChange={handleCustomAxisChange}
+                                                    className="w-full p-1.5 border rounded"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-gray-500">最大值 (Max)</label>
+                                                <input
+                                                    type="number"
+                                                    name="tnYMax"
+                                                    placeholder="自動"
+                                                    value={customAxis.tnYMax}
+                                                    onChange={handleCustomAxisChange}
+                                                    className="w-full p-1.5 border rounded"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-gray-500">刻度間距 (Step)</label>
+                                                <input
+                                                    type="number"
+                                                    name="tnYStep"
+                                                    placeholder="自動"
+                                                    value={customAxis.tnYStep}
+                                                    onChange={handleCustomAxisChange}
+                                                    className="w-full p-1.5 border rounded"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* PN Y 軸 - kW 獨立 */}
+                                    <div>
+                                        <div className="font-medium text-gray-600 mb-1">PN Y 軸 (功率 kW)</div>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            <div>
+                                                <label className="text-xs text-gray-500">最小值 (Min)</label>
+                                                <input
+                                                    type="number"
+                                                    name="pnYMin"
+                                                    placeholder="0"
+                                                    value={customAxis.pnYMin}
+                                                    onChange={handleCustomAxisChange}
+                                                    className="w-full p-1.5 border rounded"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-gray-500">最大值 (Max)</label>
+                                                <input
+                                                    type="number"
+                                                    name="pnYMax"
+                                                    placeholder="自動"
+                                                    value={customAxis.pnYMax}
+                                                    onChange={handleCustomAxisChange}
+                                                    className="w-full p-1.5 border rounded"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-gray-500">刻度間距 (Step)</label>
+                                                <input
+                                                    type="number"
+                                                    name="pnYStep"
+                                                    placeholder="自動"
+                                                    value={customAxis.pnYStep}
+                                                    onChange={handleCustomAxisChange}
+                                                    className="w-full p-1.5 border rounded"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <button
+                            className="w-full bg-green-500 text-white p-2 rounded hover:bg-green-600"
+                            onClick={calculateCurves}
+                        >
+                            繪製曲線
+                        </button>
+
+                        {error && (
+                            <p className="text-red-500 mt-4">{error}</p>
+                        )}
+
+                        {isChartReady ? (
+                            <div className="mt-8">
+                                <h2 className="text-xl font-semibold mb-2">TN 曲線</h2>
+                                <canvas ref={tnChartRef} id="tnChart"></canvas>
+                                <h2 className="text-xl font-semibold mt-8 mb-2">PN 曲線</h2>
+                                <canvas ref={pnChartRef} id="pnChart"></canvas>
+                            </div>
+                        ) : (
+                            <p className="mt-4">正在載入圖表組件...</p>
+                        )}
+                    </div>
+                </ErrorBoundary>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

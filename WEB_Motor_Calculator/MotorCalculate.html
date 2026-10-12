@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <title>馬達工程計算工具箱 - 全功能版</title>
+    <style>
+        :root {
+            --bg-color: #f4f7f6;
+            --card-bg: #ffffff;
+            --text-color: #333333;
+            --primary-color: #1a73e8; /* 日間藍 */
+            --accent-bg: #e8f0fe;
+            --formula-bg: #fffde7;
+            --border-color: #eeeeee;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --text-color: #e0e0e0;
+            --primary-color: #ff9800; /* 夜間橘 */
+            --accent-bg: #332200;
+            --formula-bg: #2d2d2d;
+            --border-color: #333333;
+        }
+
+        body { 
+            font-family: "Microsoft JhengHei", sans-serif; 
+            background-color: var(--bg-color); 
+            color: var(--text-color);
+            padding: 20px; 
+            transition: all 0.3s ease;
+        }
+
+        .header { text-align: center; margin-bottom: 40px; }
+        h1 { color: var(--primary-color); }
+
+        /* 切換按鈕 */
+        .theme-switch {
+            position: fixed; top: 20px; right: 20px;
+            padding: 12px 20px; background: var(--primary-color);
+            color: #fff; border: none; border-radius: 30px;
+            cursor: pointer; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            z-index: 1000;
+        }
+
+        /* 響應式容器 */
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 25px;
+            justify-content: center;
+        }
+
+        /* 獨立積木框架 */
+        .block {
+            background: var(--card-bg);
+            width: 300px;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            border-top: 6px solid var(--primary-color);
+            transition: transform 0.2s;
+        }
+        .block:hover { transform: translateY(-5px); }
+
+        h2 { font-size: 1.1rem; color: var(--primary-color); margin: 0 0 10px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 5px; }
+        .formula { background: var(--formula-bg); font-size: 13px; padding: 10px; border-radius: 6px; margin-bottom: 20px; font-weight: bold; border: 1px solid var(--border-color); }
+        
+        /* 垂直排列輸入項 */
+        .input-item { display: flex; flex-direction: column; margin-bottom: 15px; }
+        label { font-size: 14px; margin-bottom: 6px; font-weight: bold; }
+        input, select { padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--card-bg); color: var(--text-color); font-size: 15px; }
+        
+        .calc-btn {
+            background: var(--primary-color);
+            color: white; border: none; padding: 12px;
+            border-radius: 6px; cursor: pointer; font-weight: bold;
+            margin-top: 10px; font-size: 16px;
+        }
+        .calc-btn:hover { opacity: 0.9; }
+
+        .res-box {
+            margin-top: 20px; padding: 15px;
+            background: var(--accent-bg); border-radius: 6px;
+            font-weight: bold; color: var(--primary-color);
+            text-align: center; font-size: 16px; border: 1px dashed var(--primary-color);
+        }
+    </style>
+</head>
+<body>
+
+<button class="theme-switch" onclick="toggleTheme()">🌓 切換模式</button>
+
+<div class="header">
+    <h1>馬達工程專業計算工具箱</h1>
+</div>
+
+<div class="container">
+
+    <div class="block">
+        <h2>1. 功率單位轉換</h2>
+        <div class="formula">1HP = 0.7457kW / 1kW = 1.341HP</div>
+        <div class="input-item">
+            <label>馬力 (HP):</label>
+            <input type="number" id="hp_in" oninput="convP('hp')" placeholder="輸入 HP">
+        </div>
+        <div class="input-item">
+            <label>千瓦 (kW):</label>
+            <input type="number" id="kw_in" oninput="convP('kw')" placeholder="輸入 kW">
+        </div>
+        <div class="res-box">雙向即時同步更新</div>
+    </div>
+
+    <div class="block">
+        <h2>2. 電壓轉速回推 Kt</h2>
+        
+        <div class="formula">Kt = 電壓 / (轉速 * 0.1047)</div>
+        <div class="input-item">
+            <label>電壓 (V):</label>
+            <input type="number" id="kt_v">
+        </div>
+        <div class="input-item">
+            <label>轉速 (RPM):</label>
+            <input type="number" id="kt_n">
+        </div>
+        <button class="calc-btn" onclick="calcKt()">計算 Kt 值</button>
+        <div id="kt_res" class="res-box">等待計算...</div>
+    </div>
+
+    <div class="block">
+        <h2>3. 反電動勢換算</h2>
+        
+        <div class="formula">BEMF = (轉速 / 1000) * Ke</div>
+        <div class="input-item">
+            <label>轉速 (RPM):</label>
+            <input type="number" id="be_n">
+        </div>
+        <div class="input-item">
+            <label>Ke 常數 (V/krpm):</label>
+            <input type="number" id="be_ke">
+        </div>
+        <button class="calc-btn" onclick="calcBe()">輸出反電動勢</button>
+        <div id="be_res" class="res-box">等待計算...</div>
+    </div>
+
+    <div class="block">
+        <h2>4. 馬達頻率計算</h2>
+        <div class="formula">f = (極數 * 轉速) / (120 * (1 - s))</div>
+        <div class="input-item">
+            <label>極數 (P):</label>
+            <input type="number" id="f_p">
+        </div>
+        <div class="input-item">
+            <label>轉速 (RPM):</label>
+            <input type="number" id="f_n">
+        </div>
+        <div class="input-item">
+            <label>轉差百分比 (%):</label>
+            <input type="number" id="f_s" value="0">
+        </div>
+        <button class="calc-btn" onclick="calcF()">計算頻率 (Hz)</button>
+        <div id="f_res" class="res-box">等待計算...</div>
+    </div>
+
+    <div class="block">
+            <h2>5. 電氣功率計算</h2>
+            <img src="data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='280' height='100' viewBox='0 0 280 100'%3e%3crect width='280' height='100' fill='%23e8f0fe'/%3e%3ctext x='50%' y='50%' font-family='Microsoft JhengHei, sans-serif' font-size='16' fill='%231a73e8' text-anchor='middle' dominant-baseline='middle'%3e三相功率 = √3 × V_line × I_line × PF%3c/text%3e%3c/svg%3e" alt="三相功率公式圖" style="width: 100%; border-radius: 6px; margin-bottom: 15px;">
+            <div class="formula">功率(W) = 1.732 * V * I * PF * η</div>
+            <div class="input-item">
+                <label>電壓 (V):</label>
+                <input type="number" id="p1_v">
+            </div>
+            <div class="input-item">
+                <label>電流 (A):</label>
+                <input type="number" id="p1_i">
+            </div>
+            <div class="input-item">
+                <label>功率因數 (PF):</label>
+                <input type="number" id="p1_pf" value="0.85">
+            </div>
+            <div class="input-item">
+                <label>效率 (η):</label>
+                <input type="number" id="p1_e" value="0.90">
+            </div>
+            <button class="calc-btn" onclick="calcP1()">計算功率</button>
+            <div id="p1_res" class="res-box">等待計算...</div>
+        </div>
+    
+        <div class="block">
+            <h2>6. 機械功率計算</h2>
+            <div class="formula">功率(W) = (扭矩 * 轉速) / 9.55</div>
+            <div class="input-item">
+                <label>扭矩 (Nm):</label>
+                <input type="number" id="p2_t">
+            </div>
+            <div class="input-item">
+                <label>轉速 (RPM):</label>
+                <input type="number" id="p2_n">
+            </div>
+            <button class="calc-btn" onclick="calcP2()">計算功率</button>
+            <div id="p2_res" class="res-box">等待計算...</div>
+        </div>
+    
+        <div class="block">
+            <h2>7. 繞組電感計算</h2>
+            
+            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e9/Star_delta.svg/330px-Star_delta.svg.png" alt="馬達Y型與D型接線圖" style="background:white; width: 100%; border-radius: 6px; margin-bottom: 15px; padding: 10px; box-sizing: border-box;">
+    
+            <div class="formula">Y: 單相=L/2 | D: 單相=L*1.5</div>
+            <div class="input-item">
+                <label>接線方式:</label>
+                <select id="l_mode">
+                    <option value="Y">Y 接 (星形)</option>
+                    <option value="D">Delta 接 (三角形)</option>
+                </select>
+            </div>
+            <div class="input-item">
+                <label>線間平均電感 (mH):</label>
+                <input type="number" id="l_val">
+            </div>
+            <button class="calc-btn" onclick="calcL()">換算單相電感</button>
+            <div id="l_res" class="res-box">等待計算...</div>
+        </div>
+    
+        
+    
+        </div>
+    
+        <script>
+            // 主題切換
+            function toggleTheme() {
+                const body = document.documentElement;
+                body.getAttribute('data-theme') === 'dark' ? body.removeAttribute('data-theme') : body.setAttribute('data-theme', 'dark');
+            }
+    
+            // 1. HP to kW
+            function convP(type) {
+                let hp = document.getElementById('hp_in'), kw = document.getElementById('kw_in');
+                if(type==='hp') kw.value = (hp.value * 0.7457).toFixed(4);
+                else hp.value = (kw.value * 1.341).toFixed(4);
+            }
+    
+            // 2. Kt
+            function calcKt() {
+                let v = document.getElementById('kt_v').value, n = document.getElementById('kt_n').value;
+                if(n > 0) document.getElementById('kt_res').innerText = "Kt: " + (v / (n * 0.1047)).toFixed(4) + " Nm/A";
+            }
+    
+            // 3. BEMF
+            function calcBe() {
+                let n = document.getElementById('be_n').value, ke = document.getElementById('be_ke').value;
+                document.getElementById('be_res').innerText = "BEMF: " + ((n / 1000) * ke).toFixed(2) + " V";
+            }
+    
+            // 4. Frequency
+            function calcF() {
+                let p = document.getElementById('f_p').value, n = document.getElementById('f_n').value, s = document.getElementById('f_s').value / 100;
+                if(p && n) document.getElementById('f_res').innerText = "頻率: " + ((p * n) / (120 * (1 - s))).toFixed(2) + " Hz";
+            }
+    
+            // 5. Electrical Power
+            function calcP1() {
+                let v = document.getElementById('p1_v').value, i = document.getElementById('p1_i').value;
+                let pf = document.getElementById('p1_pf').value, e = document.getElementById('p1_e').value;
+                let w = 1.732 * v * i * pf * e;
+                document.getElementById('p1_res').innerText = "功率: " + (w/1000).toFixed(3) + " kW";
+            }
+    
+            // 6. Mechanical Power
+            function calcP2() {
+                let t = document.getElementById('p2_t').value, n = document.getElementById('p2_n').value;
+                let w = (t * n) / 9.55;
+                document.getElementById('p2_res').innerText = "功率: " + (w/1000).toFixed(3) + " kW";
+            }
+    
+            // 7. Inductance
+            function calcL() {
+                let val = parseFloat(document.getElementById('l_val').value), mode = document.getElementById('l_mode').value;
+                document.getElementById('l_res').innerText = "單相繞組: " + (mode === 'Y' ? val / 2 : val * 1.5).toFixed(4) + " mH";
+            }
+        </script>
+        
+        </body>
+        </html>
+            
