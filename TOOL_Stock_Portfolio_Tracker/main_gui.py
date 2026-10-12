@@ -277,16 +277,19 @@ class PortfolioApp(tk.Tk):
         self.build_ui()
         self.update_user_header_ui()
 
-        # 初始載入當前帳號庫存與立即繪製表格 (開窗瞬間秒顯持股資訊，0秒空白等待)
-        self.reload_positions()
-
-        # 預先自本地 SQLite 補齊所有持股的股息快取 (極速純本地讀取，0 毫秒)
-        for pos in self.positions:
-            sym = pos["symbol"].upper()
-            if sym not in self.dividend_cache:
-                self.dividend_cache[sym] = DividendService.get_cached_or_db_dividend(sym)
-
-        self.refresh_ui_table()
+        # 初始載入當前帳號庫存與立即繪製表格 (若無密碼則開窗瞬間秒顯持股資訊，0秒空白等待；有密碼則等待解鎖)
+        if not self.current_user.get("has_password"):
+            self.reload_positions()
+            # 預先自本地 SQLite 補齊所有持股的股息快取 (極速純本地讀取，0 毫秒)
+            for pos in self.positions:
+                sym = pos["symbol"].upper()
+                if sym not in self.dividend_cache:
+                    self.dividend_cache[sym] = DividendService.get_cached_or_db_dividend(sym)
+            self.refresh_ui_table()
+        else:
+            self.positions = []
+            if "stock_count" in self.cards:
+                self.cards["stock_count"].configure(text="🔒 已鎖定")
 
         # 完成所有 UI 元件與深色主題佈局後，強制更新繪圖緩衝區並秒級亮出主視窗 (0 秒白屏)
         self.update_idletasks()
@@ -294,14 +297,16 @@ class PortfolioApp(tk.Tk):
         self.lift()
         self.focus_force()
 
-        if self.latest_quotes:
-            now_str = datetime.now().strftime("%H:%M:%S")
-            self.status_lbl.configure(text=f"最後更新時間: {now_str} (啟動預先載入)")
+        if not self.current_user.get("has_password"):
+            if self.latest_quotes:
+                now_str = datetime.now().strftime("%H:%M:%S")
+                self.status_lbl.configure(text=f"最後更新時間: {now_str} (啟動預先載入)")
+            else:
+                self.trigger_refresh()
+            self.trigger_dividend_update(silent=True)
+            self.start_auto_refresh_timer()
         else:
-            self.trigger_refresh()
-
-        self.trigger_dividend_update(silent=True)
-        self.start_auto_refresh_timer()
+            self.status_lbl.configure(text="🔒 此帳戶已啟用安全密碼，請輸入密碼以解鎖持股庫存...")
 
         # 啟動後自動預熱市場排行快取、比對盤後資料、線上更新檢查與每日 15:00 定時同步監控 (延遲啟動確保 UI 流暢)
         self.after(1500, self.prewarm_market_ranking_cache)
@@ -984,6 +989,10 @@ class PortfolioApp(tk.Tk):
         self.status_lbl.configure(text=f"報價抓取失敗: {err_msg}")
 
     def start_auto_refresh_timer(self):
+        if getattr(self, '_timer_started', False):
+            return
+        self._timer_started = True
+
         def timer_tick():
             if self.auto_refresh_var.get() and not self._is_fetching:
                 self.trigger_refresh()

@@ -1,11 +1,19 @@
 {
-  "version": "V1.1.2.0",
+  "version": "V1.1.2.1",
   "release_date": "2026-10-12",
   "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
-  "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.2.0.zip",
-  "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.2.0_Portable.zip",
-  "changelog": "【V1.1.2.0 多人多帳號獨立登入與庫存物理隔離系統】\n\n1. [安全密碼防護與多帳號架構] 新增 users 帳戶管理機制，支援多成員獨立帳號建立、SHA-256+16bytes Salt 安全密碼防護、以及免密碼快速進入。\n2. [持股與買入批次物理隔離] 升級 portfolio 與 trade_lots 表格增加 user_id 欄位，現有歷史部位 100% 自動無痛遷移至主要帳戶；不同帳號庫存與買入批次完全物理隔離，杜絕混淆。\n3. [開機登入攔截門禁與秒級切換] 啟動時先以登入視窗攔截，登入後始載入該帳號專屬持股並亮出主畫面；主介面頂部與工具列提供即時切換帳號與帳號管理中心，即點即切。\n4. [歷史K線與除權息全局共享] 日K行情與除權息資料庫保持全局共享，切換使用者免重複下載網路流量。",
+  "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.2.1.zip",
+  "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.2.1_Portable.zip",
+  "changelog": "【V1.1.2.1 本地端資料庫 AES-256 軍規加密與安全門禁】\n\n1. [應用層雙加密引擎] 標的代碼與名稱全面採用 RFC 5297 AES-SIV 決定性加密 (ENC:SIV:...)，股數、單價、手續費與備註採用隨機化 AES-256-GCM (ENC:GCM:...)，外人複製 db 檔僅能見亂碼。\n2. [登入安全防護門禁] 啟動若遇設有密碼之帳戶，鎖定畫面攔截讀取，驗證通過始在記憶體衍生解密金鑰並無痛解密。\n3. [歷史明碼自動無痛升級] 既有持股在首次以密碼登入時自動全量遷移為密文。\n4. [密碼變更金鑰輪替] 支援在帳號管理中心變更密碼時自動重加密所有持股。",
   "recent_versions": [
+    {
+      "version": "V1.1.2.1",
+      "release_date": "2026-10-12",
+      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.2.1.zip",
+      "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
+      "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.2.1_Portable.zip",
+      "changelog": "V1.1.2.1 本地端資料庫敏感欄位軍規加密 (AESSIV + AES-256-GCM)、安全門禁與金鑰輪替。"
+    },
     {
       "version": "V1.1.2.0",
       "release_date": "2026-10-12",

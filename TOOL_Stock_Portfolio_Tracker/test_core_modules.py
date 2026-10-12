@@ -513,6 +513,78 @@ class TestMultiUserSupport(unittest.TestCase):
         self.assertFalse(ok_dup)
         self.assertIn("已被其他使用者使用", msg_dup)
 
+    def test_field_encryption_storage_and_transparent_decryption(self):
+        """驗證敏感欄位 (標的代碼、股數、價格、備註) 在 SQLite 硬碟底層 100% 呈現 ENC: 密文，且應用層透明解密"""
+        ok, _, uid = self.db.create_user("crypto_user", "加密測試員", "mypass123")
+        self.assertTrue(ok)
+        
+        # 登入並初始化金鑰
+        v_ok, _, _ = self.db.verify_user_credentials("crypto_user", "mypass123")
+        self.assertTrue(v_ok)
+        self.db.set_current_user({"id": uid, "username": "crypto_user", "display_name": "加密測試員"})
+
+        # 新增持股與交易批次
+        self.db.add_position("2330", "台積電", "TW", 1000.0, 520.0, 0.6, 0, "機密退休存股", user_id=uid)
+        self.db.add_trade_lot("2330", "2026-01-01", 1000.0, 520.0, 20.0, "第一筆批次", user_id=uid)
+
+        # 1. 直接以原生 SQL 檢查 SQLite 底層資料表：驗證硬碟儲存的全部是 ENC: 密文，絕無明文
+        with self.db.get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT symbol, name, shares, cost_price, note FROM portfolio WHERE user_id = ?", (uid,))
+            p_raw = cur.fetchone()
+            self.assertTrue(str(p_raw["symbol"]).startswith("ENC:"), "標的代碼底層必須為 ENC: 密文！")
+            self.assertNotEqual(str(p_raw["symbol"]), "2330")
+            self.assertTrue(str(p_raw["name"]).startswith("ENC:"), "標的名稱底層必須為 ENC: 密文！")
+            self.assertTrue(str(p_raw["shares"]).startswith("ENC:"), "持股股數底層必須為 ENC: 密文！")
+            self.assertTrue(str(p_raw["cost_price"]).startswith("ENC:"), "成本均價底層必須為 ENC: 密文！")
+            self.assertTrue(str(p_raw["note"]).startswith("ENC:"), "備註說明底層必須為 ENC: 密文！")
+
+            cur.execute("SELECT symbol, shares, price, fee, note FROM trade_lots WHERE user_id = ?", (uid,))
+            t_raw = cur.fetchone()
+            self.assertTrue(str(t_raw["symbol"]).startswith("ENC:"), "批次代碼底層必須為 ENC: 密文！")
+            self.assertTrue(str(t_raw["shares"]).startswith("ENC:"), "批次股數底層必須為 ENC: 密文！")
+            self.assertTrue(str(t_raw["price"]).startswith("ENC:"), "買入單價底層必須為 ENC: 密文！")
+            self.assertTrue(str(t_raw["fee"]).startswith("ENC:"), "手續費底層必須為 ENC: 密文！")
+            self.assertTrue(str(t_raw["note"]).startswith("ENC:"), "批次備註底層必須為 ENC: 密文！")
+
+        # 2. 透過應用層 API 讀取：驗證自動透明解密還原為乾淨數值與字串
+        positions = self.db.get_all_positions(user_id=uid)
+        self.assertEqual(len(positions), 1)
+        self.assertEqual(positions[0]["symbol"], "2330")
+        self.assertEqual(positions[0]["name"], "台積電")
+        self.assertEqual(positions[0]["shares"], 1000.0)
+        self.assertEqual(positions[0]["cost_price"], 520.0)
+        self.assertEqual(positions[0]["note"], "機密退休存股")
+
+        lots = self.db.get_trade_lots("2330", user_id=uid)
+        self.assertEqual(len(lots), 1)
+        self.assertEqual(lots[0]["symbol"], "2330")
+        self.assertEqual(lots[0]["shares"], 1000.0)
+        self.assertEqual(lots[0]["price"], 520.0)
+        self.assertEqual(lots[0]["fee"], 20.0)
+        self.assertEqual(lots[0]["note"], "第一筆批次")
+
+    def test_key_rotation_on_password_update(self):
+        """驗證修改密碼時自動完成金鑰輪替 (Key Rotation)，以新密碼重新加密所有資料"""
+        ok, _, uid = self.db.create_user("rotate_user", "輪替測試", "oldpass123")
+        self.assertTrue(ok)
+        self.db.verify_user_credentials("rotate_user", "oldpass123")
+        self.db.set_current_user({"id": uid, "username": "rotate_user", "display_name": "輪替測試"})
+
+        self.db.add_position("0050", "元大台灣50", "TW", 2000.0, 180.0, 0.6, 1, "定期定額", user_id=uid)
+
+        # 修改密碼為 newpass456 (觸發金鑰輪替)
+        up_ok, msg = self.db.update_user_password(uid, "newpass456")
+        self.assertTrue(up_ok)
+        self.assertIn("金鑰輪替", msg)
+
+        # 驗證新密碼能正確解密持股
+        pos_after = self.db.get_all_positions(user_id=uid)
+        self.assertEqual(len(pos_after), 1)
+        self.assertEqual(pos_after[0]["symbol"], "0050")
+        self.assertEqual(pos_after[0]["shares"], 2000.0)
+        self.assertEqual(pos_after[0]["cost_price"], 180.0)
+
 
 class TestUILayoutIntegrity(unittest.TestCase):
     """驗證 GUI 視窗排版防裁切健康檢查 (自動防文字截斷硬閘門)"""
