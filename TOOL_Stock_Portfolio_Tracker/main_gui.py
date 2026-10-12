@@ -32,7 +32,10 @@ from pnl_calculator import calculate_position_pnl
 from kline_chart import KLineChartCanvas
 from stock_detector import detect_stock_metadata
 from crypto_sync import sync_to_cloud, fetch_and_decrypt_from_cloud, DEFAULT_FIREBASE_URL, get_or_create_secret_key
-from updater import APP_VERSION, fetch_update_manifest, is_newer_version, UpdateDialog, get_app_version, set_app_version
+from updater import (
+    APP_VERSION, fetch_update_manifest, is_newer_version, UpdateDialog,
+    get_app_version, set_app_version, get_boot_version, get_disk_version, restart_application
+)
 from market_ranking_gui import MarketRankingDialog
 from login_gui import LoginDialog, UserManageDialog
 
@@ -219,7 +222,8 @@ class PortfolioApp(tk.Tk):
         super().__init__()
         # 關鍵核心：啟動時先隱藏主視窗 (withdraw)，杜絕 Windows 繪製空白白色畫布與未響應殘影！
         self.withdraw()
-        self.title(f"本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker) {get_app_version()}")
+        self.running_version = get_app_version()
+        self.title(f"本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker) {self.running_version}")
         self.geometry("1420x820")
         self.minsize(1120, 640)
 
@@ -1151,9 +1155,10 @@ class PortfolioApp(tk.Tk):
                 self.after(0, lambda: messagebox.showinfo("軟體更新", "目前版本伺服器離線或同步中，請稍候再試。", parent=self))
                 self.after(0, lambda: self.status_lbl.configure(text="系統就緒"))
                 return
-            local_ver = get_app_version()
-            cloud_ver = manifest.get("version", local_ver)
-            is_newer = is_newer_version(cloud_ver, local_ver)
+            running_ver = getattr(self, 'running_version', None) or get_app_version()
+            disk_ver = get_disk_version()
+            cloud_ver = manifest.get("version", disk_ver)
+            is_newer = is_newer_version(cloud_ver, disk_ver) or is_newer_version(disk_ver, running_ver)
             if not is_newer:
                 self.after(0, self.reset_update_button_state)
             self.after(0, lambda: UpdateDialog(self, manifest, is_newer))
@@ -1165,9 +1170,12 @@ class PortfolioApp(tk.Tk):
         def worker():
             ok, manifest, source = fetch_update_manifest()
             if ok and manifest:
-                local_ver = get_app_version()
-                cloud_ver = manifest.get("version", local_ver)
-                if is_newer_version(cloud_ver, local_ver):
+                running_ver = getattr(self, 'running_version', None) or get_app_version()
+                disk_ver = get_disk_version()
+                cloud_ver = manifest.get("version", disk_ver)
+                if is_newer_version(disk_ver, running_ver):
+                    self.after(0, lambda: self._on_found_newer_version(f"{disk_ver} (需重啟)"))
+                elif is_newer_version(cloud_ver, running_ver):
                     self.after(0, lambda: self._on_found_newer_version(cloud_ver))
                 else:
                     self.after(0, self.reset_update_button_state)

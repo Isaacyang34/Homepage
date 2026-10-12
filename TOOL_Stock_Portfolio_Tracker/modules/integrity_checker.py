@@ -11,6 +11,7 @@ import os
 import sys
 import shutil
 import json
+import time
 import threading
 import webbrowser
 import tkinter as tk
@@ -28,6 +29,157 @@ def get_app_dir() -> str:
     if p.lower().endswith(".pkg") or p.lower().endswith(".zip") or os.path.basename(p) == "modules":
         p = os.path.dirname(p)
     return p
+
+def cleanup_residual_update_files(app_dir: Optional[str] = None) -> int:
+    """
+    開機自檢與環境修復：安全清理更新後殘留之臨時檔案
+    嚴格遵循「該刪的刪除、該留的留下」原則：
+    - 刪除殘留：apply_restart.bat, apply_update.bat, Stock_Portfolio_Tracker_*_patch.zip, 
+               Stock_Portfolio_Tracker_*_full.zip, Stock_Portfolio_Tracker_*_update.exe, 
+               patch_*.zip, temp_update_*, *.exe.old, *.pkg.old, test_mu_*.db, *.tmp, *.download
+    - 保護留下：portfolio.db (資產資料庫永久保護), app_core.pkg, version.json, 原始碼, 設定檔, 最近 3 版 versions/
+    """
+    if app_dir is None:
+        app_dir = get_app_dir()
+
+    cleaned_count = 0
+    log_func = None
+    try:
+        from updater import log_update_debug
+        log_func = log_update_debug
+    except Exception:
+        pass
+
+    def _log(msg: str):
+        if log_func:
+            log_func(f"[CLEANUP] {msg}")
+
+    # 1. 嚴格白名單保護集合 (完全不可刪除之檔名小寫)
+    PROTECTED_EXACT_NAMES = {
+        "portfolio.db", "portfolio.db-wal", "portfolio.db-shm",
+        "stock_portfolio_tracker.exe", "app_core.pkg", "version.json",
+        "update_debug.log", "config.json", "market_ranking_cache.json",
+        "firebase_rules.json", "readme.md", "requirements.txt",
+        "app_icon.ico", "update_icon.ico", "pencil_icon.png", "update_icon.png",
+        "package_release.py", "package_release.bat", "build_pkg.py",
+        "ui_layout_inspector.py", "test_core_modules.py"
+    }
+
+    # 2. 掃描 app_dir 下的第一層檔案與資料夾
+    try:
+        entries = os.listdir(app_dir)
+    except Exception as e:
+        _log(f"無法列舉應用程式目錄: {e}")
+        return 0
+
+    for name in entries:
+        lower_name = name.lower()
+
+        # 絕對白名單防護：若是核心資料庫或關鍵系統檔案，一律保護
+        if lower_name in PROTECTED_EXACT_NAMES:
+            continue
+        # 若為 Python 原始碼檔，一律保護
+        if lower_name.endswith(".py"):
+            continue
+
+        full_path = os.path.join(app_dir, name)
+
+        # 判定是否為該清理之殘留檔案
+        should_delete = False
+        reason = ""
+
+        # A. 更新/重啟批次檔殘留
+        if lower_name in ("apply_restart.bat", "apply_update.bat"):
+            should_delete = True
+            reason = "更新置換批次檔已過期"
+
+        # B. 下載包與補丁包殘留
+        elif lower_name.startswith("stock_portfolio_tracker_") and (
+            lower_name.endswith("_patch.zip") or 
+            lower_name.endswith("_full.zip") or 
+            lower_name.endswith("_update.exe")
+        ):
+            should_delete = True
+            reason = "更新下載暫存包"
+
+        elif lower_name.startswith("patch_") and lower_name.endswith(".zip"):
+            should_delete = True
+            reason = "舊版補丁 zip 檔案"
+
+        # C. 暫存更新更名檔案
+        elif lower_name.endswith(".exe.old") or lower_name.endswith(".exe.bak") or \
+             lower_name.endswith(".pkg.old") or lower_name.endswith(".pkg.bak"):
+            should_delete = True
+            reason = "覆蓋更名之舊檔案殘留"
+
+        # D. 暫存下載副檔名
+        elif lower_name.endswith(".download") or lower_name.endswith(".pending") or \
+             (lower_name.endswith(".tmp") and not lower_name.startswith("portfolio")):
+            should_delete = True
+            reason = "中斷或遺留之臨時下載檔"
+
+        # E. 孤立測試產物 (如 test_mu_*.db)
+        elif lower_name.startswith("test_mu_") and lower_name.endswith(".db"):
+            should_delete = True
+            reason = "測試產生之臨時資料庫"
+
+        # F. 暫存更新目錄
+        elif os.path.isdir(full_path) and lower_name.startswith("temp_update_"):
+            should_delete = True
+            reason = "過期暫存更新目錄"
+
+        if should_delete:
+            try:
+                if os.path.isdir(full_path):
+                    shutil.rmtree(full_path, ignore_errors=True)
+                else:
+                    os.remove(full_path)
+                cleaned_count += 1
+                _log(f"成功清理殘留 [{reason}]: {name}")
+            except Exception as e:
+                _log(f"清理殘留 {name} 失敗 (可能正被鎖定): {e}")
+
+    # 3. 本機 versions/ 備份目錄自檢與輪轉修復 (只保留最近 3 版快照，過舊的清理)
+    versions_dir = os.path.join(app_dir, "versions")
+    if os.path.exists(versions_dir) and os.path.isdir(versions_dir):
+        try:
+            ver_dirs = [d for d in os.listdir(versions_dir) if os.path.isdir(os.path.join(versions_dir, d))]
+            if len(ver_dirs) > 3:
+                # 依資料夾最後修改時間排序
+                ver_dirs.sort(key=lambda d: os.path.getmtime(os.path.join(versions_dir, d)), reverse=True)
+                # 保留前 3 個，其餘清理
+                for old_ver in ver_dirs[3:]:
+                    old_path = os.path.join(versions_dir, old_ver)
+                    try:
+                        shutil.rmtree(old_path, ignore_errors=True)
+                        cleaned_count += 1
+                        _log(f"輪轉清除過舊歷史快照 (保留最新3版): versions/{old_ver}")
+                    except Exception as e:
+                        _log(f"清除過舊快照 versions/{old_ver} 失敗: {e}")
+        except Exception as e:
+            _log(f"檢查 versions/ 快照失敗: {e}")
+
+    # 4. update_debug.log 日誌檔案自檢與輪轉 (超過 2MB 則截斷保留最新 256KB)
+    log_file = os.path.join(app_dir, "update_debug.log")
+    if os.path.exists(log_file):
+        try:
+            size = os.path.getsize(log_file)
+            if size > 2 * 1024 * 1024:  # > 2MB
+                with open(log_file, "rb") as f:
+                    f.seek(-256 * 1024, os.SEEK_END)
+                    tail_content = f.read()
+                with open(log_file, "wb") as f:
+                    ts = time.strftime('%Y-%m-%d %H:%M:%S')
+                    header = f"[LOG ROTATION] Log file exceeded 2MB, trimmed to latest 256KB at {ts}\n".encode("utf-8")
+                    f.write(header + tail_content)
+                _log(f"update_debug.log 已執行健康輪轉 (由 {size / 1024 / 1024:.2f}MB 縮減至 256KB)")
+        except Exception:
+            pass
+
+    if cleaned_count > 0:
+        _log(f"開機自檢完成：共成功清理修復 {cleaned_count} 個殘留檔案/項目")
+
+    return cleaned_count
 
 # 必要的核心模組與資源清單 (相對路徑)
 CRITICAL_COMPONENTS = [
@@ -253,6 +405,13 @@ def check_and_heal_system_integrity() -> bool:
     若系統健全或修復成功回傳 True，否則回傳 False。
     """
     app_dir = get_app_dir()
+    
+    # 0. 開機環境自檢與安全清理：掃描並清理上次更新殘留之臨時檔案 (該刪的刪掉，該留的留下)
+    try:
+        cleanup_residual_update_files(app_dir)
+    except Exception:
+        pass
+
     mei_dir = getattr(sys, '_MEIPASS', '')
     missing_files: List[str] = []
 

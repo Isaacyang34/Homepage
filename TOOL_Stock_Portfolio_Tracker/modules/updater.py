@@ -23,6 +23,27 @@ from tkinter import ttk, messagebox
 from typing import Optional, Dict, Any, Tuple, List
 
 APP_VERSION = "V1.1.2.0"
+APP_BOOT_VERSION = APP_VERSION  # 記憶體進程啟動時鎖定之版本
+
+def get_boot_version() -> str:
+    """取得當前進程啟動時之記憶體版本號"""
+    global APP_BOOT_VERSION
+    return APP_BOOT_VERSION
+
+def get_disk_version() -> str:
+    """直接讀取本機磁碟上的 version.json，取得實體檔案之真實版次"""
+    try:
+        app_dir = get_app_dir()
+        v_path = os.path.join(app_dir, "version.json")
+        if os.path.exists(v_path):
+            with open(v_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                v = data.get("version")
+                if v:
+                    return str(v).strip()
+    except Exception:
+        pass
+    return get_app_version()
 
 def get_app_version() -> str:
     """動態取得當前應用程式版本號，確保熱更新後所有模組取值一致"""
@@ -128,6 +149,24 @@ def create_local_version_snapshot(app_dir: str, version_tag: str) -> bool:
         log_update_debug(f"[SNAPSHOT] Error creating snapshot: {e}")
         return False
 
+def safe_extract_zip(zf: zipfile.ZipFile, target_dir: str, skip_running_exe: bool = True):
+    """
+    安全解壓縮 ZIP 檔案：
+    若 zip 內包含當前正在執行的 EXE 檔案，主動跳過，
+    徹底杜絕 [Errno 13] Permission denied 檔案鎖定衝突！
+    """
+    running_exe_name = os.path.basename(sys.executable).lower()
+    for member in zf.infolist():
+        # 防範路徑穿越
+        filename = member.filename
+        if os.path.isabs(filename) or ".." in filename:
+            continue
+        base_name = os.path.basename(filename).lower()
+        if skip_running_exe and base_name == running_exe_name:
+            log_update_debug(f"[SAFE_EXTRACT] Skipping running exe to prevent lock: {filename}")
+            continue
+        zf.extract(member, target_dir)
+
 def apply_patch_hot_reload(target_dir: str, temp_zip: str, parent_app=None, target_version: str = "") -> bool:
     """
     真・記憶體熱更新 (In-Process Hot Reload):
@@ -141,10 +180,10 @@ def apply_patch_hot_reload(target_dir: str, temp_zip: str, parent_app=None, targ
     # 1. 建立快照備份
     create_local_version_snapshot(target_dir, APP_VERSION)
     
-    # 2. 解壓縮覆蓋
+    # 2. 解壓縮覆蓋 (跳過正處於鎖定狀態之主執行檔，防範 Permission denied)
     try:
         with zipfile.ZipFile(temp_zip, 'r') as zf:
-            zf.extractall(target_dir)
+            safe_extract_zip(zf, target_dir, skip_running_exe=True)
         log_update_debug(f"[HOT_RELOAD] Extracted patch zip successfully.")
     except Exception as e:
         log_update_debug(f"[HOT_RELOAD] ERROR extracting zip: {e}")
@@ -217,17 +256,73 @@ def apply_patch_hot_reload(target_dir: str, temp_zip: str, parent_app=None, targ
         except Exception as e:
             log_update_debug(f"[HOT_RELOAD] Error during UI hot reload: {e}")
 
-    # 8. 友好完成提示
+    # 8. 友好完成提示 (提示介面變更建議重啟以重塑 Widget 樹)
     parent_target = parent_app if (parent_app and parent_app.winfo_exists()) else None
-    messagebox.showinfo(
-        "熱更新成功",
-        f"✔ 恭喜！版本【{target_version or APP_VERSION}】已完成熱更新！\n\n"
-        f"• 核心模組與修復已在記憶體中即時加載生效\n"
-        f"• 主程式完全無需關閉，畫面已自動刷新數據\n"
-        f"• 0 秒等待、0 次中斷！",
+    choice = messagebox.askyesno(
+        "熱更新已就緒 - 建議重啟以套用新介面",
+        f"✔ 版本【{target_version or APP_VERSION}】後端運算模組已在記憶體中即時加載！\n\n"
+        f"提示：若本次升級包含新按鈕、主視窗版面或登入系統等 UI 變更，\n"
+        f"建議重新啟動軟體以載入全新介面。\n\n"
+        f"是否立即重新啟動軟體？\n\n"
+        f"• 按【是 (Yes)】：立即安全重新啟動軟體（建議）\n"
+        f"• 按【否 (No)】：稍後手動重啟（維持目前畫面繼續運行）",
         parent=parent_target
     )
+    if choice:
+        restart_application(target_dir)
+        if parent_app:
+            parent_app.destroy()
+        sys.exit(0)
     return True
+
+def restart_application(target_dir: Optional[str] = None):
+    """
+    安全平滑重啟當前應用程式 (相容原始碼 python 執行與 PyInstaller 凍結執行)
+    """
+    if target_dir is None:
+        target_dir = get_app_dir()
+    current_pid = os.getpid()
+    log_update_debug(f"[RESTART] restart_application requested. PID={current_pid}")
+
+    bat_path = os.path.join(target_dir, "apply_restart.bat")
+    
+    if getattr(sys, 'frozen', False):
+        exe_path = os.path.abspath(sys.executable)
+        launch_cmd = f'start "" "{exe_path}"'
+    else:
+        py_exe = os.path.abspath(sys.executable)
+        script_file = os.path.join(target_dir, "main_gui.py")
+        if not os.path.exists(script_file):
+            script_file = os.path.abspath(sys.argv[0])
+        launch_cmd = f'start "" "{py_exe}" "{script_file}"'
+
+    bat_content = f"""@echo off
+REM Stock Portfolio Tracker Safe Restart Launcher
+set LOG_FILE=%~dp0update_debug.log
+echo [%DATE% %TIME%] [RESTART] Waiting for old PID {current_pid} to exit... >> "%LOG_FILE%"
+timeout /t 1 /nobreak > nul
+taskkill /PID {current_pid} /F > nul 2>&1
+timeout /t 1 /nobreak > nul
+cd /d "%~dp0"
+set _MEIPASS=
+set _MEIPASS2=
+set PYTHONHOME=
+set PYTHONPATH=
+set PATH=%SystemRoot%\\system32;%SystemRoot%;%SystemRoot%\\System32\\Wbem;%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\
+echo [%DATE% %TIME%] [RESTART] Relaunching application... >> "%LOG_FILE%"
+{launch_cmd}
+exit
+"""
+    try:
+        with open(bat_path, "w", encoding="ascii") as f:
+            f.write(bat_content)
+        creation_flags = 0x00000008 | (subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+        clean_env = os.environ.copy()
+        clean_env.pop('_MEIPASS2', None)
+        clean_env.pop('_MEIPASS', None)
+        subprocess.Popen(["cmd.exe", "/c", bat_path], cwd=target_dir, env=clean_env, creationflags=creation_flags)
+    except Exception as e:
+        log_update_debug(f"[RESTART] Failed to spawn restart bat: {e}")
 
 def apply_patch_now(target_dir: str, temp_zip: str, restart: bool = True):
     """
@@ -240,10 +335,10 @@ def apply_patch_now(target_dir: str, temp_zip: str, restart: bool = True):
     # 1. 自動備份當前版本至本機 versions/
     create_local_version_snapshot(target_dir, APP_VERSION)
 
-    # 2. 解壓縮覆蓋 modules 與 version.json
+    # 2. 解壓縮覆蓋 modules 與 version.json (安全略過被鎖定之主執行檔)
     try:
         with zipfile.ZipFile(temp_zip, 'r') as zf:
-            zf.extractall(target_dir)
+            safe_extract_zip(zf, target_dir, skip_running_exe=True)
         log_update_debug(f"[PATCH] Extracted {temp_zip} into {target_dir} successfully.")
     except Exception as e:
         log_update_debug(f"[PATCH] ERROR extracting zip: {e}")
@@ -255,15 +350,51 @@ def apply_patch_now(target_dir: str, temp_zip: str, restart: bool = True):
     except Exception:
         pass
 
-    # 4. 若需重啟，透過批次檔安全喚醒新程序
+    # 4. 若需重啟，透過平滑重啟函式安全喚醒新程序
     if restart:
-        bat_path = os.path.join(target_dir, "apply_restart.bat")
-        exe_name = "Stock_Portfolio_Tracker.exe" if os.path.exists(os.path.join(target_dir, "Stock_Portfolio_Tracker.exe")) else sys.argv[0]
-        
+        restart_application(target_dir)
+
+def apply_full_package_now(target_dir: str, temp_file: str, restart: bool = True) -> bool:
+    """
+    執行完整安裝包 (Full Package ZIP 或獨立 EXE) 的安全外部置換
+    徹底杜絕 [Errno 13] Permission denied 檔案鎖定衝突！
+    流程：
+    1. 若為 ZIP：先在 Python 進程內解壓至臨時目錄 temp_update_extracted/ (此時 0% 鎖定衝突)
+    2. 產生外部批次檔 apply_update.bat (純 ASCII)
+    3. 批次檔先強制結束舊 PID 徹底釋放檔案鎖定
+    4. 批次檔搬移覆蓋所有檔案 (包括 Stock_Portfolio_Tracker.exe)
+    5. 清理臨時目錄與暫存包，並喚起全新程式
+    """
+    current_pid = os.getpid()
+    log_update_debug(f"[FULL_PACKAGE] apply_full_package_now started. temp_file={temp_file}, PID={current_pid}")
+
+    create_local_version_snapshot(target_dir, APP_VERSION)
+
+    bat_path = os.path.join(target_dir, "apply_update.bat")
+    target_exe_name = "Stock_Portfolio_Tracker.exe" if os.path.exists(os.path.join(target_dir, "Stock_Portfolio_Tracker.exe")) else sys.argv[0]
+    temp_name = os.path.basename(temp_file)
+
+    if temp_file.lower().endswith(".zip"):
+        extract_tmp_dir = os.path.join(target_dir, "temp_update_extracted")
+        if os.path.exists(extract_tmp_dir):
+            shutil.rmtree(extract_tmp_dir, ignore_errors=True)
+        os.makedirs(extract_tmp_dir, exist_ok=True)
+
+        try:
+            with zipfile.ZipFile(temp_file, 'r') as zf:
+                zf.extractall(extract_tmp_dir)
+            log_update_debug(f"[FULL_PACKAGE] Extracted full zip into temp_update_extracted successfully.")
+        except Exception as e:
+            log_update_debug(f"[FULL_PACKAGE] Failed to pre-extract full zip: {e}")
+            messagebox.showerror("更新失敗", f"解壓縮安裝包失敗: {e}")
+            return False
+
+        restart_action = f'start "" "{target_exe_name}"' if restart else ""
+
         bat_content = f"""@echo off
-REM Stock Portfolio Tracker Modular Restart Script
+REM Stock Portfolio Tracker Full Package Overwrite Script
 set LOG_FILE=%~dp0update_debug.log
-echo [%DATE% %TIME%] [RESTART] Modular patch applied. Waiting for old PID {current_pid} to exit... >> "%LOG_FILE%"
+echo [%DATE% %TIME%] [BATCH] Waiting for PID {current_pid} to exit... >> "%LOG_FILE%"
 timeout /t 1 /nobreak > nul
 taskkill /PID {current_pid} /F > nul 2>&1
 timeout /t 1 /nobreak > nul
@@ -273,70 +404,58 @@ set _MEIPASS2=
 set PYTHONHOME=
 set PYTHONPATH=
 set PATH=%SystemRoot%\\system32;%SystemRoot%;%SystemRoot%\\System32\\Wbem;%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\
-echo [%DATE% %TIME%] [RESTART] Relaunching {exe_name}... >> "%LOG_FILE%"
-start "" "{exe_name}"
+
+echo [%DATE% %TIME%] [BATCH] Overwriting files from temp_update_extracted... >> "%LOG_FILE%"
+set RETRY=0
+:RETRY_MOVE
+set /a RETRY+=1
+robocopy "%~dp0temp_update_extracted" "%~dp0" /E /MOVE /IS /IT > nul 2>&1
+if errorlevel 8 (
+    timeout /t 1 /nobreak > nul
+    if %RETRY% leq 5 goto RETRY_MOVE
+    echo [%DATE% %TIME%] [BATCH] Fallback to xcopy... >> "%LOG_FILE%"
+    xcopy /y /e /q "%~dp0temp_update_extracted\\*" "%~dp0" > nul 2>&1
+)
+
+if exist "%~dp0temp_update_extracted" rmdir /s /q "%~dp0temp_update_extracted" > nul 2>&1
+if exist "%~dp0{temp_name}" del /f /q "%~dp0{temp_name}" > nul 2>&1
+
+echo [%DATE% %TIME%] [BATCH] Full update completed. Relaunching... >> "%LOG_FILE%"
+{restart_action}
 exit
 """
-        try:
-            with open(bat_path, "w", encoding="ascii") as f:
-                f.write(bat_content)
-            creation_flags = 0x00000008 | (subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
-            subprocess.Popen(["cmd.exe", "/c", bat_path], cwd=target_dir, creationflags=creation_flags)
-        except Exception as e:
-            log_update_debug(f"[RESTART] Failed to spawn restart bat: {e}")
-
-def apply_full_exe_now(target_dir: str, temp_exe: str, restart: bool = True):
-    """
-    執行完整 EXE 安裝包置換作業 (相容舊版或跨核心大升級)
-    """
-    bat_path = os.path.join(target_dir, "apply_update.bat")
-    target_exe_name = "Stock_Portfolio_Tracker.exe"
-    temp_exe_name = os.path.basename(temp_exe)
-    current_pid = os.getpid()
-
-    log_update_debug(f"[APPLY_EXE] apply_full_exe_now triggered. PID={current_pid}, restart={restart}")
-    create_local_version_snapshot(target_dir, APP_VERSION)
-
-    if restart:
-        restart_action = f"""echo [%DATE% %TIME%] [BATCH] Overwrite succeeded! Waiting 2s for disk flush... >> "%LOG_FILE%"
-timeout /t 2 /nobreak > nul
-echo [%DATE% %TIME%] [BATCH] Launching updated {target_exe_name}... >> "%LOG_FILE%"
-start "" "%~dp0{target_exe_name}"
-"""
     else:
-        restart_action = f"""echo [%DATE% %TIME%] [BATCH] Silent update on app exit completed. >> "%LOG_FILE%"
-"""
-
-    bat_content = f"""@echo off
-REM Stock Portfolio Tracker Auto Update Script
+        restart_action = f'start "" "{target_exe_name}"' if restart else ""
+        bat_content = f"""@echo off
+REM Stock Portfolio Tracker Full EXE Overwrite Script
 set LOG_FILE=%~dp0update_debug.log
-echo ====================================================== >> "%LOG_FILE%"
-echo [%DATE% %TIME%] [BATCH] ===== Full EXE Update Started (restart={restart}) ===== >> "%LOG_FILE%"
+echo [%DATE% %TIME%] [BATCH] Waiting for PID {current_pid} to exit... >> "%LOG_FILE%"
+timeout /t 1 /nobreak > nul
+taskkill /PID {current_pid} /F > nul 2>&1
+timeout /t 1 /nobreak > nul
+cd /d "%~dp0"
 set _MEIPASS=
 set _MEIPASS2=
 set PYTHONHOME=
 set PYTHONPATH=
 set PATH=%SystemRoot%\\system32;%SystemRoot%;%SystemRoot%\\System32\\Wbem;%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\
-cd /d "%~dp0"
-taskkill /PID {current_pid} /F >> "%LOG_FILE%" 2>&1
-timeout /t 1 /nobreak > nul
 
 set RETRY=0
-:RETRY_LOOP
+:RETRY_EXE
 set /a RETRY+=1
-move /y "{temp_exe_name}" "{target_exe_name}" >> "%LOG_FILE%" 2>&1
+move /y "{temp_name}" "{target_exe_name}" >> "%LOG_FILE%" 2>&1
 if errorlevel 1 (
-    copy /y "{temp_exe_name}" "{target_exe_name}" >> "%LOG_FILE%" 2>&1
-    if errorlevel 1 (
-        timeout /t 1 /nobreak > nul
-        if %RETRY% leq 10 goto RETRY_LOOP
-        exit /b 1
-    )
-    del /f /q "{temp_exe_name}" > nul 2>&1
+    timeout /t 1 /nobreak > nul
+    if %RETRY% leq 5 goto RETRY_EXE
+    copy /y "{temp_name}" "{target_exe_name}" >> "%LOG_FILE%" 2>&1
+    del /f /q "{temp_name}" > nul 2>&1
 )
+
+echo [%DATE% %TIME%] [BATCH] Full update completed. Relaunching... >> "%LOG_FILE%"
 {restart_action}
 exit
 """
+
     try:
         with open(bat_path, "w", encoding="ascii") as f:
             f.write(bat_content)
@@ -345,15 +464,22 @@ exit
         clean_env.pop('_MEIPASS2', None)
         clean_env.pop('_MEIPASS', None)
         subprocess.Popen(["cmd.exe", "/c", bat_path], cwd=target_dir, env=clean_env, creationflags=creation_flags)
+        log_update_debug(f"[FULL_PACKAGE] Spawned apply_update.bat successfully.")
+        return True
     except Exception as e:
-        log_update_debug(f"[APPLY_EXE] ERROR spawning script: {e}")
+        log_update_debug(f"[FULL_PACKAGE] Failed to spawn update bat: {e}")
+        return False
 
-def apply_update_now(target_dir: str, temp_file: str, restart: bool = True):
-    """通用套用更新分流：依檔案格式自動決定採補丁置換或完整 EXE 置換"""
-    if temp_file.lower().endswith(".zip"):
+def apply_full_exe_now(target_dir: str, temp_exe: str, restart: bool = True):
+    """相容舊版介面轉接至 apply_full_package_now"""
+    return apply_full_package_now(target_dir, temp_exe, restart=restart)
+
+def apply_update_now(target_dir: str, temp_file: str, restart: bool = True, is_patch: bool = True):
+    """通用套用更新分流：依性質決定採補丁置換或完整安裝包置換"""
+    if is_patch:
         apply_patch_now(target_dir, temp_file, restart=restart)
     else:
-        apply_full_exe_now(target_dir, temp_file, restart=restart)
+        apply_full_package_now(target_dir, temp_file, restart=restart)
 
 def rollback_to_version(app_dir: str, target_ver: str) -> bool:
     """
@@ -516,23 +642,28 @@ class UpdateDialog(tk.Toplevel):
         self.build_ui()
 
     def build_ui(self):
-        local_ver = get_app_version()
-        cloud_ver = self.manifest.get("version", local_ver)
+        running_ver = getattr(self.parent, 'running_version', None) or get_boot_version()
+        disk_ver = get_disk_version()
+        cloud_ver = self.manifest.get("version", disk_ver)
         
-        # 動態重新驗證是否真的有新版 (避免 caller 傳遞過期狀態或熱重載後未同步)
-        is_really_newer = is_newer_version(cloud_ver, local_ver)
-        self.is_newer = is_really_newer
+        need_restart_for_ui = is_newer_version(disk_ver, running_ver)
+        is_cloud_newer = is_newer_version(cloud_ver, disk_ver) or is_newer_version(cloud_ver, running_ver)
+        self.is_newer = is_cloud_newer
 
         # 1. 頂部狀態橫幅 (TOP)
         top_bar = tk.Frame(self, bg="#282834", padx=18, pady=12)
         top_bar.pack(side=tk.TOP, fill=tk.X)
 
-        if is_really_newer:
+        if need_restart_for_ui:
+            status_title = f"✦ 新版模組已安裝就緒: {disk_ver} (需重啟生效)"
+            status_color = "#f59e0b"
+            status_desc = f"磁碟模組已更新至 {disk_ver}，但目前主視窗仍運行於舊版記憶體 ({running_ver})。\n請重新啟動軟體以載入最新介面與全部新功能。"
+        elif is_cloud_newer:
             status_title = f"✦ 發現軟體新版本: {cloud_ver}"
             status_color = "#f59e0b"
-            status_desc = f"您目前使用的版本為 {local_ver}，官方已釋出新版 {cloud_ver}。可選擇秒級輕量更新或下載完整包："
+            status_desc = f"您目前使用的版本為 {running_ver}，官方已釋出新版 {cloud_ver}。可選擇秒級輕量更新或下載完整包："
         else:
-            status_title = f"✔ 目前已是最新版本: {local_ver}"
+            status_title = f"✔ 目前已是最新版本: {running_ver}"
             status_color = "#38bdf8"
             status_desc = "您目前運行的已是最新版次。您可在此檢視更新日誌，或切換至歷史版次下載/還原。"
             # 若已經是最新版本，同步讓母視窗更新按鈕復原為一般深色狀態
@@ -562,6 +693,16 @@ class UpdateDialog(tk.Toplevel):
         )
         self.btn_cancel.pack(side=tk.RIGHT, padx=6, ipadx=10, ipady=5)
 
+        # 若已安裝新模組但需重啟以載入新介面，放置最醒目的重啟按鈕
+        if need_restart_for_ui:
+            self.btn_restart_now = tk.Button(
+                bot, text="🔄 立即重新啟動軟體", bg="#16a34a", fg="#ffffff",
+                activebackground="#15803d", activeforeground="#ffffff",
+                font=("Microsoft JhengHei UI", 10, "bold"), relief="flat", cursor="hand2",
+                command=self._do_restart_now
+            )
+            self.btn_restart_now.pack(side=tk.RIGHT, padx=6, ipadx=12, ipady=5)
+
         self.btn_download_full = tk.Button(
             bot, text="📦 下載完整包 (修復/重裝)", bg="#3b4252", fg="#eceff4",
             activebackground="#4c566a", activeforeground="#ffffff",
@@ -570,8 +711,9 @@ class UpdateDialog(tk.Toplevel):
         )
         self.btn_download_full.pack(side=tk.RIGHT, padx=6, ipadx=10, ipady=5)
 
+        patch_btn_text = f"⚡ 重新安裝補丁 ({disk_ver})" if need_restart_for_ui else "⚡ 立即輕量更新 (秒速補丁)"
         self.btn_download_patch = tk.Button(
-            bot, text="⚡ 立即輕量更新 (秒速補丁)", bg="#2563eb", fg="#ffffff",
+            bot, text=patch_btn_text, bg="#2563eb", fg="#ffffff",
             activebackground="#1d4ed8", activeforeground="#ffffff",
             font=("Microsoft JhengHei UI", 10, "bold"), relief="flat", cursor="hand2",
             command=self.start_download_patch
@@ -608,15 +750,21 @@ class UpdateDialog(tk.Toplevel):
         meta_box = tk.Frame(info_frame, bg="#16161f", padx=12, pady=10, relief="solid", bd=1)
         meta_box.pack(fill=tk.X, pady=(0, 6))
 
-        tk.Label(meta_box, text=f"本機目前版本:   {get_app_version()}", bg="#16161f", fg="#94a3b8", font=("Microsoft JhengHei UI", 9)).grid(row=0, column=0, sticky="w", pady=2)
-        
+        if need_restart_for_ui:
+            tk.Label(meta_box, text=f"記憶體運行版本:   {running_ver}  (需重啟更新介面)", bg="#16161f", fg="#f59e0b", font=("Microsoft JhengHei UI", 9, "bold")).grid(row=0, column=0, sticky="w", pady=2)
+            tk.Label(meta_box, text=f"磁碟已安裝版本:   {disk_ver}  (新版待生效)", bg="#16161f", fg="#38bdf8", font=("Microsoft JhengHei UI", 9, "bold")).grid(row=1, column=0, sticky="w", pady=2)
+            ver_row = 2
+        else:
+            tk.Label(meta_box, text=f"本機目前版本:   {running_ver}", bg="#16161f", fg="#94a3b8", font=("Microsoft JhengHei UI", 9)).grid(row=0, column=0, sticky="w", pady=2)
+            ver_row = 1
+
         # 雲端最後三版次選擇下拉框
-        tk.Label(meta_box, text="雲端目標版本:   ", bg="#16161f", fg="#38bdf8", font=("Microsoft JhengHei UI", 9, "bold")).grid(row=1, column=0, sticky="w", pady=4)
+        tk.Label(meta_box, text="雲端目標版本:   ", bg="#16161f", fg="#38bdf8", font=("Microsoft JhengHei UI", 9, "bold")).grid(row=ver_row, column=0, sticky="w", pady=4)
         
         version_names = [f"{v.get('version', '')}  ({v.get('release_date', '')})" for v in self.recent_versions]
         self.cmb_version = ttk.Combobox(meta_box, values=version_names, state="readonly", width=35)
         self.cmb_version.current(0)
-        self.cmb_version.grid(row=1, column=1, sticky="w", pady=4)
+        self.cmb_version.grid(row=ver_row, column=1, sticky="w", pady=4)
         self.cmb_version.bind("<<ComboboxSelected>>", self._on_version_selected)
 
         tk.Label(info_frame, text="版本修復與功能說明:", bg="#20202a", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold")).pack(anchor="w", pady=(4, 4))
@@ -791,6 +939,14 @@ class UpdateDialog(tk.Toplevel):
                 return
         self.destroy()
 
+    def _do_restart_now(self):
+        """立即重新啟動軟體以載入磁碟上的最新版本介面"""
+        target_dir = get_app_dir()
+        self.destroy()
+        if self.parent:
+            self.parent.destroy()
+        restart_application(target_dir)
+
     def _update_pbar(self, val: int, msg: str):
         self.pbar["value"] = val
         self.lbl_download_status.configure(text=msg)
@@ -820,13 +976,46 @@ class UpdateDialog(tk.Toplevel):
         self.btn_download_full.pack_forget()
         self.btn_cancel.pack_forget()
 
-        # 若為輕量補丁包：直接自動執行安全置換並平滑重啟，徹底杜絕記憶體殘留與視窗標題未同步問題！
+        parent_target = self.parent if (self.parent and self.parent.winfo_exists()) else self
+
+        # 若為輕量補丁包：解壓覆蓋後，彈出明確重啟確認對話框，杜絕記憶體殘留與介面脫節
         if is_patch:
-            log_update_debug(f"[AUTO_APPLY] Patch downloaded. Applying patch with seamless restart...")
-            apply_patch_now(target_dir, temp_file, restart=True)
-            self.destroy()
-            if self.parent:
-                self.parent.destroy()
+            create_local_version_snapshot(target_dir, APP_VERSION)
+            try:
+                with zipfile.ZipFile(temp_file, 'r') as zf:
+                    zf.extractall(target_dir)
+                log_update_debug(f"[PATCH] Extracted patch zip successfully.")
+            except Exception as e:
+                log_update_debug(f"[PATCH] ERROR extracting zip: {e}")
+                messagebox.showerror("更新失敗", f"解壓縮補丁包失敗: {e}", parent=self)
+                return
+            finally:
+                try:
+                    os.remove(temp_file)
+                except Exception:
+                    pass
+
+            choice = messagebox.askyesno(
+                "更新就緒 - 建議重啟軟體",
+                f"✔ 新版本【{version}】補丁已成功下載並安裝至本機！\n\n"
+                f"新版本包含主視窗介面佈局與功能更新。\n"
+                f"是否立即重新啟動軟體以載入全新介面？\n\n"
+                f"• 按【是 (Yes)】：立即安全重新啟動軟體（強烈建議）\n"
+                f"• 按【否 (No)】：稍後手動重啟（目前繼續使用舊版介面）",
+                parent=parent_target
+            )
+            if choice:
+                self.destroy()
+                if self.parent:
+                    self.parent.destroy()
+                restart_application(target_dir)
+            else:
+                running_ver = getattr(self.parent, 'running_version', None) or get_boot_version()
+                if hasattr(self.parent, "status_lbl") and self.parent.status_lbl:
+                    self.parent.status_lbl.configure(text=f"✔ 新版 {version} 已就緒 (重啟後生效)")
+                if hasattr(self.parent, "title"):
+                    self.parent.title(f"本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker) {running_ver} [🔔 新版待重啟生效]")
+                self.destroy()
             return
 
         # 僅當為跨核心完整安裝包 (需重啟主程式) 時，才呈現手動確認與延遲選項
@@ -862,15 +1051,15 @@ class UpdateDialog(tk.Toplevel):
 
     def _do_apply(self, target_dir: str, temp_file: str, restart: bool = True, is_patch: bool = False):
         log_update_debug(f"[USER_ACTION] Immediate apply triggered for {temp_file}, is_patch={is_patch}")
-        if is_patch or temp_file.lower().endswith(".zip"):
+        if is_patch:
             target_v = self.selected_version_data.get("version", "")
             ok = apply_patch_hot_reload(target_dir, temp_file, parent_app=self.parent, target_version=target_v)
             if ok:
                 self.destroy()
                 return
 
-        # 若為完整 EXE 安裝包，才執行外部置換與重啟
-        apply_update_now(target_dir, temp_file, restart=restart)
+        # 若為完整安裝包 (is_patch=False，包含主 EXE)，執行外部安全預解壓置換與重啟，徹底杜絕檔案鎖定 Permission denied
+        apply_full_package_now(target_dir, temp_file, restart=restart)
         self.destroy()
         if self.parent:
             self.parent.destroy()
