@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GitHub Releases 下載統計儀表板 | Isaacyang34/Homepage</title>
-  <meta name="description" content="即時串接 GitHub 官方 Releases API，統計軟體下載次數、版本分佈與歷史資產分析儀表板。">
+  <title>股票投資庫存管理軟體 下載統計中心 | Stock Portfolio Tracker</title>
+  <meta name="description" content="專屬統計股票投資庫存管理軟體 (Stock Portfolio Tracker) 各版本發布、完整安裝包與更新補丁之真實下載次數與熱門排行。">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -108,7 +108,7 @@
     .nav-actions {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
 
     .nav-btn {
@@ -167,66 +167,63 @@
       font-size: 26px;
       font-weight: 800;
       letter-spacing: -0.03em;
-      margin-bottom: 4px;
+      margin-bottom: 6px;
+      background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
     }
 
     .hero-title p {
       color: var(--text-muted);
-      font-size: 13px;
+      font-size: 14px;
     }
 
     .status-badge {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 5px 12px;
+      gap: 8px;
+      padding: 6px 14px;
       border-radius: 9999px;
-      font-size: 12px;
-      font-weight: 500;
       background: rgba(16, 185, 129, 0.1);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: #10b981;
+      font-size: 12px;
+      font-weight: 600;
       font-family: var(--font-mono);
     }
 
     .status-dot {
-      width: 7px;
-      height: 7px;
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
-      background-color: var(--success);
-      box-shadow: 0 0 8px var(--success);
+      background-color: #10b981;
+      box-shadow: 0 0 8px #10b981;
       animation: pulse 2s infinite;
     }
 
     @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(0.85); }
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
     }
 
-    /* 4 大核心 KPI 統計卡片 */
+    /* 4 大 KPI 卡片 */
     .kpi-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 18px;
-      margin-bottom: 28px;
+      gap: 16px;
+      margin-bottom: 24px;
     }
 
     .kpi-card {
       background: var(--bg-card);
-      backdrop-filter: blur(16px);
       border: 1px solid var(--border-color);
       border-radius: var(--radius-md);
       padding: 20px;
-      position: relative;
-      overflow: hidden;
+      backdrop-filter: blur(8px);
       box-shadow: var(--shadow-sm);
       transition: all 0.25s ease;
-    }
-
-    .kpi-card:hover {
-      transform: translateY(-2px);
-      border-color: rgba(56, 189, 248, 0.3);
-      box-shadow: var(--shadow-md), var(--shadow-glow);
+      position: relative;
+      overflow: hidden;
     }
 
     .kpi-card::before {
@@ -240,12 +237,18 @@
       opacity: 0.8;
     }
 
+    .kpi-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255, 255, 255, 0.15);
+      box-shadow: var(--shadow-md);
+    }
+
     .kpi-label {
       font-size: 12px;
       font-weight: 600;
+      color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: var(--text-muted);
       margin-bottom: 8px;
       display: flex;
       justify-content: space-between;
@@ -253,11 +256,10 @@
     }
 
     .kpi-value {
-      font-size: 34px;
+      font-size: 32px;
       font-weight: 800;
-      letter-spacing: -0.03em;
-      color: var(--text-main);
       font-family: var(--font-mono);
+      color: var(--text-main);
       line-height: 1.1;
       margin-bottom: 6px;
     }
@@ -267,19 +269,18 @@
       color: var(--text-sub);
     }
 
-    /* 控制列與篩選器 */
+    /* 控制面板與篩選 */
     .controls-panel {
       background: var(--bg-card);
-      backdrop-filter: blur(12px);
       border: 1px solid var(--border-color);
       border-radius: var(--radius-md);
-      padding: 14px 18px;
+      padding: 16px 20px;
       margin-bottom: 24px;
       display: flex;
-      flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
-      gap: 14px;
+      flex-wrap: wrap;
+      gap: 16px;
     }
 
     .filter-tabs {
@@ -293,8 +294,8 @@
       font-size: 13px;
       font-weight: 500;
       border-radius: var(--radius-sm);
-      border: 1px solid transparent;
-      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      background: rgba(255, 255, 255, 0.03);
       color: var(--text-muted);
       cursor: pointer;
       transition: all 0.2s ease;
@@ -306,55 +307,58 @@
     }
 
     .filter-tab.active {
-      background: rgba(56, 189, 248, 0.15);
-      border-color: rgba(56, 189, 248, 0.4);
-      color: var(--primary);
-      font-weight: 600;
+      background: var(--primary);
+      color: #0b0f19;
+      font-weight: 700;
+      border-color: var(--primary);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
     }
 
     .search-sort-box {
       display: flex;
       align-items: center;
       gap: 10px;
-      flex-wrap: wrap;
+      flex-grow: 1;
+      justify-content: flex-end;
     }
 
     .search-input {
-      background: rgba(15, 23, 42, 0.6);
+      background: var(--bg-surface);
       border: 1px solid var(--border-color);
       color: var(--text-main);
-      font-size: 13px;
-      padding: 7px 12px;
+      padding: 7px 14px;
       border-radius: var(--radius-sm);
+      font-size: 13px;
       outline: none;
-      width: 220px;
+      min-width: 220px;
       transition: border-color 0.2s ease;
     }
 
     .search-input:focus {
-      border-color: var(--primary);
+      border-color: var(--border-focus);
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.2);
     }
 
     .sort-select {
-      background: rgba(15, 23, 42, 0.6);
+      background: var(--bg-surface);
       border: 1px solid var(--border-color);
       color: var(--text-main);
-      font-size: 13px;
       padding: 7px 12px;
       border-radius: var(--radius-sm);
+      font-size: 13px;
       outline: none;
       cursor: pointer;
     }
 
-    /* 圖表與排行區 */
+    /* 分析圖表網格 */
     .analytics-grid {
       display: grid;
       grid-template-columns: 2fr 1fr;
       gap: 20px;
-      margin-bottom: 28px;
+      margin-bottom: 24px;
     }
 
-    @media (max-width: 960px) {
+    @media (max-width: 900px) {
       .analytics-grid {
         grid-template-columns: 1fr;
       }
@@ -362,7 +366,6 @@
 
     .section-card {
       background: var(--bg-card);
-      backdrop-filter: blur(14px);
       border: 1px solid var(--border-color);
       border-radius: var(--radius-md);
       padding: 20px;
@@ -373,21 +376,16 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 16px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      padding-bottom: 12px;
+      margin-bottom: 18px;
     }
 
     .section-header h3 {
       font-size: 15px;
       font-weight: 700;
       color: var(--text-main);
-      display: flex;
-      align-items: center;
-      gap: 8px;
     }
 
-    /* 長條圖直條視覺 */
+    /* 長條圖清單 */
     .bar-list {
       display: flex;
       flex-direction: column;
@@ -404,61 +402,58 @@
       display: flex;
       justify-content: space-between;
       font-size: 12px;
-      font-family: var(--font-mono);
     }
 
     .bar-name {
+      font-family: var(--font-mono);
       color: var(--text-main);
       font-weight: 500;
-      display: flex;
-      align-items: center;
-      gap: 6px;
     }
 
     .bar-count {
-      color: var(--primary);
+      font-family: var(--font-mono);
       font-weight: 700;
+      color: var(--primary);
     }
 
     .bar-track {
-      height: 8px;
-      background: rgba(255, 255, 255, 0.06);
-      border-radius: 999px;
+      height: 7px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 4px;
       overflow: hidden;
-      position: relative;
     }
 
     .bar-fill {
       height: 100%;
       background: linear-gradient(90deg, #38bdf8, #818cf8);
-      border-radius: 999px;
-      transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      border-radius: 4px;
+      transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    /* 圓餅/分佈簡述 */
+    /* 檔案類型分佈 */
     .pie-summary-list {
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 12px;
+      margin-top: 10px;
     }
 
     .pie-item {
       display: flex;
-      align-items: center;
       justify-content: space-between;
+      align-items: center;
       padding: 10px 12px;
       background: rgba(255, 255, 255, 0.02);
-      border-radius: var(--radius-sm);
       border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: var(--radius-sm);
     }
 
     .pie-item-name {
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text-muted);
       display: flex;
       align-items: center;
       gap: 8px;
+      font-size: 13px;
+      color: var(--text-muted);
     }
 
     .pie-dot {
@@ -470,33 +465,32 @@
     .pie-item-val {
       font-family: var(--font-mono);
       font-weight: 700;
-      color: var(--text-main);
       font-size: 14px;
+      color: var(--text-main);
     }
 
-    /* 發布清單詳細列表 */
+    /* 版本清單卡片 */
     .release-card-list {
       display: flex;
       flex-direction: column;
       gap: 16px;
     }
 
-    .release-item {
+    .release-card {
       background: var(--bg-card);
-      backdrop-filter: blur(14px);
       border: 1px solid var(--border-color);
       border-radius: var(--radius-md);
       overflow: hidden;
-      transition: all 0.2s ease;
+      box-shadow: var(--shadow-sm);
+      transition: border-color 0.2s ease;
     }
 
-    .release-item:hover {
-      border-color: rgba(255, 255, 255, 0.16);
+    .release-card:hover {
+      border-color: rgba(255, 255, 255, 0.15);
     }
 
-    .release-header {
+    .release-card-header {
       padding: 16px 20px;
-      background: rgba(17, 24, 39, 0.95);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -504,33 +498,29 @@
       gap: 12px;
       cursor: pointer;
       user-select: none;
+      background: rgba(255, 255, 255, 0.02);
     }
 
-    .release-tag-group {
+    .release-card-header:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .release-meta {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
+      flex-wrap: wrap;
     }
 
-    .tag-badge {
+    .release-tag {
       font-family: var(--font-mono);
-      font-size: 14px;
       font-weight: 700;
-      color: #ffffff;
-      padding: 4px 10px;
+      font-size: 15px;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.1);
+      padding: 3px 10px;
       border-radius: var(--radius-sm);
-      background: rgba(56, 189, 248, 0.15);
-      border: 1px solid rgba(56, 189, 248, 0.35);
-    }
-
-    .latest-badge {
-      font-size: 11px;
-      font-weight: 600;
-      color: #0b0f19;
-      background: #38bdf8;
-      padding: 2px 8px;
-      border-radius: 9999px;
-      text-transform: uppercase;
+      border: 1px solid rgba(56, 189, 248, 0.2);
     }
 
     .release-title {
@@ -546,7 +536,7 @@
     }
 
     .release-stats-badge {
-      display: inline-flex;
+      display: flex;
       align-items: center;
       gap: 6px;
       background: rgba(255, 255, 255, 0.05);
@@ -637,6 +627,58 @@
       font-weight: 600;
     }
 
+    /* 待上架/引導狀態卡片 */
+    .ready-state-card {
+      background: linear-gradient(135deg, rgba(17, 24, 39, 0.85) 0%, rgba(30, 41, 59, 0.6) 100%);
+      border: 1px dashed rgba(56, 189, 248, 0.35);
+      border-radius: var(--radius-md);
+      padding: 32px 24px;
+      text-align: center;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 20px;
+    }
+
+    .ready-icon {
+      font-size: 38px;
+      margin-bottom: 12px;
+    }
+
+    .ready-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #f3f4f6;
+      margin-bottom: 8px;
+    }
+
+    .ready-desc {
+      color: #94a3b8;
+      font-size: 13px;
+      max-width: 640px;
+      margin: 0 auto 20px auto;
+      line-height: 1.6;
+    }
+
+    .ready-assets-box {
+      background: rgba(11, 15, 25, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: var(--radius-sm);
+      padding: 12px 16px;
+      display: inline-flex;
+      flex-direction: column;
+      gap: 8px;
+      text-align: left;
+      margin-bottom: 20px;
+    }
+
+    .ready-asset-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: #cbd5e1;
+    }
+
     /* 載入與錯誤狀態 */
     .loading-state, .error-state {
       padding: 60px 20px;
@@ -691,11 +733,17 @@
     <a href="index.html" class="brand">
       <div class="brand-icon">📈</div>
       <div class="brand-text">
-        <h1>Release Analytics</h1>
-        <p>Isaacyang34 / Homepage</p>
+        <h1>Stock Tracker Releases</h1>
+        <p>股票投資管理軟體 · 下載統計中心</p>
       </div>
     </a>
     <div class="nav-actions">
+      <a href="index.html" class="nav-btn">
+        🏠 回首頁
+      </a>
+      <a href="TOOL_Stock_Portfolio_Tracker/web/index.html" class="nav-btn">
+        📈 開啟看盤網頁
+      </a>
       <button id="btnRefresh" class="nav-btn" title="從 GitHub API 重新抓取最新下載數據">
         <span id="refreshIcon">🔄</span> 重新整理
       </button>
@@ -714,8 +762,8 @@
     <!-- 頂部標題與狀態 -->
     <section class="hero-banner">
       <div class="hero-title">
-        <h2>軟體下載次數統計中心</h2>
-        <p>即時串接 GitHub 官方 Releases API · 支援所有發布版次與二進位檔案實時遙測</p>
+        <h2>📈 股票投資庫存管理軟體 下載次數統計</h2>
+        <p>專屬統計 Stock Portfolio Tracker 官方各版本發布、完整安裝包與更新補丁之真實下載次數</p>
       </div>
       <div>
         <div class="status-badge" id="apiStatusBadge">
@@ -729,11 +777,11 @@
     <section class="kpi-grid">
       <div class="kpi-card" style="--card-accent: linear-gradient(90deg, #38bdf8, #0ea5e9);">
         <div class="kpi-label">
-          <span>總累計下載量</span>
+          <span>累計總下載量</span>
           <span>🔥</span>
         </div>
         <div class="kpi-value" id="kpiTotalDownloads">--</div>
-        <div class="kpi-desc">全版本、全資產官方總下載次數</div>
+        <div class="kpi-desc">股票軟體全部版本官方累計下載次數</div>
       </div>
 
       <div class="kpi-card" style="--card-accent: linear-gradient(90deg, #818cf8, #6366f1);">
@@ -742,16 +790,16 @@
           <span>📦</span>
         </div>
         <div class="kpi-value" id="kpiTotalReleases">--</div>
-        <div class="kpi-desc">GitHub Releases 歷史發布總版次</div>
+        <div class="kpi-desc">GitHub Releases 上架版次</div>
       </div>
 
       <div class="kpi-card" style="--card-accent: linear-gradient(90deg, #10b981, #059669);">
         <div class="kpi-label">
-          <span>最新版本下載量</span>
-          <span id="kpiLatestVersionTag">最新版</span>
+          <span>最新主力版本</span>
+          <span id="kpiLatestVersionTag">V1.1.2.0</span>
         </div>
         <div class="kpi-value" id="kpiLatestDownloads">--</div>
-        <div class="kpi-desc" id="kpiLatestDesc">當前主力版本下載數</div>
+        <div class="kpi-desc" id="kpiLatestDesc">當前主力版本累計下載</div>
       </div>
 
       <div class="kpi-card" style="--card-accent: linear-gradient(90deg, #f59e0b, #d97706);">
@@ -764,13 +812,13 @@
       </div>
     </section>
 
-    <!-- 控制面板與篩選 -->
+    <!-- 控制面板與篩選 (專屬股票軟體維度) -->
     <section class="controls-panel">
       <div class="filter-tabs">
-        <button class="filter-tab active" data-filter="all">全部專案 (All)</button>
-        <button class="filter-tab" data-filter="stock">📈 股票庫存管理 (Stock Portfolio)</button>
-        <button class="filter-tab" data-filter="dynamometer">⚡ 動力計 (Dynamometer HMI)</button>
-        <button class="filter-tab" data-filter="other">其他工具</button>
+        <button class="filter-tab active" data-filter="all">全部股票版本</button>
+        <button class="filter-tab" data-filter="portable">📦 便攜免安裝版 (.zip)</button>
+        <button class="filter-tab" data-filter="patch">⚡ 熱更新補丁包 (patch)</button>
+        <button class="filter-tab" data-filter="exe">💻 主程式執行檔 (.exe)</button>
       </div>
 
       <div class="search-sort-box">
@@ -786,10 +834,10 @@
 
     <!-- 視覺長條分析與分佈 -->
     <section class="analytics-grid">
-      <!-- Top 10 熱門版本長條排行 -->
+      <!-- Top 熱門版本長條排行 -->
       <div class="section-card">
         <div class="section-header">
-          <h3>📊 Top 10 熱門發布版本下載排行</h3>
+          <h3>📊 股票軟體版本下載排行</h3>
           <span style="font-size: 12px; color: var(--text-sub);" id="chartSubtitle">依累積下載次數排名</span>
         </div>
         <div class="bar-list" id="barChartContainer">
@@ -811,7 +859,7 @@
     <!-- 發布清單詳細列表 -->
     <section>
       <div class="section-header" style="margin-bottom: 16px;">
-        <h3>📋 各版本發布與檔案下載明細清單</h3>
+        <h3>📋 股票軟體版本與資產下載明細</h3>
         <span style="font-size: 12px; color: var(--text-sub);" id="resultCountText">正在載入數據...</span>
       </div>
 
@@ -823,7 +871,7 @@
     <!-- 頁尾 -->
     <footer class="footer">
       <p>數據即時串接自 <a href="https://github.com/Isaacyang34/Homepage" target="_blank" rel="noopener noreferrer">GitHub REST API</a> · 遵循 GitHub API Rate Limit 規則 · 每 60 秒快取保護</p>
-      <p style="margin-top: 6px;">由 Isaacyang34/Homepage 管理維護 · 零伺服器極速 Web 統計儀表板</p>
+      <p style="margin-top: 6px;">股票投資庫存管理軟體 (Stock Portfolio Tracker) · 零伺服器極速 Web 統計儀表板</p>
     </footer>
 
   </main>
@@ -836,6 +884,7 @@
 
     // 狀態存儲
     let rawReleasesData = [];
+    let stockReleasesData = [];
     let currentFilter = 'all';
     let currentSearch = '';
     let currentSort = 'downloads-desc';
@@ -850,7 +899,7 @@
     function initEventListeners() {
       // 重新整理按鈕
       document.getElementById('btnRefresh').addEventListener('click', () => {
-        sessionStorage.removeItem('gh_releases_cache');
+        sessionStorage.removeItem('gh_stock_releases_cache');
         fetchReleasesData(true);
       });
 
@@ -880,12 +929,43 @@
       });
     }
 
+    // 專屬判定是否為股票庫存管理軟體發布
+    function isStockRelease(release) {
+      const name = (release.name || '').toLowerCase();
+      const tag = (release.tag_name || '').toLowerCase();
+      const assetNames = (release.assets || []).map(a => a.name.toLowerCase()).join(' ');
+
+      // 排除非股票軟體之歷史資產
+      if (
+        name.includes('dynamometer') ||
+        tag.includes('v2.10') ||
+        tag.includes('v2.5') ||
+        tag.includes('reports-archive') ||
+        assetNames.includes('dynamometer') ||
+        assetNames.includes('report_simw')
+      ) {
+        return false;
+      }
+
+      // 白名單判定股票軟體特徵
+      return (
+        assetNames.includes('stock') ||
+        assetNames.includes('portfolio') ||
+        assetNames.includes('patch_v') ||
+        name.includes('stock') ||
+        name.includes('portfolio') ||
+        tag.startsWith('v1.') ||
+        tag.startsWith('v1_') ||
+        tag.includes('stock')
+      );
+    }
+
     // 從 GitHub API 取得資料 (支援 sessionStorage 快取 60 秒)
     async function fetchReleasesData(forceRefresh = false) {
       showLoading(true);
 
-      const cacheKey = 'gh_releases_cache';
-      const cacheTimeKey = 'gh_releases_cache_time';
+      const cacheKey = 'gh_stock_releases_cache';
+      const cacheTimeKey = 'gh_stock_releases_cache_time';
       const now = Date.now();
 
       if (!forceRefresh) {
@@ -894,6 +974,7 @@
         if (cached && cachedTime && (now - parseInt(cachedTime)) < 60000) {
           try {
             rawReleasesData = JSON.parse(cached);
+            stockReleasesData = rawReleasesData.filter(isStockRelease);
             updateStatusBadge('快取數據 (1分鐘內有效)', 'success');
             renderDashboard();
             showLoading(false);
@@ -920,12 +1001,13 @@
 
         const data = await resp.json();
         rawReleasesData = data;
+        stockReleasesData = rawReleasesData.filter(isStockRelease);
 
         // 存入快取
         sessionStorage.setItem(cacheKey, JSON.stringify(data));
         sessionStorage.setItem(cacheTimeKey, now.toString());
 
-        updateStatusBadge(`即時連線 (共 ${data.length} 個版次)`, 'success');
+        updateStatusBadge(`即時連線 (股票版次: ${stockReleasesData.length})`, 'success');
         renderDashboard();
       } catch (err) {
         console.error('Fetch releases error:', err);
@@ -955,34 +1037,20 @@
       });
     }
 
-    // 判斷版本歸屬專案
-    function getReleaseCategory(release) {
-      const name = (release.name || '').toLowerCase();
-      const tag = (release.tag_name || '').toLowerCase();
-      const assetNames = (release.assets || []).map(a => a.name.toLowerCase()).join(' ');
-
-      if (assetNames.includes('stock_portfolio') || name.includes('stock') || tag.includes('v1.1')) {
-        return 'stock';
-      }
-      if (assetNames.includes('dynamometer') || name.includes('dynamometer') || tag.includes('v2.10')) {
-        return 'dynamometer';
-      }
-      return 'other';
-    }
-
     // 核心渲染函式
     function renderDashboard() {
-      if (!rawReleasesData || rawReleasesData.length === 0) {
-        showError('未在 GitHub 倉庫中找到任何已發布的 Releases。');
-        return;
-      }
-
       // 1. 篩選與過濾
-      let filtered = rawReleasesData.filter(rel => {
-        // 分類篩選
+      let filtered = (stockReleasesData || []).filter(rel => {
+        // 資產類型過濾
         if (currentFilter !== 'all') {
-          const cat = getReleaseCategory(rel);
-          if (cat !== currentFilter) return false;
+          const hasMatchingAsset = (rel.assets || []).some(a => {
+            const n = a.name.toLowerCase();
+            if (currentFilter === 'portable') return n.endsWith('.zip') && !n.includes('patch');
+            if (currentFilter === 'patch') return n.includes('patch');
+            if (currentFilter === 'exe') return n.endsWith('.exe');
+            return true;
+          });
+          if (!hasMatchingAsset) return false;
         }
 
         // 關鍵字搜尋
@@ -1019,7 +1087,7 @@
       // 5. 渲染詳細清單列表
       renderReleaseList(filtered);
 
-      document.getElementById('resultCountText').innerText = `共顯示 ${filtered.length} 個發布版本`;
+      document.getElementById('resultCountText').innerText = `共顯示 ${filtered.length} 個股票軟體發布版次`;
     }
 
     // 計算 KPI 數據卡片
@@ -1044,11 +1112,12 @@
         const latest = releases[0];
         const latestDl = (latest.assets || []).reduce((sum, a) => sum + (a.download_count || 0), 0);
         document.getElementById('kpiLatestDownloads').innerText = latestDl.toLocaleString();
-        document.getElementById('kpiLatestVersionTag').innerText = latest.tag_name || '最新';
+        document.getElementById('kpiLatestVersionTag').innerText = latest.tag_name || 'V1.1.2.0';
         document.getElementById('kpiLatestDesc').innerText = latest.name ? `${latest.name.slice(0, 24)}...` : '最新版本累計下載';
       } else {
         document.getElementById('kpiLatestDownloads').innerText = '0';
-        document.getElementById('kpiLatestVersionTag').innerText = '--';
+        document.getElementById('kpiLatestVersionTag').innerText = 'V1.1.2.0';
+        document.getElementById('kpiLatestDesc').innerText = '最新發布版本';
       }
 
       if (topAsset.count >= 0) {
@@ -1057,7 +1126,7 @@
         document.getElementById('kpiTopAssetName').title = topAsset.name;
       } else {
         document.getElementById('kpiTopAssetCount').innerText = '0';
-        document.getElementById('kpiTopAssetName').innerText = '暫無下載紀錄';
+        document.getElementById('kpiTopAssetName').innerText = '尚未建立官方 Release';
       }
     }
 
@@ -1076,7 +1145,7 @@
       const maxDl = sortedByDl.length > 0 ? Math.max(...sortedByDl.map(r => (r.assets || []).reduce((s, i) => s + (i.download_count || 0), 0)), 1) : 1;
 
       if (sortedByDl.length === 0 || maxDl === 0) {
-        barContainer.innerHTML = '<div style="color: var(--text-sub); text-align: center; padding: 20px;">目前尚無下載統計數據</div>';
+        barContainer.innerHTML = '<div style="color: var(--text-sub); text-align: center; padding: 24px;">目前尚未在 GitHub Releases 建立股票軟體 Tag，暫無下載排名。</div>';
       } else {
         barContainer.innerHTML = sortedByDl.map(rel => {
           const totalDl = (rel.assets || []).reduce((sum, item) => sum + (item.download_count || 0), 0);
@@ -1084,7 +1153,7 @@
           return `
             <div class="bar-item">
               <div class="bar-meta">
-                <span class="bar-name">📦 ${rel.tag_name} <span style="color: var(--text-sub); font-size: 11px;">(${formatDate(rel.published_at)})</span></span>
+                <span class="bar-name">📈 ${rel.tag_name} <span style="color: var(--text-sub); font-size: 11px;">(${formatDate(rel.published_at)})</span></span>
                 <span class="bar-count">${totalDl.toLocaleString()} 次</span>
               </div>
               <div class="bar-track">
@@ -1095,26 +1164,26 @@
         }).join('');
       }
 
-      // 檔案類型統計 (EXE, Portable ZIP, Patch ZIP, 其他)
+      // 檔案類型統計 (Portable ZIP, Patch ZIP, EXE, 其他)
       const typeStats = {
-        '完整可執行檔 (.exe)': { count: 0, color: '#38bdf8' },
-        '便攜安裝壓縮包 (.zip)': { count: 0, color: '#818cf8' },
+        '便攜免安裝包 (.zip)': { count: 0, color: '#38bdf8' },
         '熱更新補丁包 (patch)': { count: 0, color: '#10b981' },
-        '其他資源包': { count: 0, color: '#94a3b8' }
+        '主程式執行檔 (.exe)': { count: 0, color: '#818cf8' },
+        '其他發布資源': { count: 0, color: '#94a3b8' }
       };
 
       releases.forEach(rel => {
         (rel.assets || []).forEach(a => {
           const n = a.name.toLowerCase();
           const dl = a.download_count || 0;
-          if (n.endsWith('.exe')) {
-            typeStats['完整可執行檔 (.exe)'].count += dl;
-          } else if (n.includes('patch')) {
+          if (n.includes('patch')) {
             typeStats['熱更新補丁包 (patch)'].count += dl;
           } else if (n.endsWith('.zip')) {
-            typeStats['便攜安裝壓縮包 (.zip)'].count += dl;
+            typeStats['便攜免安裝包 (.zip)'].count += dl;
+          } else if (n.endsWith('.exe')) {
+            typeStats['主程式執行檔 (.exe)'].count += dl;
           } else {
-            typeStats['其他資源包'].count += dl;
+            typeStats['其他發布資源'].count += dl;
           }
         });
       });
@@ -1138,8 +1207,34 @@
 
       if (releases.length === 0) {
         container.innerHTML = `
-          <div class="loading-state">
-            <p style="color: var(--text-muted); font-size: 14px;">沒有符合篩選條件的發布版本</p>
+          <div class="ready-state-card">
+            <div class="ready-icon">📈</div>
+            <h4 class="ready-title">最新版本就緒：Stock Portfolio Tracker V1.1.2.0</h4>
+            <p class="ready-desc">
+              本地端已就緒完整的便攜免安裝安裝包與熱修復補丁，目前存放於 GitHub Pages 分支供直接下載。<br>
+              若需在 GitHub 官方統計真實下載次數，只需於官方 Releases 頁面建立標籤 (如 <code>v1.1.2.0</code>) 並附加發布檔案，此面板將自動即時顯示即時下載量！
+            </p>
+            <div class="ready-assets-box">
+              <div class="ready-asset-item">
+                <span>📦</span>
+                <span>Stock_Portfolio_Tracker_V1.1.2.0_Portable.zip (27.3 MB)</span>
+              </div>
+              <div class="ready-asset-item">
+                <span>⚡</span>
+                <span>patch_V1.1.2.0.zip (332 KB)</span>
+              </div>
+            </div>
+            <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+              <a href="https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.2.0_Portable.zip" class="nav-btn primary">
+                📥 立即下載主程式免安裝包 (Portable)
+              </a>
+              <a href="https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.2.0.zip" class="nav-btn">
+                ⚡ 下載更新補丁包 (Patch)
+              </a>
+              <a href="https://github.com/Isaacyang34/Homepage/releases/new" target="_blank" rel="noopener noreferrer" class="nav-btn">
+                🚀 前往 GitHub 上架官方 Release
+              </a>
+            </div>
           </div>
         `;
         return;
@@ -1148,54 +1243,62 @@
       container.innerHTML = releases.map((rel, idx) => {
         const assets = rel.assets || [];
         const totalDl = assets.reduce((sum, a) => sum + (a.download_count || 0), 0);
-        const isLatest = idx === 0 && currentFilter === 'all' && !currentSearch;
+        const cardId = `release_body_${idx}`;
 
-        const assetRows = assets.length > 0 ? assets.map(a => {
+        const assetRows = assets.map(a => {
+          const isPatch = a.name.toLowerCase().includes('patch');
+          const isZip = a.name.toLowerCase().endsWith('.zip');
+          const icon = isPatch ? '⚡' : (isZip ? '📦' : '💻');
+
           return `
             <tr>
               <td>
                 <div class="asset-name">
-                  <span>📄</span>
-                  <a href="${a.browser_download_url}" target="_blank" style="color: inherit; text-decoration: none;" title="${a.name}">${a.name}</a>
+                  <span>${icon}</span>
+                  <a href="${a.browser_download_url}" style="color: var(--text-main); text-decoration: none;" download>
+                    ${a.name}
+                  </a>
                 </div>
               </td>
-              <td class="asset-size">${formatBytes(a.size)}</td>
+              <td><span class="asset-size">${formatBytes(a.size || 0)}</span></td>
               <td>
                 <div class="asset-downloads">
-                  <span>⬇</span> ${a.download_count.toLocaleString()}
+                  <span>🔥</span>
+                  <span>${(a.download_count || 0).toLocaleString()} 次</span>
                 </div>
               </td>
               <td style="text-align: right;">
                 <a href="${a.browser_download_url}" class="dl-btn" download>
-                  下載檔案
+                  📥 下載
                 </a>
               </td>
             </tr>
           `;
-        }).join('') : `
-          <tr>
-            <td colspan="4" style="color: var(--text-sub); text-align: center; padding: 14px;">此版本未附加二進位發布檔案</td>
-          </tr>
-        `;
+        }).join('');
 
         return `
-          <div class="release-item">
-            <div class="release-header" onclick="toggleReleaseBody('rel-body-${rel.id}')">
-              <div class="release-tag-group">
-                <span class="tag-badge">${rel.tag_name}</span>
-                ${isLatest ? '<span class="latest-badge">最新發布</span>' : ''}
+          <div class="release-card">
+            <div class="release-card-header" onclick="toggleReleaseBody('${cardId}')">
+              <div class="release-meta">
+                <span class="release-tag">📈 ${rel.tag_name}</span>
                 <span class="release-title">${rel.name || rel.tag_name}</span>
-                <span class="release-date">· ${formatDate(rel.published_at)}</span>
+                <span class="release-date">🕒 ${formatDate(rel.published_at)}</span>
               </div>
               <div class="release-stats-badge">
-                <span>🔥</span> 總下載: ${totalDl.toLocaleString()}
+                <span>下載量:</span>
+                <span>${totalDl.toLocaleString()}</span>
               </div>
             </div>
-            <div class="release-body" id="rel-body-${rel.id}">
+            <div id="${cardId}" class="release-body">
+              ${rel.body ? `
+                <div style="font-size: 13px; color: var(--text-muted); background: rgba(0,0,0,0.2); padding: 12px 14px; border-radius: var(--radius-sm); margin-bottom: 14px; white-space: pre-wrap; font-family: var(--font-sans);">
+                  ${rel.body}
+                </div>
+              ` : ''}
               <table class="assets-table">
                 <thead>
                   <tr>
-                    <th>發布檔案名稱 (Asset Name)</th>
+                    <th>檔案名稱</th>
                     <th>大小</th>
                     <th>累計下載次數</th>
                     <th style="text-align: right;">操作</th>
@@ -1219,17 +1322,17 @@
       }
     }
 
-    // 匯出 CSV 功能
+    // 匯出 CSV 功能 (僅匯出股票軟體相關資產)
     function exportToCSV() {
-      if (!rawReleasesData || rawReleasesData.length === 0) {
-        alert('尚無資料可供匯出！');
+      if (!stockReleasesData || stockReleasesData.length === 0) {
+        alert('目前尚無股票軟體的官方 Release 下載數據可供匯出！');
         return;
       }
 
       let csv = '\uFEFF'; // UTF-8 BOM
       csv += '版本標籤,發布名稱,發布日期,檔案名稱,檔案大小(Bytes),檔案大小(格式化),下載次數,下載網址\n';
 
-      rawReleasesData.forEach(rel => {
+      stockReleasesData.forEach(rel => {
         const tag = `"${(rel.tag_name || '').replace(/"/g, '""')}"`;
         const rName = `"${(rel.name || '').replace(/"/g, '""')}"`;
         const pubDate = rel.published_at ? rel.published_at.slice(0, 10) : '';
@@ -1249,7 +1352,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `GitHub_Releases_Download_Stats_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `Stock_Tracker_Download_Stats_${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
