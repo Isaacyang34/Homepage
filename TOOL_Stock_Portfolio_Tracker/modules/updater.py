@@ -22,7 +22,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Optional, Dict, Any, Tuple, List
 
-APP_VERSION = "V1.1.1.4"
+APP_VERSION = "V1.1.2.0"
 
 def get_app_version() -> str:
     """動態取得當前應用程式版本號，確保熱更新後所有模組取值一致"""

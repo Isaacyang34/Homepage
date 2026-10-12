@@ -30,7 +30,8 @@ MODULE_FILES = [
     "stock_detector.py",
     "crypto_sync.py",
     "integrity_checker.py",
-    "plugin_manager.py"
+    "plugin_manager.py",
+    "login_gui.py"
 ]
 
 def build_app_core_pkg(output_pkg_path: str = "app_core.pkg") -> bool:

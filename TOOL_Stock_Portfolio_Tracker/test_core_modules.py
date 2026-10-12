@@ -395,6 +395,104 @@ class TestQuoteServiceMock(unittest.TestCase):
         self.assertEqual(etf_map["0050"]["market_price"], 151.5)
 
 
+class TestMultiUserSupport(unittest.TestCase):
+    """測試多使用者帳號管理、密碼安全防護 (SHA-256+Salt) 與持股庫存物理隔離"""
+
+    def setUp(self):
+        import database
+        import uuid
+        self.db = database
+        self.orig_db_file = self.db.DB_FILE
+        self.test_db_file = os.path.join(current_dir, f"test_mu_{uuid.uuid4().hex[:8]}.db")
+        self.db.DB_FILE = self.test_db_file
+        self.db.init_db()
+
+    def tearDown(self):
+        self.db.DB_FILE = self.orig_db_file
+        if os.path.exists(self.test_db_file):
+            try:
+                os.remove(self.test_db_file)
+            except Exception:
+                pass
+
+    def test_default_user_creation(self):
+        """驗證資料庫初始化自動建立預設主要帳號 (user_id=1)"""
+        users = self.db.get_all_users()
+        self.assertGreaterEqual(len(users), 1)
+        u1 = users[0]
+        self.assertEqual(u1["id"], 1)
+        self.assertEqual(u1["username"], "default")
+        self.assertFalse(u1["has_password"])
+
+    def test_create_user_and_credential_verification(self):
+        """驗證建立具密碼保護與免密碼帳戶，及 SHA-256+Salt 密碼驗證邏輯"""
+        # 1. 建立有密碼帳號
+        ok, msg, uid_alice = self.db.create_user("alice", "愛麗絲", "Secret123!")
+        self.assertTrue(ok)
+        self.assertIsNotNone(uid_alice)
+
+        # 密碼驗證成功
+        ok_verify, u_alice, _ = self.db.verify_user_credentials("alice", "Secret123!")
+        self.assertTrue(ok_verify)
+        self.assertIsNotNone(u_alice)
+        self.assertEqual(u_alice["username"], "alice")
+
+        # 錯誤密碼驗證失敗
+        ok_wrong, _, err_msg = self.db.verify_user_credentials("alice", "WrongPassword")
+        self.assertFalse(ok_wrong)
+        self.assertIn("密碼錯誤", err_msg)
+
+        # 2. 建立免密碼帳號
+        ok_bob, _, uid_bob = self.db.create_user("bob", "小鮑伯", "")
+        self.assertTrue(ok_bob)
+        ok_bob_verify, u_bob, _ = self.db.verify_user_credentials("bob", "")
+        self.assertTrue(ok_bob_verify)
+        self.assertEqual(u_bob["display_name"], "小鮑伯")
+
+    def test_multi_user_portfolio_isolation(self):
+        """驗證不同使用者間之持股庫存與買入批次物理隔離"""
+        ok, _, uid_user1 = self.db.create_user("trader_a", "交易員A", "")
+        ok, _, uid_user2 = self.db.create_user("trader_b", "交易員B", "")
+
+        # 交易員 A 新增台積電 1000 股
+        self.db.set_current_user({"id": uid_user1, "username": "trader_a", "display_name": "交易員A"})
+        self.db.add_position("2330", "台積電", "TW", 1000, 500.0, "A的長線部位")
+
+        # 交易員 B 新增 0050 2000 股
+        self.db.set_current_user({"id": uid_user2, "username": "trader_b", "display_name": "交易員B"})
+        self.db.add_position("0050", "元大台灣50", "TW", 2000, 150.0, "B的定期定額")
+
+        # 檢查交易員 A 的持股清單：僅有 2330，絕對沒有 0050
+        pos_a = self.db.get_all_positions(user_id=uid_user1)
+        symbols_a = [p["symbol"] for p in pos_a]
+        self.assertIn("2330", symbols_a)
+        self.assertNotIn("0050", symbols_a)
+
+        # 檢查交易員 B 的持股清單：僅有 0050，絕對沒有 2330
+        pos_b = self.db.get_all_positions(user_id=uid_user2)
+        symbols_b = [p["symbol"] for p in pos_b]
+        self.assertIn("0050", symbols_b)
+        self.assertNotIn("2330", symbols_b)
+
+    def test_user_deletion_cascade_and_guards(self):
+        """驗證刪除使用者保護機制與級聯刪除"""
+        # 1. 嘗試刪除 user_id=1 必須被阻擋
+        ok, msg = self.db.delete_user(1)
+        self.assertFalse(ok)
+        self.assertIn("不可刪除", msg)
+
+        # 2. 建立新帳號並添加持股，刪除該帳號時專屬庫存自動清除
+        ok, _, test_uid = self.db.create_user("temp_user", "臨時測試", "")
+        self.db.set_current_user({"id": test_uid, "username": "temp_user", "display_name": "臨時測試"})
+        self.db.add_position("2454", "聯發科", "TW", 500, 1000.0)
+        self.assertEqual(len(self.db.get_all_positions(test_uid)), 1)
+
+        # 執行刪除
+        del_ok, _ = self.db.delete_user(test_uid)
+        self.assertTrue(del_ok)
+        self.assertEqual(len(self.db.get_all_positions(test_uid)), 0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
 

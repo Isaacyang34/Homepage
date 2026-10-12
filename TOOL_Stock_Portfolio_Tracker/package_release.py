@@ -47,7 +47,8 @@ MODULE_FILES = [
     "stock_detector.py",
     "crypto_sync.py",
     "integrity_checker.py",
-    "plugin_manager.py"
+    "plugin_manager.py",
+    "login_gui.py"
 ]
 
 def calculate_sha256(filepath: str) -> str:

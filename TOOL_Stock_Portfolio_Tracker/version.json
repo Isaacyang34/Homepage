@@ -1,11 +1,19 @@
 {
-  "version": "V1.1.1.4",
+  "version": "V1.1.2.0",
   "release_date": "2026-10-12",
   "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
-  "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.1.4.zip",
-  "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.1.4_Portable.zip",
-  "changelog": "【V1.1.1.4 股息分析與市場排行視窗原生縮放、Win11邊緣拖曳Snap與全螢幕支援】\n\n1. [解除Transient限制] 徹底移除 DividendAnalyzerDialog 與 MarketRankingDialog 之 transient 附屬對話框限制，解鎖 Windows 11 原生視窗邊框與最大化按鈕。\n2. [Win11 Snap 與全螢幕支援] 啟用 resizable(True, True)，支援視窗拖曳至螢幕邊緣 1/2 自動分割、拖曳至頂端全螢幕、雙擊標題列最大化/還原、以及四宮格 Snap Layouts 排版。\n3. [版面自動填滿] 強化內部清單與圖表容器自適應擴展 (expand=True, fill=BOTH)，全螢幕時內容與表格視野極致延展。",
+  "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.2.0.zip",
+  "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.2.0_Portable.zip",
+  "changelog": "【V1.1.2.0 多人多帳號獨立登入與庫存物理隔離系統】\n\n1. [安全密碼防護與多帳號架構] 新增 users 帳戶管理機制，支援多成員獨立帳號建立、SHA-256+16bytes Salt 安全密碼防護、以及免密碼快速進入。\n2. [持股與買入批次物理隔離] 升級 portfolio 與 trade_lots 表格增加 user_id 欄位，現有歷史部位 100% 自動無痛遷移至主要帳戶；不同帳號庫存與買入批次完全物理隔離，杜絕混淆。\n3. [開機登入攔截門禁與秒級切換] 啟動時先以登入視窗攔截，登入後始載入該帳號專屬持股並亮出主畫面；主介面頂部與工具列提供即時切換帳號與帳號管理中心，即點即切。\n4. [歷史K線與除權息全局共享] 日K行情與除權息資料庫保持全局共享，切換使用者免重複下載網路流量。",
   "recent_versions": [
+    {
+      "version": "V1.1.2.0",
+      "release_date": "2026-10-12",
+      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.2.0.zip",
+      "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
+      "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.2.0_Portable.zip",
+      "changelog": "V1.1.2.0 多人多帳號獨立登入、SHA-256+Salt密碼防護與持股庫存物理隔離系統。"
+    },
     {
       "version": "V1.1.1.4",
       "release_date": "2026-10-12",

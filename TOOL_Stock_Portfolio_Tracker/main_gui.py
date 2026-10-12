@@ -22,7 +22,8 @@ from database import (
     get_visible_columns, set_visible_columns, get_visible_cards, set_visible_cards,
     get_update_timestamp, set_update_timestamp,
     get_theme_settings, set_theme_settings, DEFAULT_THEME_SETTINGS,
-    DEFAULT_VISIBLE_COLUMNS, DEFAULT_VISIBLE_CARDS
+    DEFAULT_VISIBLE_COLUMNS, DEFAULT_VISIBLE_CARDS,
+    get_current_user, set_current_user, get_all_users
 )
 from quote_service import QuoteService
 from history_service import HistoryService
@@ -33,6 +34,7 @@ from stock_detector import detect_stock_metadata
 from crypto_sync import sync_to_cloud, fetch_and_decrypt_from_cloud, DEFAULT_FIREBASE_URL, get_or_create_secret_key
 from updater import APP_VERSION, fetch_update_manifest, is_newer_version, UpdateDialog, get_app_version, set_app_version
 from market_ranking_gui import MarketRankingDialog
+from login_gui import LoginDialog, UserManageDialog
 
 def clean_number(val_str: str, default: float = 0.0) -> float:
     """寬容解析數值：自動相容千分位逗號、全形小數點(．/。)、全形逗點與貨幣符號"""
@@ -263,14 +265,38 @@ class PortfolioApp(tk.Tk):
         self.active_update_dialog = None
         self.btn_post_market = None
 
+        # 綁定目前登入使用者狀態
+        self.current_user = get_current_user()
+
         # 設定風格與配色
         self.setup_styles()
         self.build_ui()
+        self.update_user_header_ui()
 
-        # 初始載入庫存與立即繪製表格 (開窗瞬間秒顯持股資訊，0秒空白等待)
+        # 快捷鍵綁定
+        self.bind("<Control-d>", lambda e: self.on_open_dividend_analyzer())
+        self.bind("<Control-D>", lambda e: self.on_open_dividend_analyzer())
+
+        # 綁定視窗關閉事件，支援在退出時自動無聲套用延遲更新
+        self.protocol("WM_DELETE_WINDOW", self._on_app_close)
+
+        # 開機登入攔截門禁：先讓 Tkinter 事件迴圈啟動，隨即彈出登入對話框，登入完成後始載入專屬庫存與亮出主畫面
+        self.after(50, self._startup_login_gate)
+
+    def _startup_login_gate(self):
+        """開機登入視窗攔截：登入後才載入該帳號專屬庫存與亮出主畫面"""
+        LoginDialog(self, on_success=self._on_initial_login_success, allow_cancel=False)
+
+    def _on_initial_login_success(self, user: Dict[str, Any]):
+        """開機登入成功回呼：正式載入庫存並顯示主畫面"""
+        set_current_user(user)
+        self.current_user = user
+        self.update_user_header_ui()
+
+        # 初始載入該帳號庫存與立即繪製表格 (0秒空白等待)
         self.reload_positions()
 
-        # 預先自本地 SQLite 補齊所有持股的股息快取 (極速純本地讀取，0 毫秒，絕無網路請求)
+        # 預先自本地 SQLite 補齊所有持股的股息快取
         for pos in self.positions:
             sym = pos["symbol"].upper()
             if sym not in self.dividend_cache:
@@ -299,12 +325,48 @@ class PortfolioApp(tk.Tk):
         self.after(4000, self.check_online_update_silently)
         self.after(5500, self.start_daily_1500_scheduler)
 
-        # 快捷鍵綁定
-        self.bind("<Control-d>", lambda e: self.on_open_dividend_analyzer())
-        self.bind("<Control-D>", lambda e: self.on_open_dividend_analyzer())
+    def update_user_header_ui(self):
+        """同步更新標題列與介面上之使用者名稱"""
+        cur_u = get_current_user()
+        dname = cur_u.get("display_name", cur_u.get("username", "主要帳戶"))
+        uname = cur_u.get("username", "default")
+        self.title(f"本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker) {get_app_version()} - [{dname}]")
+        if hasattr(self, 'lbl_user_info') and self.lbl_user_info:
+            self.lbl_user_info.configure(text=f"👤 當前帳戶: {dname} (@{uname})")
+        if hasattr(self, 'status_user_lbl') and self.status_user_lbl:
+            self.status_user_lbl.configure(text=f"👤 {dname}")
 
-        # 綁定視窗關閉事件，支援在退出時自動無聲套用延遲更新
-        self.protocol("WM_DELETE_WINDOW", self._on_app_close)
+    def on_switch_user(self):
+        """主畫面隨時切換使用者"""
+        LoginDialog(self, on_success=self._on_switch_user_success, allow_cancel=True)
+
+    def _on_switch_user_success(self, user: Dict[str, Any]):
+        """切換使用者成功回呼：清空當前視窗，載入新使用者專屬持股"""
+        set_current_user(user)
+        self.current_user = user
+        self.update_user_header_ui()
+
+        # 重新讀取該使用者之持股並刷新表格
+        self.reload_positions()
+        for pos in self.positions:
+            sym = pos["symbol"].upper()
+            if sym not in self.dividend_cache:
+                self.dividend_cache[sym] = DividendService.get_cached_or_db_dividend(sym)
+
+        self.refresh_ui_table()
+        self.trigger_refresh()
+        self.trigger_dividend_update(silent=True)
+        self.status_lbl.configure(text=f"已成功切換至帳戶：{user.get('display_name')} (@{user.get('username')})")
+
+    def on_manage_users(self):
+        """開啟使用者帳號管理中心"""
+        UserManageDialog(self, on_users_changed=self._on_users_managed)
+
+    def _on_users_managed(self):
+        """帳號資料修改後同步介面"""
+        cur_u = get_current_user()
+        self.current_user = cur_u
+        self.update_user_header_ui()
 
     def on_update_deferred(self, cloud_ver: str):
         """當使用者選擇稍後更新時，在視窗標題與狀態列進行友好提示"""
@@ -410,8 +472,43 @@ class PortfolioApp(tk.Tk):
 
     def build_ui(self):
         """建構主介面排版 (依據自訂設定動態生成卡片與表格)"""
+        # 0. 頂部使用者資訊與切換操作列 (多人多帳號專屬管理列)
+        self.user_bar = tk.Frame(self, bg=self.bg_color, padx=14, pady=4)
+        self.user_bar.pack(fill=tk.X)
+
+        cur_u = get_current_user()
+        dname = cur_u.get("display_name", cur_u.get("username", "主要帳戶"))
+        uname = cur_u.get("username", "default")
+
+        self.lbl_user_info = tk.Label(
+            self.user_bar, text=f"👤 當前帳戶: {dname} (@{uname})",
+            font=(self.font_family, self.font_size, "bold"),
+            fg="#38bdf8", bg=self.bg_color
+        )
+        self.lbl_user_info.pack(side=tk.LEFT)
+
+        self.btn_switch_user = tk.Button(
+            self.user_bar, text="🔄 切換帳號",
+            font=(self.font_family, max(8, self.font_size - 1), "bold"),
+            bg="#2b2b36", fg="#ffffff",
+            activebackground="#3a86ff", activeforeground="#ffffff",
+            relief="flat", cursor="hand2", padx=8, pady=2,
+            command=self.on_switch_user
+        )
+        self.btn_switch_user.pack(side=tk.LEFT, padx=(12, 4))
+
+        self.btn_manage_user = tk.Button(
+            self.user_bar, text="⚙️ 帳號管理",
+            font=(self.font_family, max(8, self.font_size - 1)),
+            bg="#2b2b36", fg=self.muted_text,
+            activebackground="#3a86ff", activeforeground="#ffffff",
+            relief="flat", cursor="hand2", padx=8, pady=2,
+            command=self.on_manage_users
+        )
+        self.btn_manage_user.pack(side=tk.LEFT, padx=4)
+
         # 1. 頂部儀表板卡片
-        self.top_cards_container = ttk.Frame(self, padding=(12, 10, 12, 5))
+        self.top_cards_container = ttk.Frame(self, padding=(12, 6, 12, 5))
         self.top_cards_container.pack(fill=tk.X)
         self.rebuild_cards()
 
@@ -423,8 +520,6 @@ class PortfolioApp(tk.Tk):
         # 3. 底部功能按鈕與工具列
         bottom_frame = ttk.Frame(self, padding=(12, 8, 12, 12))
         bottom_frame.pack(fill=tk.X)
-
-
 
         btn_data_update = ttk.Button(bottom_frame, text="[⟳ 資料更新]", command=self.on_open_data_update, style="Action.TButton")
         btn_data_update.pack(side=tk.LEFT, padx=2)
@@ -443,6 +538,9 @@ class PortfolioApp(tk.Tk):
 
         btn_cloud = ttk.Button(bottom_frame, text="[☁ 雲端] 加密同步", command=self.on_open_cloud_sync, style="Action.TButton")
         btn_cloud.pack(side=tk.LEFT, padx=2)
+
+        btn_user_toggle = ttk.Button(bottom_frame, text="[👤 帳號] 切換登入", command=self.on_switch_user, style="Action.TButton")
+        btn_user_toggle.pack(side=tk.LEFT, padx=2)
 
         self.btn_update = tk.Button(
             bottom_frame, text="[⬆ 軟體更新]", bg="#323242", fg="#ffffff",
@@ -467,8 +565,11 @@ class PortfolioApp(tk.Tk):
         self.status_bar = tk.Frame(self, bg="#13131a", height=26)
         self.status_bar.pack(fill=tk.X, side=tk.BOTTOM)
 
+        self.status_user_lbl = tk.Label(self.status_bar, text=f"👤 {dname}", bg="#13131a", fg="#38bdf8", font=("Microsoft JhengHei UI", 9, "bold"))
+        self.status_user_lbl.pack(side=tk.LEFT, padx=(12, 4), pady=3)
+
         self.status_lbl = tk.Label(self.status_bar, text="系統就緒", bg="#13131a", fg=self.muted_text, font=("Microsoft JhengHei UI", 9))
-        self.status_lbl.pack(side=tk.LEFT, padx=12, pady=3)
+        self.status_lbl.pack(side=tk.LEFT, padx=8, pady=3)
 
         # 盤後更新進度提示標籤 (右側醒目顯示)
         self.history_progress_lbl = tk.Label(self.status_bar, text="", bg="#13131a", fg="#52c41a", font=("Microsoft JhengHei UI", 9))
