@@ -204,3 +204,17 @@
   * 嚴格杜絕以「方便使用者測試」、「幫使用者準備好環境」為藉口在背景私自複製檔案至外部目錄。所有的檔案移動必須可追溯、透明且完全受控於工作區內部。
 * **詳細規範**：參考 `.agents/rules/zero_workspace_boundary_spillover_rule.md`。
 
+## 19. 全工作區多軌統一開發流程與首問即全貌貫徹鐵律 (Unified Multi-Track Workflow & Autonomous End-to-End Execution Rule - 全案最高強制規範)
+* **頂層 4 階段統一生命週期 (Core 4-Stage Lifecycle)**：
+  * 全工作區所有專案（ESP32 / WinForms / Python / Web）一律遵循：`1. 規格與契約鎖定 (Spec & Contract)` $\rightarrow$ `2. 單檔原子實作 (Single-Pass Atomic Edit)` $\rightarrow$ `3. 地端與日誌驗證 (Local-First & Log Verification)` $\rightarrow$ `4. 授權雙分支發布 (Authorized Dual-Branch Release)`。
+* **四大領域專案子軌道 (Track-Specific Sub-Workflows)**：
+  * **Track A (ESP32 韌體)**：前端微秒時序採樣，演算法與重算由上位機/GUI 承擔，杜絕頻繁燒錄；物理量真實空白，嚴禁假數據。
+  * **Track B (WinForms XP 工控)**：.NET 4.0 物理相容、Root TableLayoutPanel 互斥防裁切、Emoji 100% 禁用、單一整合 CSV 日誌。
+  * **Track C (Python 桌面便攜)**：CLI-First 離線計算驗證、UI 線程安全隔離、E2EE 零知識加密、純 ASCII 啟動腳本。
+  * **Track D (純前端 Web)**：Vanilla HTML/CSS/JS 零依賴、深色現代質感、嚴禁未經授權擅啟瀏覽器。
+* **首問即全貌、選定即貫徹 (Upfront Alignment & Autonomous End-to-End Execution - 核心互動鐵律)**：
+  * **杜絕中途瑣碎碎步提問 (Zero Mid-Way Nagging)**：**嚴格禁止**在任務執行過程中「做一步問一步、反覆中斷」！所有需求與策略選擇，**必須在最初的第一次提問時就一次性說明完整**，攤開從起點到最終交付的完整全貌（包含分析、修復、單元測試、封裝打包、版號更新、地端啟動）供使用者選擇。
+  * **選定後自主直達終點 (Run to Completion Without Interruption)**：當使用者在第一次做出選擇或指示後，AI **必須一口氣自主連續執行該方案的所有工序直到最後一步完成**，中途絕不反覆停步問「下一步要選什麼」，最後一次性彙整回報成果！
+* **詳細規範**：參考 `.agents/rules/unified_multitrack_workflow_and_interactive_gate_rule.md`。
+
+

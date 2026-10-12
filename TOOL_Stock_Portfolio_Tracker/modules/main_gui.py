@@ -299,6 +299,10 @@ class PortfolioApp(tk.Tk):
         self.after(4000, self.check_online_update_silently)
         self.after(5500, self.start_daily_1500_scheduler)
 
+        # 快捷鍵綁定
+        self.bind("<Control-d>", lambda e: self.on_open_dividend_analyzer())
+        self.bind("<Control-D>", lambda e: self.on_open_dividend_analyzer())
+
         # 綁定視窗關閉事件，支援在退出時自動無聲套用延遲更新
         self.protocol("WM_DELETE_WINDOW", self._on_app_close)
 
@@ -424,6 +428,9 @@ class PortfolioApp(tk.Tk):
 
         btn_data_update = ttk.Button(bottom_frame, text="[⟳ 資料更新]", command=self.on_open_data_update, style="Action.TButton")
         btn_data_update.pack(side=tk.LEFT, padx=2)
+
+        btn_dividend_analyzer = ttk.Button(bottom_frame, text="[💰 股息分析] 現金流月曆", command=self.on_open_dividend_analyzer, style="Action.TButton")
+        btn_dividend_analyzer.pack(side=tk.LEFT, padx=2)
 
         btn_ranking = ttk.Button(bottom_frame, text="[📊 市場排行] 4大指標", command=self.on_open_market_ranking, style="Action.TButton")
         btn_ranking.pack(side=tk.LEFT, padx=2)
@@ -1243,6 +1250,14 @@ class PortfolioApp(tk.Tk):
             )
 
         MarketRankingDialog(self, on_add_position_callback=on_add_cb, existing_symbols=existing_syms)
+
+    def on_open_dividend_analyzer(self):
+        """開啟股息股利專用分析頁面 (復刻 WEB_ETF_Portfolio_Analyzer 現金流與健保視覺系統)"""
+        try:
+            from dividend_analyzer_gui import DividendAnalyzerDialog
+            DividendAnalyzerDialog(self, latest_quotes=self.latest_quotes)
+        except Exception as e:
+            messagebox.showerror("開啟失敗", f"無法開啟股息分析頁面: {e}", parent=self)
 
 
 class PositionEditDialog(tk.Toplevel):

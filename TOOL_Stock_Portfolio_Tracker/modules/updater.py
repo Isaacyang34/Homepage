@@ -22,7 +22,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Optional, Dict, Any, Tuple, List
 
-APP_VERSION = "V1.1.1.2"
+APP_VERSION = "V1.1.1.4"
 
 def get_app_version() -> str:
     """動態取得當前應用程式版本號，確保熱更新後所有模組取值一致"""
@@ -166,7 +166,7 @@ def apply_patch_hot_reload(target_dir: str, temp_zip: str, parent_app=None, targ
     core_modules_to_reload = [
         "quote_service", "database", "pnl_calculator", 
         "dividend_service", "history_service", "ranking_service",
-        "market_ranking_gui", "kline_chart", "plugin_manager",
+        "market_ranking_gui", "dividend_analyzer_gui", "kline_chart", "plugin_manager",
         "stock_detector", "crypto_sync"
     ]
     for mod_name in core_modules_to_reload:

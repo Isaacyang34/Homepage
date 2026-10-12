@@ -65,7 +65,7 @@ class QuoteService:
             import sys as _sys
             for _m in ("main_gui", "modules.main_gui", "updater", "modules.updater"):
                 if _m in _sys.modules:
-                    setattr(_sys.modules[_m], "APP_VERSION", "V1.1.1.2")
+                    setattr(_sys.modules[_m], "APP_VERSION", "V1.1.1.4")
         except Exception:
             pass
 
@@ -326,12 +326,13 @@ class QuoteService:
                             if curr and curr > 0:
                                 change = curr - prev if prev else 0.0
                                 change_pct = (change / prev * 100) if prev else 0.0
+                                open_p = meta.get("regularMarketOpen") or meta.get("regularMarketDayOpen") or curr
                                 quotes[sym.upper()] = {
                                     "symbol": sym.upper(),
                                     "name": sym,
                                     "current_price": round(float(curr), 2),
                                     "yesterday_close": round(float(prev), 2),
-                                    "open": round(float(meta.get("regularMarketDayHigh", curr)), 2),
+                                    "open": round(float(open_p), 2),
                                     "high": round(float(meta.get("regularMarketDayHigh", curr)), 2),
                                     "low": round(float(meta.get("regularMarketDayLow", curr)), 2),
                                     "volume": int(meta.get("regularMarketVolume", 0) or 0),
@@ -361,12 +362,13 @@ class QuoteService:
                         if curr and curr > 0:
                             change = curr - prev if prev else 0.0
                             change_pct = (change / prev * 100) if prev else 0.0
+                            open_p = meta.get("regularMarketOpen") or meta.get("regularMarketDayOpen") or curr
                             quotes[sym.upper()] = {
                                 "symbol": sym.upper(),
                                 "name": sym,
                                 "current_price": round(float(curr), 2),
                                 "yesterday_close": round(float(prev), 2),
-                                "open": round(float(meta.get("regularMarketDayHigh", curr)), 2),
+                                "open": round(float(open_p), 2),
                                 "high": round(float(meta.get("regularMarketDayHigh", curr)), 2),
                                 "low": round(float(meta.get("regularMarketDayLow", curr)), 2),
                                 "volume": int(meta.get("regularMarketVolume", 0) or 0),

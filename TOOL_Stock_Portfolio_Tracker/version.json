@@ -1,11 +1,27 @@
 {
-  "version": "V1.1.1.2",
-  "release_date": "2026-10-08",
+  "version": "V1.1.1.4",
+  "release_date": "2026-10-12",
   "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
-  "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.1.2.zip",
-  "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.1.2_Portable.zip",
-  "changelog": "【V1.1.1.2 幽靈選取徹底根除、ETF即時淨值與折溢價、4大指標秒開極速快取】\n\n1. [徹底修復幽靈選取] 修正 refresh_ui_table 誤讀取 tree.focus() 鍵盤殘留焦點的缺陷，改為嚴格比對 tree.selection() 真實反白；若無選取則刷新後 100% 保持乾淨無選取，且 clear_selection 徹底清空焦點，跳出視窗絕不自動點選股票。\n2. [新增ETF即時淨值與折溢價] 緊鄰預估市值新增 [淨值] 與 [折溢價] 兩大欄位，自動同步 TWSE 全市場 ETF 即時預估淨值 (iNAV) 與動態折溢價幅度 (一般個股顯示 --)。\n3. [4大指標快取秒開修復] 修正快取持久化路徑，全面落實 Stale-While-Revalidate 秒開原則，開窗瞬間 0 毫秒立即呈現，若有過期於背景無聲更新，徹底告別轉圈等待！",
+  "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.1.4.zip",
+  "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.1.4_Portable.zip",
+  "changelog": "【V1.1.1.4 股息分析與市場排行視窗原生縮放、Win11邊緣拖曳Snap與全螢幕支援】\n\n1. [解除Transient限制] 徹底移除 DividendAnalyzerDialog 與 MarketRankingDialog 之 transient 附屬對話框限制，解鎖 Windows 11 原生視窗邊框與最大化按鈕。\n2. [Win11 Snap 與全螢幕支援] 啟用 resizable(True, True)，支援視窗拖曳至螢幕邊緣 1/2 自動分割、拖曳至頂端全螢幕、雙擊標題列最大化/還原、以及四宮格 Snap Layouts 排版。\n3. [版面自動填滿] 強化內部清單與圖表容器自適應擴展 (expand=True, fill=BOTH)，全螢幕時內容與表格視野極致延展。",
   "recent_versions": [
+    {
+      "version": "V1.1.1.4",
+      "release_date": "2026-10-12",
+      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.1.4.zip",
+      "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
+      "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.1.4_Portable.zip",
+      "changelog": "V1.1.1.4 股息分析與市場排行視窗原生縮放、Win11邊緣拖曳Snap與全螢幕支援。"
+    },
+    {
+      "version": "V1.1.1.3",
+      "release_date": "2026-10-12",
+      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.1.3.zip",
+      "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
+      "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.1.3_Portable.zip",
+      "changelog": "V1.1.1.3 Yahoo備援與美股開盤價精確取值修復、全套核心離線單元測試整合。"
+    },
     {
       "version": "V1.1.1.2",
       "release_date": "2026-10-08",

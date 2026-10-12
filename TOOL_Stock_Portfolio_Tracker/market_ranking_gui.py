@@ -24,7 +24,9 @@ class MarketRankingDialog(tk.Toplevel):
         self.title("台股與 ETF 市場財務指標排行榜 (4大核心指標)")
         self.geometry("1040x680")
         self.minsize(880, 560)
-        self.transient(parent)
+        self.resizable(True, True)
+        self.lift()
+        self.focus_force()
 
         # 嘗試套用更新或主程式專屬 ICON
         try:

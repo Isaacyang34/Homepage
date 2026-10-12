@@ -24,6 +24,7 @@ MODULE_FILES = [
     "pnl_calculator.py",
     "ranking_service.py",
     "market_ranking_gui.py",
+    "dividend_analyzer_gui.py",
     "kline_chart.py",
     "splash_screen.py",
     "stock_detector.py",
