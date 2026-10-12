@@ -419,11 +419,16 @@ def parse_version_tuple(ver_str: str) -> Tuple[int, ...]:
 
 def is_newer_version(cloud_ver: str, local_ver: str) -> bool:
     """判斷雲端版本是否大於本地版本"""
+    c_clean = str(cloud_ver or "").strip().lower()
+    l_clean = str(local_ver or "").strip().lower()
+    if not c_clean or not l_clean or c_clean == l_clean:
+        return False
+
     c_tup = parse_version_tuple(cloud_ver)
     l_tup = parse_version_tuple(local_ver)
     if c_tup != (0, 0, 0, 0) and l_tup != (0, 0, 0, 0):
         return c_tup > l_tup
-    return cloud_ver.strip().lower() != local_ver.strip().lower()
+    return False
 
 def fetch_update_manifest(timeout: float = 3.5) -> Tuple[bool, Optional[Dict[str, Any]], str]:
     """從遠端取得最新版本清單 (多通道備援 + 本機環境自動降級適配)"""
@@ -812,10 +817,13 @@ class UpdateDialog(tk.Toplevel):
         self.btn_download_full.pack_forget()
         self.btn_cancel.pack_forget()
 
-        # 若為輕量補丁包：直接自動執行真・記憶體熱更新，0 次打擾、無需任何二次確認！
+        # 若為輕量補丁包：直接自動執行安全置換並平滑重啟，徹底杜絕記憶體殘留與視窗標題未同步問題！
         if is_patch:
-            log_update_debug(f"[AUTO_APPLY] Patch downloaded. Auto applying hot reload without modal prompt...")
-            self._do_apply(target_dir, temp_file, restart=False, is_patch=True)
+            log_update_debug(f"[AUTO_APPLY] Patch downloaded. Applying patch with seamless restart...")
+            apply_patch_now(target_dir, temp_file, restart=True)
+            self.destroy()
+            if self.parent:
+                self.parent.destroy()
             return
 
         # 僅當為跨核心完整安裝包 (需重啟主程式) 時，才呈現手動確認與延遲選項
