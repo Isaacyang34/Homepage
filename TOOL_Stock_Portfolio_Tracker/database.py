@@ -305,6 +305,29 @@ def update_user_display_name(user_id: int, display_name: str) -> bool:
     except Exception:
         return False
 
+def update_username(user_id: int, new_username: str) -> Tuple[bool, str]:
+    """更新使用者登入帳號名稱 (包含防呆與唯一性檢查)"""
+    clean_u = new_username.strip()
+    if not clean_u:
+        return False, "帳號名稱不可為空！"
+        
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            # 檢查是否被其他帳號佔用
+            cursor.execute("SELECT id FROM users WHERE username = ? AND id != ?", (clean_u, user_id))
+            if cursor.fetchone():
+                return False, f"帳號名稱「{clean_u}」已被其他使用者使用，請使用其他名稱！"
+                
+            cursor.execute("UPDATE users SET username = ? WHERE id = ?", (clean_u, user_id))
+            conn.commit()
+            
+            if _CURRENT_USER.get("id") == user_id:
+                _CURRENT_USER["username"] = clean_u
+            return True, "帳號名稱更新成功！"
+    except Exception as e:
+        return False, f"更新帳號名稱失敗: {e}"
+
 def delete_user(user_id: int) -> Tuple[bool, str]:
     """刪除使用者帳號及其專屬持股與買入批次 (保護 id=1 預設帳號與唯一帳號不可刪除)"""
     if user_id == 1:

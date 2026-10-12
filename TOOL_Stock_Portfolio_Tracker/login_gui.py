@@ -525,7 +525,7 @@ class UserManageDialog(tk.Toplevel):
         actions_bar.pack(fill="x", padx=15, pady=(5, 12))
         
         self.edit_btn = tk.Button(
-            actions_bar, text="✏️ 變更名稱/密碼",
+            actions_bar, text="✏️ 編輯帳號/暱稱/密碼",
             font=(FONT_FAMILY, 9),
             bg=THEME_BG, fg=THEME_TEXT,
             relief="flat", cursor="hand2",
@@ -679,7 +679,7 @@ class EditUserDialog(tk.Toplevel):
         self.bind("<Escape>", lambda e: self._on_close())
         
         self._build_ui()
-        center_toplevel(self, 440, 360, parent, resizable=True)
+        center_toplevel(self, 460, 430, parent, resizable=True)
         
         self.deiconify()
         if parent and parent.winfo_viewable():
@@ -714,7 +714,7 @@ class EditUserDialog(tk.Toplevel):
 
     def _build_ui(self):
         tk.Label(
-            self, text=f"編輯帳號：@{self.user.get('username')}",
+            self, text="⚙️ 編輯帳號資料與安全防護",
             font=(FONT_FAMILY, 12, "bold"),
             fg=THEME_ACCENT, bg=THEME_BG
         ).pack(anchor="w", padx=25, pady=(20, 5))
@@ -745,44 +745,66 @@ class EditUserDialog(tk.Toplevel):
         card = tk.Frame(self, bg=THEME_CARD_BG, highlightbackground=THEME_BORDER, highlightthickness=1)
         card.pack(side="top", fill="both", expand=True, padx=25, pady=8)
         
-        # 顯示名稱
-        tk.Label(card, text="顯示暱稱：", font=(FONT_FAMILY, 9), fg=THEME_TEXT, bg=THEME_CARD_BG).pack(anchor="w", padx=15, pady=(12, 2))
+        # 1. 帳號名稱 (登入代號)
+        tk.Label(card, text="帳號名稱 (登入代號 / 英文數字)：", font=(FONT_FAMILY, 9), fg=THEME_TEXT, bg=THEME_CARD_BG).pack(anchor="w", padx=15, pady=(10, 2))
+        self.username_entry = tk.Entry(card, font=(FONT_FAMILY, 10), bg=THEME_ENTRY_BG, fg=THEME_TEXT, insertbackground=THEME_TEXT, relief="flat")
+        self.username_entry.insert(0, self.user.get("username", ""))
+        self.username_entry.pack(fill="x", padx=15, ipady=4)
+
+        # 2. 顯示暱稱
+        tk.Label(card, text="顯示暱稱 (個人自訂名稱)：", font=(FONT_FAMILY, 9), fg=THEME_TEXT, bg=THEME_CARD_BG).pack(anchor="w", padx=15, pady=(8, 2))
         self.name_entry = tk.Entry(card, font=(FONT_FAMILY, 10), bg=THEME_ENTRY_BG, fg=THEME_TEXT, insertbackground=THEME_TEXT, relief="flat")
         self.name_entry.insert(0, self.user.get("display_name", ""))
         self.name_entry.pack(fill="x", padx=15, ipady=4)
         
-        # 新密碼
-        tk.Label(card, text="新密碼 (若不修改請留空，輸入空格清除密碼)：", font=(FONT_FAMILY, 9), fg=THEME_TEXT, bg=THEME_CARD_BG).pack(anchor="w", padx=15, pady=(12, 2))
+        # 3. 新密碼
+        tk.Label(card, text="新密碼 (若不修改請留空，輸入空格清除密碼)：", font=(FONT_FAMILY, 9), fg=THEME_TEXT, bg=THEME_CARD_BG).pack(anchor="w", padx=15, pady=(8, 2))
         self.pwd_entry = tk.Entry(card, font=(FONT_FAMILY, 10), show="●", bg=THEME_ENTRY_BG, fg=THEME_TEXT, insertbackground=THEME_TEXT, relief="flat")
         self.pwd_entry.pack(fill="x", padx=15, ipady=4)
         
-        # 密碼確認
+        # 4. 密碼確認
         tk.Label(card, text="再次輸入新密碼確認：", font=(FONT_FAMILY, 9), fg=THEME_TEXT, bg=THEME_CARD_BG).pack(anchor="w", padx=15, pady=(8, 2))
         self.confirm_entry = tk.Entry(card, font=(FONT_FAMILY, 10), show="●", bg=THEME_ENTRY_BG, fg=THEME_TEXT, insertbackground=THEME_TEXT, relief="flat")
         self.confirm_entry.pack(fill="x", padx=15, ipady=4)
 
     def _do_save(self):
-        new_name = self.name_entry.get().strip() or self.user.get("username")
+        new_username = self.username_entry.get().strip()
+        new_name = self.name_entry.get().strip() or new_username
         new_pwd = self.pwd_entry.get()
         confirm_pwd = self.confirm_entry.get()
         
-        # 更新顯示名稱
+        if not new_username:
+            messagebox.showwarning("欄位未填", "帳號名稱不可為空！", parent=self)
+            self.username_entry.focus_set()
+            return
+            
+        # 1. 若修改了帳號名稱，執行更新與唯一性校驗
+        old_username = self.user.get("username", "")
+        if new_username != old_username:
+            ok_u, msg_u = database.update_username(self.user["id"], new_username)
+            if not ok_u:
+                messagebox.showerror("修改帳號名稱失敗", msg_u, parent=self)
+                self.username_entry.focus_set()
+                return
+
+        # 2. 更新顯示暱稱
         database.update_user_display_name(self.user["id"], new_name)
         
-        # 更新密碼 (若有輸入)
+        # 3. 更新密碼 (若有輸入)
         if new_pwd != "":
             if new_pwd != confirm_pwd:
                 messagebox.showerror("密碼不一致", "兩次輸入的新密碼不相符，請重新確認！", parent=self)
                 return
             database.update_user_password(self.user["id"], new_pwd.strip())
             
-        # 若修改的是當前登入者，同步更新全域狀態
+        # 4. 若修改的是當前登入者，同步更新全域狀態
         cur_u = database.get_current_user()
         if cur_u.get("id") == self.user["id"]:
+            cur_u["username"] = new_username
             cur_u["display_name"] = new_name
             database.set_current_user(cur_u)
             
-        messagebox.showinfo("更新成功", "帳號設定已成功更新！", parent=self)
+        messagebox.showinfo("更新成功", f"帳號「{new_name}」(@{new_username}) 設定已成功更新！", parent=self)
         if self.on_saved:
             try:
                 self.on_saved()

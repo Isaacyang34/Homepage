@@ -492,6 +492,27 @@ class TestMultiUserSupport(unittest.TestCase):
         self.assertTrue(del_ok)
         self.assertEqual(len(self.db.get_all_positions(test_uid)), 0)
 
+    def test_update_username_success_and_unique_guard(self):
+        """驗證更新帳號名稱 (Username) 之成功路徑與唯一性防呆"""
+        ok1, _, uid1 = self.db.create_user("user_old", "舊名稱", "")
+        ok2, _, uid2 = self.db.create_user("user_other", "其他用戶", "")
+        self.assertTrue(ok1 and ok2)
+
+        # 1. 成功修改帳號名稱
+        ok_up, msg_up = self.db.update_username(uid1, "user_new")
+        self.assertTrue(ok_up)
+        u1 = self.db.get_user_by_id(uid1)
+        self.assertEqual(u1["username"], "user_new")
+
+        # 2. 嘗試修改為空帳號名稱應被阻擋
+        ok_empty, _ = self.db.update_username(uid1, "   ")
+        self.assertFalse(ok_empty)
+
+        # 3. 嘗試修改為已存在之帳號名稱應被阻擋
+        ok_dup, msg_dup = self.db.update_username(uid1, "user_other")
+        self.assertFalse(ok_dup)
+        self.assertIn("已被其他使用者使用", msg_dup)
+
 
 class TestUILayoutIntegrity(unittest.TestCase):
     """驗證 GUI 視窗排版防裁切健康檢查 (自動防文字截斷硬閘門)"""
