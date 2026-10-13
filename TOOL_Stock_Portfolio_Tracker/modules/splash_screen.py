@@ -403,8 +403,19 @@ class SplashScreen:
         """背景預熱載入模組、讀取持股資料庫並預先同步即時行情報價 (讓等待留在啟動畫面)"""
         try:
             self.set_status("✦ 蓄勢整理：讀取本地庫存資料庫與模組...", 0.30)
-            from database import init_db, get_all_positions
+            from database import init_db, get_all_positions, is_startup_login_required
             init_db()
+
+            if is_startup_login_required():
+                # 安全守護：帳號已啟用密碼防護，啟動預熱階段嚴禁在未解鎖前讀取私密持股或報價
+                self.set_status("✦ 安全守護：帳號已鎖定，準備登入驗證...", 0.70)
+                self.preloaded_quotes = {}
+                self.preloaded_divs = {}
+                time.sleep(0.35)
+                self.set_status("✦ 系統準備就緒，請驗證登入！", 1.0)
+                self.preload_done = True
+                return
+
             positions = get_all_positions()
 
             self.set_status("✦ 放量上攻：讀取股息快取與同步報價...", 0.65)

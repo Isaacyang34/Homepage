@@ -145,17 +145,17 @@ class LoginDialog(tk.Toplevel):
         sub_row = tk.Frame(btn_box, bg=THEME_BG)
         sub_row.pack(fill="x")
         
-        self.manage_btn = tk.Button(
-            sub_row, text="⚙️ 帳號管理中心",
-            font=(FONT_FAMILY, 9),
-            bg=THEME_CARD_BG, fg=THEME_TEXT,
-            activebackground=THEME_BORDER, activeforeground=THEME_TEXT,
-            relief="flat", cursor="hand2",
-            command=self._open_user_manager
-        )
-        self.manage_btn.pack(side="left", fill="x", expand=True, padx=(0, 4), ipady=3)
-        
         if self.allow_cancel:
+            self.manage_btn = tk.Button(
+                sub_row, text="⚙️ 帳號管理中心",
+                font=(FONT_FAMILY, 9),
+                bg=THEME_CARD_BG, fg=THEME_TEXT,
+                activebackground=THEME_BORDER, activeforeground=THEME_TEXT,
+                relief="flat", cursor="hand2",
+                command=self._open_user_manager
+            )
+            self.manage_btn.pack(side="left", fill="x", expand=True, padx=(0, 4), ipady=3)
+
             self.cancel_btn = tk.Button(
                 sub_row, text="取消",
                 font=(FONT_FAMILY, 9),
@@ -165,6 +165,16 @@ class LoginDialog(tk.Toplevel):
                 command=self._on_close
             )
             self.cancel_btn.pack(side="right", fill="x", expand=True, padx=(4, 0), ipady=3)
+        else:
+            self.exit_btn = tk.Button(
+                sub_row, text="✕ 結束系統",
+                font=(FONT_FAMILY, 9),
+                bg=THEME_CARD_BG, fg=THEME_TEXT_MUTED,
+                activebackground=THEME_BORDER, activeforeground=THEME_TEXT,
+                relief="flat", cursor="hand2",
+                command=self._on_close
+            )
+            self.exit_btn.pack(fill="x", ipady=3)
 
         # 中央卡片容器 (填補剩餘中間區域)
         card = tk.Frame(self, bg=THEME_CARD_BG, highlightbackground=THEME_BORDER, highlightthickness=1)
@@ -338,13 +348,15 @@ class LoginDialog(tk.Toplevel):
     def _on_close(self):
         if not self.logged_in_user and not self.allow_cancel:
             # 強制登入模式下若使用者直接關閉視窗，提示是否結束應用程式
-            if messagebox.askyesno("結束系統", "尚未選擇帳號登入，確定要結束應用程式嗎？", parent=self):
+            if messagebox.askyesno("結束系統", "尚未完成登入驗證，確定要結束應用程式嗎？", parent=self):
                 if self.parent:
                     try:
                         self.parent.destroy()
                     except Exception:
                         pass
                 self._safe_destroy()
+                import sys
+                sys.exit(0)
             return
             
         self._safe_destroy()

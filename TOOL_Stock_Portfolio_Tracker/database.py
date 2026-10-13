@@ -33,30 +33,83 @@ else:
 DB_FILE = os.path.join(BASE_DIR, "portfolio.db")
 
 # 當前運行期登入使用者狀態 (全域單例)
-_CURRENT_USER = {
-    "id": 1,
-    "username": "default",
-    "display_name": "主要帳戶"
-}
+_CURRENT_USER: Dict[str, Any] = {}
 
 ENC_PREFIX = "ENC:"
 
 # 當前運行期登入使用者之解密引擎單例緩存 (user_id -> {"gcm": AESGCM, "siv": AESSIV})
 _SESSION_CRYPTO_ENGINES: Dict[int, Dict[str, Any]] = {}
 
+def get_startup_user() -> Dict[str, Any]:
+    """從本地資料庫讀取上次登入帳號或預設使用者 (精確帶出 has_password 旗標)"""
+    try:
+        init_db()
+        last_uid_str = get_setting("last_user_id", "1")
+        try:
+            last_uid = int(last_uid_str)
+        except Exception:
+            last_uid = 1
+        user = get_user_by_id(last_uid)
+        if not user:
+            all_u = get_all_users()
+            if all_u:
+                user = get_user_by_id(all_u[0]["id"])
+        if user:
+            has_pwd = bool(user.get("password_hash"))
+            return {
+                "id": int(user["id"]),
+                "username": str(user["username"]),
+                "display_name": str(user.get("display_name") or user["username"]),
+                "has_password": has_pwd
+            }
+    except Exception:
+        pass
+    return {
+        "id": 1,
+        "username": "default",
+        "display_name": "主要帳戶",
+        "has_password": False
+    }
+
 def get_current_user() -> Dict[str, Any]:
-    """取得當前已登入之使用者資訊"""
+    """取得當前已登入之使用者資訊 (具備 has_password 狀態)"""
     global _CURRENT_USER
+    if not _CURRENT_USER or "has_password" not in _CURRENT_USER:
+        _CURRENT_USER = get_startup_user()
     return dict(_CURRENT_USER)
 
 def set_current_user(user_info: Dict[str, Any]):
     """設定當前已登入之使用者資訊"""
     global _CURRENT_USER
+    has_pwd = bool(user_info.get("has_password", False))
+    if "has_password" not in user_info and "password_hash" in user_info:
+        has_pwd = bool(user_info.get("password_hash"))
     _CURRENT_USER = {
         "id": int(user_info.get("id", 1)),
         "username": str(user_info.get("username", "default")),
-        "display_name": str(user_info.get("display_name", user_info.get("username", "主要帳戶")))
+        "display_name": str(user_info.get("display_name", user_info.get("username", "主要帳戶"))),
+        "has_password": has_pwd
     }
+
+def is_startup_login_required() -> bool:
+    """
+    判斷啟動系統時是否必須顯示登入視窗：
+    1. 當前/上次登入帳號設有安全密碼 -> 100% 強制要求輸入密碼驗證！
+    2. 或系統內存在多個使用者帳號且其中有任一帳號設有密碼 -> 強制登入選擇！
+    3. 或設定為每次啟動需選擇帳號 (require_login_on_startup == '1')。
+    """
+    cur_u = get_current_user()
+    if cur_u.get("has_password"):
+        return True
+    req_setting = get_setting("require_login_on_startup", "")
+    if req_setting == "1":
+        return True
+    all_users = get_all_users()
+    if len(all_users) > 1:
+        for u in all_users:
+            if u.get("has_password"):
+                return True
+    return False
 
 def hash_password(password: str, salt: Optional[str] = None) -> Tuple[str, str]:
     """密碼安全雜湊 (SHA-256 + 16 bytes 隨機 Salt)；空密碼直接回傳空字串"""

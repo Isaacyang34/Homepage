@@ -1,11 +1,19 @@
 {
-  "version": "V1.1.2.1",
-  "release_date": "2026-10-12",
+  "version": "V1.1.2.2",
+  "release_date": "2026-10-13",
   "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
-  "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.2.1.zip",
-  "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.2.1_Portable.zip",
-  "changelog": "【V1.1.2.1 本地端資料庫 AES-256 軍規加密與安全門禁】\n\n1. [應用層雙加密引擎] 標的代碼與名稱全面採用 RFC 5297 AES-SIV 決定性加密 (ENC:SIV:...)，股數、單價、手續費與備註採用隨機化 AES-256-GCM (ENC:GCM:...)，外人複製 db 檔僅能見亂碼。\n2. [登入安全防護門禁] 啟動若遇設有密碼之帳戶，鎖定畫面攔截讀取，驗證通過始在記憶體衍生解密金鑰並無痛解密。\n3. [歷史明碼自動無痛升級] 既有持股在首次以密碼登入時自動全量遷移為密文。\n4. [密碼變更金鑰輪替] 支援在帳號管理中心變更密碼時自動重加密所有持股。",
+  "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.2.2.zip",
+  "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.2.2_Portable.zip",
+  "changelog": "【V1.1.2.2 開機安全登入門禁強化與零外洩防護】\n\n1. [開機強制密碼門禁] 啟動軟體時自動偵測帳號安全設定，若帳號設有密碼或多帳號環境，主視窗 100% 保持隱藏並強制彈出登入解鎖對話框，輸入正確密碼前持股與資產完全不外洩。\n2. [開機預熱隱私防護] 啟動動畫預載階段攔截持股與即時行情抓取，未經解鎖前禁止讀取資料庫庫存。\n3. [登入防繞過機制] 開機登入模式下封鎖非授權帳號管理入口，取消或退出時安全終止應用程式。",
   "recent_versions": [
+    {
+      "version": "V1.1.2.2",
+      "release_date": "2026-10-13",
+      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.2.2.zip",
+      "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
+      "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.2.2_Portable.zip",
+      "changelog": "V1.1.2.2 開機安全登入門禁強化與零外洩防護、開機動畫隱私遮罩與防繞過機制。"
+    },
     {
       "version": "V1.1.2.1",
       "release_date": "2026-10-12",

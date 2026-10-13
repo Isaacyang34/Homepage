@@ -277,8 +277,22 @@ class PortfolioApp(tk.Tk):
         self.build_ui()
         self.update_user_header_ui()
 
-        # 初始載入當前帳號庫存與立即繪製表格 (若無密碼則開窗瞬間秒顯持股資訊，0秒空白等待；有密碼則等待解鎖)
-        if not self.current_user.get("has_password"):
+        # 綁定視窗關閉事件，支援在退出時自動無聲套用延遲更新
+        self.protocol("WM_DELETE_WINDOW", self._on_app_close)
+
+        # 快捷鍵綁定
+        self.bind("<Control-d>", lambda e: self.on_open_dividend_analyzer())
+        self.bind("<Control-D>", lambda e: self.on_open_dividend_analyzer())
+
+        # 啟動登入門閘檢查：若需要密碼驗證或多帳號選擇，主視窗保持隱藏 (withdraw)，直接彈出登入解鎖對話框
+        from database import is_startup_login_required
+        if is_startup_login_required():
+            self.positions = []
+            if "stock_count" in self.cards:
+                self.cards["stock_count"].configure(text="🔒 已鎖定")
+            self.status_lbl.configure(text="🔒 此帳戶已啟用安全密碼，請輸入密碼以解鎖持股庫存...")
+            self.after(50, self._show_startup_login_gate)
+        else:
             self.reload_positions()
             # 預先自本地 SQLite 補齊所有持股的股息快取 (極速純本地讀取，0 毫秒)
             for pos in self.positions:
@@ -286,18 +300,13 @@ class PortfolioApp(tk.Tk):
                 if sym not in self.dividend_cache:
                     self.dividend_cache[sym] = DividendService.get_cached_or_db_dividend(sym)
             self.refresh_ui_table()
-        else:
-            self.positions = []
-            if "stock_count" in self.cards:
-                self.cards["stock_count"].configure(text="🔒 已鎖定")
 
-        # 完成所有 UI 元件與深色主題佈局後，強制更新繪圖緩衝區並秒級亮出主視窗 (0 秒白屏)
-        self.update_idletasks()
-        self.deiconify()
-        self.lift()
-        self.focus_force()
+            # 完成所有 UI 元件與深色主題佈局後，強制更新繪圖緩衝區並秒級亮出主視窗 (0 秒白屏)
+            self.update_idletasks()
+            self.deiconify()
+            self.lift()
+            self.focus_force()
 
-        if not self.current_user.get("has_password"):
             if self.latest_quotes:
                 now_str = datetime.now().strftime("%H:%M:%S")
                 self.status_lbl.configure(text=f"最後更新時間: {now_str} (啟動預先載入)")
@@ -305,32 +314,50 @@ class PortfolioApp(tk.Tk):
                 self.trigger_refresh()
             self.trigger_dividend_update(silent=True)
             self.start_auto_refresh_timer()
-        else:
-            self.status_lbl.configure(text="🔒 此帳戶已啟用安全密碼，請輸入密碼以解鎖持股庫存...")
 
-        # 啟動後自動預熱市場排行快取、比對盤後資料、線上更新檢查與每日 15:00 定時同步監控 (延遲啟動確保 UI 流暢)
+            # 啟動後自動預熱市場排行快取、比對盤後資料、線上更新檢查與每日 15:00 定時同步監控 (延遲啟動確保 UI 流暢)
+            self.after(1500, self.prewarm_market_ranking_cache)
+            self.after(2500, self.auto_check_post_market_history)
+            self.after(4000, self.check_online_update_silently)
+            self.after(5500, self.start_daily_1500_scheduler)
+
+    def _show_startup_login_gate(self):
+        """開機安全門閘：在解鎖驗證前主視窗完全隱藏，彈出登入解鎖視窗"""
+        LoginDialog(self, on_success=self._on_startup_login_success, allow_cancel=False)
+
+    def _on_startup_login_success(self, user: Dict[str, Any]):
+        """開機登入驗證成功：載入使用者持股庫存、刷新即時報價並展開主視窗"""
+        set_current_user(user)
+        self.current_user = user
+        self.update_user_header_ui()
+
+        # 重新讀取該使用者之持股並刷新表格
+        self.reload_positions()
+        for pos in self.positions:
+            sym = pos["symbol"].upper()
+            if sym not in self.dividend_cache:
+                self.dividend_cache[sym] = DividendService.get_cached_or_db_dividend(sym)
+
+        self.refresh_ui_table()
+
+        # 亮出主視窗
+        self.update_idletasks()
+        self.deiconify()
+        self.lift()
+        self.focus_force()
+
+        # 觸發即時報價與股息更新
+        self.trigger_refresh()
+        self.trigger_dividend_update(silent=True)
+        self.start_auto_refresh_timer()
+
+        # 啟動後背景任務 (延遲啟動確保流暢)
         self.after(1500, self.prewarm_market_ranking_cache)
         self.after(2500, self.auto_check_post_market_history)
         self.after(4000, self.check_online_update_silently)
         self.after(5500, self.start_daily_1500_scheduler)
 
-        # 快捷鍵綁定
-        self.bind("<Control-d>", lambda e: self.on_open_dividend_analyzer())
-        self.bind("<Control-D>", lambda e: self.on_open_dividend_analyzer())
-
-        # 綁定視窗關閉事件，支援在退出時自動無聲套用延遲更新
-        self.protocol("WM_DELETE_WINDOW", self._on_app_close)
-
-        # 密碼安全檢查：若當前帳號設有密碼，立即彈出解鎖視窗
-        self.after(200, self._check_startup_login_gate)
-
-    def _check_startup_login_gate(self):
-        """若當前帳號設有密碼防護，鎖定持股表格並彈出密碼解鎖對話框"""
-        cur_u = get_current_user()
-        if cur_u.get("has_password"):
-            self.tree.delete(*self.tree.get_children())
-            self.status_lbl.configure(text="🔒 此帳戶已啟用安全密碼，請輸入密碼以解鎖持股庫存...")
-            LoginDialog(self, on_success=self._on_switch_user_success, allow_cancel=False)
+        self.status_lbl.configure(text=f"歡迎回來，{user.get('display_name')} (@{user.get('username')})！持股庫存已成功解鎖載入。")
 
     def update_user_header_ui(self):
         """同步更新標題列與介面上之使用者名稱"""
