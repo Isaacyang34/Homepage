@@ -476,7 +476,7 @@ class PortfolioApp(tk.Tk):
         menu_help.add_command(label="🚨 回報錯誤與診斷日誌 (GitHub Issues)...", command=self.on_open_error_reporter)
         menu_help.add_separator()
         menu_help.add_command(label="📂 開啟日誌所在資料夾", command=self.on_open_log_folder)
-        menu_help.add_command(label="📖 自行申請與設定 Firebase 教學...", command=self.show_firebase_help)
+        menu_help.add_command(label="📖 自行申請與設定 Firebase 教學...", command=self.on_show_firebase_help)
         menu_help.add_separator()
         menu_help.add_command(label=f"ℹ️ 關於 Stock Portfolio Tracker ({self.running_version})", command=self.on_show_about)
         menubar.add_cascade(label="說明 (H)", menu=menu_help)
@@ -1258,6 +1258,10 @@ class PortfolioApp(tk.Tk):
             f"若遇到任何問題，可隨時點擊「說明」選單中的「回報錯誤與診斷日誌」。",
             parent=self
         )
+
+    def on_show_firebase_help(self):
+        """開啟 Firebase 申請與設定教學"""
+        show_firebase_setup_help(self)
 
     def start_daily_1500_scheduler(self):
         """啟動每日 15:00 自動定時更新盤後與股息資料監控"""
@@ -3089,77 +3093,102 @@ class CloudSyncDialog(tk.Toplevel):
         btn_box.pack(fill=tk.X, side=tk.BOTTOM)
         tk.Button(btn_box, text="我了解了", bg="#3a86ff", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), relief="flat", command=help_win.destroy).pack(fill=tk.X, ipady=5)
 
-    def show_firebase_help(self):
-        """展示自行申請與設定 Firebase RTDB 的詳細指引"""
-        help_win = tk.Toplevel(self)
-        help_win.title("📖 Firebase Realtime Database 申請與安全設定教學")
-        help_win.geometry("560x520")
-        help_win.resizable(False, False)
-        help_win.configure(bg="#1e1e26")
-        help_win.transient(self)
+def show_firebase_setup_help(parent: tk.Widget):
+    """展示自行申請與設定 Firebase RTDB 的詳細指引"""
+    help_win = tk.Toplevel(parent)
+    help_win.title("📖 Firebase Realtime Database 申請與安全設定教學")
+    help_win.geometry("560x520")
+    help_win.resizable(False, False)
+    help_win.configure(bg="#1e1e26")
+    if parent and parent.winfo_viewable():
+        try:
+            help_win.transient(parent)
+        except Exception:
+            pass
+    try:
         help_win.grab_set()
+    except Exception:
+        pass
 
-        content = tk.Frame(help_win, bg="#1e1e26", padx=20, pady=16)
-        content.pack(fill=tk.BOTH, expand=True)
+    content = tk.Frame(help_win, bg="#1e1e26", padx=20, pady=16)
+    content.pack(fill=tk.BOTH, expand=True)
 
-        tk.Label(content, text="☁️ Firebase 免費資料庫申請步驟 (個人終身免費)", bg="#1e1e26", fg="#3a86ff", font=("Microsoft JhengHei UI", 12, "bold")).pack(anchor="w")
+    tk.Label(content, text="☁️ Firebase 免費資料庫申請步驟 (個人終身免費)", bg="#1e1e26", fg="#3a86ff", font=("Microsoft JhengHei UI", 12, "bold")).pack(anchor="w")
 
-        guide_text = (
-            "Firebase 是 Google 提供的雲端服務，Spark 免費方案提供 1GB 空間與 10GB/月 流量。\n"
-            "儲存加密股票庫存終身完全免費，請依以下步驟建立：\n\n"
-            "【步驟 1：建立專案】\n"
-            "1. 前往 https://console.firebase.google.com/ 登入 Google 帳號。\n"
-            "2. 點擊「新增專案」，輸入自訂名稱，關閉 Google Analytics 後建立。\n\n"
-            "【步驟 2：啟用 Realtime Database】\n"
-            "1. 左側選單點擊「建構 (Build)」➔「Realtime Database」➔「建立資料庫」。\n"
-            "2. 地區建議選「asia-southeast1 (新加坡)」，模式先選「鎖定模式」。\n\n"
-            "【步驟 3：套用零知識安全規則 (防列舉與防覆寫)】\n"
-            "1. 切換至上方「規則 (Rules)」分頁。\n"
-            "2. 點擊下方按鈕複製安全規則 JSON，貼上並覆蓋原有內容，點擊「發布 (Publish)」。\n\n"
-            "【步驟 4：取得網址】\n"
-            "切換回「資料 (Data)」分頁，複製頂部的 https://... 網址，貼回本視窗之欄位。"
+    guide_text = (
+        "Firebase 是 Google 提供的雲端服務，Spark 免費方案提供 1GB 空間與 10GB/月 流量。\n"
+        "儲存加密股票庫存終身完全免費，請依以下步驟建立：\n\n"
+        "【步驟 1：建立專案】\n"
+        "1. 前往 https://console.firebase.google.com/ 登入 Google 帳號。\n"
+        "2. 點擊「新增專案」，輸入自訂名稱，關閉 Google Analytics 後建立。\n\n"
+        "【步驟 2：啟用 Realtime Database】\n"
+        "1. 左側選單點擊「建構 (Build)」➔「Realtime Database」➔「建立資料庫」。\n"
+        "2. 地區建議選「asia-southeast1 (新加坡)」，模式先選「鎖定模式」。\n\n"
+        "【步驟 3：套用零知識安全規則 (防列舉與防覆寫)】\n"
+        "1. 切換至上方「規則 (Rules)」分頁。\n"
+        "2. 點擊下方按鈕複製安全規則 JSON，貼上並覆蓋原有內容，點擊「發布 (Publish)」。\n\n"
+        "【步驟 4：取得網址】\n"
+        "切換回「資料 (Data)」分頁，複製頂部的 https://... 網址，貼回本視窗之欄位。"
+    )
+    msg_lbl = tk.Label(content, text=guide_text, bg="#1e1e26", fg="#d0d0dc", font=("Microsoft JhengHei UI", 9), justify="left", wraplength=510)
+    msg_lbl.pack(anchor="w", pady=(8, 12))
+
+    btn_box = tk.Frame(content, bg="#1e1e26")
+    btn_box.pack(fill=tk.X, side=tk.BOTTOM)
+
+    def copy_rules():
+        rules_json = (
+            "{\n"
+            "  \"rules\": {\n"
+            "    \".read\": false,\n"
+            "    \".write\": false,\n"
+            "    \"portfolios\": {\n"
+            "      \".read\": false,\n"
+            "      \".write\": false,\n"
+            "      \"$user_id\": {\n"
+            "        \".read\": true,\n"
+            "        \".write\": \"!data.exists() || (newData.child('write_token').val() === data.child('write_token').val())\",\n"
+            "        \".validate\": \"newData.hasChildren(['ciphertext_b64', 'salt_hex', 'nonce_hex', 'write_token', 'sync_seq'])\"\n"
+            "      }\n"
+            "    }\n"
+            "  }\n"
+            "}"
         )
-        msg_lbl = tk.Label(content, text=guide_text, bg="#1e1e26", fg="#d0d0dc", font=("Microsoft JhengHei UI", 9), justify="left", wraplength=510)
-        msg_lbl.pack(anchor="w", pady=(8, 12))
+        parent.clipboard_clear()
+        parent.clipboard_append(rules_json)
+        messagebox.showinfo("已複製", "Firebase 安全規則 (JSON) 已成功複製到剪貼簿！\n請直接至 Firebase 控制台的 Rules 分頁貼上並發布即可。", parent=help_win)
 
-        btn_box = tk.Frame(content, bg="#1e1e26")
-        btn_box.pack(fill=tk.X, side=tk.BOTTOM)
+    def open_guide_doc():
+        doc_path = os.path.join(os.path.dirname(__file__), "docs", "FIREBASE_SETUP_GUIDE.md")
+        if os.path.exists(doc_path):
+            os.startfile(doc_path)
+        else:
+            messagebox.showinfo("檔案位置", f"完整手冊位於：{doc_path}", parent=help_win)
 
-        def copy_rules():
-            rules_json = (
-                "{\n"
-                "  \"rules\": {\n"
-                "    \".read\": false,\n"
-                "    \".write\": false,\n"
-                "    \"portfolios\": {\n"
-                "      \".read\": false,\n"
-                "      \".write\": false,\n"
-                "      \"$user_id\": {\n"
-                "        \".read\": true,\n"
-                "        \".write\": \"!data.exists() || (newData.child('write_token').val() === data.child('write_token').val())\",\n"
-                "        \".validate\": \"newData.hasChildren(['ciphertext_b64', 'salt_hex', 'nonce_hex', 'write_token', 'sync_seq'])\"\n"
-                "      }\n"
-                "    }\n"
-                "  }\n"
-                "}"
-            )
-            self.clipboard_clear()
-            self.clipboard_append(rules_json)
-            messagebox.showinfo("已複製", "Firebase 安全規則 (JSON) 已成功複製到剪貼簿！\n請直接至 Firebase 控制台的 Rules 分頁貼上並發布即可。", parent=help_win)
+    tk.Button(btn_box, text="📋 一鍵複製 Firebase 安全規則 (JSON)", bg="#00f090", fg="#101014", font=("Microsoft JhengHei UI", 9, "bold"), relief="flat", command=copy_rules).pack(fill=tk.X, ipady=4, pady=(0, 4))
+    
+    sub_btns = tk.Frame(btn_box, bg="#1e1e26")
+    sub_btns.pack(fill=tk.X)
+    tk.Button(sub_btns, text="📄 打開詳細說明文件 (FIREBASE_SETUP_GUIDE.md)", bg="#2d2d38", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=open_guide_doc).pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=3, padx=(0, 4))
+    tk.Button(sub_btns, text="關閉", bg="#3a3a46", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=help_win.destroy).pack(side=tk.RIGHT, ipadx=10, ipady=3)
 
-        def open_guide_doc():
-            doc_path = os.path.join(os.path.dirname(__file__), "docs", "FIREBASE_SETUP_GUIDE.md")
-            if os.path.exists(doc_path):
-                os.startfile(doc_path)
-            else:
-                messagebox.showinfo("檔案位置", f"完整手冊位於：{doc_path}", parent=help_win)
+class CloudSyncDialog(tk.Toplevel):
+    def __init__(self, parent, on_restored=None):
+        super().__init__(parent)
+        self.title("☁️ 雲端加密同步 (E2EE 端到端零知識安全)")
+        self.geometry("560x600")
+        self.resizable(False, False)
+        self.configure(bg="#181820")
+        self.transient(parent)
+        self.grab_set()
 
-        tk.Button(btn_box, text="📋 一鍵複製 Firebase 安全規則 (JSON)", bg="#00f090", fg="#101014", font=("Microsoft JhengHei UI", 9, "bold"), relief="flat", command=copy_rules).pack(fill=tk.X, ipady=4, pady=(0, 4))
-        
-        sub_btns = tk.Frame(btn_box, bg="#1e1e26")
-        sub_btns.pack(fill=tk.X)
-        tk.Button(sub_btns, text="📄 打開詳細說明文件 (FIREBASE_SETUP_GUIDE.md)", bg="#2d2d38", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=open_guide_doc).pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=3, padx=(0, 4))
-        tk.Button(sub_btns, text="關閉", bg="#3a3a46", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=help_win.destroy).pack(side=tk.RIGHT, ipadx=10, ipady=3)
+        self.on_restored = on_restored
+        self.web_url = "https://isaacyang34.github.io/Homepage/TOOL_Stock_Portfolio_Tracker/web/"
+
+        self.build_ui()
+
+    def show_firebase_help(self):
+        show_firebase_setup_help(self)
 
     def do_upload(self):
         user = self.ent_user.get().strip()
