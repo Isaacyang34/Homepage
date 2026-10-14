@@ -750,8 +750,8 @@
       <button id="btnExportCsv" class="nav-btn" title="匯出下載統計數據為 CSV">
         📥 匯出 CSV
       </button>
-      <a href="https://github.com/Isaacyang34/Homepage/releases" target="_blank" rel="noopener noreferrer" class="nav-btn primary">
-        🌐 官方 Releases
+      <a href="https://github.com/Isaacyang34/Homepage/releases" target="_blank" rel="noopener noreferrer" class="nav-btn primary" title="檢視 Isaacyang34/Homepage 倉庫所有 Releases (含動力計機台軟體標籤)">
+        🌐 官方 Releases (專案庫)
       </a>
     </div>
   </nav>
@@ -888,10 +888,31 @@
     let currentFilter = 'all';
     let currentSearch = '';
     let currentSort = 'downloads-desc';
+    let latestManifestData = null;
+
+    // 動態載入最新版次指標 (避免寫死舊版次)
+    async function fetchManifest() {
+      const candidates = [
+        '../version.json',
+        'TOOL_Stock_Portfolio_Tracker/version.json',
+        'version.json',
+        'https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/version.json'
+      ];
+      for (const url of candidates) {
+        try {
+          const r = await fetch(url + '?t=' + Date.now());
+          if (r.ok) {
+            latestManifestData = await r.json();
+            return;
+          }
+        } catch (e) {}
+      }
+    }
 
     // 初始化啟動
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
       initEventListeners();
+      await fetchManifest();
       fetchReleasesData();
     });
 
@@ -1206,33 +1227,42 @@
       const container = document.getElementById('releaseContainer');
 
       if (releases.length === 0) {
+        const ver = latestManifestData ? latestManifestData.version : 'V1.1.2.3';
+        const date = latestManifestData ? latestManifestData.release_date : '2026-10-14';
+        const patchUrl = (latestManifestData && latestManifestData.patch_url) || `https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_${ver}.zip`;
+        const fullUrl = (latestManifestData && latestManifestData.full_package_url) || `https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_${ver}_Portable.zip`;
+        const relSize = (latestManifestData && latestManifestData.release_size) ? formatBytes(latestManifestData.release_size) : '27.4 MB';
+        const patchSize = (latestManifestData && latestManifestData.patch_size) ? formatBytes(latestManifestData.patch_size) : '344 KB';
+
         container.innerHTML = `
           <div class="ready-state-card">
             <div class="ready-icon">📈</div>
-            <h4 class="ready-title">最新版本就緒：Stock Portfolio Tracker V1.1.2.0</h4>
+            <h4 class="ready-title">最新版本就緒：Stock Portfolio Tracker ${ver} (${date})</h4>
             <p class="ready-desc">
-              本地端已就緒完整的便攜免安裝安裝包與熱修復補丁，目前存放於 GitHub Pages 分支供直接下載。<br>
-              若需在 GitHub 官方統計真實下載次數，只需於官方 Releases 頁面建立標籤 (如 <code>v1.1.2.0</code>) 並附加發布檔案，此面板將自動即時顯示即時下載量！
+              本地端已就緒完整的便攜免安裝安裝包與熱修復補丁，目前存放於 GitHub Pages CDN 分支供直接下載。<br>
+              <span style="display:inline-block; margin-top:6px; padding: 4px 8px; background: rgba(56,189,248,0.1); border-radius: 4px; font-size:12px; color:#38bdf8;">
+                ℹ️ 專案倉庫說明：<code>Isaacyang34/Homepage</code> 儲存庫同時託管動力計與股票軟體；官方 Releases 列表現多為動力計機台標籤，股票軟體目前透過本頁 CDN 直接分發最新 ${ver}。
+              </span>
             </p>
             <div class="ready-assets-box">
               <div class="ready-asset-item">
                 <span>📦</span>
-                <span>Stock_Portfolio_Tracker_V1.1.2.0_Portable.zip (27.3 MB)</span>
+                <span>Stock_Portfolio_Tracker_${ver}_Portable.zip (${relSize})</span>
               </div>
               <div class="ready-asset-item">
                 <span>⚡</span>
-                <span>patch_V1.1.2.0.zip (332 KB)</span>
+                <span>patch_${ver}.zip (${patchSize})</span>
               </div>
             </div>
             <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
-              <a href="https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.2.0_Portable.zip" class="nav-btn primary">
-                📥 立即下載主程式免安裝包 (Portable)
+              <a href="${fullUrl}" class="nav-btn primary">
+                📥 立即下載主程式免安裝包 (${ver})
               </a>
-              <a href="https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.2.0.zip" class="nav-btn">
+              <a href="${patchUrl}" class="nav-btn">
                 ⚡ 下載更新補丁包 (Patch)
               </a>
-              <a href="https://github.com/Isaacyang34/Homepage/releases/new" target="_blank" rel="noopener noreferrer" class="nav-btn">
-                🚀 前往 GitHub 上架官方 Release
+              <a href="https://github.com/Isaacyang34/Homepage/releases" target="_blank" rel="noopener noreferrer" class="nav-btn" title="檢視 Isaacyang34/Homepage 官方 Releases">
+                🌐 前往 GitHub 倉庫 Releases
               </a>
             </div>
           </div>

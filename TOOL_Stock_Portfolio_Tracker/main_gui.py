@@ -284,6 +284,7 @@ class PortfolioApp(tk.Tk):
 
         # 設定風格與配色
         self.setup_styles()
+        self.setup_menubar()
         self.build_ui()
         self.update_user_header_ui()
 
@@ -445,6 +446,43 @@ class PortfolioApp(tk.Tk):
         self.destroy()
         sys.exit(0)
 
+    def setup_menubar(self):
+        """建置標準頂部視窗功能選單 (包含系統、功能、說明與診斷回報)"""
+        menubar = tk.Menu(self)
+
+        # 1. 系統選單 (System Menu)
+        menu_system = tk.Menu(menubar, tearoff=0)
+        menu_system.add_command(label="🔄 切換使用者帳號", command=self.on_switch_user)
+        menu_system.add_command(label="⚙️ 帳號密碼與權限管理...", command=self.on_manage_users)
+        menu_system.add_command(label="☁️ 雲端加密同步 (E2EE)...", command=self.on_open_cloud_sync)
+        menu_system.add_command(label="🎨 介面與外觀設定...", command=self.on_open_settings)
+        menu_system.add_separator()
+        menu_system.add_command(label="🚨 回報錯誤與診斷日誌 (GitHub Issues)...", command=self.on_open_error_reporter)
+        menu_system.add_separator()
+        menu_system.add_command(label="❌ 結束程式", command=self._on_app_close)
+        menubar.add_cascade(label="系統 (S)", menu=menu_system)
+
+        # 2. 功能選單 (Features Menu)
+        menu_tools = tk.Menu(menubar, tearoff=0)
+        menu_tools.add_command(label="⟳ 資料更新與盤後同步...", command=self.on_open_data_update)
+        menu_tools.add_command(label="💰 股息分析月曆 (Ctrl+D)...", command=self.on_open_dividend_analyzer)
+        menu_tools.add_command(label="📊 市場排行 (4大指標)...", command=self.on_open_market_ranking)
+        menu_tools.add_command(label="📈 K線個股走勢圖...", command=self.on_view_kline)
+        menubar.add_cascade(label="功能 (F)", menu=menu_tools)
+
+        # 3. 說明選單 (Help Menu)
+        menu_help = tk.Menu(menubar, tearoff=0)
+        menu_help.add_command(label="⬆️ 檢查軟體版本與線上更新...", command=self.on_check_online_update)
+        menu_help.add_command(label="🚨 回報錯誤與診斷日誌 (GitHub Issues)...", command=self.on_open_error_reporter)
+        menu_help.add_separator()
+        menu_help.add_command(label="📂 開啟日誌所在資料夾", command=self.on_open_log_folder)
+        menu_help.add_command(label="📖 自行申請與設定 Firebase 教學...", command=self.show_firebase_help)
+        menu_help.add_separator()
+        menu_help.add_command(label=f"ℹ️ 關於 Stock Portfolio Tracker ({self.running_version})", command=self.on_show_about)
+        menubar.add_cascade(label="說明 (H)", menu=menu_help)
+
+        self.config(menu=menubar)
+
     def setup_styles(self):
         self.style = ttk.Style(self)
         try:
@@ -558,6 +596,16 @@ class PortfolioApp(tk.Tk):
         )
         self.btn_manage_user.pack(side=tk.LEFT, padx=4)
 
+        self.btn_report_user_bar = tk.Button(
+            self.user_bar, text="🚨 回報錯誤日誌",
+            font=(self.font_family, max(8, self.font_size - 1), "bold"),
+            bg="#2b2b36", fg="#f43f5e",
+            activebackground="#f43f5e", activeforeground="#ffffff",
+            relief="flat", cursor="hand2", padx=8, pady=2,
+            command=self.on_open_error_reporter
+        )
+        self.btn_report_user_bar.pack(side=tk.RIGHT, padx=4)
+
         # 1. 頂部儀表板卡片
         self.top_cards_container = ttk.Frame(self, padding=(12, 6, 12, 5))
         self.top_cards_container.pack(fill=tk.X)
@@ -600,6 +648,14 @@ class PortfolioApp(tk.Tk):
             cursor="hand2", command=self.on_check_online_update
         )
         self.btn_update.pack(side=tk.LEFT, padx=3)
+
+        self.btn_report_error = tk.Button(
+            bottom_frame, text="[🚨 錯誤回報]", bg="#323242", fg="#f43f5e",
+            activebackground="#f43f5e", activeforeground="#ffffff",
+            font=(self.font_family, self.font_size, "bold"), relief="flat", padx=8, pady=3,
+            cursor="hand2", command=self.on_open_error_reporter
+        )
+        self.btn_report_error.pack(side=tk.LEFT, padx=3)
 
         # 右側控制：自動刷新頻率
         self.auto_refresh_var = tk.BooleanVar(value=True)
@@ -1170,6 +1226,38 @@ class PortfolioApp(tk.Tk):
     def on_open_data_update(self):
         """開啟資料更新管理視窗 (手動更新行情/股息/盤後與檢視最後更新時間)"""
         DataUpdateDialog(self)
+
+    def on_open_error_reporter(self):
+        """開啟系統診斷與錯誤日誌回報視窗 (回傳至 GitHub Issues)"""
+        try:
+            from error_reporter import ErrorReportDialog
+            ErrorReportDialog(self)
+        except Exception as e:
+            messagebox.showerror("錯誤", f"開啟錯誤回報中心失敗: {e}", parent=self)
+
+    def on_open_log_folder(self):
+        """開啟本機日誌檔案所在目錄"""
+        try:
+            from updater import get_app_dir
+            app_dir = get_app_dir()
+            if os.name == 'nt':
+                os.startfile(app_dir)
+            else:
+                subprocess.Popen(['xdg-open', app_dir])
+        except Exception as e:
+            messagebox.showerror("錯誤", f"開啟目錄失敗: {e}", parent=self)
+
+    def on_show_about(self):
+        """顯示軟體關於資訊"""
+        messagebox.showinfo(
+            "關於 Stock Portfolio Tracker",
+            f"本地端台美股庫存即時損益、歷史與股息追蹤系統\n"
+            f"版本：{self.running_version}\n"
+            f"架構：模組化熱修補 + 零知識端到端加密 (E2EE)\n"
+            f"開源儲存庫：https://github.com/Isaacyang34/Homepage\n\n"
+            f"若遇到任何問題，可隨時點擊「說明」選單中的「回報錯誤與診斷日誌」。",
+            parent=self
+        )
 
     def start_daily_1500_scheduler(self):
         """啟動每日 15:00 自動定時更新盤後與股息資料監控"""

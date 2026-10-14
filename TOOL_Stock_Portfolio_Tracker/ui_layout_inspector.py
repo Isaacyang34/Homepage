@@ -126,6 +126,17 @@ def run_full_ui_layout_inspection() -> bool:
         all_issues.extend(errs)
     dlg_edit._on_close()
     root.update()
+
+    # 4. 檢驗 ErrorReportDialog (系統診斷與錯誤日誌回報中心)
+    from error_reporter import ErrorReportDialog
+    total_dialogs += 1
+    dlg_error = ErrorReportDialog(root)
+    ok, errs = inspect_dialog_clipping("ErrorReportDialog (錯誤日誌回報中心)", dlg_error)
+    if not ok:
+        all_passed = False
+        all_issues.extend(errs)
+    dlg_error.destroy()
+    root.update()
     
     root.destroy()
     
