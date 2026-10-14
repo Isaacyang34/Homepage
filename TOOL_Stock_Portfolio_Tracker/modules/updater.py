@@ -22,7 +22,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Optional, Dict, Any, Tuple, List
 
-APP_VERSION = "V1.1.2.2"
+APP_VERSION = "V1.1.2.3"
 APP_BOOT_VERSION = APP_VERSION  # 記憶體進程啟動時鎖定之版本
 
 def get_boot_version() -> str:
@@ -278,51 +278,81 @@ def apply_patch_hot_reload(target_dir: str, temp_zip: str, parent_app=None, targ
 def restart_application(target_dir: Optional[str] = None):
     """
     安全平滑重啟當前應用程式 (相容原始碼 python 執行與 PyInstaller 凍結執行)
+    徹底廢除脆弱的 apply_restart.bat 與 taskkill /F，改採 PowerShell 獨立守護進程 + Python 優雅退出 (Graceful Exit)
+    徹底消滅 PyInstaller _MEIPASS2 繼承與 LoadLibrary 126 找不到模組錯誤！
     """
     if target_dir is None:
         target_dir = get_app_dir()
     current_pid = os.getpid()
-    log_update_debug(f"[RESTART] restart_application requested. PID={current_pid}")
+    log_update_debug(f"[RESTART] restart_application requested cleanly. PID={current_pid}")
 
-    bat_path = os.path.join(target_dir, "apply_restart.bat")
-    
     if getattr(sys, 'frozen', False):
         exe_path = os.path.abspath(sys.executable)
-        launch_cmd = f'start "" "{exe_path}"'
+        exe_name = os.path.basename(exe_path)
+        # 委託 Windows 桌面 Shell (explorer.exe) 啟動，物理切斷進程繼承鏈，等同使用者在桌面雙擊滑鼠
+        ps_launch_code = f"Start-Process 'explorer.exe' -ArgumentList '\"{exe_path}\"'; "
     else:
         py_exe = os.path.abspath(sys.executable)
+        exe_name = "python.exe"
         script_file = os.path.join(target_dir, "main_gui.py")
         if not os.path.exists(script_file):
             script_file = os.path.abspath(sys.argv[0])
-        launch_cmd = f'start "" "{py_exe}" "{script_file}"'
+        ps_launch_code = (
+            f"$psi = New-Object System.Diagnostics.ProcessStartInfo; "
+            f"$psi.FileName = '{py_exe}'; "
+            f"$psi.Arguments = '\"{script_file}\"'; "
+            f"$psi.WorkingDirectory = '{target_dir}'; "
+            f"$psi.UseShellExecute = $false; "
+            f"$psi.EnvironmentVariables.Remove('_MEIPASS'); "
+            f"$psi.EnvironmentVariables.Remove('_MEIPASS2'); "
+            f"$psi.EnvironmentVariables.Remove('PYTHONHOME'); "
+            f"$psi.EnvironmentVariables.Remove('PYTHONPATH'); "
+            f"[System.Diagnostics.Process]::Start($psi); "
+        )
 
-    bat_content = f"""@echo off
-REM Stock Portfolio Tracker Safe Restart Launcher
-set LOG_FILE=%~dp0update_debug.log
-echo [%DATE% %TIME%] [RESTART] Waiting for old PID {current_pid} to exit... >> "%LOG_FILE%"
-timeout /t 1 /nobreak > nul
-taskkill /PID {current_pid} /F > nul 2>&1
-timeout /t 1 /nobreak > nul
-cd /d "%~dp0"
-set _MEIPASS=
-set _MEIPASS2=
-set PYTHONHOME=
-set PYTHONPATH=
-set PATH=%SystemRoot%\\system32;%SystemRoot%;%SystemRoot%\\System32\\Wbem;%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\
-echo [%DATE% %TIME%] [RESTART] Relaunching application... >> "%LOG_FILE%"
-{launch_cmd}
-exit
-"""
+    log_file = os.path.join(target_dir, "update_debug.log")
+    
+    ps_cmd = (
+        f"$log = '{log_file}'; "
+        f"Add-Content -Path $log -Value ('[' + (Get-Date).ToString('yyyy-MM-dd HH:mm:ss') + '] [RESTART_PS] Waiting for PID {current_pid} and parent bootloader to cleanly exit...'); "
+        f"Wait-Process -Id {current_pid} -Timeout 5 -ErrorAction SilentlyContinue; "
+        f"Start-Sleep -Seconds 2; "
+        f"Add-Content -Path $log -Value ('[' + (Get-Date).ToString('yyyy-MM-dd HH:mm:ss') + '] [RESTART_PS] Launching {exe_name} via Windows Shell (explorer.exe) with 0% process chain pollution...'); "
+        f"{ps_launch_code}; "
+        f"Add-Content -Path $log -Value ('[' + (Get-Date).ToString('yyyy-MM-dd HH:mm:ss') + '] [RESTART_PS] Spawn command finished successfully.'); "
+    )
+
+    clean_env = os.environ.copy()
+    clean_env.pop('_MEIPASS', None)
+    clean_env.pop('_MEIPASS2', None)
+    clean_env.pop('PYTHONHOME', None)
+    clean_env.pop('PYTHONPATH', None)
+
     try:
-        with open(bat_path, "w", encoding="ascii") as f:
-            f.write(bat_content)
-        creation_flags = 0x00000008 | (subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
-        clean_env = os.environ.copy()
-        clean_env.pop('_MEIPASS2', None)
-        clean_env.pop('_MEIPASS', None)
-        subprocess.Popen(["cmd.exe", "/c", bat_path], cwd=target_dir, env=clean_env, creationflags=creation_flags)
+        creation_flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+        subprocess.Popen(
+            ["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_cmd],
+            cwd=target_dir,
+            env=clean_env,
+            creationflags=creation_flags
+        )
+        log_update_debug(f"[RESTART] Spawned clean PowerShell launcher for PID={current_pid}")
     except Exception as e:
-        log_update_debug(f"[RESTART] Failed to spawn restart bat: {e}")
+        log_update_debug(f"[RESTART] Failed to spawn PowerShell launcher: {e}")
+
+    # 優雅退出自身進程，讓 PyInstaller Bootloader 正常釋放 handles 並刪除舊臨時目錄
+    try:
+        import tkinter
+        if tkinter._default_root:
+            try:
+                tkinter._default_root.destroy()
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    log_update_debug(f"[RESTART] Cleanly exiting process PID={current_pid} via sys.exit(0)")
+    sys.exit(0)
 
 def apply_patch_now(target_dir: str, temp_zip: str, restart: bool = True):
     """
@@ -358,12 +388,6 @@ def apply_full_package_now(target_dir: str, temp_file: str, restart: bool = True
     """
     執行完整安裝包 (Full Package ZIP 或獨立 EXE) 的安全外部置換
     徹底杜絕 [Errno 13] Permission denied 檔案鎖定衝突！
-    流程：
-    1. 若為 ZIP：先在 Python 進程內解壓至臨時目錄 temp_update_extracted/ (此時 0% 鎖定衝突)
-    2. 產生外部批次檔 apply_update.bat (純 ASCII)
-    3. 批次檔先強制結束舊 PID 徹底釋放檔案鎖定
-    4. 批次檔搬移覆蓋所有檔案 (包括 Stock_Portfolio_Tracker.exe)
-    5. 清理臨時目錄與暫存包，並喚起全新程式
     """
     current_pid = os.getpid()
     log_update_debug(f"[FULL_PACKAGE] apply_full_package_now started. temp_file={temp_file}, PID={current_pid}")
@@ -395,15 +419,14 @@ def apply_full_package_now(target_dir: str, temp_file: str, restart: bool = True
 REM Stock Portfolio Tracker Full Package Overwrite Script
 set LOG_FILE=%~dp0update_debug.log
 echo [%DATE% %TIME%] [BATCH] Waiting for PID {current_pid} to exit... >> "%LOG_FILE%"
-timeout /t 1 /nobreak > nul
-taskkill /PID {current_pid} /F > nul 2>&1
-timeout /t 1 /nobreak > nul
+taskkill /PID {current_pid} /F >> "%LOG_FILE%" 2>&1
+echo [%DATE% %TIME%] [BATCH] taskkill return code: %ERRORLEVEL% >> "%LOG_FILE%"
+ping 127.0.0.1 -n 3 > nul
 cd /d "%~dp0"
 set _MEIPASS=
 set _MEIPASS2=
 set PYTHONHOME=
 set PYTHONPATH=
-set PATH=%SystemRoot%\\system32;%SystemRoot%;%SystemRoot%\\System32\\Wbem;%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\
 
 echo [%DATE% %TIME%] [BATCH] Overwriting files from temp_update_extracted... >> "%LOG_FILE%"
 set RETRY=0
@@ -411,7 +434,7 @@ set RETRY=0
 set /a RETRY+=1
 robocopy "%~dp0temp_update_extracted" "%~dp0" /E /MOVE /IS /IT > nul 2>&1
 if errorlevel 8 (
-    timeout /t 1 /nobreak > nul
+    ping 127.0.0.1 -n 2 > nul
     if %RETRY% leq 5 goto RETRY_MOVE
     echo [%DATE% %TIME%] [BATCH] Fallback to xcopy... >> "%LOG_FILE%"
     xcopy /y /e /q "%~dp0temp_update_extracted\\*" "%~dp0" > nul 2>&1
@@ -420,8 +443,12 @@ if errorlevel 8 (
 if exist "%~dp0temp_update_extracted" rmdir /s /q "%~dp0temp_update_extracted" > nul 2>&1
 if exist "%~dp0{temp_name}" del /f /q "%~dp0{temp_name}" > nul 2>&1
 
-echo [%DATE% %TIME%] [BATCH] Full update completed. Relaunching... >> "%LOG_FILE%"
+echo [%DATE% %TIME%] [BATCH] Full update completed. Relaunching: {target_exe_name} >> "%LOG_FILE%"
 {restart_action}
+echo [%DATE% %TIME%] [BATCH] Process spawned with return code: %ERRORLEVEL% >> "%LOG_FILE%"
+ping 127.0.0.1 -n 3 > nul
+echo [%DATE% %TIME%] [BATCH] Probing running processes: >> "%LOG_FILE%"
+tasklist /FI "IMAGENAME eq {target_exe_name}" /NH >> "%LOG_FILE%" 2>&1
 exit
 """
     else:
@@ -430,36 +457,38 @@ exit
 REM Stock Portfolio Tracker Full EXE Overwrite Script
 set LOG_FILE=%~dp0update_debug.log
 echo [%DATE% %TIME%] [BATCH] Waiting for PID {current_pid} to exit... >> "%LOG_FILE%"
-timeout /t 1 /nobreak > nul
-taskkill /PID {current_pid} /F > nul 2>&1
-timeout /t 1 /nobreak > nul
+taskkill /PID {current_pid} /F >> "%LOG_FILE%" 2>&1
+echo [%DATE% %TIME%] [BATCH] taskkill return code: %ERRORLEVEL% >> "%LOG_FILE%"
+ping 127.0.0.1 -n 3 > nul
 cd /d "%~dp0"
 set _MEIPASS=
 set _MEIPASS2=
 set PYTHONHOME=
 set PYTHONPATH=
-set PATH=%SystemRoot%\\system32;%SystemRoot%;%SystemRoot%\\System32\\Wbem;%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\
 
 set RETRY=0
 :RETRY_EXE
 set /a RETRY+=1
 move /y "{temp_name}" "{target_exe_name}" >> "%LOG_FILE%" 2>&1
 if errorlevel 1 (
-    timeout /t 1 /nobreak > nul
+    ping 127.0.0.1 -n 2 > nul
     if %RETRY% leq 5 goto RETRY_EXE
     copy /y "{temp_name}" "{target_exe_name}" >> "%LOG_FILE%" 2>&1
     del /f /q "{temp_name}" > nul 2>&1
 )
 
-echo [%DATE% %TIME%] [BATCH] Full update completed. Relaunching... >> "%LOG_FILE%"
+echo [%DATE% %TIME%] [BATCH] Full update completed. Relaunching: {target_exe_name} >> "%LOG_FILE%"
 {restart_action}
+echo [%DATE% %TIME%] [BATCH] Process spawned with return code: %ERRORLEVEL% >> "%LOG_FILE%"
+ping 127.0.0.1 -n 3 > nul
+echo [%DATE% %TIME%] [BATCH] Probing running processes: >> "%LOG_FILE%"
+tasklist /FI "IMAGENAME eq {target_exe_name}" /NH >> "%LOG_FILE%" 2>&1
 exit
 """
-
     try:
         with open(bat_path, "w", encoding="ascii") as f:
             f.write(bat_content)
-        creation_flags = 0x00000008 | (subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+        creation_flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
         clean_env = os.environ.copy()
         clean_env.pop('_MEIPASS2', None)
         clean_env.pop('_MEIPASS', None)
@@ -601,10 +630,33 @@ def fetch_update_manifest(timeout: float = 3.5) -> Tuple[bool, Optional[Dict[str
 
     return False, None, "無法連線至雲端版本伺服器"
 
+def start_update_monitor():
+    """當進入更新頁面後啟動獨立監控儀全程監控更新與重啟過程，精確記錄底層狀況"""
+    try:
+        app_dir = get_app_dir()
+        ps_script = os.path.join(app_dir, "tools", "update_monitor.ps1")
+        if not os.path.exists(ps_script):
+            alt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools", "update_monitor.ps1")
+            if os.path.exists(alt):
+                ps_script = alt
+        if os.path.exists(ps_script):
+            current_pid = os.getpid()
+            creation_flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            subprocess.Popen(
+                ["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass",
+                 "-File", ps_script, "-TargetDir", app_dir, "-TargetPid", str(current_pid)],
+                cwd=app_dir,
+                creationflags=creation_flags
+            )
+            log_update_debug(f"[MONITOR] Launched update_monitor.ps1 for PID={current_pid}")
+    except Exception as e:
+        log_update_debug(f"[MONITOR] Failed to launch monitor: {e}")
+
 class UpdateDialog(tk.Toplevel):
     """軟體版本更新決策與升級互動視窗 (支援輕量補丁、全包下載與歷史三版次自由切換)"""
     def __init__(self, parent, manifest: Dict[str, Any], is_newer: bool):
         super().__init__(parent)
+        start_update_monitor()
         self.title("軟體版本更新與維護中心")
         self.geometry("680x580")
         self.minsize(640, 520)

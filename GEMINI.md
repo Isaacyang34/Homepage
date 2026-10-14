@@ -217,4 +217,21 @@
   * **選定後自主直達終點 (Run to Completion Without Interruption)**：當使用者在第一次做出選擇或指示後，AI **必須一口氣自主連續執行該方案的所有工序直到最後一步完成**，中途絕不反覆停步問「下一步要選什麼」，最後一次性彙整回報成果！
 * **詳細規範**：參考 `.agents/rules/unified_multitrack_workflow_and_interactive_gate_rule.md`。
 
+## 20. 黑盒子旁路崩潰診斷最高鐵律 (Blackbox Out-of-Process Crash Diagnostics Rule - 全案最高強制規範)
+* **日誌空白之本質 (Zero Blind Guessing on Silent Crash)**：
+  * 當應用層日誌（如 `update_debug.log`、`.log`）在中途斷掉或一片空白時，**100% 代表問題發生在應用程式 Runtime 啟動之前**（例如 PyInstaller C Bootloader、JVM Bootstrap、CLR Loader 或 Win32 `LoadLibrary` 階段）。
+  * **嚴禁盲猜與無效重試**：嚴格禁止在沒有作業系統層客觀證據前，憑空猜測「快一秒慢一秒」或反覆修改應用程式內的延遲與重試。
+* **旁路黑盒子全生命週期監控 (Out-of-Process Blackbox Monitor)**：
+  * 必須透過獨立於目標程式之外的外部守護進程（如 PowerShell / OS Probe 監控儀），從作業系統外部全程錄製進程生滅與視窗事件：
+    1. **進程樹層級審查 (PROC_AUDIT)**：以 WMI 反查父引導進程 (Parent Bootloader PID) 與子進程，精確掌握父進程清理與存活延遲。
+    2. **環境與暫存目錄物理清點 (ENV_AUDIT)**：以磁碟檔案系統物理存在性記錄 `%TEMP%\_MEI*`，嚴禁憑時間推論。
+    3. **進程生命週期毫秒釘死 (EVENT_EXIT & PARENT_EXIT)**：精確記錄舊進程完全結束之毫秒時間戳。
+    4. **新進程拉起與碰撞審查 (NEW_PROC_SPAWNED)**：捕獲新進程 PID、ParentPID、CommandLine 與碰撞狀態。
+    5. **Win32 Error 彈窗主動攔截 (ERROR_DIALOG_DETECTED)**：主動監聽 Class `#32770` 彈窗，捕獲彈窗標題、所屬 PID 與對話框內容文字。
+* **防重複多開與看門狗退場鐵律 (Single-Instance & Watchdog Guard)**：
+  * 監控儀第一行代碼必須宣告系統級跨進程具名 Mutex（`Global\..._UpdateMonitor_Mutex`），確保系統中永遠僅有單一實例。
+  * 具備三重看門狗：目標 PID 消失且無新進程則 5 秒自滅；關閉觸發視窗時主動同動結束；120 秒絕對超時硬上限。
+* **詳細規範**：參考 `.agents/rules/blackbox_crash_diagnostics_rule.md` 與技能 `blackbox-crash-diagnostics`。
+
+
 

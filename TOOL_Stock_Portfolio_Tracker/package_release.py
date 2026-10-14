@@ -234,6 +234,27 @@ def step_6_verify_version_manifest() -> Dict[str, Any]:
         "rel_sha256": calculate_sha256(rel_path) if os.path.exists(rel_path) else ""
     }
 
+    # 同步回寫真實檔案大小與雜湊至 version.json
+    v_data["patch_size"] = info["patch_size"]
+    v_data["patch_sha256"] = info["patch_sha256"]
+    v_data["release_size"] = info["rel_size"]
+    v_data["release_sha256"] = info["rel_sha256"]
+    with open(vjson_path, "w", encoding="utf-8") as f:
+        json.dump(v_data, f, indent=2, ensure_ascii=False)
+
+    # 將最終 version.json 同步寫入已建立的補丁包與便攜包
+    if os.path.exists(patch_path):
+        with zipfile.ZipFile(patch_path, "a", compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.write(vjson_path, arcname="version.json")
+        info["patch_size"] = os.path.getsize(patch_path)
+        info["patch_sha256"] = calculate_sha256(patch_path)
+
+    if os.path.exists(rel_path):
+        with zipfile.ZipFile(rel_path, "a", compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.write(vjson_path, arcname="version.json")
+        info["rel_size"] = os.path.getsize(rel_path)
+        info["rel_sha256"] = calculate_sha256(rel_path)
+
     print(f"  ✔ 發布指標校驗通過:")
     print(f"    - 版號: {info['version']}")
     print(f"    - 熱補丁包: {patch_zip_name} ({info['patch_size']:,} bytes)")

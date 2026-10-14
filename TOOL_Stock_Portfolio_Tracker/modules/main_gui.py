@@ -218,6 +218,16 @@ ALL_CARD_SPECS = [
 ]
 
 class PortfolioApp(tk.Tk):
+    def report_callback_exception(self, exc, val, tb):
+        import traceback
+        try:
+            from updater import log_update_debug
+            tb_str = "".join(traceback.format_exception(exc, val, tb))
+            log_update_debug(f"[TK_CALLBACK_ERROR] Unhandled GUI callback exception:\n{tb_str}")
+        except Exception:
+            pass
+        super().report_callback_exception(exc, val, tb)
+
     def __init__(self, preloaded_quotes: Optional[Dict[str, Dict[str, Any]]] = None, preloaded_divs: Optional[Dict[str, Dict[str, Any]]] = None):
         super().__init__()
         # 關鍵核心：啟動時先隱藏主視窗 (withdraw)，杜絕 Windows 繪製空白白色畫布與未響應殘影！
