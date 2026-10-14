@@ -206,10 +206,10 @@
       50% { opacity: 0.4; }
     }
 
-    /* 4 大 KPI 卡片 */
+    /* 5 大核心 KPI 卡片 */
     .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
       gap: 16px;
       margin-bottom: 24px;
     }
@@ -773,7 +773,7 @@
       </div>
     </section>
 
-    <!-- 4 大核心 KPI 指標卡片 -->
+    <!-- 5 大核心 KPI 指標卡片 (串接 GitHub + Firebase RTDB 即時遙測) -->
     <section class="kpi-grid">
       <div class="kpi-card" style="--card-accent: linear-gradient(90deg, #38bdf8, #0ea5e9);">
         <div class="kpi-label">
@@ -781,34 +781,43 @@
           <span>🔥</span>
         </div>
         <div class="kpi-value" id="kpiTotalDownloads">--</div>
-        <div class="kpi-desc">股票軟體全部版本官方累計下載次數</div>
-      </div>
-
-      <div class="kpi-card" style="--card-accent: linear-gradient(90deg, #818cf8, #6366f1);">
-        <div class="kpi-label">
-          <span>發布版本總數</span>
-          <span>📦</span>
-        </div>
-        <div class="kpi-value" id="kpiTotalReleases">--</div>
-        <div class="kpi-desc">GitHub Releases 上架版次</div>
+        <div class="kpi-desc">全通路安裝包與更新補丁累計下載次數</div>
       </div>
 
       <div class="kpi-card" style="--card-accent: linear-gradient(90deg, #10b981, #059669);">
         <div class="kpi-label">
+          <span>線上熱更新次數</span>
+          <span>⚡</span>
+        </div>
+        <div class="kpi-value" id="kpiUpdatesApplied">--</div>
+        <div class="kpi-desc">客戶端無縫自動更新成功套用次數</div>
+      </div>
+
+      <div class="kpi-card" style="--card-accent: linear-gradient(90deg, #6366f1, #818cf8);">
+        <div class="kpi-label">
+          <span>更新檢查與連線</span>
+          <span>📡</span>
+        </div>
+        <div class="kpi-value" id="kpiUpdatesChecked">--</div>
+        <div class="kpi-desc">主程式啟動與版本探測活躍次數</div>
+      </div>
+
+      <div class="kpi-card" style="--card-accent: linear-gradient(90deg, #f59e0b, #d97706);">
+        <div class="kpi-label">
           <span>最新主力版本</span>
-          <span id="kpiLatestVersionTag">V1.1.2.0</span>
+          <span id="kpiLatestVersionTag">V1.1.2.3</span>
         </div>
         <div class="kpi-value" id="kpiLatestDownloads">--</div>
         <div class="kpi-desc" id="kpiLatestDesc">當前主力版本累計下載</div>
       </div>
 
-      <div class="kpi-card" style="--card-accent: linear-gradient(90deg, #f59e0b, #d97706);">
+      <div class="kpi-card" style="--card-accent: linear-gradient(90deg, #ec4899, #f43f5e);">
         <div class="kpi-label">
-          <span>歷史下載冠軍檔案</span>
-          <span>🏆</span>
+          <span>發布版本總數</span>
+          <span>📦</span>
         </div>
-        <div class="kpi-value" id="kpiTopAssetCount">--</div>
-        <div class="kpi-desc" id="kpiTopAssetName">載入中...</div>
+        <div class="kpi-value" id="kpiTotalReleases">--</div>
+        <div class="kpi-desc">GitHub / 雲端版本演進總數</div>
       </div>
     </section>
 
@@ -882,13 +891,63 @@
     const GITHUB_REPO_NAME = 'Homepage';
     const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases?per_page=100`;
 
+    // Firebase Realtime Database 統計節點
+    const FIREBASE_STATS_URL = 'https://my-stock-tracker-2a94e-default-rtdb.asia-southeast1.firebasedatabase.app/stats.json';
+
     // 狀態存儲
     let rawReleasesData = [];
     let stockReleasesData = [];
+    let firebaseStatsData = null;
     let currentFilter = 'all';
     let currentSearch = '';
     let currentSort = 'downloads-desc';
     let latestManifestData = null;
+
+    // 從 Firebase RTDB 取得下載與更新遙測數據
+    async function fetchFirebaseStats() {
+      try {
+        const resp = await fetch(FIREBASE_STATS_URL + '?t=' + Date.now());
+        if (resp.ok) {
+          firebaseStatsData = await resp.json();
+        }
+      } catch (e) {
+        console.warn('Firebase stats fetch error:', e);
+      }
+    }
+
+    // 即時追蹤網頁端下載點擊 (發送原子遞增計數到 Firebase RTDB)
+    function trackDownload(type, version) {
+      try {
+        const currentV = version || (latestManifestData && latestManifestData.version) || 'V1.1.2.3';
+        const cleanV = currentV.replace(/[^a-zA-Z0-9_]/g, '_');
+        const patchBody = {
+          "downloads/total": { ".sv": { "increment": 1 } },
+          [`downloads/${type === 'patch' ? 'patch_count' : 'full_count'}`]: { ".sv": { "increment": 1 } },
+          [`downloads/by_version/${cleanV}/${type}`]: { ".sv": { "increment": 1 } },
+          "downloads/last_download_time": { ".sv": "timestamp" }
+        };
+
+        fetch(FIREBASE_STATS_URL, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patchBody),
+          keepalive: true
+        }).then(() => {
+          if (firebaseStatsData) {
+            firebaseStatsData.downloads = firebaseStatsData.downloads || {};
+            firebaseStatsData.downloads.total = (firebaseStatsData.downloads.total || 0) + 1;
+            if (type === 'patch') {
+              firebaseStatsData.downloads.patch_count = (firebaseStatsData.downloads.patch_count || 0) + 1;
+            } else {
+              firebaseStatsData.downloads.full_count = (firebaseStatsData.downloads.full_count || 0) + 1;
+            }
+            renderDashboard();
+          }
+        }).catch(e => console.warn('Telemetry track failed', e));
+      } catch (e) {
+        console.warn('trackDownload error', e);
+      }
+    }
 
     // 動態載入最新版次指標 (避免寫死舊版次)
     async function fetchManifest() {
@@ -912,15 +971,16 @@
     // 初始化啟動
     document.addEventListener('DOMContentLoaded', async () => {
       initEventListeners();
-      await fetchManifest();
+      await Promise.all([fetchManifest(), fetchFirebaseStats()]);
       fetchReleasesData();
     });
 
     // 事件監聽器綁定
     function initEventListeners() {
       // 重新整理按鈕
-      document.getElementById('btnRefresh').addEventListener('click', () => {
+      document.getElementById('btnRefresh').addEventListener('click', async () => {
         sessionStorage.removeItem('gh_stock_releases_cache');
+        await fetchFirebaseStats();
         fetchReleasesData(true);
       });
 
@@ -1028,7 +1088,7 @@
         sessionStorage.setItem(cacheKey, JSON.stringify(data));
         sessionStorage.setItem(cacheTimeKey, now.toString());
 
-        updateStatusBadge(`即時連線 (股票版次: ${stockReleasesData.length})`, 'success');
+        updateStatusBadge(`即時連線 (GitHub & Firebase 雙端數據同動)`, 'success');
         renderDashboard();
       } catch (err) {
         console.error('Fetch releases error:', err);
@@ -1111,44 +1171,44 @@
       document.getElementById('resultCountText').innerText = `共顯示 ${filtered.length} 個股票軟體發布版次`;
     }
 
-    // 計算 KPI 數據卡片
+    // 計算 KPI 數據卡片 (整合 GitHub Releases 與 Firebase 雲端遙測)
     function calculateKPIs(releases) {
-      let totalDownloads = 0;
+      let ghTotalDownloads = 0;
       let topAsset = { name: '無', count: -1 };
 
       releases.forEach(rel => {
         (rel.assets || []).forEach(a => {
           const count = a.download_count || 0;
-          totalDownloads += count;
+          ghTotalDownloads += count;
           if (count > topAsset.count) {
             topAsset = { name: a.name, count: count };
           }
         });
       });
 
-      document.getElementById('kpiTotalDownloads').innerText = totalDownloads.toLocaleString();
-      document.getElementById('kpiTotalReleases').innerText = releases.length.toLocaleString();
+      const fbTotalDl = (firebaseStatsData && firebaseStatsData.downloads && firebaseStatsData.downloads.total) || 0;
+      const fbApplied = (firebaseStatsData && firebaseStatsData.updates && firebaseStatsData.updates.applied_count) || 0;
+      const fbChecked = (firebaseStatsData && firebaseStatsData.updates && firebaseStatsData.updates.check_count) || 0;
 
+      const grandTotalDownloads = ghTotalDownloads + fbTotalDl;
+      document.getElementById('kpiTotalDownloads').innerText = grandTotalDownloads.toLocaleString();
+      document.getElementById('kpiUpdatesApplied').innerText = fbApplied.toLocaleString();
+      document.getElementById('kpiUpdatesChecked').innerText = fbChecked.toLocaleString();
+      document.getElementById('kpiTotalReleases').innerText = Math.max(releases.length, 1).toLocaleString();
+
+      const currentVer = latestManifestData ? latestManifestData.version : 'V1.1.2.3';
+      const cleanV = currentVer.replace(/[^a-zA-Z0-9_]/g, '_');
+      let latestRelDl = 0;
       if (releases.length > 0) {
-        const latest = releases[0];
-        const latestDl = (latest.assets || []).reduce((sum, a) => sum + (a.download_count || 0), 0);
-        document.getElementById('kpiLatestDownloads').innerText = latestDl.toLocaleString();
-        document.getElementById('kpiLatestVersionTag').innerText = latest.tag_name || 'V1.1.2.0';
-        document.getElementById('kpiLatestDesc').innerText = latest.name ? `${latest.name.slice(0, 24)}...` : '最新版本累計下載';
-      } else {
-        document.getElementById('kpiLatestDownloads').innerText = '0';
-        document.getElementById('kpiLatestVersionTag').innerText = 'V1.1.2.0';
-        document.getElementById('kpiLatestDesc').innerText = '最新發布版本';
+        latestRelDl = (releases[0].assets || []).reduce((sum, a) => sum + (a.download_count || 0), 0);
       }
-
-      if (topAsset.count >= 0) {
-        document.getElementById('kpiTopAssetCount').innerText = topAsset.count.toLocaleString();
-        document.getElementById('kpiTopAssetName').innerText = topAsset.name;
-        document.getElementById('kpiTopAssetName').title = topAsset.name;
-      } else {
-        document.getElementById('kpiTopAssetCount').innerText = '0';
-        document.getElementById('kpiTopAssetName').innerText = '尚未建立官方 Release';
-      }
+      const fbVerDl = (firebaseStatsData?.downloads?.by_version?.[cleanV]?.full || 0) +
+                      (firebaseStatsData?.downloads?.by_version?.[cleanV]?.patch || 0) ||
+                      (releases.length === 0 ? fbTotalDl : 0);
+      const latestTotalDl = latestRelDl + fbVerDl;
+      document.getElementById('kpiLatestDownloads').innerText = latestTotalDl.toLocaleString();
+      document.getElementById('kpiLatestVersionTag').innerText = currentVer;
+      document.getElementById('kpiLatestDesc').innerText = `當前主力版本 (${currentVer}) 累計下載`;
     }
 
     // 繪製圖表與進度條
@@ -1165,8 +1225,24 @@
 
       const maxDl = sortedByDl.length > 0 ? Math.max(...sortedByDl.map(r => (r.assets || []).reduce((s, i) => s + (i.download_count || 0), 0)), 1) : 1;
 
-      if (sortedByDl.length === 0 || maxDl === 0) {
-        barContainer.innerHTML = '<div style="color: var(--text-sub); text-align: center; padding: 24px;">目前尚未在 GitHub Releases 建立股票軟體 Tag，暫無下載排名。</div>';
+      if (sortedByDl.length === 0) {
+        const curVer = latestManifestData ? latestManifestData.version : 'V1.1.2.3';
+        const curDate = latestManifestData ? latestManifestData.release_date : '2026-10-14';
+        const cleanV = curVer.replace(/[^a-zA-Z0-9_]/g, '_');
+        const fbTotalDl = (firebaseStatsData && firebaseStatsData.downloads && firebaseStatsData.downloads.total) || 0;
+        const fbVerDl = (firebaseStatsData?.downloads?.by_version?.[cleanV]?.full || 0) +
+                        (firebaseStatsData?.downloads?.by_version?.[cleanV]?.patch || 0) || fbTotalDl || 1;
+        barContainer.innerHTML = `
+          <div class="bar-item">
+            <div class="bar-meta">
+              <span class="bar-name">📈 ${curVer} (最新就緒發布) <span style="color: var(--text-sub); font-size: 11px;">(${curDate})</span></span>
+              <span class="bar-count">${fbVerDl.toLocaleString()} 次下載</span>
+            </div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width: 100%;"></div>
+            </div>
+          </div>
+        `;
       } else {
         barContainer.innerHTML = sortedByDl.map(rel => {
           const totalDl = (rel.assets || []).reduce((sum, item) => sum + (item.download_count || 0), 0);
@@ -1185,10 +1261,15 @@
         }).join('');
       }
 
-      // 檔案類型統計 (Portable ZIP, Patch ZIP, EXE, 其他)
+      // 檔案類型統計 (Portable ZIP, Patch ZIP, 線上熱更新, EXE, 其他)
+      const fbPatchDl = (firebaseStatsData && firebaseStatsData.downloads && firebaseStatsData.downloads.patch_count) || 0;
+      const fbFullDl = (firebaseStatsData && firebaseStatsData.downloads && firebaseStatsData.downloads.full_count) || 0;
+      const fbApplied = (firebaseStatsData && firebaseStatsData.updates && firebaseStatsData.updates.applied_count) || 0;
+
       const typeStats = {
-        '便攜免安裝包 (.zip)': { count: 0, color: '#38bdf8' },
-        '熱更新補丁包 (patch)': { count: 0, color: '#10b981' },
+        '便攜免安裝包 (.zip)': { count: fbFullDl, color: '#38bdf8' },
+        '熱更新補丁包 (patch)': { count: fbPatchDl, color: '#10b981' },
+        '線上更新成功套用': { count: fbApplied, color: '#f59e0b' },
         '主程式執行檔 (.exe)': { count: 0, color: '#818cf8' },
         '其他發布資源': { count: 0, color: '#94a3b8' }
       };
@@ -1255,10 +1336,10 @@
               </div>
             </div>
             <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
-              <a href="${fullUrl}" class="nav-btn primary">
+              <a href="${fullUrl}" class="nav-btn primary" onclick="trackDownload('full', '${ver}')" download>
                 📥 立即下載主程式免安裝包 (${ver})
               </a>
-              <a href="${patchUrl}" class="nav-btn">
+              <a href="${patchUrl}" class="nav-btn" onclick="trackDownload('patch', '${ver}')" download>
                 ⚡ 下載更新補丁包 (Patch)
               </a>
               <a href="https://github.com/Isaacyang34/Homepage/releases" target="_blank" rel="noopener noreferrer" class="nav-btn" title="檢視 Isaacyang34/Homepage 官方 Releases">
@@ -1285,7 +1366,7 @@
               <td>
                 <div class="asset-name">
                   <span>${icon}</span>
-                  <a href="${a.browser_download_url}" style="color: var(--text-main); text-decoration: none;" download>
+                  <a href="${a.browser_download_url}" style="color: var(--text-main); text-decoration: none;" onclick="trackDownload('${isPatch ? 'patch' : 'full'}', '${rel.tag_name}')" download>
                     ${a.name}
                   </a>
                 </div>
@@ -1298,7 +1379,7 @@
                 </div>
               </td>
               <td style="text-align: right;">
-                <a href="${a.browser_download_url}" class="dl-btn" download>
+                <a href="${a.browser_download_url}" class="dl-btn" onclick="trackDownload('${isPatch ? 'patch' : 'full'}', '${rel.tag_name}')" download>
                   📥 下載
                 </a>
               </td>

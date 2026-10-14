@@ -452,8 +452,8 @@ class PortfolioApp(tk.Tk):
 
         # 1. 系統選單 (System Menu)
         menu_system = tk.Menu(menubar, tearoff=0)
-        menu_system.add_command(label="🔄 切換使用者帳號", command=self.on_switch_user)
-        menu_system.add_command(label="⚙️ 帳號密碼與權限管理...", command=self.on_manage_users)
+        menu_system.add_command(label="👤 切換使用者帳號", command=self.on_switch_user)
+        menu_system.add_command(label="👥 帳號密碼與權限管理...", command=self.on_manage_users)
         menu_system.add_command(label="☁️ 雲端加密同步 (E2EE)...", command=self.on_open_cloud_sync)
         menu_system.add_command(label="🎨 介面與外觀設定...", command=self.on_open_settings)
         menu_system.add_separator()
@@ -577,7 +577,7 @@ class PortfolioApp(tk.Tk):
         self.lbl_user_info.pack(side=tk.LEFT)
 
         self.btn_switch_user = tk.Button(
-            self.user_bar, text="🔄 切換帳號",
+            self.user_bar, text="👤 切換帳號",
             font=(self.font_family, max(8, self.font_size - 1), "bold"),
             bg="#2b2b36", fg="#ffffff",
             activebackground="#3a86ff", activeforeground="#ffffff",
@@ -587,24 +587,48 @@ class PortfolioApp(tk.Tk):
         self.btn_switch_user.pack(side=tk.LEFT, padx=(12, 4))
 
         self.btn_manage_user = tk.Button(
-            self.user_bar, text="⚙️ 帳號管理",
-            font=(self.font_family, max(8, self.font_size - 1)),
-            bg="#2b2b36", fg=self.muted_text,
+            self.user_bar, text="👥 帳號管理",
+            font=(self.font_family, max(8, self.font_size - 1), "bold"),
+            bg="#2b2b36", fg="#ffd166",
             activebackground="#3a86ff", activeforeground="#ffffff",
             relief="flat", cursor="hand2", padx=8, pady=2,
             command=self.on_manage_users
         )
         self.btn_manage_user.pack(side=tk.LEFT, padx=4)
 
-        self.btn_report_user_bar = tk.Button(
-            self.user_bar, text="🚨 回報錯誤日誌",
+        top_right_box = tk.Frame(self.user_bar, bg=self.bg_color)
+        top_right_box.pack(side=tk.RIGHT)
+
+        self.btn_cloud = tk.Button(
+            top_right_box, text="[☁ 雲端傳輸]",
+            font=(self.font_family, max(8, self.font_size - 1), "bold"),
+            bg="#2b2b36", fg="#38bdf8",
+            activebackground="#3a86ff", activeforeground="#ffffff",
+            relief="flat", cursor="hand2", padx=8, pady=2,
+            command=self.on_open_cloud_sync
+        )
+        self.btn_cloud.pack(side=tk.LEFT, padx=3)
+
+        self.btn_update = tk.Button(
+            top_right_box, text="[⬆ 軟體更新]",
+            font=(self.font_family, max(8, self.font_size - 1), "bold"),
+            bg="#2b2b36", fg="#ffffff",
+            activebackground="#3a86ff", activeforeground="#ffffff",
+            relief="flat", cursor="hand2", padx=8, pady=2,
+            command=self.on_check_online_update
+        )
+        self.btn_update.pack(side=tk.LEFT, padx=3)
+
+        self.btn_report_error = tk.Button(
+            top_right_box, text="[🚨 錯誤回報]",
             font=(self.font_family, max(8, self.font_size - 1), "bold"),
             bg="#2b2b36", fg="#f43f5e",
             activebackground="#f43f5e", activeforeground="#ffffff",
             relief="flat", cursor="hand2", padx=8, pady=2,
             command=self.on_open_error_reporter
         )
-        self.btn_report_user_bar.pack(side=tk.RIGHT, padx=4)
+        self.btn_report_error.pack(side=tk.LEFT, padx=3)
+        self.btn_report_user_bar = self.btn_report_error
 
         # 1. 頂部儀表板卡片
         self.top_cards_container = ttk.Frame(self, padding=(12, 6, 12, 5))
@@ -616,7 +640,7 @@ class PortfolioApp(tk.Tk):
         self.mid_frame.pack(fill=tk.BOTH, expand=True)
         self.rebuild_table()
 
-        # 3. 底部功能按鈕與工具列
+        # 3. 底部功能按鈕與工具列 (無重複按鈕，專注於核心圖表與設定)
         bottom_frame = ttk.Frame(self, padding=(12, 8, 12, 12))
         bottom_frame.pack(fill=tk.X)
 
@@ -632,32 +656,10 @@ class PortfolioApp(tk.Tk):
         btn_view_kline = ttk.Button(bottom_frame, text="[K線] 個股走勢圖", command=self.on_view_kline, style="Action.TButton")
         btn_view_kline.pack(side=tk.LEFT, padx=2)
 
+        # 右側區域：設定按鈕 (最右側) 與 自動刷新秒數控制
         btn_settings = ttk.Button(bottom_frame, text="[⚙ 設定] 介面與外觀", command=self.on_open_settings, style="Action.TButton")
-        btn_settings.pack(side=tk.LEFT, padx=2)
+        btn_settings.pack(side=tk.RIGHT, padx=(10, 2))
 
-        btn_cloud = ttk.Button(bottom_frame, text="[☁ 雲端] 加密同步", command=self.on_open_cloud_sync, style="Action.TButton")
-        btn_cloud.pack(side=tk.LEFT, padx=2)
-
-        btn_user_toggle = ttk.Button(bottom_frame, text="[👤 帳號] 切換登入", command=self.on_switch_user, style="Action.TButton")
-        btn_user_toggle.pack(side=tk.LEFT, padx=2)
-
-        self.btn_update = tk.Button(
-            bottom_frame, text="[⬆ 軟體更新]", bg="#323242", fg="#ffffff",
-            activebackground="#3a86ff", activeforeground="#ffffff",
-            font=(self.font_family, self.font_size, "bold"), relief="flat", padx=8, pady=3,
-            cursor="hand2", command=self.on_check_online_update
-        )
-        self.btn_update.pack(side=tk.LEFT, padx=3)
-
-        self.btn_report_error = tk.Button(
-            bottom_frame, text="[🚨 錯誤回報]", bg="#323242", fg="#f43f5e",
-            activebackground="#f43f5e", activeforeground="#ffffff",
-            font=(self.font_family, self.font_size, "bold"), relief="flat", padx=8, pady=3,
-            cursor="hand2", command=self.on_open_error_reporter
-        )
-        self.btn_report_error.pack(side=tk.LEFT, padx=3)
-
-        # 右側控制：自動刷新頻率
         self.auto_refresh_var = tk.BooleanVar(value=True)
         chk_auto = ttk.Checkbutton(bottom_frame, text="自動刷新", variable=self.auto_refresh_var, command=self.on_toggle_auto_refresh)
         chk_auto.pack(side=tk.RIGHT, padx=4)
@@ -2950,16 +2952,107 @@ class HistoryViewerDialog(tk.Toplevel):
                 ))
 
 
+def show_firebase_setup_help(parent: tk.Widget):
+    """展示自行申請與設定 Firebase RTDB 的詳細指引"""
+    help_win = tk.Toplevel(parent)
+    help_win.title("📖 Firebase Realtime Database 申請與安全設定教學")
+    help_win.geometry("560x520")
+    help_win.resizable(False, False)
+    help_win.configure(bg="#1e1e26")
+    if parent and parent.winfo_viewable():
+        try:
+            help_win.transient(parent)
+        except Exception:
+            pass
+    try:
+        help_win.grab_set()
+    except Exception:
+        pass
+
+    content = tk.Frame(help_win, bg="#1e1e26", padx=20, pady=16)
+    content.pack(fill=tk.BOTH, expand=True)
+
+    tk.Label(content, text="☁️ Firebase 免費資料庫申請步驟 (個人終身免費)", bg="#1e1e26", fg="#3a86ff", font=("Microsoft JhengHei UI", 12, "bold")).pack(anchor="w")
+
+    guide_text = (
+        "Firebase 是 Google 提供的雲端服務，Spark 免費方案提供 1GB 空間與 10GB/月 流量。\n"
+        "儲存加密股票庫存終身完全免費，請依以下步驟建立：\n\n"
+        "【步驟 1：建立專案】\n"
+        "1. 前往 https://console.firebase.google.com/ 登入 Google 帳號。\n"
+        "2. 點擊「新增專案」，輸入自訂名稱，關閉 Google Analytics 後建立。\n\n"
+        "【步驟 2：啟用 Realtime Database】\n"
+        "1. 左側選單點擊「建構 (Build)」➔「Realtime Database」➔「建立資料庫」。\n"
+        "2. 地區建議選「asia-southeast1 (新加坡)」，模式先選「鎖定模式」。\n\n"
+        "【步驟 3：套用零知識安全規則 (防列舉與防覆寫)】\n"
+        "1. 切換至上方「規則 (Rules)」分頁。\n"
+        "2. 點擊下方按鈕複製安全規則 JSON，貼上並覆蓋原有內容，點擊「發布 (Publish)」。\n\n"
+        "【步驟 4：取得網址】\n"
+        "切換回「資料 (Data)」分頁，複製頂部的 https://... 網址，貼回本視窗之欄位。"
+    )
+    msg_lbl = tk.Label(content, text=guide_text, bg="#1e1e26", fg="#d0d0dc", font=("Microsoft JhengHei UI", 9), justify="left", wraplength=510)
+    msg_lbl.pack(anchor="w", pady=(8, 12))
+
+    btn_box = tk.Frame(content, bg="#1e1e26")
+    btn_box.pack(fill=tk.X, side=tk.BOTTOM)
+
+    def copy_rules():
+        rules_json = (
+            "{\n"
+            "  \"rules\": {\n"
+            "    \".read\": false,\n"
+            "    \".write\": false,\n"
+            "    \"stats\": {\n"
+            "      \".read\": true,\n"
+            "      \".write\": true\n"
+            "    },\n"
+            "    \"portfolios\": {\n"
+            "      \".read\": false,\n"
+            "      \".write\": false,\n"
+            "      \"$user_id\": {\n"
+            "        \".read\": true,\n"
+            "        \".write\": \"!data.exists() || (newData.child('write_token').val() === data.child('write_token').val())\",\n"
+            "        \".validate\": \"newData.hasChildren(['ciphertext_b64', 'salt_hex', 'nonce_hex', 'write_token', 'sync_seq'])\"\n"
+            "      }\n"
+            "    }\n"
+            "  }\n"
+            "}"
+        )
+        parent.clipboard_clear()
+        parent.clipboard_append(rules_json)
+        messagebox.showinfo("已複製", "Firebase 安全規則 (JSON) 已成功複製到剪貼簿！\n請直接至 Firebase 控制台的 Rules 分頁貼上並發布即可。", parent=help_win)
+
+    def open_guide_doc():
+        doc_path = os.path.join(os.path.dirname(__file__), "docs", "FIREBASE_SETUP_GUIDE.md")
+        if os.path.exists(doc_path):
+            os.startfile(doc_path)
+        else:
+            messagebox.showinfo("檔案位置", f"完整手冊位於：{doc_path}", parent=help_win)
+
+    tk.Button(btn_box, text="📋 一鍵複製 Firebase 安全規則 (JSON)", bg="#00f090", fg="#101014", font=("Microsoft JhengHei UI", 9, "bold"), relief="flat", command=copy_rules).pack(fill=tk.X, ipady=4, pady=(0, 4))
+    
+    sub_btns = tk.Frame(btn_box, bg="#1e1e26")
+    sub_btns.pack(fill=tk.X)
+    tk.Button(sub_btns, text="📄 打開詳細說明文件 (FIREBASE_SETUP_GUIDE.md)", bg="#2d2d38", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=open_guide_doc).pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=3, padx=(0, 4))
+    tk.Button(sub_btns, text="關閉", bg="#3a3a46", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=help_win.destroy).pack(side=tk.RIGHT, ipadx=10, ipady=3)
+
+
 class CloudSyncDialog(tk.Toplevel):
     """零知識端到端加密雲端同步對話框 (支援 OWASP 600K + 128-bit SecretKey 雙因子)"""
     def __init__(self, parent, on_restored=None):
         super().__init__(parent)
-        self.title("零知識加密雲端同步 (OWASP 600K + 雙因子金鑰)")
+        self.title("☁️ 零知識加密雲端同步 (OWASP 600K + 雙因子金鑰)")
         self.geometry("560x660")
         self.resizable(False, False)
         self.configure(bg="#202028")
-        self.transient(parent)
-        self.grab_set()
+        if parent and parent.winfo_viewable():
+            try:
+                self.transient(parent)
+            except Exception:
+                pass
+        try:
+            self.grab_set()
+        except Exception:
+            pass
 
         self.on_restored = on_restored
         self.secret_key = get_or_create_secret_key()
@@ -3063,8 +3156,15 @@ class CloudSyncDialog(tk.Toplevel):
         help_win.geometry("540x480")
         help_win.resizable(False, False)
         help_win.configure(bg="#1e1e26")
-        help_win.transient(self)
-        help_win.grab_set()
+        if self and self.winfo_viewable():
+            try:
+                help_win.transient(self)
+            except Exception:
+                pass
+        try:
+            help_win.grab_set()
+        except Exception:
+            pass
 
         content = tk.Frame(help_win, bg="#1e1e26", padx=20, pady=16)
         content.pack(fill=tk.BOTH, expand=True)
@@ -3086,106 +3186,12 @@ class CloudSyncDialog(tk.Toplevel):
             "   • 設備雙因子金鑰 (Secret Key 貼在此處)\n"
             "5. 手機瀏覽器會自動記住這組金鑰，日後打開網頁就不用重複輸入了！"
         )
-        msg_lbl = tk.Label(content, text=info_text, bg="#1e1e26", fg="#d0d0dc", font=("Microsoft JhengHei UI", 9), justify="left", wraplength=490, lineheight=1.4 if hasattr(tk.Label, 'lineheight') else 1)
+        msg_lbl = tk.Label(content, text=info_text, bg="#1e1e26", fg="#d0d0dc", font=("Microsoft JhengHei UI", 9), justify="left", wraplength=490)
         msg_lbl.pack(anchor="w", pady=(10, 16))
 
         btn_box = tk.Frame(content, bg="#1e1e26")
         btn_box.pack(fill=tk.X, side=tk.BOTTOM)
         tk.Button(btn_box, text="我了解了", bg="#3a86ff", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), relief="flat", command=help_win.destroy).pack(fill=tk.X, ipady=5)
-
-def show_firebase_setup_help(parent: tk.Widget):
-    """展示自行申請與設定 Firebase RTDB 的詳細指引"""
-    help_win = tk.Toplevel(parent)
-    help_win.title("📖 Firebase Realtime Database 申請與安全設定教學")
-    help_win.geometry("560x520")
-    help_win.resizable(False, False)
-    help_win.configure(bg="#1e1e26")
-    if parent and parent.winfo_viewable():
-        try:
-            help_win.transient(parent)
-        except Exception:
-            pass
-    try:
-        help_win.grab_set()
-    except Exception:
-        pass
-
-    content = tk.Frame(help_win, bg="#1e1e26", padx=20, pady=16)
-    content.pack(fill=tk.BOTH, expand=True)
-
-    tk.Label(content, text="☁️ Firebase 免費資料庫申請步驟 (個人終身免費)", bg="#1e1e26", fg="#3a86ff", font=("Microsoft JhengHei UI", 12, "bold")).pack(anchor="w")
-
-    guide_text = (
-        "Firebase 是 Google 提供的雲端服務，Spark 免費方案提供 1GB 空間與 10GB/月 流量。\n"
-        "儲存加密股票庫存終身完全免費，請依以下步驟建立：\n\n"
-        "【步驟 1：建立專案】\n"
-        "1. 前往 https://console.firebase.google.com/ 登入 Google 帳號。\n"
-        "2. 點擊「新增專案」，輸入自訂名稱，關閉 Google Analytics 後建立。\n\n"
-        "【步驟 2：啟用 Realtime Database】\n"
-        "1. 左側選單點擊「建構 (Build)」➔「Realtime Database」➔「建立資料庫」。\n"
-        "2. 地區建議選「asia-southeast1 (新加坡)」，模式先選「鎖定模式」。\n\n"
-        "【步驟 3：套用零知識安全規則 (防列舉與防覆寫)】\n"
-        "1. 切換至上方「規則 (Rules)」分頁。\n"
-        "2. 點擊下方按鈕複製安全規則 JSON，貼上並覆蓋原有內容，點擊「發布 (Publish)」。\n\n"
-        "【步驟 4：取得網址】\n"
-        "切換回「資料 (Data)」分頁，複製頂部的 https://... 網址，貼回本視窗之欄位。"
-    )
-    msg_lbl = tk.Label(content, text=guide_text, bg="#1e1e26", fg="#d0d0dc", font=("Microsoft JhengHei UI", 9), justify="left", wraplength=510)
-    msg_lbl.pack(anchor="w", pady=(8, 12))
-
-    btn_box = tk.Frame(content, bg="#1e1e26")
-    btn_box.pack(fill=tk.X, side=tk.BOTTOM)
-
-    def copy_rules():
-        rules_json = (
-            "{\n"
-            "  \"rules\": {\n"
-            "    \".read\": false,\n"
-            "    \".write\": false,\n"
-            "    \"portfolios\": {\n"
-            "      \".read\": false,\n"
-            "      \".write\": false,\n"
-            "      \"$user_id\": {\n"
-            "        \".read\": true,\n"
-            "        \".write\": \"!data.exists() || (newData.child('write_token').val() === data.child('write_token').val())\",\n"
-            "        \".validate\": \"newData.hasChildren(['ciphertext_b64', 'salt_hex', 'nonce_hex', 'write_token', 'sync_seq'])\"\n"
-            "      }\n"
-            "    }\n"
-            "  }\n"
-            "}"
-        )
-        parent.clipboard_clear()
-        parent.clipboard_append(rules_json)
-        messagebox.showinfo("已複製", "Firebase 安全規則 (JSON) 已成功複製到剪貼簿！\n請直接至 Firebase 控制台的 Rules 分頁貼上並發布即可。", parent=help_win)
-
-    def open_guide_doc():
-        doc_path = os.path.join(os.path.dirname(__file__), "docs", "FIREBASE_SETUP_GUIDE.md")
-        if os.path.exists(doc_path):
-            os.startfile(doc_path)
-        else:
-            messagebox.showinfo("檔案位置", f"完整手冊位於：{doc_path}", parent=help_win)
-
-    tk.Button(btn_box, text="📋 一鍵複製 Firebase 安全規則 (JSON)", bg="#00f090", fg="#101014", font=("Microsoft JhengHei UI", 9, "bold"), relief="flat", command=copy_rules).pack(fill=tk.X, ipady=4, pady=(0, 4))
-    
-    sub_btns = tk.Frame(btn_box, bg="#1e1e26")
-    sub_btns.pack(fill=tk.X)
-    tk.Button(sub_btns, text="📄 打開詳細說明文件 (FIREBASE_SETUP_GUIDE.md)", bg="#2d2d38", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=open_guide_doc).pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=3, padx=(0, 4))
-    tk.Button(sub_btns, text="關閉", bg="#3a3a46", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=help_win.destroy).pack(side=tk.RIGHT, ipadx=10, ipady=3)
-
-class CloudSyncDialog(tk.Toplevel):
-    def __init__(self, parent, on_restored=None):
-        super().__init__(parent)
-        self.title("☁️ 雲端加密同步 (E2EE 端到端零知識安全)")
-        self.geometry("560x600")
-        self.resizable(False, False)
-        self.configure(bg="#181820")
-        self.transient(parent)
-        self.grab_set()
-
-        self.on_restored = on_restored
-        self.web_url = "https://isaacyang34.github.io/Homepage/TOOL_Stock_Portfolio_Tracker/web/"
-
-        self.build_ui()
 
     def show_firebase_help(self):
         show_firebase_setup_help(self)

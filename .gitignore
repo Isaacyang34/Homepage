@@ -7,6 +7,10 @@
 TOOL_Stock_Portfolio_Tracker/*_old.exe
 TOOL_Stock_Portfolio_Tracker/build/
 TOOL_Stock_Portfolio_Tracker/dist/
+build/
+dist/
+**/build/
+**/dist/
 *.zip
 !TOOL_Stock_Portfolio_Tracker/dist_patches/**/*.zip
 !TOOL_Stock_Portfolio_Tracker/dist_releases/**/*.zip

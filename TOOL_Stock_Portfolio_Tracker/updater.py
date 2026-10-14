@@ -563,6 +563,42 @@ def get_resource_path(relative_path: str) -> str:
 # 遠端更新指標端點 (GitHub Raw 與 Firebase RTDB 雙保險)
 GITHUB_MANIFEST_URL = "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/version.json"
 FIREBASE_MANIFEST_URL = "https://my-stock-tracker-2a94e-default-rtdb.asia-southeast1.firebasedatabase.app/update/version.json"
+FIREBASE_STATS_URL = "https://my-stock-tracker-2a94e-default-rtdb.asia-southeast1.firebasedatabase.app/stats.json"
+
+def report_firebase_telemetry(action: str, version: str = "", is_patch: bool = False):
+    """非同步向 Firebase RTDB 統計節點發送原子計數 (零個資、背景靜默執行)"""
+    def _worker():
+        try:
+            target_url = FIREBASE_STATS_URL
+            clean_v = (version or APP_VERSION).replace(".", "_")
+
+            payload = {}
+            if action == "check":
+                payload["updates/check_count"] = {".sv": {"increment": 1}}
+                payload["updates/last_check_time"] = {".sv": "timestamp"}
+            elif action == "download":
+                payload["downloads/total"] = {".sv": {"increment": 1}}
+                if is_patch:
+                    payload["downloads/patch_count"] = {".sv": {"increment": 1}}
+                    if clean_v:
+                        payload[f"downloads/by_version/{clean_v}/patch"] = {".sv": {"increment": 1}}
+                else:
+                    payload["downloads/full_count"] = {".sv": {"increment": 1}}
+                    if clean_v:
+                        payload[f"downloads/by_version/{clean_v}/full"] = {".sv": {"increment": 1}}
+                payload["downloads/last_download_time"] = {".sv": "timestamp"}
+            elif action == "applied":
+                payload["updates/applied_count"] = {".sv": {"increment": 1}}
+                if clean_v:
+                    payload[f"updates/by_version/{clean_v}/applied"] = {".sv": {"increment": 1}}
+                payload["updates/last_applied_time"] = {".sv": "timestamp"}
+
+            if payload:
+                requests.patch(target_url, json=payload, timeout=3.5)
+        except Exception:
+            pass
+
+    threading.Thread(target=_worker, daemon=True).start()
 
 def parse_version_tuple(ver_str: str) -> Tuple[int, ...]:
     """解析版本字串例如 'V1.1.0.0' -> (1, 1, 0, 0)"""
@@ -609,6 +645,7 @@ def fetch_update_manifest(timeout: float = 3.5) -> Tuple[bool, Optional[Dict[str
             if resp.status_code == 200:
                 data = resp.json()
                 if isinstance(data, dict) and "version" in data:
+                    report_firebase_telemetry("check", version=data.get("version", ""))
                     return True, data, name
         except Exception:
             pass
@@ -1007,6 +1044,7 @@ class UpdateDialog(tk.Toplevel):
 
     def _on_download_success(self, target_dir: str, temp_file: str, version: str, is_patch: bool):
         log_update_debug(f"[DOWNLOAD_SUCCESS] temp_file={temp_file}, ver={version}, is_patch={is_patch}")
+        report_firebase_telemetry("download", version=version, is_patch=is_patch)
         try:
             self.deiconify()
             self.lift()
@@ -1037,6 +1075,7 @@ class UpdateDialog(tk.Toplevel):
                 with zipfile.ZipFile(temp_file, 'r') as zf:
                     zf.extractall(target_dir)
                 log_update_debug(f"[PATCH] Extracted patch zip successfully.")
+                report_firebase_telemetry("applied", version=version, is_patch=True)
             except Exception as e:
                 log_update_debug(f"[PATCH] ERROR extracting zip: {e}")
                 messagebox.showerror("更新失敗", f"解壓縮補丁包失敗: {e}", parent=self)
@@ -1103,6 +1142,8 @@ class UpdateDialog(tk.Toplevel):
 
     def _do_apply(self, target_dir: str, temp_file: str, restart: bool = True, is_patch: bool = False):
         log_update_debug(f"[USER_ACTION] Immediate apply triggered for {temp_file}, is_patch={is_patch}")
+        target_v = self.selected_version_data.get("version", "")
+        report_firebase_telemetry("applied", version=target_v, is_patch=is_patch)
         if is_patch:
             target_v = self.selected_version_data.get("version", "")
             ok = apply_patch_hot_reload(target_dir, temp_file, parent_app=self.parent, target_version=target_v)

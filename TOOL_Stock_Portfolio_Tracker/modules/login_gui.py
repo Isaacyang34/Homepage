@@ -147,7 +147,7 @@ class LoginDialog(tk.Toplevel):
         
         if self.allow_cancel:
             self.manage_btn = tk.Button(
-                sub_row, text="⚙️ 帳號管理中心",
+                sub_row, text="👥 帳號管理中心",
                 font=(FONT_FAMILY, 9),
                 bg=THEME_CARD_BG, fg=THEME_TEXT,
                 activebackground=THEME_BORDER, activeforeground=THEME_TEXT,
@@ -440,7 +440,7 @@ class UserManageDialog(tk.Toplevel):
         header_frame.pack(side="top", fill="x", padx=20, pady=(15, 8))
         
         tk.Label(
-            header_frame, text="⚙️ 使用者帳號管理中心",
+            header_frame, text="👥 使用者帳號管理中心",
             font=(FONT_FAMILY, 14, "bold"),
             fg=THEME_ACCENT, bg=THEME_BG
         ).pack(anchor="w")

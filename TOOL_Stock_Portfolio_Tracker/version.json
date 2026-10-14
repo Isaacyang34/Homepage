@@ -79,8 +79,8 @@
       "changelog": "V1.1.1.0 三層深度模組再分離：規則外置 (config/)、外掛機制 (plugins/)、底座依賴瘦身 (純 REST 免 numpy/pandas)。"
     }
   ],
-  "patch_size": 368432,
-  "patch_sha256": "6076a30a6d3a5530dce139e2afdc0e29003f96305dd698a013b66b5ac5e5de74",
-  "release_size": 28749790,
-  "release_sha256": "0b77fa62607d4cbf240d4e23cd647face584ab139020dc502f253a25aa47a942"
+  "patch_size": 375241,
+  "patch_sha256": "c0573bcd5aed306c0ca608595ba27f3a835137cf11fbefcc5705dfe9bd307edc",
+  "release_size": 28756599,
+  "release_sha256": "185c1b8eaaeba5e9d68481867d0d0de27af9c2959646fc213650f959a8957a55"
 }
