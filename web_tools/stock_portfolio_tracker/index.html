@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>台股投資組合追蹤與 AI 量化戰情室 - Stock Portfolio Tracker</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+      window.IS_STATIC_CLOUD = true;
+      window.STATIC_PORTFOLIO_DATA = {"summary": {"total_equity": 5951670.0, "total_market_value": 5451670.0, "total_cost": 2163000.0, "cash_balance": 500000.0, "total_unrealized_pnl": 3288670.0, "total_roi": 152.04, "position_count": 4}, "positions": [{"id": 6, "symbol": "00878.TW", "name": "國泰永續高股息", "shares": 10000, "cost_price": 30.0, "current_price": 35.47, "market_value": 354700.0, "total_cost": 300000.0, "unrealized_pnl": 54700.0, "pnl_percentage": 18.23, "weight_percentage": 5.96, "buy_date": "2026-10-15", "target_price": null, "stop_loss_price": null, "notes": null}, {"id": 5, "symbol": "00919.TW", "name": "群益台灣精選高息", "shares": 3000, "cost_price": 25.0, "current_price": 32.49, "market_value": 97470.0, "total_cost": 75000.0, "unrealized_pnl": 22470.0, "pnl_percentage": 29.96, "weight_percentage": 1.64, "buy_date": "2026-10-15", "target_price": null, "stop_loss_price": null, "notes": null}, {"id": 4, "symbol": "2002.TW", "name": "中鋼", "shares": 1000, "cost_price": 28.0, "current_price": 19.5, "market_value": 19500.0, "total_cost": 28000.0, "unrealized_pnl": -8500.0, "pnl_percentage": -30.36, "weight_percentage": 0.33, "buy_date": "2026-10-15", "target_price": null, "stop_loss_price": null, "notes": null}, {"id": 1, "symbol": "2330.TW", "name": "台積電", "shares": 2000, "cost_price": 880.0, "current_price": 2490.0, "market_value": 4980000.0, "total_cost": 1760000.0, "unrealized_pnl": 3220000.0, "pnl_percentage": 182.95, "weight_percentage": 83.67, "buy_date": "2024-03-15", "target_price": 1150.0, "stop_loss_price": 820.0, "notes": "AI 晶片先進製程 3nm/2nm 壟斷優勢"}]};
+      window.STATIC_ANALYSIS_DATA = {"00878.TW": {"factors": {"symbol": "00878.TW", "name": "國泰永續高股息", "current_price": 35.47, "overall_score": 82.8, "rating": "偏多操作", "radar_factors": {"動能因子 (Momentum)": 86, "價值因子 (Value)": 75, "品質因子 (Quality/ROE)": 88, "低波動因子 (Low-Vol)": 82, "法人籌碼 (Institutional)": 79}, "metrics": {"本益比 (PE)": 15.6, "股價淨值比 (PB)": 4.19, "股東權益報酬率 (ROE)": "26.2%", "近5日三大法人買賣超": "+11794 張", "20日波動率 (Annualized)": "16.8%"}}, "debate": {"bull_agent": {"role": "多方投資總監 (Bullish Analyst)", "stance": "強烈看多", "arguments": ["先進製程與高階伺服器供應鏈市佔率達 80% 以上，定價話語權極強。", "外資與投信連續 5 個交易日呈現淨買超，大戶籌碼集中度提升 1.8%。", "月營收連續 3 個月保持雙位數 YoY 年增長，基本面成長動能無虞。"], "confidence": 88}, "bear_agent": {"role": "風控長與放空策略師 (Bearish Risk Controller)", "stance": "警戒獲利回吐", "arguments": ["近一個月累積漲幅顯著，短線乖離率過大，技術指標進入超買區（RSI > 75）。", "全球宏觀降息預期反覆與地緣政治緊張，可能引發國際熱錢短線獲利了結避險。", "上檔面臨歷史整數心理壓力關卡，追高風險收益比（Risk/Reward）降低。"], "confidence": 72}, "arbitrator": {"role": "首席量化仲裁者 (Chief Quant Arbitrator)", "verdict": "偏多續抱 / 回檔加碼", "rationale": "雖然短線存在乖離過大風險，但整體品質與籌碼因子評分高達 90 分，中長期結構多頭未變。建議維持既有持倉，若拉回至 20MA (33.0 ~ 34.1) 可進行分批加碼，跌破停損價 33.0 則嚴格離場。", "target_price": 41.9, "stop_loss": 33.0, "position_sizing": "建議持倉上限 20% ~ 25%"}}}, "00919.TW": {"factors": {"symbol": "00919.TW", "name": "群益台灣精選高息", "current_price": 32.49, "overall_score": 73.3, "rating": "偏多操作", "radar_factors": {"動能因子 (Momentum)": 66, "價值因子 (Value)": 52, "品質因子 (Quality/ROE)": 77, "低波動因子 (Low-Vol)": 85, "法人籌碼 (Institutional)": 85}, "metrics": {"本益比 (PE)": 23.6, "股價淨值比 (PB)": 5.12, "股東權益報酬率 (ROE)": "30.9%", "近5日三大法人買賣超": "+9375 張", "20日波動率 (Annualized)": "18.0%"}}, "debate": {"bull_agent": {"role": "多方投資總監 (Bullish Analyst)", "stance": "強烈看多", "arguments": ["先進製程與高階伺服器供應鏈市佔率達 80% 以上，定價話語權極強。", "外資與投信連續 5 個交易日呈現淨買超，大戶籌碼集中度提升 1.8%。", "月營收連續 3 個月保持雙位數 YoY 年增長，基本面成長動能無虞。"], "confidence": 88}, "bear_agent": {"role": "風控長與放空策略師 (Bearish Risk Controller)", "stance": "警戒獲利回吐", "arguments": ["近一個月累積漲幅顯著，短線乖離率過大，技術指標進入超買區（RSI > 75）。", "全球宏觀降息預期反覆與地緣政治緊張，可能引發國際熱錢短線獲利了結避險。", "上檔面臨歷史整數心理壓力關卡，追高風險收益比（Risk/Reward）降低。"], "confidence": 72}, "arbitrator": {"role": "首席量化仲裁者 (Chief Quant Arbitrator)", "verdict": "偏多續抱 / 回檔加碼", "rationale": "雖然短線存在乖離過大風險，但整體品質與籌碼因子評分高達 90 分，中長期結構多頭未變。建議維持既有持倉，若拉回至 20MA (30.2 ~ 31.2) 可進行分批加碼，跌破停損價 30.2 則嚴格離場。", "target_price": 38.3, "stop_loss": 30.2, "position_sizing": "建議持倉上限 20% ~ 25%"}}}, "2002.TW": {"factors": {"symbol": "2002.TW", "name": "中鋼", "current_price": 19.5, "overall_score": 89.9, "rating": "強力買進", "radar_factors": {"動能因子 (Momentum)": 94, "價值因子 (Value)": 77, "品質因子 (Quality/ROE)": 90, "低波動因子 (Low-Vol)": 89, "法人籌碼 (Institutional)": 95}, "metrics": {"本益比 (PE)": 23.7, "股價淨值比 (PB)": 2.74, "股東權益報酬率 (ROE)": "18.2%", "近5日三大法人買賣超": "+10860 張", "20日波動率 (Annualized)": "17.4%"}}, "debate": {"bull_agent": {"role": "多方投資總監 (Bullish Analyst)", "stance": "強烈看多", "arguments": ["先進製程與高階伺服器供應鏈市佔率達 80% 以上，定價話語權極強。", "外資與投信連續 5 個交易日呈現淨買超，大戶籌碼集中度提升 1.8%。", "月營收連續 3 個月保持雙位數 YoY 年增長，基本面成長動能無虞。"], "confidence": 88}, "bear_agent": {"role": "風控長與放空策略師 (Bearish Risk Controller)", "stance": "警戒獲利回吐", "arguments": ["近一個月累積漲幅顯著，短線乖離率過大，技術指標進入超買區（RSI > 75）。", "全球宏觀降息預期反覆與地緣政治緊張，可能引發國際熱錢短線獲利了結避險。", "上檔面臨歷史整數心理壓力關卡，追高風險收益比（Risk/Reward）降低。"], "confidence": 72}, "arbitrator": {"role": "首席量化仲裁者 (Chief Quant Arbitrator)", "verdict": "偏多續抱 / 回檔加碼", "rationale": "雖然短線存在乖離過大風險，但整體品質與籌碼因子評分高達 90 分，中長期結構多頭未變。建議維持既有持倉，若拉回至 20MA (18.1 ~ 18.7) 可進行分批加碼，跌破停損價 18.1 則嚴格離場。", "target_price": 23.0, "stop_loss": 18.1, "position_sizing": "建議持倉上限 20% ~ 25%"}}}, "2330.TW": {"factors": {"symbol": "2330.TW", "name": "台積電", "current_price": 2490.0, "overall_score": 76.3, "rating": "偏多操作", "radar_factors": {"動能因子 (Momentum)": 81, "價值因子 (Value)": 83, "品質因子 (Quality/ROE)": 72, "低波動因子 (Low-Vol)": 68, "法人籌碼 (Institutional)": 77}, "metrics": {"本益比 (PE)": 24.3, "股價淨值比 (PB)": 5.21, "股東權益報酬率 (ROE)": "27.5%", "近5日三大法人買賣超": "+4690 張", "20日波動率 (Annualized)": "20.1%"}}, "debate": {"bull_agent": {"role": "多方投資總監 (Bullish Analyst)", "stance": "強烈看多", "arguments": ["先進製程與高階伺服器供應鏈市佔率達 80% 以上，定價話語權極強。", "外資與投信連續 5 個交易日呈現淨買超，大戶籌碼集中度提升 1.8%。", "月營收連續 3 個月保持雙位數 YoY 年增長，基本面成長動能無虞。"], "confidence": 88}, "bear_agent": {"role": "風控長與放空策略師 (Bearish Risk Controller)", "stance": "警戒獲利回吐", "arguments": ["近一個月累積漲幅顯著，短線乖離率過大，技術指標進入超買區（RSI > 75）。", "全球宏觀降息預期反覆與地緣政治緊張，可能引發國際熱錢短線獲利了結避險。", "上檔面臨歷史整數心理壓力關卡，追高風險收益比（Risk/Reward）降低。"], "confidence": 72}, "arbitrator": {"role": "首席量化仲裁者 (Chief Quant Arbitrator)", "verdict": "偏多續抱 / 回檔加碼", "rationale": "雖然短線存在乖離過大風險，但整體品質與籌碼因子評分高達 90 分，中長期結構多頭未變。建議維持既有持倉，若拉回至 20MA (2315.7 ~ 2390.4) 可進行分批加碼，跌破停損價 2315.7 則嚴格離場。", "target_price": 2938.2, "stop_loss": 2315.7, "position_sizing": "建議持倉上限 20% ~ 25%"}}}};
+    </script>
+    
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="brand-icon">📈</div>
+      <div>
+        <h1>TW Stock Portfolio & AI Quant War Room</h1>
+        <div style="font-size: 0.75rem; color: var(--text-muted);">統一共享資料庫 × 投資組合資產追蹤 × AI 多空量化辯論</div>
+      </div>
+    </div>
+
+    <!-- 雙功能切換頁籤 -->
+    <div class="nav-tabs-wrapper">
+      <button class="nav-tab active" id="tab-portfolio" onclick="switchView('portfolio')">
+        📊 投資組合資產追蹤
+      </button>
+      <button class="nav-tab" id="tab-quant" onclick="switchView('quant')">
+        🧠 AI 量化多空戰情室
+      </button>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <span class="cloud-badge">共用資料庫連線中</span>
+      <div class="actions">
+        <button class="btn-primary" onclick="openAddModal()">＋ 新增持股</button>
+        <button class="btn-secondary" onclick="exportAndSyncToGitHub()">🚀 推播至 GitHub</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- 功能 1：投資組合資產追蹤 VIEW -->
+    <section id="view-portfolio">
+      <!-- 頂部資產總覽 KPI -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-title">總資產淨值 (Total Equity)</div>
+          <div class="kpi-value" id="kpi-total-equity">NT$ 0</div>
+          <div class="kpi-sub">現金儲備: <span id="kpi-cash" style="color: #94a3b8;">NT$ 0</span></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">持股市值 (Market Value)</div>
+          <div class="kpi-value" id="kpi-market-value">NT$ 0</div>
+          <div class="kpi-sub">總投入成本: <span id="kpi-total-cost" style="color: #94a3b8;">NT$ 0</span></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">未實現損益 (Unrealized PnL)</div>
+          <div class="kpi-value" id="kpi-unrealized-pnl">NT$ 0</div>
+          <div class="kpi-sub" id="kpi-roi-badge">報酬率: 0.00%</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">持股檔數 / 數據聯動</div>
+          <div class="kpi-value" id="kpi-count">0 檔</div>
+          <div class="kpi-sub" style="color: #38bdf8;">與量化戰情室資料即時同步</div>
+        </div>
+      </div>
+
+      <div class="layout-grid">
+        <!-- 左側持股清單 -->
+        <section class="panel">
+          <div class="panel-header">
+            <h2>📊 我的持股清單 (Portfolio Holdings)</h2>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">點擊「AI 診斷」可於右側展開量化雷達</span>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>標的</th>
+                  <th>股數</th>
+                  <th>均價</th>
+                  <th>現價</th>
+                  <th>市值</th>
+                  <th>未實現損益</th>
+                  <th>佔比</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="positions-tbody">
+                <!-- 動態渲染 -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- 右側：資產配置 + 快速診斷 -->
+        <section class="panel">
+          <div class="panel-header">
+            <h2>🥧 資產配置分佈 (Asset Allocation)</h2>
+          </div>
+          <div style="height: 220px; position: relative;">
+            <canvas id="allocationChart"></canvas>
+          </div>
+
+          <div class="debate-card" id="analysis-panel" style="display: none;">
+            <div class="panel-header" style="margin-bottom: 0.75rem;">
+              <h3>🤖 <span id="target-stock-title">2330 台積電</span> 快速量化雷達</h3>
+              <span id="target-stock-score" class="cloud-badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">評分: 88.5</span>
+            </div>
+            <div style="height: 180px; position: relative; margin-bottom: 0.5rem;">
+              <canvas id="radarChart"></canvas>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <!-- 功能 2：AI 量化多空戰情室 VIEW -->
+    <section id="view-quant" style="display: none;">
+      <!-- 量化戰情頂部 KPI -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-title">歷史策略年化報酬率</div>
+          <div class="kpi-value color-up" id="quant-annual-ret">+32.4%</div>
+          <div class="kpi-sub">基準對比: 台灣加權指數 (+18.2%)</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">夏普比率 (Sharpe Ratio)</div>
+          <div class="kpi-value" style="color: #38bdf8;" id="quant-sharpe">1.85</div>
+          <div class="kpi-sub">風險調整後超額收益極佳</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">歷史最大回撤 (MDD)</div>
+          <div class="kpi-value color-down" id="quant-mdd">-11.8%</div>
+          <div class="kpi-sub">風控停損與動態縮減水位生效</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">多空勝率 / 盈虧比</div>
+          <div class="kpi-value" style="color: #f59e0b;" id="quant-winrate">68.5%</div>
+          <div class="kpi-sub">平均盈虧比: 2.4 : 1</div>
+        </div>
+      </div>
+
+      <div class="layout-grid">
+        <!-- 左側：AI 多空辯論攻防與仲裁者 -->
+        <section class="panel">
+          <div class="panel-header">
+            <h2>⚔️ AI 多空智能體辯論室 (Bull vs Bear Debate)</h2>
+            <div style="display: flex; gap: 0.5rem;">
+              <select id="quant-stock-selector" onchange="onQuantStockChange(this.value)" style="background: rgba(255,255,255,0.05); color: #fff; border: 1px solid var(--border-color); border-radius: 6px; padding: 0.3rem 0.6rem; font-size: 0.85rem;">
+                <!-- 動態注入持股選單 -->
+              </select>
+            </div>
+          </div>
+
+          <div class="agent-box bull-box" style="margin-top: 1rem;">
+            <div class="agent-title" style="color: var(--up-red);">
+              <span>🐂 多方投資總監 (Bullish Analyst)</span>
+              <span id="quant-bull-confidence">信心度: 88%</span>
+            </div>
+            <ul id="quant-bull-arguments" style="padding-left: 1.2rem; font-size: 0.85rem; line-height: 1.6; color: #cbd5e1;"></ul>
+          </div>
+
+          <div class="agent-box bear-box">
+            <div class="agent-title" style="color: var(--down-green);">
+              <span>🐻 風控長 (Bearish Risk Controller)</span>
+              <span id="quant-bear-confidence">信心度: 72%</span>
+            </div>
+            <ul id="quant-bear-arguments" style="padding-left: 1.2rem; font-size: 0.85rem; line-height: 1.6; color: #cbd5e1;"></ul>
+          </div>
+
+          <div class="agent-box arbitrator-box">
+            <div class="agent-title" style="color: #f59e0b;">
+              <span>⚖️ 首席量化仲裁者 (Chief Quant Arbitrator): <strong id="quant-verdict-action">偏多續抱</strong></span>
+            </div>
+            <p id="quant-verdict-rationale" style="font-size: 0.85rem; line-height: 1.6; color: #f1f5f9;"></p>
+            <div style="margin-top: 0.6rem; font-size: 0.85rem; color: #94a3b8; display: flex; gap: 1.5rem;">
+              <span>建議目標價: <strong id="quant-verdict-target" style="color: var(--up-red);">--</strong></span>
+              <span>建議停損價: <strong id="quant-verdict-stop" style="color: var(--down-green);">--</strong></span>
+              <span>建議倉位: <strong id="quant-verdict-size" style="color: #38bdf8;">--</strong></span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 右側：策略累計報酬走勢圖與五大因子檢驗 -->
+        <section class="panel">
+          <div class="panel-header">
+            <h2>📈 策略累積報酬走勢 (Strategy Backtest)</h2>
+          </div>
+          <div style="height: 200px; position: relative; margin-bottom: 1.5rem;">
+            <canvas id="backtestTrendChart"></canvas>
+          </div>
+
+          <div class="panel-header">
+            <h2>🎯 五大核心因子雷達強度</h2>
+          </div>
+          <div style="height: 200px; position: relative;">
+            <canvas id="quantRadarChart"></canvas>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <!-- 新增持股彈窗 -->
+  <div class="modal-overlay" id="addModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>新增持股到共用資料庫</h3>
+        <button onclick="closeAddModal()" style="background: none; border: none; color: #fff; font-size: 1.2rem; cursor: pointer;">✕</button>
+      </div>
+      <form id="addPositionForm" onsubmit="submitPosition(event)">
+        <div class="form-group">
+          <label>股票代號 (如 2002 或 2330)</label>
+          <input type="text" id="input-symbol" required placeholder="例如: 2002">
+        </div>
+        <div class="form-group">
+          <label>持股名稱 (選填，自動線上查詢)</label>
+          <input type="text" id="input-name" placeholder="例如: 中鋼 (留空自動查詢)">
+        </div>
+        <div class="form-group">
+          <label>買入股數 (Shares)</label>
+          <input type="number" id="input-shares" required min="1" placeholder="例如: 1000">
+        </div>
+        <div class="form-group">
+          <label>買入成本均價 (Cost Price)</label>
+          <input type="number" step="0.1" id="input-cost" required min="0.1" placeholder="例如: 19.5">
+        </div>
+        <div class="form-group">
+          <label>投資理由或備註</label>
+          <textarea id="input-notes" rows="2" placeholder="選填，例如: 鋼鐵景氣循環低檔築底"></textarea>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.25rem;">
+          <button type="button" class="btn-secondary" onclick="closeAddModal()">取消</button>
+          <button type="submit" class="btn-primary">確認新增</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
