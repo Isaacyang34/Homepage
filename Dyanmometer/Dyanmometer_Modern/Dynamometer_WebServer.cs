@@ -38,7 +38,7 @@ namespace DynamometerHMI
         private bool isCloudUploadRunning = false;
 
         // ── 軟體線上熱更新設定 (Online Auto-Update & In-Place Hot Swap) ──────
-        public const string APP_VERSION = "2.10.96";
+        public const string APP_VERSION = "2.10.97";
         public string cloudUpdateManifestUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/update/version.json";
         public Button btnOnlineUpdate = null;
         private bool? lastCloudUploadSuccess = null;
@@ -217,7 +217,7 @@ namespace DynamometerHMI
                         string json = GetTelemetryJson();
                         DateTime t0 = DateTime.Now;
 
-                        // ★ 核心穿透調用：自動判斷 HTTPS (BouncyCastle TLS 1.2) 或 HTTP 中繼
+                        //  核心穿透調用：自動判斷 HTTPS (BouncyCastle TLS 1.2) 或 HTTP 中繼
                         string respStatus = UploadTelemetryPayload(cloudUploadUrl, json, detectedWifiIp, 4000);
                         lastCloudRttMs = (int)(DateTime.Now - t0).TotalMilliseconds;
                         cloudUploadCount++;
@@ -283,7 +283,7 @@ namespace DynamometerHMI
             {
                 if (!isCloudUploadEnabled)
                 {
-                    lblCloudSyncStatus.Text = "☁️ Firebase: 暫停";
+                    lblCloudSyncStatus.Text = "[雲] Firebase: 暫停";
                     lblCloudSyncStatus.ForeColor = System.Drawing.Color.FromArgb(148, 163, 184);
                     lblCloudSyncStatus.BackColor = System.Drawing.Color.FromArgb(30, 41, 59);
                 }
@@ -504,7 +504,7 @@ namespace DynamometerHMI
                             logContent = "讀取 LOG 失敗: " + ex.Message;
                         }
 
-                        // ★ 核心黑盒子穿透保障：主動搜尋 logs/ 目錄下之最新 CRASH_REPORT 或 Crash_Last_Exception
+                        //  核心黑盒子穿透保障：主動搜尋 logs/ 目錄下之最新 CRASH_REPORT 或 Crash_Last_Exception
                         // 確保即使程式閃退重開後 hmi_telemetry.log 被刷新，崩潰診斷報告依然 100% 同步推送至雲端
                         try
                         {
@@ -1024,7 +1024,7 @@ namespace DynamometerHMI
             // 3. 雲端同步狀態膠囊 (點擊可彈出診斷)
             lblCloudSyncStatus = new Label()
             {
-                Text = "☁️ Firebase: 待機",
+                Text = "[雲] Firebase: 待機",
                 AutoSize = false,
                 Size = new System.Drawing.Size(165, 34),
                 Margin = new Padding(3, 1, 3, 1),
@@ -1035,13 +1035,13 @@ namespace DynamometerHMI
                 Cursor = Cursors.Hand
             };
             var ttCloud = new ToolTip();
-            ttCloud.SetToolTip(lblCloudSyncStatus, "☁️ Firebase 遙測推播狀態\n點擊可開啟【Firebase 雲端推播與網卡架構診斷工具】");
+            ttCloud.SetToolTip(lblCloudSyncStatus, "[雲] Firebase 遙測推播狀態\n點擊可開啟【Firebase 雲端推播與網卡架構診斷工具】");
             lblCloudSyncStatus.Click += (s, e) => ShowCloudDiagnosticsDialog();
 
             // 4. 雲端同步開關按鈕
             btnCloudUploadToggle = new Button()
             {
-                Text = "☁️ 雲端推播",
+                Text = "[雲] 雲端推播",
                 Size = new System.Drawing.Size(88, 34),
                 Margin = new Padding(3, 1, 3, 1),
                 BackColor = System.Drawing.Color.FromArgb(16, 185, 129),
@@ -1053,7 +1053,7 @@ namespace DynamometerHMI
             btnCloudUploadToggle.FlatAppearance.BorderSize = 0;
             btnCloudUploadToggle.Click += (s, e) => {
                 isCloudUploadEnabled = !isCloudUploadEnabled;
-                btnCloudUploadToggle.Text = isCloudUploadEnabled ? "☁️ 雲端推播" : "⏸ 暫停推播";
+                btnCloudUploadToggle.Text = isCloudUploadEnabled ? "[雲] 雲端推播" : "⏸ 暫停推播";
                 btnCloudUploadToggle.BackColor = isCloudUploadEnabled ? System.Drawing.Color.FromArgb(16, 185, 129) : System.Drawing.Color.FromArgb(100, 116, 139);
                 UpdateCloudSyncUI(isCloudUploadEnabled, null);
                 WriteHmiLog("CLOUD", isCloudUploadEnabled ? "【使用者操作】手動恢復 Firebase 雲端遙測推播" : "【使用者操作】手動暫停 Firebase 雲端遙測推播");
@@ -1106,7 +1106,7 @@ namespace DynamometerHMI
             // 4.5 雲端日誌上傳按鈕 (Upload Latest Log to Cloud for AI Analysis)
             Button btnUploadLogToCloud = new Button()
             {
-                Text = "☁️ 上傳日誌",
+                Text = "[雲] 上傳日誌",
                 Size = new System.Drawing.Size(88, 34),
                 Margin = new Padding(3, 1, 3, 1),
                 BackColor = System.Drawing.Color.FromArgb(139, 92, 246),
@@ -1117,7 +1117,7 @@ namespace DynamometerHMI
             };
             btnUploadLogToCloud.FlatAppearance.BorderSize = 0;
             var ttUpload = new ToolTip();
-            ttUpload.SetToolTip(btnUploadLogToCloud, "☁️ 一鍵將最新產生的整合 CSV 與 LOG 推播至雲端端點\n免隨身碟，AI 助理可直接線上下載分析！");
+            ttUpload.SetToolTip(btnUploadLogToCloud, "[雲] 一鍵將最新產生的整合 CSV 與 LOG 推播至雲端端點\n免隨身碟，AI 助理可直接線上下載分析！");
             btnUploadLogToCloud.Click += (s, e) => UploadLatestLogToCloudAsync(true);
 
             // 4.6 線上更新按鈕 (Check and Perform Online Hot-Swap Update)
@@ -1156,7 +1156,7 @@ namespace DynamometerHMI
             {
                 Form diagForm = new Form()
                 {
-                    Text = "☁️ Firebase 雲端推播與 Wi-Fi 網卡架構診斷中心 (B對策)",
+                    Text = "[雲] Firebase 雲端推播與 Wi-Fi 網卡架構診斷中心 (B對策)",
                     Size = new System.Drawing.Size(680, 520),
                     StartPosition = FormStartPosition.CenterParent,
                     FormBorderStyle = FormBorderStyle.FixedDialog,
@@ -1169,7 +1169,7 @@ namespace DynamometerHMI
 
                 Label lblTitle = new Label()
                 {
-                    Text = "☁️ Firebase 雲端遙測推播與 Wi-Fi 網卡診斷中心",
+                    Text = "[雲] Firebase 雲端遙測推播與 Wi-Fi 網卡診斷中心",
                     Location = new System.Drawing.Point(20, 15),
                     Size = new System.Drawing.Size(620, 28),
                     Font = new System.Drawing.Font("微軟正黑體", 13f, System.Drawing.FontStyle.Bold),
@@ -1260,7 +1260,7 @@ namespace DynamometerHMI
 
                 Button btnSyncKey = new Button()
                 {
-                    Text = "☁️ 同步金鑰至雲端",
+                    Text = "[雲] 同步金鑰至雲端",
                     Location = new System.Drawing.Point(290, 124),
                     Size = new System.Drawing.Size(150, 28),
                     BackColor = System.Drawing.Color.FromArgb(234, 179, 8),
@@ -1374,7 +1374,7 @@ namespace DynamometerHMI
                         try
                         {
                             string testJson = GetTelemetryJson();
-                            // ★ 核心穿透調用：自動走 BouncyCastle TLS 1.2 穿透 Windows XP Schannel
+                            //  核心穿透調用：自動走 BouncyCastle TLS 1.2 穿透 Windows XP Schannel
                             string respStatus = UploadTelemetryPayload(cloudUploadUrl, testJson, detectedWifiIp, 5000);
                             int rtt = (int)(DateTime.Now - t0).TotalMilliseconds;
 
@@ -1446,22 +1446,22 @@ namespace DynamometerHMI
                         try
                         {
                             var ips = Dns.GetHostAddresses("google.com");
-                            logBoth(string.Format("  ✓ google.com 解析成功 -> {0}", ips[0]));
+                            logBoth(string.Format("   google.com 解析成功 -> {0}", ips[0]));
                         }
                         catch (Exception dex)
                         {
-                            logBoth(string.Format("  ✗ google.com 解析失敗: {0}", dex.Message));
+                            logBoth(string.Format("   google.com 解析失敗: {0}", dex.Message));
                         }
 
                         try
                         {
                             Uri u = new Uri(cloudUploadUrl);
                             var fbIps = Dns.GetHostAddresses(u.Host);
-                            logBoth(string.Format("  ✓ Firebase 主機 [{0}] 解析成功 -> {1}", u.Host, fbIps[0]));
+                            logBoth(string.Format("   Firebase 主機 [{0}] 解析成功 -> {1}", u.Host, fbIps[0]));
                         }
                         catch (Exception fex)
                         {
-                            logBoth(string.Format("  ✗ Firebase 主機解析失敗: {0}", fex.Message));
+                            logBoth(string.Format("   Firebase 主機解析失敗: {0}", fex.Message));
                         }
                     }
                     catch (Exception ex)
@@ -2525,7 +2525,7 @@ namespace DynamometerHMI
         } // end class DynWebServer
 
         /// <summary>
-        /// ★ Windows XP TLS 1.2 穿透引擎：
+        ///  Windows XP TLS 1.2 穿透引擎：
         /// 當目標端點為 https:// (如 Firebase) 時，使用 BouncyCastle 純 Managed TLS 1.2 協定棧，
         /// <summary>
         /// 底層相容 Windows XP / .NET 4.0 之 TLS 1.2 HTTP/HTTPS 萬用請求引擎。
@@ -3259,7 +3259,7 @@ namespace DynamometerHMI
         {
             try
             {
-                // ★【排版與視圖即時固化 & 純手動切換】：在熱更新重新啟動前，立即儲存當前全域視圖與分割條排版，並切換純手動模式
+                // 【排版與視圖即時固化 & 純手動切換】：在熱更新重新啟動前，立即儲存當前全域視圖與分割條排版，並切換純手動模式
                 if (MainForm.Instance != null)
                 {
                     try { MainForm.Instance.SaveLayoutConfig(); } catch { }
@@ -3269,7 +3269,7 @@ namespace DynamometerHMI
                 string currentExe = Process.GetCurrentProcess().MainModule.FileName;
                 string appDir = Path.GetDirectoryName(currentExe);
 
-                // ★【本地 5 版滾動備份】：在熱替換前，自動封存當前 EXE 至 backups/ 目錄並修剪
+                // 【本地 5 版滾動備份】：在熱替換前，自動封存當前 EXE 至 backups/ 目錄並修剪
                 BackupCurrentExecutable(appDir, currentExe);
 
                 string bakExe = Path.Combine(appDir, Path.GetFileNameWithoutExtension(currentExe) + ".bak");
@@ -3467,14 +3467,14 @@ namespace DynamometerHMI
                 if (!isAnyKebOpen)
                 {
                     bannerText = isNewer ?
-                        "✨ 雲端伺服器已發布新版本！(KEB 變頻器未連線，無法控制馬達，允許隨時安全升級更新)" :
-                        "ℹ️ 目前本機版本已是最新狀態。(KEB 變頻器未連線，可隨時重新安裝修復)";
+                        " 雲端伺服器已發布新版本！(KEB 變頻器未連線，無法控制馬達，允許隨時安全升級更新)" :
+                        "ℹ 目前本機版本已是最新狀態。(KEB 變頻器未連線，可隨時重新安裝修復)";
                 }
                 else
                 {
                     bannerText = isNewer ?
-                        "✨ 雲端伺服器已發布新版本！KEB 連線中，請確認機台非處於運轉測試狀態即可點擊更新。" :
-                        "ℹ️ 目前本機版本已是最新狀態。若軟體異常需要修復，仍可點擊重新安裝。";
+                        " 雲端伺服器已發布新版本！KEB 連線中，請確認機台非處於運轉測試狀態即可點擊更新。" :
+                        "ℹ 目前本機版本已是最新狀態。若軟體異常需要修復，仍可點擊重新安裝。";
                 }
 
                 Label lblBanner = new Label()

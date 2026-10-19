@@ -330,17 +330,17 @@ namespace DynamometerHMI
             string upperName = FileName.ToUpper();
 
             if (upperName.Contains("RAW_TELEMETRY") || upperName.Contains("AUTO_RAW"))
-                FileType = "📊 實測高頻遙測 (CSV)";
+                FileType = "[圖表] 實測高頻遙測 (CSV)";
             else if (ext == ".gbd")
-                FileType = "🌡️ 溫度多通道記錄 (GBD)";
+                FileType = " 溫度多通道記錄 (GBD)";
             else if (ext == ".log")
-                FileType = "📜 系統運轉/除錯日誌 (LOG)";
+                FileType = " 系統運轉/除錯日誌 (LOG)";
             else if (ext == ".csv")
-                FileType = "📑 試驗匯總數據 (CSV)";
+                FileType = " 試驗匯總數據 (CSV)";
             else if (ext == ".zip")
-                FileType = "📦 報告壓縮封裝 (ZIP)";
+                FileType = " 報告壓縮封裝 (ZIP)";
             else
-                FileType = "📄 測試相關檔案 (" + ext + ")";
+                FileType = " 測試相關檔案 (" + ext + ")";
         }
     }
 
@@ -398,7 +398,7 @@ namespace DynamometerHMI
         public TextBox txtReportLogs;
 
         /// <summary>
-        /// 建置「📤 報告管理與雲端上傳」完整分頁 UI (遵循 Rule 4 防裁切規範)
+        /// 建置「[上傳] 報告管理與雲端上傳」完整分頁 UI (遵循 Rule 4 防裁切規範)
         /// </summary>
         public void BuildReportTab(TabPage tab)
         {
@@ -433,7 +433,7 @@ namespace DynamometerHMI
 
             btnOpenLogDir = new Button()
             {
-                Text = "📂 開啟 LOG 資料夾",
+                Text = " 開啟 LOG 資料夾",
                 Size = new Size(160, 36),
                 BackColor = Color.FromArgb(37, 99, 235),
                 ForeColor = Color.White,
@@ -446,7 +446,7 @@ namespace DynamometerHMI
 
             btnRefreshReports = new Button()
             {
-                Text = "🔄 重新整理清單",
+                Text = "[重置] 重新整理清單",
                 Size = new Size(130, 36),
                 BackColor = Color.FromArgb(71, 85, 105),
                 ForeColor = Color.White,
@@ -459,7 +459,7 @@ namespace DynamometerHMI
 
             btnSelectToday = new Button()
             {
-                Text = "📅 選取今日報告",
+                Text = " 選取今日報告",
                 Size = new Size(130, 36),
                 BackColor = Color.FromArgb(16, 185, 129),
                 ForeColor = Color.White,
@@ -472,7 +472,7 @@ namespace DynamometerHMI
 
             btnSelectLatestTest = new Button()
             {
-                Text = "⚡ 選取最新測試 Session",
+                Text = "[電] 選取最新測試 Session",
                 Size = new Size(185, 36),
                 BackColor = Color.FromArgb(139, 92, 246),
                 ForeColor = Color.White,
@@ -485,7 +485,7 @@ namespace DynamometerHMI
 
             btnSelectAllReports = new Button()
             {
-                Text = "☑️ 全選",
+                Text = " 全選",
                 Size = new Size(80, 36),
                 BackColor = Color.White,
                 ForeColor = Color.FromArgb(30, 41, 59),
@@ -651,7 +651,7 @@ namespace DynamometerHMI
             };
 
             // 3.1 壓縮檔名與選取摘要 (水平列)
-            Label lblZip = new Label() { Text = "📦 壓縮檔名:", AutoSize = true, Location = new Point(10, 12), Font = new Font("微軟正黑體", 10f, FontStyle.Bold) };
+            Label lblZip = new Label() { Text = " 壓縮檔名:", AutoSize = true, Location = new Point(10, 12), Font = new Font("微軟正黑體", 10f, FontStyle.Bold) };
             txtReportZipName = new TextBox() { Location = new Point(105, 8), Size = new Size(380, 26), Font = new Font("Consolas", 10f, FontStyle.Regular) };
 
             lblReportSelectionInfo = new Label()
@@ -664,7 +664,7 @@ namespace DynamometerHMI
             };
 
             // 3.2 上傳目標選擇器
-            Label lblTarget = new Label() { Text = "🌐 上傳目標:", AutoSize = true, Location = new Point(10, 48), Font = new Font("微軟正黑體", 10f, FontStyle.Bold) };
+            Label lblTarget = new Label() { Text = " 上傳目標:", AutoSize = true, Location = new Point(10, 48), Font = new Font("微軟正黑體", 10f, FontStyle.Bold) };
             cmbUploadTarget = new ComboBox()
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
@@ -699,7 +699,7 @@ namespace DynamometerHMI
             // 3.4 核心上傳按鈕與進度條
             btnExecuteUpload = new Button()
             {
-                Text = "🚀 壓縮選取檔案並立即上傳",
+                Text = "[>>] 壓縮選取檔案並立即上傳",
                 Location = new Point(840, 10),
                 Size = new Size(260, 60),
                 BackColor = Color.FromArgb(220, 38, 38),
@@ -780,7 +780,7 @@ namespace DynamometerHMI
 
             btnGhTokenGuide = new Button()
             {
-                Text = "🔑 取得 Token 教學",
+                Text = " 取得 Token 教學",
                 Location = new Point(538, 6),
                 Size = new Size(145, 28),
                 BackColor = Color.FromArgb(37, 99, 235),
@@ -794,7 +794,7 @@ namespace DynamometerHMI
 
             btnGhOpenReleases = new Button()
             {
-                Text = "🔗 檢視 Releases 頁面",
+                Text = "[同動] 檢視 Releases 頁面",
                 Location = new Point(690, 6),
                 Size = new Size(145, 28),
                 BackColor = Color.FromArgb(15, 118, 110),
@@ -823,7 +823,7 @@ namespace DynamometerHMI
 
             Label lblGhHint = new Label()
             {
-                Text = "💡 支援單檔 2GB 直通下載！上傳後自動產生公開直連網址並複製至剪貼簿。",
+                Text = " 支援單檔 2GB 直通下載！上傳後自動產生公開直連網址並複製至剪貼簿。",
                 Location = new Point(422, 42),
                 AutoSize = true,
                 Font = new Font("微軟正黑體", 9f),
@@ -838,7 +838,7 @@ namespace DynamometerHMI
 
             btnViewGasScript = new Button()
             {
-                Text = "📋 檢視 GAS 腳本範本與教學",
+                Text = " 檢視 GAS 腳本範本與教學",
                 Location = new Point(540, 6),
                 Size = new Size(260, 28),
                 BackColor = Color.FromArgb(15, 118, 110),
@@ -898,7 +898,7 @@ namespace DynamometerHMI
                 Label lblGhToken = new Label() { Text = "權杖 (PAT):", Location = new Point(8, 42), AutoSize = true, Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold) };
                 Label lblGhHint = new Label()
                 {
-                    Text = "💡 支援單檔 2GB 直通下載！上傳後自動產生公開直連網址並複製至剪貼簿。",
+                    Text = " 支援單檔 2GB 直通下載！上傳後自動產生公開直連網址並複製至剪貼簿。",
                     Location = new Point(422, 42),
                     AutoSize = true,
                     Font = new Font("微軟正黑體", 9f),
@@ -927,7 +927,7 @@ namespace DynamometerHMI
             {
                 Label lblFbHint = new Label()
                 {
-                    Text = "⚡ 現成 0 設定：利用 HMI 現有的 BouncyCastle TLS 1.2 連線引擎，將報告同步至雲端監控中心。\n遠端網頁 (WebMonitor.html) 或手機開啟即可即時接收並一鍵下載此測試 ZIP！",
+                    Text = "[電] 現成 0 設定：利用 HMI 現有的 BouncyCastle TLS 1.2 連線引擎，將報告同步至雲端監控中心。\n遠端網頁 (WebMonitor.html) 或手機開啟即可即時接收並一鍵下載此測試 ZIP！",
                     Location = new Point(15, 14),
                     Size = new Size(780, 48),
                     Font = new Font("微軟正黑體", 10.5f, FontStyle.Regular),
@@ -944,7 +944,7 @@ namespace DynamometerHMI
             {
                 Label lblLocalHint = new Label()
                 {
-                    Text = "💾 本機打包：僅在 logs/ 或您指定的資料夾產生標準 PKZip 壓縮檔，不執行外部網路傳輸。",
+                    Text = "[儲存] 本機打包：僅在 logs/ 或您指定的資料夾產生標準 PKZip 壓縮檔，不執行外部網路傳輸。",
                     Location = new Point(15, 24),
                     Size = new Size(780, 30),
                     Font = new Font("微軟正黑體", 10.5f, FontStyle.Regular),
@@ -1213,7 +1213,7 @@ namespace DynamometerHMI
                 }
                 if (string.IsNullOrEmpty(ghToken))
                 {
-                    MessageBox.Show("您選擇了 GitHub Release 雲端發布，請先輸入【權杖 (PAT)】！\n若尚未取得，可點擊【🔑 取得 Token 教學】依步驟建立。", "請輸入 GitHub Token", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show("您選擇了 GitHub Release 雲端發布，請先輸入【權杖 (PAT)】！\n若尚未取得，可點擊【 取得 Token 教學】依步驟建立。", "請輸入 GitHub Token", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
                 if (string.IsNullOrEmpty(ghOwner) || string.IsNullOrEmpty(ghRepo))
@@ -1224,7 +1224,7 @@ namespace DynamometerHMI
             }
             else if (targetMode == 1 && string.IsNullOrEmpty(gasUrl)) // Google Drive
             {
-                MessageBox.Show("您選擇了 Google Drive (GAS Webhook) 上傳，請先填入 Webhook 網址！\n若尚未部署，可點擊【📋 檢視 GAS 腳本範本與教學】進行取得。", "請輸入 Webhook", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("您選擇了 Google Drive (GAS Webhook) 上傳，請先填入 Webhook 網址！\n若尚未部署，可點擊【 檢視 GAS 腳本範本與教學】進行取得。", "請輸入 Webhook", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -1252,7 +1252,7 @@ namespace DynamometerHMI
             }
             else
             {
-                lblReportStatus.Text = "⚡ 已是 ZIP 檔案，略過本機壓縮直接上傳...";
+                lblReportStatus.Text = "[電] 已是 ZIP 檔案，略過本機壓縮直接上傳...";
                 WriteReportLog(string.Format("選取檔案均為 ZIP 封包 ({0} 個)，略過本機重複壓縮，直接執行上傳...", selectedFiles.Count));
             }
 
@@ -1292,13 +1292,13 @@ namespace DynamometerHMI
                             {
                                 used7z = true;
                                 this.BeginInvoke((Action)(() => {
-                                    WriteReportLog("✅ 7-Zip 引擎壓縮完成！");
+                                    WriteReportLog(" 7-Zip 引擎壓縮完成！");
                                 }));
                             }
                             else
                             {
                                 this.BeginInvoke((Action)(() => {
-                                    WriteReportLog("⚠️ 7-Zip 呼叫未完成 (" + err7z + ")，無縫切換為內建 PKZip 引擎繼續壓縮...");
+                                    WriteReportLog("[!] 7-Zip 呼叫未完成 (" + err7z + ")，無縫切換為內建 PKZip 引擎繼續壓縮...");
                                 }));
                             }
                         }
@@ -1321,7 +1321,7 @@ namespace DynamometerHMI
                         this.BeginInvoke((Action)(() => {
                             prgReportTask.Value = 50;
                             lblReportStatus.Text = string.Format("壓縮完成: {0} ({1})", zipName, zipSizeStr);
-                            WriteReportLog(string.Format("✅ 壓縮成功: {0} (大小: {1})", zipName, zipSizeStr));
+                            WriteReportLog(string.Format(" 壓縮成功: {0} (大小: {1})", zipName, zipSizeStr));
                         }));
 
                         targetZipPaths.Add(tempZipPath);
@@ -1347,7 +1347,7 @@ namespace DynamometerHMI
                         {
                             this.BeginInvoke((Action)(() => {
                                 prgReportTask.Value = progressBase + 10;
-                                lblReportStatus.Text = string.Format("🚀 正在連線 GitHub API 查詢 Release ({0})...", ghTag);
+                                lblReportStatus.Text = string.Format("[>>] 正在連線 GitHub API 查詢 Release ({0})...", ghTag);
                                 WriteReportLog(string.Format("正在透過 BouncyCastle TLS 1.2 查詢 GitHub Release: {0}/{1} (Tag: {2})...", ghOwner, ghRepo, ghTag));
                             }));
 
@@ -1392,7 +1392,7 @@ namespace DynamometerHMI
                                     releaseId = ExtractJsonLongField(createResp, "id");
                                     uploadUrlPattern = ExtractJsonStringField(createResp, "upload_url");
                                     this.BeginInvoke((Action)(() => {
-                                        WriteReportLog(string.Format("✅ 成功建立 GitHub Release (ID: {0})！", releaseId));
+                                        WriteReportLog(string.Format(" 成功建立 GitHub Release (ID: {0})！", releaseId));
                                     }));
                                 }
                                 else
@@ -1435,7 +1435,7 @@ namespace DynamometerHMI
                             // 4. 上傳資產檔案
                             this.BeginInvoke((Action)(() => {
                                 prgReportTask.Value = progressBase + 20;
-                                lblReportStatus.Text = string.Format("🚀 正在上傳 {0} 至 GitHub Release Assets...", currentZipName);
+                                lblReportStatus.Text = string.Format("[>>] 正在上傳 {0} 至 GitHub Release Assets...", currentZipName);
                                 WriteReportLog(string.Format("正在發送二進位封包至 uploads.github.com (大小: {0:F1} KB)...", new FileInfo(currentZipPath).Length / 1024.0));
                             }));
 
@@ -1465,17 +1465,17 @@ namespace DynamometerHMI
 
                             this.BeginInvoke((Action)(() => {
                                 prgReportTask.Value = 100;
-                                lblReportStatus.Text = "🎉 GitHub Release 上傳成功！";
-                                WriteReportLog("🎉 GitHub Release 發布成功！直通下載網址: " + downloadUrl);
+                                lblReportStatus.Text = " GitHub Release 上傳成功！";
+                                WriteReportLog(" GitHub Release 發布成功！直通下載網址: " + downloadUrl);
 
                                 try
                                 {
                                     Clipboard.SetText(downloadUrl);
-                                    WriteReportLog("📋 直通下載網址已自動複製至剪貼簿！");
+                                    WriteReportLog(" 直通下載網址已自動複製至剪貼簿！");
                                 }
                                 catch { }
 
-                                string msg = string.Format("🎉 測試報告已成功發布至 GitHub Release！\n\n檔案名稱: {0}\n儲存庫: {1}/{2} (標籤: {3})\n\n直通下載網址 (已自動複製至剪貼簿):\n{4}\n\n(任何電腦或手機點擊此網址即可直接下載)",
+                                string msg = string.Format(" 測試報告已成功發布至 GitHub Release！\n\n檔案名稱: {0}\n儲存庫: {1}/{2} (標籤: {3})\n\n直通下載網址 (已自動複製至剪貼簿):\n{4}\n\n(任何電腦或手機點擊此網址即可直接下載)",
                                     currentZipName, ghOwner, ghRepo, ghTag, downloadUrl);
                                 MessageBox.Show(msg, "GitHub Release 發布成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             }));
@@ -1484,7 +1484,7 @@ namespace DynamometerHMI
                         {
                             this.BeginInvoke((Action)(() => {
                                 prgReportTask.Value = progressBase + 10;
-                                lblReportStatus.Text = string.Format("🚀 正在發送 {0} 至 Google 雲端 Webhook...", currentZipName);
+                                lblReportStatus.Text = string.Format("[>>] 正在發送 {0} 至 Google 雲端 Webhook...", currentZipName);
                                 WriteReportLog(string.Format("正在透過 Managed TLS 1.2 發送 {0} 至 Google Apps Script...", currentZipName));
                             }));
 
@@ -1533,9 +1533,9 @@ namespace DynamometerHMI
 
                             this.BeginInvoke((Action)(() => {
                                 prgReportTask.Value = 100;
-                                lblReportStatus.Text = "🎉 Google Drive 上傳成功！";
-                                WriteReportLog("🎉 Google Drive 回應: " + (string.IsNullOrEmpty(resp) ? "已接收並確認建檔 (HTTP " + statusCode + ")" : resp));
-                                string msg = "🎉 測試報告已成功上傳至 Google 雲端硬碟！\n檔案名稱: " + currentZipName;
+                                lblReportStatus.Text = " Google Drive 上傳成功！";
+                                WriteReportLog(" Google Drive 回應: " + (string.IsNullOrEmpty(resp) ? "已接收並確認建檔 (HTTP " + statusCode + ")" : resp));
+                                string msg = " 測試報告已成功上傳至 Google 雲端硬碟！\n檔案名稱: " + currentZipName;
                                 if (!string.IsNullOrEmpty(fileUrl))
                                 {
                                     msg += "\n\n檔案連結:\n" + fileUrl;
@@ -1551,7 +1551,7 @@ namespace DynamometerHMI
                         {
                             this.BeginInvoke((Action)(() => {
                                 prgReportTask.Value = progressBase + 15;
-                                lblReportStatus.Text = string.Format("🚀 正在同步 {0} 至 Firebase 雲端中心...", currentZipName);
+                                lblReportStatus.Text = string.Format("[>>] 正在同步 {0} 至 Firebase 雲端中心...", currentZipName);
                                 WriteReportLog(string.Format("正在將報告 {0} 寫入 Firebase RTDB (/reports/latest.json)...", currentZipName));
                             }));
 
@@ -1573,9 +1573,9 @@ namespace DynamometerHMI
 
                             this.BeginInvoke((Action)(() => {
                                 prgReportTask.Value = 100;
-                                lblReportStatus.Text = "🎉 Firebase 雲端中心同步完成！";
-                                WriteReportLog("🎉 報告已推送至 Firebase 雲端中心，WebMonitor.html 可立即下載！");
-                                MessageBox.Show("🎉 測試報告已同步至 Firebase 雲端中心！\n\n遠端監看儀表板 (WebMonitor.html) 或手機端已可即時一鍵下載此 ZIP 封包。",
+                                lblReportStatus.Text = " Firebase 雲端中心同步完成！";
+                                WriteReportLog(" 報告已推送至 Firebase 雲端中心，WebMonitor.html 可立即下載！");
+                                MessageBox.Show(" 測試報告已同步至 Firebase 雲端中心！\n\n遠端監看儀表板 (WebMonitor.html) 或手機端已可即時一鍵下載此 ZIP 封包。",
                                     "同步完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             }));
                         }
@@ -1583,7 +1583,7 @@ namespace DynamometerHMI
                         {
                             this.BeginInvoke((Action)(() => {
                                 prgReportTask.Value = progressBase + 20;
-                                lblReportStatus.Text = string.Format("🚀 正在複製 {0} 至 NAS 共享目錄...", currentZipName);
+                                lblReportStatus.Text = string.Format("[>>] 正在複製 {0} 至 NAS 共享目錄...", currentZipName);
                             }));
 
                             if (!Directory.Exists(nasPath)) Directory.CreateDirectory(nasPath);
@@ -1592,18 +1592,18 @@ namespace DynamometerHMI
 
                             this.BeginInvoke((Action)(() => {
                                 prgReportTask.Value = 100;
-                                lblReportStatus.Text = "🎉 已備份至 NAS 共享目錄！";
-                                WriteReportLog("✅ 成功複製報告至: " + destZip);
-                                MessageBox.Show("✅ 測試報告已成功備份至指定網路路徑：\n" + destZip, "備份成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                lblReportStatus.Text = " 已備份至 NAS 共享目錄！";
+                                WriteReportLog(" 成功複製報告至: " + destZip);
+                                MessageBox.Show(" 測試報告已成功備份至指定網路路徑：\n" + destZip, "備份成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             }));
                         }
                         else if (targetMode == 4) // 本機 ZIP
                         {
                             this.BeginInvoke((Action)(() => {
                                 prgReportTask.Value = 100;
-                                lblReportStatus.Text = "🎉 本機 ZIP 準備完成！";
-                                WriteReportLog("✅ 本機 ZIP: " + currentZipPath);
-                                MessageBox.Show("✅ 測試報告已於 logs/ 目錄備妥：\n" + currentZipPath, "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                lblReportStatus.Text = " 本機 ZIP 準備完成！";
+                                WriteReportLog(" 本機 ZIP: " + currentZipPath);
+                                MessageBox.Show(" 測試報告已於 logs/ 目錄備妥：\n" + currentZipPath, "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             }));
                         }
                     }
@@ -1613,8 +1613,8 @@ namespace DynamometerHMI
                     try { MainForm.WriteHmiLog("REPORT_ERR", "測試報告打包或上傳異常: " + ex.ToString()); } catch { }
                     this.BeginInvoke((Action)(() => {
                         prgReportTask.Value = 0;
-                        lblReportStatus.Text = "❌ 作業失敗: " + ex.Message;
-                        WriteReportLog("❌ 作業異常: " + ex.ToString());
+                        lblReportStatus.Text = " 作業失敗: " + ex.Message;
+                        WriteReportLog(" 作業異常: " + ex.ToString());
                         MessageBox.Show("執行失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }));
                 }
@@ -1653,7 +1653,7 @@ namespace DynamometerHMI
         {
             Form dlg = new Form()
             {
-                Text = "📋 Google Apps Script (GAS) 雲端硬碟 Webhook 部署指南",
+                Text = " Google Apps Script (GAS) 雲端硬碟 Webhook 部署指南",
                 Size = new Size(820, 640),
                 StartPosition = FormStartPosition.CenterParent,
                 Font = new Font("微軟正黑體", 10f, FontStyle.Regular),
@@ -1741,7 +1741,7 @@ function doPost(e) {
             Button btnClose = new Button() { Text = "關閉", Size = new Size(100, 36), BackColor = Color.FromArgb(100, 116, 139), ForeColor = Color.White, Font = new Font("微軟正黑體", 10f) };
             btnClose.Click += (s, e) => dlg.Close();
 
-            Button btnCopy = new Button() { Text = "📋 複製全篇腳本代碼", Size = new Size(180, 36), BackColor = Color.FromArgb(16, 185, 129), ForeColor = Color.White, Font = new Font("微軟正黑體", 10f, FontStyle.Bold) };
+            Button btnCopy = new Button() { Text = " 複製全篇腳本代碼", Size = new Size(180, 36), BackColor = Color.FromArgb(16, 185, 129), ForeColor = Color.White, Font = new Font("微軟正黑體", 10f, FontStyle.Bold) };
             btnCopy.Click += (s, e) => {
                 Clipboard.SetText(scriptCode);
                 MessageBox.Show("腳本代碼已成功複製至剪貼簿！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -1809,14 +1809,14 @@ function doPost(e) {
 GitHub Release 允許您將測試報告與壓縮封包直傳至雲端，任何人點擊連結皆可「直接下載」，免除 Google Drive 繁複的轉址與下載阻擋！
 
 步驟 1：開啟 GitHub Token 設定網頁
-點擊下方【🌐 開啟 GitHub Token 建立頁面】按鈕，瀏覽器將自動開啟 GitHub 設定頁面。
+點擊下方【 開啟 GitHub Token 建立頁面】按鈕，瀏覽器將自動開啟 GitHub 設定頁面。
 (網址: https://github.com/settings/tokens/new)
 
 步驟 2：填寫 Token 資訊
 1. Note (備註)：輸入 Dynamometer-HMI (或其他易辨識名稱)。
 2. Expiration (有效期限)：建議選擇 90 days 或 No expiration (永不過期)。
 3. Select scopes (權限勾選)：
-   ✅ 勾選【repo】(包含 repo:status, repo_deployment, public_repo, repo:invite 等完整儲存庫讀寫權限)。
+    勾選【repo】(包含 repo:status, repo_deployment, public_repo, repo:invite 等完整儲存庫讀寫權限)。
    (若您的儲存庫為公開 Public Repo，亦可僅勾選 public_repo)。
 
 步驟 3：建立並複製 Token
@@ -1824,7 +1824,7 @@ GitHub Release 允許您將測試報告與壓縮封包直傳至雲端，任何�
 畫面將顯示一組綠色開頭為 ghp_xxxxxxxxxxxxxxxxxxxx 的字串。
 點擊旁邊的複製按鈕，並貼回動力計 HMI 的【權杖 (PAT)】欄位中即可！
 
-💡 系統會自動將 Token 儲存於 dynamometer_layout.ini，後續完全不需要重新輸入！"
+ 系統會自動將 Token 儲存於 dynamometer_layout.ini，後續完全不需要重新輸入！"
             };
 
             FlowLayoutPanel pnlBtn = new FlowLayoutPanel()
@@ -1835,7 +1835,7 @@ GitHub Release 允許您將測試報告與壓縮封包直傳至雲端，任何�
             Button btnClose = new Button() { Text = "確定", Size = new Size(90, 34), BackColor = Color.FromArgb(100, 116, 139), ForeColor = Color.White, Font = new Font("微軟正黑體", 9.5f) };
             btnClose.Click += (s, e) => dlg.Close();
 
-            Button btnOpenUrl = new Button() { Text = "🌐 開啟 GitHub Token 建立頁面", Size = new Size(220, 34), BackColor = Color.FromArgb(37, 99, 235), ForeColor = Color.White, Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold) };
+            Button btnOpenUrl = new Button() { Text = " 開啟 GitHub Token 建立頁面", Size = new Size(220, 34), BackColor = Color.FromArgb(37, 99, 235), ForeColor = Color.White, Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold) };
             btnOpenUrl.Click += (s, e) => {
                 try { System.Diagnostics.Process.Start("https://github.com/settings/tokens/new?scopes=repo&description=Dynamometer-HMI"); } catch { }
             };

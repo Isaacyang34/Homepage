@@ -64,7 +64,7 @@ namespace DynamometerHMI
             // 第二列：點位規劃與預估時間總結標籤
             lblEffPointSummary = new Label()
             {
-                Text = "📊 點位矩陣規劃：計算中...",
+                Text = "[圖表] 點位矩陣規劃：計算中...",
                 Location = new Point(10, 57),
                 AutoSize = true,
                 Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
@@ -270,7 +270,7 @@ namespace DynamometerHMI
             if (lblEffPointSummary != null)
             {
                 lblEffPointSummary.Text = string.Format(
-                    "📊 點位矩陣規劃：{0} 轉速階 × {1} 轉矩階 = 共 {2} 個測試點 | 預估總測試耗時：約 {3}",
+                    "[圖表] 點位矩陣規劃：{0} 轉速階 × {1} 轉矩階 = 共 {2} 個測試點 | 預估總測試耗時：約 {3}",
                     effSpeedAxis.Length, effTorqueAxis.Length, effPointList.Count, timeStr);
             }
 
@@ -481,7 +481,7 @@ namespace DynamometerHMI
             bool isTrqValid = (targetTrq <= 0) || (effAdaptedTorquePct >= 1.0 && Math.Abs(trqErr) <= Math.Max(1.0, targetTrq * 0.08));
 
             // =========================================================================
-            // 【階段 0：提速起跑 ➔ 轉速鎖定 ➔ 平穩加載逼近】
+            // 【階段 0：提速起跑  轉速鎖定  平穩加載逼近】
             // =========================================================================
             if (effPhase == 0)
             {
@@ -531,14 +531,14 @@ namespace DynamometerHMI
                     effPhase = 1;
                     effConvergeTimeoutSec = 0;
                     effTrqSustainedSec = 0;
-                    lblEffMapStatus.Text = string.Format("✅ 點位 {0}/{1} 達標 ({2:F1} Nm / {3:F0} rpm)，開始持載倒數！",
+                    lblEffMapStatus.Text = string.Format(" 點位 {0}/{1} 達標 ({2:F1} Nm / {3:F0} rpm)，開始持載倒數！",
                         curPt.Index, effPointList.Count, actAbsTrq, actAbsSpd);
                     lblEffMapCountdown.Text = string.Format("持載倒數: {0} s", effDwellRemaining);
                 }
                 else if (effConvergeTimeoutSec >= 50)
                 {
                     StopEffMapTest();
-                    lblEffMapStatus.Text = "⚠️ 加載未達標，測試已暫停！";
+                    lblEffMapStatus.Text = "[!] 加載未達標，測試已暫停！";
                     lblEffMapCountdown.Text = "加載未達標中斷";
                     MessageBox.Show(string.Format("【效率地圖測試警報】點位 {0} 加載超過 50 秒無法收斂達標，已安全停機！\n目標轉速: {1:F0} rpm, 目標轉矩: {2:F1} Nm, 實測轉矩: {3:F1} Nm",
                         curPt.Index, targetSpd, targetTrq, actAbsTrq), "加載未達標中斷", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -546,7 +546,7 @@ namespace DynamometerHMI
                 }
             }
             // =========================================================================
-            // 【階段 1：穩定持載期與判定】(★ 鐵律：實測轉速與轉矩雙雙達標後才能開始/進行倒數)
+            // 【階段 1：穩定持載期與判定】( 鐵律：實測轉速與轉矩雙雙達標後才能開始/進行倒數)
             // =========================================================================
             else if (effPhase == 1)
             {
@@ -566,7 +566,7 @@ namespace DynamometerHMI
                 {
                     effDwellRemaining--;
                     lblEffMapCountdown.Text = string.Format("持載倒數: {0} s (已達標)", effDwellRemaining);
-                    lblEffMapStatus.Text = string.Format("✅ 點位 {0}/{1} 達標持載：轉速 {2:F0} rpm | 轉矩 {3:F2} Nm",
+                    lblEffMapStatus.Text = string.Format(" 點位 {0}/{1} 達標持載：轉速 {2:F0} rpm | 轉矩 {3:F2} Nm",
                         curPt.Index, effPointList.Count, actAbsSpd, actAbsTrq);
                 }
                 else
@@ -578,7 +578,7 @@ namespace DynamometerHMI
                     if (effConvergeTimeoutSec >= 60)
                     {
                         StopEffMapTest();
-                        lblEffMapStatus.Text = "⚠️ 持載微調超時，測試已暫停！";
+                        lblEffMapStatus.Text = "[!] 持載微調超時，測試已暫停！";
                         lblEffMapCountdown.Text = "微調超時";
                         MessageBox.Show("【效率地圖警報】持載期調節超過 60 秒無法穩定達標，已安全停機！", "超時中斷", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return;
@@ -689,7 +689,7 @@ namespace DynamometerHMI
 
             btnStartEffMap.Enabled = true;
             btnStopEffMap.Enabled = false;
-            lblEffMapStatus.Text = "✅ [成功] 效率地圖全梯度自動測試全部完成！";
+            lblEffMapStatus.Text = " [成功] 效率地圖全梯度自動測試全部完成！";
             lblEffMapCountdown.Text = "測試完成";
 
             if (effHeatmap != null)
@@ -717,7 +717,7 @@ namespace DynamometerHMI
 
             btnStartEffMap.Enabled = true;
             btnStopEffMap.Enabled = false;
-            lblEffMapStatus.Text = "⚠️ 測試已由使用者手動中止或保護中斷！";
+            lblEffMapStatus.Text = "[!] 測試已由使用者手動中止或保護中斷！";
             lblEffMapCountdown.Text = "已停止";
 
             if (effHeatmap != null)

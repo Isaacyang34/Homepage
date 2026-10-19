@@ -47,10 +47,10 @@ namespace DynamometerHMI
             try
             {
                 // 1. 設定視窗標題與主標題
-                this.Text = "Dynamometer HMI Pro [👀 遠端檢視端 - VIEWER Mode (純唯讀)]";
+                this.Text = "Dynamometer HMI Pro [ 遠端檢視端 - VIEWER Mode (純唯讀)]";
                 if (lblAppTitle != null)
                 {
-                    lblAppTitle.Text = "⚡ DYNAMOMETER [VIEWER 遠端監看]";
+                    lblAppTitle.Text = "[電] DYNAMOMETER [VIEWER 遠端監看]";
                     lblAppTitle.ForeColor = Color.FromArgb(56, 189, 248);
                 }
 
@@ -81,7 +81,7 @@ namespace DynamometerHMI
             {
                 if (c == null || c.IsDisposed) return;
                 c.Enabled = false;
-                ttLock.SetToolTip(c, "【👀 唯讀檢視模式】" + name + " 已鎖定，防止修改。");
+                ttLock.SetToolTip(c, "【 唯讀檢視模式】" + name + " 已鎖定，防止修改。");
             };
 
             safeLock(btnMasterConnectAll, "設備連線");
@@ -121,7 +121,7 @@ namespace DynamometerHMI
                 if (c is NumericUpDown || c is ComboBox || c is CheckBox || c is RadioButton || c is TrackBar)
                 {
                     c.Enabled = false;
-                    ttLock.SetToolTip(c, "【👀 唯讀檢視模式】參數已鎖定，禁止修改。");
+                    ttLock.SetToolTip(c, "【 唯讀檢視模式】參數已鎖定，禁止修改。");
                 }
                 // B. 文字輸入框：設為唯讀並變更背景色提示
                 else if (c is TextBox)
@@ -130,7 +130,7 @@ namespace DynamometerHMI
                     if (txt != txtViewerUrlInput)
                     {
                         txt.ReadOnly = true;
-                        ttLock.SetToolTip(txt, "【👀 唯讀檢視模式】純唯讀，禁止編輯。");
+                        ttLock.SetToolTip(txt, "【 唯讀檢視模式】純唯讀，禁止編輯。");
                     }
                 }
                 // C. 按鈕：除 VIEWER 專屬導航按鈕外，所有操作/下發/設定按鈕全面禁用
@@ -140,7 +140,7 @@ namespace DynamometerHMI
                     if (btn != btnViewerOpenBrowser && btn != btnViewerCloudToggle && btn != btnViewerConnect)
                     {
                         btn.Enabled = false;
-                        ttLock.SetToolTip(btn, "【👀 唯讀檢視模式】操作功能已鎖定。");
+                        ttLock.SetToolTip(btn, "【 唯讀檢視模式】操作功能已鎖定。");
                     }
                 }
                 // D. 表格 DataGridView：設為唯讀，允許滾動查看，禁止修改儲存格
@@ -190,7 +190,7 @@ namespace DynamometerHMI
             // 1. 開啟瀏覽器網頁儀表按鈕
             btnViewerOpenBrowser = new Button()
             {
-                Text = "🌐 開啟網頁儀表",
+                Text = " 開啟網頁儀表",
                 Size = new Size(115, 34),
                 Margin = new Padding(3, 1, 3, 1),
                 BackColor = Color.FromArgb(79, 70, 229),
@@ -220,7 +220,7 @@ namespace DynamometerHMI
             // 2. 切換連線模式按鈕 (本機 LAN / Firebase 雲端)
             btnViewerCloudToggle = new Button()
             {
-                Text = "☁️ 雲端模式",
+                Text = "[雲] 雲端模式",
                 Size = new Size(95, 34),
                 Margin = new Padding(3, 1, 3, 1),
                 BackColor = Color.FromArgb(37, 99, 235),
@@ -234,13 +234,13 @@ namespace DynamometerHMI
                 if (txtViewerUrlInput.Text.Contains("firebasedatabase.app"))
                 {
                     txtViewerUrlInput.Text = "http://localhost:8080";
-                    btnViewerCloudToggle.Text = "☁️ 雲端模式";
+                    btnViewerCloudToggle.Text = "[雲] 雲端模式";
                     btnViewerCloudToggle.BackColor = Color.FromArgb(37, 99, 235);
                 }
                 else
                 {
                     txtViewerUrlInput.Text = FIREBASE_DEFAULT_URL;
-                    btnViewerCloudToggle.Text = "🏠 區網模式";
+                    btnViewerCloudToggle.Text = " 區網模式";
                     btnViewerCloudToggle.BackColor = Color.FromArgb(16, 185, 129);
                 }
                 StartViewerClientSync(txtViewerUrlInput.Text);
@@ -249,7 +249,7 @@ namespace DynamometerHMI
             // 3. 連線 / 重新整理按鈕
             btnViewerConnect = new Button()
             {
-                Text = "🔄 連線",
+                Text = "[重置] 連線",
                 Size = new Size(65, 34),
                 Margin = new Padding(3, 1, 3, 1),
                 BackColor = Color.FromArgb(16, 185, 129),
@@ -297,7 +297,7 @@ namespace DynamometerHMI
             // 6. VIEWER 模式徽章標籤
             lblViewerBadge = new Label()
             {
-                Text = "👀 VIEWER 唯讀",
+                Text = " VIEWER 唯讀",
                 AutoSize = false,
                 Size = new Size(110, 34),
                 Margin = new Padding(3, 1, 3, 1),
@@ -431,7 +431,7 @@ namespace DynamometerHMI
             {
                 if (isOnline)
                 {
-                    lblViewerSyncStatus.Text = string.Format("🟢 {0}ms", pingMs);
+                    lblViewerSyncStatus.Text = string.Format(" {0}ms", pingMs);
                     lblViewerSyncStatus.ForeColor = Color.FromArgb(52, 211, 153);
                     lblViewerSyncStatus.BackColor = Color.FromArgb(15, 23, 42);
                 }
@@ -439,13 +439,13 @@ namespace DynamometerHMI
                 {
                     if (viewerSyncErrorCount > 3)
                     {
-                        lblViewerSyncStatus.Text = "🔴 離線中";
+                        lblViewerSyncStatus.Text = " 離線中";
                         lblViewerSyncStatus.ForeColor = Color.FromArgb(248, 113, 113);
                         lblViewerSyncStatus.BackColor = Color.FromArgb(69, 10, 10);
                     }
                     else
                     {
-                        lblViewerSyncStatus.Text = "🟡 連線中...";
+                        lblViewerSyncStatus.Text = " 連線中...";
                         lblViewerSyncStatus.ForeColor = Color.FromArgb(250, 204, 21);
                         lblViewerSyncStatus.BackColor = Color.FromArgb(66, 32, 6);
                     }

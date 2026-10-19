@@ -142,7 +142,7 @@ namespace DynamometerHMI
             // 左側群組：參數設定區
             GroupBox grpParams = new GroupBox()
             {
-                Text = "⚙️ 空載測試參數設定 (額定/最高轉速、溫度監控、升降速梯度)",
+                Text = "[設定] 空載測試參數設定 (額定/最高轉速、溫度監控、升降速梯度)",
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 12f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(15, 23, 42),
@@ -255,7 +255,7 @@ namespace DynamometerHMI
             numNoLoadTimeTn.ValueChanged += (s, e) => SaveLayoutConfig();
             btnNoLoadSelectChannels = new Button()
             {
-                Text = "🌡 選擇軸承監控通道...",
+                Text = " 選擇軸承監控通道...",
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(241, 245, 249),
                 Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold),
@@ -322,7 +322,7 @@ namespace DynamometerHMI
             // -------------------------------------------------------------
             GroupBox grpStatus = new GroupBox()
             {
-                Text = "📊 即時運轉與熱平衡監控儀表 (30 分鐘溫差比對)",
+                Text = "[圖表] 即時運轉與熱平衡監控儀表 (30 分鐘溫差比對)",
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 12f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(15, 23, 42),
@@ -439,7 +439,7 @@ namespace DynamometerHMI
             // Panel1: 專屬即時溫度趨勢圖 (多通道各別彩色波形與端點即時標籤)
             grpNoLoadChart = new GroupBox()
             {
-                Text = "📈 軸承溫度多通道即時趨勢圖 (選取通道獨立彩色曲線、端點標記與圖例)",
+                Text = " 軸承溫度多通道即時趨勢圖 (選取通道獨立彩色曲線、端點標記與圖例)",
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(15, 23, 42),
@@ -452,7 +452,7 @@ namespace DynamometerHMI
             // Panel2: 實測記錄 DataGridView
             GroupBox grpTable = new GroupBox()
             {
-                Text = "📋 測試階段記錄與熱平衡事件日誌",
+                Text = " 測試階段記錄與熱平衡事件日誌",
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(15, 23, 42),
@@ -503,7 +503,7 @@ namespace DynamometerHMI
 
             Button btnJumpRatedStable = new Button()
             {
-                Text = "🎯 聚焦額定達標點",
+                Text = "[校正] 聚焦額定達標點",
                 Dock = DockStyle.Right,
                 Width = 165,
                 Height = 30,
@@ -516,7 +516,7 @@ namespace DynamometerHMI
                 for (int i = 0; i < dgvNoLoad.Rows.Count; i++)
                 {
                     string ev = Convert.ToString(dgvNoLoad.Rows[i].Cells["Event"].Value ?? "");
-                    if (ev.Contains("額定轉速 30min 熱平衡達標核心點") || ev.Contains("★額定達標★"))
+                    if (ev.Contains("額定轉速 30min 熱平衡達標核心點") || ev.Contains("額定達標"))
                     {
                         dgvNoLoad.ClearSelection();
                         dgvNoLoad.Rows[i].Selected = true;
@@ -529,7 +529,7 @@ namespace DynamometerHMI
 
             Button btnJumpMaxSpdStable = new Button()
             {
-                Text = "🎯 聚焦最高速達標點",
+                Text = "[校正] 聚焦最高速達標點",
                 Dock = DockStyle.Right,
                 Width = 175,
                 Height = 30,
@@ -542,7 +542,7 @@ namespace DynamometerHMI
                 for (int i = 0; i < dgvNoLoad.Rows.Count; i++)
                 {
                     string ev = Convert.ToString(dgvNoLoad.Rows[i].Cells["Event"].Value ?? "");
-                    if (ev.Contains("最高轉速 30min 熱平衡達標核心點") || ev.Contains("★最高速達標★"))
+                    if (ev.Contains("最高轉速 30min 熱平衡達標核心點") || ev.Contains("最高速達標"))
                     {
                         dgvNoLoad.ClearSelection();
                         dgvNoLoad.Rows[i].Selected = true;
@@ -555,7 +555,7 @@ namespace DynamometerHMI
 
             Button btnExportCsv = new Button()
             {
-                Text = "📥 匯出空載日誌 (CSV)",
+                Text = " 匯出空載日誌 (CSV)",
                 Dock = DockStyle.Right,
                 Width = 165,
                 Height = 30,
@@ -641,7 +641,7 @@ namespace DynamometerHMI
 
             Label lHint = new Label()
             {
-                Text = "請勾選參與空載測試軸承溫升與熱平衡判定之通道：\r\n(若設備已連線，可點擊「⚡ 依實測選取」自動偵測真正有訊號的通道)",
+                Text = "請勾選參與空載測試軸承溫升與熱平衡判定之通道：\r\n(若設備已連線，可點擊「[電] 依實測選取」自動偵測真正有訊號的通道)",
                 Dock = DockStyle.Top,
                 Height = 46,
                 Padding = new Padding(8),
@@ -676,7 +676,7 @@ namespace DynamometerHMI
             Button btnOk = new Button() { Text = "確定", DialogResult = DialogResult.OK, Width = 70, Height = 28, BackColor = Color.FromArgb(16, 185, 129), ForeColor = Color.White };
             Button btnAutoDetect = new Button()
             {
-                Text = "⚡ 依實測選取",
+                Text = "[電] 依實測選取",
                 Width = 115,
                 Height = 28,
                 BackColor = Color.FromArgb(59, 130, 246),
@@ -738,7 +738,7 @@ namespace DynamometerHMI
             lblNoLoadSelectedChHint.Text = "已選監控通道: " + (chs.Count > 0 ? string.Join(", ", chs) : "無 (預設CH1)");
             if (grpNoLoadChart != null)
             {
-                grpNoLoadChart.Text = string.Format("📈 軸承溫度即時趨勢圖 [監控通道: {0}]", chs.Count > 0 ? string.Join(", ", chs) : "CH1");
+                grpNoLoadChart.Text = string.Format(" 軸承溫度即時趨勢圖 [監控通道: {0}]", chs.Count > 0 ? string.Join(", ", chs) : "CH1");
             }
             if (noLoadTempTrend != null)
             {
@@ -781,9 +781,9 @@ namespace DynamometerHMI
             bool isGbdOnline = (tcpGbd != null && tcpGbd.Connected);
 
             List<string> missingDevices = new List<string>();
-            if (!isDutDriveOnline) missingDevices.Add("❌ " + dutDriveName + " (通訊未開啟或未連線)");
-            if (!isPowerMeterOnline) missingDevices.Add("❌ 橫河 WT333E 功率表 (未連線 Modbus TCP 192.168.0.11:502)");
-            if (!isGbdOnline) missingDevices.Add("❌ Graphtec GL820 溫度記錄器 (未連線 TCP 192.168.0.3:8023)");
+            if (!isDutDriveOnline) missingDevices.Add(" " + dutDriveName + " (通訊未開啟或未連線)");
+            if (!isPowerMeterOnline) missingDevices.Add(" 橫河 WT333E 功率表 (未連線 Modbus TCP 192.168.0.11:502)");
+            if (!isGbdOnline) missingDevices.Add(" Graphtec GL820 溫度記錄器 (未連線 TCP 192.168.0.3:8023)");
 
             if (missingDevices.Count > 0)
             {
@@ -1066,7 +1066,7 @@ namespace DynamometerHMI
                     }
                 }
 
-                lblNoLoadDeltaTDisp.Text = string.Format("最大ΔT: {0:F2}℃ (CH{1}) {2}", maxDeltaT, maxDeltaCh + 1, isThermalBalanced ? "★達標" : "比對中");
+                lblNoLoadDeltaTDisp.Text = string.Format("最大ΔT: {0:F2}℃ (CH{1}) {2}", maxDeltaT, maxDeltaCh + 1, isThermalBalanced ? "達標" : "比對中");
                 lblNoLoadDeltaTDisp.ForeColor = isThermalBalanced ? Color.FromArgb(16, 185, 129) : Color.FromArgb(234, 88, 12);
             }
 
@@ -1097,11 +1097,11 @@ namespace DynamometerHMI
                     if (maxBearingTemp >= tempLimit)
                     {
                         noLoadOverTempDurationSec++;
-                        lblNoLoadCountdownDisp.Text = string.Format("🚨 溫度超溫警戒 ({0:F1}℃ >= {1:F1}℃)！持續時間: {2}s / {3}s",
+                        lblNoLoadCountdownDisp.Text = string.Format("[!] 溫度超溫警戒 ({0:F1}℃ >= {1:F1}℃)！持續時間: {2}s / {3}s",
                             maxBearingTemp, tempLimit, noLoadOverTempDurationSec, limitTs);
                         lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(220, 38, 38);
 
-                        // 連續超過 Ts 時間 ➔ 觸發過溫降速 (依梯度之一半減速)
+                        // 連續超過 Ts 時間  觸發過溫降速 (依梯度之一半減速)
                         if (noLoadOverTempDurationSec >= limitTs)
                         {
                             double decelStep = Math.Max(50.0, stepSpd / 2.0);
@@ -1114,7 +1114,7 @@ namespace DynamometerHMI
                             noLoadCoolingTimerSec = limitTn;
                             noLoadOverTempDurationSec = 0;
 
-                            string ev = string.Format("額定轉速超溫達 {0}s (第 {1} 次降速重試)，依梯度一半降速 -{2:F0} rpm ➔ {3:F0} rpm，等待 Tn={4}s 冷卻評估",
+                            string ev = string.Format("額定轉速超溫達 {0}s (第 {1} 次降速重試)，依梯度一半降速 -{2:F0} rpm  {3:F0} rpm，等待 Tn={4}s 冷卻評估",
                                 limitTs, noLoadCoolingRetryCount, decelStep, noLoadCurrentTargetSpd, limitTn);
                             AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "過溫降速", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, ev);
                             WriteHmiLog("NOLOAD_OVERTEMP", "【額定轉速過溫降速】" + ev);
@@ -1129,12 +1129,12 @@ namespace DynamometerHMI
                         lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(16, 185, 129);
                     }
 
-                    // 熱平衡判定：滿 30 分鐘且各通道溫差 < 1.0℃ ➔ 額定轉速達成！(標記點 1)
+                    // 熱平衡判定：滿 30 分鐘且各通道溫差 < 1.0℃  額定轉速達成！(標記點 1)
                     if (isThermalBalanced)
                     {
                         MarkNoLoadPreStableRows("額定");
-                        string ev = string.Format("★ 額定轉速熱平衡達標！30min最大溫差={0:F2}℃ (<1.0℃)", maxDeltaT);
-                        AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "★額定達標★", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, "🎯【★ 額定轉速 30min 熱平衡達標核心點 ★】" + ev);
+                        string ev = string.Format(" 額定轉速熱平衡達標！30min最大溫差={0:F2}℃ (<1.0℃)", maxDeltaT);
+                        AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "額定達標", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, "[校正]【 額定轉速 30min 熱平衡達標核心點 】" + ev);
                         WriteHmiLog("NOLOAD_RATED_PASS", ev);
                         WriteNoLoadCsvMilestoneMarker(now, "【標記點1】額定轉速熱平衡達標", maxDeltaT);
                         noLoadPostStableStage = "額定";
@@ -1144,7 +1144,7 @@ namespace DynamometerHMI
                         if (!chkNoLoadMaxSpdTest.Checked)
                         {
                             noLoadState = NoLoadState.Completed;
-                            AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "測試完成", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, "🎉 僅執行額定轉速溫升測試，已順利完成熱平衡，安全停機結案！");
+                            AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "測試完成", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, " 僅執行額定轉速溫升測試，已順利完成熱平衡，安全停機結案！");
                             WriteHmiLog("NOLOAD_COMPLETE", "【空載測試完成】額定轉速熱平衡達標，依設定結案停機。");
                             StopNoLoadTest("額定轉速溫升測試順利完成！");
                             return;
@@ -1183,7 +1183,7 @@ namespace DynamometerHMI
                     if (maxBearingTemp >= tempLimit)
                     {
                         noLoadOverTempDurationSec++;
-                        lblNoLoadCountdownDisp.Text = string.Format("🚨 階梯超溫警戒 ({0:F1}℃ >= {1:F1}℃)！持續時間: {2}s / {3}s",
+                        lblNoLoadCountdownDisp.Text = string.Format("[!] 階梯超溫警戒 ({0:F1}℃ >= {1:F1}℃)！持續時間: {2}s / {3}s",
                             maxBearingTemp, tempLimit, noLoadOverTempDurationSec, limitTs);
                         lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(220, 38, 38);
 
@@ -1199,7 +1199,7 @@ namespace DynamometerHMI
                             noLoadCoolingTimerSec = limitTn;
                             noLoadOverTempDurationSec = 0;
 
-                            string ev = string.Format("階梯轉速超溫達 {0}s (第 {1} 次降速重試)，依梯度一半降速 -{2:F0} rpm ➔ {3:F0} rpm，等待 Tn={4}s 冷卻評估",
+                            string ev = string.Format("階梯轉速超溫達 {0}s (第 {1} 次降速重試)，依梯度一半降速 -{2:F0} rpm  {3:F0} rpm，等待 Tn={4}s 冷卻評估",
                                 limitTs, noLoadCoolingRetryCount, decelStep, noLoadCurrentTargetSpd, limitTn);
                             AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "階梯降速", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, ev);
                             WriteHmiLog("NOLOAD_OVERTEMP", "【階梯超溫降速】" + ev);
@@ -1245,7 +1245,7 @@ namespace DynamometerHMI
                     lblNoLoadStateBadge.ForeColor = Color.FromArgb(234, 88, 12);
 
                     noLoadCoolingTimerSec--;
-                    lblNoLoadCountdownDisp.Text = string.Format("❄️ 降速冷卻倒數 {0}s (目前: {1:F1}℃ / 閥值: {2:F1}℃，第 {3} 次重試，可隨時調整溫度上限即時生效)",
+                    lblNoLoadCountdownDisp.Text = string.Format(" 降速冷卻倒數 {0}s (目前: {1:F1}℃ / 閥值: {2:F1}℃，第 {3} 次重試，可隨時調整溫度上限即時生效)",
                         noLoadCoolingTimerSec, maxBearingTemp, tempLimit, noLoadCoolingRetryCount);
                     lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(234, 88, 12);
 
@@ -1283,7 +1283,7 @@ namespace DynamometerHMI
                     if (maxBearingTemp >= tempLimit)
                     {
                         noLoadOverTempDurationSec++;
-                        lblNoLoadCountdownDisp.Text = string.Format("🚨 最高轉速超溫警戒 ({0:F1}℃ >= {1:F1}℃)！持續時間: {2}s / {3}s",
+                        lblNoLoadCountdownDisp.Text = string.Format("[!] 最高轉速超溫警戒 ({0:F1}℃ >= {1:F1}℃)！持續時間: {2}s / {3}s",
                             maxBearingTemp, tempLimit, noLoadOverTempDurationSec, limitTs);
                         lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(220, 38, 38);
 
@@ -1299,7 +1299,7 @@ namespace DynamometerHMI
                             noLoadCoolingTimerSec = limitTn;
                             noLoadOverTempDurationSec = 0;
 
-                            string ev = string.Format("最高轉速超溫達 {0}s (第 {1} 次降速重試)，依梯度一半降速 -{2:F0} rpm ➔ {3:F0} rpm，等待 Tn={4}s 冷卻評估",
+                            string ev = string.Format("最高轉速超溫達 {0}s (第 {1} 次降速重試)，依梯度一半降速 -{2:F0} rpm  {3:F0} rpm，等待 Tn={4}s 冷卻評估",
                                 limitTs, noLoadCoolingRetryCount, decelStep, noLoadCurrentTargetSpd, limitTn);
                             AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "最高速過溫降速", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, ev);
                             WriteHmiLog("NOLOAD_OVERTEMP", "【最高轉速過溫降速】" + ev);
@@ -1313,12 +1313,12 @@ namespace DynamometerHMI
                         lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(16, 185, 129);
                     }
 
-                    // 最終熱平衡判定：最高轉速滿 30 分鐘且各通道溫差 < 1.0℃ ➔ 標記點 2 達成！
+                    // 最終熱平衡判定：最高轉速滿 30 分鐘且各通道溫差 < 1.0℃  標記點 2 達成！
                     if (isThermalBalanced)
                     {
                         MarkNoLoadPreStableRows("最高速");
-                        string ev = string.Format("★ 最高轉速熱平衡達標！30min最大溫差={0:F2}℃ (<1.0℃)，保持運轉採樣穩定後 5 筆驗證數據！", maxDeltaT);
-                        AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "★最高速達標★", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, "🎯【★ 最高轉速 30min 熱平衡達標核心點 ★】" + ev);
+                        string ev = string.Format(" 最高轉速熱平衡達標！30min最大溫差={0:F2}℃ (<1.0℃)，保持運轉採樣穩定後 5 筆驗證數據！", maxDeltaT);
+                        AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "最高速達標", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, "[校正]【 最高轉速 30min 熱平衡達標核心點 】" + ev);
                         WriteHmiLog("NOLOAD_MAXSPD_PASS", ev);
                         WriteNoLoadCsvMilestoneMarker(now, "【標記點2】最高轉速熱平衡達標", maxDeltaT);
                         noLoadPostStableStage = "最高速";
@@ -1353,9 +1353,9 @@ namespace DynamometerHMI
                             noLoadState = NoLoadState.Completed;
                             noLoadTimer.Stop();
 
-                            string completeMsg = string.Format("🎉 空載溫升測試全流程圓滿完成！\r\n額定轉速與最高轉速 ({0:F0} rpm) 雙標記點皆達成 30 分鐘熱平衡 (實測最大ΔT = {1:F2}℃)，前後各 5 筆驗證數據已完整留存！",
+                            string completeMsg = string.Format(" 空載溫升測試全流程圓滿完成！\r\n額定轉速與最高轉速 ({0:F0} rpm) 雙標記點皆達成 30 分鐘熱平衡 (實測最大ΔT = {1:F2}℃)，前後各 5 筆驗證數據已完整留存！",
                                 maxSpd, maxDeltaT);
-                            AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "測試完成", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, "★雙標記點達成，空載測試圓滿完成！");
+                            AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "測試完成", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, "雙標記點達成，空載測試圓滿完成！");
                             WriteHmiLog("NOLOAD_COMPLETE", completeMsg);
 
                             lblNoLoadStateBadge.Text = "【測試圓滿完成】雙標記點熱平衡達標！";
@@ -1420,7 +1420,7 @@ namespace DynamometerHMI
                 {
                     DataGridViewRow row = dgvNoLoad.Rows[i];
                     string ev = Convert.ToString(row.Cells["Event"].Value ?? "");
-                    if (ev.Contains("達標核心點") || ev.Contains("★額定達標★") || ev.Contains("★最高速達標★"))
+                    if (ev.Contains("達標核心點") || ev.Contains("額定達標") || ev.Contains("最高速達標"))
                         continue;
 
                     markedCount++;
@@ -1447,7 +1447,7 @@ namespace DynamometerHMI
                     if (manualRecordWriter != null && isManualRecording)
                     {
                         manualRecordWriter.WriteLine("# ========================================================================================");
-                        manualRecordWriter.WriteLine(string.Format("# ★★★ [MILESTONE] 30MIN_THERMAL_BALANCED_ACHIEVED: {0} | ΔT={1:F2}℃ | Time={2:yyyy-MM-dd HH:mm:ss} ★★★", title, maxDeltaT, now));
+                        manualRecordWriter.WriteLine(string.Format("#  [MILESTONE] 30MIN_THERMAL_BALANCED_ACHIEVED: {0} | ΔT={1:F2}℃ | Time={2:yyyy-MM-dd HH:mm:ss} ", title, maxDeltaT, now));
                         manualRecordWriter.WriteLine("# ========================================================================================");
                         manualRecordWriter.Flush();
                     }
@@ -1523,7 +1523,7 @@ namespace DynamometerHMI
                     return;
                 }
 
-                bool isMilestone = eventStr.Contains("達標核心點") || phaseStr.Contains("★額定達標★") || phaseStr.Contains("★最高速達標★");
+                bool isMilestone = eventStr.Contains("達標核心點") || phaseStr.Contains("額定達標") || phaseStr.Contains("最高速達標");
                 bool isPostStable = false;
                 int currentPostIdx = 0;
 
@@ -1547,7 +1547,7 @@ namespace DynamometerHMI
                         DataGridViewRow r = dgvNoLoad.Rows[checkIdx];
                         string rEvent = (r.Cells.Count > 7 && r.Cells[7].Value != null) ? r.Cells[7].Value.ToString() : "";
                         string rPhase = (r.Cells.Count > 2 && r.Cells[2].Value != null) ? r.Cells[2].Value.ToString() : "";
-                        bool isKept = rEvent.Contains("達標核心點") || rPhase.Contains("★額定達標★") || rPhase.Contains("★最高速達標★") || rEvent.Contains("穩定後");
+                        bool isKept = rEvent.Contains("達標核心點") || rPhase.Contains("額定達標") || rPhase.Contains("最高速達標") || rEvent.Contains("穩定後");
                         if (!isKept)
                         {
                             dgvNoLoad.Rows.RemoveAt(checkIdx);

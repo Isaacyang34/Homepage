@@ -772,7 +772,7 @@ namespace DynamometerHMI
         }
 
         /// <summary>
-        /// ★【待測端轉速平滑閉迴路追隨 (同動 S1/S2/S6 補轉差機制)】
+        /// 【待測端轉速平滑閉迴路追隨 (同動 S1/S2/S6 補轉差機制)】
         /// 實測轉速因加載轉差偏離目標轉速時，自動即時微調 SY.52 補償轉差，確保標準額定轉速運轉
         /// </summary>
         private void ApplyTnSpeedTracking(int spdCom, int spdBaud, int spdNode, int spdDrive, double targetSpd, double actAbsSpd)
@@ -811,7 +811,7 @@ namespace DynamometerHMI
             SyncAllTnControls(fromMiniToMain: isFromMini);
 
             string tnTag = (txtTnTag != null && !string.IsNullOrEmpty(txtTnTag.Text.Trim())) ? txtTnTag.Text.Trim() : "TN";
-            // ★ 自動開啟 RAW DATA 記錄 (檔名後綴: _{tnTag})
+            //  自動開啟 RAW DATA 記錄 (檔名後綴: _{tnTag})
             StartAutoRawRecordingWithTag(tnTag);
 
             decimal startRpmVal = numTnStartRpm != null ? numTnStartRpm.Value : 50m;
@@ -961,7 +961,7 @@ namespace DynamometerHMI
                 return;
             }
 
-            // ★【操作鐵律】：只要沒有定錨，加載百分比強制嚴格從 0.0% 起步加載！
+            // 【操作鐵律】：只要沒有定錨，加載百分比強制嚴格從 0.0% 起步加載！
             if (!tnHasAnchor)
             {
                 tnAdaptedTorquePct = 0.0;
@@ -983,7 +983,7 @@ namespace DynamometerHMI
                 if (numHmiKebTorque2 != null) numHmiKebTorque2.Value = 0; // 加載端強制歸零
             }
 
-            // ★【嚴禁竄改變頻器硬體架構暫存器】：廢除 SetHmiKebMode，完全保留現場 V/F (cs00=0) 或既有參數！
+            // 【嚴禁竄改變頻器硬體架構暫存器】：廢除 SetHmiKebMode，完全保留現場 V/F (cs00=0) 或既有參數！
 
             // 1. 加載端啟動瞬間轉矩強制歸零 (cs.18 = 0) 並維持 STOP (Sy.50 = 0)，嚴禁空載提速階段硬轉對沖！
             KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // cs.18 = 0
@@ -1053,7 +1053,7 @@ namespace DynamometerHMI
             int spdRu = (spdDrive == 1) ? lastRu00_1 : lastRu00_2;
             int trqRu = (trqDrive == 1) ? lastRu00_1 : lastRu00_2;
 
-            // ★ 1. 待測端變頻器狀態異常/跳脫判定 (76:故障減速, 30:故障鎖定, 4:快速停機, 79:STO, 0:ST切斷)
+            //  1. 待測端變頻器狀態異常/跳脫判定 (76:故障減速, 30:故障鎖定, 4:快速停機, 79:STO, 0:ST切斷)
             if (spdRu == 76 || spdRu == 30 || spdRu == 4 || spdRu == 79 || (spdRu == 0 && tnCurrentSpeedCmd > 0))
             {
                 int? fc = KebReadParamWithDll(spdCom, spdBaud, spdNode, 0x022B);
@@ -1066,7 +1066,7 @@ namespace DynamometerHMI
                 return;
             }
 
-            // ★ 2. 加載端變頻器狀態異常/跳脫判定 (加載階段若加載端跳脫或斷開 ST)
+            //  2. 加載端變頻器狀態異常/跳脫判定 (加載階段若加載端跳脫或斷開 ST)
             if (tnMultiSubPhase >= 1 && (trqRu == 76 || trqRu == 30 || trqRu == 4 || trqRu == 79 || trqRu == 0))
             {
                 int? fcTrq = KebReadParamWithDll(trqCom, trqBaud, trqNode, 0x022B);
@@ -1079,7 +1079,7 @@ namespace DynamometerHMI
                 return;
             }
 
-            // ★ 3. 負載期突發斷流 / 變頻器斷電保護檢測
+            //  3. 負載期突發斷流 / 變頻器斷電保護檢測
             double curDrv = (spdDrive == 1) ? kebCurrent1 : kebCurrent2;
             if (tnMultiSubPhase >= 1 && (tnAdaptedTorquePct >= 3.0 || targetTrq >= 3.0) && Math.Abs(actSpeed) > 100.0 && actCurrentSigma < 0.8 && curDrv < 0.8)
             {
@@ -1102,7 +1102,7 @@ namespace DynamometerHMI
                 tnCurrentLossCounter = 0;
             }
 
-            // ★ 4. 馬達轉速崩塌 / 嚴重堵轉檢測 (實測轉速小於目標 35% 持續 3 秒)
+            //  4. 馬達轉速崩塌 / 嚴重堵轉檢測 (實測轉速小於目標 35% 持續 3 秒)
             if (tnMultiSubPhase >= 1 && targetSpd >= 300.0 && Math.Abs(actSpeed) < targetSpd * 0.35)
             {
                 tnStallCounter++;
@@ -1122,7 +1122,7 @@ namespace DynamometerHMI
                 tnStallCounter = 0;
             }
 
-            // ★ 過電流安全保護 (Kt)
+            //  過電流安全保護 (Kt)
             double curKt = (double)tnMotorKt;
             if (curKt > 0.001 && targetTrq > 0.1)
             {
@@ -1161,7 +1161,7 @@ namespace DynamometerHMI
             double spdErr = Math.Abs(actAbsSpd - targetSpd);
             double trqErr = targetTrq - actAbsTrq;
 
-            // ★【穩定判定合理化】：必須等待測端閉迴路補轉差將轉速補償回額定轉速帶內 (誤差 <= Max(6 rpm, 1.5% 目標轉速))，且轉矩達標
+            // 【穩定判定合理化】：必須等待測端閉迴路補轉差將轉速補償回額定轉速帶內 (誤差 <= Max(6 rpm, 1.5% 目標轉速))，且轉矩達標
             bool isSpdValid = (targetSpd <= 0) || (spdErr <= Math.Max(6.0, targetSpd * 0.015));
             bool isTrqValid = (targetTrq <= 0) || (tnAdaptedTorquePct >= 0.5 && Math.Abs(trqErr) <= Math.Max(1.0, targetTrq * 0.08));
 
@@ -1172,7 +1172,7 @@ namespace DynamometerHMI
             {
                 tnConvergeTimeoutSec++;
 
-                // ★【低轉速 (<300 rpm) 預先激磁狀態機處理】
+                // 【低轉速 (<300 rpm) 預先激磁狀態機處理】
                 if (tnPreExciteStage == 1)
                 {
                     // 階段 1：待測端在低轉速 (<=300 rpm) 區間運轉，等待轉速到達 >= 180 rpm
@@ -1220,7 +1220,7 @@ namespace DynamometerHMI
                     return;
                 }
 
-                // ★【待測端轉速平滑閉迴路追隨 (同動 S1/S2/S6 補轉差機制)】
+                // 【待測端轉速平滑閉迴路追隨 (同動 S1/S2/S6 補轉差機制)】
                 ApplyTnSpeedTracking(spdCom, spdBaud, spdNode, spdDrive, targetSpd, actAbsSpd);
 
                 // 速度到達判定：等待實際速度到達目標轉速帶 (誤差 <= Max(12.0 rpm, 2% 目標轉速))
@@ -1310,7 +1310,7 @@ namespace DynamometerHMI
             // =========================================================================
             else if (tnMultiSubPhase == 2)
             {
-                // ★【待測端轉速平滑閉迴路追隨 (同動 S1/S2/S6 補轉差機制)】
+                // 【待測端轉速平滑閉迴路追隨 (同動 S1/S2/S6 補轉差機制)】
                 ApplyTnSpeedTracking(spdCom, spdBaud, spdNode, spdDrive, targetSpd, actAbsSpd);
 
                 if (Math.Abs(trqErr) > 0.4)
@@ -1352,7 +1352,7 @@ namespace DynamometerHMI
                     tnMultiSampleCounter = 30;
                     curPt.Samples.Clear();
 
-                    // ★【TN測試紀錄檔優化】在確定穩定後抓取30筆數據時給資料一個斷行
+                    // 【TN測試紀錄檔優化】在確定穩定後抓取30筆數據時給資料一個斷行
                     lock (manualRecordLock)
                     {
                         if (manualRecordWriter != null && isManualRecording)
@@ -1386,7 +1386,7 @@ namespace DynamometerHMI
                 // 依指示：採樣時即刻進行頻率比對診斷記錄
                 CheckAndLogFrequencyComparison("TN_SAMPLE");
 
-                // ★【待測端轉速平滑閉迴路追隨 (同動 S1/S2/S6 補轉差機制)】
+                // 【待測端轉速平滑閉迴路追隨 (同動 S1/S2/S6 補轉差機制)】
                 ApplyTnSpeedTracking(spdCom, spdBaud, spdNode, spdDrive, targetSpd, actAbsSpd);
 
                 if (Math.Abs(trqErr) > 0.4)
@@ -1411,7 +1411,7 @@ namespace DynamometerHMI
 
                 if (tnMultiSampleCounter <= 0)
                 {
-                    // ★【TN測試紀錄檔優化】30筆數據結束後也多一個斷行方便識別測試區間
+                    // 【TN測試紀錄檔優化】30筆數據結束後也多一個斷行方便識別測試區間
                     lock (manualRecordLock)
                     {
                         if (manualRecordWriter != null && isManualRecording)
@@ -1507,7 +1507,7 @@ namespace DynamometerHMI
                         WriteHmiLog("TN_MULTI", string.Format("【同轉速換項】第 {0} 點轉速相同 ({1:F0} rpm)，直接平穩調升/調降轉矩至 {2:F1} Nm (當前負載基準: {3:F1}%)",
                             tnMultiCurrentIndex + 1, nextPt.TargetSpeed, nextPt.TargetTorque, tnAdaptedTorquePct));
 
-                        lblTnStatus.Text = string.Format("[->]️ 同速調扭：第 {0}/{1} 點 (目標 {2:F0} rpm / {3:F1} Nm)，直接平穩過渡...",
+                        lblTnStatus.Text = string.Format("[->] 同速調扭：第 {0}/{1} 點 (目標 {2:F0} rpm / {3:F1} Nm)，直接平穩過渡...",
                             tnMultiCurrentIndex + 1, tnCustomPoints.Count, nextPt.TargetSpeed, nextPt.TargetTorque);
                         lblTnCountdown.Text = "調扭過渡中";
                         if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
@@ -1539,7 +1539,7 @@ namespace DynamometerHMI
                         else if (trqDrive == 2 && numHmiKebTorque2 != null) numHmiKebTorque2.Value = (decimal)tnAdaptedTorquePct;
 
                         double trqStep1Nm = curPt.TargetTorque * (tnAdaptedTorquePct / Math.Max(0.1, tnRampDownStartPct));
-                        lblTnStatus.Text = string.Format("[v]️ 換項降載 (1/3 步)：轉矩調降至 {0:F1}% ({1:F1} Nm)，平穩邁向 25%...", tnAdaptedTorquePct, trqStep1Nm);
+                        lblTnStatus.Text = string.Format("[v] 換項降載 (1/3 步)：轉矩調降至 {0:F1}% ({1:F1} Nm)，平穩邁向 25%...", tnAdaptedTorquePct, trqStep1Nm);
                         lblTnCountdown.Text = "降載階梯 1/3";
                         if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                         if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
@@ -1568,7 +1568,7 @@ namespace DynamometerHMI
                     if (trqDrive == 1 && numHmiKebTorque1 != null) numHmiKebTorque1.Value = (decimal)tnAdaptedTorquePct;
                     else if (trqDrive == 2 && numHmiKebTorque2 != null) numHmiKebTorque2.Value = (decimal)tnAdaptedTorquePct;
 
-                    lblTnStatus.Text = string.Format("[v]️ 換項降載 (2/3 步)：轉矩調降至 {0:F1}%，平穩邁向 25%...", tnAdaptedTorquePct);
+                    lblTnStatus.Text = string.Format("[v] 換項降載 (2/3 步)：轉矩調降至 {0:F1}%，平穩邁向 25%...", tnAdaptedTorquePct);
                     lblTnCountdown.Text = "降載階梯 2/3";
                     if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                     if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
@@ -1586,7 +1586,7 @@ namespace DynamometerHMI
                     if (trqDrive == 1 && numHmiKebTorque1 != null) numHmiKebTorque1.Value = (decimal)tnAdaptedTorquePct;
                     else if (trqDrive == 2 && numHmiKebTorque2 != null) numHmiKebTorque2.Value = (decimal)tnAdaptedTorquePct;
 
-                    lblTnStatus.Text = string.Format("[v]️ 換項降載 (3/3 步)：轉矩已到達 25% ({0:F1}%)，確認負載穩定後開始變速...", tnAdaptedTorquePct);
+                    lblTnStatus.Text = string.Format("[v] 換項降載 (3/3 步)：轉矩已到達 25% ({0:F1}%)，確認負載穩定後開始變速...", tnAdaptedTorquePct);
                     lblTnCountdown.Text = "降載階梯 3/3";
                     if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                     if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
@@ -1670,7 +1670,7 @@ namespace DynamometerHMI
             int spdRu = (spdDrive == 1) ? lastRu00_1 : lastRu00_2;
             int trqRu = (trqDrive == 1) ? lastRu00_1 : lastRu00_2;
 
-            // ★ 1. 待測端變頻器狀態異常/跳脫判定 (76:故障減速, 30:故障鎖定, 4:快速停機, 79:STO, 0:ST切斷)
+            //  1. 待測端變頻器狀態異常/跳脫判定 (76:故障減速, 30:故障鎖定, 4:快速停機, 79:STO, 0:ST切斷)
             if (spdRu == 76 || spdRu == 30 || spdRu == 4 || spdRu == 79 || (spdRu == 0 && tnCurrentSpeedCmd > 0))
             {
                 int? fc = KebReadParamWithDll(spdCom, spdBaud, spdNode, 0x022B);
@@ -1683,7 +1683,7 @@ namespace DynamometerHMI
                 return;
             }
 
-            // ★ 2. 加載端變頻器狀態異常/跳脫判定 (加載階段若加載端跳脫或斷開 ST)
+            //  2. 加載端變頻器狀態異常/跳脫判定 (加載階段若加載端跳脫或斷開 ST)
             if (tnPhase >= 1 && (trqRu == 76 || trqRu == 30 || trqRu == 4 || trqRu == 79 || trqRu == 0))
             {
                 int? fcTrq = KebReadParamWithDll(trqCom, trqBaud, trqNode, 0x022B);
@@ -1696,7 +1696,7 @@ namespace DynamometerHMI
                 return;
             }
 
-            // ★ 3. 負載期突發斷流 / 變頻器斷電保護檢測
+            //  3. 負載期突發斷流 / 變頻器斷電保護檢測
             double curDrv = (spdDrive == 1) ? kebCurrent1 : kebCurrent2;
             if (tnPhase >= 1 && (tnAdaptedTorquePct >= 3.0 || targetTrq >= 3.0) && Math.Abs(actSpeed) > 100.0 && actCurrentSigma < 0.8 && curDrv < 0.8)
             {
@@ -1719,7 +1719,7 @@ namespace DynamometerHMI
                 tnCurrentLossCounter = 0;
             }
 
-            // ★ 4. 馬達轉速崩塌 / 嚴重堵轉檢測 (實測轉速小於目標 35% 持續 3 秒)
+            //  4. 馬達轉速崩塌 / 嚴重堵轉檢測 (實測轉速小於目標 35% 持續 3 秒)
             if (tnPhase >= 1 && targetSpd >= 300.0 && Math.Abs(actSpeed) < targetSpd * 0.35)
             {
                 tnStallCounter++;
@@ -1739,7 +1739,7 @@ namespace DynamometerHMI
                 tnStallCounter = 0;
             }
 
-            // ★【T-N 過電流保護邏輯 (Kt 換算理論電流)】
+            // 【T-N 過電流保護邏輯 (Kt 換算理論電流)】
             double curKt = (double)tnMotorKt;
             if (curKt > 0.001 && targetTrq > 0.1)
             {
@@ -1793,11 +1793,11 @@ namespace DynamometerHMI
             double actAbsSpd = Math.Abs(actSpeed);
             double actAbsTrq = Math.Abs(actTorque);
 
-            // ★【雙向絕對值精確比對】：徹底解決實體扭力計正轉/反轉符號造成的死鎖問題！
+            // 【雙向絕對值精確比對】：徹底解決實體扭力計正轉/反轉符號造成的死鎖問題！
             double spdErr = Math.Abs(actAbsSpd - targetSpd);
             double trqErr = targetTrq - actAbsTrq;
 
-            // ★【穩定判定合理化】：必須等待測端閉迴路補轉差將轉速補償回額定轉速帶內 (誤差 <= Max(6 rpm, 1.5% 目標轉速))，且轉矩達標
+            // 【穩定判定合理化】：必須等待測端閉迴路補轉差將轉速補償回額定轉速帶內 (誤差 <= Max(6 rpm, 1.5% 目標轉速))，且轉矩達標
             bool isSpdValid = (targetSpd <= 0) || (spdErr <= Math.Max(6.0, targetSpd * 0.015));
             bool isTrqValid = (targetTrq <= 0) || (tnAdaptedTorquePct >= 1.0 && Math.Abs(trqErr) <= Math.Max(1.0, targetTrq * 0.08));
 
@@ -1813,7 +1813,7 @@ namespace DynamometerHMI
                 // 轉速未到位前，加載端維持 0 轉矩空載 (cs.18 = 0)，讓待測端順暢提速！
                 if (!tnStepSpeedReached)
                 {
-                    // ★【低轉速 (<300 rpm) 預先激磁狀態機處理】
+                    // 【低轉速 (<300 rpm) 預先激磁狀態機處理】
                     if (tnPreExciteStage == 1)
                     {
                         // 階段 1：待測端在低轉速 (<=300 rpm) 區間運轉，等待轉速到達 >= 180 rpm
@@ -1868,7 +1868,7 @@ namespace DynamometerHMI
                         return;
                     }
 
-                    // ★【單向鎖定狀態】：轉速首次到位！立即激磁加載端 (Sy50=4)，並鎖定進入加載階段！
+                    // 【單向鎖定狀態】：轉速首次到位！立即激磁加載端 (Sy50=4)，並鎖定進入加載階段！
                     // 鎖定後絕不再因帶載轉差自然降速而誤把轉矩甩回 0，徹底消滅 0<->26Nm 震盪失控！
                     tnStepSpeedReached = true;
                     tnTrqSustainedSec = 0;
@@ -1898,7 +1898,7 @@ namespace DynamometerHMI
 
                 if (!isConverged)
                 {
-                    // ★ 超時防呆安全保護：加載逼近超過 50 秒仍未達標時，暫停測試並警告，絕不放任過載！
+                    //  超時防呆安全保護：加載逼近超過 50 秒仍未達標時，暫停測試並警告，絕不放任過載！
                     if (tnConvergeTimeoutSec >= 50)
                     {
                         string rampDiag = GetTnConvergenceDiagnosticDetail(targetSpd, targetTrq, actAbsSpd, actAbsTrq);
@@ -1939,11 +1939,11 @@ namespace DynamometerHMI
                 }
             }
             // =========================================================================
-            // 【階段 1：10 秒穩定持載期與判定】(★ 鐵律：實測轉速與轉矩雙雙達標後才能開始/進行倒數)
+            // 【階段 1：10 秒穩定持載期與判定】( 鐵律：實測轉速與轉矩雙雙達標後才能開始/進行倒數)
             // =========================================================================
             else if (tnPhase == 1)
             {
-                // ★【待測端轉速平滑閉迴路追隨 (同動 S1/S2/S6 補轉差機制)】
+                // 【待測端轉速平滑閉迴路追隨 (同動 S1/S2/S6 補轉差機制)】
                 ApplyTnSpeedTracking(spdCom, spdBaud, spdNode, spdDrive, targetSpd, actAbsSpd);
 
                 // 在持載期間進行自適應動態閉迴路維持 (超調時快速收斂，徹底避免 16.68 Nm 超調被判 FAIL)
@@ -1959,7 +1959,7 @@ namespace DynamometerHMI
                     else if (trqDrive == 2 && numHmiKebTorque2 != null) numHmiKebTorque2.Value = (decimal)tnAdaptedTorquePct;
                 }
 
-                // ★【達標才倒數鐵律】：只有在轉速與轉矩雙雙達標合格帶內，才扣減倒數！
+                // 【達標才倒數鐵律】：只有在轉速與轉矩雙雙達標合格帶內，才扣減倒數！
                 bool isTnTargetReached = (spdErr <= Math.Max(6.0, targetSpd * 0.015)) && (Math.Abs(trqErr) <= Math.Max(1.0, targetTrq * 0.08));
                 if (isTnTargetReached)
                 {
@@ -2038,8 +2038,8 @@ namespace DynamometerHMI
 
                     // 步進到下一階梯：先卸載為 0 -> 升速 -> 回到 Phase 0 重新判定轉速到位後再漸進加載！
                     KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // 升速前強制卸載為 0
-                    if (!tnHasAnchor) tnAdaptedTorquePct = 0.0; // ★【無定錨鐵律】：每個新階梯重新從 0.0% 開始加！
-                    tnStepSpeedReached = false; // ★【復歸鎖定】：下一個新階梯需要重新判定空載提速到位！
+                    if (!tnHasAnchor) tnAdaptedTorquePct = 0.0; // 【無定錨鐵律】：每個新階梯重新從 0.0% 開始加！
+                    tnStepSpeedReached = false; // 【復歸鎖定】：下一個新階梯需要重新判定空載提速到位！
                     tnTrqSustainedSec = 0;
                     tnCurrentSpeedCmd = (double)tnCurrentStep;
                     KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, tnCurrentStep, "T-N 階梯升速");
@@ -2188,7 +2188,7 @@ namespace DynamometerHMI
                         for (int i = 0; i < tnCustomPoints.Count; i++)
                         {
                             var pt = tnCustomPoints[i];
-                            sw.WriteLine(); // ★ 依 Modify.txt: 在確定穩定後抓取30筆數據時給資料一個斷行
+                            sw.WriteLine(); //  依 Modify.txt: 在確定穩定後抓取30筆數據時給資料一個斷行
                             for (int s = 0; s < pt.Samples.Count; s++)
                             {
                                 var row = pt.Samples[s];
@@ -2200,7 +2200,7 @@ namespace DynamometerHMI
                                     row[9], row[10], row[11], row[12],
                                     row[13], row[14], row[15], row[16]));
                             }
-                            sw.WriteLine(); // ★ 依 Modify.txt: 結束後也多一個斷行方便識別測試區間
+                            sw.WriteLine(); //  依 Modify.txt: 結束後也多一個斷行方便識別測試區間
                         }
                     }
                     PurgeLocalLogs(false);

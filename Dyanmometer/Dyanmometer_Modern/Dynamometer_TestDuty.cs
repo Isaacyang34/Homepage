@@ -58,7 +58,7 @@ namespace DynamometerHMI
             // 頂部全自動模式提醒條
             lblKebAutoModeHint = new Label()
             {
-                Text = "⚡ 注意：DUTY 需在 KEB 全自動模式運作 (待測: Mode 9 速度 / 加載: Mode 10 轉矩)。點擊【開始】系統將自動切換！",
+                Text = "[電] 注意：DUTY 需在 KEB 全自動模式運作 (待測: Mode 9 速度 / 加載: Mode 10 轉矩)。點擊【開始】系統將自動切換！",
                 Location = new Point(12, 30),
                 AutoSize = true,
                 Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold),
@@ -151,7 +151,7 @@ namespace DynamometerHMI
             // 第三列 (Y = 146)：S1 選擇通道 / S2 [通道:...] (斷行獨立一行) / S6 [週期T(分)] (斷行獨立一行)
             // -------------------------------------------------------------
             // S1 第三列：通道選擇按鈕與文字
-            btnS1SelectChannels = new Button() { Text = "⚙ 選擇監測通道...", Location = new Point(12, 142), Size = new Size(165, 34), BackColor = Color.FromArgb(241, 245, 249), Font = new Font("微軟正黑體", 11.5f) };
+            btnS1SelectChannels = new Button() { Text = " 選擇監測通道...", Location = new Point(12, 142), Size = new Size(165, 34), BackColor = Color.FromArgb(241, 245, 249), Font = new Font("微軟正黑體", 11.5f) };
             btnS1SelectChannels.Click += (s, e) => { ShowS1ChannelSelectDialog(); };
             lblS1SelectedChHint = new Label() { Text = "(已選 CH1~4，共 4 通道)", Location = new Point(185, 148), AutoSize = true, ForeColor = Color.FromArgb(70, 80, 95), Font = new Font("微軟正黑體", 11.5f) };
 
@@ -223,7 +223,7 @@ namespace DynamometerHMI
             // 第四列 (Y = 186)：S2 錨點控制項 / S6 [通道:...] (斷行獨立一行)
             // -------------------------------------------------------------
             // S2 錨點控制項
-            lblS2AnchorTitle = new Label() { Text = "📍 S2 錨點：", Location = new Point(12, 188), AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold), ForeColor = Color.FromArgb(30, 64, 175) };
+            lblS2AnchorTitle = new Label() { Text = " S2 錨點：", Location = new Point(12, 188), AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold), ForeColor = Color.FromArgb(30, 64, 175) };
             lblS2AnchorSy52 = new Label() { Text = "SY52(rpm):", Location = new Point(110, 188), AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold) };
             numS2AnchorSy52 = CreateNumericUpDown(new Point(195, 184), 85, 0, 6000, s2AnchorSy52, 0, 50);
             numS2AnchorSy52.Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold);
@@ -250,7 +250,7 @@ namespace DynamometerHMI
                 }
             };
 
-            btnS2RecordAnchor = new Button() { Text = "📍 記錄為錨點", Location = new Point(455, 182), Size = new Size(130, 34), BackColor = Color.FromArgb(16, 185, 129), ForeColor = Color.White, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
+            btnS2RecordAnchor = new Button() { Text = " 記錄為錨點", Location = new Point(455, 182), Size = new Size(130, 34), BackColor = Color.FromArgb(16, 185, 129), ForeColor = Color.White, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
             btnS2RecordAnchor.Click += (s, e) => { CaptureCurrentAnchorToS2(); };
 
             btnS2ResetAnchor = new Button() { Text = "↺ 歸零", Location = new Point(595, 182), Size = new Size(80, 34), BackColor = Color.FromArgb(239, 68, 68), ForeColor = Color.White, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
@@ -284,7 +284,7 @@ namespace DynamometerHMI
                 }
                 UpdateS6AnchorStatusText();
             };
-            btnS6AnchorNoLoad = new Button() { Text = "📍 記空載 (V)", Location = new Point(185, 222), Size = new Size(110, 34), BackColor = Color.FromArgb(14, 165, 233), ForeColor = Color.White, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
+            btnS6AnchorNoLoad = new Button() { Text = " 記空載 (V)", Location = new Point(185, 222), Size = new Size(110, 34), BackColor = Color.FromArgb(14, 165, 233), ForeColor = Color.White, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
             btnS6AnchorNoLoad.Click += (s, e) => { CaptureCurrentAnchorToS6NoLoad(); };
 
             lblS6LoadedTitle = new Label() { Text = "加載SY52:", Location = new Point(305, 228), AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold) };
@@ -317,7 +317,7 @@ namespace DynamometerHMI
                 UpdateS6AnchorStatusText();
             };
 
-            btnS6AnchorLoaded = new Button() { Text = "📍 記加載 (N)", Location = new Point(640, 222), Size = new Size(110, 34), BackColor = Color.FromArgb(139, 92, 246), ForeColor = Color.White, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
+            btnS6AnchorLoaded = new Button() { Text = " 記加載 (N)", Location = new Point(640, 222), Size = new Size(110, 34), BackColor = Color.FromArgb(139, 92, 246), ForeColor = Color.White, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
             btnS6AnchorLoaded.Click += (s, e) => { CaptureCurrentAnchorToS6Loaded(); };
 
             btnS6ResetAnchor = new Button() { Text = "↺ 歸零", Location = new Point(760, 222), Size = new Size(80, 34), BackColor = Color.FromArgb(239, 68, 68), ForeColor = Color.White, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
@@ -336,7 +336,7 @@ namespace DynamometerHMI
             // -------------------------------------------------------------
             // 第八列 (Y = 338)：DUTY 基準過電流跳脫保護控制項 (S1/S2/S6 通用)
             // -------------------------------------------------------------
-            Label lblDutyOcTitle = new Label() { Text = "⚡過電流保護:", Location = new Point(12, 338), AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold), ForeColor = Color.FromArgb(194, 65, 12) };
+            Label lblDutyOcTitle = new Label() { Text = "[電]過電流保護:", Location = new Point(12, 338), AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold), ForeColor = Color.FromArgb(194, 65, 12) };
             Label lblDutyOcPct = new Label() { Text = "門檻:", Location = new Point(135, 340), AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold) };
             numDutyOverCurrentPct = CreateNumericUpDown(new Point(180, 336), 60, 5, 100, dutyOverCurrentPercent, 0, 5);
             numDutyOverCurrentPct.Font = new Font("微軟正黑體", 11.5f);
@@ -356,7 +356,7 @@ namespace DynamometerHMI
             // -------------------------------------------------------------
             btnStartDuty = new Button() { Text = "▶ 開始工作制測試", Location = new Point(12, 376), Size = new Size(175, 40), BackColor = Color.FromArgb(0, 180, 216), ForeColor = Color.White, Font = new Font("微軟正黑體", 13.5f, FontStyle.Bold) };
             btnStopDuty = new Button() { Text = "⏹ 停止", Location = new Point(195, 376), Size = new Size(95, 40), Enabled = false, Font = new Font("微軟正黑體", 13.5f, FontStyle.Bold) };
-            btnExportDuty = new Button() { Text = "💾 匯出報表", Location = new Point(298, 376), Size = new Size(125, 40), BackColor = Color.FromArgb(16, 185, 129), ForeColor = Color.White, Font = new Font("微軟正黑體", 13.5f, FontStyle.Bold) };
+            btnExportDuty = new Button() { Text = "[儲存] 匯出報表", Location = new Point(298, 376), Size = new Size(125, 40), BackColor = Color.FromArgb(16, 185, 129), ForeColor = Color.White, Font = new Font("微軟正黑體", 13.5f, FontStyle.Bold) };
             prgDuty = new ProgressBar() { Location = new Point(435, 383), Size = new Size(280, 26) };
 
             btnStartDuty.Click += BtnStartDuty_Click;
@@ -399,7 +399,7 @@ namespace DynamometerHMI
             // -------------------------------------------------------------
             grpDutyTemp = new GroupBox()
             {
-                Text = "🌡️ 專屬溫度監控與即時動態波形",
+                Text = " 專屬溫度監控與即時動態波形",
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 13f, FontStyle.Bold),
                 BackColor = Color.FromArgb(248, 250, 252)
@@ -466,7 +466,7 @@ namespace DynamometerHMI
             };
             Label lblDutyTimeTitle = new Label()
             {
-                Text = "⏱️ 時間軸範圍:",
+                Text = "⏱ 時間軸範圍:",
                 Location = new Point(4, 8),
                 AutoSize = true,
                 Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold),
@@ -474,7 +474,7 @@ namespace DynamometerHMI
             };
             Button btnDutyTimeMinus = new Button()
             {
-                Text = "➖",
+                Text = "",
                 Location = new Point(4, 34),
                 Size = new Size(28, 30),
                 FlatStyle = FlatStyle.Flat,
@@ -497,7 +497,7 @@ namespace DynamometerHMI
 
             Button btnDutyTimePlus = new Button()
             {
-                Text = "➕",
+                Text = "",
                 Location = new Point(220, 34),
                 Size = new Size(28, 30),
                 FlatStyle = FlatStyle.Flat,
@@ -528,11 +528,11 @@ namespace DynamometerHMI
 
             // 底部 S6 兩段式超溫防護列
             pnlS6Overtemp = new Panel() { Dock = DockStyle.Bottom, Height = 48, BackColor = Color.FromArgb(254, 242, 242), Padding = new Padding(4) };
-            Label lWarn = new Label() { Text = "⚠️ 警告門檻:", Location = new Point(6, 13), AutoSize = true, Font = new Font("微軟正黑體", 11f, FontStyle.Bold), ForeColor = Color.DarkOrange };
+            Label lWarn = new Label() { Text = "[!] 警告門檻:", Location = new Point(6, 13), AutoSize = true, Font = new Font("微軟正黑體", 11f, FontStyle.Bold), ForeColor = Color.DarkOrange };
             numS6WarnTemp = CreateNumericUpDown(new Point(105, 9), 65, 30, 200, 90, 0, 1);
             numS6WarnTemp.Font = new Font("微軟正黑體", 11f, FontStyle.Bold);
 
-            Label lTrip = new Label() { Text = "🛑 停機門檻:", Location = new Point(175, 13), AutoSize = true, Font = new Font("微軟正黑體", 11f, FontStyle.Bold), ForeColor = Color.FromArgb(220, 38, 38) };
+            Label lTrip = new Label() { Text = "[停機] 停機門檻:", Location = new Point(175, 13), AutoSize = true, Font = new Font("微軟正黑體", 11f, FontStyle.Bold), ForeColor = Color.FromArgb(220, 38, 38) };
             numS6TripTemp = CreateNumericUpDown(new Point(275, 9), 65, 30, 200, 105, 0, 1);
             numS6TripTemp.Font = new Font("微軟正黑體", 11f, FontStyle.Bold);
 
@@ -607,7 +607,7 @@ namespace DynamometerHMI
 
             Label lHint = new Label()
             {
-                Text = "請勾選需參與熱平衡判定 (30分鐘溫差<1.0°C) 與即時監控之通道：\n(若設備已連線，可點擊「⚡ 依實測選取」自動偵測真正有訊號的通道)",
+                Text = "請勾選需參與熱平衡判定 (30分鐘溫差<1.0°C) 與即時監控之通道：\n(若設備已連線，可點擊「[電] 依實測選取」自動偵測真正有訊號的通道)",
                 Dock = DockStyle.Top,
                 Height = 44,
                 Padding = new Padding(6),
@@ -636,7 +636,7 @@ namespace DynamometerHMI
             Button btnOk = new Button() { Text = "確定", DialogResult = DialogResult.OK, Width = 70, Height = 28, BackColor = Color.FromArgb(16, 185, 129), ForeColor = Color.White };
             Button btnAutoDetect = new Button()
             {
-                Text = "⚡ 依實測選取",
+                Text = "[電] 依實測選取",
                 Width = 115,
                 Height = 28,
                 BackColor = Color.FromArgb(59, 130, 246),
@@ -1307,7 +1307,7 @@ namespace DynamometerHMI
             if (!isHmiKebOpen1 || !isHmiKebOpen2)
             {
                 MessageBox.Show(
-                    "【🚨 全自動控制安全拒絕】\n\n" +
+                    "【[!] 全自動控制安全拒絕】\n\n" +
                     "執行 DUTY 工作制測試由上位機全權掌控 ST 運轉與加載！\n" +
                     "為防止通訊失效或失控飛車，系統強制要求【雙載台 (COM1 與 COM2) 必須 100% 同時連線】！\n\n" +
                     "目前檢測到尚有一側未連線，請先至主畫面點擊 [Open] 連線後再開始測試。",
@@ -1374,7 +1374,7 @@ namespace DynamometerHMI
             string spdDriveName = (spdDrive == 1) ? "A載台" : "B載台";
             string trqDriveName = (trqDrive == 1) ? "A載台" : "B載台";
 
-            // ★【啟動前變頻器狀態與故障防護校驗】：
+            // 【啟動前變頻器狀態與故障防護校驗】：
             // 1. 檢查硬體 ST 安全端子 (ru.00 == 0 代表 Control Release 未閉合 / nOP)
             // 2. 檢查變頻器真實硬體故障碼 (ru.43 != 0 代表硬體報警)
             int? curRuSpd = KebReadParamWithDll(spdCom, spdBaud, spdNode, 0x0200);
@@ -1384,18 +1384,18 @@ namespace DynamometerHMI
 
             if (curRuSpd.HasValue && curRuSpd.Value == 0)
             {
-                MessageBox.Show(string.Format("【🚨 硬體ST端子未閉合】\n\n{0} 目前處於 0: nOP (Control Release 斷開)！\n請先閉合機櫃實體 ST 端子開關以放行功率級。", spdDriveName),
+                MessageBox.Show(string.Format("【[!] 硬體ST端子未閉合】\n\n{0} 目前處於 0: nOP (Control Release 斷開)！\n請先閉合機櫃實體 ST 端子開關以放行功率級。", spdDriveName),
                     "硬體安全端子未閉合", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             if (curRuTrq.HasValue && curRuTrq.Value == 0)
             {
-                MessageBox.Show(string.Format("【🚨 硬體ST端子未閉合】\n\n{0} 目前處於 0: nOP (Control Release 斷開)！\n請先閉合機櫃實體 ST 端子開關以放行功率級。", trqDriveName),
+                MessageBox.Show(string.Format("【[!] 硬體ST端子未閉合】\n\n{0} 目前處於 0: nOP (Control Release 斷開)！\n請先閉合機櫃實體 ST 端子開關以放行功率級。", trqDriveName),
                     "硬體安全端子未閉合", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            // 若任一側處於真實故障狀態 (ru.43 != 0)，嘗試自動發送 FAULT RESET (Sy.50=2 ➔ Sy.50=0)
+            // 若任一側處於真實故障狀態 (ru.43 != 0)，嘗試自動發送 FAULT RESET (Sy.50=2  Sy.50=0)
             if (curFaultSpd.HasValue && curFaultSpd.Value != 0)
             {
                 WriteHmiLog("DUTY_WARN", string.Format("【啟動前故障警告】{0} 目前處於故障狀態 (ru.43={1}: {2})，自動發送 FAULT RESET...", spdDriveName, curFaultSpd.Value, DecodeKebFaultCode(curFaultSpd.Value)));
@@ -1422,7 +1422,7 @@ namespace DynamometerHMI
                     : string.Format("{0} 故障未除 (ru.43={1}: {2})", trqDriveName, curFaultTrq.Value, DecodeKebFaultCode(curFaultTrq.Value));
                 WriteHmiLog("DUTY_ABORT", string.Format("【啟動拒絕】{0}，自動復歸無效，終止啟動！", faultMsg));
                 MessageBox.Show(
-                    string.Format("【🚨 變頻器故障拒絕啟動】\n\n檢測到 {0}！\n系統已嘗試自動復歸但故障無法排除。\n請至變頻器檢查故障碼並排除硬體異常後再試。", faultMsg),
+                    string.Format("【[!] 變頻器故障拒絕啟動】\n\n檢測到 {0}！\n系統已嘗試自動復歸但故障無法排除。\n請至變頻器檢查故障碼並排除硬體異常後再試。", faultMsg),
                     "變頻器故障拒絕啟動",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error
@@ -1433,7 +1433,7 @@ namespace DynamometerHMI
             // 啟動前刷新扭力計心跳時間，防止啟動瞬間因零速無封包觸發保護
             lastTorquePacketTime = DateTime.Now;
 
-            // ★ 強制自動將雙機切換為全自動控制模式 (待測端 Mode 9 / 加載端 Mode 10)
+            //  強制自動將雙機切換為全自動控制模式 (待測端 Mode 9 / 加載端 Mode 10)
             SetHmiKebMode(spdCom, spdBaud, spdNode, 9, spdDriveName + " (DUTY全自動速度)");
             if (spdDrive == 1) currentKebMode1 = 9; else currentKebMode2 = 9;
 
@@ -1449,7 +1449,7 @@ namespace DynamometerHMI
             else if (dutyModeIdx == 1) dutyTag = "S2";
             else if (dutyModeIdx == 2) dutyTag = "S6";
 
-            // ★ 自動開啟 RAW DATA 記錄 (檔名後綴: _S1, _S2, _S6)
+            //  自動開啟 RAW DATA 記錄 (檔名後綴: _S1, _S2, _S6)
             StartAutoRawRecordingWithTag(dutyTag);
 
             if (s1TempHistory != null) s1TempHistory.Clear();
@@ -1476,7 +1476,7 @@ namespace DynamometerHMI
 
                 if (curSy52 == 0 || curCs18 == 0)
                 {
-                    // 錨點數值為 0 ➔ 執行錨點偵測測試 (採用統一自適應加速定錨引擎)
+                    // 錨點數值為 0  執行錨點偵測測試 (採用統一自適應加速定錨引擎)
                     isS2Calibrating = true;
                     s2CalibStage = 1; // 統一引擎自適應加載階段 (內含自動空載提速與熱備妥激磁)
                     s2CalibTimer = 10;
@@ -1487,7 +1487,7 @@ namespace DynamometerHMI
                 }
                 else
                 {
-                    // 錨點數值 > 0 ➔ 直接套用記錄/輸入之錨點運轉！
+                    // 錨點數值 > 0  直接套用記錄/輸入之錨點運轉！
                     isS2Calibrating = false;
                     s2AnchorSy52 = curSy52;
                     s2AnchorCs18 = curCs18;
@@ -1568,16 +1568,16 @@ namespace DynamometerHMI
             KebWriteParamWithDll(spdCom, spdBaud, spdNode, 0x0F12, 1000); // 放行 100% 轉矩
             SetHmiKebCommand(spdCom, spdBaud, spdNode, 4, "待測端啟轉運轉 (Sy50=4)");
 
-            // ★ 啟轉後短暫等待並校驗變頻器真實故障碼 ru.43 (0x022B)，若硬體跳脫則中止
+            //  啟轉後短暫等待並校驗變頻器真實故障碼 ru.43 (0x022B)，若硬體跳脫則中止
             Thread.Sleep(80);
             int? postRunFault = KebReadParamWithDll(spdCom, spdBaud, spdNode, 0x022B);
             if (postRunFault.HasValue && postRunFault.Value != 0)
             {
                 SetHmiKebCommand(spdCom, spdBaud, spdNode, 0, "啟轉故障停機");
-                WriteHmiLog("DUTY_ABORT", string.Format("【🚨 啟轉失敗】{0} 啟轉後突發變頻器硬體故障 (ru.43={1}: {2})，已強制停機並終止測試！",
+                WriteHmiLog("DUTY_ABORT", string.Format("【[!] 啟轉失敗】{0} 啟轉後突發變頻器硬體故障 (ru.43={1}: {2})，已強制停機並終止測試！",
                     spdDriveName, postRunFault.Value, DecodeKebFaultCode(postRunFault.Value)));
                 MessageBox.Show(
-                    string.Format("【🚨 變頻器啟轉故障】\n\n{0} 下達運轉指令後檢測到故障報警 (ru.43={1}: {2})！\n測試已自動中止並強制停機。",
+                    string.Format("【[!] 變頻器啟轉故障】\n\n{0} 下達運轉指令後檢測到故障報警 (ru.43={1}: {2})！\n測試已自動中止並強制停機。",
                         spdDriveName, postRunFault.Value, DecodeKebFaultCode(postRunFault.Value)),
                     "變頻器啟轉異常",
                     MessageBoxButtons.OK,
@@ -1587,7 +1587,7 @@ namespace DynamometerHMI
                 return;
             }
 
-            // ★ 方案 B：加載端初始保持 0 轉矩待命 (Sy50=0，不於零速激磁耗能發熱)
+            //  方案 B：加載端初始保持 0 轉矩待命 (Sy50=0，不於零速激磁耗能發熱)
             // 待測端轉速達到低速門檻 (>= 60 rpm) 時，再於背景自動上電激磁 (Sy50=4, CS18=0) 熱備妥
             isLoadMotorPreEnergized = false;
             KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0);
@@ -1727,13 +1727,13 @@ namespace DynamometerHMI
             double actAbsSpd = Math.Abs(actSpeed);
             double actAbsTrq = Math.Abs(actTorque);
 
-            // ★【DUTY 變頻器硬體故障保護守護】：檢測任一載台是否處於真實硬體故障 (ru.43 != 0)
+            // 【DUTY 變頻器硬體故障保護守護】：檢測任一載台是否處於真實硬體故障 (ru.43 != 0)
             if (lastKebFaultCode1 != 0 || lastKebFaultCode2 != 0)
             {
                 int faultDrive = (lastKebFaultCode1 != 0) ? 1 : 2;
                 int faultCode = (faultDrive == 1) ? lastKebFaultCode1 : lastKebFaultCode2;
                 string faultDriveName = (faultDrive == 1) ? "A載台" : "B載台";
-                WriteHmiLog("DUTY_ABORT", string.Format("【🚨 DUTY 測試異常中斷】檢測到 {0} 突發硬體故障報警 (ru.43={1}: {2})，已強制安全卸載停機！",
+                WriteHmiLog("DUTY_ABORT", string.Format("【[!] DUTY 測試異常中斷】檢測到 {0} 突發硬體故障報警 (ru.43={1}: {2})，已強制安全卸載停機！",
                     faultDriveName, faultCode, DecodeKebFaultCode(faultCode)));
                 StopDutyTest();
                 return;
@@ -1800,7 +1800,7 @@ namespace DynamometerHMI
 
             string currentPhaseName = "運轉中";
 
-            // ★ 方案 B：加載端低速激磁預備 (Zero-Torque Hot-Standby)
+            //  方案 B：加載端低速激磁預備 (Zero-Torque Hot-Standby)
             // 當待測端轉速達到低速門檻 (>= 60 rpm) 且加載端尚未上電時，自動執行 Sy50=4 但保持 CS18=0 (無故障即可)
             if (!isLoadMotorPreEnergized && actAbsSpd >= 60.0 && lastKebFaultCode1 == 0 && lastKebFaultCode2 == 0)
             {
@@ -1810,7 +1810,7 @@ namespace DynamometerHMI
                 WriteHmiLog("DUTY_STAGE", string.Format("【低速激磁預備 (方案B)】待測端轉速已達 {0:F0} rpm，加載端預先上電激磁 (Sy50=4, CS18=0) 平滑跟隨，徹底消除高速反轉矩衝擊！", actAbsSpd));
             }
 
-            // ★【DUTY 基準電流採樣與全域過電流保護】
+            // 【DUTY 基準電流採樣與全域過電流保護】
             double curSig = actCurrentSigma;
             double curDrv = (spdDrive == 1) ? kebCurrent1 : kebCurrent2;
 
@@ -1891,7 +1891,7 @@ namespace DynamometerHMI
                         ? string.Format("PowerMeter Σ: {0:F2}A > 門檻 {1:F2}A (基準 {2:F2}A +{3}%)", curSig, sigLimit, dutyBaselineCurrentSigma, (int)dutyOverCurrentPercent)
                         : string.Format("驅動器輸出: {0:F2}A > 門檻 {1:F2}A (基準 {2:F2}A +{3}%)", curDrv, drvLimit, dutyBaselineCurrentDrive, (int)dutyOverCurrentPercent);
 
-                    lblDutyPhaseAction.Text = string.Format("⚠️【電流過載警示】{0} (超限 {1:F0}/{2:F0}s)", tripDetail, overSec, reqDelay);
+                    lblDutyPhaseAction.Text = string.Format("[!]【電流過載警示】{0} (超限 {1:F0}/{2:F0}s)", tripDetail, overSec, reqDelay);
                     if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
 
                     if (overSec >= reqDelay)
@@ -1900,7 +1900,7 @@ namespace DynamometerHMI
                         if (isManualRecording) StopManualRecording(showPrompt: false);
 
                         string tripMsg = string.Format(
-                            "【🚨 DUTY 過電流跳脫保護】\n\n" +
+                            "【[!] DUTY 過電流跳脫保護】\n\n" +
                             "實測電流超出基準負載 {0}% 連續達 {1:F0} 秒！\n" +
                             "觸發詳情：{2}\n\n" +
                             "系統已立即啟動平滑降載停機程序保護待測設備！",
@@ -1912,7 +1912,7 @@ namespace DynamometerHMI
                             btnStopDuty.Enabled = false;
                             if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
                             if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
-                            lblDutyStatus.Text = "【🚨 過電流保護跳脫】已安全停機！";
+                            lblDutyStatus.Text = "【[!] 過電流保護跳脫】已安全停機！";
                             lblDutyPhaseAction.Text = tripDetail;
                             if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
                             if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
@@ -1983,7 +1983,7 @@ namespace DynamometerHMI
                         s6TrialStageElapsedSec = 0;
                         WriteHmiLog("S6_ANCHOR", string.Format("待測端空載轉速已到位 ({0:F1} rpm)，開始 10 秒空載穩定確認！", actAbsSpd));
                     }
-                    // 子階段 1：空載 10 秒穩定確認 ➔ 確定並記錄 [空載轉速錨點]
+                    // 子階段 1：空載 10 秒穩定確認  確定並記錄 [空載轉速錨點]
                     else if (s6TrialStage == 1)
                     {
                         currentPhaseName = "空載定錨倒數";
@@ -2089,10 +2089,10 @@ namespace DynamometerHMI
                         else if (s6TrialStageElapsedSec >= 90)
                         {
                             // 超時防護：超過 90 秒仍無法達標，停止並警示，嚴禁偽裝定錨成功！
-                            WriteHmiLog("S6_ERROR", string.Format("【🚨 S6 加載定錨超時報警】已調節 90 秒但轉矩仍無法達到目標 ({0:F1}/{1:F1} Nm)！請檢查負載側供電、制動器或目標值設定！", actAbsTrq, targetTrq));
+                            WriteHmiLog("S6_ERROR", string.Format("【[!] S6 加載定錨超時報警】已調節 90 秒但轉矩仍無法達到目標 ({0:F1}/{1:F1} Nm)！請檢查負載側供電、制動器或目標值設定！", actAbsTrq, targetTrq));
                             StopDutyTest();
                             MessageBox.Show(
-                                string.Format("【🚨 S6 加載定錨超時】\n\n系統加載調節已達 90 秒，但轉矩實測 ({0:F1} Nm) 仍未達目標 ({1:F1} Nm)！\n\n系統已安全停機保護，請確認負載端出力能力與設定值。", actAbsTrq, targetTrq),
+                                string.Format("【[!] S6 加載定錨超時】\n\n系統加載調節已達 90 秒，但轉矩實測 ({0:F1} Nm) 仍未達目標 ({1:F1} Nm)！\n\n系統已安全停機保護，請確認負載端出力能力與設定值。", actAbsTrq, targetTrq),
                                 "S6 定錨未達標警告",
                                 MessageBoxButtons.OK,
                                 MessageBoxIcon.Warning
@@ -2100,7 +2100,7 @@ namespace DynamometerHMI
                             return;
                         }
                     }
-                    // 子階段 3：加載 10 秒穩定確認 ➔ 確定並記錄 [加載轉速錨點] 與 [加載轉矩錨點] (★ 嚴禁未達標強制倒數)
+                    // 子階段 3：加載 10 秒穩定確認  確定並記錄 [加載轉速錨點] 與 [加載轉矩錨點] ( 嚴禁未達標強制倒數)
                     else if (s6TrialStage == 3)
                     {
                         currentPhaseName = "加載定錨倒數";
@@ -2109,7 +2109,7 @@ namespace DynamometerHMI
                         double trqErr = targetTrq - actAbsTrq;
                         double spdSlip = targetSpd - actAbsSpd;
 
-                        // ★ 嚴格判定轉矩與轉速是否雙雙在合格容許帶內 (轉矩 ±5% 或 ±1.5Nm, 轉速 ±5% 或 ±15rpm)
+                        //  嚴格判定轉矩與轉速是否雙雙在合格容許帶內 (轉矩 ±5% 或 ±1.5Nm, 轉速 ±5% 或 ±15rpm)
                         bool isTrqReached = Math.Abs(trqErr) <= Math.Max(1.5, targetTrq * 0.05);
                         bool isSpdReached = Math.Abs(spdSlip) <= Math.Max(15.0, targetSpd * 0.05);
                         bool isLoadedAnchorReached = isTrqReached && isSpdReached;
@@ -2136,7 +2136,7 @@ namespace DynamometerHMI
                         }
                         else
                         {
-                            // ★ 鐵律：一旦轉矩或轉速偏離容許帶，倒數計時器立即重置回 10 秒！絕不允許累積拼湊！
+                            //  鐵律：一旦轉矩或轉速偏離容許帶，倒數計時器立即重置回 10 秒！絕不允許累積拼湊！
                             s6TrialTimer = 10;
 
                             // 偏離較大時加大步長修正
@@ -2165,7 +2165,7 @@ namespace DynamometerHMI
                         if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
                         if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
 
-                        // ★ 唯有 s6TrialTimer <= 0（真正連續 10 秒在目標容許帶內），才宣告定錨完成！
+                        //  唯有 s6TrialTimer <= 0（真正連續 10 秒在目標容許帶內），才宣告定錨完成！
                         if (s6TrialTimer <= 0)
                         {
                             // 記錄【加載轉速錨點】與【加載轉矩錨點】
@@ -2188,10 +2188,10 @@ namespace DynamometerHMI
                         else if (s6TrialStageElapsedSec >= 60)
                         {
                             // Stage 3 超時防護：超過 60 秒都無法完成連續 10 秒穩定
-                            WriteHmiLog("S6_ERROR", string.Format("【🚨 S6 穩定確認超時】加載已達目標附近但波動過大，無法在 60 秒內連續穩定 10 秒 (實測 {0:F1}/{1:F1} Nm)！", actAbsTrq, targetTrq));
+                            WriteHmiLog("S6_ERROR", string.Format("【[!] S6 穩定確認超時】加載已達目標附近但波動過大，無法在 60 秒內連續穩定 10 秒 (實測 {0:F1}/{1:F1} Nm)！", actAbsTrq, targetTrq));
                             StopDutyTest();
                             MessageBox.Show(
-                                string.Format("【🚨 S6 穩定確認超時】\n\n加載已接近目標 ({0:F1}/{1:F1} Nm)，但系統波動過大，60 秒內無法連續穩定 10 秒！\n\n系統已安全停機保護，避免記錄不穩定之偽錨點。", actAbsTrq, targetTrq),
+                                string.Format("【[!] S6 穩定確認超時】\n\n加載已接近目標 ({0:F1}/{1:F1} Nm)，但系統波動過大，60 秒內無法連續穩定 10 秒！\n\n系統已安全停機保護，避免記錄不穩定之偽錨點。", actAbsTrq, targetTrq),
                                 "S6 穩定度未達標警告",
                                 MessageBoxButtons.OK,
                                 MessageBoxIcon.Warning
@@ -2199,7 +2199,7 @@ namespace DynamometerHMI
                             return;
                         }
                     }
-                    // 子階段 4：維持試運轉完整的 S6 設定 DUTY 時間 T1 ➔ 先減速回 [空載轉速錨點] ➔ 卸載
+                    // 子階段 4：維持試運轉完整的 S6 設定 DUTY 時間 T1  先減速回 [空載轉速錨點]  卸載
                     else if (s6TrialStage == 4)
                     {
                         currentPhaseName = "試運轉 T1 有載";
@@ -2214,7 +2214,7 @@ namespace DynamometerHMI
                             KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, (int)Math.Round(s6AdaptedTorquePct * 10));
                         }
 
-                        // ★ T1 即將結束前 2 秒：先減速回 [空載轉速錨點]！
+                        //  T1 即將結束前 2 秒：先減速回 [空載轉速錨點]！
                         if (s6CycleElapsedSec >= t1Sec - 2 && s6CycleElapsedSec < t1Sec)
                         {
                             s6CurrentSpeedCmd = s6AnchorNoLoadSpeed;
@@ -2235,7 +2235,7 @@ namespace DynamometerHMI
                             WriteHmiLog("S6_STAGE", string.Format("【試運轉進入 T2】加載端已完全卸載歸零，等待空載自冷時間 (T - ED%) 共 {0} 秒！", t2Sec));
                         }
 
-                        string remT1Text = string.Format("【自適應試運轉】🔥 T1 有載運轉中 (剩餘 {0}s)", Math.Max(0, t1Sec - s6CycleElapsedSec));
+                        string remT1Text = string.Format("【自適應試運轉】 T1 有載運轉中 (剩餘 {0}s)", Math.Max(0, t1Sec - s6CycleElapsedSec));
                         lblDutyStatus.Text = remT1Text;
                         lblDutyPhaseAction.Text = string.Format("【T1 有載】實測 {0:F1} Nm / 轉速 {1:F0} rpm (輸出 {2:F1}%)", actAbsTrq, actAbsSpd, s6AdaptedTorquePct);
                         if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = remT1Text;
@@ -2248,7 +2248,7 @@ namespace DynamometerHMI
                         s6CycleElapsedSec++;
                         KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // 加載端確保歸零
 
-                        string remT2Text = string.Format("【自適應試運轉】❄️ T2 空載自冷中 (剩餘 {0}s)", Math.Max(0, t2Sec - s6CycleElapsedSec));
+                        string remT2Text = string.Format("【自適應試運轉】 T2 空載自冷中 (剩餘 {0}s)", Math.Max(0, t2Sec - s6CycleElapsedSec));
                         lblDutyStatus.Text = remT2Text;
                         lblDutyPhaseAction.Text = string.Format("加載端已卸載歸零 0.0 Nm，轉速 {0:F0} rpm 自冷運轉中...", actAbsSpd);
                         if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = remT2Text;
@@ -2287,7 +2287,7 @@ namespace DynamometerHMI
                     if (dutyMonitoredTemp < s6CurrentCycleTroughTemp)
                         s6CurrentCycleTroughTemp = dutyMonitoredTemp;
 
-                    // ★ S6 兩段式超溫防護監控 (警告 / 停機)
+                    //  S6 兩段式超溫防護監控 (警告 / 停機)
                     double warnThresh = (numS6WarnTemp != null) ? (double)numS6WarnTemp.Value : 90.0;
                     double tripThresh = (numS6TripTemp != null) ? (double)numS6TripTemp.Value : 105.0;
 
@@ -2298,13 +2298,13 @@ namespace DynamometerHMI
                         {
                             StopManualRecording(showPrompt: false);
                         }
-                        WriteHmiLog("S6_OVERTEMP", string.Format("【🛑 S6 嚴重超溫保護】監控溫度達 {0:F1} ℃ >= 停機門檻 {1:F1} ℃，啟動安全停機！", dutyMonitoredTemp, tripThresh));
+                        WriteHmiLog("S6_OVERTEMP", string.Format("【[停機] S6 嚴重超溫保護】監控溫度達 {0:F1} ℃ >= 停機門檻 {1:F1} ℃，啟動安全停機！", dutyMonitoredTemp, tripThresh));
                         StartGradualAutoStop(spdDrive, trqDrive, "S6 嚴重超溫停機保護", () => {
                             btnStartDuty.Enabled = true;
                             btnStopDuty.Enabled = false;
                             if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
                             if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
-                            lblDutyStatus.Text = string.Format("【🛑 嚴重超溫停機】實測 {0:F1} ℃ >= 停機門檻 {1:F1} ℃！", dutyMonitoredTemp, tripThresh);
+                            lblDutyStatus.Text = string.Format("【[停機] 嚴重超溫停機】實測 {0:F1} ℃ >= 停機門檻 {1:F1} ℃！", dutyMonitoredTemp, tripThresh);
                             lblDutyPhaseAction.Text = "超溫停機保護已生效，雙機已降載停機。";
                             MessageBox.Show(string.Format("【S6 超溫安全停機保護】\r\n\r\n監控通道實測溫度已達 {0:F1} ℃，超過設定之停機門檻 {1:F1} ℃！\r\n系統已自動執行安全降載停機保護。", dutyMonitoredTemp, tripThresh), "S6 超溫安全停機", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         });
@@ -2355,7 +2355,7 @@ namespace DynamometerHMI
                                 else if (trqDrive == 2 && numHmiKebTorque2 != null) numHmiKebTorque2.Value = (decimal)s6AdaptedTorquePct;
                             }
 
-                            // 2. ★【待測端轉速平滑閉迴路追隨 (同動 LOCK 設定)】(T1 結束前2秒降速階段不追隨)
+                            // 2. 【待測端轉速平滑閉迴路追隨 (同動 LOCK 設定)】(T1 結束前2秒降速階段不追隨)
                             if (s6CycleElapsedSec < t1Sec - 2 && actAbsSpd >= targetSpd * 0.5 && targetSpd > 50.0)
                             {
                                 double spdDeadband = (trackingSpeedDeadband > 0) ? (double)trackingSpeedDeadband : 3.0;
@@ -2376,7 +2376,7 @@ namespace DynamometerHMI
                             }
                         }
 
-                        // ★ T1 結束前 2 秒：先減速回 [空載轉速錨點]！
+                        //  T1 結束前 2 秒：先減速回 [空載轉速錨點]！
                         if (s6CycleElapsedSec >= t1Sec - 2 && s6CycleElapsedSec < t1Sec)
                         {
                             s6CurrentSpeedCmd = s6AnchorNoLoadSpeed;
@@ -2443,7 +2443,7 @@ namespace DynamometerHMI
                             }
                         }
 
-                        string formalT1Text = string.Format("[第 {0}/{1} 週期] 🔥 T1 有載 (剩餘 {2}s) | 峰值: {3:F1}℃", s6FormalCycleIndex, totalFormalCycles, t1Sec - s6CycleElapsedSec, curPeak);
+                        string formalT1Text = string.Format("[第 {0}/{1} 週期]  T1 有載 (剩餘 {2}s) | 峰值: {3:F1}℃", s6FormalCycleIndex, totalFormalCycles, t1Sec - s6CycleElapsedSec, curPeak);
                         lblDutyStatus.Text = formalT1Text;
                         lblDutyPhaseAction.Text = string.Format("【T1 有載】實測 {0:F1} Nm / 目標 {1:F1} Nm (給定 {2:F1}%) | 最高: {3:F1}℃", actAbsTrq, targetTrq, s6AdaptedTorquePct, curPeak);
                         if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = formalT1Text;
@@ -2466,7 +2466,7 @@ namespace DynamometerHMI
                         }
 
                         double curPeakT2 = (s6CurrentCyclePeakTemp > -100) ? s6CurrentCyclePeakTemp : dutyMonitoredTemp;
-                        string formalT2Text = string.Format("[第 {0}/{1} 週期] ❄️ T2 空載自冷 (剩餘 {2}s) | 目前低溫: {3:F1}℃", s6FormalCycleIndex, totalFormalCycles, totalCycleSec - s6CycleElapsedSec, dutyMonitoredTemp);
+                        string formalT2Text = string.Format("[第 {0}/{1} 週期]  T2 空載自冷 (剩餘 {2}s) | 目前低溫: {3:F1}℃", s6FormalCycleIndex, totalFormalCycles, totalCycleSec - s6CycleElapsedSec, dutyMonitoredTemp);
                         lblDutyStatus.Text = formalT2Text;
                         lblDutyPhaseAction.Text = string.Format("【T2 空載】加載端歸零 0.0 Nm，轉速 {0:F0} rpm 自冷中... (即時冷溫: {1:F1}℃)", actAbsSpd, dutyMonitoredTemp);
                         if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = formalT2Text;
@@ -2477,7 +2477,7 @@ namespace DynamometerHMI
                     // 【單一正式週期結束交替】
                     else if (s6CycleElapsedSec >= totalCycleSec)
                     {
-                        // ★【S6 熱平衡分析：結算當前週期最高溫點與冷卻最後低溫】
+                        // 【S6 熱平衡分析：結算當前週期最高溫點與冷卻最後低溫】
                         double finalCoolingTrough = dutyMonitoredTemp;
                         s6TroughTempHistory.Add(finalCoolingTrough);
                         s6LastCycleTroughTemp = finalCoolingTrough;
@@ -2490,7 +2490,7 @@ namespace DynamometerHMI
                                 s6FormalCycleIndex, s6CurrentCyclePeakTemp, finalCoolingTrough, s6CurrentCyclePeakTemp - finalCoolingTrough, s6PeakTempHistory.Count));
                         }
 
-                        // ★ 判定穩定後多做一個週期再次確認機制
+                        //  判定穩定後多做一個週期再次確認機制
                         if (s6IsVerifyingConfirmationCycle)
                         {
                             int n = s6PeakTempHistory.Count;
@@ -2500,13 +2500,13 @@ namespace DynamometerHMI
 
                             if (confirmDiff <= 1.0)
                             {
-                                // ★★★ 再次確認成功！正式宣告熱平衡達成並停機 ★★★
+                                //  再次確認成功！正式宣告熱平衡達成並停機 
                                 s6ThermalBalanced = true;
                                 s6IsVerifyingConfirmationCycle = false;
 
                                 if (lblS6ThermalStatus != null)
                                 {
-                                    lblS6ThermalStatus.Text = string.Format("✅ S6 熱平衡確認通過 (追加週期溫差 {0:F2}℃ <= 1.0℃)！", confirmDiff);
+                                    lblS6ThermalStatus.Text = string.Format(" S6 熱平衡確認通過 (追加週期溫差 {0:F2}℃ <= 1.0℃)！", confirmDiff);
                                     lblS6ThermalStatus.ForeColor = Color.Green;
                                 }
                                 WriteHmiLog("S6_THERMAL_BALANCED", string.Format("【S6 熱平衡追加確認成功】第 {0} 追加確認週期最高溫 {1:F2} ℃ (前週期 {2:F2} ℃，溫差 {3:F2} ℃ <= 1.0℃，冷卻最後低溫 {4:F2} ℃)，正式達標！",
@@ -2535,17 +2535,17 @@ namespace DynamometerHMI
                             }
                             else
                             {
-                                // ★★★ 再次確認未通過！繼續測試！★★★
+                                //  再次確認未通過！繼續測試！
                                 s6IsVerifyingConfirmationCycle = false;
                                 if (s6FormalCycleIndex >= totalFormalCycles)
                                 {
                                     totalFormalCycles = s6FormalCycleIndex + 3;
                                 }
 
-                                WriteHmiLog("S6_CONFIRM_FAIL", string.Format("【⚠️ S6 追加確認未通過】第 {0} 確認週期溫差 ({1:F2}℃ > 1.0℃)，取消確認，依規定自動繼續進行週期試驗！", s6FormalCycleIndex, confirmDiff));
+                                WriteHmiLog("S6_CONFIRM_FAIL", string.Format("【[!] S6 追加確認未通過】第 {0} 確認週期溫差 ({1:F2}℃ > 1.0℃)，取消確認，依規定自動繼續進行週期試驗！", s6FormalCycleIndex, confirmDiff));
                                 if (lblS6ThermalStatus != null)
                                 {
-                                    lblS6ThermalStatus.Text = string.Format("⚠️ 追加確認未過 (溫差 {0:F1}℃ > 1.0℃)，繼續測試累積週期...", confirmDiff);
+                                    lblS6ThermalStatus.Text = string.Format("[!] 追加確認未過 (溫差 {0:F1}℃ > 1.0℃)，繼續測試累積週期...", confirmDiff);
                                     lblS6ThermalStatus.ForeColor = Color.DarkOrange;
                                 }
                             }
@@ -2570,7 +2570,7 @@ namespace DynamometerHMI
 
                                 if (stable30m)
                                 {
-                                    // ★ 依要求：判定穩定後再多做一個週期來再次確認！
+                                    //  依要求：判定穩定後再多做一個週期來再次確認！
                                     s6IsVerifyingConfirmationCycle = true;
                                     s6ConfirmationCycleIndex = s6FormalCycleIndex + 1;
                                     if (totalFormalCycles < s6ConfirmationCycleIndex)
@@ -2664,7 +2664,7 @@ namespace DynamometerHMI
                     s1TempHistory.RemoveAll(x => x.Key < expireTime);
                 }
 
-                // ★【S1 專屬：不補轉差 40 筆取中間 30 筆平均採樣機制】
+                // 【S1 專屬：不補轉差 40 筆取中間 30 筆平均採樣機制】
                 // 當轉矩首次接近目標 (扭力穩定) 時啟動
                 bool isTrqNearTarget = Math.Abs(actAbsTrq - targetTrq) <= Math.Max(1.0, targetTrq * 0.06);
                 if (!s1NoSlipCompleted)
@@ -2734,7 +2734,7 @@ namespace DynamometerHMI
 
                 if (!isS1RecordingNoSlip)
                 {
-                    // ★【全系統統一核心引擎：SY52 + CS18 雙閉環自適應加速定錨追隨】
+                    // 【全系統統一核心引擎：SY52 + CS18 雙閉環自適應加速定錨追隨】
                     string s1TrackStatus;
                     bool s1Converged = ExecuteUnifiedDualTrackingStep(
                         s1LoadTracker, spdDrive, trqDrive,
@@ -2798,7 +2798,7 @@ namespace DynamometerHMI
                     {
                         if (dutyElapsedSec >= 1800)
                         {
-                            s1EstText = "★已達熱平衡 (30m溫差<1℃)";
+                            s1EstText = "已達熱平衡 (30m溫差<1℃)";
                         }
                         else
                         {
@@ -2855,13 +2855,13 @@ namespace DynamometerHMI
                         }
 
                         string thermalSummary = string.Format("S1 熱平衡: 實測30m最大ΔT = {0:F2}℃ (CH{1}) | 斜率: {2:+0.00;-0.00}℃/m | {3}",
-                            maxDeltaT, maxCh + 1, s1Slope, allPass ? "★ 全通道已達標 (<1.0℃)" : s1EstText);
+                            maxDeltaT, maxCh + 1, s1Slope, allPass ? " 全通道已達標 (<1.0℃)" : s1EstText);
                         lblThermalStatus.Text = thermalSummary;
                         lblThermalStatus.ForeColor = allPass ? Color.SeaGreen : Color.DarkOrange;
                         if (lblS1ThermalStatus != null)
                         {
                             lblS1ThermalStatus.Text = string.Format("溫升斜率: {0:+0.00;-0.00}℃/m (30m實測: {1:F1}℃) | {2}",
-                                s1Slope, maxDeltaT, allPass ? "★全通道達標" : s1EstText);
+                                s1Slope, maxDeltaT, allPass ? "全通道達標" : s1EstText);
                             lblS1ThermalStatus.ForeColor = allPass ? Color.SeaGreen : Color.DarkOrange;
                         }
 
@@ -2925,7 +2925,7 @@ namespace DynamometerHMI
             {
                 if (isS2Calibrating)
                 {
-                    // 【S2 錨點測試流程】到達指定轉速與扭矩後穩定 10 秒 ➔ 記住此錨點 (SY52 / CS18) ➔ 停機
+                    // 【S2 錨點測試流程】到達指定轉速與扭矩後穩定 10 秒  記住此錨點 (SY52 / CS18)  停機
                     currentPhaseName = "S2 錨點測試";
 
                     // 子階段 0：空載提速至使用者輸入之目標轉速
@@ -2966,7 +2966,7 @@ namespace DynamometerHMI
                             WriteHmiLog("S2_ANCHOR", string.Format("【S2 錨點測試】轉速與轉矩雙雙達標收斂 ({0:F1} Nm / {1:F0} rpm)，開始 10 秒穩定確認倒數！", actAbsTrq, actAbsSpd));
                         }
                     }
-                    // 子階段 2：10 秒穩定確認 ➔ 記住錨點並停機
+                    // 子階段 2：10 秒穩定確認  記住錨點並停機
                     else if (s2CalibStage == 2)
                     {
                         double trqErr = targetTrq - actAbsTrq;
@@ -3056,7 +3056,7 @@ namespace DynamometerHMI
 
                     currentPhaseName = "S2 短時";
 
-                    // ★【全系統統一核心引擎：SY52 + CS18 雙閉環微調維持】
+                    // 【全系統統一核心引擎：SY52 + CS18 雙閉環微調維持】
                     string s2RunTrackStatus;
                     ExecuteUnifiedDualTrackingStep(
                         s2LoadTracker, spdDrive, trqDrive,
@@ -3110,7 +3110,7 @@ namespace DynamometerHMI
                         }
                         else
                         {
-                            string hint = willOverheat ? string.Format(" ⚠️[預估超溫! 閥值{0:F1}℃]", threshold) : string.Format(" (閥值{0:F1}℃·安全)", threshold);
+                            string hint = willOverheat ? string.Format(" [!][預估超溫! 閥值{0:F1}℃]", threshold) : string.Format(" (閥值{0:F1}℃·安全)", threshold);
                             lblS2ThermalStatus.Text = string.Format("溫升斜率: {0:+0.00;-0.00}℃/m | 時長 {1:F0}m 預估終溫: {2:F1}℃{3}",
                                 s2Slope, targetDurMin, estFinalTemp, hint);
                             lblS2ThermalStatus.ForeColor = willOverheat ? Color.FromArgb(220, 38, 38) : Color.FromArgb(30, 64, 175);
@@ -3126,13 +3126,13 @@ namespace DynamometerHMI
                         else
                         {
                             lblThermalStatus.Text = string.Format("S2 溫升預估: 斜率 {0:+0.00;-0.00}℃/m | 時長 {1:F0}m 預估終溫: {2:F1}℃ {3}",
-                                s2Slope, targetDurMin, estFinalTemp, willOverheat ? "⚠️[預估超溫]" : "✓[安全]");
+                                s2Slope, targetDurMin, estFinalTemp, willOverheat ? "[!][預估超溫]" : "[安全]");
                             lblThermalStatus.ForeColor = willOverheat ? Color.FromArgb(220, 38, 38) : Color.FromArgb(30, 64, 175);
                         }
                     }
 
                     lblDutyPhaseAction.Text = string.Format("【恆定加載】加載輸出 {0:F1}%, 實測轉速 {1:F0} rpm | 預估終溫: {2:F1}℃{3}",
-                        s6AdaptedTorquePct, actAbsSpd, estFinalTemp, willOverheat ? " ⚠️注意超溫" : "");
+                        s6AdaptedTorquePct, actAbsSpd, estFinalTemp, willOverheat ? " [!]注意超溫" : "");
 
                     if (chkS2TempStop != null && chkS2TempStop.Checked)
                     {
@@ -3149,7 +3149,7 @@ namespace DynamometerHMI
                                 if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
                                 if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
 
-                                // ★ 依要求：S2 完成一個執行流程後自動歸零錨點
+                                //  依要求：S2 完成一個執行流程後自動歸零錨點
                                 s2AnchorSy52 = 0;
                                 s2AnchorCs18 = 0;
                                 if (numS2AnchorSy52 != null) numS2AnchorSy52.Value = 0;
@@ -3182,7 +3182,7 @@ namespace DynamometerHMI
                             if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
                             if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
 
-                            // ★ 依要求：S2 完成一個執行流程後自動歸零錨點
+                            //  依要求：S2 完成一個執行流程後自動歸零錨點
                             s2AnchorSy52 = 0;
                             s2AnchorCs18 = 0;
                             if (numS2AnchorSy52 != null) numS2AnchorSy52.Value = 0;

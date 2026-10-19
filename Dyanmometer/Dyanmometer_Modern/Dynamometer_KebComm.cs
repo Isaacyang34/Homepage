@@ -140,6 +140,31 @@ namespace DynamometerHMI
         private static int activeKebBaudIndex_1 = -1;
         private static int activeKebComIndex_2 = -1;   // protKEB_2.dll (B載台)
         private static int activeKebBaudIndex_2 = -1;
+        public static volatile bool isHmiKebOpen1Static = false;
+        public static volatile bool isHmiKebOpen2Static = false;
+
+        /// <summary>
+        /// 全域強制釋放 KEB 雙 DLL 的 COM 埠控制代碼 (杜絕 Windows 內核 COM 佔用)
+        /// </summary>
+        public static void ForceReleaseAllKebComPorts()
+        {
+            lock (kebLock)
+            {
+                isHmiKebOpen1Static = false;
+                isHmiKebOpen2Static = false;
+                activeKebComIndex_1 = -1;
+                activeKebBaudIndex_1 = -1;
+                activeKebComIndex_2 = -1;
+                activeKebBaudIndex_2 = -1;
+                activeKebComIndex_hmi = -1;
+                activeKebBaudIndex_hmi = -1;
+                try { closechannels(); } catch { }
+                try { closechannels_2(); } catch { }
+                try { System.Threading.Thread.Sleep(50); } catch { }
+                try { closechannels(); } catch { }
+                try { closechannels_2(); } catch { }
+            }
+        }
 
         // =========================================================================
         //  硬體 ST 安全端子與 ru.00 狀態解碼與即時變更追蹤
@@ -254,7 +279,7 @@ namespace DynamometerHMI
                 }
             }
 
-            // ★【T-N/自動測試硬體跳脫聯鎖】：若變頻器突發異常 (76:故障減速, 30:故障保持, 4:快速停機, 79:STO, 0:ST切斷)
+            // 【T-N/自動測試硬體跳脫聯鎖】：若變頻器突發異常 (76:故障減速, 30:故障保持, 4:快速停機, 79:STO, 0:ST切斷)
             if (ru00Val == 76 || ru00Val == 30 || ru00Val == 4 || ru00Val == 79 || ru00Val == 0)
             {
                 if (tnTimer != null && tnTimer.Enabled)
@@ -273,7 +298,7 @@ namespace DynamometerHMI
             }
 
             // ru.00 == 0 代表變頻器處於 0: no operation (nOP / Control Release 斷開)
-            // ★【核心韌體解鎖】：KEB F5 僅在 nOP 狀態下允許寫入 cs.00！若檢測到 cs.00 殘留為 4，立即趁 nOP 自動寫入 cs.00 = 0！
+            // 【核心韌體解鎖】：KEB F5 僅在 nOP 狀態下允許寫入 cs.00！若檢測到 cs.00 殘留為 4，立即趁 nOP 自動寫入 cs.00 = 0！
             if (ru00Val == 0)
             {
                 int cachedCs = (driveId == 1) ? cachedCs00_1 : cachedCs00_2;
@@ -410,7 +435,7 @@ namespace DynamometerHMI
 
                 DialogResult dr = MessageBox.Show(
                     string.Format(
-                        "【⚠️ 斷線優先安全警告】\n\n" +
+                        "【[!] 斷線優先安全警告】\n\n" +
                         "系統檢測到目前正處於 {0} 狀態！\n\n" +
                         "斷開 {1} 通訊前，必須先安全解除 LOCK 追隨控制，以防止驅動器通訊中斷引發非預期運轉。\n\n" +
                         "請問是否確定要【解除 LOCK 並立即斷開連線】？",
@@ -440,7 +465,7 @@ namespace DynamometerHMI
             if (isFullAuto)
             {
                 DialogResult dr = MessageBox.Show(
-                    string.Format("【⚠️ 全自動模式斷開 COM PORT 警告】\n\n系統目前處於【全自動控制】模式！\n若在此狀態下斷開 {0} 的 COM PORT 連線，將觸發連鎖安全停機保護，【強制雙載台全部停機並斷電】！\n\n請問是否確定要斷開 COM PORT 連線？", driveName),
+                    string.Format("【[!] 全自動模式斷開 COM PORT 警告】\n\n系統目前處於【全自動控制】模式！\n若在此狀態下斷開 {0} 的 COM PORT 連線，將觸發連鎖安全停機保護，【強制雙載台全部停機並斷電】！\n\n請問是否確定要斷開 COM PORT 連線？", driveName),
                     "全自動安全防護確認",
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Warning,
@@ -462,7 +487,7 @@ namespace DynamometerHMI
         {
             string dName = (driveIdx == 1) ? "A載台(COM1)" : "B載台(COM2)";
             string modeDesc = GetKebModeName(mode);
-            WriteHmiLog("USER_ACTION", string.Format("【使用者點擊模式按鈕】載台: {0} ➔ 要求切換為: 【{1}】", dName, modeDesc));
+            WriteHmiLog("USER_ACTION", string.Format("【使用者點擊模式按鈕】載台: {0}  要求切換為: 【{1}】", dName, modeDesc));
 
             // 邏輯 1：全自動控制模式 (模式 9: 全自動轉速, 模式 10: 全自動轉矩) 必須雙機 100% 同時連線！
             if (mode == 9 || mode == 10)
@@ -470,7 +495,7 @@ namespace DynamometerHMI
                 if (!isHmiKebOpen1 || !isHmiKebOpen2)
                 {
                     MessageBox.Show(
-                        "【🚨 全自動控制安全拒絕】\n\n" +
+                        "【[!] 全自動控制安全拒絕】\n\n" +
                         "全自動控制（oP.01=8）由上位機軟體全權掌控 ST 運轉與停機！\n" +
                         "為防止單機全自動運轉導致失控超速（飛車），系統強制要求【雙載台 (COM1 與 COM2) 必須 100% 同時連線】！\n\n" +
                         "目前檢測到尚有一側未連線，已強制阻斷切換！請先將雙機全部連線後再試。",
@@ -491,7 +516,7 @@ namespace DynamometerHMI
                 if (!otherOnline)
                 {
                     DialogResult dr = MessageBox.Show(
-                        "【⚠️ 單機調試提醒】\n\n對測端載台尚未連線！\n在單機狀態下輸出轉矩，請確認外部負載已安全就緒，以防無對抗下超速。\n\n是否確認進入定轉矩模式進行單機調試？",
+                        "【[!] 單機調試提醒】\n\n對測端載台尚未連線！\n在單機狀態下輸出轉矩，請確認外部負載已安全就緒，以防無對抗下超速。\n\n是否確認進入定轉矩模式進行單機調試？",
                         "動力計單機調試提示",
                         MessageBoxButtons.YesNo,
                         MessageBoxIcon.Question
@@ -602,7 +627,7 @@ namespace DynamometerHMI
             bool d2_spdEnable = (currentKebMode2 == 7 || currentKebMode2 == 9);
             bool d2_trqEnable = (currentKebMode2 == 8 || currentKebMode2 == 10);
 
-            // 🚨 全面安全互鎖：當 LOCK 鎖定時，強制禁用對應的手動控制項，只能由「🎯目標值」來改變！
+            // [!] 全面安全互鎖：當 LOCK 鎖定時，強制禁用對應的手動控制項，只能由「[校正]目標值」來改變！
             if (isSpeedTracking)
             {
                 // 轉速 LOCK 鎖定中：禁止手動更改速度，防止階躍落差衝擊
@@ -691,8 +716,8 @@ namespace DynamometerHMI
             }
         }
 
-        private bool isHmiKebOpen1 = false;
-        private bool isHmiKebOpen2 = false;
+        public bool isHmiKebOpen1 = false;
+        public bool isHmiKebOpen2 = false;
         private int cachedUd02_1 = -1, cachedUd02_2 = -1;
         private int cachedCs00_1 = -1, cachedCs00_2 = -1;
         public static double cachedRu03Scale_1 = 0.0125;  // A載台預設 4000 rpm 速度範圍 (0.0125 Hz)
@@ -902,7 +927,7 @@ namespace DynamometerHMI
             return raw * 0.1;
         }
 
-        private bool EnsureHmiKebOpen1()
+        public bool EnsureHmiKebOpen1()
         {
             if (isHmiKebOpen1) return true;
             string port = cmbHmiKebPort1.SelectedItem != null ? cmbHmiKebPort1.SelectedItem.ToString() : "COM1";
@@ -931,6 +956,7 @@ namespace DynamometerHMI
                     activeKebBaudIndex_1 = baudIdx;
                     activeKebComIndex_hmi = comIdx;
                     activeKebBaudIndex_hmi = baudIdx;
+                    isHmiKebOpen1Static = true;
                 }
 
                 // 實體通訊握手校驗：多重探測 ud.02 (0x0802) / oP.00 (0x0300) / ru.00 (0x0200) / Sy.51 (0x0033) / ru.07 (0x0207)
@@ -942,6 +968,7 @@ namespace DynamometerHMI
                 if (testVal.HasValue)
                 {
                     isHmiKebOpen1 = true;
+                    isHmiKebOpen1Static = true;
                     if (btnHmiPortToggle1 != null && !btnHmiPortToggle1.IsDisposed)
                     {
                         btnHmiPortToggle1.Text = "[Close]";
@@ -996,7 +1023,7 @@ namespace DynamometerHMI
             }
         }
 
-        private void CloseHmiKebPort1()
+        public void CloseHmiKebPort1()
         {
             try
             {
@@ -1004,16 +1031,21 @@ namespace DynamometerHMI
             }
             catch { }
 
+            // 關鍵第 1 步：先解除連線標記，瞬間封死所有背景輪詢 (DoHmiKebQuery1) 與計時器重新進入
+            isHmiKebOpen1 = false;
+            isHmiKebOpen1Static = false;
+
             lock (kebLock)
             {
-                try { closechannels(); } catch { }
                 activeKebComIndex_1 = -1;
                 activeKebBaudIndex_1 = -1;
                 activeKebComIndex_hmi = -1;
                 activeKebBaudIndex_hmi = -1;
+                try { closechannels(); } catch { }
+                try { System.Threading.Thread.Sleep(30); } catch { }
+                try { closechannels(); } catch { } // 雙重關閉，確保 Windows 核心釋放 COM Handle
             }
             if (spKeb1 != null) { try { spKeb1.Close(); spKeb1.Dispose(); } catch {} spKeb1 = null; }
-            isHmiKebOpen1 = false;
             cachedUd02_1 = -1;
             cachedCs00_1 = -1;
             UpdateHmiKebModeParamsDisplay(1);
@@ -1037,7 +1069,7 @@ namespace DynamometerHMI
             try { UpdateEquivKebConnectionUi(); } catch { }
         }
 
-        private bool EnsureHmiKebOpen2()
+        public bool EnsureHmiKebOpen2()
         {
             if (isHmiKebOpen2) return true;
             string port = cmbHmiKebPort2.SelectedItem != null ? cmbHmiKebPort2.SelectedItem.ToString() : "COM2";
@@ -1066,6 +1098,7 @@ namespace DynamometerHMI
                     activeKebBaudIndex_2 = baudIdx;
                     activeKebComIndex_hmi = comIdx;
                     activeKebBaudIndex_hmi = baudIdx;
+                    isHmiKebOpen2Static = true;
                 }
 
                 // 實體通訊握手校驗：多重探測 ud.02 (0x0802) / oP.00 (0x0300) / ru.00 (0x0200) / Sy.51 (0x0033) / ru.07 (0x0207)
@@ -1077,6 +1110,7 @@ namespace DynamometerHMI
                 if (testVal.HasValue)
                 {
                     isHmiKebOpen2 = true;
+                    isHmiKebOpen2Static = true;
                     if (btnHmiPortToggle2 != null && !btnHmiPortToggle2.IsDisposed)
                     {
                         btnHmiPortToggle2.Text = "[Close]";
@@ -1131,7 +1165,7 @@ namespace DynamometerHMI
             }
         }
 
-        private void CloseHmiKebPort2()
+        public void CloseHmiKebPort2()
         {
             try
             {
@@ -1139,16 +1173,21 @@ namespace DynamometerHMI
             }
             catch { }
 
+            // 關鍵第 1 步：先解除連線標記，瞬間封死所有背景輪詢 (DoHmiKebQuery2) 與計時器重新進入
+            isHmiKebOpen2 = false;
+            isHmiKebOpen2Static = false;
+
             lock (kebLock)
             {
-                try { closechannels_2(); } catch { }
                 activeKebComIndex_2 = -1;
                 activeKebBaudIndex_2 = -1;
                 activeKebComIndex_hmi = -1;
                 activeKebBaudIndex_hmi = -1;
+                try { closechannels_2(); } catch { }
+                try { System.Threading.Thread.Sleep(30); } catch { }
+                try { closechannels_2(); } catch { } // 雙重關閉，確保 Windows 核心釋放 COM Handle
             }
             if (spKeb2 != null) { try { spKeb2.Close(); spKeb2.Dispose(); } catch {} spKeb2 = null; }
-            isHmiKebOpen2 = false;
             cachedUd02_2 = -1;
             cachedCs00_2 = -1;
             UpdateHmiKebModeParamsDisplay(2);
@@ -1356,7 +1395,7 @@ namespace DynamometerHMI
                 double valOp03 = r_op03.HasValue ? (r_op03.Value * 0.125) : 0.0;
                 double valSy52 = r_sy52.HasValue ? (double)r_sy52.Value : 0.0;
 
-                // ★【斷線前自動回寫備份機制】：記錄連線初始之硬體參數快照
+                // 【斷線前自動回寫備份機制】：記錄連線初始之硬體參數快照
                 KebBackupParams backup = (driveId == 1) ? kebBackup1 : kebBackup2;
                 backup.HasBackup = true;
                 backup.Ru00 = r_ru00;
@@ -1453,7 +1492,7 @@ namespace DynamometerHMI
                     {
                         if (cs19Valid && calculatedMinDeadbandTorque > 0)
                         {
-                            lblDbTrqHint.Text = string.Format("⚡死區(≥{0:F3})", calculatedMinDeadbandTorque);
+                            lblDbTrqHint.Text = string.Format("[電]死區(≥{0:F3})", calculatedMinDeadbandTorque);
                             if (numCardDeadband != null && !numCardDeadband.IsDisposed && numCardDeadband.Value < (decimal)calculatedMinDeadbandTorque)
                             {
                                 numCardDeadband.Value = (decimal)calculatedMinDeadbandTorque;
@@ -1462,11 +1501,11 @@ namespace DynamometerHMI
                         }
                         else
                         {
-                            lblDbTrqHint.Text = "⚡死區/誤差";
+                            lblDbTrqHint.Text = "[電]死區/誤差";
                         }
                     }
 
-                    // ★【鐵律要求：連線上線當下，畫面各數值輸入框強制全部歸零！】
+                    // 【鐵律要求：連線上線當下，畫面各數值輸入框強制全部歸零！】
                     if (driveId == 1)
                     {
                         if (numHmiKebSpeed1 != null) numHmiKebSpeed1.Value = 0;
@@ -1490,10 +1529,10 @@ namespace DynamometerHMI
                     UpdateHmiKebModeParamsDisplay(driveId);
                 });
 
-                // ★【鐵律安全防護 1：連線上線強制發送 STOP (Sy.50=0)，徹底消滅背景偷跑！】
+                // 【鐵律安全防護 1：連線上線強制發送 STOP (Sy.50=0)，徹底消滅背景偷跑！】
                 KebWriteParamWithDll(comIdx, baudIdx, node, 0x0032, 0); // Sy.50 = 0 (強制停機)
                 
-                // ★【鐵律安全防護 2：若當前變頻器處於 FAULT (ru.43 != 0)，自動發送 FAULT RESET (Sy.50=2) 清除報警！】
+                // 【鐵律安全防護 2：若當前變頻器處於 FAULT (ru.43 != 0)，自動發送 FAULT RESET (Sy.50=2) 清除報警！】
                 if (r_ru43.HasValue && r_ru43.Value != 0)
                 {
                     WriteHmiLog("KEB_WARN", string.Format("【{0} 上線檢測到硬體報警】ru.43=0x{1:X2} ({2})，自動發送 FAULT RESET...", driveName, r_ru43.Value, DecodeKebFaultCode(r_ru43.Value)));
@@ -1502,18 +1541,18 @@ namespace DynamometerHMI
                     KebWriteParamWithDll(comIdx, baudIdx, node, 0x0032, 0); // 復歸為 0
                 }
 
-                // ★【鐵律安全防護 3：若 cs.00 殘留為 4 (向量模式)，強制復歸原生安全 cs.00 = 0 (V/F 模式)！】
+                // 【鐵律安全防護 3：若 cs.00 殘留為 4 (向量模式)，強制復歸原生安全 cs.00 = 0 (V/F 模式)！】
                 if (r_cs00.HasValue && r_cs00.Value == 4)
                 {
                     KebWriteParamWithDll(comIdx, baudIdx, node, 0x0F00, 0); // cs.00 = 0 (V/F)
                     if (driveId == 1) cachedCs00_1 = 0; else cachedCs00_2 = 0;
                 }
 
-                // ★【全系統統一 Sy.52 架構】：oP.00=5 (Sy52過程數據給定), oP.01=7 (半自動實體端子開關控制)
+                // 【全系統統一 Sy.52 架構】：oP.00=5 (Sy52過程數據給定), oP.01=7 (半自動實體端子開關控制)
                 KebWriteParamWithDll(comIdx, baudIdx, node, 0x0300, 5); // oP.00 = 5 (Sy.52)
                 KebWriteParamWithDll(comIdx, baudIdx, node, 0x0301, 7); // oP.01 = 7 (半自動端子開關控制)
 
-                // ★【鐵律安全防護 4：速度與加載端轉矩強制歸零，速度驅動端維持 100% 轉矩極限】
+                // 【鐵律安全防護 4：速度與加載端轉矩強制歸零，速度驅動端維持 100% 轉矩極限】
                 KebWriteParam32(comIdx, baudIdx, node, 0x0034, 0, "連線速度歸零 (Sy.52=0)");
                 
                 // 若為轉矩加載端 (cs00=6 或 Mode 8/10)，加載轉矩強制歸零 cs.18 = 0
@@ -1622,7 +1661,7 @@ namespace DynamometerHMI
                     backup.Op03.HasValue ? backup.Op03.Value.ToString() : "--",
                     backup.Sy52.HasValue ? backup.Sy52.Value.ToString() : "--");
 
-                // ★【離開與斷線純手動鐵律】：強制寫入使用者指定之純手動模式 (AB載台 op01=7, A載台 cs15=1, B載台 op00=5)
+                // 【離開與斷線純手動鐵律】：強制寫入使用者指定之純手動模式 (AB載台 op01=7, A載台 cs15=1, B載台 op00=5)
                 if (driveId == 1)
                 {
                     KebWriteParamWithDll(comIdx, baudIdx, node, 0x0301, 7); // A載台 op.01 = 7 (端子控制)
@@ -1795,7 +1834,7 @@ namespace DynamometerHMI
             lastEstopTriggerTime = DateTime.Now;
 
             // 最高安全級別：強制中斷所有運轉，歸零給定值
-            // ⚠️ 注意：此處不加外層 lock(kebLock)，因為 KebWriteParamWithDll 已內建 lock。
+            // [!] 注意：此處不加外層 lock(kebLock)，因為 KebWriteParamWithDll 已內建 lock。
             // 若加外層鎖，在背景 Worker 持有 kebLock 等待 DLL timeout 期間，
             // 緊急停機和其他 UI 操作三方搶鎖，造成跨執行緒死鎖（UI 死當）！
             for (int i = 0; i < 2; i++) // 降低至 2 次，減少 KEB 匯流排負擔
@@ -1844,10 +1883,10 @@ namespace DynamometerHMI
                 });
             }
 
-            WriteHmiLog("EMERGENCY_STOP", "【🚨 緊急停機 E-STOP 觸發】雙機運轉已強制中斷，所有給定值立即歸零！");
+            WriteHmiLog("EMERGENCY_STOP", "【[!] 緊急停機 E-STOP 觸發】雙機運轉已強制中斷，所有給定值立即歸零！");
             if (txtHmiKebLog != null)
             {
-                txtHmiKebLog.AppendText(string.Format("[{0}] >> [🚨 緊急停機 E-STOP 觸發] 雙載台已強制停機並歸零！\r\n", DateTime.Now.ToLongTimeString()));
+                txtHmiKebLog.AppendText(string.Format("[{0}] >> [[!] 緊急停機 E-STOP 觸發] 雙載台已強制停機並歸零！\r\n", DateTime.Now.ToLongTimeString()));
             }
             UploadLatestLogToCloudAsync(false);
         }
@@ -1885,7 +1924,7 @@ namespace DynamometerHMI
                 });
             }
 
-            WriteHmiLog("FULL_AUTO_STOP", string.Format("【全自動連鎖平穩停機】原因：{0}。已依序執行「轉矩先卸載歸零 ➔ 轉速平穩減速停電」雙機保護！", reason));
+            WriteHmiLog("FULL_AUTO_STOP", string.Format("【全自動連鎖平穩停機】原因：{0}。已依序執行「轉矩先卸載歸零  轉速平穩減速停電」雙機保護！", reason));
             if (txtHmiKebLog != null)
             {
                 txtHmiKebLog.AppendText(string.Format("[{0}] >> [全自動連鎖平穩停機] 雙載台已依序安全卸載並平穩停機！\r\n", DateTime.Now.ToLongTimeString()));
@@ -1944,10 +1983,10 @@ namespace DynamometerHMI
                 double thresholdRpm = (double)autoStopBrakeThresholdRpm;
                 if (thresholdRpm <= 10.0) thresholdRpm = 500.0;
 
-                WriteHmiLog("BRAKE_STOP", string.Format("【啟動煞車加速停機程序】原因: {0} | 當前轉速: {1:F0} rpm | 卸載門檻: {2:F0} rpm (待測{3} ➔ 先停 / 加載{4} ➔ 煞車)",
+                WriteHmiLog("BRAKE_STOP", string.Format("【啟動煞車加速停機程序】原因: {0} | 當前轉速: {1:F0} rpm | 卸載門檻: {2:F0} rpm (待測{3}  先停 / 加載{4}  煞車)",
                     reason, currentSpd, thresholdRpm, spdDrive == 1 ? "A載台" : "B載台", trqDrive == 1 ? "A載台" : "B載台"));
 
-                // ★【低於門檻轉速直達】：若目前轉速已經 < thresholdRpm，直接雙機下達 Sy.50=0
+                // 【低於門檻轉速直達】：若目前轉速已經 < thresholdRpm，直接雙機下達 Sy.50=0
                 if (currentSpd < thresholdRpm)
                 {
                     isGradualStopping = false;
@@ -1978,7 +2017,7 @@ namespace DynamometerHMI
                     return;
                 }
 
-                // ★【大於等於門檻轉速：加載煞車狀態機】：
+                // 【大於等於門檻轉速：加載煞車狀態機】：
                 // 步驟 1: 待測端立即下達 Sy.50 = 0 (切斷動力)，轉速設定歸零
                 KebWriteParamWithDll(spdCom, spdBaud, spdNode, 0x0032, 0); // Sy.50 = 0
                 if (spdDrive == 1) lastSy50Cmd1 = 0; else lastSy50Cmd2 = 0;
@@ -2194,7 +2233,7 @@ namespace DynamometerHMI
                                     {
                                         dutyTimer.Stop();
                                         ExecuteFullAutoGracefulStop(string.Format("A載台硬體故障 (ru.43={0}: {1})", val.Value, DecodeKebFaultCode(val.Value)));
-                                        WriteHmiLog("DUTY_ABORT", string.Format("【🚨 DUTY 測試異常中斷】檢測到 A載台突發硬體故障 (ru.43={0}: {1})，已強制安全卸載停機！", val.Value, DecodeKebFaultCode(val.Value)));
+                                        WriteHmiLog("DUTY_ABORT", string.Format("【[!] DUTY 測試異常中斷】檢測到 A載台突發硬體故障 (ru.43={0}: {1})，已強制安全卸載停機！", val.Value, DecodeKebFaultCode(val.Value)));
                                     }
                                     if (tnTimer != null && tnTimer.Enabled)
                                     {
@@ -2206,13 +2245,13 @@ namespace DynamometerHMI
                                     {
                                         effMapTimer.Stop();
                                         ExecuteFullAutoGracefulStop(string.Format("A載台硬體故障 (ru.43={0}: {1})", val.Value, DecodeKebFaultCode(val.Value)));
-                                        WriteHmiLog("EFFMAP_ABORT", string.Format("【🚨 效率MAP 測試異常中斷】檢測到 A載台突發硬體故障 (ru.43={0}: {1})，已強制安全停機！", val.Value, DecodeKebFaultCode(val.Value)));
+                                        WriteHmiLog("EFFMAP_ABORT", string.Format("【[!] 效率MAP 測試異常中斷】檢測到 A載台突發硬體故障 (ru.43={0}: {1})，已強制安全停機！", val.Value, DecodeKebFaultCode(val.Value)));
                                     }
 
                                     if (enableProtKebFault && (lastSy50Cmd1 != 0 || lastSy50Cmd2 != 0))
                                     {
                                         TriggerGlobalEmergencyStop();
-                                        WriteHmiLog("SAFETY_TRIP", string.Format("【🚨 安全保護跳脫】A載台檢測到內部硬體故障 (ru.43={0}: {1})，對側已連鎖緊急停機！", val.Value, DecodeKebFaultCode(val.Value)));
+                                        WriteHmiLog("SAFETY_TRIP", string.Format("【[!] 安全保護跳脫】A載台檢測到內部硬體故障 (ru.43={0}: {1})，對側已連鎖緊急停機！", val.Value, DecodeKebFaultCode(val.Value)));
                                     }
                                 }
                             }
@@ -2282,7 +2321,7 @@ namespace DynamometerHMI
                         if (lblPillKeb1 != null && !lblPillKeb1.IsDisposed)
                         {
                             this.BeginInvoke((MethodInvoker)delegate {
-                                lblPillKeb1.Text = string.Format(" A載台: [⚠️ 瞬斷重連中 ({0:F0}s)] ", remSec);
+                                lblPillKeb1.Text = string.Format(" A載台: [[!] 瞬斷重連中 ({0:F0}s)] ", remSec);
                                 lblPillKeb1.ForeColor = Color.FromArgb(245, 158, 11);
                             });
                         }
@@ -2307,7 +2346,7 @@ namespace DynamometerHMI
                             {
                                 KebWriteParamWithDll(GetHmiKebComIdx(2), GetHmiKebBaudIdx(2), (int)numHmiKebNode2.Value, 0x0032, 0); // STOP
                                 KebWriteParamWithDll(GetHmiKebComIdx(2), GetHmiKebBaudIdx(2), (int)numHmiKebNode2.Value, 0x0034, 0); // Sy.52 = 0
-                                WriteHmiLog("FAILSAFE", "【🚨 分級連鎖停機】加載端 (A載台) 斷線逾時，待測端 (B載台) 已自動安全停機斷電！");
+                                WriteHmiLog("FAILSAFE", "【[!] 分級連鎖停機】加載端 (A載台) 斷線逾時，待測端 (B載台) 已自動安全停機斷電！");
                             }
                         }
                         else
@@ -2317,7 +2356,7 @@ namespace DynamometerHMI
                             {
                                 KebWriteParamWithDll(GetHmiKebComIdx(2), GetHmiKebBaudIdx(2), (int)numHmiKebNode2.Value, 0x0F12, 0); // cs.18 = 0 (卸載)
                                 KebWriteParamWithDll(GetHmiKebComIdx(2), GetHmiKebBaudIdx(2), (int)numHmiKebNode2.Value, 0x0032, 0); // STOP
-                                WriteHmiLog("FAILSAFE", "【🚨 分級連鎖停機】待測端 (A載台) 斷線逾時，加載端 (B載台) 轉矩已自動卸載歸零並停電！");
+                                WriteHmiLog("FAILSAFE", "【[!] 分級連鎖停機】待測端 (A載台) 斷線逾時，加載端 (B載台) 轉矩已自動卸載歸零並停電！");
                             }
                         }
                     }
@@ -2436,7 +2475,7 @@ namespace DynamometerHMI
                                     {
                                         dutyTimer.Stop();
                                         ExecuteFullAutoGracefulStop(string.Format("B載台硬體故障 (ru.43={0}: {1})", val.Value, DecodeKebFaultCode(val.Value)));
-                                        WriteHmiLog("DUTY_ABORT", string.Format("【🚨 DUTY 測試異常中斷】檢測到 B載台突發硬體故障 (ru.43={0}: {1})，已強制安全卸載停機！", val.Value, DecodeKebFaultCode(val.Value)));
+                                        WriteHmiLog("DUTY_ABORT", string.Format("【[!] DUTY 測試異常中斷】檢測到 B載台突發硬體故障 (ru.43={0}: {1})，已強制安全卸載停機！", val.Value, DecodeKebFaultCode(val.Value)));
                                     }
                                     if (tnTimer != null && tnTimer.Enabled)
                                     {
@@ -2448,13 +2487,13 @@ namespace DynamometerHMI
                                     {
                                         effMapTimer.Stop();
                                         ExecuteFullAutoGracefulStop(string.Format("B載台硬體故障 (ru.43={0}: {1})", val.Value, DecodeKebFaultCode(val.Value)));
-                                        WriteHmiLog("EFFMAP_ABORT", string.Format("【🚨 效率MAP 測試異常中斷】檢測到 B載台突發硬體故障 (ru.43={0}: {1})，已強制安全停機！", val.Value, DecodeKebFaultCode(val.Value)));
+                                        WriteHmiLog("EFFMAP_ABORT", string.Format("【[!] 效率MAP 測試異常中斷】檢測到 B載台突發硬體故障 (ru.43={0}: {1})，已強制安全停機！", val.Value, DecodeKebFaultCode(val.Value)));
                                     }
 
                                     if (enableProtKebFault && (lastSy50Cmd1 != 0 || lastSy50Cmd2 != 0))
                                     {
                                         TriggerGlobalEmergencyStop();
-                                        WriteHmiLog("SAFETY_TRIP", string.Format("【🚨 安全保護跳脫】B載台檢測到內部硬體故障 (ru.43={0}: {1})，對側已連鎖緊急停機！", val.Value, DecodeKebFaultCode(val.Value)));
+                                        WriteHmiLog("SAFETY_TRIP", string.Format("【[!] 安全保護跳脫】B載台檢測到內部硬體故障 (ru.43={0}: {1})，對側已連鎖緊急停機！", val.Value, DecodeKebFaultCode(val.Value)));
                                     }
                                 }
                             }
@@ -2550,7 +2589,7 @@ namespace DynamometerHMI
                         if (lblPillKeb2 != null && !lblPillKeb2.IsDisposed)
                         {
                             this.BeginInvoke((MethodInvoker)delegate {
-                                lblPillKeb2.Text = string.Format(" B載台: [⚠️ 瞬斷重連中 ({0:F0}s)] ", remSec);
+                                lblPillKeb2.Text = string.Format(" B載台: [[!] 瞬斷重連中 ({0:F0}s)] ", remSec);
                                 lblPillKeb2.ForeColor = Color.FromArgb(245, 158, 11);
                             });
                         }
@@ -2575,7 +2614,7 @@ namespace DynamometerHMI
                             {
                                 KebWriteParamWithDll(GetHmiKebComIdx(1), GetHmiKebBaudIdx(1), (int)numHmiKebNode1.Value, 0x0032, 0); // STOP
                                 KebWriteParamWithDll(GetHmiKebComIdx(1), GetHmiKebBaudIdx(1), (int)numHmiKebNode1.Value, 0x0034, 0); // Sy.52 = 0
-                                WriteHmiLog("FAILSAFE", "【🚨 分級連鎖停機】加載端 (B載台) 斷線逾時，待測端 (A載台) 已自動安全停機斷電！");
+                                WriteHmiLog("FAILSAFE", "【[!] 分級連鎖停機】加載端 (B載台) 斷線逾時，待測端 (A載台) 已自動安全停機斷電！");
                             }
                         }
                         else
@@ -2585,7 +2624,7 @@ namespace DynamometerHMI
                             {
                                 KebWriteParamWithDll(GetHmiKebComIdx(1), GetHmiKebBaudIdx(1), (int)numHmiKebNode1.Value, 0x0F12, 0); // cs.18 = 0 (卸載)
                                 KebWriteParamWithDll(GetHmiKebComIdx(1), GetHmiKebBaudIdx(1), (int)numHmiKebNode1.Value, 0x0032, 0); // STOP
-                                WriteHmiLog("FAILSAFE", "【🚨 分級連鎖停機】待測端 (B載台) 斷線逾時，加載端 (A載台) 轉矩已自動卸載歸零並停電！");
+                                WriteHmiLog("FAILSAFE", "【[!] 分級連鎖停機】待測端 (B載台) 斷線逾時，加載端 (A載台) 轉矩已自動卸載歸零並停電！");
                             }
                         }
                     }
@@ -2650,8 +2689,28 @@ namespace DynamometerHMI
         private static int? KebReadParamWithDll(int comIndex, int baudIndex, int invAddr, int paramAddr, int paramSet = 1)
         {
             bool useDll2 = (comIndex == 1); // COM2 = index 1 = B載台 → protKEB_2.dll
+
+            // 【防鎖死閉鎖保護】：若該載台已被使用者關閉且通道已釋放 (-1)，嚴禁背景重新呼叫 setprotproperties 開啟 COM 埠！
+            if (useDll2)
+            {
+                if (!isHmiKebOpen2Static && activeKebComIndex_2 < 0) return null;
+            }
+            else
+            {
+                if (!isHmiKebOpen1Static && activeKebComIndex_1 < 0) return null;
+            }
+
             lock (kebLock)
             {
+                if (useDll2)
+                {
+                    if (!isHmiKebOpen2Static && activeKebComIndex_2 < 0) return null;
+                }
+                else
+                {
+                    if (!isHmiKebOpen1Static && activeKebComIndex_1 < 0) return null;
+                }
+
                 try
                 {
                     if (useDll2)
@@ -2697,7 +2756,7 @@ namespace DynamometerHMI
                             setprotproperties(ref prop);
                             setretrycnt(1);
                             activeKebComIndex_1 = comIndex;
-                            activeKebBaudIndex_1 = baudIndex;
+                            activeKebBaudIndex_1 = baudIdx_local_safe(baudIndex);
                         }
                         setinvprot(invAddr, 1);
 
@@ -2725,11 +2784,33 @@ namespace DynamometerHMI
             }
         }
 
+        private static int baudIdx_local_safe(int b) { return b; }
+
         private static bool KebWriteParamWithDll(int comIndex, int baudIndex, int invAddr, int paramAddr, int val, int paramSet = 1)
         {
             bool useDll2 = (comIndex == 1);
+
+            // 【防鎖死閉鎖保護】：若該載台已被使用者關閉且通道已釋放 (-1)，嚴禁背景重新呼叫 setprotproperties 開啟 COM 埠！
+            if (useDll2)
+            {
+                if (!isHmiKebOpen2Static && activeKebComIndex_2 < 0) return false;
+            }
+            else
+            {
+                if (!isHmiKebOpen1Static && activeKebComIndex_1 < 0) return false;
+            }
+
             lock (kebLock)
             {
+                if (useDll2)
+                {
+                    if (!isHmiKebOpen2Static && activeKebComIndex_2 < 0) return false;
+                }
+                else
+                {
+                    if (!isHmiKebOpen1Static && activeKebComIndex_1 < 0) return false;
+                }
+
                 try
                 {
                     if (useDll2)
@@ -2878,7 +2959,7 @@ namespace DynamometerHMI
                 lastB_Dr00 = r_dr00; lastB_Dr01 = r_dr01; lastB_Dr02 = r_dr02;
                 lastB_Dr03 = r_dr03; lastB_Dr04 = r_dr04; lastB_Dr05 = r_dr05;
 
-                WriteHmiLog("DR_CHANGE", string.Format("【⚠️ 偵測到 B載台 dr 參數異動】舊設定: [{0}] -> 新設定: [{1}]", oldSummary, newSummary));
+                WriteHmiLog("DR_CHANGE", string.Format("【[!] 偵測到 B載台 dr 參數異動】舊設定: [{0}] -> 新設定: [{1}]", oldSummary, newSummary));
 
                 try
                 {
@@ -2897,7 +2978,7 @@ namespace DynamometerHMI
             {
                 using (Form dlg = new Form())
                 {
-                    dlg.Text = "⚠️ B載台馬達 dr 參數異動提醒";
+                    dlg.Text = "[!] B載台馬達 dr 參數異動提醒";
                     dlg.Size = new Size(520, 310);
                     dlg.StartPosition = FormStartPosition.CenterParent;
                     dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -2921,7 +3002,7 @@ namespace DynamometerHMI
 
                     Label lblTitle = new Label()
                     {
-                        Text = "⚡ 系統偵測到 B載台 (待測端) 馬達銘牌 dr 參數已變更！",
+                        Text = "[電] 系統偵測到 B載台 (待測端) 馬達銘牌 dr 參數已變更！",
                         Font = new Font("微軟正黑體", 11f, FontStyle.Bold),
                         ForeColor = Color.FromArgb(180, 83, 9),
                         Dock = DockStyle.Fill
@@ -2971,7 +3052,7 @@ namespace DynamometerHMI
 
                     Button btnOk = new Button()
                     {
-                        Text = "✅ 更新馬達名稱",
+                        Text = " 更新馬達名稱",
                         DialogResult = DialogResult.OK,
                         Size = new Size(140, 36),
                         Font = new Font("微軟正黑體", 10f, FontStyle.Bold),

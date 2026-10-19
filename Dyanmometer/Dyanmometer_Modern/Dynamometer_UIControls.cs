@@ -163,7 +163,7 @@ namespace DynamometerHMI
                                 float cy = plotRect.Bottom - (r + 0.5f) * cellH;
                                 using (SolidBrush sbText = new SolidBrush(Color.White))
                                 {
-                                    g.DrawString("★", fnCore, sbText, cx - 6, cy - 6);
+                                    g.DrawString("", fnCore, sbText, cx - 6, cy - 6);
                                 }
                             }
                         }
@@ -553,7 +553,7 @@ namespace DynamometerHMI
             // 頂部峰值轉矩提示徽章
             if (speedTorquePoints.Count > 0 && maxRecordedTorque > 0f)
             {
-                string peakText = string.Format("🌟 峰值轉矩: {0:F1} Nm @ {1:F0} rpm (共 {2} 點，刻度自適應 0~{3:F0} Nm)",
+                string peakText = string.Format(" 峰值轉矩: {0:F1} Nm @ {1:F0} rpm (共 {2} 點，刻度自適應 0~{3:F0} Nm)",
                     maxRecordedTorque, peakTorqueSpeed, speedTorquePoints.Count, maxTorqueScale);
                 SizeF szPeak = g.MeasureString(peakText, fLabel9B);
                 RectangleF rectPeak = new RectangleF(plotRect.Right - szPeak.Width - 6, plotRect.Top - 24, szPeak.Width + 6, szPeak.Height + 4);
@@ -610,7 +610,7 @@ namespace DynamometerHMI
             else
             {
                 // 空白提示文字
-                string hint = "⚡ T-N 特性曲線即時繪圖區 (開始測試後自動動態自適應繪製)";
+                string hint = "[電] T-N 特性曲線即時繪圖區 (開始測試後自動動態自適應繪製)";
                 SizeF sz = g.MeasureString(hint, fHint10B);
                 g.DrawString(hint, fHint10B, Brushes.DarkGray, plotRect.Left + (plotRect.Width - sz.Width) / 2, plotRect.Top + (plotRect.Height - sz.Height) / 2);
             }
@@ -704,7 +704,7 @@ namespace DynamometerHMI
 
             btnTimeMinus = new Button()
             {
-                Text = "➖",
+                Text = "",
                 Size = new Size(24, 20),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.White,
@@ -721,7 +721,7 @@ namespace DynamometerHMI
 
             lblTimeSpan = new Label()
             {
-                Text = "⏱️ " + timeSpanNames[currentTimeSpanIndex],
+                Text = "⏱ " + timeSpanNames[currentTimeSpanIndex],
                 AutoSize = true,
                 Font = new Font("微軟正黑體", 8f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(71, 85, 105),
@@ -734,7 +734,7 @@ namespace DynamometerHMI
 
             btnTimePlus = new Button()
             {
-                Text = "➕",
+                Text = "",
                 Size = new Size(24, 20),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.White,
@@ -758,7 +758,7 @@ namespace DynamometerHMI
         {
             if (lblTimeSpan != null && currentTimeSpanIndex >= 0 && currentTimeSpanIndex < timeSpanNames.Length)
             {
-                lblTimeSpan.Text = "⏱️ " + timeSpanNames[currentTimeSpanIndex];
+                lblTimeSpan.Text = "⏱ " + timeSpanNames[currentTimeSpanIndex];
                 PositionTimeSpanToolbar();
             }
         }
@@ -920,7 +920,7 @@ namespace DynamometerHMI
                 {
                     g.FillRectangle(bBg, plotRect);
                 }
-                string warnText = "⚠️ 設備未連線";
+                string warnText = "[!] 設備未連線";
                 string subText = "Graphtec GL820 溫度記錄器未連線 (無即時數據，請檢查乙太網路或IP)";
                 SizeF sz1 = g.MeasureString(warnText, fontWarn12B);
                 SizeF sz2 = g.MeasureString(subText, fontSub95);
@@ -1023,7 +1023,7 @@ namespace DynamometerHMI
                 {
                     string cName = (main != null && main.gl820ChannelNames != null && singleDrawnCh < main.gl820ChannelNames.Length && !string.IsNullOrEmpty(main.gl820ChannelNames[singleDrawnCh]))
                         ? main.gl820ChannelNames[singleDrawnCh] : ("CH" + (singleDrawnCh + 1));
-                    string singleNotice = string.Format("📌 目前僅顯示單一活躍通道：CH{0} [{1}] 即時溫度: {2:F1} ℃ (其餘通道未接線或 ≤0℃)", singleDrawnCh + 1, cName, singleDrawnTemp);
+                    string singleNotice = string.Format(" 目前僅顯示單一活躍通道：CH{0} [{1}] 即時溫度: {2:F1} ℃ (其餘通道未接線或 ≤0℃)", singleDrawnCh + 1, cName, singleDrawnTemp);
 
                     SizeF szN = g.MeasureString(singleNotice, fontNotice9B);
                     RectangleF rectN = new RectangleF(plotRect.Left + 8, plotRect.Top + 6, szN.Width + 12, szN.Height + 6);
@@ -1038,7 +1038,7 @@ namespace DynamometerHMI
                 }
                 else if (drawnLineCount == 0)
                 {
-                    string noDataNotice = "⚠️ 監控通道目前無溫度訊號 (所有選取通道溫度值均 ≤ 0℃ 或未接線)";
+                    string noDataNotice = "[!] 監控通道目前無溫度訊號 (所有選取通道溫度值均 ≤ 0℃ 或未接線)";
                     SizeF szN = g.MeasureString(noDataNotice, fontNotice95B);
                     g.DrawString(noDataNotice, fontNotice95B, Brushes.Crimson, plotRect.Left + (plotRect.Width - szN.Width) / 2, plotRect.Top + (plotRect.Height - szN.Height) / 2);
                 }
@@ -1543,7 +1543,7 @@ namespace DynamometerHMI
 
             btnTimeMinus = new Button()
             {
-                Text = "➖",
+                Text = "",
                 Size = new Size(24, 20),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.White,
@@ -1562,7 +1562,7 @@ namespace DynamometerHMI
 
             lblTimeSpan = new Label()
             {
-                Text = "⏱️ " + timeSpanNames[currentTimeSpanIndex],
+                Text = "⏱ " + timeSpanNames[currentTimeSpanIndex],
                 AutoSize = true,
                 Font = new Font("微軟正黑體", 8f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(71, 85, 105),
@@ -1577,7 +1577,7 @@ namespace DynamometerHMI
 
             btnTimePlus = new Button()
             {
-                Text = "➕",
+                Text = "",
                 Size = new Size(24, 20),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.White,
@@ -1603,7 +1603,7 @@ namespace DynamometerHMI
         {
             if (lblTimeSpan != null)
             {
-                lblTimeSpan.Text = "⏱️ " + timeSpanNames[currentTimeSpanIndex];
+                lblTimeSpan.Text = "⏱ " + timeSpanNames[currentTimeSpanIndex];
                 PositionTimeSpanToolbar();
             }
         }
@@ -1733,7 +1733,7 @@ namespace DynamometerHMI
                     {
                         g.FillRectangle(bBg, plotRect);
                     }
-                    string warnText = "⚠️ 設備未連線";
+                    string warnText = "[!] 設備未連線";
                     string subText = "Graphtec GL820 溫度記錄器離線 (無即時數據，請檢查乙太網路或IP)";
                     SizeF sz1 = g.MeasureString(warnText, fontWarn12B);
                     SizeF sz2 = g.MeasureString(subText, fontSub95);
@@ -1816,7 +1816,7 @@ namespace DynamometerHMI
                     }
 
                     // 單一通道提示橫幅
-                    string singleNotice = string.Format("📌 目前監控通道：CH{0} [{1}] 即時溫度: {2:F1} ℃", ChannelIndex + 1, ChannelName, latestVal);
+                    string singleNotice = string.Format(" 目前監控通道：CH{0} [{1}] 即時溫度: {2:F1} ℃", ChannelIndex + 1, ChannelName, latestVal);
                     SizeF szN = g.MeasureString(singleNotice, fontNotice9B);
                     RectangleF rectN = new RectangleF(plotRect.Left + 8, plotRect.Top + 6, szN.Width + 12, szN.Height + 6);
                     using (SolidBrush bBgN = new SolidBrush(Color.FromArgb(240, 254, 243, 199)))
@@ -1926,7 +1926,7 @@ namespace DynamometerHMI
 
             btnPointsMinus = new Button()
             {
-                Text = "➖",
+                Text = "",
                 Size = new Size(24, 20),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.White,
@@ -1946,7 +1946,7 @@ namespace DynamometerHMI
 
             lblPointsSpan = new Label()
             {
-                Text = "⏱️ " + pointsNames[currentPointsIndex],
+                Text = "⏱ " + pointsNames[currentPointsIndex],
                 AutoSize = true,
                 Font = new Font("微軟正黑體", 8f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(71, 85, 105),
@@ -1962,7 +1962,7 @@ namespace DynamometerHMI
 
             btnPointsPlus = new Button()
             {
-                Text = "➕",
+                Text = "",
                 Size = new Size(24, 20),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.White,
@@ -1989,7 +1989,7 @@ namespace DynamometerHMI
         {
             if (lblPointsSpan != null)
             {
-                lblPointsSpan.Text = "⏱️ " + pointsNames[currentPointsIndex];
+                lblPointsSpan.Text = "⏱ " + pointsNames[currentPointsIndex];
                 PositionPointsToolbar();
             }
         }
@@ -2082,7 +2082,7 @@ namespace DynamometerHMI
                 minTrq = 0.0; maxTrq = cTrq;
                 minSpd = 0.0; maxSpd = cSpd;
             }
-            else // ScaleMode == 0 (🌟 智慧自動適應 Auto: 底標一律固定為 0，上限依實測與目標自動擴展至優雅整數階梯)
+            else // ScaleMode == 0 ( 智慧自動適應 Auto: 底標一律固定為 0，上限依實測與目標自動擴展至優雅整數階梯)
             {
                 double rawMaxT = 0.0;
                 double rawMaxS = 0.0;
@@ -2252,7 +2252,7 @@ namespace DynamometerHMI
 
                 string statusText = string.Format("實測力矩: {0:F2} Nm | 實測轉速: {1:F0} rpm | 刻度範圍: [0~{2:F1}Nm, 0~{3:F0}rpm]{4}", 
                     Math.Abs(last.ActTorque), Math.Abs(last.ActSpeed), 
-                    maxTrq, maxSpd, last.IsLocked ? " [🎯 目標追蹤中]" : "");
+                    maxTrq, maxSpd, last.IsLocked ? " [[校正] 目標追蹤中]" : "");
                 g.DrawString(statusText, fFoot8, Brushes.DarkSlateGray, plotRect.Left, plotRect.Bottom + 2);
             }
             else
@@ -2277,7 +2277,7 @@ namespace DynamometerHMI
         public ClosedLoopControlDialog(MainForm mainForm)
         {
             this.main = mainForm;
-            this.Text = "🎯 主捲平滑追隨、常態日誌與全自動安全防護矩陣設定";
+            this.Text = "[校正] 主捲平滑追隨、常態日誌與全自動安全防護矩陣設定";
             this.Size = new Size(720, 1035);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -2314,7 +2314,7 @@ namespace DynamometerHMI
             // 1. 雙軸平滑追隨 GroupBox (待測端轉速鎖 + 加載端轉矩鎖)
             GroupBox grpTracking = new GroupBox()
             {
-                Text = "️ 雙軸閉迴路平滑追隨與安全防護 (待測端轉速鎖 + 加載端轉矩鎖)",
+                Text = " 雙軸閉迴路平滑追隨與安全防護 (待測端轉速鎖 + 加載端轉矩鎖)",
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(30, 41, 59)
@@ -2357,7 +2357,7 @@ namespace DynamometerHMI
             // Row 2: 時域共同參數 (濾波窗口 + 控制週期 + 智能連鎖)
             FlowLayoutPanel pnlF1 = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, Margin = new Padding(0) };
             Label lF1 = new Label() { Text = "濾波窗口(ms):", AutoSize = true, Margin = new Padding(0, 5, 0, 0), Font = new Font("微軟正黑體", 9f) };
-            CheckBox chkAutoLink = new CheckBox() { Text = "🔗連鎖", AutoSize = true, Font = new Font("微軟正黑體", 8f, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 215), Margin = new Padding(0, 3, 2, 0) };
+            CheckBox chkAutoLink = new CheckBox() { Text = "[同動]連鎖", AutoSize = true, Font = new Font("微軟正黑體", 8f, FontStyle.Bold), ForeColor = Color.FromArgb(0, 120, 215), Margin = new Padding(0, 3, 2, 0) };
             chkAutoLink.Checked = (main.trackingFilterWindowMs == main.trackingControlIntervalMs);
             pnlF1.Controls.Add(lF1);
             pnlF1.Controls.Add(chkAutoLink);
@@ -2482,7 +2482,7 @@ namespace DynamometerHMI
             // Row 6: 雙軸追隨狀態即時提示條
             lblIntegratedHint = new Label()
             {
-                Text = "⚪【平滑追隨狀態】請透過主畫面【實測轉速】與【實測轉矩】卡片左上角 [LOCK] 一鍵啟閉並展開死區微調！",
+                Text = "[o]【平滑追隨狀態】請透過主畫面【實測轉速】與【實測轉矩】卡片左上角 [LOCK] 一鍵啟閉並展開死區微調！",
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleCenter,
                 Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
@@ -2499,7 +2499,7 @@ namespace DynamometerHMI
             // 2. 常態日誌記錄控制與通訊週期 GroupBox (軌道 1 & 軌道 2 開關 + 輪詢與刷新週期)
             GroupBox grpLogging = new GroupBox()
             {
-                Text = "📋 背景常態日誌記錄與通訊週期設定",
+                Text = " 背景常態日誌記錄與通訊週期設定",
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(30, 41, 59)
@@ -2519,7 +2519,7 @@ namespace DynamometerHMI
 
             chkAutoCsv = new CheckBox()
             {
-                Text = "📊 啟用軌道 1：每日全參數遙測 CSV (Auto_Raw_Telemetry_*.csv 每 1 秒自動寫入)",
+                Text = "[圖表] 啟用軌道 1：每日全參數遙測 CSV (Auto_Raw_Telemetry_*.csv 每 1 秒自動寫入)",
                 Checked = main.enableAutoRawCsv,
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
@@ -2534,7 +2534,7 @@ namespace DynamometerHMI
 
             chkSysLog = new CheckBox()
             {
-                Text = "📝 啟用軌道 2：系統事件與狀態日誌 (hmi_telemetry.log 檔案寫入儲存)",
+                Text = " 啟用軌道 2：系統事件與狀態日誌 (hmi_telemetry.log 檔案寫入儲存)",
                 Checked = main.enableSystemEventLog,
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
@@ -2549,7 +2549,7 @@ namespace DynamometerHMI
 
             CheckBox chkFreqCompare = new CheckBox()
             {
-                Text = "🔬 啟用暫時性頻率比對診斷 (同時比對 PowerMeter 與 KEB ru.03，寫入 [FREQ_COMPARE] 記錄)",
+                Text = " 啟用暫時性頻率比對診斷 (同時比對 PowerMeter 與 KEB ru.03，寫入 [FREQ_COMPARE] 記錄)",
                 Checked = main.enableFreqCompareLog,
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
@@ -2564,7 +2564,7 @@ namespace DynamometerHMI
             // 輪詢週期與 UI 刷新頻率控制列
             FlowLayoutPanel flpIntervals = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Margin = new Padding(0) };
             
-            Label lblPoll = new Label() { Text = "⏱️ 背景輪詢週期:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold), ForeColor = Color.FromArgb(15, 23, 42) };
+            Label lblPoll = new Label() { Text = "⏱ 背景輪詢週期:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold), ForeColor = Color.FromArgb(15, 23, 42) };
             NumericUpDown numPoll = new NumericUpDown() { Minimum = 10, Maximum = 5000, Increment = 10, Value = (main.numUnifiedInterval != null ? main.numUnifiedInterval.Value : 100), Width = 70, Font = new Font("Consolas", 10f, FontStyle.Bold), BackColor = Color.FromArgb(241, 245, 249), ForeColor = Color.FromArgb(16, 185, 129) };
             numPoll.ValueChanged += (s, e) => {
                 if (main.numUnifiedInterval != null) main.numUnifiedInterval.Value = numPoll.Value;
@@ -2572,7 +2572,7 @@ namespace DynamometerHMI
             };
             Label lblPollMs = new Label() { Text = "ms", AutoSize = true, Margin = new Padding(2, 6, 16, 0), Font = new Font("微軟正黑體", 9.5f) };
 
-            Label lblRefresh = new Label() { Text = "🖥️ 主畫面刷新頻率:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold), ForeColor = Color.FromArgb(15, 23, 42) };
+            Label lblRefresh = new Label() { Text = " 主畫面刷新頻率:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold), ForeColor = Color.FromArgb(15, 23, 42) };
             NumericUpDown numRefresh = new NumericUpDown() { Minimum = 50, Maximum = 5000, Increment = 50, Value = (main.numUiRefreshInterval != null ? main.numUiRefreshInterval.Value : 500), Width = 70, Font = new Font("Consolas", 10f, FontStyle.Bold), BackColor = Color.FromArgb(241, 245, 249), ForeColor = Color.FromArgb(2, 132, 199) };
             numRefresh.ValueChanged += (s, e) => {
                 if (main.numUiRefreshInterval != null) main.numUiRefreshInterval.Value = numRefresh.Value;
@@ -2580,7 +2580,7 @@ namespace DynamometerHMI
             };
             Label lblRefreshMs = new Label() { Text = "ms", AutoSize = true, Margin = new Padding(2, 6, 12, 0), Font = new Font("微軟正黑體", 9.5f) };
 
-            Label lblKebPoll = new Label() { Text = "⚡ KEB參數更新:", AutoSize = true, Margin = new Padding(0, 6, 2, 0), Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold), ForeColor = Color.FromArgb(109, 40, 217) };
+            Label lblKebPoll = new Label() { Text = "[電] KEB參數更新:", AutoSize = true, Margin = new Padding(0, 6, 2, 0), Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold), ForeColor = Color.FromArgb(109, 40, 217) };
             NumericUpDown numKebPoll = new NumericUpDown() { Minimum = 100, Maximum = 60000, Increment = 100, Value = main.kebPollingIntervalMs, Width = 75, Font = new Font("Consolas", 10f, FontStyle.Bold), BackColor = Color.FromArgb(241, 245, 249), ForeColor = Color.FromArgb(109, 40, 217) };
             numKebPoll.ValueChanged += (s, e) => {
                 main.kebPollingIntervalMs = (int)numKebPoll.Value;
@@ -2595,7 +2595,7 @@ namespace DynamometerHMI
             FlowLayoutPanel flpLogAction = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(0, 2, 0, 0) };
             Button btnOpenLogs = new Button()
             {
-                Text = " 📁 開啟日誌目錄 (logs/)",
+                Text = "  開啟日誌目錄 (logs/)",
                 Size = new Size(180, 30),
                 BackColor = Color.FromArgb(241, 245, 249),
                 ForeColor = Color.FromArgb(15, 23, 42),
@@ -2621,7 +2621,7 @@ namespace DynamometerHMI
             // 3. 全自動安全防護矩陣 GroupBox (左側勾選 | 中間量化參數 | 右側時間延遲)
             GroupBox grpSafetyMatrix = new GroupBox()
             {
-                Text = "🛡️ 全自動運行安全保護矩陣與失效防護機制 (左側勾選啟用 | 中間量化數值 | 右側判定時間)",
+                Text = "[安全] 全自動運行安全保護矩陣與失效防護機制 (左側勾選啟用 | 中間量化數值 | 右側判定時間)",
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(30, 41, 59)
@@ -2641,7 +2641,7 @@ namespace DynamometerHMI
             // Row 0: 扭力計斷線與數據凍結保護
             CheckBox chkProtTorque = new CheckBox()
             {
-                Text = "🚨 扭力計斷線與反饋凍結保護",
+                Text = "[!] 扭力計斷線與反饋凍結保護",
                 Checked = main.enableProtTorqueLoss,
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
@@ -2660,7 +2660,7 @@ namespace DynamometerHMI
             // Row 1: 機械堵轉與失速卡死保護
             CheckBox chkProtStall = new CheckBox()
             {
-                Text = "⚙️ 機械堵轉/失速卡死保護",
+                Text = "[設定] 機械堵轉/失速卡死保護",
                 Checked = main.enableProtStall,
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
@@ -2683,7 +2683,7 @@ namespace DynamometerHMI
             // Row 2: 繞組與軸承溫度雙級保護 (警告溫度 + 停機溫度)
             CheckBox chkProtOvertemp = new CheckBox()
             {
-                Text = "🌡️ 馬達超溫兩級防護 (GL820)",
+                Text = " 馬達超溫兩級防護 (GL820)",
                 Checked = main.enableProtOvertemp,
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
@@ -2709,7 +2709,7 @@ namespace DynamometerHMI
             // Row 3: WT333E 三相電流不平衡 / 欠相預警 (不強停，僅警示)
             CheckBox chkProtCurrent = new CheckBox()
             {
-                Text = "⚡ WT333E 三相不平衡/欠相預警",
+                Text = "[電] WT333E 三相不平衡/欠相預警",
                 Checked = main.enableProtCurrentImbalance,
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
@@ -2732,7 +2732,7 @@ namespace DynamometerHMI
             // Row 4: 變頻器硬體故障 (ru.43 != 0) 雙機連鎖急停
             CheckBox chkProtKeb = new CheckBox()
             {
-                Text = "⚠️ 變頻器內部硬體故障連鎖",
+                Text = "[!] 變頻器內部硬體故障連鎖",
                 Checked = main.enableProtKebFault,
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
@@ -2762,7 +2762,7 @@ namespace DynamometerHMI
             pnlSafeGrid.Controls.Add(flpDisc, 2, 5);
 
             // Row 6: 自動停機加載煞車卸載轉速門檻
-            Label lblBrakeSpdTitle = new Label() { Text = "🛑 自動停機煞車卸載門檻", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("微軟正黑體", 9f, FontStyle.Bold), ForeColor = Color.FromArgb(185, 28, 28) };
+            Label lblBrakeSpdTitle = new Label() { Text = "[停機] 自動停機煞車卸載門檻", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("微軟正黑體", 9f, FontStyle.Bold), ForeColor = Color.FromArgb(185, 28, 28) };
             Label lblBrakeSpdHint = new Label() { Text = "待測端先停機，加載端煞車至此轉速卸載停機", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("微軟正黑體", 8.5f), ForeColor = Color.FromArgb(16, 185, 129) };
             FlowLayoutPanel flpBrakeSpd = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
             NumericUpDown numAutoStopBrakeRpm = new NumericUpDown() { Minimum = 10, Maximum = 5000, Increment = 50, Value = Math.Max(10, Math.Min(5000, main.autoStopBrakeThresholdRpm)), Width = 65, Font = new Font("Consolas", 9.5f, FontStyle.Bold), BackColor = Color.FromArgb(241, 245, 249), ForeColor = Color.FromArgb(185, 28, 28) };
@@ -2812,8 +2812,8 @@ namespace DynamometerHMI
 
                 if (lblIntegratedHint != null && !lblIntegratedHint.IsDisposed)
                 {
-                    string spdStatus = main.isSpeedTracking ? string.Format("🟢【轉速追隨中: {0:F1} rpm】", main.baselineSpeed) : "⚪【轉速待命中】";
-                    string trqStatus = main.isClosedLoopTracking ? string.Format("🟢【轉矩追隨中: {0:F2} Nm】", main.baselineTorque) : "⚪【轉矩待命中】";
+                    string spdStatus = main.isSpeedTracking ? string.Format("【轉速追隨中: {0:F1} rpm】", main.baselineSpeed) : "[o]【轉速待命中】";
+                    string trqStatus = main.isClosedLoopTracking ? string.Format("【轉矩追隨中: {0:F2} Nm】", main.baselineTorque) : "[o]【轉矩待命中】";
                     lblIntegratedHint.Text = string.Format("{0}  |  {1}", spdStatus, trqStatus);
                     lblIntegratedHint.ForeColor = (main.isSpeedTracking || main.isClosedLoopTracking) ? Color.FromArgb(16, 185, 129) : Color.FromArgb(100, 116, 139);
                 }
@@ -3036,7 +3036,7 @@ namespace DynamometerHMI
             // Group 1: 馬達名稱、儲存檔名與時間間隔算術平均設定
             GroupBox grpMotor = new GroupBox()
             {
-                Text = " ️ 馬達型號、CSV 儲存檔名與紀錄時間間隔 (算術平均) ",
+                Text = "  馬達型號、CSV 儲存檔名與紀錄時間間隔 (算術平均) ",
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold)
             };
@@ -3168,7 +3168,7 @@ namespace DynamometerHMI
                 WrapContents = false,
                 Margin = new Padding(0)
             };
-            Button btnAutoDetect = new Button() { Text = "⚡ 依實測選取", Size = new Size(115, 26), Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold), BackColor = Color.FromArgb(59, 130, 246), ForeColor = Color.White, Cursor = Cursors.Hand };
+            Button btnAutoDetect = new Button() { Text = "[電] 依實測選取", Size = new Size(115, 26), Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold), BackColor = Color.FromArgb(59, 130, 246), ForeColor = Color.White, Cursor = Cursors.Hand };
             btnAutoDetect.Click += (s, e) => {
                 if (main != null)
                 {
@@ -3348,7 +3348,7 @@ namespace DynamometerHMI
         public CalibrationSettingsDialog(MainForm mainForm)
         {
             this.main = mainForm;
-            this.Text = "📐 儀表量測數值校正微調 (WT333E / Kistler 扭力計)";
+            this.Text = " 儀表量測數值校正微調 (WT333E / Kistler 扭力計)";
             this.Size = new Size(580, 480);
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -3371,7 +3371,7 @@ namespace DynamometerHMI
             // 1. WT333E 三相電壓與電流校正
             GroupBox grpWt = new GroupBox()
             {
-                Text = "⚡ 橫河 WT333E 功率計 - 三相比例微調係數 (顯示值 = 讀取值 × 比例)",
+                Text = "[電] 橫河 WT333E 功率計 - 三相比例微調係數 (顯示值 = 讀取值 × 比例)",
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(15, 23, 42)
@@ -3416,7 +3416,7 @@ namespace DynamometerHMI
             // 2. Kistler 扭力計校正
             GroupBox grpTorque = new GroupBox()
             {
-                Text = "🎯 Kistler 4700B 扭力計 - 轉矩比例微調係數",
+                Text = "[校正] Kistler 4700B 扭力計 - 轉矩比例微調係數",
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(15, 23, 42)
@@ -3448,7 +3448,7 @@ namespace DynamometerHMI
 
             Button btnApplySave = new Button()
             {
-                Text = "💾 儲存並套用微調",
+                Text = " 儲存並套用微調",
                 Location = new Point(300, 8),
                 Size = new Size(150, 34),
                 BackColor = Color.FromArgb(16, 185, 129),
@@ -3501,6 +3501,381 @@ namespace DynamometerHMI
                 BackColor = Color.White,
                 ForeColor = Color.FromArgb(30, 41, 59)
             };
+        }
+    }
+
+    // =========================================================================
+    //  全設備獨立手動重新連線與 COM 埠釋放管理對話框 (純 GDI+ / 0 Emoji / XP 相容)
+    // =========================================================================
+    public class DeviceConnectionManagerDialog : Form
+    {
+        private MainForm main;
+        private Label lblTorqueStatus;
+        private Label lblPowerStatus;
+        private Label lblGbdStatus;
+        private Label lblKeb1Status;
+        private Label lblKeb2Status;
+        private TextBox txtConnLog;
+        private System.Windows.Forms.Timer tmrRefresh;
+
+        public DeviceConnectionManagerDialog(MainForm mainForm)
+        {
+            this.main = mainForm;
+            this.Text = "設備通訊連線管理與 COM 埠釋放中心";
+            this.Size = new Size(820, 640);
+            this.StartPosition = FormStartPosition.CenterParent;
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
+            this.BackColor = Color.FromArgb(248, 250, 252);
+            this.Font = new Font("微軟正黑體", 9.5f);
+
+            BuildLayout();
+
+            tmrRefresh = new System.Windows.Forms.Timer() { Interval = 600 };
+            tmrRefresh.Tick += (s, e) => RefreshStatusIndicators();
+            tmrRefresh.Start();
+
+            this.FormClosing += (s, e) => {
+                if (tmrRefresh != null) { tmrRefresh.Stop(); tmrRefresh.Dispose(); }
+            };
+        }
+
+        private void BuildLayout()
+        {
+            TableLayoutPanel root = new TableLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 3,
+                Padding = new Padding(12),
+                BackColor = Color.FromArgb(248, 250, 252)
+            };
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 50f)); // Top actions
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 65f));  // Device cards
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 35f));  // Operation log
+
+            // 1. 頂部主控按鈕列
+            FlowLayoutPanel flpTop = new FlowLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                Margin = new Padding(0)
+            };
+
+            Button btnConnAll = new Button()
+            {
+                Text = " 全設備一鍵連線",
+                Size = new Size(130, 36),
+                BackColor = Color.FromArgb(14, 165, 233),
+                ForeColor = Color.White,
+                Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnConnAll.Click += (s, e) => {
+                AppendLog("正在觸發全設備依序連線程序...");
+                main.ConnectAllDevicesAsync((step, ok) => {
+                    this.BeginInvoke(new Action(() => {
+                        AppendLog(string.Format(">> [{0}] {1}", ok ? "OK" : "FAIL", step));
+                        RefreshStatusIndicators();
+                    }));
+                });
+            };
+
+            Button btnDisconnAll = new Button()
+            {
+                Text = " 全設備一鍵中斷",
+                Size = new Size(130, 36),
+                BackColor = Color.FromArgb(100, 116, 139),
+                ForeColor = Color.White,
+                Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                Margin = new Padding(8, 0, 0, 0)
+            };
+            btnDisconnAll.Click += (s, e) => {
+                AppendLog("正在中斷所有設備連線...");
+                main.DisconnectAllDevices();
+                AppendLog(">> 已中斷所有硬體設備連線");
+                RefreshStatusIndicators();
+            };
+
+            Button btnReleaseCom = new Button()
+            {
+                Text = " 一鍵強制釋放所有 COM 埠",
+                Size = new Size(195, 36),
+                BackColor = Color.FromArgb(217, 119, 6),
+                ForeColor = Color.White,
+                Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                Margin = new Padding(12, 0, 0, 0)
+            };
+            btnReleaseCom.Click += (s, e) => {
+                AppendLog("正在執行全系統 COM 埠深度釋放 (關閉 COM1, COM2, COM4 等控制代碼)...");
+                main.ForceReleaseAllComPorts();
+                AppendLog(">> [OK] 所有 COM 通訊埠已徹底關閉釋放，可供外部軟體開啟使用！");
+                RefreshStatusIndicators();
+            };
+
+            Button btnClose = new Button()
+            {
+                Text = "關閉視窗",
+                Size = new Size(90, 36),
+                BackColor = Color.FromArgb(226, 232, 240),
+                ForeColor = Color.FromArgb(15, 23, 42),
+                Font = new Font("微軟正黑體", 9.5f),
+                Cursor = Cursors.Hand,
+                Margin = new Padding(12, 0, 0, 0)
+            };
+            btnClose.Click += (s, e) => this.Close();
+
+            flpTop.Controls.AddRange(new Control[] { btnConnAll, btnDisconnAll, btnReleaseCom, btnClose });
+            root.Controls.Add(flpTop, 0, 0);
+
+            // 2. 中部五大硬體卡片面板 (TableLayoutPanel 5 Rows)
+            TableLayoutPanel pnlDevices = new TableLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 5,
+                Margin = new Padding(0, 4, 0, 4)
+            };
+            for (int i = 0; i < 5; i++) pnlDevices.RowStyles.Add(new RowStyle(SizeType.Percent, 20f));
+
+            // Card 1: 扭力計
+            lblTorqueStatus = CreateStatusLabel();
+            pnlDevices.Controls.Add(CreateDeviceRow(
+                "Kistler 扭力計",
+                string.Format("通訊埠: {0} @ {1} bps", !string.IsNullOrEmpty(main.torquePortName) ? main.torquePortName : "COM4", main.torqueBaudRate > 0 ? main.torqueBaudRate : 1000000),
+                lblTorqueStatus,
+                () => {
+                    string msg;
+                    bool ok = main.ConnectTorqueMeter(out msg);
+                    AppendLog(string.Format(">> 扭力計: {0}", msg));
+                    RefreshStatusIndicators();
+                },
+                () => {
+                    main.DisconnectTorqueMeter();
+                    AppendLog(">> 已中斷扭力計連線並釋放通訊埠");
+                    RefreshStatusIndicators();
+                }
+            ), 0, 0);
+
+            // Card 2: 橫河 WT333E
+            lblPowerStatus = CreateStatusLabel();
+            pnlDevices.Controls.Add(CreateDeviceRow(
+                "橫河 WT333E 功率分析儀",
+                string.Format("網路位址: {0}:{1} (Modbus TCP)", !string.IsNullOrEmpty(main.powerMeterIp) ? main.powerMeterIp : "192.168.0.11", main.powerMeterPort > 0 ? main.powerMeterPort : 502),
+                lblPowerStatus,
+                () => {
+                    string msg;
+                    bool ok = main.ConnectPowerMeter(out msg);
+                    AppendLog(string.Format(">> WT333E: {0}", msg));
+                    RefreshStatusIndicators();
+                },
+                () => {
+                    main.DisconnectPowerMeter();
+                    AppendLog(">> 已中斷 WT333E 網路通訊");
+                    RefreshStatusIndicators();
+                }
+            ), 0, 1);
+
+            // Card 3: GL820 溫度記錄器
+            lblGbdStatus = CreateStatusLabel();
+            pnlDevices.Controls.Add(CreateDeviceRow(
+                "Graphtec GL820 溫度記錄器",
+                string.Format("網路位址: {0}:{1} (TCP Socket)", !string.IsNullOrEmpty(main.gbdIp) ? main.gbdIp : "192.168.0.3", main.gbdPort > 0 ? main.gbdPort : 8023),
+                lblGbdStatus,
+                () => {
+                    string msg;
+                    bool ok = main.ConnectGbd(out msg);
+                    AppendLog(string.Format(">> GL820: {0}", msg));
+                    RefreshStatusIndicators();
+                },
+                () => {
+                    main.DisconnectGbd();
+                    AppendLog(">> 已中斷 GL820 網路通訊");
+                    RefreshStatusIndicators();
+                }
+            ), 0, 2);
+
+            // Card 4: KEB A載台
+            lblKeb1Status = CreateStatusLabel();
+            string portA = main.SelectedKebPort1;
+            pnlDevices.Controls.Add(CreateDeviceRow(
+                "KEB A載台驅動器 (加載端)",
+                string.Format("通訊埠: {0} (protKEB.dll / 站號 1)", portA),
+                lblKeb1Status,
+                () => {
+                    string msg;
+                    bool ok = main.ConnectKeb1(out msg);
+                    AppendLog(string.Format(">> KEB A載台: {0}", msg));
+                    RefreshStatusIndicators();
+                },
+                () => {
+                    main.DisconnectKeb1();
+                    AppendLog(">> 已中斷 KEB A載台通訊並徹底釋放 COM 埠");
+                    RefreshStatusIndicators();
+                }
+            ), 0, 3);
+
+            // Card 5: KEB B載台
+            lblKeb2Status = CreateStatusLabel();
+            string portB = main.SelectedKebPort2;
+            pnlDevices.Controls.Add(CreateDeviceRow(
+                "KEB B載台驅動器 (待測端)",
+                string.Format("通訊埠: {0} (protKEB_2.dll / 站號 2)", portB),
+                lblKeb2Status,
+                () => {
+                    string msg;
+                    bool ok = main.ConnectKeb2(out msg);
+                    AppendLog(string.Format(">> KEB B載台: {0}", msg));
+                    RefreshStatusIndicators();
+                },
+                () => {
+                    main.DisconnectKeb2();
+                    AppendLog(">> 已中斷 KEB B載台通訊並徹底釋放 COM 埠");
+                    RefreshStatusIndicators();
+                }
+            ), 0, 4);
+
+            root.Controls.Add(pnlDevices, 0, 1);
+
+            // 3. 底部即時連線反饋日誌框
+            GroupBox grpLog = new GroupBox()
+            {
+                Text = "通訊探測與操作日誌",
+                Dock = DockStyle.Fill,
+                Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
+                Margin = new Padding(0, 4, 0, 0)
+            };
+            txtConnLog = new TextBox()
+            {
+                Dock = DockStyle.Fill,
+                Multiline = true,
+                ScrollBars = ScrollBars.Vertical,
+                ReadOnly = true,
+                BackColor = Color.FromArgb(15, 23, 42),
+                ForeColor = Color.FromArgb(226, 232, 240),
+                Font = new Font("Consolas", 9f)
+            };
+            grpLog.Controls.Add(txtConnLog);
+            root.Controls.Add(grpLog, 0, 2);
+
+            this.Controls.Add(root);
+
+            RefreshStatusIndicators();
+            AppendLog("設備連線管理中心已就緒。可隨時針對單一設備重新連線，無需重啟軟體。");
+        }
+
+        private Label CreateStatusLabel()
+        {
+            return new Label()
+            {
+                Text = "檢查中...",
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
+                ForeColor = Color.Gray,
+                BackColor = Color.FromArgb(241, 245, 249),
+                BorderStyle = BorderStyle.FixedSingle
+            };
+        }
+
+        private Control CreateDeviceRow(string title, string info, Label lblStatus, Action onConnect, Action onDisconnect)
+        {
+            TableLayoutPanel row = new TableLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 4,
+                RowCount = 1,
+                Margin = new Padding(0, 2, 0, 2),
+                Padding = new Padding(6, 2, 6, 2),
+                BackColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35f)); // Title & detail
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f)); // Status indicator
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100f)); // Connect button
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100f)); // Disconnect button
+
+            FlowLayoutPanel flpInfo = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0) };
+            Label lTitle = new Label() { Text = title, Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold), ForeColor = Color.FromArgb(15, 23, 42), AutoSize = true };
+            Label lSub = new Label() { Text = info, Font = new Font("微軟正黑體", 8.5f), ForeColor = Color.FromArgb(100, 116, 139), AutoSize = true };
+            flpInfo.Controls.AddRange(new Control[] { lTitle, lSub });
+
+            Button btnConn = new Button()
+            {
+                Text = "重新連線",
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(16, 185, 129),
+                ForeColor = Color.White,
+                Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                Margin = new Padding(4, 2, 4, 2)
+            };
+            btnConn.Click += (s, e) => onConnect();
+
+            Button btnDisconn = new Button()
+            {
+                Text = "中斷釋放",
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(239, 68, 68),
+                ForeColor = Color.White,
+                Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                Margin = new Padding(4, 2, 4, 2)
+            };
+            btnDisconn.Click += (s, e) => onDisconnect();
+
+            row.Controls.Add(flpInfo, 0, 0);
+            row.Controls.Add(lblStatus, 1, 0);
+            row.Controls.Add(btnConn, 2, 0);
+            row.Controls.Add(btnDisconn, 3, 0);
+
+            return row;
+        }
+
+        private void RefreshStatusIndicators()
+        {
+            if (this.IsDisposed || !this.IsHandleCreated) return;
+
+            // 1. 扭力計
+            bool okT = main.IsTorqueMeterConnected;
+            lblTorqueStatus.Text = okT ? "已連線 (正常採樣)" : "未連線 / 埠已釋放";
+            lblTorqueStatus.ForeColor = okT ? Color.FromArgb(22, 101, 52) : Color.FromArgb(153, 27, 27);
+            lblTorqueStatus.BackColor = okT ? Color.FromArgb(220, 252, 231) : Color.FromArgb(254, 226, 226);
+
+            // 2. WT333E
+            bool okP = main.IsPowerMeterConnected;
+            lblPowerStatus.Text = okP ? "已連線 (TCP 通訊中)" : "未連線 / 通訊中斷";
+            lblPowerStatus.ForeColor = okP ? Color.FromArgb(22, 101, 52) : Color.FromArgb(153, 27, 27);
+            lblPowerStatus.BackColor = okP ? Color.FromArgb(220, 252, 231) : Color.FromArgb(254, 226, 226);
+
+            // 3. GL820
+            bool okG = main.IsGbdConnected;
+            lblGbdStatus.Text = okG ? "已連線 (TCP 通訊中)" : "未連線 / 通訊中斷";
+            lblGbdStatus.ForeColor = okG ? Color.FromArgb(22, 101, 52) : Color.FromArgb(153, 27, 27);
+            lblGbdStatus.BackColor = okG ? Color.FromArgb(220, 252, 231) : Color.FromArgb(254, 226, 226);
+
+            // 4. KEB A
+            bool okK1 = main.isHmiKebOpen1;
+            lblKeb1Status.Text = okK1 ? "已連線 (握手成功)" : "未連線 / COM1 已釋放";
+            lblKeb1Status.ForeColor = okK1 ? Color.FromArgb(22, 101, 52) : Color.FromArgb(153, 27, 27);
+            lblKeb1Status.BackColor = okK1 ? Color.FromArgb(220, 252, 231) : Color.FromArgb(254, 226, 226);
+
+            // 5. KEB B
+            bool okK2 = main.isHmiKebOpen2;
+            lblKeb2Status.Text = okK2 ? "已連線 (握手成功)" : "未連線 / COM2 已釋放";
+            lblKeb2Status.ForeColor = okK2 ? Color.FromArgb(22, 101, 52) : Color.FromArgb(153, 27, 27);
+            lblKeb2Status.BackColor = okK2 ? Color.FromArgb(220, 252, 231) : Color.FromArgb(254, 226, 226);
+        }
+
+        private void AppendLog(string msg)
+        {
+            if (txtConnLog == null || txtConnLog.IsDisposed) return;
+            string line = string.Format("[{0}] {1}\r\n", DateTime.Now.ToString("HH:mm:ss"), msg);
+            txtConnLog.AppendText(line);
         }
     }
 }

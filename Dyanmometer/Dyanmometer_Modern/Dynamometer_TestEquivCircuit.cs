@@ -87,7 +87,7 @@ namespace DynamometerHMI
         private Label lblEquivTempDisplay;         // 單一通道實測溫度即時數值顯示
         private System.Windows.Forms.Timer tmrLockedWatchdog; // 堵轉看門狗與自適應調壓定時器
         private bool isLockedRotorActive = false;
-        private bool isLockedTripShowing = false; // ★【防彈跳連發重入鎖】保證絕不重複彈出多個 MessageBox
+        private bool isLockedTripShowing = false; // 【防彈跳連發重入鎖】保證絕不重複彈出多個 MessageBox
         private int lockedOverCurrentTicks = 0;
         private int lockedSpeedAnomalyTicks = 0;
         private bool isAutoTuningUf09 = false;
@@ -2376,7 +2376,7 @@ namespace DynamometerHMI
                     originalUf09Val = r_dr02.Value;
                 }
 
-                // ★【硬體參數自動連鎖回填 UI】(徹底解決使用者反映數值未帶入導致 fallback 50.0Hz 問題)
+                // 【硬體參數自動連鎖回填 UI】(徹底解決使用者反映數值未帶入導致 fallback 50.0Hz 問題)
                 this.Invoke((MethodInvoker)delegate {
                     if (numEquivF0 != null && effectiveFreq > 1.0)
                     {
@@ -2433,7 +2433,7 @@ namespace DynamometerHMI
                     }
                 }
 
-                // ★【實測頻率即時反饋到 UI 橫條】
+                // 【實測頻率即時反饋到 UI 橫條】
                 UpdateEquivKebReadbackFreqDisplay(drFreq, uf00Freq, unSyncItems.Count == 0 ? "已同步" : "未完全同步");
 
                 WriteHmiLog("KEB_SYNC", string.Format("【dr/uf 參數蒐集】{0}: dr00={1:F1}A, dr01={2}rpm, dr02={3}V, dr05={4:F1}Hz | uf00={5:F1}Hz, uf09={6}V | 同步: {7} | 鎖定頻率: {8:F1}Hz",
@@ -2445,7 +2445,7 @@ namespace DynamometerHMI
                     "• dr.05 (0x0605) 銘牌額定頻率: Raw={0} (0x{0:X4}) -> 解析: {1:F2} Hz\r\n" +
                     "• uF.00 (0x0500) 變頻器特性基頻: Raw={2} (0x{2:X4}) -> 解析: {3:F2} Hz\r\n" +
                     "--------------------------------------------------\r\n" +
-                    "★ 系統已自動連鎖回填：測試基準頻率 f0 = {4:F1} Hz",
+                    " 系統已自動連鎖回填：測試基準頻率 f0 = {4:F1} Hz",
                     rawDr05Val, drFreq, rawUf00Val, uf00Freq, effectiveFreq);
 
                 if (unSyncItems.Count > 0)
@@ -2595,7 +2595,7 @@ namespace DynamometerHMI
                 // 啟動前轉速清零防呆 (確保 Sy.52=0, oP.03=0)
                 ClearLockedSpeedCmd("試驗啟動前轉速清零防呆");
 
-                // ★ 自動開啟等效電路專屬測試紀錄 (無溫度純電氣量 CSV，不受<60秒刪除限制)
+                //  自動開啟等效電路專屬測試紀錄 (無溫度純電氣量 CSV，不受<60秒刪除限制)
                 string recordTag = singleFreqMode ? ("Locked_" + cmbEquivLockedFreq.SelectedIndex) : "Locked_8Freq_Sweep";
                 StartEquivTestRecording(recordTag);
 
@@ -2629,7 +2629,7 @@ namespace DynamometerHMI
             lockedOverCurrentTicks = 0;
             lockedSpeedAnomalyTicks = 0;
 
-            // ★ 安全關閉等效電路專屬紀錄檔
+            //  安全關閉等效電路專屬紀錄檔
             StopEquivTestRecording(reason, showPrompt: false);
 
             if (btnEquivAutoTuneUf09 != null)
@@ -2661,10 +2661,10 @@ namespace DynamometerHMI
             }
             catch { }
 
-            // 2. ★ 清空設定轉速指令 (Sy.52=0, oP.03=0)，防止下次執行直接給予殘留轉速
+            // 2.  清空設定轉速指令 (Sy.52=0, oP.03=0)，防止下次執行直接給予殘留轉速
             ClearLockedSpeedCmd("停止試驗轉速歸零: " + reason);
 
-            // 3. ★【生與死安全防護】停止時鎖定安全低壓 (10V)，絕對嚴禁在機械鎖死時自動恢復 260V 高壓！
+            // 3. 【生與死安全防護】停止時鎖定安全低壓 (10V)，絕對嚴禁在機械鎖死時自動恢復 260V 高壓！
             try
             {
                 int driveId = (cmbEquivKebDrive != null && cmbEquivKebDrive.SelectedIndex == 1) ? 1 : 2;
@@ -2696,7 +2696,7 @@ namespace DynamometerHMI
                 // 記錄變頻器原始運轉控制來源 (oP.01: 7=半自動端子, 8=全自動通訊)，以便試驗結束後安全還原
                 origOp01 = KebReadParamWithDll(com, baud, node, 0x0301);
 
-                // ★【額定頻率動態鎖定】優先取卡片 1 輸入值，若為 0 則動態自變頻器實測 dr.05 / uf.05 提取並自動回填 UI
+                // 【額定頻率動態鎖定】優先取卡片 1 輸入值，若為 0 則動態自變頻器實測 dr.05 / uf.05 提取並自動回填 UI
                 double f0 = (double)numEquivF0.Value;
                 if (f0 <= 1.0)
                 {
@@ -2799,7 +2799,7 @@ namespace DynamometerHMI
 
                     if (!verifiedSafeUf09)
                     {
-                        // ★【生與死安全閉鎖】若 uf.09 未被變頻器確認降壓至 <= 60V，嚴禁啟動！嚴禁給速！
+                        // 【生與死安全閉鎖】若 uf.09 未被變頻器確認降壓至 <= 60V，嚴禁啟動！嚴禁給速！
                         WriteHmiLog("LOCKED_ERR", string.Format("【致命安全阻擋】{0} uf.09 降壓驗證失敗！當前電壓未確認降至安全值 (<=60V)，試驗已緊急中止，絕不允許高壓輸出！", item.FreqName));
                         this.Invoke((MethodInvoker)delegate {
                             MessageBox.Show(string.Format("【[!] 堵轉安全閉鎖防護】\r\n\r\n變頻器 uf.09 基準電壓未能成功降至安全值 (<= 60V)！\r\n為防止額定高壓損壞鎖死馬達，系統已強制阻斷輸出並終止試驗！\r\n\r\n請確認變頻器是否處於 nOP 狀態後再試。", item.FreqName),
@@ -3061,7 +3061,7 @@ namespace DynamometerHMI
                 KebWriteParamWithDll(com, baud, node, 0x0032, 0); // Sy.50 = 0
                 ClearLockedSpeedCmd("堵轉試驗完成停機轉速歸零");
 
-                // ★ 堵轉試驗完成，保存並關閉專屬紀錄檔
+                //  堵轉試驗完成，保存並關閉專屬紀錄檔
                 StopEquivTestRecording("堵轉試驗成功完成", showPrompt: false);
 
                 // 結束處置
@@ -3111,7 +3111,7 @@ namespace DynamometerHMI
                 try { KebWriteParamWithDll(com, baud, node, 0x0032, 0); } catch { }
                 // 2. 轉速指令清零 (Sy.52=0, oP.03=0)
                 ClearLockedSpeedCmd("堵轉測試線程安全結束轉速清零");
-                // 3. ★【生與死安全防護】：結束時強制鎖定為安全低壓 10V，絕對嚴禁自動恢復 260V 額定電壓！
+                // 3. 【生與死安全防護】：結束時強制鎖定為安全低壓 10V，絕對嚴禁自動恢復 260V 額定電壓！
                 try {
                     KebWriteUf09(driveId, 10);
                     if (lblEquivCurUf09 != null)
@@ -3385,7 +3385,7 @@ namespace DynamometerHMI
                     }
                 }
 
-                // ★【極重要鐵律】：堵轉看門狗保護 ONLY 在「正在執行堵轉自適應調壓 (isAutoTuningUf09)」或「明確啟動堵轉測試 (isLockedRotorActive)」時才生效！
+                // 【極重要鐵律】：堵轉看門狗保護 ONLY 在「正在執行堵轉自適應調壓 (isAutoTuningUf09)」或「明確啟動堵轉測試 (isLockedRotorActive)」時才生效！
                 // 嚴禁在平時使用者只是查看等效電路分頁、或馬達正在運轉其他測試 (例如 S1 測試 1465 rpm) 時誤判！
                 if (!isAutoTuningUf09 && !isLockedRotorActive)
                 {
@@ -3497,11 +3497,11 @@ namespace DynamometerHMI
         // ── 堵轉保護機制緊急跳脫處置函式 ──────────────────────────────
         private void TriggerLockedProtectionTrip(string title, string details)
         {
-            if (isLockedTripShowing) return; // ★ 重入鎖保護：已在顯示對話框時嚴禁重複進入
+            if (isLockedTripShowing) return; //  重入鎖保護：已在顯示對話框時嚴禁重複進入
             isLockedTripShowing = true;
             try
             {
-                // ★【生與死核心修復 1】第一時間 100% 強制終止背景掃描線程迴圈，杜絕背景線程繼續調壓！
+                // 【生與死核心修復 1】第一時間 100% 強制終止背景掃描線程迴圈，杜絕背景線程繼續調壓！
                 isLockedSweepRunning = false;
                 currentLockedTargetFreq = 0.0;
                 isAutoTuningUf09 = false;
@@ -3509,7 +3509,7 @@ namespace DynamometerHMI
                 lockedOverCurrentTicks = 0;
                 lockedSpeedAnomalyTicks = 0;
 
-                // ★ 安全關閉等效電路專屬紀錄檔
+                //  安全關閉等效電路專屬紀錄檔
                 StopEquivTestRecording("保護機制跳脫: " + title, showPrompt: false);
 
                 if (btnEquivAutoTuneUf09 != null)
@@ -3535,7 +3535,7 @@ namespace DynamometerHMI
                 // 2. 立即清空設定轉速指令 (Sy.52=0, oP.03=0)，防止殘留轉速導致下次啟動直接給速
                 ClearLockedSpeedCmd("保護跳脫轉速歸零");
 
-                // 3. ★【生與死核心修復 2】堵轉鎖死狀態下絕對嚴禁恢復 260V 額定高壓！
+                // 3. 【生與死核心修復 2】堵轉鎖死狀態下絕對嚴禁恢復 260V 額定高壓！
                 //    馬達軸目前為機械鎖死狀態，若自動恢復 260V 將引發數百安培短路大電流與巨響！
                 //    因此強制鎖定為安全低壓 (10V)，確保變頻器即使激磁亦絕無大電流！
                 KebWriteUf09(driveId, 10);
@@ -3762,7 +3762,7 @@ namespace DynamometerHMI
                 WriteHmiLog("EQUIV_CALC", string.Format("【等效電路計算成功】R1={0:F4}Ω, X1={1:F4}Ω({6:F2}mH), Xm={2:F2}Ω({7:F1}mH), R2'={3:F4}Ω, X2'={4:F4}Ω({8:F2}mH), Tmax={5:F1}Nm",
                     res.R1, res.X1, res.Xm, res.R2_prime, res.X2_prime, res.T_max, res.L1_mH, res.Lm_mH, res.L2_prime_mH));
 
-                // ★ 自動將等效電路參數成果儲存至馬達專屬目錄 (無溫度報表)
+                //  自動將等效電路參數成果儲存至馬達專屬目錄 (無溫度報表)
                 try
                 {
                     string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
@@ -4092,7 +4092,7 @@ namespace DynamometerHMI
                 if (string.IsNullOrEmpty(cachedEquivMotorName)) cachedEquivMotorName = curName;
                 if (string.IsNullOrEmpty(cachedEquivDrFingerprint) && !string.IsNullOrEmpty(lastKnownB_DrFingerprint)) cachedEquivDrFingerprint = lastKnownB_DrFingerprint;
 
-                // ★【檔案驅動自動導入 - 零偽造原則】
+                // 【檔案驅動自動導入 - 零偽造原則】
                 // 除非在相對應的馬達資料夾中真正找到實體紀錄檔，否則嚴格維持 0.0 待採樣，絕對禁止自動導入預設假數據！
                 if (!isLockedDataReady || (numEquivVk != null && numEquivVk.Value <= 0m))
                 {

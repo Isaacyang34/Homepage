@@ -104,7 +104,7 @@ namespace DynamometerHMI
 
             Button btnUploadLogToCloud2 = new Button()
             {
-                Text = "☁️ 上傳日誌至雲端",
+                Text = "[雲] 上傳日誌至雲端",
                 Size = new Size(130, 28),
                 BackColor = Color.FromArgb(16, 185, 129),
                 ForeColor = Color.White,
@@ -115,7 +115,7 @@ namespace DynamometerHMI
 
             Label lblCloudDays = new Label()
             {
-                Text = "☁️ 雲端保留:",
+                Text = "[雲] 雲端保留:",
                 AutoSize = true,
                 Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(14, 165, 233),
@@ -474,7 +474,7 @@ namespace DynamometerHMI
                             {
                                 instance.lblMiniLogText.Text = string.Format("[{0}] [{1}] {2}", DateTime.Now.ToString("HH:mm:ss"), category, message);
                             }
-                            // ★ 核心修復：高頻數值 TELEMETRY (每 750ms) 僅寫入檔案與狀態列，嚴禁灌爆 Win32 TextBox
+                            //  核心修復：高頻數值 TELEMETRY (每 750ms) 僅寫入檔案與狀態列，嚴禁灌爆 Win32 TextBox
                             // 避免 Windows XP 64KB Edit Control USER 堆疊耗盡或字串重置引發致命崩潰
                             if (category != "TELEMETRY" && instance.txtFullLog != null && !instance.txtFullLog.IsDisposed)
                             {
