@@ -168,7 +168,7 @@ namespace DynamometerHMI
 
             Button btnPurgeCloud = new Button()
             {
-                Text = "🧹 清理雲端",
+                Text = "[清空] 清理雲端",
                 Size = new Size(88, 28),
                 BackColor = Color.FromArgb(100, 116, 139),
                 ForeColor = Color.White,
@@ -179,7 +179,7 @@ namespace DynamometerHMI
 
             Label lblLocalRetention = new Label()
             {
-                Text = "💾 本地保留:",
+                Text = "[儲存] 本地保留:",
                 AutoSize = true,
                 Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(16, 149, 193),
@@ -209,7 +209,7 @@ namespace DynamometerHMI
             };
             Button btnPurgeLocal = new Button()
             {
-                Text = "🧹 清理本地",
+                Text = "[清空] 清理本地",
                 Size = new Size(88, 28),
                 BackColor = Color.FromArgb(71, 85, 105),
                 ForeColor = Color.White,
@@ -220,7 +220,7 @@ namespace DynamometerHMI
 
             Label lblKebFreq = new Label()
             {
-                Text = "⚡ KEB更新:",
+                Text = "[電氣] KEB更新:",
                 AutoSize = true,
                 Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(79, 70, 229),
@@ -254,7 +254,7 @@ namespace DynamometerHMI
 
             Label lblBrakeThreshLog = new Label()
             {
-                Text = "🛑 停機門檻:",
+                Text = "[急停] 停機門檻:",
                 AutoSize = true,
                 Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(185, 28, 28),
@@ -370,6 +370,17 @@ namespace DynamometerHMI
         private static readonly object hmiLogLock = new object();
         private static StreamWriter hmiLogWriter = null;
         private static string currentLogFilePath = null;
+
+        public static void FlushHmiLog()
+        {
+            lock (hmiLogLock)
+            {
+                if (hmiLogWriter != null)
+                {
+                    try { hmiLogWriter.Flush(); } catch { }
+                }
+            }
+        }
 
         // ── 雲端即時連線健康與崩潰狀態追蹤 (供 WebMonitor 識別斷線、崩潰與跳脫) ──
         public static volatile bool isSystemCrashed = false;
@@ -502,7 +513,7 @@ namespace DynamometerHMI
                 isSystemCrashed = true;
                 systemCrashReason = (ex != null ? (ex.GetType().Name + ": " + ex.Message) : (exObj != null ? exObj.ToString() : "未知崩潰"));
                 lastCriticalCategory = "CRASH";
-                lastCriticalLog = string.Format("【🚨 系統崩潰】{0}: {1}", sourceThreadName ?? "未知執行緒", systemCrashReason);
+                lastCriticalLog = string.Format("【[!] 系統崩潰】{0}: {1}", sourceThreadName ?? "未知執行緒", systemCrashReason);
                 lastCriticalTime = DateTime.Now.ToString("HH:mm:ss");
 
                 StringBuilder sb = new StringBuilder();
@@ -511,7 +522,7 @@ namespace DynamometerHMI
                 sb.AppendLine("================================================================================");
                 sb.AppendLine(string.Format("發生時間: {0}", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")));
                 sb.AppendLine(string.Format("異常來源: {0}", sourceThreadName ?? "未知執行緒"));
-                sb.AppendLine(string.Format("處理程序狀態: {0}", isTerminating ? "【🛑 致命崩潰 - CLR 即將強制終止程式】" : "【⚠️ 嚴重例外 - 程式嘗試存活】"));
+                sb.AppendLine(string.Format("處理程序狀態: {0}", isTerminating ? "【[急停] 致命崩潰 - CLR 即將強制終止程式】" : "【[!] 嚴重例外 - 程式嘗試存活】"));
                 sb.AppendLine(string.Format("作業系統: {0} ({1})", Environment.OSVersion.VersionString, Environment.OSVersion.Platform));
                 sb.AppendLine(string.Format(".NET CLR 版本: {0}", Environment.Version));
                 sb.AppendLine(string.Format("架構環境: {0}", IntPtr.Size == 4 ? "32-bit (x86)" : "64-bit (x64)"));
@@ -603,7 +614,7 @@ namespace DynamometerHMI
             try
             {
                 string exSummary = (exObj != null) ? exObj.ToString() : "未知錯誤";
-                string title = isTerminating ? "🚨 系統致命崩潰報告 (Fatal Crash)" : "⚠️ 系統異常警告 (Runtime Error)";
+                string title = isTerminating ? "[!] 系統致命崩潰報告 (Fatal Crash)" : "[!] 系統異常警告 (Runtime Error)";
                 string prompt = string.Format(
                     "馬達動力計主程式遇到未預期的例外狀況！\r\n\r\n" +
                     "【異常來源】：{0}\r\n" +

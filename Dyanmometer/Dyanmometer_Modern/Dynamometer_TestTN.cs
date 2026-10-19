@@ -476,7 +476,7 @@ namespace DynamometerHMI
             };
             Label lblTnTimeTitle = new Label()
             {
-                Text = "⏱️ 時間軸:",
+                Text = "[TIME] 時間軸:",
                 Location = new Point(0, 8),
                 AutoSize = true,
                 Font = new Font("微軟正黑體", 10f, FontStyle.Bold),
@@ -1295,9 +1295,13 @@ namespace DynamometerHMI
                 }
                 else if (tnConvergeTimeoutSec >= 50)
                 {
-                    string timeoutDetail = string.Format("第 {0} 點加載逼近超時 50 秒未達標 (目標:{1:F0}rpm/{2:F1}Nm, 實測:{3:F0}rpm/{4:F2}Nm)", tnMultiCurrentIndex + 1, targetSpd, targetTrq, actAbsSpd, actAbsTrq);
+                    string diagDetail = GetTnConvergenceDiagnosticDetail(targetSpd, targetTrq, actAbsSpd, actAbsTrq);
+                    string timeoutDetail = string.Format("第 {0} 點加載逼近超時 50 秒未達標 [{1}]", tnMultiCurrentIndex + 1, diagDetail);
                     StopTnTest("T-N多點加載逼近超時", timeoutDetail);
-                    MessageBox.Show(string.Format("【T-N 多點加載警報】第 {0} 點加載逼近超時 50 秒未達標，已安全停機！", tnMultiCurrentIndex + 1), "加載未達標", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show(
+                        string.Format("【T-N 多點加載未達標警報】\n\n第 {0} 點加載逼近超時 50 秒未達標，已安全停機！\n\n【未達標詳細原因診斷】\n- {1}\n\n[即時目標與實測對比]\n- 轉速：目標 {2:F0} rpm | 實測 {3:F0} rpm (差距: {4:+0.0;-0.0} rpm)\n- 轉矩：目標 {5:F1} Nm | 實測 {6:F2} Nm (差距: {7:+0.00;-0.00} Nm)\n- 當前加載給定：{8:F1} %\n\n加載端已強制安全卸載歸零。",
+                            tnMultiCurrentIndex + 1, diagDetail, targetSpd, actAbsSpd, actAbsSpd - targetSpd, targetTrq, actAbsTrq, actAbsTrq - targetTrq, tnAdaptedTorquePct),
+                        "T-N 加載未達標詳細診斷", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
             }
@@ -1897,7 +1901,8 @@ namespace DynamometerHMI
                     // ★ 超時防呆安全保護：加載逼近超過 50 秒仍未達標時，暫停測試並警告，絕不放任過載！
                     if (tnConvergeTimeoutSec >= 50)
                     {
-                        string rampTimeoutDetail = string.Format("目標:{0:F0}rpm/{1:F2}Nm, 實測:{2:F0}rpm/{3:F2}Nm (加載50秒未達標)", targetSpd, targetTrq, actAbsSpd, actAbsTrq);
+                        string rampDiag = GetTnConvergenceDiagnosticDetail(targetSpd, targetTrq, actAbsSpd, actAbsTrq);
+                        string rampTimeoutDetail = string.Format("梯度加載逼近超時 50 秒未達標 [{0}]", rampDiag);
                         StopTnTest("T-N梯度加載逼近超時", rampTimeoutDetail);
                         lblTnStatus.Text = "[!] 加載未達標，測試已暫停！";
                         lblTnCountdown.Text = "加載未達標中斷";
@@ -1906,16 +1911,18 @@ namespace DynamometerHMI
 
                         string timeoutMsg = string.Format(
                             "【T-N 測試加載未達標警報】\n\n" +
-                            "目標轉速：{0:F0} rpm (實測: {1:F0} rpm)\n" +
-                            "目標轉矩：{2:F2} Nm (實測: {3:F2} Nm)\n\n" +
-                            "系統已持續加載逼近 50 秒，但實測扭矩仍無法收斂達標！\n" +
+                            "【未達標詳細原因診斷】\n- {0}\n\n" +
+                            "[即時目標與實測對比]\n" +
+                            "- 轉速：目標 {1:F0} rpm | 實測 {2:F0} rpm (差距: {3:+0.0;-0.0} rpm)\n" +
+                            "- 轉矩：目標 {4:F2} Nm | 實測 {5:F2} Nm (差距: {6:+0.00;-0.00} Nm)\n\n" +
+                            "系統已持續加載逼近 50 秒，但實測數值仍無法收斂達標！\n" +
                             "加載端已強制卸載歸零保護。\n\n" +
                             "請確認以下硬體狀態：\n" +
                             "1. 加載端變頻器安全端子 (ST) 是否已閉合導通？\n" +
                             "2. 加載端制動電阻 / 回饋單元是否已正確連線？\n" +
                             "3. 目標轉矩是否超出加載變頻器或馬達規格上限？",
-                            targetSpd, actAbsSpd, targetTrq, actAbsTrq);
-                        MessageBox.Show(timeoutMsg, "加載未達標中斷", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            rampDiag, targetSpd, actAbsSpd, actAbsSpd - targetSpd, targetTrq, actAbsTrq, actAbsTrq - targetTrq);
+                        MessageBox.Show(timeoutMsg, "T-N 梯度加載未達標詳細診斷", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return;
                     }
                 }
@@ -2063,6 +2070,46 @@ namespace DynamometerHMI
             if (lblTnCountdown != null) { webRemotePhaseText = lblTnCountdown.Text; }
         }
 
+        /// <summary>
+        /// 計算 T-N 加載逼近超時或未達標時的精確診斷說明 (轉速差、轉矩差與具體未達標原因)
+        /// </summary>
+        private string GetTnConvergenceDiagnosticDetail(double targetSpd, double targetTrq, double actSpd, double actTrq)
+        {
+            double spdDiff = actSpd - targetSpd; // 正代表超速，負代表不足
+            double trqDiff = actTrq - targetTrq; // 正代表超載，負代表不足
+
+            double spdTol = Math.Max(12.0, targetSpd * 0.02);
+            double trqTol = Math.Max(1.0, targetTrq * 0.08);
+
+            bool isSpdOk = Math.Abs(spdDiff) <= spdTol;
+            bool isTrqOk = Math.Abs(trqDiff) <= trqTol;
+
+            string spdDesc = isSpdOk
+                ? string.Format("轉速達標 ({0:F0} rpm)", actSpd)
+                : string.Format("轉速{0} (目標:{1:F0} / 實測:{2:F0} / 差:{3:+0.0;-0.0} rpm)", (spdDiff < 0 ? "不足" : "超速"), targetSpd, actSpd, spdDiff);
+
+            string trqDesc = isTrqOk
+                ? string.Format("轉矩達標 ({0:F1} Nm)", actTrq)
+                : string.Format("轉矩{0} (目標:{1:F1} / 實測:{2:F1} / 差:{3:+0.00;-0.00} Nm)", (trqDiff < 0 ? "不足" : "超標"), targetTrq, actTrq, trqDiff);
+
+            if (!isSpdOk && !isTrqOk)
+            {
+                return string.Format("{0} 且 {1}", spdDesc, trqDesc);
+            }
+            else if (!isSpdOk)
+            {
+                return string.Format("{0}，{1}", spdDesc, trqDesc);
+            }
+            else if (!isTrqOk)
+            {
+                return string.Format("{0}，{1}", trqDesc, spdDesc);
+            }
+            else
+            {
+                return string.Format("轉速轉矩皆在容許帶但波動未能連續穩定 2 秒 (轉速 {0:F0} rpm / 轉矩 {1:F1} Nm)", actSpd, actTrq);
+            }
+        }
+
         public void StopTnTest(string reason = "使用者手動停止", string detail = "")
         {
             if (tnTimer != null) tnTimer.Stop();
@@ -2096,18 +2143,18 @@ namespace DynamometerHMI
             int spdDrive = (roleIdx == 1) ? 2 : 1;
             int trqDrive = (spdDrive == 1) ? 2 : 1;
 
-            string autoStopMsg = string.Format("T-N測試停止 [{0}]", reason);
+            string autoStopMsg = string.Format("T-N測試停止 [{0}]", fullReason);
             StartGradualAutoStop(spdDrive, trqDrive, autoStopMsg, () => {
                 if (btnStartTn != null) btnStartTn.Enabled = true;
                 if (btnStopTn != null) btnStopTn.Enabled = false;
                 if (btnTnMiniStart != null) btnTnMiniStart.Enabled = true;
                 if (btnTnMiniStop != null) btnTnMiniStop.Enabled = false;
-                if (lblTnStatus != null) lblTnStatus.Text = string.Format("狀態: 已停止 [{0}]", reason);
-                if (lblTnMiniStatus != null) lblTnMiniStatus.Text = string.Format("狀態: 停止 [{0}]", reason);
+                if (lblTnStatus != null) lblTnStatus.Text = string.IsNullOrEmpty(detail) ? string.Format("狀態: 已停止 [{0}]", reason) : string.Format("狀態: 停止 [{0}]", detail);
+                if (lblTnMiniStatus != null) lblTnMiniStatus.Text = string.IsNullOrEmpty(detail) ? string.Format("狀態: 停止 [{0}]", reason) : string.Format("狀態: 停止 [{0}]", detail);
                 if (lblTnCountdown != null) lblTnCountdown.Text = "倒數: -- s";
                 if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = "倒數: -- s";
                 // ── 遠端監看重置 ──
-                webRemoteMode = "IDLE"; webRemoteStatusText = string.Format("T-N 測試已停止 [{0}]", reason); webRemotePhaseText = "";
+                webRemoteMode = "IDLE"; webRemoteStatusText = string.IsNullOrEmpty(detail) ? string.Format("T-N 測試已停止 [{0}]", reason) : string.Format("T-N 測試已停止 [{0}: {1}]", reason, detail); webRemotePhaseText = "";
             });
         }
 

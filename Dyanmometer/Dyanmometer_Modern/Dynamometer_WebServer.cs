@@ -38,7 +38,7 @@ namespace DynamometerHMI
         private bool isCloudUploadRunning = false;
 
         // ── 軟體線上熱更新設定 (Online Auto-Update & In-Place Hot Swap) ──────
-        public const string APP_VERSION = "2.10.95";
+        public const string APP_VERSION = "2.10.96";
         public string cloudUpdateManifestUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/update/version.json";
         public Button btnOnlineUpdate = null;
         private bool? lastCloudUploadSuccess = null;
@@ -74,18 +74,18 @@ namespace DynamometerHMI
             {
                 if (!string.IsNullOrEmpty(errorMsg))
                 {
-                    lblWebServerUrl.Text = "🌐 啟動異常 :" + webServerPort;
+                    lblWebServerUrl.Text = "[WEB] 啟動異常 :" + webServerPort;
                     lblWebServerUrl.ForeColor = System.Drawing.Color.FromArgb(248, 113, 113);
                 }
                 else if (isRunning)
                 {
-                    lblWebServerUrl.Text = "🌐 " + url;
+                    lblWebServerUrl.Text = "[WEB] " + url;
                     lblWebServerUrl.ForeColor = System.Drawing.Color.FromArgb(52, 211, 153);
                     lblWebServerUrl.BackColor = System.Drawing.Color.FromArgb(30, 41, 59);
                 }
                 else
                 {
-                    lblWebServerUrl.Text = "🌐 " + url + " (已停止)";
+                    lblWebServerUrl.Text = "[WEB] " + url + " (已停止)";
                     lblWebServerUrl.ForeColor = System.Drawing.Color.FromArgb(148, 163, 184);
                     lblWebServerUrl.BackColor = System.Drawing.Color.FromArgb(30, 41, 59);
                 }
@@ -100,7 +100,7 @@ namespace DynamometerHMI
                 }
                 else
                 {
-                    btnWebServerToggle.Text = "🌐 啟動遠端";
+                    btnWebServerToggle.Text = "[WEB] 啟動遠端";
                     btnWebServerToggle.BackColor = System.Drawing.Color.FromArgb(37, 99, 235);
                 }
             }
@@ -267,13 +267,13 @@ namespace DynamometerHMI
             {
                 if (!string.IsNullOrEmpty(detectedWifiIp))
                 {
-                    lblWifiStatus.Text = "📶 " + detectedWifiIp;
+                    lblWifiStatus.Text = "[Wi-Fi] " + detectedWifiIp;
                     lblWifiStatus.ForeColor = System.Drawing.Color.FromArgb(56, 189, 248);
                     lblWifiStatus.BackColor = System.Drawing.Color.FromArgb(15, 23, 42);
                 }
                 else
                 {
-                    lblWifiStatus.Text = "📶 尋找 Wi-Fi...";
+                    lblWifiStatus.Text = "[Wi-Fi] 尋找 Wi-Fi...";
                     lblWifiStatus.ForeColor = System.Drawing.Color.FromArgb(251, 146, 60);
                     lblWifiStatus.BackColor = System.Drawing.Color.FromArgb(30, 41, 59);
                 }
@@ -289,14 +289,14 @@ namespace DynamometerHMI
                 }
                 else if (isSuccess)
                 {
-                    lblCloudSyncStatus.Text = string.Format("🟢 Firebase #{0} ({1}ms)", cloudUploadCount, lastCloudRttMs);
+                    lblCloudSyncStatus.Text = string.Format("[O] Firebase #{0} ({1}ms)", cloudUploadCount, lastCloudRttMs);
                     lblCloudSyncStatus.ForeColor = System.Drawing.Color.FromArgb(52, 211, 153);
                     lblCloudSyncStatus.BackColor = System.Drawing.Color.FromArgb(15, 23, 42);
                 }
                 else
                 {
                     lastCloudErrorMsg = errorMsg ?? "連線失敗";
-                    lblCloudSyncStatus.Text = "🔴 雲端離線 (點此診斷)";
+                    lblCloudSyncStatus.Text = "[X] 雲端離線 (點此診斷)";
                     lblCloudSyncStatus.ForeColor = System.Drawing.Color.FromArgb(248, 113, 113);
                     lblCloudSyncStatus.BackColor = System.Drawing.Color.FromArgb(69, 10, 10);
                 }
@@ -330,8 +330,8 @@ namespace DynamometerHMI
                         string vcount = Regex.Match(json, "\"visit_count\"\\s*:\\s*([0-9]+)").Groups[1].Value;
 
                         string isVipStr = Regex.Match(json, "\"is_vip\"\\s*:\\s*(true|false)").Groups[1].Value;
-                        bool isVip = (isVipStr == "true" || json.Contains("\"tier\":\"👑 VIP 白名單\"") || json.Contains("VIP"));
-                        string tierLabel = isVip ? "👑 [VIP白名單]" : "⏱️ [訪客5min]";
+                        bool isVip = (isVipStr == "true" || json.Contains("\"tier\":\"[VIP] VIP 白名單\"") || json.Contains("VIP"));
+                        string tierLabel = isVip ? "[VIP] [VIP白名單]" : "[TIME] [訪客5min]";
 
                         string loc = string.IsNullOrEmpty(city) ? country : (country + " " + city);
                         string logMsg = string.Format("【遠端監看訪客進入 {0}】來自: {1} ({2}) | IP: {3} | 裝置: {4} / {5} | 第 {6} 次訪問",
@@ -391,6 +391,9 @@ namespace DynamometerHMI
                         return;
                     }
 
+                    // 1. 強制 Flush 當前運行的 hmi_telemetry.log 確保最新逐秒數據落地
+                    MainForm.FlushHmiLog();
+
                     var dirInfo = new DirectoryInfo(logDir);
                     var csvFiles = dirInfo.GetFiles("*.csv");
                     Array.Sort(csvFiles, (a, b) => b.LastWriteTime.CompareTo(a.LastWriteTime));
@@ -402,12 +405,26 @@ namespace DynamometerHMI
                     string csvContent = "";
                     int csvRows = 0;
 
-                    if (csvFiles.Length > 0)
+                    FileInfo selectedCsv = null;
+                    foreach (var cf in csvFiles)
                     {
-                        csvName = csvFiles[0].Name;
+                        if (cf.Name.StartsWith("Report_TN_", StringComparison.OrdinalIgnoreCase) ||
+                            cf.Name.StartsWith("Auto_Raw_Telemetry_", StringComparison.OrdinalIgnoreCase) ||
+                            cf.Name.StartsWith("Report_Duty_", StringComparison.OrdinalIgnoreCase) ||
+                            cf.Name.StartsWith("Report_Efficiency_", StringComparison.OrdinalIgnoreCase))
+                        {
+                            selectedCsv = cf;
+                            break;
+                        }
+                    }
+                    if (selectedCsv == null && csvFiles.Length > 0) selectedCsv = csvFiles[0];
+
+                    if (selectedCsv != null)
+                    {
+                        csvName = selectedCsv.Name;
                         try
                         {
-                            using (var fs = new FileStream(csvFiles[0].FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                            using (var fs = new FileStream(selectedCsv.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                             using (var sr = new StreamReader(fs, Encoding.UTF8))
                             {
                                 List<string> lines = new List<string>();
@@ -444,12 +461,23 @@ namespace DynamometerHMI
 
                     string logName = "";
                     string logContent = "";
-                    if (logFiles.Length > 0)
+                    FileInfo selectedLog = null;
+                    foreach (var lf in logFiles)
                     {
-                        logName = logFiles[0].Name;
+                        if (lf.Name.Equals("hmi_telemetry.log", StringComparison.OrdinalIgnoreCase))
+                        {
+                            selectedLog = lf;
+                            break;
+                        }
+                    }
+                    if (selectedLog == null && logFiles.Length > 0) selectedLog = logFiles[0];
+
+                    if (selectedLog != null)
+                    {
+                        logName = selectedLog.Name;
                         try
                         {
-                            using (var fs = new FileStream(logFiles[0].FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                            using (var fs = new FileStream(selectedLog.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                             using (var sr = new StreamReader(fs, Encoding.UTF8))
                             {
                                 List<string> lines = new List<string>();
@@ -496,7 +524,7 @@ namespace DynamometerHMI
                                 string crashText = File.ReadAllText(latestCrash.FullName, Encoding.UTF8);
                                 if (!string.IsNullOrEmpty(crashText))
                                 {
-                                    logContent = string.Format("=== 🚨 現場主機黑盒子崩潰診斷報告 ({0}) ===\n{1}\n\n=== 即時運行日誌 ({2}) ===\n{3}",
+                                    logContent = string.Format("=== [!] 現場主機黑盒子崩潰診斷報告 ({0}) ===\n{1}\n\n=== 即時運行日誌 ({2}) ===\n{3}",
                                         latestCrash.Name, crashText, logName, logContent);
                                     if (string.IsNullOrEmpty(lastCriticalLog))
                                     {
@@ -534,7 +562,7 @@ namespace DynamometerHMI
                     WriteHmiLog("CLOUD_LOG", string.Format("【日誌雲端上傳中】正在將 {0} ({1} 行) 與 {2} 透過 Wi-Fi 網卡推播至 Firebase...", csvName, csvRows, logName));
 
                     string resp = UploadTelemetryPayload(url, json.ToString(), detectedWifiIp, 15000);
-                    WriteHmiLog("CLOUD_LOG", string.Format("【✅ 日誌雲端上傳成功】端點: /logs/latest.json | CSV: {0} ({1}行) | AI 助理可直接線上下載分析！", csvName, csvRows));
+                    WriteHmiLog("CLOUD_LOG", string.Format("【[OK] 日誌雲端上傳成功】端點: /logs/latest.json | CSV: {0} ({1}行) | AI 助理可直接線上下載分析！", csvName, csvRows));
 
                     // 同步寫入一份帶有時間戳記之歷史紀錄節點 (/logs/history/{timestamp}.json)
                     try
@@ -556,14 +584,14 @@ namespace DynamometerHMI
                     if (isManualClick && this.IsHandleCreated && !this.IsDisposed)
                     {
                         this.BeginInvoke(new Action(() => {
-                            MessageBox.Show(string.Format("【✅ 日誌雲端上傳成功】\n\n- 檔案: {0} (共 {1} 行)\n- 時間: {2}\n\n已成功同步至 Firebase 雲端！\nAI 助理現在可直接線上下載分析，不需使用隨身碟。", csvName, csvRows, timeStr),
+                            MessageBox.Show(string.Format("【[OK] 日誌雲端上傳成功】\n\n- 檔案: {0} (共 {1} 行)\n- 時間: {2}\n\n已成功同步至 Firebase 雲端！\nAI 助理現在可直接線上下載分析，不需使用隨身碟。", csvName, csvRows, timeStr),
                                 "日誌雲端上傳成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         }));
                     }
                 }
                 catch (Exception ex)
                 {
-                    WriteHmiLog("CLOUD_LOG_ERR", "【❌ 日誌雲端上傳失敗】" + ex.Message);
+                    WriteHmiLog("CLOUD_LOG_ERR", "【[X] 日誌雲端上傳失敗】" + ex.Message);
                     if (isManualClick && this.IsHandleCreated && !this.IsDisposed)
                     {
                         this.BeginInvoke(new Action(() => {
@@ -676,12 +704,12 @@ namespace DynamometerHMI
                         if (delCode == 200 || delCode == 204) deletedCount++;
                     }
 
-                    WriteHmiLog("CLOUD_PURGE", string.Format("【🧹 雲端日誌自動清理完成】已清除 {0} 筆過期歷史日誌 (規則: 超過 {1} 天或超過 {2} 筆上限)。", deletedCount, cloudLogMaxDays, maxAllowed));
+                    WriteHmiLog("CLOUD_PURGE", string.Format("【[清空] 雲端日誌自動清理完成】已清除 {0} 筆過期歷史日誌 (規則: 超過 {1} 天或超過 {2} 筆上限)。", deletedCount, cloudLogMaxDays, maxAllowed));
 
                     if (isManualClick && this.IsHandleCreated && !this.IsDisposed)
                     {
                         this.BeginInvoke(new Action(() => {
-                            MessageBox.Show(string.Format("【🧹 雲端日誌清理完成】\n\n已成功刪除 {0} 筆過期歷史日誌！\n保留規則：最新 {1} 筆，且在 {2} 天內。", deletedCount, maxAllowed, cloudLogMaxDays),
+                            MessageBox.Show(string.Format("【[清空] 雲端日誌清理完成】\n\n已成功刪除 {0} 筆過期歷史日誌！\n保留規則：最新 {1} 筆，且在 {2} 天內。", deletedCount, maxAllowed, cloudLogMaxDays),
                                 "清理完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         }));
                     }
@@ -710,7 +738,7 @@ namespace DynamometerHMI
                     SendHttpRequest("DELETE", cloudLogUploadUrl, null, detectedWifiIp, 10000, out code);
                     if (code == 200 || code == 204)
                     {
-                        WriteHmiLog("CLOUD_LOG", "【🧹 雲端日誌已清空】端點 /logs/latest.json 資料已成功抹除。");
+                        WriteHmiLog("CLOUD_LOG", "【[清空] 雲端日誌已清空】端點 /logs/latest.json 資料已成功抹除。");
                         if (isManualClick && this.IsHandleCreated && !this.IsDisposed)
                         {
                             this.BeginInvoke(new Action(() => {
@@ -921,7 +949,7 @@ namespace DynamometerHMI
                     int totalDeleted = deletedCsvCount + deletedLogCount;
                     if (totalDeleted > 0)
                     {
-                        WriteHmiLog("LOCAL_PURGE", string.Format("【🧹 本地日誌自動清理完成】已刪除 {0} 個過期歷史檔案 (CSV: {1}, LOG: {2}，保留最新 {3} 筆)。",
+                        WriteHmiLog("LOCAL_PURGE", string.Format("【[清空] 本地日誌自動清理完成】已刪除 {0} 個過期歷史檔案 (CSV: {1}, LOG: {2}，保留最新 {3} 筆)。",
                             totalDeleted, deletedCsvCount, deletedLogCount, maxAllowed));
                     }
 
@@ -930,7 +958,7 @@ namespace DynamometerHMI
                         this.BeginInvoke(new Action(() => {
                             if (totalDeleted > 0)
                             {
-                                MessageBox.Show(string.Format("【🧹 本地日誌清理完成】\n\n已成功清除 {0} 個過期舊日誌檔案！\n- 測試 CSV / GBD: {1} 筆\n- 歷史診斷 LOG: {2} 筆\n\n目前本地已修剪並保留最新 {3} 筆。",
+                                MessageBox.Show(string.Format("【[清空] 本地日誌清理完成】\n\n已成功清除 {0} 個過期舊日誌檔案！\n- 測試 CSV / GBD: {1} 筆\n- 歷史診斷 LOG: {2} 筆\n\n目前本地已修剪並保留最新 {3} 筆。",
                                     totalDeleted, deletedCsvCount, deletedLogCount, maxAllowed),
                                     "清理完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             }
@@ -979,7 +1007,7 @@ namespace DynamometerHMI
             // 2. Wi-Fi 網卡狀態標籤 (顯示鎖定之 Wi-Fi IPv4，點擊開啟診斷)
             lblWifiStatus = new Label()
             {
-                Text = string.IsNullOrEmpty(detectedWifiIp) ? "📶 尋找 Wi-Fi..." : ("📶 " + detectedWifiIp),
+                Text = string.IsNullOrEmpty(detectedWifiIp) ? "[Wi-Fi] 尋找 Wi-Fi..." : ("[Wi-Fi] " + detectedWifiIp),
                 AutoSize = false,
                 Size = new System.Drawing.Size(145, 34),
                 Margin = new Padding(3, 1, 3, 1),
@@ -990,7 +1018,7 @@ namespace DynamometerHMI
                 Cursor = Cursors.Hand
             };
             var ttWifi = new ToolTip();
-            ttWifi.SetToolTip(lblWifiStatus, "📶 目前綁定之 Wi-Fi 網卡 IPv4 地址\n點擊可開啟【Firebase 雲端推播與網卡架構診斷工具】");
+            ttWifi.SetToolTip(lblWifiStatus, "[Wi-Fi] 目前綁定之 Wi-Fi 網卡 IPv4 地址\n點擊可開啟【Firebase 雲端推播與網卡架構診斷工具】");
             lblWifiStatus.Click += (s, e) => ShowCloudDiagnosticsDialog();
 
             // 3. 雲端同步狀態膠囊 (點擊可彈出診斷)
@@ -1035,7 +1063,7 @@ namespace DynamometerHMI
             // 5. 雲端診斷按鈕 (Test Cloud)
             Button btnCloudDiagnose = new Button()
             {
-                Text = "🧪 雲端診斷",
+                Text = "[測試] 雲端診斷",
                 Size = new System.Drawing.Size(88, 34),
                 Margin = new Padding(3, 1, 3, 1),
                 BackColor = System.Drawing.Color.FromArgb(59, 130, 246),
@@ -1046,13 +1074,13 @@ namespace DynamometerHMI
             };
             btnCloudDiagnose.FlatAppearance.BorderSize = 0;
             var ttDiag = new ToolTip();
-            ttDiag.SetToolTip(btnCloudDiagnose, "🧪 雲端連線診斷與測試工具\n立即探測 Firebase 端點並顯示往返延遲 (RTT)、連線日誌與傳輸狀態");
+            ttDiag.SetToolTip(btnCloudDiagnose, "[測試] 雲端連線診斷與測試工具\n立即探測 Firebase 端點並顯示往返延遲 (RTT)、連線日誌與傳輸狀態");
             btnCloudDiagnose.Click += (s, e) => ShowCloudDiagnosticsDialog();
 
             // 6. 監看網頁快捷按鈕 (一鍵打開 WebMonitor.html)
             Button btnOpenWebMonitor = new Button()
             {
-                Text = "📊 監看網頁",
+                Text = "[圖表] 監看網頁",
                 Size = new System.Drawing.Size(88, 34),
                 Margin = new Padding(3, 1, 3, 1),
                 BackColor = System.Drawing.Color.FromArgb(14, 116, 144),
@@ -1063,7 +1091,7 @@ namespace DynamometerHMI
             };
             btnOpenWebMonitor.FlatAppearance.BorderSize = 0;
             var ttWeb = new ToolTip();
-            ttWeb.SetToolTip(btnOpenWebMonitor, "📊 一鍵開啟本地/遠端監看網頁 (WebMonitor.html)\n直接在瀏覽器即時查看指針儀表與雲端曲線");
+            ttWeb.SetToolTip(btnOpenWebMonitor, "[圖表] 一鍵開啟本地/遠端監看網頁 (WebMonitor.html)\n直接在瀏覽器即時查看指針儀表與雲端曲線");
             btnOpenWebMonitor.Click += (s, e) => {
                 try {
                     string htmlPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WebMonitor.html");
@@ -1095,7 +1123,7 @@ namespace DynamometerHMI
             // 4.6 線上更新按鈕 (Check and Perform Online Hot-Swap Update)
             btnOnlineUpdate = new Button()
             {
-                Text = "🔄 線上更新",
+                Text = "[更新] 線上更新",
                 Size = new System.Drawing.Size(88, 34),
                 Margin = new Padding(3, 1, 3, 1),
                 BackColor = System.Drawing.Color.FromArgb(14, 165, 233), // Sky Blue
@@ -1106,7 +1134,7 @@ namespace DynamometerHMI
             };
             btnOnlineUpdate.FlatAppearance.BorderSize = 0;
             var ttUpdate = new ToolTip();
-            ttUpdate.SetToolTip(btnOnlineUpdate, "🔄 一鍵檢查並執行線上熱更新\n免隨身碟，透過 Wi-Fi 自動下載最新程式並重啟更新！");
+            ttUpdate.SetToolTip(btnOnlineUpdate, "[更新] 一鍵檢查並執行線上熱更新\n免隨身碟，透過 Wi-Fi 自動下載最新程式並重啟更新！");
             btnOnlineUpdate.Click += (s, e) => CheckAndPerformOnlineUpdateAsync(true);
 
             // FlowDirection = RightToLeft，依序加入即為由右至左排列：
@@ -1190,7 +1218,7 @@ namespace DynamometerHMI
 
                 Button btnSaveUrl = new Button()
                 {
-                    Text = "💾 套用",
+                    Text = "[儲存] 套用",
                     Location = new System.Drawing.Point(565, 68),
                     Size = new System.Drawing.Size(75, 28),
                     BackColor = System.Drawing.Color.FromArgb(16, 185, 129),
@@ -1212,7 +1240,7 @@ namespace DynamometerHMI
 
                 Label lblKeyTitle = new Label()
                 {
-                    Text = "🔑 遠端監看 VIP 白名單通行金鑰 (WebMonitor.html 專用):",
+                    Text = "[KEY] 遠端監看 VIP 白名單通行金鑰 (WebMonitor.html 專用):",
                     Location = new System.Drawing.Point(20, 104),
                     Size = new System.Drawing.Size(360, 20),
                     ForeColor = System.Drawing.Color.FromArgb(148, 163, 184)
@@ -1268,7 +1296,7 @@ namespace DynamometerHMI
 
                 Button btnCopyVipLink = new Button()
                 {
-                    Text = "📋 複製 VIP 連結",
+                    Text = "[複製] 複製 VIP 連結",
                     Location = new System.Drawing.Point(448, 124),
                     Size = new System.Drawing.Size(125, 28),
                     BackColor = System.Drawing.Color.FromArgb(51, 65, 85),
@@ -1328,7 +1356,7 @@ namespace DynamometerHMI
                 // 操作按鈕列
                 Button btnTestNow = new Button()
                 {
-                    Text = "🚀 雲端探測 (PUT)",
+                    Text = ">> 雲端探測 (PUT)",
                     Location = new System.Drawing.Point(20, 395),
                     Size = new System.Drawing.Size(140, 42),
                     BackColor = System.Drawing.Color.FromArgb(37, 99, 235),
@@ -1363,7 +1391,7 @@ namespace DynamometerHMI
                                     lblStats.Text = string.Format("推播: 正常 | 延遲: {0} ms | 最新探測: {1}", rtt, DateTime.Now.ToString("HH:mm:ss"));
                                     lblStats.ForeColor = System.Drawing.Color.FromArgb(52, 211, 153);
                                     btnTestNow.Enabled = true;
-                                    btnTestNow.Text = "🚀 雲端探測 (PUT)";
+                                    btnTestNow.Text = ">> 雲端探測 (PUT)";
                                 }));
                             }
                         }
@@ -1381,7 +1409,7 @@ namespace DynamometerHMI
                                     lblStats.Text = "推播: 異常 (探測失敗)";
                                     lblStats.ForeColor = System.Drawing.Color.FromArgb(248, 113, 113);
                                     btnTestNow.Enabled = true;
-                                    btnTestNow.Text = "🚀 雲端探測 (PUT)";
+                                    btnTestNow.Text = ">> 雲端探測 (PUT)";
                                 }));
                             }
                         }
@@ -1446,7 +1474,7 @@ namespace DynamometerHMI
 
                 Button btnOpenHtml = new Button()
                 {
-                    Text = "📊 監看網頁",
+                    Text = "[圖表] 監看網頁",
                     Location = new System.Drawing.Point(325, 395),
                     Size = new System.Drawing.Size(140, 42),
                     BackColor = System.Drawing.Color.FromArgb(14, 116, 144),
@@ -1609,7 +1637,7 @@ namespace DynamometerHMI
             {
                 btnWebServerToggle = new Button()
                 {
-                    Text = "🌐 遠端監看",
+                    Text = "[WEB] 遠端監看",
                     Size = new System.Drawing.Size(105, 34),
                     BackColor = System.Drawing.Color.FromArgb(37, 99, 235),
                     ForeColor = System.Drawing.Color.White,
@@ -3462,7 +3490,7 @@ namespace DynamometerHMI
                 // Release Notes Label
                 Label lblNotesTitle = new Label()
                 {
-                    Text = "📝 更新日誌與功能說明 (Release Notes):",
+                    Text = "[記錄] 更新日誌與功能說明 (Release Notes):",
                     Font = new System.Drawing.Font("微軟正黑體", 9f, System.Drawing.FontStyle.Bold),
                     ForeColor = System.Drawing.Color.FromArgb(226, 232, 240),
                     Location = new System.Drawing.Point(20, 108),
@@ -3583,7 +3611,7 @@ namespace DynamometerHMI
 
                 Label lblRollbackHint = new Label()
                 {
-                    Text = "💡 說明：若新版本測試異常或功能改壞，可由左側選取先前備份之正常版本，點擊按鈕一鍵還原並重新啟動。",
+                    Text = "[提示] 說明：若新版本測試異常或功能改壞，可由左側選取先前備份之正常版本，點擊按鈕一鍵還原並重新啟動。",
                     Font = new System.Drawing.Font("微軟正黑體", 8.5f),
                     ForeColor = System.Drawing.Color.FromArgb(148, 163, 184),
                     Location = new System.Drawing.Point(460, 448),
