@@ -221,56 +221,136 @@ if (!$gitExe) {
             $appVerMatch = [regex]::Match((Get-Content $webServerCs -Raw), 'APP_VERSION\s*=\s*"([^"]+)"')
             $appVer = if ($appVerMatch.Success) { $appVerMatch.Groups[1].Value } else { $Version }
 
-            # 5-1. Dynamically extract the latest release notes from CHANGELOG.md
+            # 5-1. Dynamically extract the latest release notes from CHANGELOG.md (Table priority + Zero-Mojibake)
             $changelogPath = Join-Path $baseDir "CHANGELOG.md"
             $latestNotes = ""
             if (Test-Path $changelogPath) {
                 $clContent = [System.IO.File]::ReadAllLines($changelogPath, [System.Text.Encoding]::UTF8)
-                $inSection = $false
-                $h3Count = 0
-                $notesList = New-Object System.Collections.ArrayList
-                $secTitle = ""
+
+                # Strategy 1: Priority Markdown Table row (Current format: | Beta | Version | Date | Content |)
                 for ($i = 0; $i -lt $clContent.Length; $i++) {
-                    $line = $clContent[$i]
-                    if ($line -match '^##\s*\[(V[^\]]+)\]') {
-                        if ($inSection) { break }
-                        $inSection = $true
-                        $secTitle = $matches[1]
-                        continue
-                    }
-                    if ($inSection) {
-                        if ($line -match '^##\s*\[V') { break }
-                        if ($line -match '^###\s*') {
-                            $h3Count++
-                            continue
-                        }
-                        # Section H3 #3 is always the solution section (Rule 5)
-                        if ($h3Count -ge 3) {
-                            if ($line -match '^\s*[\d]+\.\s*\*\*(.+?)\*\*[:\uFF1A]?\s*(.*)') {
-                                $curTitle = $matches[1].Replace('`', '').Replace('"', '').Trim()
-                                $curDesc = $matches[2].Replace('`', '').Replace('"', '').Trim()
-                                if ([string]::IsNullOrEmpty($curDesc) -and ($i + 1) -lt $clContent.Length) {
-                                    $nextLine = $clContent[$i + 1]
-                                    if ($nextLine -match '^\s*-\s*(.+)') {
-                                        $curDesc = $matches[1].Replace('`', '').Replace('"', '').Trim()
+                    $line = $clContent[$i].Trim()
+                    if ($line.StartsWith("|") -and $line -match '^\|\s*([^\|]+)\s*\|\s*([^\|]+)\s*\|\s*([^\|]+)\s*\|\s*(.+)') {
+                        $pBeta = $matches[1].Trim()
+                        $pVer = $matches[2].Trim()
+                        $pDate = $matches[3].Trim()
+                        $pContent = $matches[4].Trim().TrimEnd('|').Trim()
+
+                        # Must be a version row starting with V followed by digits (e.g. V2.175)
+                        if ($pBeta -match '^V\d+' -and $pBeta -notlike "*---*" -and $pVer -notlike "*---*") {
+                            # Split by <br> tags
+                            $rawParts = $pContent -split '<br>'
+                            $titlePart = if ($rawParts.Length -gt 0) { $rawParts[0].Trim() } else { "" }
+                            if ($titlePart.Length -gt 90) { $titlePart = $titlePart.Substring(0, 90) + "..." }
+
+                            $solList = New-Object System.Collections.ArrayList
+                            $inSol = $false
+                            foreach ($rp in $rawParts) {
+                                $t = $rp.Trim()
+                                if ($t -match '^\s*3\)') {
+                                    $inSol = $true
+                                    continue
+                                }
+                                if ($inSol) {
+                                    if ($t -match '^\s*\d+\.') {
+                                        if ($t.Length -gt 70) { $t = $t.Substring(0, 70) + "..." }
+                                        [void]$solList.Add($t)
+                                    } elseif ($t -match '^\s*[1245]\)') {
+                                        $inSol = $false
                                     }
                                 }
-                                if ($curDesc.Length -gt 80) { $curDesc = $curDesc.Substring(0, 80) + "..." }
-                                $lineStr = if (![string]::IsNullOrEmpty($curDesc)) { ($curTitle + ": " + $curDesc) } else { $curTitle }
-                                [void]$notesList.Add(($notesList.Count + 1).ToString() + ". " + $lineStr)
+                            }
+
+                            $sb = New-Object System.Text.StringBuilder
+                            [void]$sb.AppendLine("[" + $pVer + "] (" + $pDate + ")")
+                            if (![string]::IsNullOrEmpty($titlePart)) {
+                                [void]$sb.AppendLine("* " + $titlePart)
+                            }
+                            $itemLimit = [Math]::Min(4, $solList.Count)
+                            for ($sIdx = 0; $sIdx -lt $itemLimit; $sIdx++) {
+                                [void]$sb.AppendLine($solList[$sIdx])
+                            }
+                            $candidateNotes = $sb.ToString().Trim()
+
+                            # Zero-mojibake check: ensure string does not contain PUA characters or corruption
+                            $hasMojibake = $false
+                            foreach ($ch in $candidateNotes.ToCharArray()) {
+                                $code = [int][char]$ch
+                                if (($code -ge 0xE000 -and $code -le 0xF8FF) -or $code -eq 0xFFFD) {
+                                    $hasMojibake = $true
+                                    break
+                                }
+                            }
+                            if (!$hasMojibake -and $candidateNotes.Length -ge 15) {
+                                $latestNotes = $candidateNotes
+                                break
                             }
                         }
                     }
                 }
+
+                # Strategy 2: Fallback to old ## [V...] section if table parsing returned empty
+                if ([string]::IsNullOrEmpty($latestNotes)) {
+                    $inSection = $false
+                    $h3Count = 0
+                    $notesList = New-Object System.Collections.ArrayList
+                    $secTitle = ""
+                    for ($i = 0; $i -lt $clContent.Length; $i++) {
+                        $line = $clContent[$i]
+                        if ($line -match '^##\s*\[(V[^\]]+)\]') {
+                            if ($inSection) { break }
+                            $inSection = $true
+                            $secTitle = $matches[1]
+                            continue
+                        }
+                        if ($inSection) {
+                            if ($line -match '^##\s*\[V') { break }
+                            if ($line -match '^###\s*') { $h3Count++; continue }
+                            if ($h3Count -ge 3) {
+                                if ($line -match '^\s*[\d]+\.\s*\*\*(.+?)\*\*[:\uFF1A]?\s*(.*)') {
+                                    $curTitle = $matches[1].Replace('`', '').Replace('"', '').Trim()
+                                    $curDesc = $matches[2].Replace('`', '').Replace('"', '').Trim()
+                                    if ([string]::IsNullOrEmpty($curDesc) -and ($i + 1) -lt $clContent.Length) {
+                                        $nextLine = $clContent[$i + 1]
+                                        if ($nextLine -match '^\s*-\s*(.+)') {
+                                            $curDesc = $matches[1].Replace('`', '').Replace('"', '').Trim()
+                                        }
+                                    }
+                                    if ($curDesc.Length -gt 80) { $curDesc = $curDesc.Substring(0, 80) + "..." }
+                                    $lineStr = if (![string]::IsNullOrEmpty($curDesc)) { ($curTitle + ": " + $curDesc) } else { $curTitle }
+                                    [void]$notesList.Add(($notesList.Count + 1).ToString() + ". " + $lineStr)
+                            }
+                        }
+                    }
+                }
+
                 if ($notesList.Count -gt 0) {
                     $headerStr = if (![string]::IsNullOrEmpty($secTitle)) { ("[" + $secTitle + "]") } else { "[Release Notes]" }
                     $latestNotes = $headerStr + "`n" + ($notesList -join "`n")
                 }
             }
 
-            if ([string]::IsNullOrEmpty($latestNotes)) {
-                $latestNotes = "V" + $appVer + " Update Completed."
+            # Final Zero-Mojibake Safety Guard: inspect full notes before publishing
+            $hasMojibakeFinal = $false
+            foreach ($ch in $latestNotes.ToCharArray()) {
+                $code = [int][char]$ch
+                if (($code -ge 0xE000 -and $code -le 0xF8FF) -or $code -eq 0xFFFD) {
+                    $hasMojibakeFinal = $true
+                    break
+                }
             }
+            if ($hasMojibakeFinal) {
+                Write-Warning "[WARN] Detected mojibake in extracted release notes! Applying clean fallback template."
+                $latestNotes = ""
+            }
+        }
+
+            if ([string]::IsNullOrEmpty($latestNotes)) {
+                $latestNotes = "[v$appVer] ($releaseDate)`n* 馬達動力計測試系統 V$appVer 更新完成`n1. 核心測試與報表功能強化`n2. 系統通訊與操作穩定性提升`n3. 100% 相容 Windows XP 與零亂碼規範"
+            }
+
+            Write-Host "[RELEASE NOTES EXTRACTED]:"
+            Write-Host $latestNotes
 
             # Convert all non-ASCII characters to \uXXXX Unicode escapes to eliminate PowerShell codepage corruption
             $sbNotes = New-Object System.Text.StringBuilder

@@ -233,5 +233,33 @@
   * 具備三重看門狗：目標 PID 消失且無新進程則 5 秒自滅；關閉觸發視窗時主動同動結束；120 秒絕對超時硬上限。
 * **詳細規範**：參考 `.agents/rules/blackbox_crash_diagnostics_rule.md` 與技能 `blackbox-crash-diagnostics`。
 
+## 21. 跨對話上下文專案鎖定與雲端日誌即時提取鐵律 (Context-Project Lock & Instant Cloud-Log Fetch Rule - 全案最高強制規範)
+* **跨對話上下文專案唯一鎖定 (Conversation Context > Editor Tab Metadata)**：
+  * 在多專案工作區（`AI_Projects`）中，AI 判定當前任務專案的最高依據**一律為「整段對話歷史的主題演進與先前的討論上下文」**。
+  * **嚴禁「編輯器分頁元數據錨定偏誤」**：嚴格禁止僅憑 IDE 在背後隨機附帶的 `Active Document` 或其他 open documents 就自作主張切換專案！使用者可能只是暫時查看其他檔案，除非使用者在對話中**明確以文字提出切換指令**，否則當前對話之專案主體永遠嚴格鎖定於原專案（如 `Dyanmometer` 動力計專案）。
+* **「日誌上傳」專屬雲端端點零秒直連 (Zero-Second Direct Cloud-Log Fetch)**：
+  * 動力計 HMI 點擊【日誌上傳】（或【☁️ 上傳日誌至雲端】）時，當次實測之 CSV 與 `hmi_telemetry.log` 會即刻推播至 Firebase RTDB：
+    `https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/logs/latest.json`
+  * 凡收到包含「已上傳」、「日誌上傳」、「點了上傳」、「看最新日誌」、「分析測試」等指令，**第一動作必須在同一個 Turn 內直接向上述 URL 發起 HTTP GET 請求**！直接提取 `csv_content` 與 `log_content` 進行分析，**嚴格禁止在本地磁碟盲目搜尋或跑出工作區外翻找**！
+* **舊日誌路徑反向污染防禦 (Anti-Log-Path Contamination)**：
+  * 嚴格禁止讀取某個歷史日誌（如出現 `Desktop/資料整理`）後，未經思考就將該外部路徑當作當前任務目標，所有診斷分析必須閉鎖於當前專案與對應的專屬雲端通道之內。
+* **詳細規範**：參考 `.agents/rules/context_project_lock_and_cloud_log_rule.md`。
+
+## 22. 線上更新日誌純淨繁體中文與零亂碼最高鐵律 (Zero-Mojibake Release Notes & Manifest Integrity Rule - 全案最高強制規範)
+* **表格行正則鎖定 (Table-First Priority - 嚴禁誤殺 (beta) 版號)**：
+  * 提取器解析 `CHANGELOG.md` 必須優先抓取頂部 Markdown 表格第一列。
+  * 必須採用精確版本正則：`$pBeta -match '^V\d+' -and $pBeta -notlike "*---*" -and $pVer -notlike "*---*"`，**嚴格禁止**使用模糊的 `-notlike "*Beta*"`，杜絕因 PowerShell 大小寫不敏感而將包含 `(beta)` 的真實版次全數誤殺！
+* **純符號項目解析 (Encoding-Agnostic Bullet Parsing)**：
+  * 方案提取嚴禁依賴腳本內寫死中文字串比對（防止腳本代碼頁錯位）。
+  * 強制採用純數字符號正則：`$t -match '^\s*3\)'` 標記精確方案區段，`$t -match '^\s*\d+\.'` 提取序號子條目。
+* **Unicode Escape 傳輸防護 (\uXXXX Encoding)**：
+  * 將 Release Notes 寫入 Firebase RTDB `/update/version.json` 之 JSON 前，所有非 ASCII 字元（`char > 127`）強制轉為 `\uXXXX` 轉義格式。
+  * 徹底封死任何 OS 代碼頁、PowerShell 5.1 或 HTTP 傳輸之亂碼隱患，WinForms 原生還原為純淨繁體中文。
+* **硬性零亂碼閉鎖防呆 (Zero-Mojibake Lockout Guard)**：
+  * 寫入 Firebase 前強制對字串逐字審查：凡檢測到 PUA 私用區字元（`0xE000` ~ `0xF8FF`）或未定義字元（`0xFFFD`），強制認定為 Mojibake 損壞，嚴禁上傳！自動回退為標準純淨繁體中文發布範本。
+* **發布後回讀實測驗證 (Post-Publish Read-Back Probe)**：
+  * 每次發布更新 Firebase RTDB 後，必須透過 HTTP GET 立即回讀 `/update/version.json` 驗證 `notes` 內容與長度，確保現場工控機讀取之更新說明永遠為 100% 正確的繁體中文。
+* **詳細規範**：參考 `.agents/rules/zero_mojibake_release_notes_rule.md`。
+
 
 
