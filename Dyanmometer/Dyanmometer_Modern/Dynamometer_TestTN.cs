@@ -15,6 +15,10 @@ namespace DynamometerHMI
         // =========================================================================
         private int tnCurrentLossCounter = 0;
         private int tnStallCounter = 0;
+        // 低轉速 (<300 rpm) 預先激磁狀態機 (解決未激磁高轉起載反轉矩與衝過載跳機問題)
+        private int tnPreExciteStage = 0; // 0: 完成/無須預激磁, 1: 待測端低速起轉 (<=300 rpm), 2: 加載端低速激磁上電確認 (Sy50=4, cs18=0)
+        private int tnPreExciteWaitSec = 0; // 激磁建立等待計時
+        private const double TN_LOW_SPEED_EXCITE_RPM = 250.0; // 低速激磁基準轉速 (250 rpm <= 300 rpm)
         // =========================================================================
         private void BuildTnTab(TabPage tab)
         {
@@ -192,7 +196,7 @@ namespace DynamometerHMI
                 Font = new Font("微軟正黑體", 11f, FontStyle.Bold)
             };
 
-            Label lblTnOcTitle = new Label() { Text = "⚡過電流(Kt換算):", Location = new Point(660, 48), AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold), ForeColor = Color.FromArgb(194, 65, 12) };
+            Label lblTnOcTitle = new Label() { Text = "[!]過電流(Kt換算):", Location = new Point(660, 48), AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold), ForeColor = Color.FromArgb(194, 65, 12) };
             Label lblTnKt = new Label() { Text = "Kt:", Location = new Point(815, 48), AutoSize = true, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
             numTnKt = CreateNumericUpDown(new Point(845, 44), 65, 0.01m, 100m, tnMotorKt, 2, 0.1m);
             numTnKt.Font = new Font("微軟正黑體", 11f);
@@ -436,7 +440,7 @@ namespace DynamometerHMI
 
             btnTnSelectChannels = new Button()
             {
-                Text = "⚙ 選擇監測通道...",
+                Text = "[*] 選擇監測通道...",
                 Location = new Point(6, 4),
                 Size = new Size(150, 30),
                 BackColor = Color.FromArgb(241, 245, 249),
@@ -480,7 +484,7 @@ namespace DynamometerHMI
             };
             Button btnTnTimeMinus = new Button()
             {
-                Text = "➖",
+                Text = "[-]",
                 Location = new Point(68, 5),
                 Size = new Size(26, 28),
                 FlatStyle = FlatStyle.Flat,
@@ -503,7 +507,7 @@ namespace DynamometerHMI
 
             Button btnTnTimePlus = new Button()
             {
-                Text = "➕",
+                Text = "[+]",
                 Location = new Point(212, 5),
                 Size = new Size(26, 28),
                 FlatStyle = FlatStyle.Flat,
@@ -599,7 +603,7 @@ namespace DynamometerHMI
         private void UpdateTnAnchorStatusText()
         {
             string statusStr = tnHasAnchor
-                ? string.Format("✅ 已定錨基準：給定 {0:F1}% (實測: {1:F2} Nm)", tnAdaptedTorquePct, actTorque)
+                ? string.Format("[OK] 已定錨基準：給定 {0:F1}% (實測: {1:F2} Nm)", tnAdaptedTorquePct, actTorque)
                 : "定錨基準: 未設定 (未定錨，從 0% 起步加載)";
             Color col = tnHasAnchor ? Color.DarkGreen : Color.FromArgb(100, 116, 139);
             if (lblTnAnchorStatus != null)
@@ -684,7 +688,7 @@ namespace DynamometerHMI
 
             Label lHint = new Label()
             {
-                Text = "請勾選需在 T-N 測試右上即時溫度曲線監控之通道：\n(若設備已連線，可點擊「⚡ 依實測選取」自動偵測真正有訊號的通道)",
+                Text = "請勾選需在 T-N 測試右上即時溫度曲線監控之通道：\n(若設備已連線，可點擊「[!] 依實測選取」自動偵測真正有訊號的通道)",
                 Dock = DockStyle.Top,
                 Height = 44,
                 Padding = new Padding(6),
@@ -713,7 +717,7 @@ namespace DynamometerHMI
             Button btnOk = new Button() { Text = "確定", DialogResult = DialogResult.OK, Width = 70, Height = 28, BackColor = Color.FromArgb(16, 185, 129), ForeColor = Color.White };
             Button btnAutoDetect = new Button()
             {
-                Text = "⚡ 依實測選取",
+                Text = "[!] 依實測選取",
                 Width = 115,
                 Height = 28,
                 BackColor = Color.FromArgb(59, 130, 246),
@@ -909,40 +913,48 @@ namespace DynamometerHMI
                 KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0);
                 SetHmiKebCommand(trqCom, trqBaud, trqNode, 0, string.Format("{0}TN加載端空載停機待命 (Sy50=0, cs18=0)", trqDriveName));
 
-                // 待測端空載起轉
-                tnCurrentSpeedCmd = p0.TargetSpeed;
-                KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)p0.TargetSpeed, "T-N多點第1點初轉速 (Sy52)");
+                // 待測端空載起轉：若目標轉速 >= 300 rpm，強制啟動「低轉速 (<300 rpm) 預先激磁流程」
+                bool needPreExciteMulti = (p0.TargetSpeed >= 300.0);
+                double initialRunSpeed = needPreExciteMulti ? TN_LOW_SPEED_EXCITE_RPM : p0.TargetSpeed;
+                tnPreExciteStage = needPreExciteMulti ? 1 : 0;
+                tnPreExciteWaitSec = 0;
+                tnCurrentSpeedCmd = initialRunSpeed;
+
+                KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)initialRunSpeed, needPreExciteMulti ? "T-N多點第1點低速預激磁轉速 (Sy52)" : "T-N多點第1點初轉速 (Sy52)");
                 KebWriteParamWithDll(spdCom, spdBaud, spdNode, 0x0F12, 1000);
                 SetHmiKebCommand(spdCom, spdBaud, spdNode, 4, string.Format("{0}TN待測端正轉 (Sy50=4)", spdDriveName));
 
                 if (spdDrive == 2)
                 {
-                    if (numHmiKebSpeed2 != null) numHmiKebSpeed2.Value = Math.Max(0, Math.Min(6000, (decimal)p0.TargetSpeed));
+                    if (numHmiKebSpeed2 != null) numHmiKebSpeed2.Value = Math.Max(0, Math.Min(6000, (decimal)initialRunSpeed));
                     if (numHmiKebTorque2 != null) numHmiKebTorque2.Value = 0;
                     if (numHmiKebSpeed1 != null) numHmiKebSpeed1.Value = 0;
                     if (numHmiKebTorque1 != null) numHmiKebTorque1.Value = 0;
                 }
                 else
                 {
-                    if (numHmiKebSpeed1 != null) numHmiKebSpeed1.Value = Math.Max(0, Math.Min(6000, (decimal)p0.TargetSpeed));
+                    if (numHmiKebSpeed1 != null) numHmiKebSpeed1.Value = Math.Max(0, Math.Min(6000, (decimal)initialRunSpeed));
                     if (numHmiKebTorque1 != null) numHmiKebTorque1.Value = 0;
                     if (numHmiKebSpeed2 != null) numHmiKebSpeed2.Value = 0;
                     if (numHmiKebTorque2 != null) numHmiKebTorque2.Value = 0;
                 }
 
-                dgvTnMultiPoints.Rows[0].Cells[3].Value = "⏳ 提速中";
-                lblTnStatus.Text = string.Format("多點測試啟動：第 1/{0} 點 (目標 {1:F0} rpm / {2:F1} Nm)",
-                    tnCustomPoints.Count, p0.TargetSpeed, p0.TargetTorque);
-                lblTnCountdown.Text = "提速空載中";
+                dgvTnMultiPoints.Rows[0].Cells[3].Value = needPreExciteMulti ? "[低速預激磁]" : "[...] 提速中";
+                lblTnStatus.Text = needPreExciteMulti
+                    ? string.Format("多點測試啟動：待測端先起轉至低轉速 {0:F0} rpm 建立加載端激磁 (目標 {1:F0} rpm / {2:F1} Nm)",
+                        initialRunSpeed, p0.TargetSpeed, p0.TargetTorque)
+                    : string.Format("多點測試啟動：第 1/{0} 點 (目標 {1:F0} rpm / {2:F1} Nm)",
+                        tnCustomPoints.Count, p0.TargetSpeed, p0.TargetTorque);
+                lblTnCountdown.Text = needPreExciteMulti ? "低速預激磁" : "提速空載中";
                 if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
-                if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = "提速空載中";
+                if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
 
                 webRemoteMode = "T-N 多點測試";
                 webRemoteStatusText = lblTnStatus.Text;
-                webRemotePhaseText = "提速空載中";
+                webRemotePhaseText = lblTnCountdown.Text;
 
-                WriteHmiLog("TN_CONFIG", string.Format("【T-N 多點測試啟動】共 {0} 組自訂點位，第 1 點: {1:F0} rpm / {2:F1} Nm (加載端初始歸零)",
-                    tnCustomPoints.Count, p0.TargetSpeed, p0.TargetTorque));
+                WriteHmiLog("TN_CONFIG", string.Format("【T-N 多點測試啟動】共 {0} 組自訂點位，第 1 點: 目標 {1:F0} rpm / {2:F1} Nm | 低速激磁策略: {3} (加載端初始歸零 cs18=0%)",
+                    tnCustomPoints.Count, p0.TargetSpeed, p0.TargetTorque, needPreExciteMulti ? "啟用(250rpm先激磁)" : "跳過(<300rpm直上)"));
 
                 if (!isRunning) BtnStart_Click(null, null);
                 tnTimer.Start();
@@ -977,9 +989,14 @@ namespace DynamometerHMI
             KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // cs.18 = 0
             SetHmiKebCommand(trqCom, trqBaud, trqNode, 0, string.Format("{0}TN加載端空載停機待命 (Sy50=0, cs18=0)", trqDriveName));
 
-            // 2. 待測端空載起轉至起始轉速 (1:1 寫入 Sy.52)
-            tnCurrentSpeedCmd = (double)tnCurrentStep;
-            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, tnCurrentStep, "T-N 初轉速 (Sy52)");
+            // 2. 待測端空載起轉：若起始轉速 >= 300 rpm，先起轉至低轉速 250 rpm 激磁加載端；若 < 300 rpm 則直接起轉
+            bool needPreExciteRamp = (tnCurrentStep >= 300);
+            double initialRampSpeed = needPreExciteRamp ? TN_LOW_SPEED_EXCITE_RPM : (double)tnCurrentStep;
+            tnPreExciteStage = needPreExciteRamp ? 1 : 0;
+            tnPreExciteWaitSec = 0;
+            tnCurrentSpeedCmd = initialRampSpeed;
+
+            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)initialRampSpeed, needPreExciteRamp ? "T-N 低速預激磁轉速 (Sy52)" : "T-N 初轉速 (Sy52)");
             KebWriteParamWithDll(spdCom, spdBaud, spdNode, 0x0F12, 1000); // 待測端放行 100% 轉矩
             SetHmiKebCommand(spdCom, spdBaud, spdNode, 4, string.Format("{0}TN待測端正轉 (Sy50=4)", spdDriveName));
 
@@ -989,18 +1006,19 @@ namespace DynamometerHMI
             tnTrqSustainedSec = 0;
             tnDwellRemaining = (int)numTnDwell.Value;
 
-            lblTnStatus.Text = string.Format("正在啟動：{0}待測 {1} rpm | {2}加載 (初始 0.0%)",
-                spdDriveName, tnCurrentStep, trqDriveName);
-            lblTnCountdown.Text = "提速空載中";
+            lblTnStatus.Text = needPreExciteRamp
+                ? string.Format("正在啟動：{0}待測低速 {1:F0} rpm (激磁建立中) | 目標 {2} rpm", spdDriveName, initialRampSpeed, tnCurrentStep)
+                : string.Format("正在啟動：{0}待測 {1} rpm | {2}加載 (初始 0.0%)", spdDriveName, tnCurrentStep, trqDriveName);
+            lblTnCountdown.Text = needPreExciteRamp ? "低速預激磁" : "提速空載中";
             if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
-            if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = "提速空載中";
+            if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
             // ── 遠端監看同步 ──
             webRemoteMode = "T-N 曲線測試";
             webRemoteStatusText = lblTnStatus.Text;
-            webRemotePhaseText  = "提速空載中";
+            webRemotePhaseText  = lblTnCountdown.Text;
 
-            WriteHmiLog("TN_CONFIG", string.Format("【T-N 啟動測試】測試配置: {0}待測 (速度) / {1}加載 (轉矩) | 起始轉速: {2} rpm, 步進: {3} rpm, 結束: {4} rpm, 目標轉矩: {5:F1} Nm (加載端轉矩啟動歸零 0.0%)",
-                spdDriveName, trqDriveName, tnCurrentStep, numTnStepRpm.Value, numTnEndRpm.Value, targetTrqVal));
+            WriteHmiLog("TN_CONFIG", string.Format("【T-N 啟動測試】測試配置: {0}待測 (速度) / {1}加載 (轉矩) | 起始轉速: {2} rpm, 步進: {3} rpm, 結束: {4} rpm, 目標轉矩: {5:F1} Nm | 低速激磁策略: {6} (加載端轉矩啟動歸零 0.0%)",
+                spdDriveName, trqDriveName, tnCurrentStep, numTnStepRpm.Value, numTnEndRpm.Value, targetTrqVal, needPreExciteRamp ? "啟用(250rpm先激磁)" : "跳過(<300rpm直上)"));
 
             if (!isRunning) BtnStart_Click(null, null);
 
@@ -1154,6 +1172,54 @@ namespace DynamometerHMI
             {
                 tnConvergeTimeoutSec++;
 
+                // ★【低轉速 (<300 rpm) 預先激磁狀態機處理】
+                if (tnPreExciteStage == 1)
+                {
+                    // 階段 1：待測端在低轉速 (<=300 rpm) 區間運轉，等待轉速到達 >= 180 rpm
+                    ApplyTnSpeedTracking(spdCom, spdBaud, spdNode, spdDrive, TN_LOW_SPEED_EXCITE_RPM, actAbsSpd);
+                    KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // cs.18 = 0%
+
+                    if (actAbsSpd >= 180.0)
+                    {
+                        // 轉速已進入低速區間，立即讓加載端上電激磁 (Sy50=4, cs18=0%)
+                        SetHmiKebCommand(trqCom, trqBaud, trqNode, 4, string.Format("{0}TN加載端低速激磁上電 (Sy50=4, cs18=0%)", trqDriveName));
+                        tnPreExciteStage = 2;
+                        tnPreExciteWaitSec = 0;
+                        WriteHmiLog("TN_PRE_EXCITE", string.Format("【低速預激磁】待測端已達低速 {0:F0} rpm，加載端 {1} 上電激磁 (Sy50=4, cs18=0%)，等待磁場穩定...", actAbsSpd, trqDriveName));
+                    }
+                    lblTnStatus.Text = string.Format("[預激磁] 待測端低速起轉中：實測 {0:F0} rpm (目標 {1:F0} rpm) | 加載端準備上電", actAbsSpd, TN_LOW_SPEED_EXCITE_RPM);
+                    lblTnCountdown.Text = "低速起轉中";
+                    if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
+                    if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
+                    if (dgvTnMultiPoints.Rows.Count > tnMultiCurrentIndex)
+                        dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = "[預激磁] 低速起轉";
+                    return;
+                }
+                else if (tnPreExciteStage == 2)
+                {
+                    // 階段 2：等待加載端上電確認 (維持 2 秒讓轉子磁通飽和穩定建立)
+                    ApplyTnSpeedTracking(spdCom, spdBaud, spdNode, spdDrive, TN_LOW_SPEED_EXCITE_RPM, actAbsSpd);
+                    KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // 確保 cs.18 嚴格為 0%
+                    tnPreExciteWaitSec++;
+
+                    if (tnPreExciteWaitSec >= 2)
+                    {
+                        // 加載端激磁已完全建立！待測端正式提速至目標測試轉速
+                        tnPreExciteStage = 0;
+                        tnPreExciteWaitSec = 0;
+                        tnCurrentSpeedCmd = targetSpd;
+                        KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)targetSpd, "T-N多點預激磁完成提速至目標轉速 (Sy52)");
+                        WriteHmiLog("TN_PRE_EXCITE", string.Format("【預激磁完成】加載端激磁確認建立 (cs18=0%)，待測端正式提速至目標 {0:F0} rpm", targetSpd));
+                    }
+                    lblTnStatus.Text = string.Format("[預激磁] 加載端激磁建立確認中 ({0}/2s)：實測 {1:F0} rpm | cs18=0%", tnPreExciteWaitSec, actAbsSpd);
+                    lblTnCountdown.Text = string.Format("激磁確認 ({0}s)", tnPreExciteWaitSec);
+                    if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
+                    if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
+                    if (dgvTnMultiPoints.Rows.Count > tnMultiCurrentIndex)
+                        dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = "[預激磁] 確認中";
+                    return;
+                }
+
                 // ★【待測端轉速平滑閉迴路追隨 (同動 S1/S2/S6 補轉差機制)】
                 ApplyTnSpeedTracking(spdCom, spdBaud, spdNode, spdDrive, targetSpd, actAbsSpd);
 
@@ -1165,13 +1231,13 @@ namespace DynamometerHMI
                     int curTrqHold = (int)Math.Round(tnAdaptedTorquePct * 10);
                     KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, curTrqHold);
 
-                    lblTnStatus.Text = string.Format("⌛ [第 {0}/{1} 點] 變速調整中：實測 {2:F0} rpm / 目標 {3:F0} rpm (加載端保持 {4:F1}%)",
+                    lblTnStatus.Text = string.Format("[...] [第 {0}/{1} 點] 變速調整中：實測 {2:F0} rpm / 目標 {3:F0} rpm (加載端保持 {4:F1}%)",
                         tnMultiCurrentIndex + 1, tnCustomPoints.Count, actAbsSpd, targetSpd, tnAdaptedTorquePct);
                     lblTnCountdown.Text = string.Format("變速中 ({0}s)", tnConvergeTimeoutSec);
                     if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                     if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
                     if (dgvTnMultiPoints.Rows.Count > tnMultiCurrentIndex)
-                        dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = "⏳ 變速調整中";
+                        dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = "[...] 變速調整中";
                     return;
                 }
 
@@ -1204,7 +1270,7 @@ namespace DynamometerHMI
                 tnAdaptedTorquePct = tnLoadTracker.AdaptedTorquePct;
                 tnCurrentSpeedCmd = tnLoadTracker.CurrentSpeedCmd;
 
-                lblTnStatus.Text = string.Format("⌛ [第 {0}/{1} 點] {2}",
+                lblTnStatus.Text = string.Format("[...] [第 {0}/{1} 點] {2}",
                     tnMultiCurrentIndex + 1, tnCustomPoints.Count, statusDesc);
                 lblTnCountdown.Text = string.Format("加載中 ({0}s)", tnConvergeTimeoutSec);
                 if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
@@ -1219,7 +1285,7 @@ namespace DynamometerHMI
                     tnMultiStabilizeCounter = 5;
                     tnConvergeTimeoutSec = 0;
                     tnTrqSustainedSec = 0;
-                    lblTnStatus.Text = string.Format("✅ [第 {0}/{1} 點] 轉速補償與轉矩雙雙達標 ({2:F0}rpm / {3:F1}Nm)，開始穩定 5 秒倒數！",
+                    lblTnStatus.Text = string.Format("[OK] [第 {0}/{1} 點] 轉速補償與轉矩雙雙達標 ({2:F0}rpm / {3:F1}Nm)，開始穩定 5 秒倒數！",
                         tnMultiCurrentIndex + 1, tnCustomPoints.Count, actAbsSpd, actAbsTrq);
                     lblTnCountdown.Text = "穩定等待: 5 s";
                     if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
@@ -1260,13 +1326,13 @@ namespace DynamometerHMI
                 {
                     tnMultiStabilizeCounter--;
                     lblTnCountdown.Text = string.Format("穩定等待: {0} s", tnMultiStabilizeCounter);
-                    lblTnStatus.Text = string.Format("⚖️ [第 {0}/{1} 點] 穩定確認中：轉速 {2:F0} rpm | 轉矩 {3:F2} Nm",
+                    lblTnStatus.Text = string.Format("[BAL] [第 {0}/{1} 點] 穩定確認中：轉速 {2:F0} rpm | 轉矩 {3:F2} Nm",
                         tnMultiCurrentIndex + 1, tnCustomPoints.Count, actAbsSpd, actAbsTrq);
                 }
                 else
                 {
                     lblTnCountdown.Text = string.Format("調節等待: {0} s (暫停)", tnMultiStabilizeCounter);
-                    lblTnStatus.Text = string.Format("⌛ [第 {0}/{1} 點] 偏離補償微調中：轉速 {2:F0}/{3:F0} rpm | 轉矩 {4:F2}/{5:F1} Nm",
+                    lblTnStatus.Text = string.Format("[...] [第 {0}/{1} 點] 偏離補償微調中：轉速 {2:F0}/{3:F0} rpm | 轉矩 {4:F2}/{5:F1} Nm",
                         tnMultiCurrentIndex + 1, tnCustomPoints.Count, actAbsSpd, targetSpd, actAbsTrq, targetTrq);
                 }
 
@@ -1363,12 +1429,12 @@ namespace DynamometerHMI
                     curPt.AvgTorque = avgTrq;
                     curPt.AvgMechPower = avgMechPwr;
                     curPt.AvgEfficiency = avgEff;
-                    curPt.Status = "✅ 完成";
+                    curPt.Status = "[OK] 完成";
 
                     if (dgvTnMultiPoints.Rows.Count > tnMultiCurrentIndex)
                     {
                         var r = dgvTnMultiPoints.Rows[tnMultiCurrentIndex];
-                        r.Cells[3].Value = "✅ 完成 (30s均值)";
+                        r.Cells[3].Value = "[OK] 完成 (30s均值)";
                         r.Cells[4].Value = avgSpd.ToString("F1");
                         r.Cells[5].Value = avgTrq.ToString("F2");
                         r.Cells[6].Value = avgMechPwr.ToString("F2");
@@ -1382,7 +1448,7 @@ namespace DynamometerHMI
                     dgvTnPoints.Rows[rowIdx].Cells[3].Value = avgTrq.ToString("F2");
                     dgvTnPoints.Rows[rowIdx].Cells[4].Value = avgMechPwr.ToString("F2");
                     dgvTnPoints.Rows[rowIdx].Cells[5].Value = avgEff.ToString("F1");
-                    dgvTnPoints.Rows[rowIdx].Cells[6].Value = "✅ 完成 (30s均值)";
+                    dgvTnPoints.Rows[rowIdx].Cells[6].Value = "[OK] 完成 (30s均值)";
 
                     if (tnChart != null) tnChart.AddPoint(avgSpd, avgTrq, avgMechPwr);
 
@@ -1437,7 +1503,7 @@ namespace DynamometerHMI
                         WriteHmiLog("TN_MULTI", string.Format("【同轉速換項】第 {0} 點轉速相同 ({1:F0} rpm)，直接平穩調升/調降轉矩至 {2:F1} Nm (當前負載基準: {3:F1}%)",
                             tnMultiCurrentIndex + 1, nextPt.TargetSpeed, nextPt.TargetTorque, tnAdaptedTorquePct));
 
-                        lblTnStatus.Text = string.Format("➡️ 同速調扭：第 {0}/{1} 點 (目標 {2:F0} rpm / {3:F1} Nm)，直接平穩過渡...",
+                        lblTnStatus.Text = string.Format("[->]️ 同速調扭：第 {0}/{1} 點 (目標 {2:F0} rpm / {3:F1} Nm)，直接平穩過渡...",
                             tnMultiCurrentIndex + 1, tnCustomPoints.Count, nextPt.TargetSpeed, nextPt.TargetTorque);
                         lblTnCountdown.Text = "調扭過渡中";
                         if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
@@ -1469,7 +1535,7 @@ namespace DynamometerHMI
                         else if (trqDrive == 2 && numHmiKebTorque2 != null) numHmiKebTorque2.Value = (decimal)tnAdaptedTorquePct;
 
                         double trqStep1Nm = curPt.TargetTorque * (tnAdaptedTorquePct / Math.Max(0.1, tnRampDownStartPct));
-                        lblTnStatus.Text = string.Format("⬇️ 換項降載 (1/3 步)：轉矩調降至 {0:F1}% ({1:F1} Nm)，平穩邁向 25%...", tnAdaptedTorquePct, trqStep1Nm);
+                        lblTnStatus.Text = string.Format("[v]️ 換項降載 (1/3 步)：轉矩調降至 {0:F1}% ({1:F1} Nm)，平穩邁向 25%...", tnAdaptedTorquePct, trqStep1Nm);
                         lblTnCountdown.Text = "降載階梯 1/3";
                         if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                         if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
@@ -1480,7 +1546,7 @@ namespace DynamometerHMI
                 }
             }
             // =========================================================================
-            // 子階段 4: 換項 3 步階梯平穩降載至 25% ➔ 變速 ➔ 切換至子階段 0 等待新速度到達
+            // 子階段 4: 換項 3 步階梯平穩降載至 25% -> 變速 -> 切換至子階段 0 等待新速度到達
             // =========================================================================
             else if (tnMultiSubPhase == 4)
             {
@@ -1498,7 +1564,7 @@ namespace DynamometerHMI
                     if (trqDrive == 1 && numHmiKebTorque1 != null) numHmiKebTorque1.Value = (decimal)tnAdaptedTorquePct;
                     else if (trqDrive == 2 && numHmiKebTorque2 != null) numHmiKebTorque2.Value = (decimal)tnAdaptedTorquePct;
 
-                    lblTnStatus.Text = string.Format("⬇️ 換項降載 (2/3 步)：轉矩調降至 {0:F1}%，平穩邁向 25%...", tnAdaptedTorquePct);
+                    lblTnStatus.Text = string.Format("[v]️ 換項降載 (2/3 步)：轉矩調降至 {0:F1}%，平穩邁向 25%...", tnAdaptedTorquePct);
                     lblTnCountdown.Text = "降載階梯 2/3";
                     if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                     if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
@@ -1516,7 +1582,7 @@ namespace DynamometerHMI
                     if (trqDrive == 1 && numHmiKebTorque1 != null) numHmiKebTorque1.Value = (decimal)tnAdaptedTorquePct;
                     else if (trqDrive == 2 && numHmiKebTorque2 != null) numHmiKebTorque2.Value = (decimal)tnAdaptedTorquePct;
 
-                    lblTnStatus.Text = string.Format("⬇️ 換項降載 (3/3 步)：轉矩已到達 25% ({0:F1}%)，確認負載穩定後開始變速...", tnAdaptedTorquePct);
+                    lblTnStatus.Text = string.Format("[v]️ 換項降載 (3/3 步)：轉矩已到達 25% ({0:F1}%)，確認負載穩定後開始變速...", tnAdaptedTorquePct);
                     lblTnCountdown.Text = "降載階梯 3/3";
                     if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                     if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
@@ -1540,7 +1606,7 @@ namespace DynamometerHMI
                     double nextSpd = nextPt.TargetSpeed;
                     double nextTrq = nextPt.TargetTorque;
 
-                    WriteHmiLog("TN_MULTI", string.Format("【3步降載完成 ➔ 啟動變速】轉矩已平穩降至 25% ({0:F1}%, 實測 {1:F1} Nm)，正式切換第 {2} 點目標轉速: {3:F0} rpm (目標轉矩: {4:F1} Nm)",
+                    WriteHmiLog("TN_MULTI", string.Format("【3步降載完成 -> 啟動變速】轉矩已平穩降至 25% ({0:F1}%, 實測 {1:F1} Nm)，正式切換第 {2} 點目標轉速: {3:F0} rpm (目標轉矩: {4:F1} Nm)",
                         tnAdaptedTorquePct, actAbsTrq, tnMultiCurrentIndex + 1, nextSpd, nextTrq));
 
                     // 加載端保持在 25% 負載 (不歸零，避免急速甩載)，待測端下達新目標轉速
@@ -1732,7 +1798,7 @@ namespace DynamometerHMI
             bool isTrqValid = (targetTrq <= 0) || (tnAdaptedTorquePct >= 1.0 && Math.Abs(trqErr) <= Math.Max(1.0, targetTrq * 0.08));
 
             // =========================================================================
-            // 【階段 0：提速起跑 ➔ 轉速鎖定 ➔ 平穩加載逼近】
+            // 【階段 0：提速起跑 -> 轉速鎖定 -> 平穩加載逼近】
             // =========================================================================
             if (tnPhase == 0)
             {
@@ -1743,11 +1809,55 @@ namespace DynamometerHMI
                 // 轉速未到位前，加載端維持 0 轉矩空載 (cs.18 = 0)，讓待測端順暢提速！
                 if (!tnStepSpeedReached)
                 {
+                    // ★【低轉速 (<300 rpm) 預先激磁狀態機處理】
+                    if (tnPreExciteStage == 1)
+                    {
+                        // 階段 1：待測端在低轉速 (<=300 rpm) 區間運轉，等待轉速到達 >= 180 rpm
+                        ApplyTnSpeedTracking(spdCom, spdBaud, spdNode, spdDrive, TN_LOW_SPEED_EXCITE_RPM, actAbsSpd);
+                        KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // cs.18 = 0%
+
+                        if (actAbsSpd >= 180.0)
+                        {
+                            // 轉速已進入低速區間，立即讓加載端上電激磁 (Sy50=4, cs18=0%)
+                            SetHmiKebCommand(trqCom, trqBaud, trqNode, 4, string.Format("{0}TN加載端低速激磁上電 (Sy50=4, cs18=0%)", trqDriveName));
+                            tnPreExciteStage = 2;
+                            tnPreExciteWaitSec = 0;
+                            WriteHmiLog("TN_PRE_EXCITE", string.Format("【低速預激磁】待測端已達低速 {0:F0} rpm，加載端 {1} 上電激磁 (Sy50=4, cs18=0%)，等待磁場穩定...", actAbsSpd, trqDriveName));
+                        }
+                        lblTnStatus.Text = string.Format("[預激磁] 待測端低速起轉中：實測 {0:F0} rpm (目標 {1:F0} rpm) | 加載端準備上電", actAbsSpd, TN_LOW_SPEED_EXCITE_RPM);
+                        lblTnCountdown.Text = "低速起轉中";
+                        if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
+                        if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
+                        return;
+                    }
+                    else if (tnPreExciteStage == 2)
+                    {
+                        // 階段 2：等待加載端上電確認 (維持 2 秒讓轉子磁通飽和穩定建立)
+                        ApplyTnSpeedTracking(spdCom, spdBaud, spdNode, spdDrive, TN_LOW_SPEED_EXCITE_RPM, actAbsSpd);
+                        KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // 確保 cs.18 嚴格為 0%
+                        tnPreExciteWaitSec++;
+
+                        if (tnPreExciteWaitSec >= 2)
+                        {
+                            // 加載端激磁已完全建立！待測端正式提速至目標測試轉速
+                            tnPreExciteStage = 0;
+                            tnPreExciteWaitSec = 0;
+                            tnCurrentSpeedCmd = targetSpd;
+                            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)targetSpd, "T-N梯度預激磁完成提速至目標轉速 (Sy52)");
+                            WriteHmiLog("TN_PRE_EXCITE", string.Format("【預激磁完成】加載端激磁確認建立 (cs18=0%)，待測端正式提速至目標 {0:F0} rpm", targetSpd));
+                        }
+                        lblTnStatus.Text = string.Format("[預激磁] 加載端激磁建立確認中 ({0}/2s)：實測 {1:F0} rpm | cs18=0%", tnPreExciteWaitSec, actAbsSpd);
+                        lblTnCountdown.Text = string.Format("激磁確認 ({0}s)", tnPreExciteWaitSec);
+                        if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
+                        if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
+                        return;
+                    }
+
                     bool reached = (targetSpd <= 0) || (actAbsSpd >= targetSpd * 0.82) || (spdErr <= Math.Max(20.0, targetSpd * 0.12));
                     if (!reached)
                     {
                         KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // 加載端保持 0 轉矩
-                        lblTnStatus.Text = string.Format("⌛ 轉速提速中：實測 {0:F0} rpm / 目標 {1:F0} rpm (加載端保持 0 轉矩)", actAbsSpd, targetSpd);
+                        lblTnStatus.Text = string.Format("[...] 轉速提速中：實測 {0:F0} rpm / 目標 {1:F0} rpm (加載端保持 0 轉矩)", actAbsSpd, targetSpd);
                         lblTnCountdown.Text = "提速空載中";
                         if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                         if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
@@ -1777,7 +1887,7 @@ namespace DynamometerHMI
                 tnAdaptedTorquePct = tnLoadTracker.AdaptedTorquePct;
                 tnCurrentSpeedCmd = tnLoadTracker.CurrentSpeedCmd;
 
-                lblTnStatus.Text = string.Format("⌛ [TN梯度] {0}", statusDesc);
+                lblTnStatus.Text = string.Format("[...] [TN梯度] {0}", statusDesc);
                 lblTnCountdown.Text = string.Format("加載中 ({0}s)", tnConvergeTimeoutSec);
                 if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                 if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
@@ -1815,7 +1925,7 @@ namespace DynamometerHMI
                     tnPhase = 1;
                     tnConvergeTimeoutSec = 0;
                     tnTrqSustainedSec = 0;
-                    lblTnStatus.Text = string.Format("✅ 轉矩與轉速已穩定達標 ({0:F1} Nm / {1:F0} rpm)，開始持載倒數！", actAbsTrq, actAbsSpd);
+                    lblTnStatus.Text = string.Format("[OK] 轉矩與轉速已穩定達標 ({0:F1} Nm / {1:F0} rpm)，開始持載倒數！", actAbsTrq, actAbsSpd);
                     lblTnCountdown.Text = string.Format("倒數: {0} s", tnDwellRemaining);
                     if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                     if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
@@ -1848,12 +1958,12 @@ namespace DynamometerHMI
                 {
                     tnDwellRemaining--;
                     lblTnCountdown.Text = string.Format("持載倒數: {0} s (已達標)", tnDwellRemaining);
-                    lblTnStatus.Text = string.Format("✅ 達標持載中：轉速 {0:F0} rpm | 轉矩 {1:F2} Nm (目標 {2:F1} Nm)", actAbsSpd, actAbsTrq, targetTrq);
+                    lblTnStatus.Text = string.Format("[OK] 達標持載中：轉速 {0:F0} rpm | 轉矩 {1:F2} Nm (目標 {2:F1} Nm)", actAbsSpd, actAbsTrq, targetTrq);
                 }
                 else
                 {
                     lblTnCountdown.Text = string.Format("調節等待: {0} s (暫停)", tnDwellRemaining);
-                    lblTnStatus.Text = string.Format("⌛ 偏離微調中：轉速 {0:F0}/{1:F0} rpm | 轉矩 {2:F2}/{3:F1} Nm (未達標暫停倒數)", actAbsSpd, targetSpd, actAbsTrq, targetTrq);
+                    lblTnStatus.Text = string.Format("[...] 偏離微調中：轉速 {0:F0}/{1:F0} rpm | 轉矩 {2:F2}/{3:F1} Nm (未達標暫停倒數)", actAbsSpd, targetSpd, actAbsTrq, targetTrq);
                     tnConvergeTimeoutSec++;
                     if (tnConvergeTimeoutSec >= 60)
                     {
@@ -1882,7 +1992,7 @@ namespace DynamometerHMI
                     dgvTnPoints.Rows[rowIdx].Cells[5].Value = actEfficiency.ToString("F1");
 
                     bool isPass = (spdErr <= Math.Max(25.0, targetSpd * 0.08)) && (Math.Abs(trqErr) <= Math.Max(1.0, targetTrq * 0.08));
-                    dgvTnPoints.Rows[rowIdx].Cells[6].Value = isPass ? "✅ 合格 (Pass)" : "⚠️ 偏差 (Fail)";
+                    dgvTnPoints.Rows[rowIdx].Cells[6].Value = isPass ? "[OK] 合格 (Pass)" : "[!] 偏差 (Fail)";
 
                     if (tnChart != null) tnChart.AddPoint(actAbsSpd, actAbsTrq, actMechPower);
 
@@ -1971,6 +2081,8 @@ namespace DynamometerHMI
             tnMultiSampleCounter = 30;
             tnCurrentLossCounter = 0;
             tnStallCounter = 0;
+            tnPreExciteStage = 0;
+            tnPreExciteWaitSec = 0;
 
             string fullReason = string.IsNullOrEmpty(detail) ? reason : string.Format("{0} ({1})", reason, detail);
             WriteHmiLog("TN_STOP_EVENT", string.Format("【T-N 測試停止觸發】原因: {0} | 當前實測快照: 轉速={1:F1} rpm, 轉矩={2:F2} Nm, 電流={3:F2} A, 電壓={4:F1} V, 功率={5:F2} kW, PF={6:F3}, ru00_A={7}, ru00_B={8}",
