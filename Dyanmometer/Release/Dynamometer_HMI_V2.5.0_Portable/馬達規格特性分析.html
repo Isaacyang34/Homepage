@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>馬達動力計規格特性分析儀 | Dynamometer Motor Characteristics Analyzer</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
@@ -2273,7 +2275,30 @@
                     if (line.startsWith("Point,")) continue;
                     const cols = line.split(",");
                     if (cols.length >= 10 && !isNaN(parseFloat(cols[1]))) {
-                        const pt = {
+                        const isFull = cols.length >= 20;
+                        const pt = isFull ? {
+                            index: parseInt(cols[0]) || (parsedData.summaryPoints.length + 1),
+                            targetSpeed: parseFloat(cols[1]) || 0,
+                            targetTorque: parseFloat(cols[2]) || 0,
+                            speed: parseFloat(cols[3]) || 0,
+                            frequency: parseFloat(cols[4]) || 0,
+                            torque: parseFloat(cols[5]) || 0,
+                            u1: parseFloat(cols[6]) || 0,
+                            u2: parseFloat(cols[7]) || 0,
+                            u3: parseFloat(cols[8]) || 0,
+                            i1: parseFloat(cols[9]) || 0,
+                            i2: parseFloat(cols[10]) || 0,
+                            i3: parseFloat(cols[11]) || 0,
+                            elecPower: parseFloat(cols[12]) || 0,
+                            mechPower: parseFloat(cols[13]) || 0,
+                            pf: parseFloat(cols[14]) || 0,
+                            efficiency: parseFloat(cols[15]) || 0,
+                            kt: parseFloat(cols[16]) || 0,
+                            voltage: parseFloat(cols[17]) || 220.0,
+                            current: parseFloat(cols[18]) || 0,
+                            temp: parseFloat(cols[19]) || 35.0,
+                            status: cols[20] || "OK"
+                        } : {
                             index: parseInt(cols[0]) || (parsedData.summaryPoints.length + 1),
                             targetSpeed: parseFloat(cols[1]) || 0,
                             targetTorque: parseFloat(cols[2]) || 0,
@@ -2290,7 +2315,7 @@
                             temp: 35.0,
                             status: cols[10] || "OK"
                         };
-                        if (pt.current > 0) pt.kt = pt.torque / pt.current;
+                        if (!isFull && pt.current > 0) pt.kt = pt.torque / pt.current;
                         parsedData.summaryPoints.push(pt);
                     }
                 } else if (inSamples) {
@@ -3582,14 +3607,14 @@
         // 範例 1: T-N 多點階梯試驗
         function loadDemoTNData() {
             const demoCsv = `=== T-N 多點自訂測試彙總報表 ===
-Point,TargetSpeed_rpm,TargetTorque_Nm,AvgSpeed_rpm,AvgFrequency_Hz,AvgTorque_Nm,AvgElecPower_kW,AvgMechPower_kW,AvgPF,AvgEfficiency_pct,Status
-1,1500,0.00,1498.2,50.00,0.85,0.42,0.13,0.220,31.0,COMPLETED
-2,1500,10.00,1485.4,50.00,9.98,1.92,1.55,0.710,80.7,COMPLETED
-3,1500,20.00,1470.1,50.00,20.05,3.65,3.09,0.820,84.7,COMPLETED
-4,1500,30.00,1455.6,50.00,30.12,5.35,4.59,0.865,85.8,COMPLETED
-5,1500,40.00,1438.0,50.00,40.25,7.20,6.06,0.880,84.2,COMPLETED
-6,1500,50.00,1415.2,50.00,50.18,9.25,7.44,0.890,80.4,COMPLETED
-7,1500,58.00,1380.5,50.00,58.40,11.20,8.44,0.895,75.4,COMPLETED
+Point,TargetSpeed_rpm,TargetTorque_Nm,AvgSpeed_rpm,AvgFrequency_Hz,AvgTorque_Nm,AvgVoltage_U1_V,AvgVoltage_U2_V,AvgVoltage_U3_V,AvgCurrent_I1_A,AvgCurrent_I2_A,AvgCurrent_I3_A,AvgElecPower_kW,AvgMechPower_kW,AvgPF,AvgEfficiency_pct,AvgKt_NmA,AvgVoltSigma_V,AvgCurrSigma_A,AvgMotorTemp_C,Status
+1,1500,0.00,1498.2,50.00,0.85,220.5,220.1,220.4,3.210,3.220,3.190,0.42,0.13,0.220,31.0,0.26,220.3,3.21,29.5,COMPLETED
+2,1500,10.00,1485.4,50.00,9.98,219.8,219.5,219.7,6.850,6.840,6.860,1.92,1.55,0.710,80.7,1.46,219.7,6.85,31.2,COMPLETED
+3,1500,20.00,1470.1,50.00,20.05,219.1,218.9,219.2,11.450,11.420,11.480,3.65,3.09,0.820,84.7,1.75,219.1,11.45,34.1,COMPLETED
+4,1500,30.00,1455.6,50.00,30.12,218.4,218.2,218.5,16.200,16.180,16.250,5.35,4.59,0.865,85.8,1.86,218.4,16.21,37.6,COMPLETED
+5,1500,40.00,1438.0,50.00,40.25,217.5,217.3,217.6,21.500,21.480,21.550,7.20,6.06,0.880,84.2,1.87,217.5,21.51,41.3,COMPLETED
+6,1500,50.00,1415.2,50.00,50.18,216.5,216.2,216.6,27.300,27.250,27.350,9.25,7.44,0.890,80.4,1.84,216.4,27.30,45.1,COMPLETED
+7,1500,58.00,1380.5,50.00,58.40,215.2,215.0,215.3,33.100,33.000,33.200,11.20,8.44,0.895,75.4,1.76,215.2,33.10,49.4,COMPLETED
 
 === 各測試點 30 秒每秒穩定資料明細 (1Hz) ===
 Point,SampleSec,Speed_rpm,Frequency_Hz,Torque_Nm,Voltage_U1_V,Voltage_U2_V,Voltage_U3_V,Current_I1_A,Current_I2_A,Current_I3_A,ElecPower_kW,MechPower_kW,PF,Efficiency_pct,Kt_NmA,VoltSigma_V,CurrSigma_A,MotorTemp_C

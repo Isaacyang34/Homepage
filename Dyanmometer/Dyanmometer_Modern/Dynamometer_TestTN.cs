@@ -2172,15 +2172,37 @@ namespace DynamometerHMI
                     using (StreamWriter sw = new StreamWriter(multiPath, false, Encoding.UTF8))
                     {
                         sw.WriteLine("=== T-N 多點自訂測試彙總報表 ===");
-                        sw.WriteLine("Point,TargetSpeed_rpm,TargetTorque_Nm,AvgSpeed_rpm,AvgFrequency_Hz,AvgTorque_Nm,AvgElecPower_kW,AvgMechPower_kW,AvgPF,AvgEfficiency_pct,Status");
+                        sw.WriteLine("Point,TargetSpeed_rpm,TargetTorque_Nm,AvgSpeed_rpm,AvgFrequency_Hz,AvgTorque_Nm,AvgVoltage_U1_V,AvgVoltage_U2_V,AvgVoltage_U3_V,AvgCurrent_I1_A,AvgCurrent_I2_A,AvgCurrent_I3_A,AvgElecPower_kW,AvgMechPower_kW,AvgPF,AvgEfficiency_pct,AvgKt_NmA,AvgVoltSigma_V,AvgCurrSigma_A,AvgMotorTemp_C,Status");
                         for (int i = 0; i < tnCustomPoints.Count; i++)
                         {
                             var pt = tnCustomPoints[i];
-                            double ptFreq = (pt.Samples != null && pt.Samples.Count > 0) ? pt.Samples.Average(s => s[1]) : 0.0;
-                            double ptElecPwr = (pt.Samples != null && pt.Samples.Count > 0) ? pt.Samples.Average(s => s[9]) : 0.0;
-                            double ptPf = (pt.Samples != null && pt.Samples.Count > 0) ? pt.Samples.Average(s => s[11]) : 0.0;
-                            sw.WriteLine(string.Format("{0},{1:F0},{2:F2},{3:F1},{4:F2},{5:F2},{6:F2},{7:F2},{8:F3},{9:F1},{10}",
-                                pt.Index, pt.TargetSpeed, pt.TargetTorque, pt.AvgSpeed, ptFreq, pt.AvgTorque, ptElecPwr, pt.AvgMechPower, ptPf, pt.AvgEfficiency, pt.Status));
+                            bool hasSamples = (pt.Samples != null && pt.Samples.Count > 0);
+                            double ptSpd = hasSamples ? pt.Samples.Average(s => s[0]) : pt.AvgSpeed;
+                            double ptFreq = hasSamples ? pt.Samples.Average(s => s[1]) : 0.0;
+                            double ptTrq = hasSamples ? pt.Samples.Average(s => s[2]) : pt.AvgTorque;
+                            double ptU1 = hasSamples ? pt.Samples.Average(s => s[3]) : 0.0;
+                            double ptU2 = hasSamples ? pt.Samples.Average(s => s[4]) : 0.0;
+                            double ptU3 = hasSamples ? pt.Samples.Average(s => s[5]) : 0.0;
+                            double ptI1 = hasSamples ? pt.Samples.Average(s => s[6]) : 0.0;
+                            double ptI2 = hasSamples ? pt.Samples.Average(s => s[7]) : 0.0;
+                            double ptI3 = hasSamples ? pt.Samples.Average(s => s[8]) : 0.0;
+                            double ptElecPwr = hasSamples ? pt.Samples.Average(s => s[9]) : 0.0;
+                            double ptMechPwr = hasSamples ? pt.Samples.Average(s => s[10]) : pt.AvgMechPower;
+                            double ptPf = hasSamples ? pt.Samples.Average(s => s[11]) : 0.0;
+                            double ptEff = hasSamples ? pt.Samples.Average(s => s[12]) : pt.AvgEfficiency;
+                            double ptKt = hasSamples ? pt.Samples.Average(s => s[13]) : 0.0;
+                            double ptVoltSigma = hasSamples ? pt.Samples.Average(s => s[14]) : 0.0;
+                            double ptCurrSigma = hasSamples ? pt.Samples.Average(s => s[15]) : 0.0;
+                            double ptTemp = hasSamples ? pt.Samples.Average(s => s[16]) : 0.0;
+
+                            sw.WriteLine(string.Format("{0},{1:F0},{2:F2},{3:F1},{4:F2},{5:F2},{6:F2},{7:F2},{8:F2},{9:F3},{10:F3},{11:F3},{12:F2},{13:F2},{14:F3},{15:F1},{16:F2},{17:F1},{18:F2},{19:F1},{20}",
+                                pt.Index, pt.TargetSpeed, pt.TargetTorque,
+                                ptSpd, ptFreq, ptTrq,
+                                ptU1, ptU2, ptU3,
+                                ptI1, ptI2, ptI3,
+                                ptElecPwr, ptMechPwr, ptPf, ptEff,
+                                ptKt, ptVoltSigma, ptCurrSigma, ptTemp,
+                                pt.Status));
                         }
                         sw.WriteLine();
                         sw.WriteLine("=== 各測試點 30 秒每秒穩定資料明細 (1Hz) ===");
