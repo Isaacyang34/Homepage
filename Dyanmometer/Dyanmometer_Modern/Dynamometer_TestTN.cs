@@ -13,6 +13,8 @@ namespace DynamometerHMI
         // =========================================================================
         // 分頁 2: 多段 T-N 曲線自動測試 (採用 TableLayoutPanel 100% 杜絕遮擋)
         // =========================================================================
+        private int tnCurrentLossCounter = 0;
+        private int tnStallCounter = 0;
         // =========================================================================
         private void BuildTnTab(TabPage tab)
         {
@@ -165,7 +167,7 @@ namespace DynamometerHMI
 
             btnTnAnchor = new Button()
             {
-                Text = "📍 鎖定當前負載為定錨基準點",
+                Text = "[*] 鎖定當前負載為定錨基準點",
                 Location = new Point(6, 42),
                 Size = new Size(245, 34),
                 BackColor = Color.FromArgb(139, 92, 246),
@@ -226,7 +228,7 @@ namespace DynamometerHMI
 
             Label lblTnMultiHint = new Label()
             {
-                Text = "📌 多點自訂模式：達標穩定 5 秒 ➔ 擷取 30 秒 (每秒 1 筆) ➔ 換項前先降轉矩至 25% 再變速",
+                Text = "[說明] 多點自訂模式：達標穩定 5 秒 -> 擷取 30 秒 (每秒 1 筆) -> 換項前先降轉矩至 25% 再變速",
                 Location = new Point(6, 6),
                 AutoSize = true,
                 Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold),
@@ -235,7 +237,7 @@ namespace DynamometerHMI
 
             btnTnAddPoint = new Button()
             {
-                Text = "➕ 新增測試點",
+                Text = "[+] 新增測試點",
                 Location = new Point(780, 2),
                 Size = new Size(110, 30),
                 Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold),
@@ -245,7 +247,7 @@ namespace DynamometerHMI
             };
             btnTnRemovePoint = new Button()
             {
-                Text = "➖ 刪除選取點",
+                Text = "[-] 刪除選取點",
                 Location = new Point(898, 2),
                 Size = new Size(110, 30),
                 Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold),
@@ -255,7 +257,7 @@ namespace DynamometerHMI
             };
             btnTnResetPoints = new Button()
             {
-                Text = "🔄 重置預設點",
+                Text = "[重置] 預設點",
                 Location = new Point(1016, 2),
                 Size = new Size(110, 30),
                 Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold),
@@ -377,7 +379,7 @@ namespace DynamometerHMI
             prgTn = new ProgressBar() { Location = new Point(920, 12), Size = new Size(220, 24) };
 
             btnStartTn.Click += BtnStartTn_Click;
-            btnStopTn.Click += (s, e) => { StopTnTest(); };
+            btnStopTn.Click += (s, e) => { StopTnTest("使用者手動點擊停止 (btnStopTn)"); };
             btnExportTn.Click += BtnExportTn_Click;
 
             pnlTnActions.Controls.AddRange(new Control[] {
@@ -418,7 +420,7 @@ namespace DynamometerHMI
             // 右上方：專屬即時溫度動態曲線與通道選擇 (同 S1 介面規格)
             grpTnTemp = new GroupBox()
             {
-                Text = "🌡️ 專屬溫度監控與即時動態曲線",
+                Text = "[溫度] 專屬溫度監控與即時動態曲線",
                 Dock = DockStyle.Fill,
                 Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold),
                 BackColor = Color.FromArgb(248, 250, 252)
@@ -819,6 +821,8 @@ namespace DynamometerHMI
             tnStepSpeedReached = false; // 初始步進轉速尚未鎖定
             tnDwellRemaining = (int)dwellVal;
             tnOverCurrentStartTime = DateTime.MinValue;
+            tnCurrentLossCounter = 0;
+            tnStallCounter = 0;
 
             int totalSteps = Math.Max(1, ((int)endRpmVal - (int)startRpmVal) / Math.Max(1, (int)stepRpmVal) + 1);
             prgTn.Minimum = 0;
@@ -887,6 +891,8 @@ namespace DynamometerHMI
                 tnTrqSustainedSec = 0;
                 tnAdaptedTorquePct = 0.0;
                 tnOverCurrentStartTime = DateTime.MinValue;
+                tnCurrentLossCounter = 0;
+                tnStallCounter = 0;
 
                 prgTn.Minimum = 0;
                 prgTn.Maximum = tnCustomPoints.Count;
@@ -1026,6 +1032,78 @@ namespace DynamometerHMI
             double targetSpd = curPt.TargetSpeed;
             double targetTrq = curPt.TargetTorque;
 
+            int spdRu = (spdDrive == 1) ? lastRu00_1 : lastRu00_2;
+            int trqRu = (trqDrive == 1) ? lastRu00_1 : lastRu00_2;
+
+            // ★ 1. 待測端變頻器狀態異常/跳脫判定 (76:故障減速, 30:故障鎖定, 4:快速停機, 79:STO, 0:ST切斷)
+            if (spdRu == 76 || spdRu == 30 || spdRu == 4 || spdRu == 79 || (spdRu == 0 && tnCurrentSpeedCmd > 0))
+            {
+                int? fc = KebReadParamWithDll(spdCom, spdBaud, spdNode, 0x022B);
+                int fcVal = fc.HasValue ? fc.Value : ((spdDrive == 1) ? lastKebFaultCode1 : lastKebFaultCode2);
+                string reason = (spdRu == 0) ? "待測端硬體ST切斷 (ru.00=0 / nOP)" : string.Format("待測端變頻器異常/跳脫 ({0})", DecodeKebRu00(spdRu));
+                string detail = string.Format("{0} ru.00={1}, 故障碼 ru.43=0x{2:X2} ({3})", spdDriveName, spdRu, fcVal, DecodeKebFaultCode(fcVal));
+                WriteHmiLog("TN_HW_TRIP", string.Format("【[!] T-N 變頻器異常】{0} | 詳情: {1}", reason, detail));
+                StopTnTest(reason, detail);
+                MessageBox.Show(string.Format("【T-N 變頻器硬體異常】\n\n載台：{0}\n狀態：{1}\n故障碼：ru.43=0x{2:X2} ({3})\n\n測試已立即安全停機！", spdDriveName, DecodeKebRu00(spdRu), fcVal, DecodeKebFaultCode(fcVal)), "變頻器異常停機", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            // ★ 2. 加載端變頻器狀態異常/跳脫判定 (加載階段若加載端跳脫或斷開 ST)
+            if (tnMultiSubPhase >= 1 && (trqRu == 76 || trqRu == 30 || trqRu == 4 || trqRu == 79 || trqRu == 0))
+            {
+                int? fcTrq = KebReadParamWithDll(trqCom, trqBaud, trqNode, 0x022B);
+                int fcTrqVal = fcTrq.HasValue ? fcTrq.Value : ((trqDrive == 1) ? lastKebFaultCode1 : lastKebFaultCode2);
+                string reason = (trqRu == 0) ? "加載端硬體ST切斷 (ru.00=0 / nOP)" : string.Format("加載端變頻器異常/跳脫 ({0})", DecodeKebRu00(trqRu));
+                string detail = string.Format("{0} ru.00={1}, 故障碼 ru.43=0x{2:X2} ({3})", trqDriveName, trqRu, fcTrqVal, DecodeKebFaultCode(fcTrqVal));
+                WriteHmiLog("TN_HW_TRIP", string.Format("【[!] T-N 加載端異常】{0} | 詳情: {1}", reason, detail));
+                StopTnTest(reason, detail);
+                MessageBox.Show(string.Format("【T-N 加載端硬體異常】\n\n載台：{0}\n狀態：{1}\n故障碼：ru.43=0x{2:X2} ({3})\n\n測試已立即安全停機！", trqDriveName, DecodeKebRu00(trqRu), fcTrqVal, DecodeKebFaultCode(fcTrqVal)), "加載端異常停機", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            // ★ 3. 負載期突發斷流 / 變頻器斷電保護檢測
+            double curDrv = (spdDrive == 1) ? kebCurrent1 : kebCurrent2;
+            if (tnMultiSubPhase >= 1 && (tnAdaptedTorquePct >= 3.0 || targetTrq >= 3.0) && Math.Abs(actSpeed) > 100.0 && actCurrentSigma < 0.8 && curDrv < 0.8)
+            {
+                tnCurrentLossCounter++;
+                if (tnCurrentLossCounter >= 2)
+                {
+                    int? fc = KebReadParamWithDll(spdCom, spdBaud, spdNode, 0x022B);
+                    int fcVal = fc.HasValue ? fc.Value : ((spdDrive == 1) ? lastKebFaultCode1 : lastKebFaultCode2);
+                    string reason = "負載突發斷流/變頻器保護截止 (電流 < 0.8A)";
+                    string detail = string.Format("實測總電流:{0:F2}A, 待測電流:{1:F2}A, 轉速:{2:F0}rpm, 目標轉矩:{3:F1}Nm (加載率:{4:F1}%), ru.00={5}, ru.43=0x{6:X2} ({7})",
+                        actCurrentSigma, curDrv, Math.Abs(actSpeed), targetTrq, tnAdaptedTorquePct, spdRu, fcVal, DecodeKebFaultCode(fcVal));
+                    WriteHmiLog("TN_POWER_LOSS", string.Format("【[!] T-N 斷流異常停機】{0} | {1}", reason, detail));
+                    StopTnTest(reason, detail);
+                    MessageBox.Show(string.Format("【T-N 負載斷流異常】\n\n檢測到馬達運轉中但總電流歸零 ({0:F2} A < 0.8 A)！\n可能為變頻器內部保護跳脫、保險絲斷路或供電中斷。\n\n詳細狀態：{1}", actCurrentSigma, detail), "負載斷流停機", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+            }
+            else
+            {
+                tnCurrentLossCounter = 0;
+            }
+
+            // ★ 4. 馬達轉速崩塌 / 嚴重堵轉檢測 (實測轉速小於目標 35% 持續 3 秒)
+            if (tnMultiSubPhase >= 1 && targetSpd >= 300.0 && Math.Abs(actSpeed) < targetSpd * 0.35)
+            {
+                tnStallCounter++;
+                if (tnStallCounter >= 3)
+                {
+                    string reason = "馬達轉速崩塌/嚴重堵轉 (實測轉速 < 35% 目標)";
+                    string detail = string.Format("目標轉速:{0:F0}rpm, 實測轉速:{1:F0}rpm, 轉矩:{2:F2}Nm, 電流:{3:F2}A",
+                        targetSpd, Math.Abs(actSpeed), Math.Abs(actTorque), actCurrentSigma);
+                    WriteHmiLog("TN_STALL_TRIP", string.Format("【[!] T-N 轉速崩塌停機】{0} | {1}", reason, detail));
+                    StopTnTest(reason, detail);
+                    MessageBox.Show(string.Format("【T-N 馬達嚴重堵轉警報】\n\n目標轉速：{0:F0} rpm\n實測轉速：{1:F0} rpm (< 35%)\n實測轉矩：{2:F2} Nm\n實測電流：{3:F2} A\n\n馬達發生嚴重轉速崩塌，已安全停機卸載保護！", targetSpd, Math.Abs(actSpeed), Math.Abs(actTorque), actCurrentSigma), "馬達堵轉停機", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+            }
+            else
+            {
+                tnStallCounter = 0;
+            }
+
             // ★ 過電流安全保護 (Kt)
             double curKt = (double)tnMotorKt;
             if (curKt > 0.001 && targetTrq > 0.1)
@@ -1034,7 +1112,6 @@ namespace DynamometerHMI
                 double limitPct = (double)tnOverCurrentPercent;
                 double maxAllowCurrent = expCurrent * (1.0 + (limitPct / 100.0));
                 double curSig = actCurrentSigma;
-                double curDrv = (spdDrive == 1) ? kebCurrent1 : kebCurrent2;
                 bool isSigOver = (curSig > maxAllowCurrent);
                 bool isDrvOver = (curDrv > maxAllowCurrent);
                 if (isSigOver || isDrvOver)
@@ -1045,10 +1122,11 @@ namespace DynamometerHMI
                     double reqDelay = (double)tnOverCurrentDelaySec;
                     if (overSec >= reqDelay)
                     {
-                        StopTnTest();
-                        string tripMsg = string.Format("【🚨 T-N 多點過電流保護跳脫】\n目標轉矩：{0:F1} Nm, 超限上限：{1:F2} A, 持續 {2:F0} 秒 >= 防抖時間 {3:F0} 秒，已安全停機！", targetTrq, maxAllowCurrent, overSec, reqDelay);
+                        string tripDetail = string.Format("目標轉矩:{0:F1} Nm, 門檻:{1:F2} A, 持續:{2:F0}s >= 防抖:{3:F0}s, 總電流:{4:F2} A, 驅動電流:{5:F2} A", targetTrq, maxAllowCurrent, overSec, reqDelay, curSig, curDrv);
+                        string tripMsg = string.Format("【[!] T-N 多點過電流保護跳脫】\n目標轉矩：{0:F1} Nm, 超限上限：{1:F2} A, 持續 {2:F0} 秒 >= 防抖時間 {3:F0} 秒，已安全停機！", targetTrq, maxAllowCurrent, overSec, reqDelay);
                         WriteHmiLog("TN_OVERCURRENT_TRIP", tripMsg);
-                        lblTnStatus.Text = "🚨 過電流跳脫停機！";
+                        StopTnTest("T-N多點過電流跳脫", tripDetail);
+                        lblTnStatus.Text = "[!] 過電流跳脫停機！";
                         lblTnCountdown.Text = "過電流跳脫";
                         MessageBox.Show(tripMsg, "T-N 過電流保護跳脫", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return;
@@ -1151,7 +1229,8 @@ namespace DynamometerHMI
                 }
                 else if (tnConvergeTimeoutSec >= 50)
                 {
-                    StopTnTest();
+                    string timeoutDetail = string.Format("第 {0} 點加載逼近超時 50 秒未達標 (目標:{1:F0}rpm/{2:F1}Nm, 實測:{3:F0}rpm/{4:F2}Nm)", tnMultiCurrentIndex + 1, targetSpd, targetTrq, actAbsSpd, actAbsTrq);
+                    StopTnTest("T-N多點加載逼近超時", timeoutDetail);
                     MessageBox.Show(string.Format("【T-N 多點加載警報】第 {0} 點加載逼近超時 50 秒未達標，已安全停機！", tnMultiCurrentIndex + 1), "加載未達標", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
@@ -1212,12 +1291,12 @@ namespace DynamometerHMI
                         }
                     }
 
-                    lblTnStatus.Text = string.Format("📊 [第 {0}/{1} 點] 開始擷取 30 秒穩定資料 (每秒 1 筆)！", tnMultiCurrentIndex + 1, tnCustomPoints.Count);
+                    lblTnStatus.Text = string.Format("[採樣] [第 {0}/{1} 點] 開始擷取 30 秒穩定資料 (每秒 1 筆)！", tnMultiCurrentIndex + 1, tnCustomPoints.Count);
                     lblTnCountdown.Text = "擷取: 30 s";
                     if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                     if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
                     if (dgvTnMultiPoints.Rows.Count > tnMultiCurrentIndex)
-                        dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = "📊 擷取中 (30s)";
+                        dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = "[採樣] 擷取中 (30s)";
                 }
             }
             // =========================================================================
@@ -1253,12 +1332,12 @@ namespace DynamometerHMI
 
                 tnMultiSampleCounter--;
                 lblTnCountdown.Text = string.Format("擷取中: {0} s", tnMultiSampleCounter);
-                lblTnStatus.Text = string.Format("📊 [第 {0}/{1} 點] 資料擷取中 ({2}/30筆)：轉速 {3:F0} rpm | 轉矩 {4:F2} Nm",
+                lblTnStatus.Text = string.Format("[採樣] [第 {0}/{1} 點] 資料擷取中 ({2}/30筆)：轉速 {3:F0} rpm | 轉矩 {4:F2} Nm",
                     tnMultiCurrentIndex + 1, tnCustomPoints.Count, curPt.Samples.Count, actAbsSpd, actAbsTrq);
                 if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                 if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
                 if (dgvTnMultiPoints.Rows.Count > tnMultiCurrentIndex)
-                    dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = string.Format("📊 擷取中 ({0}/30s)", curPt.Samples.Count);
+                    dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = string.Format("[採樣] 擷取中 ({0}/30s)", curPt.Samples.Count);
 
                 if (tnMultiSampleCounter <= 0)
                 {
@@ -1518,6 +1597,78 @@ namespace DynamometerHMI
                 ? (double)numTnMiniTrq.Value
                 : ((numTnTorque != null && numTnTorque.Value > 0) ? (double)numTnTorque.Value : 15.0);
 
+            int spdRu = (spdDrive == 1) ? lastRu00_1 : lastRu00_2;
+            int trqRu = (trqDrive == 1) ? lastRu00_1 : lastRu00_2;
+
+            // ★ 1. 待測端變頻器狀態異常/跳脫判定 (76:故障減速, 30:故障鎖定, 4:快速停機, 79:STO, 0:ST切斷)
+            if (spdRu == 76 || spdRu == 30 || spdRu == 4 || spdRu == 79 || (spdRu == 0 && tnCurrentSpeedCmd > 0))
+            {
+                int? fc = KebReadParamWithDll(spdCom, spdBaud, spdNode, 0x022B);
+                int fcVal = fc.HasValue ? fc.Value : ((spdDrive == 1) ? lastKebFaultCode1 : lastKebFaultCode2);
+                string reason = (spdRu == 0) ? "待測端硬體ST切斷 (ru.00=0 / nOP)" : string.Format("待測端變頻器異常/跳脫 ({0})", DecodeKebRu00(spdRu));
+                string detail = string.Format("{0} ru.00={1}, 故障碼 ru.43=0x{2:X2} ({3})", spdDriveName, spdRu, fcVal, DecodeKebFaultCode(fcVal));
+                WriteHmiLog("TN_HW_TRIP", string.Format("【[!] T-N 變頻器異常】{0} | 詳情: {1}", reason, detail));
+                StopTnTest(reason, detail);
+                MessageBox.Show(string.Format("【T-N 變頻器硬體異常】\n\n載台：{0}\n狀態：{1}\n故障碼：ru.43=0x{2:X2} ({3})\n\n測試已立即安全停機！", spdDriveName, DecodeKebRu00(spdRu), fcVal, DecodeKebFaultCode(fcVal)), "變頻器異常停機", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            // ★ 2. 加載端變頻器狀態異常/跳脫判定 (加載階段若加載端跳脫或斷開 ST)
+            if (tnPhase >= 1 && (trqRu == 76 || trqRu == 30 || trqRu == 4 || trqRu == 79 || trqRu == 0))
+            {
+                int? fcTrq = KebReadParamWithDll(trqCom, trqBaud, trqNode, 0x022B);
+                int fcTrqVal = fcTrq.HasValue ? fcTrq.Value : ((trqDrive == 1) ? lastKebFaultCode1 : lastKebFaultCode2);
+                string reason = (trqRu == 0) ? "加載端硬體ST切斷 (ru.00=0 / nOP)" : string.Format("加載端變頻器異常/跳脫 ({0})", DecodeKebRu00(trqRu));
+                string detail = string.Format("{0} ru.00={1}, 故障碼 ru.43=0x{2:X2} ({3})", trqDriveName, trqRu, fcTrqVal, DecodeKebFaultCode(fcTrqVal));
+                WriteHmiLog("TN_HW_TRIP", string.Format("【[!] T-N 加載端異常】{0} | 詳情: {1}", reason, detail));
+                StopTnTest(reason, detail);
+                MessageBox.Show(string.Format("【T-N 加載端硬體異常】\n\n載台：{0}\n狀態：{1}\n故障碼：ru.43=0x{2:X2} ({3})\n\n測試已立即安全停機！", trqDriveName, DecodeKebRu00(trqRu), fcTrqVal, DecodeKebFaultCode(fcTrqVal)), "加載端異常停機", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            // ★ 3. 負載期突發斷流 / 變頻器斷電保護檢測
+            double curDrv = (spdDrive == 1) ? kebCurrent1 : kebCurrent2;
+            if (tnPhase >= 1 && (tnAdaptedTorquePct >= 3.0 || targetTrq >= 3.0) && Math.Abs(actSpeed) > 100.0 && actCurrentSigma < 0.8 && curDrv < 0.8)
+            {
+                tnCurrentLossCounter++;
+                if (tnCurrentLossCounter >= 2)
+                {
+                    int? fc = KebReadParamWithDll(spdCom, spdBaud, spdNode, 0x022B);
+                    int fcVal = fc.HasValue ? fc.Value : ((spdDrive == 1) ? lastKebFaultCode1 : lastKebFaultCode2);
+                    string reason = "負載突發斷流/變頻器保護截止 (電流 < 0.8A)";
+                    string detail = string.Format("實測總電流:{0:F2}A, 待測電流:{1:F2}A, 轉速:{2:F0}rpm, 目標轉矩:{3:F1}Nm (加載率:{4:F1}%), ru.00={5}, ru.43=0x{6:X2} ({7})",
+                        actCurrentSigma, curDrv, Math.Abs(actSpeed), targetTrq, tnAdaptedTorquePct, spdRu, fcVal, DecodeKebFaultCode(fcVal));
+                    WriteHmiLog("TN_POWER_LOSS", string.Format("【[!] T-N 斷流異常停機】{0} | {1}", reason, detail));
+                    StopTnTest(reason, detail);
+                    MessageBox.Show(string.Format("【T-N 負載斷流異常】\n\n檢測到馬達運轉中但總電流歸零 ({0:F2} A < 0.8 A)！\n可能為變頻器內部保護跳脫、保險絲斷路或供電中斷。\n\n詳細狀態：{1}", actCurrentSigma, detail), "負載斷流停機", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+            }
+            else
+            {
+                tnCurrentLossCounter = 0;
+            }
+
+            // ★ 4. 馬達轉速崩塌 / 嚴重堵轉檢測 (實測轉速小於目標 35% 持續 3 秒)
+            if (tnPhase >= 1 && targetSpd >= 300.0 && Math.Abs(actSpeed) < targetSpd * 0.35)
+            {
+                tnStallCounter++;
+                if (tnStallCounter >= 3)
+                {
+                    string reason = "馬達轉速崩塌/嚴重堵轉 (實測轉速 < 35% 目標)";
+                    string detail = string.Format("目標轉速:{0:F0}rpm, 實測轉速:{1:F0}rpm, 轉矩:{2:F2}Nm, 電流:{3:F2}A",
+                        targetSpd, Math.Abs(actSpeed), Math.Abs(actTorque), actCurrentSigma);
+                    WriteHmiLog("TN_STALL_TRIP", string.Format("【[!] T-N 轉速崩塌停機】{0} | {1}", reason, detail));
+                    StopTnTest(reason, detail);
+                    MessageBox.Show(string.Format("【T-N 馬達嚴重堵轉警報】\n\n目標轉速：{0:F0} rpm\n實測轉速：{1:F0} rpm (< 35%)\n實測轉矩：{2:F2} Nm\n實測電流：{3:F2} A\n\n馬達發生嚴重轉速崩塌，已安全停機卸載保護！", targetSpd, Math.Abs(actSpeed), Math.Abs(actTorque), actCurrentSigma), "馬達堵轉停機", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+            }
+            else
+            {
+                tnStallCounter = 0;
+            }
+
             // ★【T-N 過電流保護邏輯 (Kt 換算理論電流)】
             double curKt = (double)tnMotorKt;
             if (curKt > 0.001 && targetTrq > 0.1)
@@ -1527,8 +1678,6 @@ namespace DynamometerHMI
                 double maxAllowCurrent = expCurrent * (1.0 + (limitPct / 100.0)); // 門檻上限
 
                 double curSig = actCurrentSigma;
-                double curDrv = (spdDrive == 1) ? kebCurrent1 : kebCurrent2;
-
                 bool isSigOver = (curSig > maxAllowCurrent);
                 bool isDrvOver = (curDrv > maxAllowCurrent);
 
@@ -1548,9 +1697,8 @@ namespace DynamometerHMI
 
                     if (overSec >= reqDelay)
                     {
-                        StopTnTest();
                         string tripMsg = string.Format(
-                            "【🚨 T-N 過電流保護跳脫】\n\n" +
+                            "【[!] T-N 過電流保護跳脫】\n\n" +
                             "目標轉矩：{0:F1} Nm (Kt: {1:F2} Nm/A, 理論電流: {2:F2} A)\n" +
                             "超限門檻：+{3:F0}% (允許上限: {4:F2} A)\n" +
                             "觸發詳情：{5}\n" +
@@ -1558,7 +1706,8 @@ namespace DynamometerHMI
                             "系統已立即強制卸載並安全停機保護待測設備！",
                             targetTrq, curKt, expCurrent, limitPct, maxAllowCurrent, tripDetail, overSec, reqDelay);
                         WriteHmiLog("TN_OVERCURRENT_TRIP", tripMsg);
-                        lblTnStatus.Text = "🚨 過電流跳脫停機！";
+                        StopTnTest("T-N梯度過電流跳脫", tripDetail);
+                        lblTnStatus.Text = "[!] 過電流跳脫停機！";
                         lblTnCountdown.Text = "過電流跳脫";
                         if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                         if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
@@ -1638,8 +1787,9 @@ namespace DynamometerHMI
                     // ★ 超時防呆安全保護：加載逼近超過 50 秒仍未達標時，暫停測試並警告，絕不放任過載！
                     if (tnConvergeTimeoutSec >= 50)
                     {
-                        StopTnTest();
-                        lblTnStatus.Text = "⚠️ 加載未達標，測試已暫停！";
+                        string rampTimeoutDetail = string.Format("目標:{0:F0}rpm/{1:F2}Nm, 實測:{2:F0}rpm/{3:F2}Nm (加載50秒未達標)", targetSpd, targetTrq, actAbsSpd, actAbsTrq);
+                        StopTnTest("T-N梯度加載逼近超時", rampTimeoutDetail);
+                        lblTnStatus.Text = "[!] 加載未達標，測試已暫停！";
                         lblTnCountdown.Text = "加載未達標中斷";
                         if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                         if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
@@ -1707,8 +1857,9 @@ namespace DynamometerHMI
                     tnConvergeTimeoutSec++;
                     if (tnConvergeTimeoutSec >= 60)
                     {
-                        StopTnTest();
-                        lblTnStatus.Text = "⚠️ 持載微調超時，測試已暫停！";
+                        string dwellTimeoutDetail = string.Format("目標:{0:F0}rpm/{1:F1}Nm, 實測:{2:F0}rpm/{3:F2}Nm (持載調節60秒未達標)", targetSpd, targetTrq, actAbsSpd, actAbsTrq);
+                        StopTnTest("T-N梯度持載微調超時", dwellTimeoutDetail);
+                        lblTnStatus.Text = "[!] 持載微調超時，測試已暫停！";
                         lblTnCountdown.Text = "持載微調超時";
                         if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                         if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
@@ -1802,7 +1953,7 @@ namespace DynamometerHMI
             if (lblTnCountdown != null) { webRemotePhaseText = lblTnCountdown.Text; }
         }
 
-        private void StopTnTest()
+        public void StopTnTest(string reason = "使用者手動停止", string detail = "")
         {
             if (tnTimer != null) tnTimer.Stop();
             if (isManualRecording)
@@ -1818,6 +1969,14 @@ namespace DynamometerHMI
             tnMultiCurrentIndex = 0;
             tnMultiStabilizeCounter = 5;
             tnMultiSampleCounter = 30;
+            tnCurrentLossCounter = 0;
+            tnStallCounter = 0;
+
+            string fullReason = string.IsNullOrEmpty(detail) ? reason : string.Format("{0} ({1})", reason, detail);
+            WriteHmiLog("TN_STOP_EVENT", string.Format("【T-N 測試停止觸發】原因: {0} | 當前實測快照: 轉速={1:F1} rpm, 轉矩={2:F2} Nm, 電流={3:F2} A, 電壓={4:F1} V, 功率={5:F2} kW, PF={6:F3}, ru00_A={7}, ru00_B={8}",
+                fullReason, actSpeed, actTorque, actCurrentSigma, actVoltageSigma, actElecPower, actPf,
+                lastRu00_1 != -1 ? DecodeKebRu00(lastRu00_1) : "--",
+                lastRu00_2 != -1 ? DecodeKebRu00(lastRu00_2) : "--"));
 
             int roleIdx = (cmbTnRoleMini != null && cmbTnRoleMini.SelectedIndex >= 0)
                 ? cmbTnRoleMini.SelectedIndex
@@ -1825,17 +1984,18 @@ namespace DynamometerHMI
             int spdDrive = (roleIdx == 1) ? 2 : 1;
             int trqDrive = (spdDrive == 1) ? 2 : 1;
 
-            StartGradualAutoStop(spdDrive, trqDrive, "T-N測試停止", () => {
+            string autoStopMsg = string.Format("T-N測試停止 [{0}]", reason);
+            StartGradualAutoStop(spdDrive, trqDrive, autoStopMsg, () => {
                 if (btnStartTn != null) btnStartTn.Enabled = true;
                 if (btnStopTn != null) btnStopTn.Enabled = false;
                 if (btnTnMiniStart != null) btnTnMiniStart.Enabled = true;
                 if (btnTnMiniStop != null) btnTnMiniStop.Enabled = false;
-                if (lblTnStatus != null) lblTnStatus.Text = "狀態: 已手動停止";
-                if (lblTnMiniStatus != null) lblTnMiniStatus.Text = "狀態: 已停止";
+                if (lblTnStatus != null) lblTnStatus.Text = string.Format("狀態: 已停止 [{0}]", reason);
+                if (lblTnMiniStatus != null) lblTnMiniStatus.Text = string.Format("狀態: 停止 [{0}]", reason);
                 if (lblTnCountdown != null) lblTnCountdown.Text = "倒數: -- s";
                 if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = "倒數: -- s";
                 // ── 遠端監看重置 ──
-                webRemoteMode = "IDLE"; webRemoteStatusText = "T-N 測試已停止"; webRemotePhaseText = "";
+                webRemoteMode = "IDLE"; webRemoteStatusText = string.Format("T-N 測試已停止 [{0}]", reason); webRemotePhaseText = "";
             });
         }
 

@@ -4662,10 +4662,10 @@ namespace DynamometerHMI
 
             // Row 8: 操作按鈕
             FlowLayoutPanel pnlTnMiniBtns = new FlowLayoutPanel() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, Margin = new Padding(0) };
-            btnTnMiniStart = new Button() { Text = "▶️ 啟動測試", Size = new Size(82, 28), BackColor = Color.FromArgb(0, 180, 216), ForeColor = Color.White, Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold) };
+            btnTnMiniStart = new Button() { Text = "[>] 啟動測試", Size = new Size(82, 28), BackColor = Color.FromArgb(0, 180, 216), ForeColor = Color.White, Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold) };
             btnTnMiniStart.Click += (s, e) => { BtnStartTn_Click(s, e); };
-            btnTnMiniStop = new Button() { Text = "⏹️ 停止", Size = new Size(60, 28), BackColor = Color.FromArgb(239, 68, 68), ForeColor = Color.White, Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold), Enabled = false };
-            btnTnMiniStop.Click += (s, e) => { StopTnTest(); };
+            btnTnMiniStop = new Button() { Text = "[■] 停止", Size = new Size(60, 28), BackColor = Color.FromArgb(239, 68, 68), ForeColor = Color.White, Font = new Font("微軟正黑體", 8.5f, FontStyle.Bold), Enabled = false };
+            btnTnMiniStop.Click += (s, e) => { StopTnTest("使用者點擊迷你面板停止 (btnTnMiniStop)"); };
             Button btnTnMiniViewTab = new Button() { Text = "[檢視] 查看大圖", Size = new Size(82, 28), BackColor = Color.FromArgb(100, 116, 139), ForeColor = Color.White, Font = new Font("微軟正黑體", 8.5f) };
             btnTnMiniViewTab.Click += (s, e) => { if (tabControl != null && tabControl.TabPages.Count > 1) tabControl.SelectedIndex = 1; };
             pnlTnMiniBtns.Controls.AddRange(new Control[] { btnTnMiniStart, btnTnMiniStop, btnTnMiniViewTab });

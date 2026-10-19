@@ -170,8 +170,11 @@ namespace DynamometerHMI
                 case 71: return "71: POS (Positioning / 定位運轉中)";
                 case 72: return "72: Att (Attention / 待命注意)";
                 case 73: return "73: dF (Direct Frequency / 直接頻率給定)";
+                case 30: return "30: FAULT (Error Trip Hold / 故障停機保持)";
+                case 31: return "31: E.dri (Gate Driver Error / 閘極驅動異常)";
                 case 74: return "74: Hld (Hold / 保持運轉中)";
                 case 75: return "75: SLS (Safely Limited Speed / 安全限速)";
+                case 76: return "76: E.dEc (Error Deceleration / 故障減速停機中)";
                 case 79: return "79: STO (Safe Torque Off / 安全轉矩切斷)";
                 default:
                     return string.Format("{0}: 變頻器狀態機 (0x{0:X2})", val);
@@ -251,6 +254,24 @@ namespace DynamometerHMI
                 }
             }
 
+            // ★【T-N/自動測試硬體跳脫聯鎖】：若變頻器突發異常 (76:故障減速, 30:故障保持, 4:快速停機, 79:STO, 0:ST切斷)
+            if (ru00Val == 76 || ru00Val == 30 || ru00Val == 4 || ru00Val == 79 || ru00Val == 0)
+            {
+                if (tnTimer != null && tnTimer.Enabled)
+                {
+                    int comIdx = GetHmiKebComIdx(driveId);
+                    int baudIdx = GetHmiKebBaudIdx(driveId);
+                    int node = (int)((driveId == 1) ? numHmiKebNode1.Value : numHmiKebNode2.Value);
+                    int? faultCode = KebReadParamWithDll(comIdx, baudIdx, node, 0x022B);
+                    int fcVal = faultCode.HasValue ? faultCode.Value : ((driveId == 1) ? lastKebFaultCode1 : lastKebFaultCode2);
+                    string faultDesc = DecodeKebFaultCode(fcVal);
+                    string reason = (ru00Val == 0) ? "硬體ST安全端子切斷 (ru.00=0 / nOP)" : string.Format("變頻器硬體跳脫 ({0})", DecodeKebRu00(ru00Val));
+                    string detail = string.Format("{0} ru.00={1}, 故障碼 ru.43=0x{2:X2} ({3})", driveName, ru00Val, fcVal, faultDesc);
+                    WriteHmiLog("TN_HW_TRIP", string.Format("【[!] T-N 變頻器硬體跳脫】{0} | 詳情: {1}", reason, detail));
+                    StopTnTest(reason, detail);
+                }
+            }
+
             // ru.00 == 0 代表變頻器處於 0: no operation (nOP / Control Release 斷開)
             // ★【核心韌體解鎖】：KEB F5 僅在 nOP 狀態下允許寫入 cs.00！若檢測到 cs.00 殘留為 4，立即趁 nOP 自動寫入 cs.00 = 0！
             if (ru00Val == 0)
@@ -277,11 +298,11 @@ namespace DynamometerHMI
                 if (isAnyLocked)
                 {
                     UnlockAllTrackingAndReset();
-                    WriteHmiLog("SAFETY_TRIP", string.Format("【🚨 硬體ST切斷警示】檢測到 {0} 硬體 ST 端子已斷開 (ru.00=0 / nOP)，已自動解除 LOCK 鎖定並安全復歸！", driveName));
+                    WriteHmiLog("SAFETY_TRIP", string.Format("【[!] 硬體ST切斷警示】檢測到 {0} 硬體 ST 端子已斷開 (ru.00=0 / nOP)，已自動解除 LOCK 鎖定並安全復歸！", driveName));
                 }
                 else
                 {
-                    WriteHmiLog("SAFETY", string.Format("【⚠️ 硬體ST端子斷開】檢測到 {0} 處於 nOP (Control Release 斷開)。", driveName));
+                    WriteHmiLog("SAFETY", string.Format("【[!] 硬體ST端子斷開】檢測到 {0} 處於 nOP (Control Release 斷開)。", driveName));
                 }
             }
 
@@ -605,11 +626,11 @@ namespace DynamometerHMI
             {
                 if (d1_trqEnable)
                 {
-                    btnRF1.Text = "⚡ 啟用加載";
+                    btnRF1.Text = "[+] 啟用加載";
                     btnRF1.BackColor = Color.FromArgb(245, 158, 11);
-                    btnRR1.Text = "⚡ 反向加載";
+                    btnRR1.Text = "[+] 反向加載";
                     btnRR1.BackColor = Color.FromArgb(217, 119, 6);
-                    btnStop1.Text = "🛑 卸載停機";
+                    btnStop1.Text = "[■] 卸載停機";
                 }
                 else
                 {
@@ -617,7 +638,7 @@ namespace DynamometerHMI
                     btnRF1.BackColor = Color.FromArgb(16, 185, 129);
                     btnRR1.Text = "反轉 (RUN)";
                     btnRR1.BackColor = Color.FromArgb(139, 92, 246);
-                    btnStop1.Text = "🛑 停機";
+                    btnStop1.Text = "[■] 停機";
                 }
                 btnRR1.Visible = true;
                 pnlRun1.ColumnStyles[0].Width = 28f;
@@ -630,11 +651,11 @@ namespace DynamometerHMI
             {
                 if (d2_trqEnable)
                 {
-                    btnRF2.Text = "⚡ 啟用加載";
+                    btnRF2.Text = "[+] 啟用加載";
                     btnRF2.BackColor = Color.FromArgb(245, 158, 11);
-                    btnRR2.Text = "⚡ 反向加載";
+                    btnRR2.Text = "[+] 反向加載";
                     btnRR2.BackColor = Color.FromArgb(217, 119, 6);
-                    btnStop2.Text = "🛑 卸載停機";
+                    btnStop2.Text = "[■] 卸載停機";
                 }
                 else
                 {
@@ -642,7 +663,7 @@ namespace DynamometerHMI
                     btnRF2.BackColor = Color.FromArgb(16, 185, 129);
                     btnRR2.Text = "反轉 (RUN)";
                     btnRR2.BackColor = Color.FromArgb(139, 92, 246);
-                    btnStop2.Text = "🛑 停機";
+                    btnStop2.Text = "[■] 停機";
                 }
                 btnRR2.Visible = true;
                 pnlRun2.ColumnStyles[0].Width = 28f;
@@ -1798,7 +1819,10 @@ namespace DynamometerHMI
             lastSy50Cmd1 = 0;
             lastSy50Cmd2 = 0;
             if (dutyTimer != null && dutyTimer.Enabled) dutyTimer.Stop();
-            if (tnTimer != null && tnTimer.Enabled) tnTimer.Stop();
+            if (tnTimer != null && tnTimer.Enabled)
+            {
+                StopTnTest("緊急停機 (E-STOP)", "使用者或系統觸發全局急停");
+            }
             if (effMapTimer != null && effMapTimer.Enabled) effMapTimer.Stop();
             isNoLoadRunning = false;
             isClosedLoopTracking = false;
@@ -2174,9 +2198,9 @@ namespace DynamometerHMI
                                     }
                                     if (tnTimer != null && tnTimer.Enabled)
                                     {
-                                        tnTimer.Stop();
-                                        ExecuteFullAutoGracefulStop(string.Format("A載台硬體故障 (ru.43={0}: {1})", val.Value, DecodeKebFaultCode(val.Value)));
-                                        WriteHmiLog("TN_ABORT", string.Format("【🚨 T-N 測試異常中斷】檢測到 A載台突發硬體故障 (ru.43={0}: {1})，已強制安全停機！", val.Value, DecodeKebFaultCode(val.Value)));
+                                        string tripReason = string.Format("A載台硬體故障 (ru.43={0}: {1})", val.Value, DecodeKebFaultCode(val.Value));
+                                        WriteHmiLog("TN_ABORT", string.Format("【[!] T-N 測試異常中斷】檢測到 A載台突發硬體故障 (ru.43={0}: {1})，已強制安全停機！", val.Value, DecodeKebFaultCode(val.Value)));
+                                        StopTnTest(tripReason, string.Format("ru.00={0}, ru.43=0x{1:X2}", lastRu00_1, val.Value));
                                     }
                                     if (effMapTimer != null && effMapTimer.Enabled)
                                     {
@@ -2416,9 +2440,9 @@ namespace DynamometerHMI
                                     }
                                     if (tnTimer != null && tnTimer.Enabled)
                                     {
-                                        tnTimer.Stop();
-                                        ExecuteFullAutoGracefulStop(string.Format("B載台硬體故障 (ru.43={0}: {1})", val.Value, DecodeKebFaultCode(val.Value)));
-                                        WriteHmiLog("TN_ABORT", string.Format("【🚨 T-N 測試異常中斷】檢測到 B載台突發硬體故障 (ru.43={0}: {1})，已強制安全停機！", val.Value, DecodeKebFaultCode(val.Value)));
+                                        string tripReason = string.Format("B載台硬體故障 (ru.43={0}: {1})", val.Value, DecodeKebFaultCode(val.Value));
+                                        WriteHmiLog("TN_ABORT", string.Format("【[!] T-N 測試異常中斷】檢測到 B載台突發硬體故障 (ru.43={0}: {1})，已強制安全停機！", val.Value, DecodeKebFaultCode(val.Value)));
+                                        StopTnTest(tripReason, string.Format("ru.00={0}, ru.43=0x{1:X2}", lastRu00_2, val.Value));
                                     }
                                     if (effMapTimer != null && effMapTimer.Enabled)
                                     {

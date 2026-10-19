@@ -1140,9 +1140,9 @@ namespace DynamometerHMI
                 }
                 catch { }
 
-                // 2. 判斷錄製時長是否滿足「最低 1 分鐘 (>= 60 秒)」門檻
-                // 若時間太短 (< 60 秒)，直接將生成的紀錄檔刪除，避免磁碟累積零碎檔案
-                bool isTooShort = durationSec < 60.0;
+                // 2. 自動測試 (wasAuto) 或資料筆數 >= 5 筆時，一律 100% 完整保留供測試數據分析與故障診斷
+                // 僅當手動誤按且歷時小於 3 秒且筆數小於 3 筆時才自動清除
+                bool isTooShort = !wasAuto && (durationSec < 3.0 && recordedCount < 3);
 
                 if (isTooShort)
                 {
