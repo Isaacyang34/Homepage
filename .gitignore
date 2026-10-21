@@ -12,6 +12,7 @@ dist/
 **/build/
 **/dist/
 *.zip
+!Release/**/*.zip
 !TOOL_Stock_Portfolio_Tracker/dist_patches/**/*.zip
 !TOOL_Stock_Portfolio_Tracker/dist_releases/**/*.zip
 *.rar
@@ -45,3 +46,21 @@ __pycache__/
 TOOL_Stock_Portfolio_Tracker/*.db*
 TOOL_Stock_Portfolio_Tracker/*.log
 *.log
+
+# Any2Pixel / ios2pixel 個人照片暫存與隱私保護 (嚴禁上傳個人媒體與認證狀態)
+ios2pixel/vault_buffer/
+ios2pixel/temp_sync/
+ios2pixel/gphotos_profile/
+ios2pixel/sync_state.json
+ios2pixel/google_photos_cloud_ledger.json
+ios2pixel/cloud_quota_manifest.json
+ios2pixel/supervisor_auto_pilot.log
+ios2pixel/iOS2Pixel.exe
+ios2pixel/build/
+ios2pixel/dist/
+ios2pixel/Release/
+**/_internal/
+Release/Any2Pixel_V1.0.0_Portable/
+!Release/Any2Pixel_V1.0.0_Portable.zip
+
+
