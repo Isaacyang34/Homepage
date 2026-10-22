@@ -38,7 +38,7 @@ namespace DynamometerHMI
         private bool isCloudUploadRunning = false;
 
         // ── 軟體線上熱更新設定 (Online Auto-Update & In-Place Hot Swap) ──────
-        public const string APP_VERSION = "2.10.98";
+        public const string APP_VERSION = "2.10.99";
         public string cloudUpdateManifestUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/update/version.json";
         public Button btnOnlineUpdate = null;
         private bool? lastCloudUploadSuccess = null;
@@ -1856,10 +1856,19 @@ namespace DynamometerHMI
             AppN(sb, "epoch_ms",          epochMs.ToString());
             AppN(sb, "seq",               cloudUploadCount.ToString());
             AppB(sb, "is_crashed",        isSystemCrashed);
-            AppJ(sb, "crash_reason",      EscapeJson(systemCrashReason ?? ""), true);
-            AppJ(sb, "last_alert_cat",    EscapeJson(lastCriticalCategory ?? ""), true);
-            AppJ(sb, "last_alert_msg",    EscapeJson(lastCriticalLog ?? ""), true);
-            AppJ(sb, "last_alert_time",   EscapeJson(lastCriticalTime ?? ""), true);
+            // 警報逾時防護 (超過 60 秒之歷史跳脫自動退場，避免常態即時監控被過期急停橫幅永久卡死)
+            string alertCat = lastCriticalCategory ?? "";
+            string alertMsg = lastCriticalLog ?? "";
+            string alertTime = lastCriticalTime ?? "";
+            if (lastCriticalTimestamp != DateTime.MinValue && (DateTime.Now - lastCriticalTimestamp).TotalSeconds > 60.0)
+            {
+                alertCat = "";
+                alertMsg = "";
+                alertTime = "";
+            }
+            AppJ(sb, "last_alert_cat",    EscapeJson(alertCat), true);
+            AppJ(sb, "last_alert_msg",    EscapeJson(alertMsg), true);
+            AppJ(sb, "last_alert_time",   EscapeJson(alertTime), true);
             AppN(sb, "health_gdi",        healthGdiCount.ToString());
             AppN(sb, "health_user",       healthUserCount.ToString());
             AppN(sb, "health_mem_mb",     healthWorkingSetMb.ToString());

@@ -1483,6 +1483,10 @@ namespace DynamometerHMI
                             lblTnCountdown.Text = "倒數: 完成";
                             if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                             if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
+                            // ── 雲端即時監看狀態復歸 (解除測試狀態死鎖) ──
+                            webRemoteMode = "IDLE";
+                            webRemoteStatusText = "[成功] T-N 多點自訂測試全部完成！(待機中)";
+                            webRemotePhaseText = "完成";
                             MessageBox.Show("T-N 多點自訂測試已順利完成！\n全部項目均已完成 5 秒穩定 + 30 秒數據擷取與平均值計算，請點擊「匯出報表」儲存數據。", "測試完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         });
                         return;
@@ -2142,6 +2146,11 @@ namespace DynamometerHMI
                 : ((cmbTnRole != null && cmbTnRole.SelectedIndex >= 0) ? cmbTnRole.SelectedIndex : 1);
             int spdDrive = (roleIdx == 1) ? 2 : 1;
             int trqDrive = (spdDrive == 1) ? 2 : 1;
+
+            // ── 遠端監看即時同步停止中狀態 ──
+            webRemoteMode = "IDLE";
+            webRemoteStatusText = string.IsNullOrEmpty(detail) ? string.Format("T-N 測試停止中 [{0}]", reason) : string.Format("T-N 測試停止中 [{0}: {1}]", reason, detail);
+            webRemotePhaseText = "停止中";
 
             string autoStopMsg = string.Format("T-N測試停止 [{0}]", fullReason);
             StartGradualAutoStop(spdDrive, trqDrive, autoStopMsg, () => {

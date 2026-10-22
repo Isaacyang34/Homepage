@@ -1869,6 +1869,11 @@ namespace DynamometerHMI
             stallStartTime = DateTime.MinValue;
             tempTripStartTime = DateTime.MinValue;
 
+            // ── 雲端即時監看狀態復歸 (解除測試狀態死鎖) ──
+            webRemoteMode = "IDLE";
+            webRemoteStatusText = "【緊急停機 E-STOP】雙載台已強制斷電停機 (待機中)";
+            webRemotePhaseText = "";
+
             if (this.IsHandleCreated && !this.IsDisposed)
             {
                 this.BeginInvoke((MethodInvoker)delegate {
@@ -1915,6 +1920,11 @@ namespace DynamometerHMI
                 KebWriteParamWithDll(GetHmiKebComIdx(2), GetHmiKebBaudIdx(2), (int)numHmiKebNode2.Value, 0x0032, 0); // Sy.50 = 0 (STOP)
                 lastSy50Cmd2 = 0;
             }
+
+            // ── 雲端即時監看狀態復歸 (解除測試狀態死鎖) ──
+            webRemoteMode = "IDLE";
+            webRemoteStatusText = string.Format("【安全停機】雙載台已平穩停機 [{0}] (待機中)", reason);
+            webRemotePhaseText = "";
 
             if (this.IsHandleCreated && !this.IsDisposed)
             {

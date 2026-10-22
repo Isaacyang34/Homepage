@@ -388,6 +388,7 @@ namespace DynamometerHMI
         public static volatile string lastCriticalCategory = "";
         public static volatile string lastCriticalLog = "";
         public static volatile string lastCriticalTime = "";
+        public static DateTime lastCriticalTimestamp = DateTime.MinValue;
 
         public static void WriteHmiLog(string category, string message)
         {
@@ -401,12 +402,14 @@ namespace DynamometerHMI
                     lastCriticalCategory = category;
                     lastCriticalLog = message;
                     lastCriticalTime = DateTime.Now.ToString("HH:mm:ss");
+                    lastCriticalTimestamp = DateTime.Now;
                 }
-                else if (category == "DUTY_CONFIG" || category == "TN_START" || category == "EFFMAP_START")
+                else if (category == "DUTY_CONFIG" || category == "TN_START" || category == "EFFMAP_START" || category == "ALERT_CLEAR")
                 {
                     lastCriticalCategory = "";
                     lastCriticalLog = "";
                     lastCriticalTime = "";
+                    lastCriticalTimestamp = DateTime.MinValue;
                 }
                 // 隱蔽例外與報錯計數追蹤
                 if (category.EndsWith("_ERR") || category == "EXCEPTION" || category == "CRASH" || category.Contains("ERR"))

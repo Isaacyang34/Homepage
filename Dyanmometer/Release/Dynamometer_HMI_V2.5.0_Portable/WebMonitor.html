@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>動力計雲端即時監控中心 | Dynamometer Cloud Live Monitor</title>
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
     <style>
         :root {
             --bg-primary: #0a0f1d;
@@ -1019,6 +1017,7 @@
                 if (pillGuest) pillGuest.style.display = "flex";
                 if (formBody) formBody.style.display = "block";
                 if (activeBody) activeBody.style.display = "none";
+                const tabSpecBadge = document.getElementById("tabSpecBadge");
                 if (tabSpecBadge) {
                     tabSpecBadge.textContent = "🔒 VIP";
                     tabSpecBadge.className = "tab-vip-lock-badge";
@@ -1479,12 +1478,12 @@
                     alertBanner.style.borderColor = "rgba(239, 68, 68, 0.6)";
                     alertBanner.style.color = "#fca5a5";
                     alertBanner.innerHTML = `💥 <strong>【現場 HMI 程式崩潰警報】</strong> 原因: ${data.crash_reason || "非預期例外終止"} (${data.last_alert_time || "剛才"})`;
-                } else if (data.last_alert_msg) {
+                } else if (data.last_alert_msg && window._dismissedAlert !== (data.last_alert_time + data.last_alert_msg)) {
                     alertBanner.style.display = "flex";
                     alertBanner.style.background = "rgba(245, 158, 11, 0.2)";
                     alertBanner.style.borderColor = "rgba(245, 158, 11, 0.5)";
                     alertBanner.style.color = "#fcd34d";
-                    alertBanner.innerHTML = `⚠️ <strong>【最新跳脫警報: ${data.last_alert_cat || "ALERT"}】</strong> ${data.last_alert_msg} (${data.last_alert_time || ""})`;
+                    alertBanner.innerHTML = `<div style="flex:1;">⚠️ <strong>【最新跳脫警報: ${data.last_alert_cat || "ALERT"}】</strong> ${data.last_alert_msg} (${data.last_alert_time || ""})</div><button onclick="window._dismissedAlert='${(data.last_alert_time || "") + data.last_alert_msg}'; document.getElementById('alertBanner').style.display='none';" style="background:none; border:none; color:#fcd34d; font-size:16px; cursor:pointer; padding:0 8px;" title="關閉警報">✕</button>`;
                 } else {
                     alertBanner.style.display = "none";
                 }
