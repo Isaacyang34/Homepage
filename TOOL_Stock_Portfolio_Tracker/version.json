@@ -1,11 +1,17 @@
 {
-  "version": "V1.1.2.3",
-  "release_date": "2026-10-14",
+  "version": "V1.1.2.4",
+  "release_date": "2026-10-30",
   "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
-  "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.2.3.zip",
-  "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.2.3_Portable.zip",
-  "changelog": "【V1.1.2.3 零崩潰桌面 Shell 外部重啟架構與旁路黑盒子全生命週期監控】\n\n1. [Windows 桌面 Shell 重啟防護] 徹底重構平滑重啟機制，委託 Windows 桌面 Shell (explorer.exe) 喚起全新進程，物理切斷 Python/PowerShell 進程繼承鏈，100% 根絕 PyInstaller Bootloader 載入 python312.dll 模組衝突。\n2. [旁路黑盒子外部監控儀] 進入更新中心時自動掛載外部監控儀 (update_monitor.ps1)，內建 Global Mutex 單實例防多開互斥與雙重看門狗保底，全程毫秒級錄製進程生滅與視窗事件。\n3. [構建流水線校驗閉鎖] 自動校驗 version.json、app_core.pkg 雙向完整性，單元測試與 GUI 防裁切 100% 通過。",
+  "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.2.4.zip",
+  "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.2.4_Portable.zip",
+  "changelog": "【V1.1.2.4 嚴格市場標的驗證與代碼查驗升級】\n\n1. [標的真偽嚴格檢驗] 重新架構 stock_detector 模組，向台灣證交所 (TWSE) 與櫃買中心 (TPEX) 即時校驗標的代碼與真實中文公司/ETF名稱。\n2. [杜絕幽靈虛假辨識] 徹底剷除不存在之代碼 (如 0076、00637R) 虛假辨識為有效股票的漏洞，查無標的一律標記紅字警告並於儲存時強制阻擋。\n3. [智慧輸入防呆提示] 支援上市櫃 ETF 正反向代碼精確解析 (如元大滬深300正2為 00637L、反1為 00638R)。\n4. [本機端獨立計算守護] 本地端不主動背景同步，持股異動彈窗確認後才加密傳輸，損益指標雙端獨立精算。",
   "recent_versions": [
+    {
+      "version": "V1.1.2.4",
+      "release_date": "2026-10-30",
+      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.2.4.zip",
+      "changelog": "【V1.1.2.4 嚴格市場標的驗證與代碼查驗升級】\n\n1. [標的真偽嚴格檢驗] 重新架構 stock_detector 模組，向台灣證交所 (TWSE) 與櫃買中心 (TPEX) 即時校驗標的代碼與真實中文公司/ETF名稱。\n2. [杜絕幽靈虛假辨識] 徹底剷除不存在之代碼 (如 0076、00637R) 虛假辨識為有效股票的漏洞，查無標的一律標記紅字警告並於儲存時強制阻擋。\n3. [智慧輸入防呆提示] 支援上市櫃 ETF 正反向代碼精確解析 (如元大滬深300正2為 00637L、反1為 00638R)。\n4. [本機端獨立計算守護] 本地端不主動背景同步，持股異動彈窗確認後才加密傳輸，損益指標雙端獨立精算。"
+    },
     {
       "version": "V1.1.2.3",
       "release_date": "2026-10-14",
@@ -37,50 +43,10 @@
       "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
       "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.2.0_Portable.zip",
       "changelog": "V1.1.2.0 多人多帳號獨立登入、SHA-256+Salt密碼防護與持股庫存物理隔離系統。"
-    },
-    {
-      "version": "V1.1.1.4",
-      "release_date": "2026-10-12",
-      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.1.4.zip",
-      "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
-      "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.1.4_Portable.zip",
-      "changelog": "V1.1.1.4 股息分析與市場排行視窗原生縮放、Win11邊緣拖曳Snap與全螢幕支援。"
-    },
-    {
-      "version": "V1.1.1.3",
-      "release_date": "2026-10-12",
-      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.1.3.zip",
-      "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
-      "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.1.3_Portable.zip",
-      "changelog": "V1.1.1.3 Yahoo備援與美股開盤價精確取值修復、全套核心離線單元測試整合。"
-    },
-    {
-      "version": "V1.1.1.2",
-      "release_date": "2026-10-08",
-      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.1.2.zip",
-      "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
-      "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.1.2_Portable.zip",
-      "changelog": "V1.1.1.2 修復幽靈選取、新增ETF淨值與折溢價、4大指標0ms秒開快取。"
-    },
-    {
-      "version": "V1.1.1.1",
-      "release_date": "2026-10-08",
-      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.1.1.zip",
-      "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
-      "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.1.1_Portable.zip",
-      "changelog": "V1.1.1.1 真・記憶體熱更新 (免關閉主程式) 與證交所 TWSE MIS 盤中撮合成交價全面修復。"
-    },
-    {
-      "version": "V1.1.1.0",
-      "release_date": "2026-10-08",
-      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.1.0.zip",
-      "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
-      "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.1.0_Portable.zip",
-      "changelog": "V1.1.1.0 三層深度模組再分離：規則外置 (config/)、外掛機制 (plugins/)、底座依賴瘦身 (純 REST 免 numpy/pandas)。"
     }
   ],
-  "patch_size": 382399,
-  "patch_sha256": "feb0f36a952b6fa75a14624b146aba7f282d8fdf066793181a97fba845ba2230",
-  "release_size": 28763757,
-  "release_sha256": "e83e31dc20a594032badacd66a7e9a13fa9470f083225577451e82806e59f2bb"
+  "patch_size": 382381,
+  "patch_sha256": "9120d1d11c4ded9a1e76796b111c6e2e69c294c2582cac6447248806989cca58",
+  "release_size": 28763739,
+  "release_sha256": "7e3dd2d1edd95773c726f67040c8850bc4ad1e41da72fb6243a5fd59914a8746"
 }

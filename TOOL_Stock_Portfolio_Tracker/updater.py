@@ -22,7 +22,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Optional, Dict, Any, Tuple, List
 
-APP_VERSION = "V1.1.2.3"
+APP_VERSION = "V1.1.2.4"
 APP_BOOT_VERSION = APP_VERSION  # 記憶體進程啟動時鎖定之版本
 
 def get_boot_version() -> str:
