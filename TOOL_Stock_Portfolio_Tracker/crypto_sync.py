@@ -371,8 +371,8 @@ _LAST_AUTO_SYNC_TIMESTAMP: float = 0.0
 _AUTO_SYNC_LOCK = threading.Lock()
 
 def is_auto_sync_enabled() -> bool:
-    """是否啟用自動雲端同步 (預設開啟：只要已設定雲端帳密即自動背景同步)"""
-    return get_setting("cloud_auto_sync", "1") == "1"
+    """是否啟用自動雲端同步 (預設關閉：依規範本機端不主動背景同步)"""
+    return get_setting("cloud_auto_sync", "0") == "1"
 
 def set_auto_sync_enabled(enabled: bool):
     """設定是否啟用自動雲端同步"""
