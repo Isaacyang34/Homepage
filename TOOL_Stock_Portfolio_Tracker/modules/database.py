@@ -420,14 +420,30 @@ def init_db():
                 symbol TEXT PRIMARY KEY,
                 frequency TEXT DEFAULT '',      -- 年配, 季配, 月配, 半年配
                 cash_dividend REAL DEFAULT 0.0, -- 最新一期現金股利
+                single_dividend REAL DEFAULT 0.0,
                 total_dividend REAL DEFAULT 0.0,-- 近四季/全年累計現金股利
                 ex_date TEXT DEFAULT '',        -- 最新除息日
                 payment_date TEXT DEFAULT '',   -- 最新發放日
                 payment_month TEXT DEFAULT '',  -- 預計發放月份
+                status TEXT DEFAULT '',
+                dividend_year TEXT DEFAULT '',
+                is_announced INTEGER DEFAULT 0,
+                raw_events TEXT DEFAULT '',
                 history_json TEXT DEFAULT '',   -- 歷年股息 JSON 紀錄
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        for col_name, col_type in [
+            ("single_dividend", "REAL DEFAULT 0.0"),
+            ("status", "TEXT DEFAULT ''"),
+            ("dividend_year", "TEXT DEFAULT ''"),
+            ("is_announced", "INTEGER DEFAULT 0"),
+            ("raw_events", "TEXT DEFAULT ''")
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE dividend_records ADD COLUMN {col_name} {col_type}")
+            except sqlite3.OperationalError:
+                pass
 
         # 5. 系統偏好設定表 (全域共用)
         cursor.execute("""
