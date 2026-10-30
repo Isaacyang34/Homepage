@@ -172,6 +172,15 @@ def decrypt_portfolio_payload(encrypted_dict: Dict[str, Any], password: str, sec
     return json.loads(plain_bytes.decode("utf-8"))
 
 def gather_full_portfolio_data() -> Dict[str, Any]:
+    from database import get_current_user, verify_user_credentials
+    curr_u = get_current_user()
+    if curr_u:
+        saved_pwd = get_setting("cloud_password", "")
+        if saved_pwd:
+            try:
+                verify_user_credentials(curr_u["id"], saved_pwd)
+            except Exception:
+                pass
     """打包本地 SQLite 所有部位、買入批次明細與精算損益、當日/當週損益與股息資訊"""
     positions = get_all_positions()
     quote_service = QuoteService()
@@ -309,6 +318,21 @@ def sync_to_cloud(user_id: str, password: str, firebase_url: Optional[str] = Non
             set_setting("cloud_firebase_url", target_url)
             now_ts_sync = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             set_setting("last_cloud_sync_time", now_ts_sync)
+            try:
+                quotes_cache = {}
+                for p in data.get("positions", []):
+                    sym = p.get("symbol")
+                    if sym and not sym.startswith("ENC:"):
+                        quotes_cache[sym] = {
+                            "price": float(p.get("current_price", 0.0)),
+                            "name": p.get("name", sym),
+                            "yesterday_close": float(p.get("yesterday_close", p.get("current_price", 0.0))),
+                            "time": now_ts_sync
+                        }
+                if quotes_cache:
+                    requests.put(f"{target_url}/stats/quotes.json", json=quotes_cache, timeout=5)
+            except Exception:
+                pass
             return True, f"成功完成 E2EE 加密同步！\n序號: #{seq} ‧ 600K PBKDF2 ‧ AAD 認證 ‧ 32KB 固定防護\n(使用者: {clean_user})"
         else:
             return False, f"雲端回應錯誤: HTTP {resp.status_code} - {resp.text[:100]}"

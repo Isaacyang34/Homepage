@@ -23,6 +23,90 @@ let state = {
 
 let autoPollInterval = null;
 
+
+// --- 客戶端獨立即時報價引擎 (Client-Side Independent Live Quotes Engine) ---
+
+async function fetchLiveQuotesAndUpdateUI() {
+  if (!state.decryptedData || !state.rawPositions || state.rawPositions.length === 0) return;
+
+  let quotesMap = {};
+  let quotesTime = "";
+
+  // 1. 優先嘗試從 Firebase /stats/quotes.json 讀取雲端報價快取 (最即時、零 CORS 問題)
+  try {
+    const qResp = await fetch(`${state.rtdbUrl}/stats/quotes.json?t=${Date.now()}`, { cache: "no-store" });
+    if (qResp.ok) {
+      const qData = await qResp.json();
+      if (qData && typeof qData === "object") {
+        quotesMap = qData;
+        for (const k in qData) {
+          if (qData[k] && qData[k].time && (!quotesTime || qData[k].time > quotesTime)) {
+            quotesTime = qData[k].time;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    // 靜默降級
+  }
+
+  // 2. 備援嘗試：若 Firebase 無報價，從同源 GitHub Pages 讀取 market_ranking_cache 與 etf_live_cache
+  if (Object.keys(quotesMap).length === 0) {
+    try {
+      const [rEtf, rMkt] = await Promise.allSettled([
+        fetch("../../WEB_ETF_Portfolio_Analyzer/etf_live_cache.json?t=" + Date.now()).then(r => r.ok ? r.json() : {}),
+        fetch("../market_ranking_cache.json?t=" + Date.now()).then(r => r.ok ? r.json() : {})
+      ]);
+      if (rEtf.status === "fulfilled" && rEtf.value) {
+        for (const code in rEtf.value) {
+          const it = rEtf.value[code];
+          if (it && it.price) quotesMap[code] = { price: it.price, name: it.name, time: "盤後快取" };
+        }
+      }
+      if (rMkt.status === "fulfilled" && rMkt.value && rMkt.value.stocks) {
+        for (const s of rMkt.value.stocks) {
+          if (s && s.symbol && s.price) quotesMap[s.symbol] = { price: s.price, name: s.name, time: "盤後快取" };
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 3. 將最新報價套用至當前解密的部位
+  let anyPriceUpdated = false;
+  state.rawPositions.forEach(p => {
+    const sym = (p.symbol || "").trim().toUpperCase();
+    const q = quotesMap[sym];
+    if (q && q.price && q.price > 0) {
+      if (Math.abs(p.current_price - q.price) > 0.001) {
+        p.current_price = q.price;
+        anyPriceUpdated = true;
+      }
+      if (q.yesterday_close && q.yesterday_close > 0) {
+        p.yesterday_close = q.yesterday_close;
+      }
+      if (q.time && (!quotesTime || q.time > quotesTime)) {
+        quotesTime = q.time;
+      }
+    }
+  });
+
+  if (!quotesTime) {
+    quotesTime = new Date().toLocaleTimeString("zh-TW", { hour12: false });
+  }
+
+  // 4. 即時重算全庫存損益與畫面渲染
+  state.lastQuotesTime = quotesTime;
+  renderDashboard(state.decryptedData, state.lastCloudUpdateTime, quotesTime, state.lastPortfolioSyncTime);
+
+  // 5. 綠色小圓點閃爍提示
+  const quoteEl = document.getElementById("quote-time-lbl");
+  if (quoteEl) {
+    quoteEl.style.transition = "color 0.3s ease";
+    quoteEl.style.color = "#00f090";
+    setTimeout(() => { quoteEl.style.color = ""; }, 1500);
+  }
+}
+
 async function reloadCloudDataSilently() {
   if (!state.user || !state.password) return;
   try {
@@ -52,6 +136,8 @@ function startCloudAutoPolling() {
   if (autoPollInterval) clearInterval(autoPollInterval);
   autoPollInterval = setInterval(async () => {
     if (!state.user || !state.password || !state.decryptedData) return;
+    
+    // A. 探測持股部位是否在電腦端有異動
     try {
       const checkUrl = `${state.rtdbUrl}/portfolios/${state.user}/updated_at.json?t=${Date.now()}`;
       const r = await fetch(checkUrl, { cache: "no-store" });
@@ -60,12 +146,16 @@ function startCloudAutoPolling() {
         if (remoteTime && remoteTime !== state.lastCloudUpdateTime) {
           console.log(`[Cloud] 偵測到雲端資料已更新 (${remoteTime})，正在自動重新載入...`);
           await reloadCloudDataSilently();
+          return;
         }
       }
-    } catch (e) {
-      // 網路波動靜默忽略
-    }
-  }, 30000); // 每 30 秒自動探測一次
+    } catch (e) {}
+
+    // B. 電腦即使關機，網頁每 15 秒也自動探測雲端即時行情並重算損益！
+    try {
+      await fetchLiveQuotesAndUpdateUI();
+    } catch (e) {}
+  }, 15000); // 每 15 秒自動探測一次
 }
 
 // --- 設備智慧分析引擎 ---
@@ -357,6 +447,7 @@ document.addEventListener("DOMContentLoaded", () => {
       applyViewModeUI();
       renderDashboard(decrypted, encPayload.updated_at);
       showStatus("", "");
+      await fetchLiveQuotesAndUpdateUI();
       startCloudAutoPolling();
     } catch (err) {
       console.error(err);
@@ -388,6 +479,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const btn = document.getElementById("btn-refresh");
       if (btn) btn.style.opacity = "0.5";
       await reloadCloudDataSilently();
+      await fetchLiveQuotesAndUpdateUI();
       if (btn) setTimeout(() => { btn.style.opacity = "1"; }, 500);
     }
   };

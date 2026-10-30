@@ -1,0 +1,26 @@
+name: Intraday Taiwan Market Quotes Cloud Sync
+
+on:
+  schedule:
+    # Runs Monday through Friday every 15 minutes between 01:00 UTC and 05:45 UTC (09:00 - 13:45 Taiwan Time)
+    - cron: '*/15 1-5 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync_quotes_to_cloud:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run Intraday Quotes Sync
+        run: |
+          python TOOL_Stock_Portfolio_Tracker/sync_cloud_quotes.py
