@@ -779,6 +779,8 @@ body {
     padding: 2px 8px;
     border-radius: 9999px;
     color: #00f090;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
   .desktop-actions { display: none; } /* 桌機按鈕在手機隱藏，收納至底部浮動列 */
   
