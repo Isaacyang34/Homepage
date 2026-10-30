@@ -128,11 +128,16 @@ def encrypt_portfolio_payload(data: Dict[str, Any], password: str, secret_key: s
     aesgcm = AESGCM(key)
     ciphertext_bytes = aesgcm.encrypt(nonce, padded_bytes, aad_bytes)
 
+    quotes_time = data.get("quotes_update_time") or get_setting("last_quotes_update_time", now_ts)
+    portfolio_time = data.get("portfolio_sync_time") or get_setting("last_portfolio_change_time", now_ts)
+
     return {
         "version": version,
         "algorithm": "AES-256-GCM",
         "kdf": f"PBKDF2-HMAC-SHA256-{PBKDF2_ITERATIONS // 1000}K",
         "updated_at": now_ts,
+        "portfolio_sync_time": portfolio_time,
+        "quotes_update_time": quotes_time,
         "sync_seq": seq,
         "aad_str": aad_str,
         "salt_hex": salt.hex(),
@@ -256,8 +261,14 @@ def gather_full_portfolio_data() -> Dict[str, Any]:
         "hist_div_received": round(hist_div_sum)
     }
 
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    quotes_time = get_setting("last_quotes_update_time", now_str)
+    portfolio_time = get_setting("last_portfolio_change_time", now_str)
+
     return {
-        "exported_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "exported_at": now_str,
+        "portfolio_sync_time": portfolio_time,
+        "quotes_update_time": quotes_time,
         "summary": summary,
         "positions": enriched_positions,
         "trade_lots": lots_by_symbol,

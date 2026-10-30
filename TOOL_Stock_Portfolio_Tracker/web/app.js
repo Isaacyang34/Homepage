@@ -37,11 +37,11 @@ async function reloadCloudDataSilently() {
     state.lastCloudUpdateTime = encPayload.updated_at || decrypted.exported_at || "";
     renderDashboard(decrypted, encPayload.updated_at);
     
-    const syncEl = document.getElementById("sync-time-lbl");
-    if (syncEl) {
-      syncEl.style.transition = "color 0.3s ease";
-      syncEl.style.color = "#00f090";
-      setTimeout(() => { syncEl.style.color = ""; }, 2500);
+    const quoteEl = document.getElementById("quote-time-lbl");
+    if (quoteEl) {
+      quoteEl.style.transition = "color 0.3s ease";
+      quoteEl.style.color = "#00f090";
+      setTimeout(() => { quoteEl.style.color = ""; }, 2500);
     }
   } catch (err) {
     console.warn("[Cloud] 自動更新失敗:", err);
@@ -553,11 +553,21 @@ function fmtPctSign(n) {
 
 function renderDashboard(data, cloudUpdateTime) {
   document.getElementById("user-badge").textContent = `👤 使用者: ${state.user}`;
-  const syncTime = cloudUpdateTime || data.exported_at || "剛剛";
+
+  // 1. 存股部位與批次同步時間
+  const portSyncTime = data.portfolio_sync_time || cloudUpdateTime || data.exported_at || "剛剛";
   const syncEl = document.getElementById("sync-time-lbl");
   if (syncEl) {
-    syncEl.innerHTML = `<span class="live-dot"></span> 同步: ${syncTime}`;
-    syncEl.title = `雲端最後更新時間: ${syncTime}`;
+    syncEl.innerHTML = `<span class="badge-icon">📦</span> 存股: ${portSyncTime}`;
+    syncEl.title = `存股部位與買入批次同步至雲端的時間: ${portSyncTime}`;
+  }
+
+  // 2. 目前盤面行情與損益數據更新時間
+  const quotesTime = data.quotes_update_time || cloudUpdateTime || data.exported_at || "剛剛";
+  const quoteEl = document.getElementById("quote-time-lbl");
+  if (quoteEl) {
+    quoteEl.innerHTML = `<span class="live-dot"></span> 數據: ${quotesTime}`;
+    quoteEl.title = `即時行情報價與損益最新計算時間: ${quotesTime}`;
   }
 
   const divs = data.dividends || {};

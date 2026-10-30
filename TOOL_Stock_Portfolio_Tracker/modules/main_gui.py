@@ -1222,12 +1222,14 @@ class PortfolioApp(tk.Tk):
         if confirm:
             self.row_action_frame.place_forget()
             delete_position(pos_id)
+            set_setting("last_portfolio_change_time", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             self.reload_positions()
             self.refresh_ui_table()
             trigger_auto_sync_to_cloud(force=True, source="delete_position")
             messagebox.showinfo("成功", "已成功刪除持股！", parent=self)
 
     def _on_position_saved(self):
+        set_setting("last_portfolio_change_time", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         self.reload_positions()
         self.benchmarks_cache.clear()
         self.trigger_refresh()

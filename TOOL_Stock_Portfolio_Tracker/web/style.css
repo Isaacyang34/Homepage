@@ -242,9 +242,27 @@ body {
   font-weight: 600;
 }
 
+.sync-time, .quote-time {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75rem;
+  padding: 2px 9px;
+  border-radius: 9999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
 .sync-time {
-  font-size: 0.78rem;
-  color: var(--text-dim);
+  background: rgba(58, 134, 255, 0.12);
+  border: 1px solid rgba(58, 134, 255, 0.3);
+  color: #93c5fd;
+}
+
+.quote-time {
+  background: rgba(0, 240, 144, 0.08);
+  border: 1px solid rgba(0, 240, 144, 0.25);
+  color: #00f090;
 }
 
 .nav-right {
@@ -770,17 +788,9 @@ body {
   .top-navbar { padding: 12px 14px; margin-bottom: 14px; }
   .nav-left { gap: 8px; }
   .logo-text { font-size: 1rem; }
-  .sync-time {
-    display: inline-flex;
-    align-items: center;
-    font-size: 0.72rem;
-    background: rgba(0, 240, 144, 0.08);
-    border: 1px solid rgba(0, 240, 144, 0.25);
-    padding: 2px 8px;
-    border-radius: 9999px;
-    color: #00f090;
-    white-space: nowrap;
-    flex-shrink: 0;
+  .sync-time, .quote-time {
+    font-size: 0.68rem;
+    padding: 1px 7px;
   }
   .desktop-actions { display: none; } /* 桌機按鈕在手機隱藏，收納至底部浮動列 */
   
