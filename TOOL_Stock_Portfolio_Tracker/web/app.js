@@ -18,10 +18,18 @@ let state = {
   currentViewMode: "table", // 預設以表格視圖為主
   sortField: "symbol",
   sortOrder: "asc",
-  lastCloudUpdateTime: ""
+  lastCloudUpdateTime: "",
+  lastPortfolioSyncTime: "",
+  lastQuotesTime: ""
 };
 
 let autoPollInterval = null;
+
+function getNowFormatted() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
 
 
 // --- 客戶端獨立即時報價引擎 (Client-Side Independent Live Quotes Engine) ---
@@ -90,20 +98,27 @@ async function fetchLiveQuotesAndUpdateUI() {
     }
   });
 
-  if (!quotesTime) {
-    quotesTime = new Date().toLocaleTimeString("zh-TW", { hour12: false });
+  // 最新數據計算時間戳：若抓到了市場報價時間，顯示市場時間；否則以當前即時重新計算之時間為準
+  if (!quotesTime || quotesTime === "盤後快取") {
+    quotesTime = getNowFormatted();
   }
 
   // 4. 即時重算全庫存損益與畫面渲染
   state.lastQuotesTime = quotesTime;
   renderDashboard(state.decryptedData, state.lastCloudUpdateTime, quotesTime, state.lastPortfolioSyncTime);
 
-  // 5. 綠色小圓點閃爍提示
+  // 5. 綠色小圓點與邊框閃爍提示 (視覺化反饋)
   const quoteEl = document.getElementById("quote-time-lbl");
   if (quoteEl) {
-    quoteEl.style.transition = "color 0.3s ease";
+    quoteEl.style.transition = "all 0.3s ease";
     quoteEl.style.color = "#00f090";
-    setTimeout(() => { quoteEl.style.color = ""; }, 1500);
+    quoteEl.style.borderColor = "rgba(0, 240, 144, 0.8)";
+    quoteEl.style.boxShadow = "0 0 10px rgba(0, 240, 144, 0.3)";
+    setTimeout(() => {
+      quoteEl.style.color = "";
+      quoteEl.style.borderColor = "";
+      quoteEl.style.boxShadow = "";
+    }, 1500);
   }
 }
 
@@ -118,15 +133,9 @@ async function reloadCloudDataSilently() {
     const decrypted = await decryptAesGcm(encPayload, state.password, state.secretKey);
     state.decryptedData = decrypted;
     state.rawPositions = decrypted.positions || [];
+    state.lastPortfolioSyncTime = encPayload.updated_at || decrypted.exported_at || "";
     state.lastCloudUpdateTime = encPayload.updated_at || decrypted.exported_at || "";
-    renderDashboard(decrypted, encPayload.updated_at);
-    
-    const quoteEl = document.getElementById("quote-time-lbl");
-    if (quoteEl) {
-      quoteEl.style.transition = "color 0.3s ease";
-      quoteEl.style.color = "#00f090";
-      setTimeout(() => { quoteEl.style.color = ""; }, 2500);
-    }
+    await fetchLiveQuotesAndUpdateUI();
   } catch (err) {
     console.warn("[Cloud] 自動更新失敗:", err);
   }
@@ -439,13 +448,15 @@ document.addEventListener("DOMContentLoaded", () => {
       const decrypted = await decryptAesGcm(encPayload, pass, secretKey);
       state.decryptedData = decrypted;
       state.rawPositions = decrypted.positions || [];
+      state.lastPortfolioSyncTime = encPayload.updated_at || decrypted.exported_at || "";
       state.lastCloudUpdateTime = encPayload.updated_at || decrypted.exported_at || "";
+      state.lastQuotesTime = getNowFormatted();
 
       loginModal.classList.add("hidden");
       appContainer.classList.remove("hidden");
 
       applyViewModeUI();
-      renderDashboard(decrypted, encPayload.updated_at);
+      renderDashboard(decrypted, encPayload.updated_at, state.lastQuotesTime, state.lastPortfolioSyncTime);
       showStatus("", "");
       await fetchLiveQuotesAndUpdateUI();
       startCloudAutoPolling();
@@ -643,19 +654,31 @@ function fmtPctSign(n) {
 
 // --- 渲染畫面核心 ---
 
-function renderDashboard(data, cloudUpdateTime) {
+function renderDashboard(data, cloudUpdateTime, quotesUpdateTime, portfolioSyncTime) {
   document.getElementById("user-badge").textContent = `👤 使用者: ${state.user}`;
 
   // 1. 存股部位與批次同步時間
-  const portSyncTime = data.portfolio_sync_time || cloudUpdateTime || data.exported_at || "剛剛";
+  if (portfolioSyncTime) {
+    state.lastPortfolioSyncTime = portfolioSyncTime;
+  } else if (cloudUpdateTime) {
+    state.lastPortfolioSyncTime = cloudUpdateTime;
+  } else if (!state.lastPortfolioSyncTime) {
+    state.lastPortfolioSyncTime = data.portfolio_sync_time || data.exported_at || "剛剛";
+  }
+  const portSyncTime = state.lastPortfolioSyncTime;
   const syncEl = document.getElementById("sync-time-lbl");
   if (syncEl) {
     syncEl.innerHTML = `<span class="badge-icon">📦</span> 存股: ${portSyncTime}`;
-    syncEl.title = `存股部位與買入批次同步至雲端的時間: ${portSyncTime}`;
+    syncEl.title = `存股部位與買進批次同步至雲端的時間: ${portSyncTime}`;
   }
 
   // 2. 目前盤面行情與損益數據更新時間
-  const quotesTime = data.quotes_update_time || cloudUpdateTime || data.exported_at || "剛剛";
+  if (quotesUpdateTime) {
+    state.lastQuotesTime = quotesUpdateTime;
+  } else if (!state.lastQuotesTime) {
+    state.lastQuotesTime = data.quotes_update_time || state.lastPortfolioSyncTime || getNowFormatted();
+  }
+  const quotesTime = state.lastQuotesTime;
   const quoteEl = document.getElementById("quote-time-lbl");
   if (quoteEl) {
     quoteEl.innerHTML = `<span class="live-dot"></span> 數據: ${quotesTime}`;
