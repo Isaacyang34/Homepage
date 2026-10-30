@@ -2,8 +2,8 @@ name: Intraday Taiwan Market Quotes Cloud Sync
 
 on:
   schedule:
-    # Runs Monday through Friday every 15 minutes between 01:00 UTC and 05:45 UTC (09:00 - 13:45 Taiwan Time)
-    - cron: '*/15 1-5 * * 1-5'
+    # Runs Monday through Friday every 10 minutes between 01:00 UTC and 06:00 UTC (09:00 - 14:00 Taiwan Time)
+    - cron: '*/10 1-5 * * 1-5'
   workflow_dispatch:
 
 permissions:
