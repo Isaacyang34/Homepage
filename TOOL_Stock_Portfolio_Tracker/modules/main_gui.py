@@ -31,7 +31,7 @@ from dividend_service import DividendService
 from pnl_calculator import calculate_position_pnl
 from kline_chart import KLineChartCanvas
 from stock_detector import detect_stock_metadata
-from crypto_sync import sync_to_cloud, fetch_and_decrypt_from_cloud, DEFAULT_FIREBASE_URL, get_or_create_secret_key
+from crypto_sync import sync_to_cloud, fetch_and_decrypt_from_cloud, DEFAULT_FIREBASE_URL, get_or_create_secret_key, trigger_auto_sync_to_cloud, is_auto_sync_enabled, set_auto_sync_enabled
 from updater import (
     APP_VERSION, fetch_update_manifest, is_newer_version, UpdateDialog,
     get_app_version, set_app_version, get_boot_version, get_disk_version, restart_application
@@ -427,7 +427,18 @@ class PortfolioApp(tk.Tk):
             self.status_lbl.configure(text=f"🔔 新版本 {cloud_ver} 已下載就緒，將於程式關閉時自動置換升級")
 
     def _on_app_close(self):
-        """主視窗關閉事件：檢查是否有待套用的延遲更新"""
+        """主視窗關閉事件：檢查是否有待套用的延遲更新與自動雲端同步"""
+        try:
+            if is_auto_sync_enabled():
+                u_id = get_setting("cloud_user_id", "").strip()
+                p_wd = get_setting("cloud_password", "").strip()
+                if u_id and p_wd:
+                    import threading
+                    t = threading.Thread(target=lambda: sync_to_cloud(u_id, p_wd), daemon=True)
+                    t.start()
+                    t.join(timeout=1.5)
+        except Exception:
+            pass
         try:
             from updater import is_pending_update, apply_update_now, _PENDING_UPDATE, log_update_debug
             if is_pending_update():
@@ -853,6 +864,7 @@ class PortfolioApp(tk.Tk):
         self.status_lbl.configure(text="股息與除息日期已同步")
         if self.active_update_dialog and self.active_update_dialog.winfo_exists():
             self.active_update_dialog.refresh_timestamps()
+        trigger_auto_sync_to_cloud(force=False, min_interval_sec=180.0, source="quotes_refresh")
 
     def refresh_ui_table(self):
         """重新計算並填入表格與頂部卡片 (包含日/週/月週期損益與取得批次股息)"""
@@ -1078,6 +1090,7 @@ class PortfolioApp(tk.Tk):
         self.status_lbl.configure(text=f"最後更新時間: {update_time}")
         if self.active_update_dialog and self.active_update_dialog.winfo_exists():
             self.active_update_dialog.refresh_timestamps()
+        trigger_auto_sync_to_cloud(force=False, min_interval_sec=180.0, source="quotes_refresh")
 
     def _on_fetch_failed(self, err_msg: str):
         self._is_fetching = False
@@ -1211,6 +1224,7 @@ class PortfolioApp(tk.Tk):
             delete_position(pos_id)
             self.reload_positions()
             self.refresh_ui_table()
+            trigger_auto_sync_to_cloud(force=True, source="delete_position")
             messagebox.showinfo("成功", "已成功刪除持股！", parent=self)
 
     def _on_position_saved(self):
@@ -1218,6 +1232,7 @@ class PortfolioApp(tk.Tk):
         self.benchmarks_cache.clear()
         self.trigger_refresh()
         self.trigger_dividend_update(silent=True)
+        trigger_auto_sync_to_cloud(force=True, source="position_saved")
 
     def on_open_settings(self):
         SettingsDialog(self, on_applied=self._on_settings_applied)
@@ -1280,6 +1295,7 @@ class PortfolioApp(tk.Tk):
                     self.status_lbl.configure(text="[定時任務 15:00] 正在自動同步盤後日K與最新除權息公告...")
                     self.trigger_dividend_update(silent=True)
                     self.on_update_history_all(silent=True)
+                    trigger_auto_sync_to_cloud(force=True, source="daily_1500")
 
             # 每 30 秒輪詢一次
             self.after(30000, check_daily_task)
@@ -3086,6 +3102,14 @@ class CloudSyncDialog(tk.Toplevel):
         self.chk_remember = tk.Checkbutton(form, text="記住在本機電腦 (下次同步自動帶入帳號密碼)", variable=self.var_remember, bg="#202028", fg="#d0d0dc", selectcolor="#2d2d38", activebackground="#202028", activeforeground="#ffffff", font=("Microsoft JhengHei UI", 8))
         self.chk_remember.pack(anchor="w", pady=(4, 0))
 
+        self.var_auto_sync = tk.BooleanVar(value=is_auto_sync_enabled())
+        self.chk_auto_sync = tk.Checkbutton(form, text="啟用全自動背景同步 (持股異動、盤中報價與收盤時自動同步至雲端)", variable=self.var_auto_sync, bg="#202028", fg="#00f090", selectcolor="#2d2d38", activebackground="#202028", activeforeground="#ffffff", font=("Microsoft JhengHei UI", 8, "bold"))
+        self.chk_auto_sync.pack(anchor="w", pady=(2, 0))
+
+        last_sync = get_setting("last_cloud_sync_time", "尚未同步")
+        self.lbl_last_sync = tk.Label(form, text=f"☁️ 雲端最後同步時間: {last_sync}", bg="#202028", fg="#8e95a5", font=("Microsoft JhengHei UI", 8))
+        self.lbl_last_sync.pack(anchor="w", pady=(2, 0))
+
         # 雙因子 128-bit 設備金鑰 (Secret Key)
         sk_frame = tk.Frame(form, bg="#202028")
         sk_frame.pack(fill=tk.X, pady=(10, 2))
@@ -3208,6 +3232,7 @@ class CloudSyncDialog(tk.Toplevel):
         # 儲存連線設定與帳號密碼 (依記住核取方塊決定)
         set_setting("cloud_user_id", user)
         set_setting("cloud_firebase_url", url)
+        set_auto_sync_enabled(self.var_auto_sync.get())
         if self.var_remember.get():
             set_setting("cloud_password", pwd)
         else:

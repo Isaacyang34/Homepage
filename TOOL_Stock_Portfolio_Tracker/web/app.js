@@ -16,8 +16,56 @@ let state = {
   deviceType: "desktop", // "mobile" | "tablet" | "desktop"
   currentViewMode: "table", // 預設以表格視圖為主
   sortField: "symbol",
-  sortOrder: "asc"
+  sortOrder: "asc",
+  lastCloudUpdateTime: ""
 };
+
+let autoPollInterval = null;
+
+async function reloadCloudDataSilently() {
+  if (!state.user || !state.password) return;
+  try {
+    const endpoint = `${state.rtdbUrl}/portfolios/${state.user}.json?t=${Date.now()}`;
+    const resp = await fetch(endpoint, { cache: "no-store" });
+    if (!resp.ok) return;
+    const encPayload = await resp.json();
+    if (!encPayload || !encPayload.ciphertext_b64) return;
+    const decrypted = await decryptAesGcm(encPayload, state.password, state.secretKey);
+    state.decryptedData = decrypted;
+    state.rawPositions = decrypted.positions || [];
+    state.lastCloudUpdateTime = encPayload.updated_at || decrypted.exported_at || "";
+    renderDashboard(decrypted, encPayload.updated_at);
+    
+    const syncEl = document.getElementById("sync-time-lbl");
+    if (syncEl) {
+      syncEl.style.transition = "color 0.3s ease";
+      syncEl.style.color = "#00f090";
+      setTimeout(() => { syncEl.style.color = ""; }, 2500);
+    }
+  } catch (err) {
+    console.warn("[Cloud] 自動更新失敗:", err);
+  }
+}
+
+function startCloudAutoPolling() {
+  if (autoPollInterval) clearInterval(autoPollInterval);
+  autoPollInterval = setInterval(async () => {
+    if (!state.user || !state.password || !state.decryptedData) return;
+    try {
+      const checkUrl = `${state.rtdbUrl}/portfolios/${state.user}/updated_at.json?t=${Date.now()}`;
+      const r = await fetch(checkUrl, { cache: "no-store" });
+      if (r.ok) {
+        const remoteTime = await r.json();
+        if (remoteTime && remoteTime !== state.lastCloudUpdateTime) {
+          console.log(`[Cloud] 偵測到雲端資料已更新 (${remoteTime})，正在自動重新載入...`);
+          await reloadCloudDataSilently();
+        }
+      }
+    } catch (e) {
+      // 網路波動靜默忽略
+    }
+  }, 30000); // 每 30 秒自動探測一次
+}
 
 // --- 設備智慧分析引擎 ---
 
@@ -286,8 +334,8 @@ document.addEventListener("DOMContentLoaded", () => {
     showStatus("正在連線雲端資料庫...", "ok");
 
     try {
-      const endpoint = `${state.rtdbUrl}/portfolios/${user}.json`;
-      const resp = await fetch(endpoint);
+      const endpoint = `${state.rtdbUrl}/portfolios/${user}.json?t=${Date.now()}`;
+      const resp = await fetch(endpoint, { cache: "no-store" });
       if (!resp.ok) throw new Error(`HTTP ${resp.status} - 無法存取雲端資料`);
 
       const encPayload = await resp.json();
@@ -300,6 +348,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const decrypted = await decryptAesGcm(encPayload, pass, secretKey);
       state.decryptedData = decrypted;
       state.rawPositions = decrypted.positions || [];
+      state.lastCloudUpdateTime = encPayload.updated_at || decrypted.exported_at || "";
 
       loginModal.classList.add("hidden");
       appContainer.classList.remove("hidden");
@@ -307,6 +356,7 @@ document.addEventListener("DOMContentLoaded", () => {
       applyViewModeUI();
       renderDashboard(decrypted, encPayload.updated_at);
       showStatus("", "");
+      startCloudAutoPolling();
     } catch (err) {
       console.error(err);
       showStatus(`解密失敗: ${err.message || "密碼錯誤或金鑰不符"}`, "err");
@@ -315,6 +365,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 安全登出銷毀記憶體
   const performLogout = () => {
+    if (autoPollInterval) {
+      clearInterval(autoPollInterval);
+      autoPollInterval = null;
+    }
     state.password = "";
     state.decryptedData = null;
     state.rawPositions = [];
@@ -328,9 +382,12 @@ document.addEventListener("DOMContentLoaded", () => {
   if (mBtnLogout) mBtnLogout.addEventListener("click", performLogout);
 
   // 重新整理
-  const performRefresh = () => {
+  const performRefresh = async () => {
     if (state.user && state.password) {
-      loginForm.dispatchEvent(new Event("submit"));
+      const btn = document.getElementById("btn-refresh");
+      if (btn) btn.style.opacity = "0.5";
+      await reloadCloudDataSilently();
+      if (btn) setTimeout(() => { btn.style.opacity = "1"; }, 500);
     }
   };
   btnRefresh.addEventListener("click", performRefresh);
@@ -496,7 +553,11 @@ function fmtPctSign(n) {
 function renderDashboard(data, cloudUpdateTime) {
   document.getElementById("user-badge").textContent = `👤 使用者: ${state.user}`;
   const syncTime = cloudUpdateTime || data.exported_at || "剛剛";
-  document.getElementById("sync-time-lbl").textContent = `同步時間: ${syncTime}`;
+  const syncEl = document.getElementById("sync-time-lbl");
+  if (syncEl) {
+    syncEl.innerHTML = `<span class="live-dot"></span> 同步: ${syncTime}`;
+    syncEl.title = `雲端最後更新時間: ${syncTime}`;
+  }
 
   const divs = data.dividends || {};
   const rawPositions = data.positions || [];

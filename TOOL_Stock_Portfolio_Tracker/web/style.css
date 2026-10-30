@@ -770,7 +770,16 @@ body {
   .top-navbar { padding: 12px 14px; margin-bottom: 14px; }
   .nav-left { gap: 8px; }
   .logo-text { font-size: 1rem; }
-  .sync-time { display: none; } /* 手機隱藏非核心字串 */
+  .sync-time {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.72rem;
+    background: rgba(0, 240, 144, 0.08);
+    border: 1px solid rgba(0, 240, 144, 0.25);
+    padding: 2px 8px;
+    border-radius: 9999px;
+    color: #00f090;
+  }
   .desktop-actions { display: none; } /* 桌機按鈕在手機隱藏，收納至底部浮動列 */
   
   .mobile-bottom-bar { display: flex; } /* 啟動手機專屬懸浮列 */
@@ -805,4 +814,20 @@ body {
   .metrics-grid {
     grid-template-columns: repeat(3, 1fr);
   }
+}
+
+.live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #00f090;
+  box-shadow: 0 0 6px #00f090;
+  margin-right: 5px;
+  animation: live-pulse-dot 2s infinite ease-in-out;
+}
+
+@keyframes live-pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.8); }
 }

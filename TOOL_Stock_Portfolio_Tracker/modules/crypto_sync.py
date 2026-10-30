@@ -4,6 +4,8 @@ import base64
 import struct
 import secrets
 import datetime
+import time
+import threading
 from typing import Dict, Any, Tuple, Optional
 import requests
 
@@ -294,6 +296,8 @@ def sync_to_cloud(user_id: str, password: str, firebase_url: Optional[str] = Non
         if resp.status_code in [200, 201]:
             set_setting("cloud_user_id", clean_user)
             set_setting("cloud_firebase_url", target_url)
+            now_ts_sync = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            set_setting("last_cloud_sync_time", now_ts_sync)
             return True, f"成功完成 E2EE 加密同步！\n序號: #{seq} ‧ 600K PBKDF2 ‧ AAD 認證 ‧ 32KB 固定防護\n(使用者: {clean_user})"
         else:
             return False, f"雲端回應錯誤: HTTP {resp.status_code} - {resp.text[:100]}"
@@ -322,3 +326,75 @@ def fetch_and_decrypt_from_cloud(user_id: str, password: str, firebase_url: Opti
     except Exception as e:
         return False, None, f"解密失敗 (密碼/SecretKey 錯誤或密文損毀): {e}"
 
+
+
+# =========================================================
+# 全自動背景雲端同步引擎 (Auto Cloud Sync Engine)
+# =========================================================
+
+_LAST_AUTO_SYNC_TIMESTAMP: float = 0.0
+_AUTO_SYNC_LOCK = threading.Lock()
+
+def is_auto_sync_enabled() -> bool:
+    """是否啟用自動雲端同步 (預設開啟：只要已設定雲端帳密即自動背景同步)"""
+    return get_setting("cloud_auto_sync", "1") == "1"
+
+def set_auto_sync_enabled(enabled: bool):
+    """設定是否啟用自動雲端同步"""
+    set_setting("cloud_auto_sync", "1" if enabled else "0")
+
+def trigger_auto_sync_to_cloud(force: bool = False, min_interval_sec: float = 180.0, source: str = "auto", callback=None):
+    """
+    非同步觸發背景自動加密同步至雲端
+    - force=True (持股新增/修改/刪除、收盤結算): 立即同步，不設限流
+    - force=False (盤中定時報價刷新): 限流 min_interval_sec (預設3分鐘)，避免頻繁上傳
+    - 採用後台守護線程 (Daemon Thread) 執行，0% 阻礙 UI
+    """
+    global _LAST_AUTO_SYNC_TIMESTAMP
+    
+    if not is_auto_sync_enabled():
+        return
+        
+    user_id = get_setting("cloud_user_id", "").strip()
+    password = get_setting("cloud_password", "").strip()
+    if not user_id or not password:
+        return
+        
+    now = time.time()
+    if not force:
+        if (now - _LAST_AUTO_SYNC_TIMESTAMP) < min_interval_sec:
+            return
+
+    def _worker():
+        global _LAST_AUTO_SYNC_TIMESTAMP
+        with _AUTO_SYNC_LOCK:
+            now_inner = time.time()
+            if not force and (now_inner - _LAST_AUTO_SYNC_TIMESTAMP) < min_interval_sec:
+                return
+            try:
+                ok, msg = sync_to_cloud(user_id, password)
+                if ok:
+                    _LAST_AUTO_SYNC_TIMESTAMP = time.time()
+                    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    print(f"[crypto_sync] 自動雲端同步成功 ({source}): {now_str}")
+                    if callback:
+                        try:
+                            callback(True, now_str)
+                        except Exception:
+                            pass
+                else:
+                    print(f"[crypto_sync] 自動雲端同步未完成 ({source}): {msg}")
+                    if callback:
+                        try:
+                            callback(False, msg)
+                        except Exception:
+                            pass
+            except Exception as e:
+                print(f"[crypto_sync] 自動雲端同步異常 ({source}): {e}")
+                if callback:
+                    try:
+                        callback(False, str(e))
+                    except Exception:
+                        pass
+
+    threading.Thread(target=_worker, daemon=True).start()
