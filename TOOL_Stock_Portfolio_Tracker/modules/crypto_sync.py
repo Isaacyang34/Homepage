@@ -22,32 +22,41 @@ DEFAULT_FIREBASE_URL = "https://my-stock-tracker-2a94e-default-rtdb.asia-southea
 PBKDF2_ITERATIONS = 600000  # OWASP 2023 最新密碼學安全標準 (抗 GPU 字典窮舉)
 FIXED_BLOCK_SIZE = 32768   # 32 KB 固定塊大小 (徹底防禦長度側信道洩漏)
 
-def get_or_create_secret_key() -> str:
+def get_or_create_secret_key(user_id: Optional[int] = None) -> str:
     """
-    取得或生成類似 1Password 之 128-bit 設備金鑰 (Secret Key)
+    取得或生成類似 1Password 之 128-bit 設備金鑰 (Secret Key) - 依使用者隔離
     格式範例: A8F2-99CD-31E0-74BA (16 bytes = 128-bit entropy)
     """
-    key = get_setting("cloud_secret_key", "").strip()
+    from database import get_current_user, get_user_setting, set_user_setting
+    if user_id is None:
+        user_id = get_current_user().get("id", 1)
+    key = get_user_setting(user_id, "cloud_secret_key", "").strip()
     if not key:
         raw_hex = secrets.token_hex(8).upper() # 16 hex chars
         parts = [raw_hex[i:i+4] for i in range(0, 16, 4)]
         key = "-".join(parts)
-        set_setting("cloud_secret_key", key)
+        set_user_setting(user_id, "cloud_secret_key", key)
     return key
 
-def get_or_create_write_token() -> str:
-    """取得或生成獨立寫入憑證 (Write Token)，防止他人覆寫資料庫"""
-    token = get_setting("cloud_write_token", "").strip()
+def get_or_create_write_token(user_id: Optional[int] = None) -> str:
+    """取得或生成獨立寫入憑證 (Write Token) - 依使用者隔離"""
+    from database import get_current_user, get_user_setting, set_user_setting
+    if user_id is None:
+        user_id = get_current_user().get("id", 1)
+    token = get_user_setting(user_id, "cloud_write_token", "").strip()
     if not token:
         token = secrets.token_urlsafe(24)
-        set_setting("cloud_write_token", token)
+        set_user_setting(user_id, "cloud_write_token", token)
     return token
 
-def get_next_sync_sequence() -> int:
-    """取得並遞增單調序號 (Monotonic Sequence Counter)，防範回滾重放攻擊"""
-    curr = int(get_setting("cloud_sync_seq", "100"))
+def get_next_sync_sequence(user_id: Optional[int] = None) -> int:
+    """取得並遞增單調序號 (Monotonic Sequence Counter) - 依使用者隔離"""
+    from database import get_current_user, get_user_setting, set_user_setting
+    if user_id is None:
+        user_id = get_current_user().get("id", 1)
+    curr = int(get_user_setting(user_id, "cloud_sync_seq", "100"))
     nxt = curr + 1
-    set_setting("cloud_sync_seq", str(nxt))
+    set_user_setting(user_id, "cloud_sync_seq", str(nxt))
     return nxt
 
 def derive_key(password: str, secret_key: str, salt: bytes) -> bytes:
@@ -171,18 +180,20 @@ def decrypt_portfolio_payload(encrypted_dict: Dict[str, Any], password: str, sec
     plain_bytes = unpad_fixed_block(padded_bytes)
     return json.loads(plain_bytes.decode("utf-8"))
 
-def gather_full_portfolio_data() -> Dict[str, Any]:
-    from database import get_current_user, verify_user_credentials
+def gather_full_portfolio_data(user_id: Optional[int] = None) -> Dict[str, Any]:
+    from database import get_current_user, verify_user_credentials, get_user_setting
     curr_u = get_current_user()
+    if user_id is None:
+        user_id = curr_u.get("id", 1) if curr_u else 1
     if curr_u:
-        saved_pwd = get_setting("cloud_password", "")
+        saved_pwd = get_user_setting(user_id, "cloud_password", "")
         if saved_pwd:
             try:
                 verify_user_credentials(curr_u["id"], saved_pwd)
             except Exception:
                 pass
-    """打包本地 SQLite 所有部位、買入批次明細與精算損益、當日/當週損益與股息資訊"""
-    positions = get_all_positions()
+    """打包本地 SQLite 當前帳戶所有部位、買入批次明細與精算損益、當日/當週損益與股息資訊"""
+    positions = get_all_positions(user_id)
     quote_service = QuoteService()
     
     # 批次抓取最新報價
@@ -284,10 +295,14 @@ def gather_full_portfolio_data() -> Dict[str, Any]:
         "dividends": divs_by_symbol
     }
 
-def sync_to_cloud(user_id: str, password: str, firebase_url: Optional[str] = None) -> Tuple[bool, str]:
+def sync_to_cloud(user_id: str, password: str, firebase_url: Optional[str] = None, local_user_id: Optional[int] = None) -> Tuple[bool, str]:
     """
-    一鍵本地加密並推送到 Firebase RTDB (符合 OWASP 600K + AAD + 雙因子 SecretKey)
+    一鍵本地加密並推送到 Firebase RTDB (符合 OWASP 600K + AAD + 雙因子 SecretKey - 具備多帳戶隔離防覆蓋)
     """
+    from database import get_current_user, get_user_setting, set_user_setting
+    if local_user_id is None:
+        local_user_id = get_current_user().get("id", 1)
+
     clean_user = user_id.strip().lower()
     if not clean_user or len(clean_user) < 3:
         return False, "使用者代號長度至少需 3 個英數字元！"
@@ -299,12 +314,12 @@ def sync_to_cloud(user_id: str, password: str, firebase_url: Optional[str] = Non
     if not target_url.startswith("http"):
         return False, "Firebase URL 格式無效！"
 
-    secret_key = get_or_create_secret_key()
-    seq = get_next_sync_sequence()
+    secret_key = get_or_create_secret_key(local_user_id)
+    seq = get_next_sync_sequence(local_user_id)
 
     try:
         # 1. 抓取本地明文
-        data = gather_full_portfolio_data()
+        data = gather_full_portfolio_data(local_user_id)
         
         # 2. 本地記憶體加密 (600,000次 PBKDF2 + AAD + 32KB Padding)
         encrypted_payload = encrypt_portfolio_payload(data, password, secret_key, clean_user, seq)
@@ -314,10 +329,10 @@ def sync_to_cloud(user_id: str, password: str, firebase_url: Optional[str] = Non
         resp = requests.put(api_endpoint, json=encrypted_payload, timeout=12)
         
         if resp.status_code in [200, 201]:
-            set_setting("cloud_user_id", clean_user)
+            set_user_setting(local_user_id, "cloud_user_id", clean_user)
             set_setting("cloud_firebase_url", target_url)
             now_ts_sync = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            set_setting("last_cloud_sync_time", now_ts_sync)
+            set_user_setting(local_user_id, "last_cloud_sync_time", now_ts_sync)
             try:
                 quotes_cache = {}
                 for p in data.get("positions", []):

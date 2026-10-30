@@ -1033,6 +1033,27 @@ def set_setting(key: str, value: str):
         """, (key, value))
         conn.commit()
 
+def get_user_setting(user_id, key: str, default: str = "") -> str:
+    """取得特定使用者獨立設定 (未設置時 fallback 至主要預設值或舊版全域鍵)"""
+    if user_id is None:
+        user_id = get_current_user().get("id", 1)
+    user_key = f"user_{user_id}_{key}"
+    val = get_setting(user_key, None)
+    if val is not None:
+        return val
+    if user_id == 1:
+        return get_setting(key, default)
+    return default
+
+def set_user_setting(user_id, key: str, value: str):
+    """儲存特定使用者獨立設定 (杜絕跨帳戶覆蓋)"""
+    if user_id is None:
+        user_id = get_current_user().get("id", 1)
+    user_key = f"user_{user_id}_{key}"
+    set_setting(user_key, value)
+    if user_id == 1:
+        set_setting(key, value)
+
 def get_update_timestamp(key: str) -> str:
     return get_setting(f"last_{key}_update_time", "尚未更新")
 

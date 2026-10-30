@@ -23,7 +23,7 @@ from database import (
     get_update_timestamp, set_update_timestamp,
     get_theme_settings, set_theme_settings, DEFAULT_THEME_SETTINGS,
     DEFAULT_VISIBLE_COLUMNS, DEFAULT_VISIBLE_CARDS,
-    get_current_user, set_current_user, get_all_users
+    get_current_user, set_current_user, get_all_users, get_user_setting, set_user_setting
 )
 from quote_service import QuoteService
 from history_service import HistoryService
@@ -329,7 +329,7 @@ class PortfolioApp(tk.Tk):
             # 啟動後自動預熱市場排行快取、比對盤後資料、線上更新檢查與每日 15:00 定時同步監控 (延遲啟動確保 UI 流暢)
             self.after(1500, self.prewarm_market_ranking_cache)
             self.after(2500, self.auto_check_post_market_history)
-            self.after(4000, self.check_online_update_silently)
+            self.after(4000, self.schedule_periodic_update_check)
             self.after(5500, self.start_daily_1500_scheduler)
 
     def _show_startup_login_gate(self):
@@ -365,7 +365,7 @@ class PortfolioApp(tk.Tk):
         # 啟動後背景任務 (延遲啟動確保流暢)
         self.after(1500, self.prewarm_market_ranking_cache)
         self.after(2500, self.auto_check_post_market_history)
-        self.after(4000, self.check_online_update_silently)
+        self.after(4000, self.schedule_periodic_update_check)
         self.after(5500, self.start_daily_1500_scheduler)
 
         self.status_lbl.configure(text=f"歡迎回來，{user.get('display_name')} (@{user.get('username')})！持股庫存已成功解鎖載入。")
@@ -644,7 +644,8 @@ class PortfolioApp(tk.Tk):
         bottom_frame = ttk.Frame(self, padding=(12, 8, 12, 12))
         bottom_frame.pack(fill=tk.X)
 
-        btn_data_update = ttk.Button(bottom_frame, text="[⟳ 資料更新]", command=self.on_open_data_update, style="Action.TButton")
+        self.btn_data_update = ttk.Button(bottom_frame, text="[⟳ 資料更新]", command=self.on_open_data_update, style="Action.TButton")
+        btn_data_update = self.btn_data_update
         btn_data_update.pack(side=tk.LEFT, padx=2)
 
         btn_dividend_analyzer = ttk.Button(bottom_frame, text="[💰 股息分析] 現金流月曆", command=self.on_open_dividend_analyzer, style="Action.TButton")
@@ -1345,6 +1346,11 @@ class PortfolioApp(tk.Tk):
             self.after(0, lambda: self.status_lbl.configure(text="系統就緒"))
         threading.Thread(target=worker, daemon=True).start()
 
+    def schedule_periodic_update_check(self):
+        """每隔 15 分鐘自動於背景偵測軟體更新，確保使用者即時獲知新版資訊"""
+        self.check_online_update_silently()
+        self.after(900000, self.schedule_periodic_update_check)
+
     def check_online_update_silently(self):
         """軟體開啟後自動在背景檢查更新：若有新版本則變色提示，若無則重置為正常外觀"""
         def worker():
@@ -1371,13 +1377,19 @@ class PortfolioApp(tk.Tk):
             )
 
     def _on_found_newer_version(self, cloud_ver: str):
-        """發現新版本時：按鈕變色為鮮明亮橘色高亮警示"""
+        """發現新版本時：按鈕變色為鮮明亮橘色高亮警示，並同步更新視窗標題與資料更新按鈕"""
         self.btn_update.configure(
             text=f"[🔥 發現新版 {cloud_ver}]",
             bg="#f59e0b", fg="#ffffff",
             activebackground="#d97706", activeforeground="#ffffff"
         )
-        self.status_lbl.configure(text=f"💡 發現軟體新版本 {cloud_ver}！點擊「[🔥 發現新版]」即可檢視更新內容並決定是否升級。")
+        if hasattr(self, 'btn_data_update') and self.btn_data_update:
+            try:
+                self.btn_data_update.configure(text=f"[⟳ 資料/軟體更新 ({cloud_ver})]")
+            except Exception:
+                pass
+        self.title(f"本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker) {get_app_version()} [🔥 發現新版 {cloud_ver}]")
+        self.status_lbl.configure(text=f"💡 發現軟體新版本 {cloud_ver}！點擊右上角「[🔥 發現新版]」即可檢視更新內容並決定是否升級。")
 
     def auto_check_post_market_history(self):
         """軟體開啟後自動比對盤後歷史資料是否要更新"""
@@ -2182,7 +2194,7 @@ class DataUpdateDialog(tk.Toplevel):
         self.app = parent_app
         self.app.active_update_dialog = self
         self.title("資料更新管理")
-        self.geometry("560x420")
+        self.geometry("560x510")
         self.resizable(False, False)
         self.configure(bg="#22222a")
         self.transient(parent_app)
@@ -2270,12 +2282,35 @@ class DataUpdateDialog(tk.Toplevel):
         self.lbl_hist_time.pack(anchor="w")
         tk.Label(c3_txt, text="增量補齊每檔股票每日收盤日K線 (供週/月損益與K線圖計算)", bg="#1a1a22", fg="#808090", font=("Microsoft JhengHei UI", 8)).pack(anchor="w")
 
+        # 4. 軟體程式版本卡片
+        card4 = tk.Frame(content_frame, bg="#1a1a22", padx=12, pady=10, relief="solid", bd=1)
+        card4.pack(fill=tk.X, pady=5)
+
+        self.btn_soft_update = tk.Button(
+            card4, text="[檢查/升級軟體]", bg="#3a3a46", fg="#ffffff",
+            font=("Microsoft JhengHei UI", 9, "bold"), width=16, relief="flat",
+            command=self.on_check_software_update
+        )
+        self.btn_soft_update.pack(side=tk.LEFT, padx=(0, 12))
+
+        c4_txt = tk.Frame(card4, bg="#1a1a22")
+        c4_txt.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        running_ver = getattr(self.app, 'running_version', None) or get_app_version()
+        self.lbl_soft_ver = tk.Label(c4_txt, text=f"軟體目前版本:  {running_ver}", bg="#1a1a22", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"))
+        self.lbl_soft_ver.pack(anchor="w")
+        self.lbl_soft_desc = tk.Label(c4_txt, text="連線 GitHub/CDN 檢查是否有全新功能、修復或熱補丁", bg="#1a1a22", fg="#808090", font=("Microsoft JhengHei UI", 8))
+        self.lbl_soft_desc.pack(anchor="w")
+
         # 底部動作列
         bot = tk.Frame(self, bg="#22222a", padx=16, pady=10)
         bot.pack(fill=tk.X, side=tk.BOTTOM)
 
         tk.Button(bot, text="一鍵全部更新", bg="#52c41a", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold"), relief="flat", command=self.on_update_all).pack(side=tk.LEFT, ipadx=10, ipady=3)
         tk.Button(bot, text="關閉", bg="#3a3a46", fg="#ffffff", font=("Microsoft JhengHei UI", 9), relief="flat", command=self.destroy).pack(side=tk.RIGHT, ipadx=12, ipady=3)
+
+    def on_check_software_update(self):
+        self.destroy()
+        self.app.on_check_online_update()
 
     def refresh_timestamps(self):
         """刷新三個項目各自的最後更新時間顯示"""
@@ -3088,11 +3123,11 @@ def show_firebase_setup_help(parent: tk.Widget):
 
 
 class CloudSyncDialog(tk.Toplevel):
-    """零知識端到端加密雲端同步對話框 (支援 OWASP 600K + 128-bit SecretKey 雙因子)"""
+    """零知識端到端加密雲端同步對話框 (支援 OWASP 600K + 128-bit SecretKey 雙因子 + 嚴格多帳號隔離防覆蓋)"""
     def __init__(self, parent, on_restored=None):
         super().__init__(parent)
         self.title("☁️ 零知識加密雲端同步 (OWASP 600K + 雙因子金鑰)")
-        self.geometry("560x660")
+        self.geometry("560x700")
         self.resizable(False, False)
         self.configure(bg="#202028")
         if parent and parent.winfo_viewable():
@@ -3106,7 +3141,10 @@ class CloudSyncDialog(tk.Toplevel):
             pass
 
         self.on_restored = on_restored
-        self.secret_key = get_or_create_secret_key()
+        self.curr_user = get_current_user()
+        self.user_id = self.curr_user.get("id", 1)
+        self.username = self.curr_user.get("username", "default")
+        self.secret_key = get_or_create_secret_key(self.user_id)
         self.web_url = "https://tinyurl.com/25g5elkq"
         self.build_ui()
 
@@ -3121,34 +3159,46 @@ class CloudSyncDialog(tk.Toplevel):
         form = tk.Frame(self, bg="#202028", padx=20)
         form.pack(fill=tk.BOTH, expand=True)
 
+        # 本地登入帳號綁定警示卡
+        badge = tk.Frame(form, bg="#1a1a24", padx=10, pady=6, highlightthickness=1, highlightbackground="#3a86ff")
+        badge.pack(fill=tk.X, pady=(2, 8))
+        tk.Label(
+            badge,
+            text=f"👤 目前本機登入帳戶: [{self.username}] (ID: {self.user_id}) - 雲端同步設定與金鑰已綁定此帳號",
+            bg="#1a1a24", fg="#3a86ff", font=("Microsoft JhengHei UI", 9, "bold")
+        ).pack(anchor="w")
+
         tk.Label(form, text="使用者專屬代號 (User ID):", bg="#202028", fg="#ffffff", font=("Microsoft JhengHei UI", 9)).pack(anchor="w", pady=(4, 2))
         self.ent_user = tk.Entry(form, bg="#2d2d38", fg="#ffffff", insertbackground="#ffffff", font=("Microsoft JhengHei UI", 10), relief="flat")
-        saved_user = get_setting("cloud_user_id", "")
+        saved_user = get_user_setting(self.user_id, "cloud_user_id", self.username)
+        if not saved_user:
+            saved_user = self.username
         self.ent_user.insert(0, saved_user)
         self.ent_user.pack(fill=tk.X, ipady=3)
 
         tk.Label(form, text="專屬加密主密碼 (Master Password):", bg="#202028", fg="#ffffff", font=("Microsoft JhengHei UI", 9)).pack(anchor="w", pady=(8, 2))
         self.ent_pass = tk.Entry(form, bg="#2d2d38", fg="#ffffff", insertbackground="#ffffff", font=("Microsoft JhengHei UI", 10), relief="flat", show="*")
-        saved_pass = get_setting("cloud_password", "")
+        saved_pass = get_user_setting(self.user_id, "cloud_password", "")
         self.ent_pass.insert(0, saved_pass)
         self.ent_pass.pack(fill=tk.X, ipady=3)
 
-        self.var_remember = tk.BooleanVar(value=True if saved_pass else True)
-        self.chk_remember = tk.Checkbutton(form, text="記住在本機電腦 (下次同步自動帶入帳號密碼)", variable=self.var_remember, bg="#202028", fg="#d0d0dc", selectcolor="#2d2d38", activebackground="#202028", activeforeground="#ffffff", font=("Microsoft JhengHei UI", 8))
+        saved_remember = get_user_setting(self.user_id, "remember_cloud_password", "1" if saved_pass else "0")
+        self.var_remember = tk.BooleanVar(value=(saved_remember == "1"))
+        self.chk_remember = tk.Checkbutton(form, text="記住在本機電腦 (依當前帳號獨立保存，下次登入自動帶入)", variable=self.var_remember, bg="#202028", fg="#d0d0dc", selectcolor="#2d2d38", activebackground="#202028", activeforeground="#ffffff", font=("Microsoft JhengHei UI", 8))
         self.chk_remember.pack(anchor="w", pady=(4, 0))
 
-        self.var_prompt_sync = tk.BooleanVar(value=get_setting("prompt_sync_on_change", "1") == "1")
+        self.var_prompt_sync = tk.BooleanVar(value=get_user_setting(self.user_id, "prompt_sync_on_change", "1") == "1")
         self.chk_prompt_sync = tk.Checkbutton(form, text="存股異動時主動提醒上傳 (新增/編輯/刪除時彈窗詢問確認後再同步)", variable=self.var_prompt_sync, bg="#202028", fg="#00f090", selectcolor="#2d2d38", activebackground="#202028", activeforeground="#ffffff", font=("Microsoft JhengHei UI", 8, "bold"))
         self.chk_prompt_sync.pack(anchor="w", pady=(2, 0))
 
-        last_sync = get_setting("last_cloud_sync_time", "尚未同步")
+        last_sync = get_user_setting(self.user_id, "last_cloud_sync_time", "尚未同步")
         self.lbl_last_sync = tk.Label(form, text=f"☁️ 雲端最後同步時間: {last_sync}", bg="#202028", fg="#8e95a5", font=("Microsoft JhengHei UI", 8))
         self.lbl_last_sync.pack(anchor="w", pady=(2, 0))
 
         # 雙因子 128-bit 設備金鑰 (Secret Key)
         sk_frame = tk.Frame(form, bg="#202028")
         sk_frame.pack(fill=tk.X, pady=(10, 2))
-        tk.Label(sk_frame, text="雙因子設備金鑰 (Secret Key):", bg="#202028", fg="#ffd166", font=("Microsoft JhengHei UI", 9, "bold")).pack(side=tk.LEFT)
+        tk.Label(sk_frame, text=f"雙因子設備金鑰 (Secret Key) [{self.username}專用]:", bg="#202028", fg="#ffd166", font=("Microsoft JhengHei UI", 9, "bold")).pack(side=tk.LEFT)
         
         btn_sk_help = tk.Button(sk_frame, text="❓ 這是什麼？如何使用？", bg="#202028", fg="#00f090", activebackground="#202028", activeforeground="#ffffff", font=("Microsoft JhengHei UI", 8, "underline"), relief="flat", bd=0, cursor="hand2", command=self.show_secret_key_help)
         btn_sk_help.pack(side=tk.LEFT, padx=8)
@@ -3264,21 +3314,37 @@ class CloudSyncDialog(tk.Toplevel):
             messagebox.showerror("錯誤", "請輸入使用者代號與專屬密碼！", parent=self)
             return
 
-        # 儲存連線設定與帳號密碼 (依記住核取方塊決定)
-        set_setting("cloud_user_id", user)
+        clean_user = user.strip().lower()
+
+        # 防覆蓋檢查：若輸入之雲端 User ID 與當前本地登入帳號名稱不同，強制彈窗確認
+        if clean_user != self.username.lower():
+            confirm = messagebox.askyesno(
+                "⚠️ 雲端帳號不一致警示 (防覆蓋確認)",
+                f"注意：您目前登入的本機帳號為【{self.username}】，\n"
+                f"但您在雲端代號輸入了【{clean_user}】！\n\n"
+                f"若繼續上傳，將會覆蓋雲端帳戶【{clean_user}】的庫存資料。\n"
+                f"您確定要將當前【{self.username}】的存股上傳至【{clean_user}】嗎？",
+                parent=self, icon="warning"
+            )
+            if not confirm:
+                return
+
+        # 依當前本地使用者 ID 獨立保存雲端設定與憑證
+        set_user_setting(self.user_id, "cloud_user_id", clean_user)
         set_setting("cloud_firebase_url", url)
-        set_setting("prompt_sync_on_change", "1" if self.var_prompt_sync.get() else "0")
+        set_user_setting(self.user_id, "prompt_sync_on_change", "1" if self.var_prompt_sync.get() else "0")
         set_auto_sync_enabled(False)
+        set_user_setting(self.user_id, "remember_cloud_password", "1" if self.var_remember.get() else "0")
         if self.var_remember.get():
-            set_setting("cloud_password", pwd)
+            set_user_setting(self.user_id, "cloud_password", pwd)
         else:
-            set_setting("cloud_password", "")
+            set_user_setting(self.user_id, "cloud_password", "")
 
         self.btn_sync.configure(state=tk.DISABLED, text="正在本機加密與上傳...")
         self.lbl_status.configure(text="正在執行 PBKDF2 (600,000次) + AAD + 32KB Padding...", fg="#52c41a")
 
         def worker():
-            ok, msg = sync_to_cloud(user, pwd, url)
+            ok, msg = sync_to_cloud(clean_user, pwd, url, local_user_id=self.user_id)
             self.after(0, lambda: self._on_upload_done(ok, msg))
 
         threading.Thread(target=worker, daemon=True).start()

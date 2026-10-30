@@ -585,6 +585,30 @@ class TestMultiUserSupport(unittest.TestCase):
         self.assertEqual(pos_after[0]["shares"], 2000.0)
         self.assertEqual(pos_after[0]["cost_price"], 180.0)
 
+    def test_user_scoped_cloud_sync_settings(self):
+        """驗證多帳戶雲端同步憑證隔離與專屬金鑰 (杜絕跨使用者資料覆蓋)"""
+        from crypto_sync import get_or_create_secret_key
+        ok_a, _, uid_a = self.db.create_user("sync_user_a", "使用者A", "")
+        ok_b, _, uid_b = self.db.create_user("sync_user_b", "使用者B", "")
+        self.assertTrue(ok_a and ok_b)
+
+        # 設定使用者 A 的雲端憑證
+        self.db.set_user_setting(uid_a, "cloud_user_id", "sync_user_a")
+        self.db.set_user_setting(uid_a, "cloud_password", "PassA_999")
+        key_a = get_or_create_secret_key(uid_a)
+
+        # 設定使用者 B 的雲端憑證
+        self.db.set_user_setting(uid_b, "cloud_user_id", "sync_user_b")
+        self.db.set_user_setting(uid_b, "cloud_password", "PassB_888")
+        key_b = get_or_create_secret_key(uid_b)
+
+        # 驗證 A 與 B 憑證與金鑰完全隔離且互不相同
+        self.assertEqual(self.db.get_user_setting(uid_a, "cloud_user_id"), "sync_user_a")
+        self.assertEqual(self.db.get_user_setting(uid_a, "cloud_password"), "PassA_999")
+        self.assertEqual(self.db.get_user_setting(uid_b, "cloud_user_id"), "sync_user_b")
+        self.assertEqual(self.db.get_user_setting(uid_b, "cloud_password"), "PassB_888")
+        self.assertNotEqual(key_a, key_b, "不同使用者的雙因子 Secret Key 必須完全獨立生成！")
+
 
 class TestUILayoutIntegrity(unittest.TestCase):
     """驗證 GUI 視窗排版防裁切健康檢查 (自動防文字截斷硬閘門)"""
