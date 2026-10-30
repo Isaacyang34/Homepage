@@ -1745,7 +1745,12 @@ class PositionEditDialog(tk.Toplevel):
         def worker():
             meta = detect_stock_metadata(val)
             self.detected_meta = meta
-            self.after(0, lambda: self.lbl_detect.configure(text=f"✔ 已辨識：{meta['display_info']}", fg="#52c41a"))
+            def update_ui():
+                if meta.get("valid"):
+                    self.lbl_detect.configure(text=f"✔ 已辨識：{meta['display_info']}", fg="#52c41a")
+                else:
+                    self.lbl_detect.configure(text=f"{meta['display_info']}", fg="#ff4d4f")
+            self.after(0, update_ui)
         threading.Thread(target=worker, daemon=True).start()
 
     def reload_lots(self):
@@ -1939,8 +1944,14 @@ class PositionEditDialog(tk.Toplevel):
             return
 
         meta = detect_stock_metadata(sym_input)
+        if not meta.get("valid"):
+            warn_msg = f"系統於市場查無此代碼 [{sym_input}] 之上市櫃資訊或中文名稱。\n\n您確定仍要強制新增此自訂代碼嗎？"
+            confirm = messagebox.askyesno("標的識別警告", warn_msg, parent=self)
+            if not confirm:
+                return
+
         symbol = meta["symbol"]
-        name = meta["name"]
+        name = meta["name"] or symbol
         market = meta["market"]
         is_etf = meta["is_etf"]
 
