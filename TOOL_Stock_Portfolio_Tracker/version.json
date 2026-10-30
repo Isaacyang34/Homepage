@@ -1,11 +1,17 @@
 {
-  "version": "V1.1.2.5",
+  "version": "V1.1.2.6",
   "release_date": "2026-10-30",
   "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
-  "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.2.5.zip",
-  "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.2.5_Portable.zip",
-  "changelog": "【V1.1.2.5 多帳戶雲端憑證隔離、防覆蓋保護與主動式版本提醒升級】\n\n1. [多帳號雲端憑證隔離] 雲端同步 User ID、主密碼與雙因子 Secret Key 全面隨本機登入帳號隔離綁定，切換使用者時自動切換專屬憑證，100% 杜絕帳戶資料交叉洩漏。\n2. [雲端防覆蓋確認警示] 執行雲端同步時自動比對本機登入帳戶與輸入之雲端代號，若不一致強制跳出彈窗警示確認，徹底防止誤覆蓋他人雲端資料。\n3. [主動雙入口更新提醒] 視窗標題動態標註新版、每 15 分鐘定時背景探測，並於左下角「[⟳ 資料更新]」管理中心增設第 4 卡片「軟體程式版本」，更新一目了然。\n4. [標的真偽官方嚴格校驗] 徹底剷除不存在之代碼 (如 0076、00637R) 虛假辨識為有效股票的漏洞，強制比對 TWSE/TPEX 官方資料庫並於儲存時強制阻擋。",
+  "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.2.6.zip",
+  "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.2.6_Portable.zip",
+  "changelog": "【V1.1.2.6 標的即時辨識極速響應、防抖降噪與過期時序狀態清空】\n\n1. [0ms 本地記憶體快取與預載權威庫] 新增執行期高頻記憶體快取與上市櫃主流股票/ETF 本地權威資料庫，常見標的輸入 0 毫秒瞬時秒辨，徹底消除打字卡頓。\n2. [時序序號防衛與過期狀態立即清空] 引入 Sequence Token 機制，退格刪除代碼或字元未滿4碼時立即清空前一刻殘留之錯誤警告並提示「輸入中...」，舊請求絕不覆蓋新輸入。\n3. [鍵盤輸入防抖 Debounce] 實作 180ms 連續按鍵防抖，避免連續打字時頻繁發起網路查詢。\n4. [備援查詢網路超時縮減] 將外部備援查詢超時縮減至 1.2s，杜絕無效代碼查詢時卡死數秒。",
   "recent_versions": [
+    {
+      "version": "V1.1.2.6",
+      "release_date": "2026-10-30",
+      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.2.6.zip",
+      "changelog": "【V1.1.2.6 標的即時辨識極速響應、防抖降噪與過期時序狀態清空】\n\n1. [0ms 本地記憶體快取與預載權威庫] 新增執行期高頻記憶體快取與上市櫃主流股票/ETF 本地權威資料庫，常見標的輸入 0 毫秒瞬時秒辨，徹底消除打字卡頓。\n2. [時序序號防衛與過期狀態立即清空] 引入 Sequence Token 機制，退格刪除代碼或字元未滿4碼時立即清空前一刻殘留之錯誤警告並提示「輸入中...」，舊請求絕不覆蓋新輸入。\n3. [鍵盤輸入防抖 Debounce] 實作 180ms 連續按鍵防抖，避免連續打字時頻繁發起網路查詢。\n4. [備援查詢網路超時縮減] 將外部備援查詢超時縮減至 1.2s，杜絕無效代碼查詢時卡死數秒。"
+    },
     {
       "version": "V1.1.2.5",
       "release_date": "2026-10-30",
@@ -16,19 +22,11 @@
       "version": "V1.1.2.4",
       "release_date": "2026-10-30",
       "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.2.4.zip",
-      "changelog": "【V1.1.2.4 嚴格市場標的驗證與代碼查驗升級】\n\n1. [標的真偽嚴格檢驗] 重新架構 stock_detector 模組，向台灣證交所 (TWSE) 與櫃買中心 (TPEX) 即時校驗標的代碼與真實中文公司/ETF名稱。\n2. [杜絕幽靈虛假辨識] 徹底剷除不存在之代碼 (如 0076、00637R) 虛假辨識為有效股票的漏洞，查無標的一律標記紅字警告並於儲存時強制阻擋。\n3. [智慧輸入防呆提示] 支援上市櫃 ETF 正反向代碼精確解析 (如元大滬深300正2為 00637L、反1為 00638R)。\n4. [本機端獨立計算守護] 本地端不主動背景同步，持股異動彈窗確認後才加密傳輸，損益指標雙端獨立精算。"
-    },
-    {
-      "version": "V1.1.2.3",
-      "release_date": "2026-10-14",
-      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.2.3.zip",
-      "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
-      "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.2.3_Portable.zip",
-      "changelog": "V1.1.2.3 零崩潰桌面 Shell 外部重啟架構、旁路黑盒子外部監控儀與 Mutex 防多開保底。"
+      "changelog": "【V1.1.2.4 嚴格市場標的驗證與代碼查驗升級】\n\n1. [標的真偽嚴格檢驗] 重新架構 stock_detector 模組，向台灣證交所 (TWSE) 與櫃買中心 (TPEX) 即時校驗標的代碼與真實中文公司/ETF名稱。\n2. [杜絕幽靈虛假辨識] 徹底剷除不存在之代碼 (如 0076、00637R) 虛假辨識為有效股票的漏洞，查無標的一律標記紅字警告並於儲存時強制阻擋。"
     }
   ],
-  "patch_size": 385364,
-  "patch_sha256": "91a0e0df3492c0a7d883713de675fa55cbe123600f0626917f3adba214b17598",
-  "release_size": 28766722,
-  "release_sha256": "479f4ee8e37a3811951bdbb4adb4a03475616099fdc4f911749655127253ba0e"
+  "patch_size": 388374,
+  "patch_sha256": "97a6642846b350d417c4f23314ee4dfa4a73910ce5f7b4fa96b631253d6e307a",
+  "release_size": 28769732,
+  "release_sha256": "83c6660930188a2d5966d9d77cd9bfe113cfc3acbbbd344b5ea6fef78622d357"
 }

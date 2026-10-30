@@ -1743,21 +1743,62 @@ class PositionEditDialog(tk.Toplevel):
 
     def on_symbol_changed(self, event):
         val = self.ent_symbol.get().strip().upper()
-        if len(val) >= 4 or (val.isalpha() and len(val) >= 2):
-            self.trigger_detect(val)
-            self.reload_lots()
+        # 1. 遞增查詢計數器 (Sequence Token)，確保歷史延遲請求絕對不會覆蓋最新輸入
+        self._detect_seq = getattr(self, '_detect_seq', 0) + 1
+        current_seq = self._detect_seq
+
+        # 2. 取消前一次排隊中的查詢 (Debounce 取消)
+        if hasattr(self, '_detect_timer') and self._detect_timer:
+            try:
+                self.after_cancel(self._detect_timer)
+            except Exception:
+                pass
+            self._detect_timer = None
+
+        # 3. 若為空字串，立即清空標籤
+        if not val:
+            self.lbl_detect.configure(text="")
+            self.detected_meta = {"valid": False, "symbol": ""}
+            return
+
+        # 4. 若代碼長度不足 (台股未滿4碼且非純英文)，立即抹除前一刻殘留之錯誤警告，提示輸入中！
+        if len(val) < 4 and not (val.isalpha() and len(val) >= 2):
+            self.lbl_detect.configure(text="輸入代碼中...", fg="#8e95a5")
+            self.detected_meta = {"valid": False, "symbol": val}
+            return
+
+        # 5. 代碼長度足夠：立即顯示「查詢驗證中...」讓使用者即時看見回饋
+        self.lbl_detect.configure(text="🔍 查詢驗證中...", fg="#3a86ff")
+
+        # 6. 防抖 180ms 後發起查詢，避免連續輸入時頻繁發起請求
+        self._detect_timer = self.after(180, lambda: self._do_debounced_detect(val, current_seq))
+
+    def _do_debounced_detect(self, val: str, seq: int):
+        cur_now = self.ent_symbol.get().strip().upper()
+        if cur_now != val or seq != getattr(self, '_detect_seq', 0):
+            return  # 使用者又按鍵了，放棄此次過期查詢
+        self.trigger_detect(val, seq)
+        self.reload_lots()
 
     def on_symbol_focus_out(self, event):
         val = self.ent_symbol.get().strip().upper()
         if val:
-            self.trigger_detect(val)
+            self._detect_seq = getattr(self, '_detect_seq', 0) + 1
+            self.trigger_detect(val, self._detect_seq)
             self.reload_lots()
 
-    def trigger_detect(self, val: str):
+    def trigger_detect(self, val: str, seq: int = None):
+        if seq is None:
+            self._detect_seq = getattr(self, '_detect_seq', 0) + 1
+            seq = self._detect_seq
+
         def worker():
             meta = detect_stock_metadata(val)
-            self.detected_meta = meta
             def update_ui():
+                # 時序防衛：若使用者已修改輸入或此請求序號已過期，嚴格拋棄，絕不污染畫面！
+                if seq != getattr(self, '_detect_seq', 0) or self.ent_symbol.get().strip().upper() != val:
+                    return
+                self.detected_meta = meta
                 if meta.get("valid"):
                     self.lbl_detect.configure(text=f"✔ 已辨識：{meta['display_info']}", fg="#52c41a")
                 else:
