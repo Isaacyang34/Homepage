@@ -5,7 +5,7 @@
  */
 
 const DEFAULT_FIREBASE_URL = "https://my-stock-tracker-2a94e-default-rtdb.asia-southeast1.firebasedatabase.app";
-const WEB_VERSION = "V1.2.0";
+const WEB_VERSION = "V1.2.1";
 const PALETTE = ["#3a86ff", "#00f090", "#ffbe0b", "#ff3366", "#8338ec", "#06d6a0", "#118ab2", "#fb5607"];
 
 let state = {
@@ -1067,6 +1067,13 @@ document.addEventListener("DOMContentLoaded", () => {
   if (btnExportCsv) {
     btnExportCsv.addEventListener("click", () => {
       downloadCurrentMarketCsv();
+    });
+  }
+
+  const btnExportAllCsv = document.getElementById("btn-export-all-tabs-csv");
+  if (btnExportAllCsv) {
+    btnExportAllCsv.addEventListener("click", () => {
+      exportAllMarketTabsCsv();
     });
   }
 
@@ -2515,11 +2522,14 @@ async function loadMarketRankingCacheSilently() {
 /**
  * 將目前全市場排行榜表格內容匯出為標準 UTF-8 CSV 檔 (含 BOM，支援 Excel 零亂碼)
  */
-function downloadCurrentMarketCsv() {
-  const table = document.getElementById("market-ranking-table");
-  if (!table) return;
 
-  const mType = marketRankState.currentType || "margin_market";
+/**
+ * 依據指定的排行分頁類型 (mType) 與篩選條件 (filter) 產生該分頁專屬的 CSV 字串
+ */
+function buildCsvForRankType(targetType, filter) {
+  const mySyms = new Set((state.normalizedPositions || []).map(p => (p.symbol || "").toUpperCase()));
+  const rows = [];
+
   const typeNames = {
     margin_market: "全市場融資排行",
     yield: "高殖利率排行",
@@ -2527,58 +2537,259 @@ function downloadCurrentMarketCsv() {
     rev: "營收年增YoY排行",
     roe: "高ROE排行"
   };
-  const typeName = typeNames[mType] || "市場指標排行";
+  const typeName = typeNames[targetType] || "市場指標排行";
 
-  // 取得篩選標籤
-  const filter = marketRankState.filter || "all";
-  const filterNames = {
-    all: "全部",
-    stock: "僅股票",
-    etf: "僅ETF"
-  };
-  const filterName = filterNames[filter] || "全部";
+  if (targetType === "margin_market") {
+    // 表頭
+    rows.push(['"名次"', '"代號"', '"名稱"', '"現價"', '"融資餘額(張)"', '"使用率(%)"', '"今日資增減"', '"130%追繳價"', '"緩衝空間%"', '"估算維持率%"', '"在庫狀態"'].join(","));
 
-  const rows = [];
-  const thead = table.querySelector("thead");
-  if (thead) {
-    const ths = thead.querySelectorAll("th");
-    const headers = [];
-    ths.forEach(th => {
-      headers.push(`"${th.textContent.trim().replace(/"/g, '""')}"`);
+    let marginData = marketRankState.twseMarginData || _twseMarginCache || TWSE_MARGIN_BASELINE;
+    let list = [...(marginData.items || [])];
+    if (filter === "stock") list = list.filter(s => !s.is_etf);
+    else if (filter === "etf") list = list.filter(s => s.is_etf);
+
+    list.sort((a, b) => (b.margin_balance_lots || 0) - (a.margin_balance_lots || 0));
+    const topItems = list.slice(0, 150);
+
+    // 建立個人庫存維持率映射
+    const myPosMap = {};
+    (state.normalizedPositions || []).forEach(p => {
+      if (p && p.symbol) {
+        const sym = p.symbol.toUpperCase();
+        const shares = p.shares || 0;
+        const costP = p.cost_price || 0;
+        const curP = p.current_price > 0 ? p.current_price : costP;
+        const isMargin = (p.trade_type === "MARGIN");
+        const mkt = (p.market || "TW").toUpperCase();
+        const mRate = parseFloat(p.margin_rate) || (mkt === "TWO" ? 0.5 : 0.6);
+        const loan = isMargin ? Math.round(shares * costP * mRate) : 0;
+        const mktVal = shares * curP;
+        const ratio = (isMargin && loan > 0) ? Number(((mktVal / loan) * 100).toFixed(2)) : null;
+        myPosMap[sym] = { isMargin, ratio };
+      }
     });
-    if (headers.length > 0) rows.push(headers.join(","));
-  }
 
-  const tbody = table.querySelector("tbody");
-  if (tbody) {
-    const trs = tbody.querySelectorAll("tr");
-    trs.forEach(tr => {
-      const tds = tr.querySelectorAll("td");
-      if (tds.length === 1) return; // 略過加載中或空訊息提示行
-      const cols = [];
-      tds.forEach(td => {
-        let val = td.innerText.trim();
-        // 清除多餘換行
-        val = val.replace(/\r?\n/g, " ");
-        cols.push(`"${val.replace(/"/g, '""')}"`);
+    topItems.forEach((it, idx) => {
+      const sym = (it.symbol || "").toUpperCase();
+      const myPos = myPosMap[sym];
+      const isIn = !!myPos;
+      const inTag = isIn ? "已在庫" : "未持有";
+
+      const balLots = (it.margin_balance_lots || 0).toLocaleString();
+      const util = `${(it.margin_utilization || 0).toFixed(2)}%`;
+      const netLots = it.margin_net_lots || 0;
+      const netStr = `${netLots > 0 ? "+" : ""}${netLots.toLocaleString()}`;
+      const priceVal = (it.price && it.price > 0) ? it.price : 0;
+      const priceStr = priceVal > 0 ? priceVal.toFixed(2) : "--";
+
+      const callPVal = priceVal > 0 ? Number((priceVal * 0.78).toFixed(2)) : (it.call_price || 0);
+      const callP = callPVal > 0 ? callPVal.toFixed(2) : "--";
+      const bufferStr = priceVal > 0 ? "-22.0%" : "--";
+
+      let ratioLabel = "166.7%";
+      if (isIn && myPos.ratio !== null) {
+        ratioLabel = `${myPos.ratio.toFixed(2)}% (我的)`;
+      } else if (priceVal <= 0) {
+        ratioLabel = "--";
+      }
+
+      rows.push([
+        idx + 1,
+        `"${it.symbol}"`,
+        `"${(it.name || it.symbol).replace(/"/g, '""')}"`,
+        `"${priceStr}"`,
+        `"${balLots}"`,
+        `"${util}"`,
+        `"${netStr}"`,
+        `"${callP}"`,
+        `"${bufferStr}"`,
+        `"${ratioLabel}"`,
+        `"${inTag}"`
+      ].join(","));
+    });
+  } else if (targetType === "yield") {
+    rows.push(['"名次"', '"代號"', '"名稱"', '"現價"', '"現金殖利率"', '"本益比"', '"股價淨值比"', '"ROE"', '"在庫狀態"'].join(","));
+
+    const cache = marketRankState.rawMarketData;
+    let pool = [];
+    if (cache) {
+      if (filter === "all" || filter === "stock") {
+        (cache.stocks || []).forEach(s => {
+          const y = (s.yield_pct !== undefined && s.yield_pct !== null) ? s.yield_pct : (s.dividend_yield || 0);
+          if (y > 0) pool.push({ ...s, is_etf: false });
+        });
+      }
+      if (filter === "all" || filter === "etf") {
+        (cache.etfs || []).forEach(e => {
+          const y = (e.yield_pct !== undefined && e.yield_pct !== null) ? e.yield_pct : (e.dividend_yield || 0);
+          if (y > 0) pool.push({ ...e, is_etf: true });
+        });
+      }
+      pool.sort((a, b) => {
+        const ya = (a.yield_pct !== undefined && a.yield_pct !== null) ? a.yield_pct : (a.dividend_yield || 0);
+        const yb = (b.yield_pct !== undefined && b.yield_pct !== null) ? b.yield_pct : (b.dividend_yield || 0);
+        return yb - ya;
       });
-      if (cols.length > 0) rows.push(cols.join(","));
+    }
+
+    const topItems = pool.slice(0, 100);
+    topItems.forEach((it, idx) => {
+      const isIn = mySyms.has((it.symbol || "").toUpperCase());
+      const inTag = isIn ? "已在庫" : "未持有";
+
+      const ydVal = (it.yield_pct !== undefined && it.yield_pct !== null) ? it.yield_pct : it.dividend_yield;
+      const yd = (ydVal !== undefined && ydVal > 0) ? `${ydVal.toFixed(2)}%` : "--";
+      const pe = (it.pe !== undefined && it.pe !== null && it.pe > 0) ? Number(it.pe).toFixed(2) : "--";
+      const pb = (it.pb !== undefined && it.pb !== null && it.pb > 0) ? Number(it.pb).toFixed(2) : "--";
+      const roe = (it.roe !== undefined && it.roe !== null && !isNaN(it.roe)) ? `${Number(it.roe).toFixed(2)}%` : "--";
+      const priceStr = (it.price && it.price > 0) ? it.price.toFixed(2) : "--";
+
+      rows.push([
+        idx + 1,
+        `"${it.symbol}"`,
+        `"${(it.name || it.symbol).replace(/"/g, '""')}"`,
+        `"${priceStr}"`,
+        `"${yd}"`,
+        `"${pe}"`,
+        `"${pb}"`,
+        `"${roe}"`,
+        `"${inTag}"`
+      ].join(","));
+    });
+  } else if (targetType === "pe") {
+    rows.push(['"名次"', '"代號"', '"名稱"', '"現價"', '"本益比(低估)"', '"殖利率"', '"股價淨值比"', '"ROE"', '"在庫狀態"'].join(","));
+
+    const cache = marketRankState.rawMarketData;
+    let pool = [];
+    if (cache && cache.stocks) {
+      pool = (cache.stocks || []).filter(s => {
+        const p = s.pe;
+        const price = s.price || 0;
+        return (p !== undefined && p !== null && p >= 4.0 && p <= 30.0 && price >= 10.0);
+      });
+      if (filter === "stock") pool = pool.filter(s => !s.is_etf);
+      else if (filter === "etf") pool = pool.filter(s => s.is_etf);
+      pool.sort((a, b) => a.pe - b.pe);
+    }
+
+    const topItems = pool.slice(0, 100);
+    topItems.forEach((it, idx) => {
+      const isIn = mySyms.has((it.symbol || "").toUpperCase());
+      const inTag = isIn ? "已在庫" : "未持有";
+
+      const pe = `${Number(it.pe).toFixed(2)} 倍`;
+      const ydVal = (it.yield_pct !== undefined && it.yield_pct !== null) ? it.yield_pct : it.dividend_yield;
+      const yd = (ydVal !== undefined && ydVal > 0) ? `${ydVal.toFixed(2)}%` : "--";
+      const pb = (it.pb !== undefined && it.pb !== null && it.pb > 0) ? Number(it.pb).toFixed(2) : "--";
+      const roe = (it.roe !== undefined && it.roe !== null && !isNaN(it.roe)) ? `${Number(it.roe).toFixed(2)}%` : "--";
+      const priceStr = (it.price && it.price > 0) ? it.price.toFixed(2) : "--";
+
+      rows.push([
+        idx + 1,
+        `"${it.symbol}"`,
+        `"${(it.name || it.symbol).replace(/"/g, '""')}"`,
+        `"${priceStr}"`,
+        `"${pe}"`,
+        `"${yd}"`,
+        `"${pb}"`,
+        `"${roe}"`,
+        `"${inTag}"`
+      ].join(","));
+    });
+  } else if (targetType === "rev") {
+    rows.push(['"名次"', '"代號"', '"名稱"', '"現價"', '"營收年增率"', '"累計年增率"', '"單月營收(億)"', '"產業別"', '"在庫狀態"'].join(","));
+
+    const cache = marketRankState.rawMarketData;
+    let pool = [];
+    const priceMap = {};
+    if (cache) {
+      (cache.stocks || []).forEach(s => {
+        if (s && s.symbol) priceMap[s.symbol.toUpperCase()] = s.price || 0;
+      });
+      pool = (cache.revenues || []).filter(r => (r && r.yoy !== undefined && r.yoy !== null && r.yoy > 0));
+      if (filter === "stock") pool = pool.filter(s => !s.is_etf);
+      else if (filter === "etf") pool = pool.filter(s => s.is_etf);
+      pool.sort((a, b) => b.yoy - a.yoy);
+    }
+
+    const topItems = pool.slice(0, 100);
+    topItems.forEach((it, idx) => {
+      const sym = (it.symbol || "").toUpperCase();
+      const isIn = mySyms.has(sym);
+      const inTag = isIn ? "已在庫" : "未持有";
+
+      const curP = priceMap[sym] || it.price || 0;
+      const priceStr = curP > 0 ? curP.toFixed(2) : "--";
+      const yoy = `+${Number(it.yoy).toFixed(2)}%`;
+      const cum = (it.cum_yoy !== undefined && it.cum_yoy !== null) ? `${it.cum_yoy > 0 ? "+" : ""}${Number(it.cum_yoy).toFixed(2)}%` : "--";
+      const curE = (it.rev_cur_e !== undefined && it.rev_cur_e !== null) ? `${Number(it.rev_cur_e).toFixed(2)}` : "--";
+      const ind = it.industry || "--";
+
+      rows.push([
+        idx + 1,
+        `"${it.symbol}"`,
+        `"${(it.name || it.symbol).replace(/"/g, '""')}"`,
+        `"${priceStr}"`,
+        `"${yoy}"`,
+        `"${cum}"`,
+        `"${curE}"`,
+        `"${ind}"`,
+        `"${inTag}"`
+      ].join(","));
+    });
+  } else if (targetType === "roe") {
+    rows.push(['"名次"', '"代號"', '"名稱"', '"現價"', '"ROE(%)"', '"本益比"', '"殖利率"', '"股價淨值比"', '"在庫狀態"'].join(","));
+
+    const cache = marketRankState.rawMarketData;
+    let pool = [];
+    if (cache && cache.stocks) {
+      pool = (cache.stocks || []).filter(s => {
+        const roe = s.roe;
+        const pe = s.pe;
+        return (roe !== undefined && roe !== null && pe !== undefined && pe !== null && pe >= 4.0 && roe >= 8.0 && roe <= 75.0);
+      });
+      if (filter === "stock") pool = pool.filter(s => !s.is_etf);
+      else if (filter === "etf") pool = pool.filter(s => s.is_etf);
+      pool.sort((a, b) => b.roe - a.roe);
+    }
+
+    const topItems = pool.slice(0, 100);
+    topItems.forEach((it, idx) => {
+      const isIn = mySyms.has((it.symbol || "").toUpperCase());
+      const inTag = isIn ? "已在庫" : "未持有";
+
+      const roe = `${Number(it.roe).toFixed(2)}%`;
+      const pe = (it.pe !== undefined && it.pe !== null && it.pe > 0) ? `${Number(it.pe).toFixed(2)} 倍` : "--";
+      const ydVal = (it.yield_pct !== undefined && it.yield_pct !== null) ? it.yield_pct : it.dividend_yield;
+      const yd = (ydVal !== undefined && ydVal > 0) ? `${ydVal.toFixed(2)}%` : "--";
+      const pb = (it.pb !== undefined && it.pb !== null && it.pb > 0) ? Number(it.pb).toFixed(2) : "--";
+      const priceStr = (it.price && it.price > 0) ? it.price.toFixed(2) : "--";
+
+      rows.push([
+        idx + 1,
+        `"${it.symbol}"`,
+        `"${(it.name || it.symbol).replace(/"/g, '""')}"`,
+        `"${priceStr}"`,
+        `"${roe}"`,
+        `"${pe}"`,
+        `"${yd}"`,
+        `"${pb}"`,
+        `"${inTag}"`
+      ].join(","));
     });
   }
 
-  if (rows.length <= 1) {
-    alert("目前無表格資料可匯出！");
-    return;
-  }
+  return {
+    typeName,
+    content: "\uFEFF" + rows.join("\r\n")
+  };
+}
 
-  // 組合 CSV 內容並加入 UTF-8 BOM (\uFEFF) 確保 Excel 正確解析中文
-  const csvContent = "\uFEFF" + rows.join("\r\n");
+/**
+ * 下載單一 CSV 檔案輔助函式
+ */
+function triggerCsvDownload(csvContent, fileName) {
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-
-  const now = new Date();
-  const dStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-  const fileName = `台股_${typeName}_${filterName}_${dStr}.csv`;
-
   const link = document.createElement("a");
   if (link.download !== undefined) {
     const url = URL.createObjectURL(blob);
@@ -2588,8 +2799,70 @@ function downloadCurrentMarketCsv() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+}
+
+/**
+ * 一鍵批量依序下載全部 5 個分頁的排行 CSV (未來新增分頁可自動擴展)
+ */
+async function exportAllMarketTabsCsv() {
+  const allTabTypes = [];
+  document.querySelectorAll("#market-rank-type-switch .btn-period").forEach(btn => {
+    const t = btn.getAttribute("data-mtype");
+    if (t) allTabTypes.push(t);
+  });
+
+  if (allTabTypes.length === 0) {
+    alert("未找到可匯出的分頁！");
+    return;
+  }
+
+  const filter = marketRankState.filter || "all";
+  const filterNames = { all: "全部", stock: "僅股票", etf: "僅ETF" };
+  const filterName = filterNames[filter] || "全部";
+  const now = new Date();
+  const dStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+
+  const btnAll = document.getElementById("btn-export-all-tabs-csv");
+  const origText = btnAll ? btnAll.textContent : "[全部匯出 CSV]";
+  if (btnAll) {
+    btnAll.textContent = "匯出中...";
+    btnAll.disabled = true;
+  }
+
+  try {
+    for (let i = 0; i < allTabTypes.length; i++) {
+      const typeId = allTabTypes[i];
+      const result = buildCsvForRankType(typeId, filter);
+      const fileName = `台股_${result.typeName}_${filterName}_${dStr}.csv`;
+      triggerCsvDownload(result.content, fileName);
+      // 間隔 350ms，避免瀏覽器並發下載限制攔截
+      await new Promise(resolve => setTimeout(resolve, 350));
+    }
+  } catch (err) {
+    console.error("批量匯出失敗:", err);
+    alert("批量匯出遇到問題: " + err.message);
+  } finally {
+    if (btnAll) {
+      btnAll.textContent = origText;
+      btnAll.disabled = false;
+    }
+  }
+}
+
+function downloadCurrentMarketCsv() {
+  const mType = marketRankState.currentType || "margin_market";
+  const filter = marketRankState.filter || "all";
+  const filterNames = { all: "全部", stock: "僅股票", etf: "僅ETF" };
+  const filterName = filterNames[filter] || "全部";
+
+  const result = buildCsvForRankType(mType, filter);
+  const now = new Date();
+  const dStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+  const fileName = `台股_${result.typeName}_${filterName}_${dStr}.csv`;
+
+  triggerCsvDownload(result.content, fileName);
 }
 
 async function renderMarketRankings() {

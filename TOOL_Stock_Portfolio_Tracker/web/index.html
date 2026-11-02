@@ -7,7 +7,7 @@
   <title>零知識加密投資庫存分析儀表板 | Stock Portfolio Viewer</title>
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <link rel="apple-touch-icon" href="app_icon.png">
-  <link rel="stylesheet" href="style.css?v=1.2.0.1793604642">
+  <link rel="stylesheet" href="style.css?v=1.2.1.1793605098">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -19,7 +19,7 @@
       <div class="brand-header">
         <div class="brand-title-wrap">
           <h2>投資庫存雲端儀表板</h2>
-          <span class="version-pill">V1.2.0</span>
+          <span class="version-pill">V1.2.1</span>
         </div>
       </div>
 
@@ -61,7 +61,7 @@
 
         <div id="login-status" class="status-msg"></div>
         <div style="margin-top: 14px; text-align: center; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 10px;">
-          <span style="font-size: 11px; color: #64748b; font-weight: 500;">Web Edition V1.2.0</span>
+          <span style="font-size: 11px; color: #64748b; font-weight: 500;">Web Edition V1.2.1</span>
         </div>
       </form>
     </div>
@@ -72,7 +72,7 @@
     <!-- 頂部導航列 -->
     <header class="top-navbar glass-panel">
       <div class="nav-left">
-        <div class="logo-text">PORTFOLIO <span class="highlight">INSIGHT</span> <span class="version-pill">V1.2.0</span></div>
+        <div class="logo-text">PORTFOLIO <span class="highlight">INSIGHT</span> <span class="version-pill">V1.2.1</span></div>
         <div class="badge-user" id="user-badge">👤 使用者: -</div>
         <div class="badge-device" id="device-badge">📱 偵測設備中...</div>
         <div class="sync-time" id="sync-time-lbl" title="存股部位與批次同步時間"><span class="badge-icon">📦</span> 存股: -</div>
@@ -416,6 +416,7 @@
                 <button class="btn-period" data-mtype="pe">[低本益比排行]</button>
                 <button class="btn-period" data-mtype="rev">[營收年增(YoY)排行]</button>
                 <button class="btn-period" data-mtype="roe">[高ROE排行]</button>
+                <button id="btn-export-all-tabs-csv" class="btn-period" style="background:#059669; color:#ffffff; border:1px solid #10b981; font-weight:bold; cursor:pointer;" title="一鍵批量依序下載所有分頁排行 CSV 檔案 (5 個獨立檔案)">[全部匯出 CSV]</button>
               </div>
               <select id="market-filter-select" class="search-input" style="width: auto; padding: 4px 8px;">
                 <option value="all">全部 (個股+ETF)</option>
@@ -476,10 +477,10 @@
 
     <!-- 底部安全宣告 -->
     <footer class="app-footer">
-      <span>🛡 零知識端到端加密 ‧ 瀏覽器直連即時行情 ‧ 伺服器端零明文 ‧ Web V1.2.0</span>
+      <span>🛡 零知識端到端加密 ‧ 瀏覽器直連即時行情 ‧ 伺服器端零明文 ‧ Web V1.2.1</span>
     </footer>
   </div>
 
-  <script src="app.js?v=1.2.0.1793604642"></script>
+  <script src="app.js?v=1.2.1.1793605098"></script>
 </body>
 </html>
