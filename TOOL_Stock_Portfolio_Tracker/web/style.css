@@ -1292,3 +1292,35 @@ body {
   70% { box-shadow: 0 0 0 6px rgba(255, 77, 79, 0); }
   100% { box-shadow: 0 0 0 0 rgba(255, 77, 79, 0); }
 }
+
+/* --- 風控模式切換下拉選單 (高對比與白字黑底優化) --- */
+.market-mode-select {
+  padding: 6px 12px;
+  background: #181824 !important;
+  color: #38bdf8 !important;
+  border: 1px solid #38bdf8 !important;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.market-mode-select:hover {
+  background: #202030 !important;
+  border-color: #7dd3fc !important;
+}
+
+.market-mode-select:focus {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+}
+
+.market-mode-select option {
+  background-color: #11131a !important;
+  color: #f8fafc !important;
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 8px 12px;
+}
