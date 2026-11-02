@@ -5,7 +5,7 @@
  */
 
 const DEFAULT_FIREBASE_URL = "https://my-stock-tracker-2a94e-default-rtdb.asia-southeast1.firebasedatabase.app";
-const WEB_VERSION = "V1.2.2";
+const WEB_VERSION = "V1.2.3";
 const PALETTE = ["#3a86ff", "#00f090", "#ffbe0b", "#ff3366", "#8338ec", "#06d6a0", "#118ab2", "#fb5607"];
 
 let state = {
@@ -2619,19 +2619,22 @@ function buildCsvForRankType(targetType, filter) {
       const util = `${(it.margin_utilization || 0).toFixed(2)}%`;
       const netLots = it.margin_net_lots || 0;
       const netStr = `${netLots > 0 ? "+" : ""}${netLots.toLocaleString()}`;
-      const priceVal = (it.price && it.price > 0) ? it.price : 0;
-      const priceStr = priceVal > 0 ? priceVal.toFixed(2) : "--";
-
-      const callPVal = priceVal > 0 ? Number((priceVal * 0.78).toFixed(2)) : (it.call_price || 0);
+      const maInfo = _tvMaCache[sym] || {};
+      const curPrice = (maInfo.close > 0) ? maInfo.close : ((it.price && it.price > 0) ? it.price : 0);
+      const estCost = (maInfo.est_cost > 0) ? maInfo.est_cost : curPrice;
+      const estLoan = (estCost > 0) ? (estCost * 0.6) : 0;
+      const callPVal = (estLoan > 0) ? Number((estLoan * 1.30).toFixed(2)) : 0;
       const callP = callPVal > 0 ? callPVal.toFixed(2) : "--";
-      const bufferStr = priceVal > 0 ? "-22.0%" : "--";
 
-      let ratioLabel = "166.7%";
+      const bufVal = (curPrice > 0 && callPVal > 0) ? Number((((callPVal - curPrice) / curPrice) * 100).toFixed(1)) : null;
+      const bufferStr = bufVal !== null ? `${bufVal > 0 ? "+" : ""}${bufVal.toFixed(1)}%` : "--";
+
+      let ratioVal = (curPrice > 0 && estLoan > 0) ? Number(((curPrice / estLoan) * 100).toFixed(1)) : 0;
+      let ratioLabel = ratioVal > 0 ? `${ratioVal.toFixed(1)}%` : "--";
       if (isIn && myPos.ratio !== null) {
         ratioLabel = `${myPos.ratio.toFixed(2)}% (我的)`;
-      } else if (priceVal <= 0) {
-        ratioLabel = "--";
       }
+      const priceStr = curPrice > 0 ? curPrice.toFixed(2) : "--";
 
       rows.push([
         idx + 1,
@@ -2905,6 +2908,71 @@ function downloadCurrentMarketCsv() {
   triggerCsvDownload(result.content, fileName);
 }
 
+
+let _tvMaCache = {};
+let _tvMaCacheTime = 0;
+
+/**
+ * 方案 B：透過 TradingView Scanner 取得標的之即時收盤價、20MA (月線) 與 60MA (季線) 均價
+ * 供全市場融資排行計算真實動態之「市場持倉成本」、「130% 追繳門檻價」與「距追繳緩衝空間%」
+ */
+async function fetchTradingViewMaData(symbols) {
+  if (!symbols || symbols.length === 0) return _tvMaCache;
+  const now = Date.now();
+  const needFetch = symbols.some(s => !_tvMaCache[s.toUpperCase()]);
+  if (!needFetch && (now - _tvMaCacheTime < 10 * 60 * 1000)) {
+    return _tvMaCache;
+  }
+
+  const tickers = [];
+  symbols.forEach(s => {
+    const clean = s.replace(/[^A-Z0-9]/gi, "");
+    tickers.push(`TWSE:${clean}`);
+    tickers.push(`TPEX:${clean}`);
+  });
+
+  const url = "https://scanner.tradingview.com/taiwan/scan";
+  const payload = JSON.stringify({
+    symbols: { tickers },
+    columns: ["name", "close", "SMA20", "SMA60"]
+  });
+
+  try {
+    const resp = await fetchWithTimeout(url, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=UTF-8" },
+      body: payload,
+      cache: "no-store"
+    }, 6000);
+
+    if (resp.ok) {
+      const json = await resp.json();
+      const rows = Array.isArray(json.data) ? json.data : [];
+      rows.forEach(r => {
+        if (!r || !Array.isArray(r.d)) return;
+        const [symName, closeP, sma20, sma60] = r.d;
+        const sym = String(symName || "").trim().toUpperCase();
+        if (sym) {
+          const c = parseFloat(closeP) || 0;
+          const m20 = parseFloat(sma20) || 0;
+          const m60 = parseFloat(sma60) || 0;
+          _tvMaCache[sym] = {
+            close: c,
+            ma20: m20,
+            ma60: m60,
+            // 融資成本模型 (方案 B)：優先採用 60MA 季線生命線；若無 60MA 則採用 20MA 月線；若皆無則退回現價
+            est_cost: (m60 > 0) ? m60 : ((m20 > 0) ? m20 : c)
+          };
+        }
+      });
+      _tvMaCacheTime = now;
+    }
+  } catch (e) {
+    console.warn("fetchTradingViewMaData error:", e);
+  }
+  return _tvMaCache;
+}
+
 async function renderMarketRankings() {
   const tbody = document.getElementById("market-ranking-tbody");
   const thead = document.getElementById("market-ranking-thead");
@@ -2934,7 +3002,7 @@ async function renderMarketRankings() {
   if (mType === "margin_market") {
     if (bannerBar) bannerBar.classList.remove("hidden");
     if (titleEl) titleEl.textContent = "全市場融資餘額與維持率排行 (TWSE Market Margin Rankings)";
-    if (tipEl) tipEl.textContent = "台灣證交所官方信用交易總表 ‧ 融資餘額由大到小 ‧ 融資使用率 ‧ 130% 斷頭追繳預警與維持率 (點擊表頭切換遞增/遞減排序)";
+    if (tipEl) tipEl.textContent = "台灣證交所官方信用交易總表 ‧ 融資成本以 60MA 季線 (或 20MA) 動態估算 ‧ 即時動態維持率與 130% 追繳防守價 (點擊表頭切換遞增/遞減排序)";
 
     const rMode = marketRankState.ratioMode || "all_three";
 
@@ -2950,9 +3018,9 @@ async function renderMarketRankings() {
             <th class="${getMThClass('margin_balance_lots')}" data-msort="margin_balance_lots">融資餘額(張)</th>
             <th class="${getMThClass('margin_utilization')}" data-msort="margin_utilization">使用率(%)</th>
             <th class="${getMThClass('margin_net_lots')}" data-msort="margin_net_lots">今日資增減</th>
-            <th class="${getMThClass('call_price')}" data-msort="call_price" title="現價跌破即觸發 130% 追繳">130%追繳價</th>
-            <th class="${getMThClass('buffer_pct')}" data-msort="buffer_pct" title="距 130% 追繳之跌幅安全緩衝空間">緩衝空間%</th>
-            <th class="${getMThClass('est_ratio')}" data-msort="est_ratio" title="近 60 日融資成本估算維持率 / 個人在庫真實維持率">估算維持率%</th>
+            <th class="${getMThClass('call_price')}" data-msort="call_price" title="以 60MA 季線 (或 20MA) 融資成本估算 130% 追繳門檻價">130%追繳價</th>
+            <th class="${getMThClass('buffer_pct')}" data-msort="buffer_pct" title="現價距 130% 追繳之跌幅安全緩衝空間（距離越近越危險，負值越大越安全）">緩衝空間%</th>
+            <th class="${getMThClass('est_ratio')}" data-msort="est_ratio" title="以 60MA 季線 (或 20MA) 持倉成本動態估算維持率 (在庫者呈現個人真實維持率)">估算維持率%</th>
             <th class="${getMThClass('in_stock')}" data-msort="in_stock">在庫狀態</th>
           </tr>`;
       } else if (rMode === "call_only") {
@@ -3043,18 +3111,33 @@ async function renderMarketRankings() {
     list.sort((a, b) => (b.margin_balance_lots || 0) - (a.margin_balance_lots || 0));
     const topItems = list.slice(0, 150);
 
+    // 方案 B：透過 TradingView Scanner 取得標的之即時收盤價、20MA (月線) 與 60MA (季線) 均價
+    const marginSyms = topItems.map(it => it.symbol);
+    const maData = await fetchTradingViewMaData(marginSyms);
+
     topItems.forEach((it, idx) => {
       it.orig_rank = idx + 1;
       const sym = (it.symbol || "").toUpperCase();
       const myPos = myPosMap[sym];
       it.isIn = !!myPos;
-      it.priceVal = (it.price && it.price > 0) ? it.price : 0;
-      it.callPVal = it.priceVal > 0 ? Number((it.priceVal * 0.78).toFixed(2)) : (it.call_price || 0);
-      it.bufferPctVal = it.priceVal > 0 ? -22.0 : -999;
+
+      const maInfo = maData[sym] || {};
+      const curPrice = (maInfo.close > 0) ? maInfo.close : ((it.price && it.price > 0) ? it.price : 0);
+      const estCost = (maInfo.est_cost > 0) ? maInfo.est_cost : curPrice;
+
+      it.priceVal = curPrice;
+      // 融資借款額估算：以 60MA 季線（或 20MA）融資買進成本 * 60% 成數
+      const estLoan = (estCost > 0) ? (estCost * 0.6) : 0;
+      // 130% 追繳價：融資借款額 * 1.30
+      it.callPVal = (estLoan > 0) ? Number((estLoan * 1.30).toFixed(2)) : 0;
+      // 距 130% 追繳之跌幅安全緩衝空間 (%)
+      it.bufferPctVal = (curPrice > 0 && it.callPVal > 0) ? Number((((it.callPVal - curPrice) / curPrice) * 100).toFixed(1)) : null;
+
+      // 市場估算維持率 (%)
       if (it.isIn && myPos && myPos.ratio !== null) {
         it.estRatioVal = myPos.ratio;
       } else {
-        it.estRatioVal = it.priceVal > 0 ? 166.67 : 0;
+        it.estRatioVal = (curPrice > 0 && estLoan > 0) ? Number(((curPrice / estLoan) * 100).toFixed(1)) : 0;
       }
     });
 
@@ -3129,21 +3212,29 @@ async function renderMarketRankings() {
       const priceVal = it.priceVal;
       const priceStr = priceVal > 0 ? priceVal.toFixed(2) : "--";
 
-      // 1. 130% 追繳價
+      // 1. 130% 追繳價 (方案 B: 60MA/20MA 成本)
       const callP = it.callPVal > 0 ? it.callPVal.toFixed(2) : "--";
 
-      // 2. 距 130% 跌幅緩衝空間 (%)
-      const bufferStr = priceVal > 0 ? "-22.0%" : "--";
-      const bufferClass = "text-gold font-bold";
+      // 2. 距 130% 跌幅緩衝空間 (%) (方案 B: 動態真實跌幅)
+      const bufferVal = it.bufferPctVal;
+      const bufferStr = bufferVal !== null ? `${bufferVal > 0 ? "+" : ""}${bufferVal.toFixed(1)}%` : "--";
+      let bufferClass = "text-dim";
+      if (bufferVal !== null) {
+        if (bufferVal > -10.0) bufferClass = "text-red font-bold"; // 距斷頭 < 10%，極度危險！
+        else if (bufferVal > -20.0) bufferClass = "text-gold font-bold"; // 距斷頭 10%~20%，警戒區
+        else bufferClass = "text-green font-bold"; // 距斷頭 > 20%，安全區
+      }
 
       // 3. 市場估算維持率 (%) & 在庫真實維持率
-      let ratioLabel = `${it.estRatioVal.toFixed(1)}%`;
+      let ratioLabel = it.estRatioVal > 0 ? `${it.estRatioVal.toFixed(1)}%` : "--";
       let ratioClass = "text-green";
 
       if (isIn && myPos && myPos.ratio !== null) {
         ratioLabel = `${myPos.ratio.toFixed(2)}% (我的)`;
         ratioClass = myPos.ratio >= 160 ? "text-green font-bold" : (myPos.ratio >= 130 ? "text-gold font-bold" : "text-red font-bold");
-      } else if (priceVal <= 0) {
+      } else if (it.estRatioVal > 0) {
+        ratioClass = it.estRatioVal >= 160 ? "text-green font-bold" : (it.estRatioVal >= 130 ? "text-gold font-bold" : "text-red font-bold");
+      } else {
         ratioLabel = "--";
         ratioClass = "text-dim";
       }
