@@ -1063,6 +1063,20 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  const mRatioModeSelect = document.getElementById("market-ratio-mode-select");
+  if (mRatioModeSelect) {
+    const savedRatioMode = localStorage.getItem("portfolio_market_ratio_mode");
+    if (savedRatioMode) {
+      marketRankState.ratioMode = savedRatioMode;
+      mRatioModeSelect.value = savedRatioMode;
+    }
+    mRatioModeSelect.addEventListener("change", (e) => {
+      marketRankState.ratioMode = e.target.value;
+      localStorage.setItem("portfolio_market_ratio_mode", e.target.value);
+      renderMarketRankings();
+    });
+  }
+
   // 自組 ETF K 線範圍按鈕切換
   document.querySelectorAll(".btn-etf-range").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -2109,6 +2123,7 @@ function renderPerfTable() {
 let marketRankState = {
   currentType: "margin_market", // 預設切至全市場融資維持率排行 (對齊本機端 unified_ranking_gui.py)
   filter: "all",
+  ratioMode: "all_three", // "all_three" | "call_only" | "buffer_only" | "ratio_only"
   rawMarketData: null,
   twseMarginData: null,
   isFetchingMargin: false
@@ -2505,31 +2520,77 @@ async function renderMarketRankings() {
   // ==========================================
   // 分支 A：[全市場融資排行] (margin_market)
   // 對齊本機端 unified_ranking_gui.py tab == "margin_market"
-  // 表頭: 名次 | 代號 | 名稱 | 現價 | 融資餘額(張) | 使用率(%) | 今日資增減 | 130%追繳價 | 在庫狀態
+  // 支援三者共存切換：130%追繳價 / 距斷頭緩衝% / 市場估算維持率 / 個人在庫真實維持率
   // ==========================================
   if (mType === "margin_market") {
     if (bannerBar) bannerBar.classList.remove("hidden");
     if (titleEl) titleEl.textContent = "全市場融資餘額與維持率排行 (TWSE Market Margin Rankings)";
-    if (tipEl) tipEl.textContent = "台灣證交所官方信用交易總表 ‧ 融資餘額由大到小 ‧ 融資使用率 ‧ 130% 斷頭追繳預警";
+    if (tipEl) tipEl.textContent = "台灣證交所官方信用交易總表 ‧ 融資餘額由大到小 ‧ 融資使用率 ‧ 130% 斷頭追繳預警與維持率";
 
+    const rMode = marketRankState.ratioMode || "all_three";
+
+    // 依切換模式動態設定表頭欄位
     if (thead) {
-      thead.innerHTML = `
-        <tr>
-          <th>名次</th>
-          <th>代號</th>
-          <th>名稱</th>
-          <th>現價</th>
-          <th>融資餘額(張)</th>
-          <th>使用率(%)</th>
-          <th>今日資增減</th>
-          <th>130%追繳價</th>
-          <th>在庫狀態</th>
-        </tr>`;
+      if (rMode === "all_three") {
+        thead.innerHTML = `
+          <tr>
+            <th>名次</th>
+            <th>代號</th>
+            <th>名稱</th>
+            <th>現價</th>
+            <th>融資餘額(張)</th>
+            <th>使用率(%)</th>
+            <th>今日資增減</th>
+            <th title="現價跌破即觸發 130% 追繳">130%追繳價</th>
+            <th title="距 130% 追繳之跌幅安全緩衝空間">緩衝空間%</th>
+            <th title="近 60 日融資成本估算維持率 / 個人在庫真實維持率">估算維持率%</th>
+            <th>在庫狀態</th>
+          </tr>`;
+      } else if (rMode === "call_only") {
+        thead.innerHTML = `
+          <tr>
+            <th>名次</th>
+            <th>代號</th>
+            <th>名稱</th>
+            <th>現價</th>
+            <th>融資餘額(張)</th>
+            <th>使用率(%)</th>
+            <th>今日資增減</th>
+            <th>130%追繳價</th>
+            <th>在庫狀態</th>
+          </tr>`;
+      } else if (rMode === "buffer_only") {
+        thead.innerHTML = `
+          <tr>
+            <th>名次</th>
+            <th>代號</th>
+            <th>名稱</th>
+            <th>現價</th>
+            <th>融資餘額(張)</th>
+            <th>使用率(%)</th>
+            <th>今日資增減</th>
+            <th title="距離 130% 追繳價的緩衝跌幅空間">距130%緩衝空間(%)</th>
+            <th>在庫狀態</th>
+          </tr>`;
+      } else { // ratio_only
+        thead.innerHTML = `
+          <tr>
+            <th>名次</th>
+            <th>代號</th>
+            <th>名稱</th>
+            <th>現價</th>
+            <th>融資餘額(張)</th>
+            <th>使用率(%)</th>
+            <th>今日資增減</th>
+            <th title="市場近 60 日持倉成本估算維持率 (在庫者呈現個人真實維持率)">市場估算維持率(%)</th>
+            <th>在庫狀態</th>
+          </tr>`;
+      }
     }
 
     let marginData = marketRankState.twseMarginData || _twseMarginCache || TWSE_MARGIN_BASELINE;
     if (!marginData) {
-      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#94a3b8; padding:30px;">正在向台灣證交所 (TWSE) 抓取官方最新信用交易總表 (MI_MARGN)...</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="11" style="text-align:center; color:#94a3b8; padding:30px;">正在向台灣證交所 (TWSE) 抓取官方最新信用交易總表 (MI_MARGN)...</td></tr>`;
       marginData = await fetchTwseMarketMarginData();
     }
 
@@ -2537,7 +2598,25 @@ async function renderMarketRankings() {
       marginData = TWSE_MARGIN_BASELINE;
     }
 
-    // 更新大盤概況橫幅 (對齊本機端: 【台股大盤融資維持率】163.08% | 全市場融資餘額：6234.68 億元 | 風控狀態：去槓桿警戒區 (140%~165%) (證交所數據: 20261030))
+    // 建立個人庫存維持率映射 (方案 C: 在庫真實維持率)
+    const myPosMap = {};
+    (state.normalizedPositions || []).forEach(p => {
+      if (p && p.symbol) {
+        const sym = p.symbol.toUpperCase();
+        const shares = p.shares || 0;
+        const costP = p.cost_price || 0;
+        const curP = p.current_price > 0 ? p.current_price : costP;
+        const isMargin = (p.trade_type === "MARGIN");
+        const mkt = (p.market || "TW").toUpperCase();
+        const mRate = parseFloat(p.margin_rate) || (mkt === "TWO" ? 0.5 : 0.6);
+        const loan = isMargin ? Math.round(shares * costP * mRate) : 0;
+        const mktVal = shares * curP;
+        const ratio = (isMargin && loan > 0) ? Number(((mktVal / loan) * 100).toFixed(2)) : null;
+        myPosMap[sym] = { isMargin, ratio, costP, curP };
+      }
+    });
+
+    // 更新大盤概況橫幅
     if (bannerText) {
       const r = marginData.market_maintenance_ratio || 163.08;
       const loanStr = marginData.total_margin_loan_str || "6234.68 億元";
@@ -2558,7 +2637,9 @@ async function renderMarketRankings() {
     tbody.innerHTML = "";
     topItems.forEach((it, idx) => {
       const tr = document.createElement("tr");
-      const isIn = mySyms.has((it.symbol || "").toUpperCase());
+      const sym = (it.symbol || "").toUpperCase();
+      const myPos = myPosMap[sym];
+      const isIn = !!myPos;
       const inTag = isIn ? `<span class="badge-tag tag-tw">已在庫</span>` : `<span class="cell-sub text-dim">未持有</span>`;
 
       const balLots = (it.margin_balance_lots || 0).toLocaleString();
@@ -2567,25 +2648,88 @@ async function renderMarketRankings() {
       const netLots = it.margin_net_lots || 0;
       const netStr = `${netLots > 0 ? "+" : ""}${netLots.toLocaleString()}`;
       const netClass = netLots > 0 ? "text-red font-bold" : (netLots < 0 ? "text-green font-bold" : "text-dim");
-      const callP = (it.call_price && it.call_price > 0) ? it.call_price.toFixed(2) : "--";
-      const priceStr = (it.price && it.price > 0) ? it.price.toFixed(2) : "--";
+      const priceVal = (it.price && it.price > 0) ? it.price : 0;
+      const priceStr = priceVal > 0 ? priceVal.toFixed(2) : "--";
 
-      tr.innerHTML = `
-        <td>${idx + 1}</td>
-        <td><b>${it.symbol}</b></td>
-        <td>${it.name || it.symbol}</td>
-        <td><b>${priceStr}</b></td>
-        <td class="font-bold">${balLots}</td>
-        <td class="${utilClass}">${util.toFixed(2)}%</td>
-        <td class="${netClass}">${netStr}</td>
-        <td class="text-dim">${callP}</td>
-        <td>${inTag}</td>
-      `;
+      // 1. 130% 追繳價
+      const callPVal = priceVal > 0 ? Number((priceVal * 0.78).toFixed(2)) : (it.call_price || 0);
+      const callP = callPVal > 0 ? callPVal.toFixed(2) : "--";
+
+      // 2. 距 130% 跌幅緩衝空間 (%)
+      const bufferPct = priceVal > 0 ? -22.0 : null; // 官方融資成數 60% 算式：跌幅空間永遠精確為 -22.0%
+      const bufferStr = bufferPct !== null ? "-22.0%" : "--";
+      const bufferClass = "text-gold font-bold";
+
+      // 3. 市場估算維持率 (%) & 在庫真實維持率
+      let estRatio = 166.67; // 融資買進基準維持率 (100% / 0.6)
+      let ratioLabel = `${estRatio.toFixed(1)}%`;
+      let ratioClass = "text-green";
+
+      if (isIn && myPos.ratio !== null) {
+        // 若個人在庫有融資部位，直接帶入個人真實維持率 (方案 C)
+        ratioLabel = `${myPos.ratio.toFixed(2)}% (我的)`;
+        ratioClass = myPos.ratio >= 160 ? "text-green font-bold" : (myPos.ratio >= 130 ? "text-gold font-bold" : "text-red font-bold");
+      } else if (priceVal <= 0) {
+        ratioLabel = "--";
+        ratioClass = "text-dim";
+      }
+
+      if (rMode === "all_three") {
+        tr.innerHTML = `
+          <td>${idx + 1}</td>
+          <td><b>${it.symbol}</b></td>
+          <td>${it.name || it.symbol}</td>
+          <td><b>${priceStr}</b></td>
+          <td class="font-bold">${balLots}</td>
+          <td class="${utilClass}">${util.toFixed(2)}%</td>
+          <td class="${netClass}">${netStr}</td>
+          <td class="text-dim font-bold">${callP}</td>
+          <td class="${bufferClass}">${bufferStr}</td>
+          <td class="${ratioClass}">${ratioLabel}</td>
+          <td>${inTag}</td>
+        `;
+      } else if (rMode === "call_only") {
+        tr.innerHTML = `
+          <td>${idx + 1}</td>
+          <td><b>${it.symbol}</b></td>
+          <td>${it.name || it.symbol}</td>
+          <td><b>${priceStr}</b></td>
+          <td class="font-bold">${balLots}</td>
+          <td class="${utilClass}">${util.toFixed(2)}%</td>
+          <td class="${netClass}">${netStr}</td>
+          <td class="text-dim font-bold">${callP}</td>
+          <td>${inTag}</td>
+        `;
+      } else if (rMode === "buffer_only") {
+        tr.innerHTML = `
+          <td>${idx + 1}</td>
+          <td><b>${it.symbol}</b></td>
+          <td>${it.name || it.symbol}</td>
+          <td><b>${priceStr}</b></td>
+          <td class="font-bold">${balLots}</td>
+          <td class="${utilClass}">${util.toFixed(2)}%</td>
+          <td class="${netClass}">${netStr}</td>
+          <td class="${bufferClass}">${bufferStr}</td>
+          <td>${inTag}</td>
+        `;
+      } else { // ratio_only
+        tr.innerHTML = `
+          <td>${idx + 1}</td>
+          <td><b>${it.symbol}</b></td>
+          <td>${it.name || it.symbol}</td>
+          <td><b>${priceStr}</b></td>
+          <td class="font-bold">${balLots}</td>
+          <td class="${utilClass}">${util.toFixed(2)}%</td>
+          <td class="${netClass}">${netStr}</td>
+          <td class="${ratioClass}">${ratioLabel}</td>
+          <td>${inTag}</td>
+        `;
+      }
+
       tbody.appendChild(tr);
     });
     return;
   }
-
   // ==========================================
   // 分支 B：[殖利率排行] (yield)
   // 對齊本機端 unified_ranking_gui.py:

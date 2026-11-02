@@ -422,6 +422,12 @@
                 <option value="stock">僅股票 (排除ETF)</option>
                 <option value="etf">僅ETF (高股息/債券)</option>
               </select>
+              <select id="market-ratio-mode-select" class="search-input" style="width: auto; padding: 4px 8px; border-color: #38bdf8; color: #38bdf8; font-weight: 600;">
+                <option value="all_three">風控欄位：三者全覽 (追繳價+緩衝%+維持率)</option>
+                <option value="call_only">風控欄位：130%追繳價</option>
+                <option value="buffer_only">風控欄位：距130%緩衝跌幅 (%)</option>
+                <option value="ratio_only">風控欄位：市場估算維持率 (%)</option>
+              </select>
             </div>
           </div>
           <div class="table-responsive">
@@ -473,6 +479,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=1.1.7"></script>
+  <script src="app.js?v=1.1.8"></script>
 </body>
 </html>
