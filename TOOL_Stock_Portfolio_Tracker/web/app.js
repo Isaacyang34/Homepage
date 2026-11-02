@@ -2030,10 +2030,131 @@ function renderPerfTable() {
 // ============================================================================
 
 let marketRankState = {
-  currentType: "yield",
+  currentType: "margin_market", // 預設切至全市場融資維持率排行 (對齊本機端 unified_ranking_gui.py)
   filter: "all",
-  rawMarketData: null
+  rawMarketData: null,
+  twseMarginData: null,
+  isFetchingMargin: false
 };
+
+let _twseMarginCache = null;
+let _twseMarginCacheTime = 0;
+
+async function fetchTwseMarketMarginData(forceRefresh = false) {
+  const now = Date.now();
+  if (!forceRefresh && _twseMarginCache && (now - _twseMarginCacheTime < 15 * 60 * 1000)) {
+    return _twseMarginCache;
+  }
+  if (marketRankState.isFetchingMargin) return _twseMarginCache;
+  marketRankState.isFetchingMargin = true;
+
+  try {
+    const url = "https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?response=json&selectType=ALL";
+    const resp = await fetchWithTimeout(url, { cache: "no-store" }, 9000);
+    if (!resp.ok) return _twseMarginCache;
+    const data = await resp.json();
+
+    const tradeDate = data.date || "";
+    let totalMarginLoanVal = 0.0;
+    let totalMarginLoanStr = "--";
+
+    const tables = data.tables || [];
+    if (tables.length >= 1) {
+      const t0Data = tables[0].data || [];
+      for (const r of t0Data) {
+        const label = r[0] || "";
+        if (label.includes("融資金額") || label.includes("融資(元)")) {
+          const loanK = parseFloat(String(r[5] || "").replace(/,/g, "")) || 0;
+          totalMarginLoanVal = loanK * 1000.0;
+          totalMarginLoanStr = `${(loanK / 100000.0).toFixed(2)} 億元`;
+        }
+      }
+    }
+
+    // 建立股票現價映射表
+    const priceMap = {};
+    if (marketRankState.rawMarketData && Array.isArray(marketRankState.rawMarketData.stocks)) {
+      for (const s of marketRankState.rawMarketData.stocks) {
+        if (s.symbol) priceMap[s.symbol.toUpperCase()] = s.price || 0;
+      }
+    }
+
+    const items = [];
+    let totMarginMktVal = 0.0;
+
+    if (tables.length >= 2) {
+      const rows = tables[1].data || [];
+      for (const r of rows) {
+        if (!r || r.length < 8) continue;
+        const sym = String(r[0] || "").trim();
+        const name = String(r[1] || "").trim();
+        const buyLots = parseInt(String(r[2] || "0").replace(/,/g, ""), 10) || 0;
+        const sellLots = parseInt(String(r[3] || "0").replace(/,/g, ""), 10) || 0;
+        const balLots = parseInt(String(r[6] || "0").replace(/,/g, ""), 10) || 0;
+        const limLots = parseInt(String(r[7] || "0").replace(/,/g, ""), 10) || 0;
+
+        if (balLots <= 0) continue;
+
+        const price = priceMap[sym.toUpperCase()] || 0.0;
+        const utilization = limLots > 0 ? (balLots / limLots * 100.0) : 0.0;
+        const mktVal = price > 0 ? (price * balLots * 1000.0) : 0.0;
+        if (mktVal > 0) totMarginMktVal += mktVal;
+
+        const callPrice = price > 0 ? Number((price * 0.78).toFixed(2)) : 0.0;
+
+        items.push({
+          symbol: sym,
+          name: name,
+          price: price,
+          margin_balance_lots: balLots,
+          margin_limit_lots: limLots,
+          margin_utilization: Number(utilization.toFixed(2)),
+          margin_net_lots: buyLots - sellLots,
+          margin_mkt_val_million: Number((mktVal / 1000000.0).toFixed(2)),
+          call_price: callPrice,
+          is_etf: sym.startsWith("00")
+        });
+      }
+    }
+
+    let marketRatio = 166.5;
+    let riskLevel = "SAFE";
+    let riskLabel = "籌碼健康 (>= 165%)";
+
+    if (totalMarginLoanVal > 0 && totMarginMktVal > 0) {
+      marketRatio = Number((totMarginMktVal / totalMarginLoanVal * 100.0).toFixed(2));
+      if (marketRatio >= 165.0) {
+        riskLevel = "SAFE";
+        riskLabel = "籌碼健康 (>= 165%)";
+      } else if (marketRatio >= 140.0) {
+        riskLevel = "WARNING";
+        riskLabel = "浮額偏高 (140% - 165%)";
+      } else {
+        riskLevel = "DANGER";
+        riskLabel = "多殺多追繳警報 (< 140%)";
+      }
+    }
+
+    _twseMarginCache = {
+      date: tradeDate,
+      total_margin_loan_str: totalMarginLoanStr,
+      total_margin_loan_val: totalMarginLoanVal,
+      total_margin_mkt_val: totMarginMktVal,
+      market_maintenance_ratio: marketRatio,
+      risk_level: riskLevel,
+      risk_label: riskLabel,
+      items: items
+    };
+    _twseMarginCacheTime = now;
+    marketRankState.twseMarginData = _twseMarginCache;
+    return _twseMarginCache;
+  } catch (e) {
+    console.warn("TWSE 信用交易資料抓取失敗:", e);
+    return _twseMarginCache;
+  } finally {
+    marketRankState.isFetchingMargin = false;
+  }
+}
 
 function renderMarginRiskAnalytics() {
   const data = state.decryptedData;
@@ -2071,6 +2192,7 @@ function renderMarginRiskAnalytics() {
         shares,
         cost_price: costP,
         current_price: curP,
+        day_pct: p.day_pct !== undefined ? p.day_pct : 0,
         margin_loan: 0,
         market_val: marketVal,
         maintenance_ratio: null,
@@ -2113,6 +2235,7 @@ function renderMarginRiskAnalytics() {
       shares,
       cost_price: costP,
       current_price: curP,
+      day_pct: p.day_pct !== undefined ? p.day_pct : 0,
       margin_loan: marginLoan,
       market_val: marketVal,
       maintenance_ratio: ratio,
@@ -2219,7 +2342,14 @@ function renderMarginRiskAnalytics() {
       <td><span class="badge-tag ${it.is_margin ? "tag-etf" : "tag-tw"}">${it.is_margin ? "融資" : "現股"}</span></td>
       <td>${isPrivate ? "***" : fmtNum(it.shares)}</td>
       <td>${isPrivate ? "***" : it.cost_price.toFixed(2)}</td>
-      <td><b>${it.current_price > 0 ? it.current_price.toFixed(2) : "--"}</b></td>
+      <td>
+        <div style="display:flex; flex-direction:column; align-items:flex-start;">
+          <b>${it.current_price > 0 ? it.current_price.toFixed(2) : "--"}</b>
+          <span class="cell-sub ${it.day_pct >= 0 ? "text-red" : "text-green"}" style="font-size: 11px; font-weight: 600;">
+            ${it.day_pct !== undefined ? fmtPctSign(it.day_pct) : "--"}
+          </span>
+        </div>
+      </td>
       <td>${isPrivate ? "***" : loanDisplay}</td>
       <td>${isPrivate ? "***" : `$ ${fmtNum(it.market_val)}`}</td>
       <td><b class="${it.is_margin ? (it.maintenance_ratio >= 160 ? "text-green" : (it.maintenance_ratio >= 130 ? "text-gold" : "text-red")) : ""}">${isPrivate ? "***" : ratioDisplay}</b></td>
@@ -2234,65 +2364,227 @@ function renderMarginRiskAnalytics() {
 async function loadMarketRankingCacheSilently() {
   if (marketRankState.rawMarketData) return;
   try {
-    const resp = await fetch("../market_ranking_cache.json?t=" + Date.now(), { cache: "no-store" });
+    let resp = await fetch("../market_ranking_cache.json?t=" + Date.now(), { cache: "no-store" });
+    if (!resp.ok) {
+      resp = await fetch("market_ranking_cache.json?t=" + Date.now(), { cache: "no-store" });
+    }
     if (resp.ok) {
-      marketRankState.rawMarketData = await resp.json();
+      const data = await resp.json();
+      // 將營收資料依照 symbol 建立索引並注入個股資料中
+      const revMap = {};
+      if (Array.isArray(data.revenues)) {
+        for (const r of data.revenues) {
+          if (r && r.symbol) revMap[r.symbol.toUpperCase()] = r;
+        }
+      }
+      if (Array.isArray(data.stocks)) {
+        for (const s of data.stocks) {
+          if (!s) continue;
+          const sym = (s.symbol || "").toUpperCase();
+          const r = revMap[sym] || {};
+          s.yoy = (r.yoy !== undefined && r.yoy !== null) ? r.yoy : null;
+          s.cum_yoy = (r.cum_yoy !== undefined && r.cum_yoy !== null) ? r.cum_yoy : null;
+          s.industry = r.industry || s.type || "--";
+        }
+      }
+      marketRankState.rawMarketData = data;
       renderMarketRankings();
     }
-  } catch (e) {}
+  } catch (e) {
+    console.warn("載入 market_ranking_cache 失敗:", e);
+  }
 }
 
-function renderMarketRankings() {
+async function renderMarketRankings() {
   const tbody = document.getElementById("market-ranking-tbody");
+  const thead = document.getElementById("market-ranking-thead");
+  const summaryBox = document.getElementById("market-margin-summary-cards");
+  const titleEl = document.getElementById("market-rank-title");
+  const tipEl = document.getElementById("market-rank-tip");
   if (!tbody) return;
-  tbody.innerHTML = "";
 
-  const cache = marketRankState.rawMarketData;
-  if (!cache || !cache.stocks) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#94a3b8; padding:30px;">正在載入全市場指標快取或資料快取建立中...</td></tr>`;
+  const mType = marketRankState.currentType || "margin_market";
+  const filter = marketRankState.filter || "all";
+  const mySyms = new Set((state.normalizedPositions || []).map(p => (p.symbol || "").toUpperCase()));
+
+  // ==========================================
+  // 分支 A：全市場融資維持率與信用排行 (margin_market)
+  // ==========================================
+  if (mType === "margin_market") {
+    if (summaryBox) summaryBox.classList.remove("hidden");
+    if (titleEl) titleEl.textContent = "全市場融資餘額與維持率排行 (TWSE Market Margin Rankings)";
+    if (tipEl) tipEl.textContent = "台灣證交所官方信用交易總表 ‧ 融資餘額由大到小 ‧ 融資使用率 ‧ 130% 斷頭追繳預警";
+
+    if (thead) {
+      thead.innerHTML = `
+        <tr>
+          <th>名次</th>
+          <th>標的代碼</th>
+          <th>標的名稱</th>
+          <th>參考現價</th>
+          <th>今日融資餘額 (張) ⇕</th>
+          <th>融資使用率 % ⇕</th>
+          <th>今日買賣超 (張)</th>
+          <th>130%斷頭價</th>
+          <th>在庫狀態</th>
+        </tr>`;
+    }
+
+    let marginData = marketRankState.twseMarginData || _twseMarginCache;
+    if (!marginData) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#94a3b8; padding:30px;">正在向台灣證交所 (TWSE) 抓取官方最新信用交易總表 (MI_MARGN)...</td></tr>`;
+      marginData = await fetchTwseMarketMarginData();
+    }
+
+    if (!marginData || !marginData.items || marginData.items.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#f87171; padding:30px;">暫無法取得台灣證交所信用總表，請確認網路連線或稍後再試。</td></tr>`;
+      return;
+    }
+
+    // 更新大盤概況卡片
+    const ratioEl = document.getElementById("mkt-summary-ratio");
+    const statusEl = document.getElementById("mkt-summary-status");
+    const loanEl = document.getElementById("mkt-summary-loan");
+    const mktvalEl = document.getElementById("mkt-summary-mktval");
+    const dateEl = document.getElementById("mkt-summary-date");
+
+    if (ratioEl) {
+      const r = marginData.market_maintenance_ratio || 166.5;
+      ratioEl.textContent = `${r.toFixed(2)}%`;
+      ratioEl.className = r >= 165 ? "metric-val text-green" : (r >= 140 ? "metric-val text-gold" : "metric-val text-red");
+    }
+    if (statusEl) statusEl.textContent = marginData.risk_label || "大盤籌碼評估";
+    if (loanEl) loanEl.textContent = marginData.total_margin_loan_str || "--";
+    if (mktvalEl) mktvalEl.textContent = marginData.total_margin_mkt_val > 0 ? `${(marginData.total_margin_mkt_val / 100000000.0).toFixed(2)} 億元` : "--";
+    if (dateEl) dateEl.textContent = marginData.date || "最新交易日";
+
+    let list = [...marginData.items];
+    if (filter === "stock") list = list.filter(s => !s.is_etf);
+    else if (filter === "etf") list = list.filter(s => s.is_etf);
+
+    // 依融資餘額由大到小排序
+    list.sort((a, b) => (b.margin_balance_lots || 0) - (a.margin_balance_lots || 0));
+    const topItems = list.slice(0, 100);
+
+    tbody.innerHTML = "";
+    topItems.forEach((it, idx) => {
+      const tr = document.createElement("tr");
+      const isIn = mySyms.has(it.symbol.toUpperCase());
+      const inTag = isIn ? `<span class="badge-tag tag-tw">已在庫</span>` : `<span class="cell-sub text-dim">未持有</span>`;
+
+      const balStr = (it.margin_balance_lots || 0).toLocaleString();
+      const util = it.margin_utilization || 0;
+      const utilClass = util >= 60 ? "text-red font-bold" : (util >= 40 ? "text-gold font-bold" : "");
+      const netLots = it.margin_net_lots || 0;
+      const netStr = `${netLots > 0 ? "+" : ""}${netLots.toLocaleString()}`;
+      const netClass = netLots > 0 ? "text-red font-bold" : (netLots < 0 ? "text-green font-bold" : "text-dim");
+      const callP = it.call_price > 0 ? it.call_price.toFixed(2) : "--";
+
+      tr.innerHTML = `
+        <td>${idx + 1}</td>
+        <td><b>${it.symbol}</b></td>
+        <td>${it.name || it.symbol}</td>
+        <td>${it.price ? it.price.toFixed(2) : "--"}</td>
+        <td class="font-bold">${balStr}</td>
+        <td class="${utilClass}">${util.toFixed(2)}%</td>
+        <td class="${netClass}">${netStr}</td>
+        <td class="text-dim">${callP}</td>
+        <td>${inTag}</td>
+      `;
+      tbody.appendChild(tr);
+    });
     return;
   }
 
-  const mType = marketRankState.currentType || "yield";
-  const filter = marketRankState.filter || "all";
+  // ==========================================
+  // 分支 B：全市場 4 大財務指標排行 (yield / pe / rev / roe)
+  // ==========================================
+  if (summaryBox) summaryBox.classList.add("hidden");
+  if (titleEl) titleEl.textContent = "全市場核心財務指標排行榜 (Market Financial Rankings)";
+  if (tipEl) tipEl.textContent = "高殖利率 ‧ 低本益比價值 ‧ 營收高成長 ‧ 高股東權益報酬率 ROE";
+
+  if (thead) {
+    thead.innerHTML = `
+      <tr>
+        <th>名次</th>
+        <th>標的代碼</th>
+        <th>標的名稱</th>
+        <th>參考現價</th>
+        <th>殖利率 %</th>
+        <th>本益比 PE</th>
+        <th>營收年增率 YoY</th>
+        <th>ROE %</th>
+        <th>在庫狀態</th>
+      </tr>`;
+  }
+
+  tbody.innerHTML = "";
+  const cache = marketRankState.rawMarketData;
+  if (!cache || !cache.stocks) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#94a3b8; padding:30px;">正在載入全市場財務指標快取...</td></tr>`;
+    return;
+  }
 
   let list = [...cache.stocks];
   if (filter === "stock") list = list.filter(s => !s.is_etf);
   else if (filter === "etf") list = list.filter(s => s.is_etf);
 
   if (mType === "yield") {
-    list.sort((a, b) => (b.dividend_yield || 0) - (a.dividend_yield || 0));
+    list = list.filter(s => {
+      const y = (s.yield_pct !== undefined && s.yield_pct !== null) ? s.yield_pct : (s.dividend_yield || 0);
+      return y > 0;
+    });
+    list.sort((a, b) => {
+      const ya = (a.yield_pct !== undefined && a.yield_pct !== null) ? a.yield_pct : (a.dividend_yield || 0);
+      const yb = (b.yield_pct !== undefined && b.yield_pct !== null) ? b.yield_pct : (b.dividend_yield || 0);
+      return yb - ya;
+    });
   } else if (mType === "pe") {
-    list = list.filter(s => (s.pe_ratio || 0) >= 4 && (s.pe_ratio || 0) <= 30);
-    list.sort((a, b) => (a.pe_ratio || 999) - (b.pe_ratio || 999));
+    list = list.filter(s => {
+      const p = (s.pe !== undefined && s.pe !== null) ? s.pe : (s.pe_ratio || 0);
+      return p >= 3.0 && p <= 35.0;
+    });
+    list.sort((a, b) => {
+      const pa = (a.pe !== undefined && a.pe !== null) ? a.pe : (a.pe_ratio || 999);
+      const pb = (b.pe !== undefined && b.pe !== null) ? b.pe : (b.pe_ratio || 999);
+      return pa - pb;
+    });
   } else if (mType === "rev") {
-    list.sort((a, b) => (b.revenue_yoy || -999) - (a.revenue_yoy || -999));
+    list = list.filter(s => (s.yoy !== undefined && s.yoy !== null && !isNaN(s.yoy)));
+    list.sort((a, b) => b.yoy - a.yoy);
   } else if (mType === "roe") {
-    list.sort((a, b) => (b.roe || -999) - (a.roe || -999));
+    list = list.filter(s => (s.roe !== undefined && s.roe !== null && !isNaN(s.roe) && s.roe > 0));
+    list.sort((a, b) => b.roe - a.roe);
   }
 
   const topItems = list.slice(0, 100);
-  const mySyms = new Set((state.normalizedPositions || []).map(p => (p.symbol || "").toUpperCase()));
 
   topItems.forEach((it, idx) => {
     const tr = document.createElement("tr");
     const isIn = mySyms.has(it.symbol.toUpperCase());
     const inTag = isIn ? `<span class="badge-tag tag-tw">已在庫</span>` : `<span class="cell-sub text-dim">未持有</span>`;
 
-    const yd = (it.dividend_yield !== undefined && it.dividend_yield > 0) ? `${it.dividend_yield.toFixed(2)}%` : "--";
-    const pe = (it.pe_ratio !== undefined && it.pe_ratio > 0) ? it.pe_ratio.toFixed(1) : "--";
-    const yoy = (it.revenue_yoy !== undefined) ? `${it.revenue_yoy > 0 ? "+" : ""}${it.revenue_yoy.toFixed(1)}%` : "--";
-    const roe = (it.roe !== undefined) ? `${it.roe.toFixed(1)}%` : "--";
+    const ydVal = (it.yield_pct !== undefined && it.yield_pct !== null) ? it.yield_pct : it.dividend_yield;
+    const yd = (ydVal !== undefined && ydVal > 0) ? `${ydVal.toFixed(2)}%` : "--";
+
+    const peVal = (it.pe !== undefined && it.pe !== null) ? it.pe : it.pe_ratio;
+    const pe = (peVal !== undefined && peVal > 0) ? peVal.toFixed(2) : "--";
+
+    const yoyVal = (it.yoy !== undefined && it.yoy !== null) ? it.yoy : it.revenue_yoy;
+    const yoy = (yoyVal !== undefined && yoyVal !== null) ? `${yoyVal > 0 ? "+" : ""}${Number(yoyVal).toFixed(2)}%` : "--";
+
+    const roeVal = it.roe;
+    const roe = (roeVal !== undefined && roeVal !== null) ? `${Number(roeVal).toFixed(2)}%` : "--";
 
     tr.innerHTML = `
       <td>${idx + 1}</td>
       <td><b>${it.symbol}</b></td>
       <td>${it.name || it.symbol}</td>
-      <td>${it.price ? it.price.toFixed(2) : "--"}</td>
+      <td><b>${it.price ? it.price.toFixed(2) : "--"}</b></td>
       <td class="text-gold font-bold">${yd}</td>
       <td>${pe}</td>
-      <td class="${(it.revenue_yoy || 0) >= 0 ? "text-red" : "text-green"}">${yoy}</td>
-      <td>${roe}</td>
+      <td class="${(yoyVal || 0) >= 0 ? "text-red" : "text-green"} font-bold">${yoy}</td>
+      <td class="${(roeVal || 0) >= 15 ? "text-red font-bold" : ""}">${roe}</td>
       <td>${inTag}</td>
     `;
     tbody.appendChild(tr);

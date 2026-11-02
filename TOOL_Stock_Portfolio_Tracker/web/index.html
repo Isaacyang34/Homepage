@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://*.firebaseio.com https://*.firebasedatabase.app https://ws.api.cnyes.com https://scanner.tradingview.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://*.firebaseio.com https://*.firebasedatabase.app https://ws.api.cnyes.com https://scanner.tradingview.com https://www.twse.com.tw; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline';">
   <title>零知識加密投資庫存分析儀表板 | Stock Portfolio Viewer</title>
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <link rel="apple-touch-icon" href="app_icon.png">
-  <link rel="stylesheet" href="style.css?v=1.1.3.1">
+  <link rel="stylesheet" href="style.css?v=1.1.5">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -19,7 +19,7 @@
       <div class="brand-header">
         <div class="brand-title-wrap">
           <h2>投資庫存雲端儀表板</h2>
-          <span class="version-pill">V1.1.4</span>
+          <span class="version-pill">V1.1.5</span>
         </div>
       </div>
 
@@ -61,7 +61,7 @@
 
         <div id="login-status" class="status-msg"></div>
         <div style="margin-top: 14px; text-align: center; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 10px;">
-          <span style="font-size: 11px; color: #64748b; font-weight: 500;">Web Edition V1.1.4</span>
+          <span style="font-size: 11px; color: #64748b; font-weight: 500;">Web Edition V1.1.5</span>
         </div>
       </form>
     </div>
@@ -72,7 +72,7 @@
     <!-- 頂部導航列 -->
     <header class="top-navbar glass-panel">
       <div class="nav-left">
-        <div class="logo-text">PORTFOLIO <span class="highlight">INSIGHT</span> <span class="version-pill">V1.1.4</span></div>
+        <div class="logo-text">PORTFOLIO <span class="highlight">INSIGHT</span> <span class="version-pill">V1.1.5</span></div>
         <div class="badge-user" id="user-badge">👤 使用者: -</div>
         <div class="badge-device" id="device-badge">📱 偵測設備中...</div>
         <div class="sync-time" id="sync-time-lbl" title="存股部位與批次同步時間"><span class="badge-icon">📦</span> 存股: -</div>
@@ -315,7 +315,7 @@
           🛡 個人庫存融資維持率風控
         </button>
         <button id="sub-tab-btn-market" class="sub-tab-btn">
-          📊 全市場 4 大核心財務指標排行
+          📊 全市場融資維持率與指標排行
         </button>
       </div>
 
@@ -378,17 +378,42 @@
         </section>
       </div>
 
-      <!-- 子分頁 3-B：全市場 4 大財務指標排行 -->
+      <!-- 子分頁 3-B：全市場融資維持率與核心指標排行 (對齊本機端 unified_ranking_gui.py) -->
       <div id="sub-content-market" class="hidden">
+        <!-- 大盤融資維持率與信用交易概況總覽卡片 (全市場融資排行時呈現) -->
+        <section class="metrics-grid" id="market-margin-summary-cards">
+          <div class="metric-card glass-panel">
+            <div class="metric-title">大盤整體融資維持率估計</div>
+            <div class="metric-val text-accent" id="mkt-summary-ratio">--.-%</div>
+            <div class="metric-sub" id="mkt-summary-status">證交所官方信用總表估算</div>
+          </div>
+          <div class="metric-card glass-panel">
+            <div class="metric-title">全市場融資總餘額</div>
+            <div class="metric-val text-gold" id="mkt-summary-loan">-- 億元</div>
+            <div class="metric-sub">市場信用借款本金</div>
+          </div>
+          <div class="metric-card glass-panel">
+            <div class="metric-title">融資擔保品估計總市值</div>
+            <div class="metric-val text-cyan" id="mkt-summary-mktval">-- 億元</div>
+            <div class="metric-sub">全市場融資在倉現值</div>
+          </div>
+          <div class="metric-card glass-panel">
+            <div class="metric-title">信用交易資料結算日</div>
+            <div class="metric-val" id="mkt-summary-date">--</div>
+            <div class="metric-sub">TWSE 官方發布日</div>
+          </div>
+        </section>
+
         <section class="portfolio-container glass-panel">
           <div class="section-top-bar">
             <div class="bar-title-group">
-              <h3>全市場核心財務指標排行榜 (Market Financial Rankings)</h3>
-              <span class="perf-sub-tip">高殖利率 ‧ 低本益比價值 ‧ 營收高成長 ‧ 高股東權益報酬率 ROE</span>
+              <h3 id="market-rank-title">全市場融資餘額與維持率排行 (TWSE Market Margin Rankings)</h3>
+              <span class="perf-sub-tip" id="market-rank-tip">台灣證交所官方信用交易總表 ‧ 融資餘額由大到小 ‧ 融資使用率 ‧ 130% 斷頭追繳預警</span>
             </div>
             <div class="bar-controls">
               <div class="perf-period-switch" id="market-rank-type-switch">
-                <button class="btn-period active" data-mtype="yield">高殖利率</button>
+                <button class="btn-period active" data-mtype="margin_market">🔥 全市場融資維持率排行</button>
+                <button class="btn-period" data-mtype="yield">高殖利率</button>
                 <button class="btn-period" data-mtype="pe">低本益比</button>
                 <button class="btn-period" data-mtype="rev">營收年增 YoY</button>
                 <button class="btn-period" data-mtype="roe">高 ROE</button>
@@ -402,16 +427,16 @@
           </div>
           <div class="table-responsive">
             <table class="perf-table" id="market-ranking-table">
-              <thead>
+              <thead id="market-ranking-thead">
                 <tr>
                   <th>名次</th>
                   <th>標的代碼</th>
                   <th>標的名稱</th>
                   <th>參考現價</th>
-                  <th>殖利率 %</th>
-                  <th>本益比 PE</th>
-                  <th>營收年增率 YoY</th>
-                  <th>ROE %</th>
+                  <th>今日融資餘額 (張) ⇕</th>
+                  <th>融資使用率 % ⇕</th>
+                  <th>今日買賣超 (張)</th>
+                  <th>130%斷頭價</th>
                   <th>在庫狀態</th>
                 </tr>
               </thead>
@@ -445,10 +470,10 @@
 
     <!-- 底部安全宣告 -->
     <footer class="app-footer">
-      <span>🛡 零知識端到端加密 ‧ 瀏覽器直連即時行情 ‧ 伺服器端零明文 ‧ Web V1.1.4</span>
+      <span>🛡 零知識端到端加密 ‧ 瀏覽器直連即時行情 ‧ 伺服器端零明文 ‧ Web V1.1.5</span>
     </footer>
   </div>
 
-  <script src="app.js?v=1.1.3.1"></script>
+  <script src="app.js?v=1.1.5"></script>
 </body>
 </html>
