@@ -5,7 +5,7 @@
  */
 
 const DEFAULT_FIREBASE_URL = "https://my-stock-tracker-2a94e-default-rtdb.asia-southeast1.firebasedatabase.app";
-const WEB_VERSION = "V1.1.3.1";
+const WEB_VERSION = "V1.2.0";
 const PALETTE = ["#3a86ff", "#00f090", "#ffbe0b", "#ff3366", "#8338ec", "#06d6a0", "#118ab2", "#fb5607"];
 
 let state = {
