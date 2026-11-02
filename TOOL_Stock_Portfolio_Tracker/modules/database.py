@@ -393,10 +393,21 @@ def init_db():
         if "user_id" not in p_cols:
             cursor.execute("ALTER TABLE portfolio ADD COLUMN user_id INTEGER DEFAULT 1")
 
+        cursor.execute("PRAGMA table_info(portfolio)")
+        p_all_cols = [r["name"] for r in cursor.fetchall()]
+        if "trade_type" not in p_all_cols:
+            cursor.execute("ALTER TABLE portfolio ADD COLUMN trade_type TEXT DEFAULT 'CASH'")
+        if "margin_rate" not in p_all_cols:
+            cursor.execute("ALTER TABLE portfolio ADD COLUMN margin_rate REAL DEFAULT 0.6")
+
         cursor.execute("PRAGMA table_info(trade_lots)")
         t_cols = [r["name"] for r in cursor.fetchall()]
         if "user_id" not in t_cols:
             cursor.execute("ALTER TABLE trade_lots ADD COLUMN user_id INTEGER DEFAULT 1")
+        if "trade_type" not in t_cols:
+            cursor.execute("ALTER TABLE trade_lots ADD COLUMN trade_type TEXT DEFAULT 'CASH'")
+        if "margin_rate" not in t_cols:
+            cursor.execute("ALTER TABLE trade_lots ADD COLUMN margin_rate REAL DEFAULT 0.6")
 
         # 3. 歷史 K 線日資料表 (全域共用)
         cursor.execute("""
@@ -666,6 +677,12 @@ def get_all_positions(user_id: Optional[int] = None) -> List[Dict[str, Any]]:
             dec_pos["fee_discount"] = 0.6
         dec_pos["is_etf"] = int(r.get("is_etf", 0))
         dec_pos["note"] = decrypt_field_gcm(r.get("note", ""), uid, str)
+        dec_pos["trade_type"] = str(r.get("trade_type") or "CASH").upper()
+        default_m_rate = 0.5 if dec_pos.get("market") == "TWO" else 0.6
+        try:
+            dec_pos["margin_rate"] = float(r.get("margin_rate") or default_m_rate)
+        except (ValueError, TypeError):
+            dec_pos["margin_rate"] = default_m_rate
         positions.append(dec_pos)
         
     positions.sort(key=lambda x: x.get("symbol", ""))
@@ -697,7 +714,8 @@ def get_position_by_symbol(symbol: str, user_id: Optional[int] = None) -> Option
 
 def add_position(symbol: str, name: str, market: str, shares: float, cost_price: float, 
                  fee_discount: Any = 0.6, is_etf: int = 0, note: str = "",
-                 user_id: Optional[int] = None) -> int:
+                 trade_type: str = "CASH", margin_rate: float = 0.6,
+                 user_id: Optional[int] = None, **kwargs) -> int:
     """新增庫存紀錄至特定使用者，欄位自動加密存入 SQLite"""
     uid = user_id if user_id is not None else get_current_user()["id"]
     sym = symbol.strip().upper()
@@ -721,15 +739,18 @@ def add_position(symbol: str, name: str, market: str, shares: float, cost_price:
     
     with get_connection() as conn:
         cursor = conn.cursor()
+        clean_ttype = str(trade_type or "CASH").upper()
+        clean_mrate = float(margin_rate or (0.5 if market.strip().upper() == "TWO" else 0.6))
         cursor.execute("""
-            INSERT INTO portfolio (user_id, symbol, name, market, shares, cost_price, fee_discount, is_etf, note)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (uid, enc_sym, enc_name, market.strip(), enc_shares, enc_cost, fee_discount_val, is_etf, enc_note))
+            INSERT INTO portfolio (user_id, symbol, name, market, shares, cost_price, fee_discount, is_etf, note, trade_type, margin_rate)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (uid, enc_sym, enc_name, market.strip(), enc_shares, enc_cost, fee_discount_val, is_etf, enc_note, clean_ttype, clean_mrate))
         conn.commit()
         return cursor.lastrowid
 
 def update_position(position_id: int, symbol: str, name: str, market: str, shares: float, 
                     cost_price: float, fee_discount: float, is_etf: int, note: str,
+                    trade_type: str = "CASH", margin_rate: float = 0.6,
                     user_id: Optional[int] = None):
     """更新庫存紀錄，欄位自動加密"""
     uid = user_id if user_id is not None else get_current_user()["id"]
@@ -742,12 +763,14 @@ def update_position(position_id: int, symbol: str, name: str, market: str, share
     
     with get_connection() as conn:
         cursor = conn.cursor()
+        clean_ttype = str(trade_type or "CASH").upper()
+        clean_mrate = float(margin_rate or (0.5 if market.strip().upper() == "TWO" else 0.6))
         cursor.execute("""
             UPDATE portfolio
             SET symbol = ?, name = ?, market = ?, shares = ?, cost_price = ?, 
-                fee_discount = ?, is_etf = ?, note = ?
+                fee_discount = ?, is_etf = ?, note = ?, trade_type = ?, margin_rate = ?
             WHERE id = ? AND user_id = ?
-        """, (enc_sym, enc_name, market.strip(), enc_shares, enc_cost, fee_discount, is_etf, enc_note, position_id, uid))
+        """, (enc_sym, enc_name, market.strip(), enc_shares, enc_cost, fee_discount, is_etf, enc_note, clean_ttype, clean_mrate, position_id, uid))
         conn.commit()
 
 def delete_position(position_id: int, user_id: Optional[int] = None):

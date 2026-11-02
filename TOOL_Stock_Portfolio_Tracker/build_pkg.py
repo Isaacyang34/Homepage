@@ -32,7 +32,11 @@ MODULE_FILES = [
     "integrity_checker.py",
     "plugin_manager.py",
     "login_gui.py",
-    "error_reporter.py"
+    "error_reporter.py",
+    "portfolio_etf_service.py",
+    "portfolio_etf_gui.py",
+    "margin_risk_service.py",
+    "unified_ranking_gui.py"
 ]
 
 def build_app_core_pkg(output_pkg_path: str = "app_core.pkg") -> bool:

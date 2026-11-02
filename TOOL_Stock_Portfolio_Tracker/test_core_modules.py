@@ -623,6 +623,51 @@ class TestUILayoutIntegrity(unittest.TestCase):
 class TestPortfolioETFService(unittest.TestCase):
     """自組投資組合 ETF 淨值蠟燭走勢與各股多週期績效測試"""
 
+    def setUp(self):
+        import tempfile
+        import sqlite3
+        import portfolio_etf_service
+
+        self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        self.temp_db_path = self.temp_db.name
+        self.temp_db.close()
+
+        self.orig_db_file = portfolio_etf_service.DB_FILE
+        portfolio_etf_service.DB_FILE = self.temp_db_path
+
+        conn = sqlite3.connect(self.temp_db_path)
+        c = conn.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS history_kline (
+                symbol TEXT,
+                date TEXT,
+                open REAL,
+                high REAL,
+                low REAL,
+                close REAL,
+                volume REAL,
+                PRIMARY KEY(symbol, date)
+            )
+        """)
+        for i in range(25):
+            d_str = "2026-10-{:02d}".format(i + 1)
+            p0 = 100.0 + i * 0.5
+            c.execute("INSERT INTO history_kline VALUES (?, ?, ?, ?, ?, ?, ?)", ("0050", d_str, p0 - 0.2, p0 + 0.8, p0 - 0.5, p0, 1000000))
+            p1 = 500.0 + i * 2.0
+            c.execute("INSERT INTO history_kline VALUES (?, ?, ?, ?, ?, ?, ?)", ("2330", d_str, p1 - 2.0, p1 + 5.0, p1 - 3.0, p1, 5000000))
+        conn.commit()
+        conn.close()
+
+    def tearDown(self):
+        import os
+        import portfolio_etf_service
+        portfolio_etf_service.DB_FILE = self.orig_db_file
+        if os.path.exists(self.temp_db_path):
+            try:
+                os.remove(self.temp_db_path)
+            except Exception:
+                pass
+
     def test_synthetic_etf_synthesis(self):
         """驗證多檔持股能夠正確合成自組 ETF (OHLCV、NAV、MA5、MA20)"""
         from portfolio_etf_service import calculate_portfolio_synthetic_etf
@@ -680,6 +725,102 @@ class TestPortfolioETFService(unittest.TestCase):
         perf = calculate_stocks_performance_matrix([])
         self.assertEqual(len(perf["items"]), 0)
         self.assertEqual(perf["total_market_value"], 0.0)
+
+
+class TestMarginRiskService(unittest.TestCase):
+    """融資維持率、追繳臨界斷頭價與整戶槓桿風控測試"""
+
+    def test_single_margin_calculation(self):
+        """驗證單檔融資借款、自備保證金與維持率計算"""
+        from margin_risk_service import calculate_single_margin_risk
+
+        # 買入 100 元上市股票 1000 股，融資成數 60%
+        pos = {
+            "symbol": "2330",
+            "name": "台積電",
+            "market": "TW",
+            "shares": 1000,
+            "cost_price": 100.0,
+            "trade_type": "MARGIN",
+            "margin_rate": 0.6
+        }
+        # 當現價為 100 元時
+        res = calculate_single_margin_risk(pos, curr_price=100.0)
+        self.assertTrue(res["is_margin"])
+        self.assertEqual(res["margin_loan"], 60000.0)
+        self.assertEqual(res["margin_equity"], 40000.0)
+        self.assertAlmostEqual(res["maintenance_ratio"], 166.67, places=1)
+        self.assertEqual(res["risk_level"], "SAFE")
+        # 130% 追繳臨界價 = 60000 * 1.30 / 1000 = 78.0 元
+        self.assertEqual(res["call_price"], 78.0)
+        self.assertEqual(res["margin_call_diff"], 0.0)
+
+        # 跌破 78 元至 70 元時 (現值 70,000 元，借款 60,000 元 -> 維持率 116.67% < 130%)
+        res_down = calculate_single_margin_risk(pos, curr_price=70.0)
+        self.assertEqual(res_down["risk_level"], "CALL")
+        self.assertAlmostEqual(res_down["maintenance_ratio"], 116.67, places=1)
+        # 需補繳差額 = 78000 - 70000 = 8000 元
+        self.assertEqual(res_down["margin_call_diff"], 8000.0)
+
+    def test_cash_position_guard(self):
+        """驗證現股無融資部位時防呆機制"""
+        from margin_risk_service import calculate_single_margin_risk
+        pos = {
+            "symbol": "0050",
+            "name": "元大台灣50",
+            "market": "TW",
+            "shares": 2000,
+            "cost_price": 100.0,
+            "trade_type": "CASH"
+        }
+        res = calculate_single_margin_risk(pos, curr_price=120.0)
+        self.assertFalse(res["is_margin"])
+        self.assertIsNone(res["maintenance_ratio"])
+        self.assertIsNone(res["call_price"])
+        self.assertEqual(res["margin_loan"], 0.0)
+        self.assertEqual(res["risk_label"], "現股")
+
+    def test_portfolio_margin_summary(self):
+        """驗證整戶融資擔保維持率加總與預警統計"""
+        from margin_risk_service import calculate_portfolio_margin_summary
+        positions = [
+            {"symbol": "2330", "shares": 1000, "cost_price": 100.0, "trade_type": "MARGIN", "margin_rate": 0.6},
+            {"symbol": "0050", "shares": 1000, "cost_price": 50.0, "trade_type": "CASH"}
+        ]
+        quotes = {
+            "2330": {"current_price": 110.0},
+            "0050": {"current_price": 60.0}
+        }
+        summary = calculate_portfolio_margin_summary(positions, quotes)
+        self.assertTrue(summary["has_margin"])
+        self.assertEqual(summary["total_margin_loan"], 60000.0)
+        self.assertEqual(summary["total_margin_market_val"], 110000.0)
+        # 維持率 = 110,000 / 60,000 * 100 = 183.33%
+        self.assertAlmostEqual(summary["overall_maintenance_ratio"], 183.33, places=1)
+        self.assertEqual(summary["overall_risk_level"], "SAFE")
+        self.assertEqual(summary["call_count"], 0)
+
+
+class TestMainGUIAppBoot(unittest.TestCase):
+    """測試主應用程式 UI 完整啟動與容器綁定 (防止 AttributeError 與啟動崩潰)"""
+
+    def test_main_gui_instantiation_and_callbacks(self):
+        """驗證 PortfolioApp 視窗能正常初始化，且包含最新報價、各分頁與回呼綁定正常"""
+        try:
+            import tkinter as tk
+            from main_gui import PortfolioApp
+            app = PortfolioApp()
+            # 驗證必要屬性與回呼綁定
+            self.assertTrue(hasattr(app, "latest_quotes"))
+            self.assertTrue(hasattr(app, "unified_ranking_frame"))
+            self.assertTrue(hasattr(app, "portfolio_etf_frame"))
+            # 驗證回呼取得 quotes 不會報錯
+            quotes_result = app.unified_ranking_frame.get_quotes_callback()
+            self.assertIsInstance(quotes_result, dict)
+            app.destroy()
+        except tk.TclError:
+            # 無介面 headless 環境容錯
+            pass
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://*.firebaseio.com https://*.firebasedatabase.app; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://*.firebaseio.com https://*.firebasedatabase.app https://ws.api.cnyes.com https://scanner.tradingview.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline';">
   <title>零知識加密投資庫存分析儀表板 | Stock Portfolio Viewer</title>
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <link rel="apple-touch-icon" href="app_icon.png">
-  <link rel="stylesheet" href="style.css?v=1.0.6">
+  <link rel="stylesheet" href="style.css?v=1.1.3.1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -19,7 +19,7 @@
       <div class="brand-header">
         <div class="brand-title-wrap">
           <h2>投資庫存雲端儀表板</h2>
-          <span class="version-pill">V1.0</span>
+          <span class="version-pill">V1.1.3</span>
         </div>
       </div>
 
@@ -61,7 +61,7 @@
 
         <div id="login-status" class="status-msg"></div>
         <div style="margin-top: 14px; text-align: center; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 10px;">
-          <span style="font-size: 11px; color: #64748b; font-weight: 500;">Web Edition V1.0</span>
+          <span style="font-size: 11px; color: #64748b; font-weight: 500;">Web Edition V1.1.3</span>
         </div>
       </form>
     </div>
@@ -72,11 +72,11 @@
     <!-- 頂部導航列 -->
     <header class="top-navbar glass-panel">
       <div class="nav-left">
-        <div class="logo-text">PORTFOLIO <span class="highlight">INSIGHT</span> <span class="version-pill">V1.0</span></div>
+        <div class="logo-text">PORTFOLIO <span class="highlight">INSIGHT</span> <span class="version-pill">V1.1.3</span></div>
         <div class="badge-user" id="user-badge">👤 使用者: -</div>
         <div class="badge-device" id="device-badge">📱 偵測設備中...</div>
         <div class="sync-time" id="sync-time-lbl" title="存股部位與批次同步時間"><span class="badge-icon">📦</span> 存股: -</div>
-        <div class="quote-time" id="quote-time-lbl" title="即時行情與損益更新時間"><span class="live-dot"></span> 數據: -</div>
+        <div class="quote-time" id="quote-time-lbl" title="即時行情與損益更新時間"><span class="live-dot"></span> 行情: -</div>
       </div>
       <div class="nav-right desktop-actions">
         <!-- 視圖切換按鈕 (卡片 / 表格) -->
@@ -87,7 +87,7 @@
         <button id="btn-toggle-privacy" class="btn-tool" title="切換隱私脫敏模式">
           <span class="tool-icon">👁</span> <span id="privacy-text">隱藏金額</span>
         </button>
-        <button id="btn-refresh" class="btn-tool" title="重新載入雲端密文">
+        <button id="btn-refresh" class="btn-tool" title="重新載入雲端密文與即時行情">
           <span class="tool-icon">🔄</span> 重新整理
         </button>
         <button id="btn-logout" class="btn-tool btn-danger" title="銷毀記憶體並登出">
@@ -142,6 +142,9 @@
       </button>
       <button id="tab-btn-etf" class="main-tab-btn">
         <span class="tab-icon">📈</span> 自組 ETF 淨值走勢 & 多期績效分析
+      </button>
+      <button id="tab-btn-rankings" class="main-tab-btn">
+        <span class="tab-icon">🏆</span> 綜合指標與融資風控排行
       </button>
     </div>
 
@@ -304,6 +307,122 @@
       </section>
     </div> <!-- 結束 etf-analytics-tab-content -->
 
+    <!-- 分頁 3 容器：綜合指標與融資風控排行 -->
+    <div id="rankings-tab-content" class="hidden">
+      <!-- 頂部子導航按鈕 (個人庫存融資風控 vs 全市場 4 大指標) -->
+      <div class="sub-tabs-container glass-panel">
+        <button id="sub-tab-btn-margin" class="sub-tab-btn active">
+          🛡 個人庫存融資維持率風控
+        </button>
+        <button id="sub-tab-btn-market" class="sub-tab-btn">
+          📊 全市場 4 大核心財務指標排行
+        </button>
+      </div>
+
+      <!-- 子分頁 3-A：個人庫存融資風控與維持率排行 -->
+      <div id="sub-content-margin">
+        <!-- 4 大風控總覽指標卡片 -->
+        <section class="metrics-grid">
+          <div class="metric-card glass-panel">
+            <div class="metric-title">整戶擔保融資維持率</div>
+            <div class="metric-val text-accent" id="margin-overall-ratio">--.-%</div>
+            <div class="metric-sub" id="margin-overall-status">全現股部位 (無融資借款)</div>
+          </div>
+          <div class="metric-card glass-panel">
+            <div class="metric-title">融資借款總額 (NT$)</div>
+            <div class="metric-val text-gold" id="margin-total-loan">$ 0</div>
+            <div class="metric-sub" id="margin-total-equity">自備保證金: $ 0</div>
+          </div>
+          <div class="metric-card glass-panel">
+            <div class="metric-title">融資擔保品總市值</div>
+            <div class="metric-val text-cyan" id="margin-total-market">$ 0</div>
+            <div class="metric-sub">融資在倉現值</div>
+          </div>
+          <div class="metric-card glass-panel">
+            <div class="metric-title">追繳斷頭警報 (< 130%)</div>
+            <div class="metric-val" id="margin-call-count">0 檔 (安全)</div>
+            <div class="metric-sub" id="margin-call-diff">需補繳差額: $ 0</div>
+          </div>
+        </section>
+
+        <!-- 融資維持率明細表格 -->
+        <section class="portfolio-container glass-panel">
+          <div class="section-top-bar">
+            <div class="bar-title-group">
+              <h3>個人庫存融資維持率與斷頭價監控 (Margin Risk Matrix)</h3>
+              <span class="perf-sub-tip">上市成數 60% ‧ 上櫃 50% ‧ 維持率 &lt; 130% 觸發追繳通知</span>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="portfolio-table" id="margin-risk-table">
+              <thead>
+                <tr>
+                  <th class="th-sticky">標的代碼 / 名稱</th>
+                  <th>交易別</th>
+                  <th>持有股數</th>
+                  <th>成本均價</th>
+                  <th>參考現價</th>
+                  <th>融資借款額</th>
+                  <th>目前市值</th>
+                  <th>融資維持率 ⇕</th>
+                  <th>130%斷頭價</th>
+                  <th>需補繳差額</th>
+                  <th>風控等級</th>
+                </tr>
+              </thead>
+              <tbody id="margin-risk-tbody">
+                <!-- 動態注入 -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <!-- 子分頁 3-B：全市場 4 大財務指標排行 -->
+      <div id="sub-content-market" class="hidden">
+        <section class="portfolio-container glass-panel">
+          <div class="section-top-bar">
+            <div class="bar-title-group">
+              <h3>全市場核心財務指標排行榜 (Market Financial Rankings)</h3>
+              <span class="perf-sub-tip">高殖利率 ‧ 低本益比價值 ‧ 營收高成長 ‧ 高股東權益報酬率 ROE</span>
+            </div>
+            <div class="bar-controls">
+              <div class="perf-period-switch" id="market-rank-type-switch">
+                <button class="btn-period active" data-mtype="yield">高殖利率</button>
+                <button class="btn-period" data-mtype="pe">低本益比</button>
+                <button class="btn-period" data-mtype="rev">營收年增 YoY</button>
+                <button class="btn-period" data-mtype="roe">高 ROE</button>
+              </div>
+              <select id="market-filter-select" class="search-input" style="width: auto; padding: 4px 8px;">
+                <option value="all">全部 (個股+ETF)</option>
+                <option value="stock">僅股票 (排除ETF)</option>
+                <option value="etf">僅ETF (高股息/債券)</option>
+              </select>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="perf-table" id="market-ranking-table">
+              <thead>
+                <tr>
+                  <th>名次</th>
+                  <th>標的代碼</th>
+                  <th>標的名稱</th>
+                  <th>參考現價</th>
+                  <th>殖利率 %</th>
+                  <th>本益比 PE</th>
+                  <th>營收年增率 YoY</th>
+                  <th>ROE %</th>
+                  <th>在庫狀態</th>
+                </tr>
+              </thead>
+              <tbody id="market-ranking-tbody">
+                <!-- 動態注入 -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
     <!-- 手機端專屬底部懸浮快捷列 (Mobile Floating Action Bar) -->
     <nav class="mobile-bottom-bar glass-panel mobile-only">
       <button id="m-btn-view-toggle" class="m-nav-btn">
@@ -326,10 +445,10 @@
 
     <!-- 底部安全宣告 -->
     <footer class="app-footer">
-      <span>🛡 零知識端到端加密 ‧ 智慧自適應設備佈局 ‧ 伺服器端零明文 ‧ Web V1.0</span>
+      <span>🛡 零知識端到端加密 ‧ 瀏覽器直連即時行情 ‧ 伺服器端零明文 ‧ Web V1.1.3</span>
     </footer>
   </div>
 
-  <script src="app.js?v=1.0.6"></script>
+  <script src="app.js?v=1.1.3.1"></script>
 </body>
 </html>

@@ -39,6 +39,7 @@ from updater import (
 from market_ranking_gui import MarketRankingDialog
 from login_gui import LoginDialog, UserManageDialog
 from portfolio_etf_gui import PortfolioETFFrame, PortfolioETFStudioDialog
+from unified_ranking_gui import UnifiedRankingFrame
 
 def clean_number(val_str: str, default: float = 0.0) -> float:
     """寬容解析數值：自動相容千分位逗號、全形小數點(．/。)、全形逗點與貨幣符號"""
@@ -657,18 +658,36 @@ class PortfolioApp(tk.Tk):
         )
         self.btn_tab_etf.pack(side=tk.LEFT, padx=4)
 
-        # 2. 中間庫存清單表格容器
+        self.btn_tab_ranking = tk.Button(
+            self.main_tab_nav, text="[綜合指標與風控排行]",
+            bg="#181822", fg="#9090a0", activebackground="#2a2a3c", activeforeground="#ffffff",
+            relief=tk.FLAT, font=("Microsoft JhengHei UI", 9, "bold"), cursor="hand2",
+            padx=12, pady=3, command=lambda: self.switch_main_tab("ranking")
+        )
+        self.btn_tab_ranking.pack(side=tk.LEFT, padx=4)
+
+        # 2. 中間庫存清單表格容器 (分頁 1)
         self.mid_frame = ttk.Frame(self, padding=(12, 5, 12, 5))
         self.mid_frame.pack(fill=tk.BOTH, expand=True)
         self.rebuild_table()
 
-        # 2.5 自組 ETF K 線與多期績效容器 (分頁)
+        # 2.5 自組 ETF K 線與多期績效容器 (分頁 2)
         self.portfolio_etf_container = tk.Frame(self, bg="#181820")
         self.portfolio_etf_frame = PortfolioETFFrame(
             self.portfolio_etf_container,
             get_positions_callback=lambda: self.positions
         )
         self.portfolio_etf_frame.pack(fill=tk.BOTH, expand=True)
+
+        # 2.8 綜合指標與融資風控排行容器 (分頁 3)
+        self.unified_ranking_container = tk.Frame(self, bg="#181820")
+        self.unified_ranking_frame = UnifiedRankingFrame(
+            self.unified_ranking_container,
+            get_positions_callback=lambda: self.positions,
+            get_quotes_callback=lambda: getattr(self, "latest_quotes", {}),
+            on_add_position_callback=lambda item: PositionEditDialog(self, "新增持股", pos=item, on_saved=self.refresh_portfolio_data)
+        )
+        self.unified_ranking_frame.pack(fill=tk.BOTH, expand=True)
 
         # 3. 底部功能按鈕與工具列 (無重複按鈕，專注於核心圖表與設定)
         bottom_frame = ttk.Frame(self, padding=(12, 8, 12, 12))
@@ -681,9 +700,6 @@ class PortfolioApp(tk.Tk):
 
         btn_dividend_analyzer = ttk.Button(bottom_frame, text="[股息分析] 現金流月曆", command=self.on_open_dividend_analyzer, style="Action.TButton")
         btn_dividend_analyzer.pack(side=tk.LEFT, padx=2)
-
-        btn_ranking = ttk.Button(bottom_frame, text="[市場排行] 4大指標", command=self.on_open_market_ranking, style="Action.TButton")
-        btn_ranking.pack(side=tk.LEFT, padx=2)
 
         btn_view_kline = ttk.Button(bottom_frame, text="[K線] 個股走勢圖", command=self.on_view_kline, style="Action.TButton")
         btn_view_kline.pack(side=tk.LEFT, padx=2)
@@ -1548,26 +1564,34 @@ class PortfolioApp(tk.Tk):
 
 
     def switch_main_tab(self, tab_name: str):
-        """切換主視窗中央視圖分頁 (存股持股明細 vs 自組 ETF 走勢與績效)"""
+        """切換主視窗中央視圖分頁 (存股持股明細 vs 自組 ETF 走勢 vs 綜合指標與融資風控排行)"""
         self.current_main_tab = tab_name
+        for container in (getattr(self, "mid_frame", None), 
+                          getattr(self, "portfolio_etf_container", None), 
+                          getattr(self, "unified_ranking_container", None)):
+            if container:
+                try: container.pack_forget()
+                except Exception: pass
+
+        self.btn_tab_portfolio.config(bg="#181822", fg="#9090a0")
+        self.btn_tab_etf.config(bg="#181822", fg="#9090a0")
+        if hasattr(self, "btn_tab_ranking"):
+            self.btn_tab_ranking.config(bg="#181822", fg="#9090a0")
+
         if tab_name == "portfolio":
-            try:
-                self.portfolio_etf_container.pack_forget()
-            except Exception:
-                pass
             self.mid_frame.pack(fill=tk.BOTH, expand=True, before=self.bottom_frame_ref)
             self.btn_tab_portfolio.config(bg="#232332", fg="#38bdf8")
-            self.btn_tab_etf.config(bg="#181822", fg="#9090a0")
-        else:
-            try:
-                self.mid_frame.pack_forget()
-            except Exception:
-                pass
+        elif tab_name == "etf":
             self.portfolio_etf_container.pack(fill=tk.BOTH, expand=True, before=self.bottom_frame_ref)
-            self.btn_tab_portfolio.config(bg="#181822", fg="#9090a0")
             self.btn_tab_etf.config(bg="#232332", fg="#38bdf8")
             if hasattr(self, "portfolio_etf_frame"):
                 self.portfolio_etf_frame.refresh_data()
+        elif tab_name == "ranking":
+            self.unified_ranking_container.pack(fill=tk.BOTH, expand=True, before=self.bottom_frame_ref)
+            if hasattr(self, "btn_tab_ranking"):
+                self.btn_tab_ranking.config(bg="#232332", fg="#38bdf8")
+            if hasattr(self, "unified_ranking_frame"):
+                self.unified_ranking_frame.refresh_margin_data()
 
     def on_open_portfolio_etf(self):
         """開啟或切換至自組 ETF 淨值走勢與各股多期績效分頁/獨立視窗"""
@@ -1709,6 +1733,29 @@ class PositionEditDialog(tk.Toplevel):
         if self.pos:
             self.ent_note.insert(0, self.pos.get("note", ""))
         self.ent_note.grid(row=0, column=7, padx=(6, 4), pady=2, ipady=2)
+
+        # 第 3 列：交易類別 (現股 / 融資) 與融資成數
+        r3 = tk.Frame(base_frame, bg="#262633")
+        r3.pack(fill=tk.X, pady=(4, 2))
+
+        tk.Label(r3, text="交易類別:", bg="#262633", fg="#ffffff", font=("Microsoft JhengHei UI", 9, "bold")).pack(side=tk.LEFT)
+        init_ttype = str(self.pos.get("trade_type", "CASH") if self.pos else "CASH").upper()
+        self.var_trade_type = tk.StringVar(value=init_ttype)
+        rb_cash = tk.Radiobutton(r3, text="現股 (自備100%)", variable=self.var_trade_type, value="CASH", bg="#262633", fg="#ffffff", selectcolor="#1e1e28", activebackground="#262633", activeforeground="#ffffff", font=("Microsoft JhengHei UI", 9))
+        rb_cash.pack(side=tk.LEFT, padx=6)
+        rb_margin = tk.Radiobutton(r3, text="融資 (借款槓桿)", variable=self.var_trade_type, value="MARGIN", bg="#262633", fg="#ffffff", selectcolor="#1e1e28", activebackground="#262633", activeforeground="#ffffff", font=("Microsoft JhengHei UI", 9))
+        rb_margin.pack(side=tk.LEFT, padx=6)
+
+        tk.Label(r3, text="融資成數:", bg="#262633", fg="#94a3b8", font=("Microsoft JhengHei UI", 9)).pack(side=tk.LEFT, padx=(16, 4))
+        self.combo_margin_rate = ttk.Combobox(r3, values=["60% (上市標準成數)", "50% (上櫃標準成數)", "40% (特殊/處置成數)"], state="readonly", width=17, font=("Microsoft JhengHei UI", 9))
+        cur_mrate = float(self.pos.get("margin_rate") or (0.5 if (self.pos and self.pos.get("market") == "TWO") else 0.6)) if self.pos else 0.6
+        if cur_mrate == 0.5:
+            self.combo_margin_rate.set("50% (上櫃標準成數)")
+        elif cur_mrate == 0.4:
+            self.combo_margin_rate.set("40% (特殊/處置成數)")
+        else:
+            self.combo_margin_rate.set("60% (上市標準成數)")
+        self.combo_margin_rate.pack(side=tk.LEFT, padx=4)
 
         # ==========================================
         # 2. 下半部：整合「取得時間批次管理」
@@ -2075,10 +2122,20 @@ class PositionEditDialog(tk.Toplevel):
         market = meta["market"]
         is_etf = meta["is_etf"]
 
+        ttype_val = self.var_trade_type.get() if hasattr(self, "var_trade_type") else "CASH"
+        mrate_val = 0.6
+        if hasattr(self, "combo_margin_rate"):
+            s_m = self.combo_margin_rate.get()
+            if "50%" in s_m: mrate_val = 0.5
+            elif "40%" in s_m: mrate_val = 0.4
+            else: mrate_val = 0.6
+
         if self.pos:
-            update_position(self.pos["id"], symbol, name, market, shares, cost_price, fee_discount, is_etf, note)
+            update_position(self.pos["id"], symbol, name, market, shares, cost_price, fee_discount, is_etf, note,
+                            trade_type=ttype_val, margin_rate=mrate_val)
         else:
-            add_position(symbol, name, market, shares, cost_price, fee_discount, is_etf, note)
+            add_position(symbol, name, market, shares, cost_price, fee_discount, is_etf, note,
+                         trade_type=ttype_val, margin_rate=mrate_val)
 
         if self.on_saved:
             self.on_saved()

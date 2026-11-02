@@ -248,6 +248,8 @@ def gather_full_portfolio_data(user_id: Optional[int] = None) -> Dict[str, Any]:
         pnl["id"] = pos.get("id")
         pnl["market"] = market
         pnl["note"] = pos.get("note", "")
+        pnl["trade_type"] = str(pos.get("trade_type", "CASH")).upper()
+        pnl["margin_rate"] = float(pos.get("margin_rate") or (0.5 if market == "TWO" else 0.6))
         enriched_positions.append(pnl)
 
         total_cost_sum += pnl.get("total_cost", 0.0)
@@ -307,6 +309,14 @@ def gather_full_portfolio_data(user_id: Optional[int] = None) -> Dict[str, Any]:
     quotes_time = get_setting("last_quotes_update_time", now_str)
     portfolio_time = get_setting("last_portfolio_change_time", now_str)
 
+    # 7. 計算融資擔保維持率與槓桿風控指標
+    margin_risk = {}
+    try:
+        from margin_risk_service import calculate_portfolio_margin_summary
+        margin_risk = calculate_portfolio_margin_summary(enriched_positions, quotes)
+    except Exception as e:
+        margin_risk = {"error": str(e)}
+
     return {
         "exported_at": now_str,
         "portfolio_sync_time": portfolio_time,
@@ -315,7 +325,8 @@ def gather_full_portfolio_data(user_id: Optional[int] = None) -> Dict[str, Any]:
         "positions": enriched_positions,
         "trade_lots": lots_by_symbol,
         "dividends": divs_by_symbol,
-        "synthetic_etf": synthetic_etf
+        "synthetic_etf": synthetic_etf,
+        "margin_risk": margin_risk
     }
 
 def sync_to_cloud(user_id: str, password: str, firebase_url: Optional[str] = None, local_user_id: Optional[int] = None) -> Tuple[bool, str]:

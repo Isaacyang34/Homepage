@@ -1,29 +1,35 @@
 /**
  * 零知識端到端加密投資庫存儀表板 (Web Crypto API 原生純前端)
- * 具備設備智慧自動分析、動態形態自我調適 (手機卡片流 / 桌面專業表格)
+ * 具備瀏覽器直連即時行情 (CNYES + TradingView 雙引擎 + Firebase 備援)、
+ * 即時動態損益重算與自組 ETF 盤中淨值/K線同步運算
  */
 
 const DEFAULT_FIREBASE_URL = "https://my-stock-tracker-2a94e-default-rtdb.asia-southeast1.firebasedatabase.app";
-const WEB_VERSION = "V1.0";
+const WEB_VERSION = "V1.1.3.1";
 const PALETTE = ["#3a86ff", "#00f090", "#ffbe0b", "#ff3366", "#8338ec", "#06d6a0", "#118ab2", "#fb5607"];
 
 let state = {
   user: "",
   password: "",
+  secretKey: "",
   rtdbUrl: DEFAULT_FIREBASE_URL,
   decryptedData: null,
   privacyMode: false,
   rawPositions: [],
+  normalizedPositions: [],
   deviceType: "desktop", // "mobile" | "tablet" | "desktop"
   currentViewMode: "table", // 預設以表格視圖為主
   sortField: "symbol",
   sortOrder: "asc",
   lastCloudUpdateTime: "",
   lastPortfolioSyncTime: "",
-  lastQuotesTime: ""
+  lastQuotesTime: "",
+  quoteSourceLabel: "即時"
 };
 
 let autoPollInterval = null;
+let pollTickCounter = 0;
+let isFetchingQuotes = false;
 
 function getNowFormatted() {
   const d = new Date();
@@ -31,94 +37,464 @@ function getNowFormatted() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
+function formatEpochToTaiwanTime(epochSec) {
+  if (!epochSec || isNaN(epochSec) || epochSec <= 0) return "";
+  const baseMs = epochSec > 1e12 ? epochSec : epochSec * 1000;
+  const twMs = baseMs + 8 * 3600 * 1000;
+  const d = new Date(twMs);
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+}
 
-// --- 客戶端獨立即時報價引擎 (Client-Side Independent Live Quotes Engine) ---
+function getTaiwanTodayDateStr() {
+  const twMs = Date.now() + 8 * 3600 * 1000;
+  const d = new Date(twMs);
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+}
+
+function fetchWithTimeout(url, options = {}, timeoutMs = 6000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: ctrl.signal }).finally(() => clearTimeout(timer));
+}
+
+// --- 客戶端獨立即時報價引擎 (Direct Browser Multi-Tier Live Quotes Engine) ---
+
+async function fetchCnyesLiveQuotes(twSymbols) {
+  const result = {};
+  if (!twSymbols || twSymbols.length === 0) return result;
+
+  const batchSize = 25;
+  for (let i = 0; i < twSymbols.length; i += batchSize) {
+    const chunk = twSymbols.slice(i, i + batchSize);
+    const symbolsParam = chunk
+      .map(s => `TWS:${s.replace(/[^A-Z0-9.\-]/gi, "")}:STOCK`)
+      .join(",");
+    const url = `https://ws.api.cnyes.com/ws/api/v1/quote/quotes/${symbolsParam}?column=I&_t=${Date.now()}`;
+    try {
+      const resp = await fetchWithTimeout(url, { cache: "no-store" }, 5500);
+      if (!resp.ok) continue;
+      const json = await resp.json();
+      const items = Array.isArray(json.data)
+        ? json.data
+        : (json.data && Array.isArray(json.data.items) ? json.data.items : []);
+
+      for (const it of items) {
+        if (!it) continue;
+        const sym = String(it["200010"] || "").trim().toUpperCase();
+        if (!sym) continue;
+
+        const tradePrice = parseFloat(it["6"]);
+        const yClose = parseFloat(it["21"]);
+        const openP = parseFloat(it["19"]);
+        const highP = parseFloat(it["12"]);
+        const lowP = parseFloat(it["13"]);
+        const volLots = parseFloat(it["800001"]);
+        const matchEpoch = parseFloat(it["200007"]);
+
+        const validPrice = (tradePrice > 0) ? tradePrice : ((yClose > 0) ? yClose : 0);
+        if (validPrice <= 0) continue;
+
+        const effOpen = openP > 0 ? openP : validPrice;
+        const effHigh = highP > 0 ? Math.max(highP, effOpen, validPrice) : Math.max(effOpen, validPrice);
+        const effLow = lowP > 0 ? Math.min(lowP, effOpen, validPrice) : Math.min(effOpen, validPrice);
+
+        result[sym] = {
+          price: validPrice,
+          yesterday_close: yClose > 0 ? yClose : validPrice,
+          open: effOpen,
+          high: effHigh,
+          low: effLow,
+          volume: (!isNaN(volLots) && volLots > 0) ? Math.round(volLots * 1000) : 0,
+          name: it["200009"] || sym,
+          time: formatEpochToTaiwanTime(matchEpoch) || getNowFormatted(),
+          source: "LIVE_CNYES"
+        };
+      }
+    } catch (e) {
+      // 單批失敗時自動交由下一層 TradingView 即時引擎接手
+    }
+  }
+  return result;
+}
+
+async function fetchTradingViewLiveQuotes(symbols, marketRegion = "taiwan") {
+  const result = {};
+  if (!symbols || symbols.length === 0) return result;
+
+  const prefixes = marketRegion === "america"
+    ? ["NASDAQ", "NYSE", "AMEX"]
+    : ["TWSE", "TPEX"];
+
+  const tickers = [];
+  for (const s of symbols) {
+    const cleanSym = s.replace(/[^A-Z0-9.\-]/gi, "");
+    for (const pfx of prefixes) {
+      tickers.push(`${pfx}:${cleanSym}`);
+    }
+  }
+
+  const url = `https://scanner.tradingview.com/${marketRegion}/scan`;
+  const payload = JSON.stringify({
+    symbols: { tickers },
+    columns: ["name", "close", "change", "change_abs", "open", "high", "low", "volume"]
+  });
+
+  try {
+    const resp = await fetchWithTimeout(url, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=UTF-8" },
+      body: payload,
+      cache: "no-store"
+    }, 6000);
+    if (!resp.ok) return result;
+    const json = await resp.json();
+    const rows = Array.isArray(json.data) ? json.data : [];
+    const nowTime = getNowFormatted();
+
+    for (const row of rows) {
+      if (!row || !Array.isArray(row.d)) continue;
+      const [symName, closeP, chgPct, chgAbs, openP, highP, lowP, vol] = row.d;
+      const sym = String(symName || "").trim().toUpperCase();
+      const validPrice = parseFloat(closeP);
+      if (!sym || isNaN(validPrice) || validPrice <= 0) continue;
+
+      let yClose = validPrice;
+      const absVal = parseFloat(chgAbs);
+      if (!isNaN(absVal) && validPrice - absVal > 0) {
+        yClose = Number((validPrice - absVal).toFixed(4));
+      } else if (!isNaN( parseFloat(chgPct) ) && Math.abs(parseFloat(chgPct)) > 0) {
+        yClose = Number((validPrice / (1 + parseFloat(chgPct) / 100)).toFixed(4));
+      }
+
+      const effOpen = parseFloat(openP) > 0 ? parseFloat(openP) : validPrice;
+      const effHigh = parseFloat(highP) > 0 ? Math.max(parseFloat(highP), effOpen, validPrice) : Math.max(effOpen, validPrice);
+      const effLow = parseFloat(lowP) > 0 ? Math.min(parseFloat(lowP), effOpen, validPrice) : Math.min(effOpen, validPrice);
+
+      result[sym] = {
+        price: validPrice,
+        yesterday_close: yClose,
+        open: effOpen,
+        high: effHigh,
+        low: effLow,
+        volume: (!isNaN(parseFloat(vol)) && parseFloat(vol) > 0) ? Math.round(parseFloat(vol)) : 0,
+        time: nowTime,
+        source: "LIVE_TV"
+      };
+    }
+  } catch (e) {
+    // 靜默降級至第三層雲端備援
+  }
+  return result;
+}
 
 async function fetchLiveQuotesAndUpdateUI() {
   if (!state.decryptedData || !state.rawPositions || state.rawPositions.length === 0) return;
+  if (isFetchingQuotes) return;
+  isFetchingQuotes = true;
 
-  let quotesMap = {};
-  let quotesTime = "";
-
-  // 1. 優先嘗試從 Firebase /stats/quotes.json 讀取雲端報價快取 (最即時、零 CORS 問題)
   try {
-    const qResp = await fetch(`${state.rtdbUrl}/stats/quotes.json?t=${Date.now()}`, { cache: "no-store" });
-    if (qResp.ok) {
-      const qData = await qResp.json();
-      if (qData && typeof qData === "object") {
-        quotesMap = qData;
-        for (const k in qData) {
-          if (qData[k] && qData[k].time && (!quotesTime || qData[k].time > quotesTime)) {
-            quotesTime = qData[k].time;
+    const twSymbolsSet = new Set();
+    const usSymbolsSet = new Set();
+
+    state.rawPositions.forEach(p => {
+      const sym = (p.symbol || "").trim().toUpperCase();
+      if (!sym) return;
+      const mkt = (p.market || "").toUpperCase();
+      const isUs = mkt === "US" || (!mkt && /^[A-Z.\-]+$/.test(sym) && !/^\d/.test(sym));
+      if (isUs) usSymbolsSet.add(sym);
+      else twSymbolsSet.add(sym);
+    });
+
+    const twSymbols = Array.from(twSymbolsSet);
+    const usSymbols = Array.from(usSymbolsSet);
+    const allSymbols = [...twSymbols, ...usSymbols];
+
+    const quotesMap = {};
+    let quotesTime = "";
+    let liveHitCount = 0;
+
+    // 第一層：瀏覽器直連鉅亨網 CNYES 即時撮合報價 API (台股上市/上櫃/ETF/債券ETF 毫秒級 0.16s 直連)
+    if (twSymbols.length > 0) {
+      const cnyesQuotes = await fetchCnyesLiveQuotes(twSymbols);
+      for (const sym in cnyesQuotes) {
+        quotesMap[sym] = cnyesQuotes[sym];
+        liveHitCount++;
+        if (cnyesQuotes[sym].time && (!quotesTime || cnyesQuotes[sym].time > quotesTime)) {
+          quotesTime = cnyesQuotes[sym].time;
+        }
+      }
+    }
+
+    // 第二層：TradingView Scanner 即時報價引擎 (補齊漏網台股 + 美股即時報價)
+    const missingTw = twSymbols.filter(s => !quotesMap[s]);
+    const tvTasks = [];
+    if (missingTw.length > 0) tvTasks.push(fetchTradingViewLiveQuotes(missingTw, "taiwan"));
+    if (usSymbols.length > 0) tvTasks.push(fetchTradingViewLiveQuotes(usSymbols, "america"));
+
+    if (tvTasks.length > 0) {
+      const tvResults = await Promise.all(tvTasks);
+      for (const mapObj of tvResults) {
+        for (const sym in mapObj) {
+          if (!quotesMap[sym]) {
+            quotesMap[sym] = mapObj[sym];
+            liveHitCount++;
+            if (mapObj[sym].time && (!quotesTime || mapObj[sym].time > quotesTime)) {
+              quotesTime = mapObj[sym].time;
+            }
           }
         }
       }
     }
-  } catch (e) {
-    // 靜默降級
-  }
 
-  // 2. 備援嘗試：若 Firebase 無報價，從同源 GitHub Pages 讀取 market_ranking_cache 與 etf_live_cache
-  if (Object.keys(quotesMap).length === 0) {
-    try {
-      const [rEtf, rMkt] = await Promise.allSettled([
-        fetch("../../WEB_ETF_Portfolio_Analyzer/etf_live_cache.json?t=" + Date.now()).then(r => r.ok ? r.json() : {}),
-        fetch("../market_ranking_cache.json?t=" + Date.now()).then(r => r.ok ? r.json() : {})
-      ]);
-      if (rEtf.status === "fulfilled" && rEtf.value) {
-        for (const code in rEtf.value) {
-          const it = rEtf.value[code];
-          if (it && it.price) quotesMap[code] = { price: it.price, name: it.name, time: "盤後快取" };
+    // 第三層：若仍有未命中的標的 (如極端斷網或防火牆封鎖)，從 Firebase /stats/quotes.json 補齊
+    const stillMissing = allSymbols.filter(s => !quotesMap[s]);
+    if (stillMissing.length > 0) {
+      try {
+        const qResp = await fetchWithTimeout(`${state.rtdbUrl}/stats/quotes.json?t=${Date.now()}`, { cache: "no-store" }, 5000);
+        if (qResp.ok) {
+          const qData = await qResp.json();
+          if (qData && typeof qData === "object") {
+            for (const sym of stillMissing) {
+              const fbQ = qData[sym];
+              if (fbQ && fbQ.price && fbQ.price > 0) {
+                quotesMap[sym] = {
+                  price: parseFloat(fbQ.price),
+                  yesterday_close: parseFloat(fbQ.yesterday_close) || parseFloat(fbQ.price),
+                  time: fbQ.time || "",
+                  source: "FIREBASE_CACHE"
+                };
+                if (!quotesTime && fbQ.time) quotesTime = fbQ.time;
+              }
+            }
+          }
         }
-      }
-      if (rMkt.status === "fulfilled" && rMkt.value && rMkt.value.stocks) {
-        for (const s of rMkt.value.stocks) {
-          if (s && s.symbol && s.price) quotesMap[s.symbol] = { price: s.price, name: s.name, time: "盤後快取" };
-        }
-      }
-    } catch (e) {}
-  }
-
-  // 3. 將最新報價套用至當前解密的部位
-  let anyPriceUpdated = false;
-  state.rawPositions.forEach(p => {
-    const sym = (p.symbol || "").trim().toUpperCase();
-    const q = quotesMap[sym];
-    if (q && q.price && q.price > 0) {
-      if (Math.abs(p.current_price - q.price) > 0.001) {
-        p.current_price = q.price;
-        anyPriceUpdated = true;
-      }
-      if (q.yesterday_close && q.yesterday_close > 0) {
-        p.yesterday_close = q.yesterday_close;
-      }
-      if (q.time && (!quotesTime || q.time > quotesTime)) {
-        quotesTime = q.time;
-      }
+      } catch (e) {}
     }
+
+    // 將最新即時報價套用至當前解密的部位
+    state.rawPositions.forEach(p => {
+      const sym = (p.symbol || "").trim().toUpperCase();
+      const q = quotesMap[sym];
+      if (q && q.price && q.price > 0) {
+        p.current_price = q.price;
+        if (q.yesterday_close && q.yesterday_close > 0) {
+          p.yesterday_close = q.yesterday_close;
+        }
+        if (q.open && q.open > 0) p._live_open = q.open;
+        if (q.high && q.high > 0) p._live_high = q.high;
+        if (q.low && q.low > 0) p._live_low = q.low;
+        if (q.volume !== undefined) p._live_volume = q.volume;
+      }
+    });
+
+    if (!quotesTime) {
+      quotesTime = getNowFormatted();
+    }
+    state.quoteSourceLabel = liveHitCount > 0 ? "即時" : "雲端快取";
+    state.lastQuotesTime = quotesTime;
+
+    // 同步動態更新「自組 ETF 淨值 K 線與多週期績效矩陣」
+    updateSyntheticEtfWithLiveQuotes(quotesMap, quotesTime);
+
+    // 即時重算全庫存損益與畫面渲染
+    renderDashboard(state.decryptedData, state.lastCloudUpdateTime, quotesTime, state.lastPortfolioSyncTime);
+
+    // 綠色小圓點與邊框閃爍提示 (視覺化反饋)
+    const quoteEl = document.getElementById("quote-time-lbl");
+    if (quoteEl) {
+      quoteEl.style.transition = "all 0.3s ease";
+      quoteEl.style.color = "#00f090";
+      quoteEl.style.borderColor = "rgba(0, 240, 144, 0.8)";
+      quoteEl.style.boxShadow = "0 0 10px rgba(0, 240, 144, 0.3)";
+      setTimeout(() => {
+        quoteEl.style.color = "";
+        quoteEl.style.borderColor = "";
+        quoteEl.style.boxShadow = "";
+      }, 1200);
+    }
+  } finally {
+    isFetchingQuotes = false;
+  }
+}
+
+function captureSyntheticEtfBaseline(decrypted) {
+  if (!decrypted || !decrypted.synthetic_etf) return;
+  const etf = decrypted.synthetic_etf;
+  if (Array.isArray(etf.records) && !etf._origRecords) {
+    etf._origRecords = etf.records.map(r => ({ ...r }));
+  }
+  if (etf.performance && Array.isArray(etf.performance.items) && !etf.performance._origItems) {
+    etf.performance._origItems = etf.performance.items.map(it => ({ ...it }));
+  }
+}
+
+function updateSyntheticEtfWithLiveQuotes(quotesMap, quotesTime) {
+  if (!state.decryptedData || !state.decryptedData.synthetic_etf) return;
+  const etf = state.decryptedData.synthetic_etf;
+  captureSyntheticEtfBaseline(state.decryptedData);
+
+  const divs = state.decryptedData.dividends || {};
+  const liveNormalized = (state.rawPositions || []).map(p => normalizePosition(p, divs));
+  const normBySym = {};
+  liveNormalized.forEach(np => {
+    normBySym[(np.symbol || "").trim().toUpperCase()] = np;
   });
 
-  // 最新數據計算時間戳：若抓到了市場報價時間，顯示市場時間；否則以當前即時重新計算之時間為準
-  if (!quotesTime || quotesTime === "盤後快取") {
-    quotesTime = getNowFormatted();
+  // 1. 動態更新自組 ETF 今日盤中 K 線棒與最新 NAV / MA5 / MA20
+  const origRecords = etf._origRecords || [];
+  if (origRecords.length > 0 && liveNormalized.length > 0) {
+    const baseNav = parseFloat(etf.base_nav) || 100.0;
+    const baseMarketVal = parseFloat(origRecords[0].market_val) || 0;
+
+    if (baseMarketVal > 0) {
+      const scaleFactor = baseNav / baseMarketVal;
+      let openVal = 0;
+      let highVal = 0;
+      let lowVal = 0;
+      let closeVal = 0;
+      let totVol = 0;
+
+      liveNormalized.forEach(np => {
+        const sym = (np.symbol || "").trim().toUpperCase();
+        const shs = np.shares || 0;
+        if (shs <= 0 || np.current_price <= 0) return;
+        const q = quotesMap[sym] || {};
+        const pClose = np.current_price;
+        const pOpen = q.open > 0 ? q.open : pClose;
+        const pHigh = q.high > 0 ? Math.max(q.high, pOpen, pClose) : Math.max(pOpen, pClose);
+        const pLow = q.low > 0 ? Math.min(q.low, pOpen, pClose) : Math.min(pOpen, pClose);
+
+        openVal += shs * pOpen;
+        highVal += shs * pHigh;
+        lowVal += shs * pLow;
+        closeVal += shs * pClose;
+        totVol += (q.volume || 0);
+      });
+
+      if (closeVal > 0) {
+        const quoteDatePart = (quotesTime && /^\d{4}-\d{2}-\d{2}/.test(quotesTime))
+          ? quotesTime.slice(0, 10)
+          : getTaiwanTodayDateStr();
+
+        const nextRecords = origRecords.map(r => ({ ...r }));
+        const lastOrig = nextRecords[nextRecords.length - 1];
+
+        const etfOpen = Number((openVal * scaleFactor).toFixed(2));
+        const etfHigh = Number((highVal * scaleFactor).toFixed(2));
+        const etfLow = Number((lowVal * scaleFactor).toFixed(2));
+        const etfClose = Number((closeVal * scaleFactor).toFixed(2));
+
+        if (quoteDatePart === lastOrig.date) {
+          const prevClose = nextRecords.length >= 2 ? nextRecords[nextRecords.length - 2].close : baseNav;
+          const dayChg = prevClose > 0 ? Number((etfClose - prevClose).toFixed(2)) : 0;
+          const dayChgPct = prevClose > 0 ? Number(((etfClose - prevClose) / prevClose * 100).toFixed(2)) : 0;
+          nextRecords[nextRecords.length - 1] = {
+            ...lastOrig,
+            open: etfOpen,
+            high: Math.max(etfHigh, etfOpen, etfClose),
+            low: Math.min(etfLow, etfOpen, etfClose),
+            close: etfClose,
+            volume: totVol > 0 ? Math.round(totVol) : (lastOrig.volume || 0),
+            market_val: Math.round(closeVal),
+            change: dayChg,
+            change_pct: dayChgPct
+          };
+        } else if (quoteDatePart > lastOrig.date) {
+          const prevClose = lastOrig.close || baseNav;
+          const dayChg = prevClose > 0 ? Number((etfClose - prevClose).toFixed(2)) : 0;
+          const dayChgPct = prevClose > 0 ? Number(((etfClose - prevClose) / prevClose * 100).toFixed(2)) : 0;
+          nextRecords.push({
+            date: quoteDatePart,
+            open: etfOpen,
+            high: Math.max(etfHigh, etfOpen, etfClose),
+            low: Math.min(etfLow, etfOpen, etfClose),
+            close: etfClose,
+            volume: Math.round(totVol),
+            market_val: Math.round(closeVal),
+            change: dayChg,
+            change_pct: dayChgPct,
+            ma5: null,
+            ma20: null
+          });
+        }
+
+        // 重算 MA5 與 MA20
+        const closes = nextRecords.map(r => r.close);
+        for (let i = 0; i < nextRecords.length; i++) {
+          if (i >= 4) {
+            const sum5 = closes.slice(i - 4, i + 1).reduce((a, b) => a + b, 0);
+            nextRecords[i].ma5 = Number((sum5 / 5).toFixed(2));
+          } else {
+            nextRecords[i].ma5 = null;
+          }
+          if (i >= 19) {
+            const sum20 = closes.slice(i - 19, i + 1).reduce((a, b) => a + b, 0);
+            nextRecords[i].ma20 = Number((sum20 / 20).toFixed(2));
+          } else {
+            nextRecords[i].ma20 = null;
+          }
+        }
+
+        const latestRec = nextRecords[nextRecords.length - 1];
+        etf.records = nextRecords;
+        etf.current_nav = latestRec.close;
+        etf.nav_change_pct = latestRec.change_pct;
+        etf.total_return_pct = Number(((latestRec.close - baseNav) / baseNav * 100).toFixed(2));
+        etf.total_market_value = latestRec.market_val;
+        etf.latest_date = latestRec.date;
+      }
+    }
   }
 
-  // 4. 即時重算全庫存損益與畫面渲染
-  state.lastQuotesTime = quotesTime;
-  renderDashboard(state.decryptedData, state.lastCloudUpdateTime, quotesTime, state.lastPortfolioSyncTime);
+  // 2. 動態更新各股多週期績效矩陣 (Day / Week / Month / Year / Weight / Unrealized PnL)
+  if (etf.performance && Array.isArray(etf.performance._origItems)) {
+    const origItems = etf.performance._origItems;
+    let totalMktVal = 0;
+    let totalCostVal = 0;
+    let totalUnrPnl = 0;
 
-  // 5. 綠色小圓點與邊框閃爍提示 (視覺化反饋)
-  const quoteEl = document.getElementById("quote-time-lbl");
-  if (quoteEl) {
-    quoteEl.style.transition = "all 0.3s ease";
-    quoteEl.style.color = "#00f090";
-    quoteEl.style.borderColor = "rgba(0, 240, 144, 0.8)";
-    quoteEl.style.boxShadow = "0 0 10px rgba(0, 240, 144, 0.3)";
-    setTimeout(() => {
-      quoteEl.style.color = "";
-      quoteEl.style.borderColor = "";
-      quoteEl.style.boxShadow = "";
-    }, 1500);
+    const updatedItems = origItems.map(origIt => {
+      const sym = (origIt.symbol || "").trim().toUpperCase();
+      const np = normBySym[sym];
+      const nextIt = { ...origIt };
+
+      if (np && np.current_price > 0) {
+        const origPrice = parseFloat(origIt.current_price) || np.current_price;
+        const livePrice = np.current_price;
+
+        nextIt.current_price = livePrice;
+        nextIt.market_val = np.market_val;
+        nextIt.day_pct = Number(np.day_pct.toFixed(2));
+        nextIt.unrealized_pnl = np.unrealized_pnl;
+        nextIt.unrealized_pct = Number(np.roi_pct.toFixed(2));
+
+        if (origPrice > 0) {
+          const ratio = livePrice / origPrice;
+          nextIt.week_pct = Number(((ratio * (1 + (parseFloat(origIt.week_pct) || 0) / 100) - 1) * 100).toFixed(2));
+          nextIt.month_pct = Number(((ratio * (1 + (parseFloat(origIt.month_pct) || 0) / 100) - 1) * 100).toFixed(2));
+          nextIt.year_pct = Number(((ratio * (1 + (parseFloat(origIt.year_pct) || 0) / 100) - 1) * 100).toFixed(2));
+        }
+        totalCostVal += np.total_cost;
+      } else {
+        totalCostVal += (parseFloat(origIt.shares) || 0) * (parseFloat(origIt.cost_price) || 0);
+      }
+
+      totalMktVal += (parseFloat(nextIt.market_val) || 0);
+      totalUnrPnl += (parseFloat(nextIt.unrealized_pnl) || 0);
+      return nextIt;
+    });
+
+    updatedItems.forEach(it => {
+      it.weight_pct = totalMktVal > 0 ? Number(((it.market_val / totalMktVal) * 100).toFixed(2)) : 0;
+    });
+
+    etf.performance.items = updatedItems;
+    etf.performance.total_market_value = Math.round(totalMktVal);
+    etf.performance.total_cost = Math.round(totalCostVal);
+    etf.performance.total_unrealized_pnl = Math.round(totalUnrPnl);
+    etf.performance.total_unrealized_pct = totalCostVal > 0 ? Number(((totalUnrPnl / totalCostVal) * 100).toFixed(2)) : 0;
   }
 }
 
@@ -131,6 +507,7 @@ async function reloadCloudDataSilently() {
     const encPayload = await resp.json();
     if (!encPayload || !encPayload.ciphertext_b64) return;
     const decrypted = await decryptAesGcm(encPayload, state.password, state.secretKey);
+    captureSyntheticEtfBaseline(decrypted);
     state.decryptedData = decrypted;
     state.rawPositions = decrypted.positions || [];
     state.lastPortfolioSyncTime = encPayload.updated_at || decrypted.exported_at || "";
@@ -143,29 +520,42 @@ async function reloadCloudDataSilently() {
 
 function startCloudAutoPolling() {
   if (autoPollInterval) clearInterval(autoPollInterval);
+  pollTickCounter = 0;
+
   autoPollInterval = setInterval(async () => {
     if (!state.user || !state.password || !state.decryptedData) return;
-    
-    // A. 探測持股部位是否在電腦端有異動
-    try {
-      const checkUrl = `${state.rtdbUrl}/portfolios/${state.user}/updated_at.json?t=${Date.now()}`;
-      const r = await fetch(checkUrl, { cache: "no-store" });
-      if (r.ok) {
-        const remoteTime = await r.json();
-        if (remoteTime && remoteTime !== state.lastCloudUpdateTime) {
-          console.log(`[Cloud] 偵測到雲端資料已更新 (${remoteTime})，正在自動重新載入...`);
-          await reloadCloudDataSilently();
-          return;
-        }
-      }
-    } catch (e) {}
+    if (document.hidden) return; // 背景分頁暫停輪詢，切回前景時立即喚醒刷新
 
-    // B. 電腦即使關機，網頁每 15 秒也自動探測雲端即時行情並重算損益！
+    pollTickCounter++;
+
+    // A. 每 30 秒探測一次持股部位是否在電腦端有異動
+    if (pollTickCounter % 3 === 0) {
+      try {
+        const checkUrl = `${state.rtdbUrl}/portfolios/${state.user}/updated_at.json?t=${Date.now()}`;
+        const r = await fetchWithTimeout(checkUrl, { cache: "no-store" }, 4000);
+        if (r.ok) {
+          const remoteTime = await r.json();
+          if (remoteTime && remoteTime !== state.lastCloudUpdateTime) {
+            await reloadCloudDataSilently();
+            return;
+          }
+        }
+      } catch (e) {}
+    }
+
+    // B. 每 10 秒直接向市場即時報價源抓取最新成交價並重算損益與自組 ETF！
     try {
       await fetchLiveQuotesAndUpdateUI();
     } catch (e) {}
-  }, 15000); // 每 15 秒自動探測一次
+  }, 10000);
 }
+
+// 當手機解鎖或切換回瀏覽器分頁時，立即無延遲刷新即時報價
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && state.decryptedData && state.rawPositions.length > 0) {
+    fetchLiveQuotesAndUpdateUI();
+  }
+});
 
 // --- 設備智慧分析引擎 ---
 
@@ -331,8 +721,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // 1. 執行設備自動分析與形態預設
   const profile = detectDeviceProfile();
   state.deviceType = profile.type;
-  
-  // 檢查是否有手動喜好，若無則依設備自動切換：手機/平板預設卡片流，桌機預設專業表格
+
   const savedPrefView = localStorage.getItem("portfolio_pref_view");
   state.currentViewMode = savedPrefView || "table";
 
@@ -443,14 +832,15 @@ document.addEventListener("DOMContentLoaded", () => {
         throw new Error(`找不到使用者 [${user}] 的資料！請先於電腦本機點擊「一鍵同步」。`);
       }
 
-      showStatus("已取得資料，正在本機解密中...", "ok");
+      showStatus("已取得資料，正在本機解密並抓取即時行情...", "ok");
 
       const decrypted = await decryptAesGcm(encPayload, pass, secretKey);
+      captureSyntheticEtfBaseline(decrypted);
       state.decryptedData = decrypted;
       state.rawPositions = decrypted.positions || [];
       state.lastPortfolioSyncTime = encPayload.updated_at || decrypted.exported_at || "";
       state.lastCloudUpdateTime = encPayload.updated_at || decrypted.exported_at || "";
-      state.lastQuotesTime = getNowFormatted();
+      state.lastQuotesTime = decrypted.quotes_update_time || state.lastPortfolioSyncTime || getNowFormatted();
 
       loginModal.classList.add("hidden");
       appContainer.classList.remove("hidden");
@@ -475,6 +865,7 @@ document.addEventListener("DOMContentLoaded", () => {
     state.password = "";
     state.decryptedData = null;
     state.rawPositions = [];
+    state.normalizedPositions = [];
     inputPassword.value = "";
     appContainer.classList.add("hidden");
     loginModal.classList.remove("hidden");
@@ -491,7 +882,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (btn) btn.style.opacity = "0.5";
       await reloadCloudDataSilently();
       await fetchLiveQuotesAndUpdateUI();
-      if (btn) setTimeout(() => { btn.style.opacity = "1"; }, 500);
+      if (btn) setTimeout(() => { btn.style.opacity = "1"; }, 400);
     }
   };
   btnRefresh.addEventListener("click", performRefresh);
@@ -517,29 +908,79 @@ document.addEventListener("DOMContentLoaded", () => {
   // 主分頁切換監聽 (存股部位 vs 自組 ETF 績效)
   const tabBtnPos = document.getElementById("tab-btn-positions");
   const tabBtnEtf = document.getElementById("tab-btn-etf");
+  const tabBtnRank = document.getElementById("tab-btn-rankings");
   const posContent = document.getElementById("positions-tab-content");
   const etfContent = document.getElementById("etf-analytics-tab-content");
+  const rankContent = document.getElementById("rankings-tab-content");
 
-  if (tabBtnPos && tabBtnEtf) {
-    tabBtnPos.addEventListener("click", () => {
-      tabBtnPos.classList.add("active");
-      tabBtnEtf.classList.remove("active");
+  function switchMainTab(activeTab) {
+    [tabBtnPos, tabBtnEtf, tabBtnRank].forEach(b => b && b.classList.remove("active"));
+    [posContent, etfContent, rankContent].forEach(c => c && c.classList.add("hidden"));
+
+    if (activeTab === "positions") {
+      if (tabBtnPos) tabBtnPos.classList.add("active");
       if (posContent) posContent.classList.remove("hidden");
-      if (etfContent) etfContent.classList.add("hidden");
-    });
-
-    tabBtnEtf.addEventListener("click", () => {
-      tabBtnEtf.classList.add("active");
-      tabBtnPos.classList.remove("active");
-      if (posContent) posContent.classList.add("hidden");
+    } else if (activeTab === "etf") {
+      if (tabBtnEtf) tabBtnEtf.classList.add("active");
       if (etfContent) etfContent.classList.remove("hidden");
       renderEtfAnalytics();
+    } else if (activeTab === "rankings") {
+      if (tabBtnRank) tabBtnRank.classList.add("active");
+      if (rankContent) rankContent.classList.remove("hidden");
+      renderMarginRiskAnalytics();
+      loadMarketRankingCacheSilently();
+    }
+  }
+
+  if (tabBtnPos) tabBtnPos.addEventListener("click", () => switchMainTab("positions"));
+  if (tabBtnEtf) tabBtnEtf.addEventListener("click", () => switchMainTab("etf"));
+  if (tabBtnRank) tabBtnRank.addEventListener("click", () => switchMainTab("rankings"));
+
+  // 子分頁切換監聽 (融資風控 vs 全市場排行)
+  const subBtnMargin = document.getElementById("sub-tab-btn-margin");
+  const subBtnMarket = document.getElementById("sub-tab-btn-market");
+  const subContentMargin = document.getElementById("sub-content-margin");
+  const subContentMarket = document.getElementById("sub-content-market");
+
+  if (subBtnMargin && subBtnMarket) {
+    subBtnMargin.addEventListener("click", () => {
+      subBtnMargin.classList.add("active");
+      subBtnMarket.classList.remove("active");
+      if (subContentMargin) subContentMargin.classList.remove("hidden");
+      if (subContentMarket) subContentMarket.classList.add("hidden");
+      renderMarginRiskAnalytics();
+    });
+
+    subBtnMarket.addEventListener("click", () => {
+      subBtnMarket.classList.add("active");
+      subBtnMargin.classList.remove("active");
+      if (subContentMarket) subContentMarket.classList.remove("hidden");
+      if (subContentMargin) subContentMargin.classList.add("hidden");
+      renderMarketRankings();
+    });
+  }
+
+  // 全市場指標按鈕切換
+  document.querySelectorAll("#market-rank-type-switch .btn-period").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#market-rank-type-switch .btn-period").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      marketRankState.currentType = btn.getAttribute("data-mtype") || "yield";
+      renderMarketRankings();
+    });
+  });
+
+  const mFilterSelect = document.getElementById("market-filter-select");
+  if (mFilterSelect) {
+    mFilterSelect.addEventListener("change", (e) => {
+      marketRankState.filter = e.target.value;
+      renderMarketRankings();
     });
   }
 
   // 自組 ETF K 線範圍按鈕切換
   document.querySelectorAll(".btn-etf-range").forEach(btn => {
-    btn.addEventListener("click", (e) => {
+    btn.addEventListener("click", () => {
       document.querySelectorAll(".btn-etf-range").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
       etfChartState.displayDays = parseInt(btn.getAttribute("data-days") || "0", 10);
@@ -549,7 +990,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 各股績效多週期切換
   document.querySelectorAll(".btn-period").forEach(btn => {
-    btn.addEventListener("click", (e) => {
+    btn.addEventListener("click", () => {
       document.querySelectorAll(".btn-period").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
       etfChartState.perfPeriod = btn.getAttribute("data-period") || "day";
@@ -632,28 +1073,69 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-// --- 數據標準化與格式化輔助函式 ---
+// --- 數據標準化與即時損益動態重算核心 (100% 對齊桌面版 pnl_calculator.py) ---
 
 function normalizePosition(pos, divs = {}) {
   const shares = parseFloat(pos.shares) || 0;
   const costPrice = parseFloat(pos.cost_price) || 0;
   const curPrice = parseFloat(pos.current_price !== undefined ? pos.current_price : pos.cost_price) || 0;
+  const mkt = (pos.market || "TW").toUpperCase();
+  const isEtf = Boolean(pos.is_etf);
 
-  const totalCost = parseFloat(pos.total_cost !== undefined ? pos.total_cost : (shares * costPrice)) || 0;
-  const marketVal = parseFloat(pos.market_val !== undefined ? pos.market_val : (shares * curPrice)) || 0;
+  // 推導手續費折數 (優先讀取 fee_discount，若舊版雲端封包未帶則由既有 sell_fee 反推，預設 0.6 折)
+  let feeDiscount = 0.6;
+  if (pos.fee_discount !== undefined && parseFloat(pos.fee_discount) > 0) {
+    feeDiscount = parseFloat(pos.fee_discount);
+  } else if (pos.sell_fee > 20 && pos.market_val > 0) {
+    const inferred = parseFloat(pos.sell_fee) / (parseFloat(pos.market_val) * 0.001425);
+    if (inferred > 0.05 && inferred <= 1.0) {
+      feeDiscount = Number(inferred.toFixed(2));
+    }
+  }
 
-  const unrealizedPnl = parseFloat(pos.unrealized_pnl !== undefined ? pos.unrealized_pnl : (marketVal - totalCost)) || 0;
-  const roiPct = parseFloat(pos.roi_pct !== undefined ? pos.roi_pct : (totalCost > 0 ? (unrealizedPnl / totalCost) * 100 : 0)) || 0;
+  let totalCost = 0;
+  let marketVal = 0;
+  let unrealizedPnl = 0;
 
-  // 當日損益
-  const yClose = parseFloat(pos.yesterday_close !== undefined ? pos.yesterday_close : curPrice) || curPrice;
-  const dayPnl = parseFloat(pos.day_pnl !== undefined ? pos.day_pnl : ((curPrice - yClose) * shares)) || 0;
-  const dayPct = parseFloat(pos.day_pct !== undefined ? pos.day_pct : (yClose > 0 ? ((curPrice - yClose) / yClose) * 100 : 0)) || 0;
+  if (mkt === "TW" || mkt === "TWO") {
+    if (pos.total_cost !== undefined && parseFloat(pos.total_cost) > 0) {
+      totalCost = parseFloat(pos.total_cost);
+    } else {
+      const rawBuyFee = costPrice * shares * 0.001425 * feeDiscount;
+      const buyFee = shares >= 1000 ? Math.max(20, Math.floor(rawBuyFee)) : Math.ceil(rawBuyFee);
+      totalCost = Math.round(costPrice * shares + buyFee);
+    }
 
-  // 當週損益
-  const wClose = parseFloat(pos.week_close !== undefined ? pos.week_close : yClose) || yClose;
-  const weekPnl = parseFloat(pos.week_pnl !== undefined ? pos.week_pnl : ((curPrice - wClose) * shares)) || 0;
-  const weekPct = parseFloat(pos.week_pct !== undefined ? pos.week_pct : (wClose > 0 ? ((curPrice - wClose) / wClose) * 100 : 0)) || 0;
+    if (curPrice > 0 && shares > 0) {
+      marketVal = Math.round(curPrice * shares);
+      const rawSellFee = curPrice * shares * 0.001425 * feeDiscount;
+      const sellFee = shares >= 1000 ? Math.max(20, Math.floor(rawSellFee)) : Math.ceil(rawSellFee);
+      const taxRate = isEtf ? 0.001 : 0.003;
+      const tax = Math.floor(curPrice * shares * taxRate);
+      unrealizedPnl = (marketVal - sellFee - tax) - totalCost;
+    } else {
+      marketVal = parseFloat(pos.market_val) || 0;
+      unrealizedPnl = parseFloat(pos.unrealized_pnl) || 0;
+    }
+  } else {
+    totalCost = (pos.total_cost !== undefined && parseFloat(pos.total_cost) > 0)
+      ? parseFloat(pos.total_cost)
+      : Number((costPrice * shares).toFixed(2));
+    marketVal = curPrice > 0 ? Number((curPrice * shares).toFixed(2)) : (parseFloat(pos.market_val) || 0);
+    unrealizedPnl = Number((marketVal - totalCost).toFixed(2));
+  }
+
+  const roiPct = totalCost > 0 ? (unrealizedPnl / totalCost) * 100 : 0;
+
+  // 當日損益：始終根據最新現價 curPrice 與昨收價 yClose 即時動態計算！
+  const yClose = (parseFloat(pos.yesterday_close) > 0) ? parseFloat(pos.yesterday_close) : curPrice;
+  const dayPnl = (curPrice > 0 && yClose > 0) ? Math.round((curPrice - yClose) * shares) : 0;
+  const dayPct = (curPrice > 0 && yClose > 0) ? ((curPrice - yClose) / yClose) * 100 : 0;
+
+  // 當週損益：始終根據最新現價 curPrice 與上週基準收盤價 wClose 即時動態計算！
+  const wClose = (parseFloat(pos.week_close) > 0) ? parseFloat(pos.week_close) : yClose;
+  const weekPnl = (curPrice > 0 && wClose > 0) ? Math.round((curPrice - wClose) * shares) : 0;
+  const weekPct = (curPrice > 0 && wClose > 0) ? ((curPrice - wClose) / wClose) * 100 : 0;
 
   // 股息資訊
   const divInfo = divs[pos.symbol] || {};
@@ -661,8 +1143,8 @@ function normalizePosition(pos, divs = {}) {
   const singleDiv = parseFloat(pos.single_dividend !== undefined ? pos.single_dividend : (divInfo.single_amt || divInfo.single_dividend || cashDiv)) || 0;
   const frequency = pos.frequency || divInfo.frequency || "年配";
   const totalDiv = parseFloat(pos.total_dividend !== undefined ? pos.total_dividend : (shares * cashDiv)) || 0;
-  const yieldOnCost = parseFloat(pos.yield_on_cost !== undefined ? pos.yield_on_cost : (costPrice > 0 ? (cashDiv / costPrice) * 100 : 0)) || 0;
-  const yieldOnPrice = parseFloat(pos.yield_on_price !== undefined ? pos.yield_on_price : (curPrice > 0 ? (cashDiv / curPrice) * 100 : 0)) || 0;
+  const yieldOnCost = costPrice > 0 ? (cashDiv / costPrice) * 100 : 0;
+  const yieldOnPrice = curPrice > 0 ? (cashDiv / curPrice) * 100 : 0;
   const histDiv = parseFloat(pos.hist_div_received !== undefined ? pos.hist_div_received : (divInfo.hist_div_received || 0)) || 0;
 
   return {
@@ -738,8 +1220,9 @@ function renderDashboard(data, cloudUpdateTime, quotesUpdateTime, portfolioSyncT
   const quotesTime = state.lastQuotesTime;
   const quoteEl = document.getElementById("quote-time-lbl");
   if (quoteEl) {
-    quoteEl.innerHTML = `<span class="live-dot"></span> 數據: ${quotesTime}`;
-    quoteEl.title = `即時行情報價與損益最新計算時間: ${quotesTime}`;
+    const srcTag = state.quoteSourceLabel || "即時";
+    quoteEl.innerHTML = `<span class="live-dot"></span> ${srcTag}: ${quotesTime}`;
+    quoteEl.title = `即時行情報價與損益最新計算時間 (${srcTag}): ${quotesTime}`;
   }
 
   const divs = data.dividends || {};
@@ -1052,7 +1535,7 @@ function renderCardsView(keyword) {
 
       <div class="sc-hero">
         <div class="sc-price-box">
-          <span class="sc-price-label">參考現價 (今日)</span>
+          <span class="sc-price-label">參考現價 (即時)</span>
           <span class="sc-price-val">${p.current_price > 0 ? p.current_price.toFixed(2) : "--"}</span>
           <span class="cell-sub ${p.day_pct >= 0 ? "text-red" : "text-green"}">${fmtPctSign(p.day_pct)}</span>
         </div>
@@ -1073,7 +1556,7 @@ function renderCardsView(keyword) {
         </div>
         <div class="sc-detail-cell">
           <span class="sc-cell-lbl">當日損益</span>
-          <span class="sc-cell-val ${p.day_pnl >= 0 ? "text-red" : "text-green"}">${isPrivate ? "***" : fmtSign(p.day_pnl)}</span>
+          <span class="sc-cell-val ${p.day_pnl >= 0 ? "text-red" : "text-green"}">${isPrivate ? "***" : fmtSign(p.day_pnl)} (${fmtPctSign(p.day_pct)})</span>
         </div>
         <div class="sc-detail-cell">
           <span class="sc-cell-lbl">當週損益</span>
@@ -1103,7 +1586,10 @@ let etfChartState = {
   perfPeriod: "day", // "day", "week", "month", "year"
   perfSortField: "weight_pct",
   perfSortOrder: "desc",
-  hoverRecord: null
+  hoverRecord: null,
+  _renderedRecords: [],
+  _stepX: 1,
+  _paddingLeft: 15
 };
 
 function renderEtfAnalytics() {
@@ -1111,9 +1597,7 @@ function renderEtfAnalytics() {
   if (!data) return;
 
   const etfData = data.synthetic_etf || {};
-  const records = etfData.records || [];
   const perfData = etfData.performance || {};
-  const items = perfData.items || [];
 
   const isPrivate = state.privacyMode;
 
@@ -1164,6 +1648,7 @@ function drawEtfKlineChart() {
   let records = etfData.records || [];
 
   if (records.length === 0) {
+    etfChartState._renderedRecords = [];
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "#94a3b8";
     ctx.font = "14px 'Noto Sans TC', sans-serif";
@@ -1246,6 +1731,10 @@ function drawEtfKlineChart() {
   const candleW = Math.max(Math.min((chartW / n) * 0.7, 14), 2);
   const stepX = chartW / n;
 
+  etfChartState._renderedRecords = records;
+  etfChartState._stepX = stepX;
+  etfChartState._paddingLeft = paddingLeft;
+
   const cUp = "#ff4d4f";
   const cDown = "#52c41a";
   const cFlat = "#cccccc";
@@ -1320,17 +1809,20 @@ function drawEtfKlineChart() {
     document.getElementById("etf-kline-vol").textContent = fmtNum(Math.round(latestR.volume / 1000)) + " 張";
   }
 
-  // 綁定懸停游標事件
+  // 綁定懸停游標事件 (動態讀取 etfChartState，確保切換週期與即時更新後始終精準)
   if (!canvas.getAttribute("data-bound")) {
     canvas.setAttribute("data-bound", "true");
     canvas.addEventListener("mousemove", (e) => {
+      const curRecords = etfChartState._renderedRecords || [];
+      if (curRecords.length === 0) return;
+
       const rect = canvas.getBoundingClientRect();
       const scaleX = canvas.width / rect.width;
       const mouseX = (e.clientX - rect.left) * scaleX;
 
-      const idx = Math.floor((mouseX - paddingLeft) / stepX);
-      if (idx >= 0 && idx < records.length) {
-        const r = records[idx];
+      const idx = Math.floor((mouseX - etfChartState._paddingLeft) / etfChartState._stepX);
+      if (idx >= 0 && idx < curRecords.length) {
+        const r = curRecords[idx];
         const infoEl = document.getElementById("etf-crosshair-info");
         if (infoEl) {
           const s = r.change_pct > 0 ? "+" : "";
@@ -1338,7 +1830,7 @@ function drawEtfKlineChart() {
         }
         if (r.ma5) document.getElementById("etf-kline-ma5").textContent = r.ma5.toFixed(2);
         if (r.ma20) document.getElementById("etf-kline-ma20").textContent = r.ma20.toFixed(2);
-        if (r.volume) document.getElementById("etf-kline-vol").textContent = fmtNum(Math.round(r.volume / 1000)) + " 張";
+        if (r.volume !== undefined) document.getElementById("etf-kline-vol").textContent = fmtNum(Math.round(r.volume / 1000)) + " 張";
       }
     });
 
@@ -1487,7 +1979,7 @@ function renderPerfTable() {
   items.sort((a, b) => {
     let vA = a[field];
     let vB = b[field];
-    if (typeof vA === "string") return order === "asc" ? vA.localeCompare(vB) : vB.localeCompare(a);
+    if (typeof vA === "string") return order === "asc" ? vA.localeCompare(vB) : vB.localeCompare(vA);
     return order === "asc" ? vA - vB : vB - vA;
   });
 
@@ -1517,6 +2009,281 @@ function renderPerfTable() {
       <td class="${colM}">${signM}${it.month_pct.toFixed(2)}%</td>
       <td class="${colY}">${signY}${it.year_pct.toFixed(2)}%</td>
       <td class="${colU}">${isPrivate ? "***" : `${signU}${fmtNum(Math.round(it.unrealized_pnl))}`}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+
+// ============================================================================
+// 第 3 分頁：個人庫存融資維持率風控與全市場 4 大指標排行前端引擎
+// ============================================================================
+
+let marketRankState = {
+  currentType: "yield",
+  filter: "all",
+  rawMarketData: null
+};
+
+function renderMarginRiskAnalytics() {
+  const data = state.decryptedData;
+  if (!data) return;
+
+  const positions = state.normalizedPositions || [];
+  const isPrivate = state.privacyMode;
+
+  let totMarginMarketVal = 0;
+  let totMarginLoan = 0;
+  let totMarginEquity = 0;
+  let callCount = 0;
+  let warningCount = 0;
+  let totCallDiff = 0;
+  let hasMargin = false;
+
+  const riskItems = [];
+
+  positions.forEach(p => {
+    const shares = p.shares || 0;
+    const costP = p.cost_price || 0;
+    const curP = p.current_price > 0 ? p.current_price : costP;
+    const isMargin = (p.trade_type === "MARGIN");
+    const mkt = (p.market || "TW").toUpperCase();
+    const marginRate = parseFloat(p.margin_rate) || (mkt === "TWO" ? 0.5 : 0.6);
+
+    const totalCost = shares * costP;
+    const marketVal = p.market_val || (shares * curP);
+
+    if (!isMargin || shares <= 0 || costP <= 0) {
+      riskItems.push({
+        symbol: p.symbol,
+        name: p.name || p.symbol,
+        is_margin: false,
+        shares,
+        cost_price: costP,
+        current_price: curP,
+        margin_loan: 0,
+        market_val: marketVal,
+        maintenance_ratio: null,
+        call_price: null,
+        margin_call_diff: 0,
+        risk_level: "CASH",
+        risk_label: "現股"
+      });
+      return;
+    }
+
+    hasMargin = true;
+    const marginLoan = Math.round(totalCost * marginRate);
+    const marginEquity = totalCost - marginLoan;
+    const ratio = marginLoan > 0 ? Number(((marketVal / marginLoan) * 100).toFixed(2)) : 0;
+    const callPrice = shares > 0 ? Number(((marginLoan * 1.30) / shares).toFixed(2)) : 0;
+    const callDiff = ratio < 130 ? Math.max(0, Math.round((marginLoan * 1.30) - marketVal)) : 0;
+
+    let riskLevel = "SAFE";
+    let riskLabel = "安全";
+    if (ratio < 130) {
+      riskLevel = "CALL";
+      riskLabel = "追繳";
+      callCount++;
+    } else if (ratio < 160) {
+      riskLevel = "WARNING";
+      riskLabel = "警戒";
+      warningCount++;
+    }
+
+    totMarginMarketVal += marketVal;
+    totMarginLoan += marginLoan;
+    totMarginEquity += marginEquity;
+    totCallDiff += callDiff;
+
+    riskItems.push({
+      symbol: p.symbol,
+      name: p.name || p.symbol,
+      is_margin: true,
+      shares,
+      cost_price: costP,
+      current_price: curP,
+      margin_loan: marginLoan,
+      market_val: marketVal,
+      maintenance_ratio: ratio,
+      call_price: callPrice,
+      margin_call_diff: callDiff,
+      risk_level: riskLevel,
+      risk_label: riskLabel
+    });
+  });
+
+  const overallRatioEl = document.getElementById("margin-overall-ratio");
+  const overallStatusEl = document.getElementById("margin-overall-status");
+  const totalLoanEl = document.getElementById("margin-total-loan");
+  const totalEquityEl = document.getElementById("margin-total-equity");
+  const totalMarketEl = document.getElementById("margin-total-market");
+  const callCountEl = document.getElementById("margin-call-count");
+  const callDiffEl = document.getElementById("margin-call-diff");
+
+  if (hasMargin && totMarginLoan > 0) {
+    const overallRatio = Number(((totMarginMarketVal / totMarginLoan) * 100).toFixed(2));
+    if (overallRatioEl) {
+      overallRatioEl.textContent = isPrivate ? "***.**%" : `${overallRatio.toFixed(2)}%`;
+      overallRatioEl.className = `metric-val ${overallRatio >= 160 ? "text-green" : (overallRatio >= 130 ? "text-gold" : "text-red")}`;
+    }
+    if (overallStatusEl) {
+      if (overallRatio >= 160) {
+        overallStatusEl.textContent = "整戶安全 (擔保維持率充裕)";
+        overallStatusEl.style.color = "#52c41a";
+      } else if (overallRatio >= 130) {
+        overallStatusEl.textContent = "整戶警戒 (留意標的跌幅)";
+        overallStatusEl.style.color = "#ffd166";
+      } else {
+        overallStatusEl.textContent = "追繳斷頭警報！(需儘速補繳)";
+        overallStatusEl.style.color = "#ff4d4f";
+      }
+    }
+  } else {
+    if (overallRatioEl) {
+      overallRatioEl.textContent = "--.-%";
+      overallRatioEl.className = "metric-val text-accent";
+    }
+    if (overallStatusEl) {
+      overallStatusEl.textContent = "全現股部位 (無融資風險)";
+      overallStatusEl.style.color = "#94a3b8";
+    }
+  }
+
+  if (totalLoanEl) totalLoanEl.textContent = isPrivate ? "$ ********" : `$ ${fmtNum(totMarginLoan)}`;
+  if (totalEquityEl) totalEquityEl.textContent = isPrivate ? "自備保證金: $ ********" : `自備保證金: $ ${fmtNum(totMarginEquity)}`;
+  if (totalMarketEl) totalMarketEl.textContent = isPrivate ? "$ ********" : `$ ${fmtNum(totMarginMarketVal)}`;
+
+  if (callCountEl) {
+    if (callCount > 0) {
+      callCountEl.textContent = `${callCount} 檔 (追繳斷頭)`;
+      callCountEl.className = "metric-val text-red";
+    } else if (warningCount > 0) {
+      callCountEl.textContent = `${warningCount} 檔警戒`;
+      callCountEl.className = "metric-val text-gold";
+    } else {
+      callCountEl.textContent = "0 檔 (安全)";
+      callCountEl.className = "metric-val text-green";
+    }
+  }
+  if (callDiffEl) {
+    callDiffEl.textContent = isPrivate ? "需補繳差額: $ ********" : `需補繳差額: $ ${fmtNum(totCallDiff)}`;
+    callDiffEl.style.color = totCallDiff > 0 ? "#ff4d4f" : "#94a3b8";
+  }
+
+  const tbody = document.getElementById("margin-risk-tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  riskItems.sort((a, b) => {
+    if (a.is_margin !== b.is_margin) return a.is_margin ? -1 : 1;
+    if (!a.is_margin) return 0;
+    return (a.maintenance_ratio || 999) - (b.maintenance_ratio || 999);
+  });
+
+  if (riskItems.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="11" style="text-align:center; color:#94a3b8; padding:30px;">尚無持股部位</td></tr>`;
+    return;
+  }
+
+  riskItems.forEach(it => {
+    const tr = document.createElement("tr");
+
+    let badgeClass = "badge-risk-safe";
+    if (!it.is_margin) badgeClass = "badge-tag tag-tw";
+    else if (it.risk_level === "CALL") badgeClass = "badge-risk-call";
+    else if (it.risk_level === "WARNING") badgeClass = "badge-risk-warning";
+
+    const ratioDisplay = it.is_margin ? `${it.maintenance_ratio.toFixed(2)}%` : "--";
+    const callPDisplay = it.is_margin ? it.call_price.toFixed(2) : "--";
+    const diffDisplay = (it.margin_call_diff > 0) ? `$ ${fmtNum(it.margin_call_diff)}` : "-";
+    const loanDisplay = it.is_margin ? `$ ${fmtNum(it.margin_loan)}` : "-";
+
+    tr.innerHTML = `
+      <td class="td-sticky">
+        <div class="sym-cell-box">
+          <span class="sym-code">${it.symbol}</span>
+          <span class="sym-name">${it.name}</span>
+        </div>
+      </td>
+      <td><span class="badge-tag ${it.is_margin ? "tag-etf" : "tag-tw"}">${it.is_margin ? "融資" : "現股"}</span></td>
+      <td>${isPrivate ? "***" : fmtNum(it.shares)}</td>
+      <td>${isPrivate ? "***" : it.cost_price.toFixed(2)}</td>
+      <td><b>${it.current_price > 0 ? it.current_price.toFixed(2) : "--"}</b></td>
+      <td>${isPrivate ? "***" : loanDisplay}</td>
+      <td>${isPrivate ? "***" : `$ ${fmtNum(it.market_val)}`}</td>
+      <td><b class="${it.is_margin ? (it.maintenance_ratio >= 160 ? "text-green" : (it.maintenance_ratio >= 130 ? "text-gold" : "text-red")) : ""}">${isPrivate ? "***" : ratioDisplay}</b></td>
+      <td><span class="${it.is_margin ? "text-dim" : ""}">${callPDisplay}</span></td>
+      <td><b class="${it.margin_call_diff > 0 ? "text-red" : ""}">${isPrivate ? "***" : diffDisplay}</b></td>
+      <td><span class="${badgeClass}">${it.risk_label}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function loadMarketRankingCacheSilently() {
+  if (marketRankState.rawMarketData) return;
+  try {
+    const resp = await fetch("../market_ranking_cache.json?t=" + Date.now(), { cache: "no-store" });
+    if (resp.ok) {
+      marketRankState.rawMarketData = await resp.json();
+      renderMarketRankings();
+    }
+  } catch (e) {}
+}
+
+function renderMarketRankings() {
+  const tbody = document.getElementById("market-ranking-tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  const cache = marketRankState.rawMarketData;
+  if (!cache || !cache.stocks) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#94a3b8; padding:30px;">正在載入全市場指標快取或資料快取建立中...</td></tr>`;
+    return;
+  }
+
+  const mType = marketRankState.currentType || "yield";
+  const filter = marketRankState.filter || "all";
+
+  let list = [...cache.stocks];
+  if (filter === "stock") list = list.filter(s => !s.is_etf);
+  else if (filter === "etf") list = list.filter(s => s.is_etf);
+
+  if (mType === "yield") {
+    list.sort((a, b) => (b.dividend_yield || 0) - (a.dividend_yield || 0));
+  } else if (mType === "pe") {
+    list = list.filter(s => (s.pe_ratio || 0) >= 4 && (s.pe_ratio || 0) <= 30);
+    list.sort((a, b) => (a.pe_ratio || 999) - (b.pe_ratio || 999));
+  } else if (mType === "rev") {
+    list.sort((a, b) => (b.revenue_yoy || -999) - (a.revenue_yoy || -999));
+  } else if (mType === "roe") {
+    list.sort((a, b) => (b.roe || -999) - (a.roe || -999));
+  }
+
+  const topItems = list.slice(0, 100);
+  const mySyms = new Set((state.normalizedPositions || []).map(p => (p.symbol || "").toUpperCase()));
+
+  topItems.forEach((it, idx) => {
+    const tr = document.createElement("tr");
+    const isIn = mySyms.has(it.symbol.toUpperCase());
+    const inTag = isIn ? `<span class="badge-tag tag-tw">已在庫</span>` : `<span class="cell-sub text-dim">未持有</span>`;
+
+    const yd = (it.dividend_yield !== undefined && it.dividend_yield > 0) ? `${it.dividend_yield.toFixed(2)}%` : "--";
+    const pe = (it.pe_ratio !== undefined && it.pe_ratio > 0) ? it.pe_ratio.toFixed(1) : "--";
+    const yoy = (it.revenue_yoy !== undefined) ? `${it.revenue_yoy > 0 ? "+" : ""}${it.revenue_yoy.toFixed(1)}%` : "--";
+    const roe = (it.roe !== undefined) ? `${it.roe.toFixed(1)}%` : "--";
+
+    tr.innerHTML = `
+      <td>${idx + 1}</td>
+      <td><b>${it.symbol}</b></td>
+      <td>${it.name || it.symbol}</td>
+      <td>${it.price ? it.price.toFixed(2) : "--"}</td>
+      <td class="text-gold font-bold">${yd}</td>
+      <td>${pe}</td>
+      <td class="${(it.revenue_yoy || 0) >= 0 ? "text-red" : "text-green"}">${yoy}</td>
+      <td>${roe}</td>
+      <td>${inTag}</td>
     `;
     tbody.appendChild(tr);
   });

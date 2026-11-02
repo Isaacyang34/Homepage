@@ -51,7 +51,9 @@ MODULE_FILES = [
     "login_gui.py",
     "error_reporter.py",
     "portfolio_etf_service.py",
-    "portfolio_etf_gui.py"
+    "portfolio_etf_gui.py",
+    "margin_risk_service.py",
+    "unified_ranking_gui.py"
 ]
 
 def calculate_sha256(filepath: str) -> str:
