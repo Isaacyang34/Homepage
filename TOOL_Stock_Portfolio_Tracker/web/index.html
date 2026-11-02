@@ -7,7 +7,7 @@
   <title>零知識加密投資庫存分析儀表板 | Stock Portfolio Viewer</title>
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <link rel="apple-touch-icon" href="app_icon.png">
-  <link rel="stylesheet" href="style.css?v=1.1.5">
+  <link rel="stylesheet" href="style.css?v=1.1.6">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -311,16 +311,16 @@
     <div id="rankings-tab-content" class="hidden">
       <!-- 頂部子導航按鈕 (個人庫存融資風控 vs 全市場 4 大指標) -->
       <div class="sub-tabs-container glass-panel">
-        <button id="sub-tab-btn-margin" class="sub-tab-btn active">
-          🛡 個人庫存融資維持率風控
+        <button id="sub-tab-btn-margin" class="sub-tab-btn">
+          [風控] 個人庫存融資維持率排行
         </button>
-        <button id="sub-tab-btn-market" class="sub-tab-btn">
-          📊 全市場融資維持率與指標排行
+        <button id="sub-tab-btn-market" class="sub-tab-btn active">
+          [市場] 全市場融資維持率與指標排行
         </button>
       </div>
 
       <!-- 子分頁 3-A：個人庫存融資風控與維持率排行 -->
-      <div id="sub-content-margin">
+      <div id="sub-content-margin" class="hidden">
         <!-- 4 大風控總覽指標卡片 -->
         <section class="metrics-grid">
           <div class="metric-card glass-panel">
@@ -339,7 +339,7 @@
             <div class="metric-sub">融資在倉現值</div>
           </div>
           <div class="metric-card glass-panel">
-            <div class="metric-title">追繳斷頭警報 (< 130%)</div>
+            <div class="metric-title" id="margin-call-card-title">追繳斷頭警報 (&lt; 130%)</div>
             <div class="metric-val" id="margin-call-count">0 檔 (安全)</div>
             <div class="metric-sub" id="margin-call-diff">需補繳差額: $ 0</div>
           </div>
@@ -350,7 +350,20 @@
           <div class="section-top-bar">
             <div class="bar-title-group">
               <h3>個人庫存融資維持率與斷頭價監控 (Margin Risk Matrix)</h3>
-              <span class="perf-sub-tip">上市成數 60% ‧ 上櫃 50% ‧ 維持率 &lt; 130% 觸發追繳通知</span>
+              <span class="perf-sub-tip" id="margin-risk-sub-tip">上市成數 60% ‧ 上櫃 50% ‧ 維持率 &lt; 130% 觸發追繳通知</span>
+            </div>
+            <div class="bar-controls" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <div style="display:flex; align-items:center; gap:5px; background:rgba(255,255,255,0.04); padding:4px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); font-size:12px;">
+                <span style="color:#ffd166; font-weight:600;">[!] 警戒線:</span>
+                <input type="number" id="input-thresh-warning" min="130" max="200" step="5" value="160" style="width:58px; background:#1e1e2d; border:1px solid #4b5563; color:#f3f4f6; padding:2px 4px; border-radius:4px; font-size:12px; font-weight:bold; text-align:center;">
+                <span style="color:#9ca3af;">%</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:5px; background:rgba(255,255,255,0.04); padding:4px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); font-size:12px;">
+                <span style="color:#ff4d4f; font-weight:600;">[X] 追繳線:</span>
+                <input type="number" id="input-thresh-call" min="100" max="160" step="5" value="130" style="width:58px; background:#1e1e2d; border:1px solid #4b5563; color:#f3f4f6; padding:2px 4px; border-radius:4px; font-size:12px; font-weight:bold; text-align:center;">
+                <span style="color:#9ca3af;">%</span>
+              </div>
+              <button id="btn-reset-thresh" class="btn-period" style="font-size:11px; padding:3px 8px;" title="恢復預設標準法規 (160% / 130%)">恢復預設</button>
             </div>
           </div>
           <div class="table-responsive">
@@ -365,7 +378,7 @@
                   <th>融資借款額</th>
                   <th>目前市值</th>
                   <th>融資維持率 ⇕</th>
-                  <th>130%斷頭價</th>
+                  <th id="th-call-price">130%斷頭價</th>
                   <th>需補繳差額</th>
                   <th>風控等級</th>
                 </tr>
@@ -379,30 +392,16 @@
       </div>
 
       <!-- 子分頁 3-B：全市場融資維持率與核心指標排行 (對齊本機端 unified_ranking_gui.py) -->
-      <div id="sub-content-market" class="hidden">
-        <!-- 大盤融資維持率與信用交易概況總覽卡片 (全市場融資排行時呈現) -->
-        <section class="metrics-grid" id="market-margin-summary-cards">
-          <div class="metric-card glass-panel">
-            <div class="metric-title">大盤整體融資維持率估計</div>
-            <div class="metric-val text-accent" id="mkt-summary-ratio">--.-%</div>
-            <div class="metric-sub" id="mkt-summary-status">證交所官方信用總表估算</div>
+      <div id="sub-content-market">
+        <!-- 大盤整體融資維持率橫幅看板 (對齊本機端 unified_ranking_gui.py summary_bar) -->
+        <div class="market-summary-banner glass-panel" id="market-margin-banner-bar" style="margin-bottom: 12px; padding: 10px 16px; border-radius: 8px; border-left: 4px solid #38bdf8; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: 0.95rem;">
+          <div id="mkt-ratio-banner-text" style="font-weight: 700; color: #ffd166; letter-spacing: 0.5px;">
+            【台股大盤融資維持率】163.08%  |  全市場融資餘額：6234.68 億元  |  風控狀態：去槓桿警戒區 (140%~165%)  (證交所數據: 20261030)
           </div>
-          <div class="metric-card glass-panel">
-            <div class="metric-title">全市場融資總餘額</div>
-            <div class="metric-val text-gold" id="mkt-summary-loan">-- 億元</div>
-            <div class="metric-sub">市場信用借款本金</div>
+          <div style="font-size: 0.85rem; color: #94a3b8;" id="mkt-banner-status-tag">
+            資料時間: 剛剛
           </div>
-          <div class="metric-card glass-panel">
-            <div class="metric-title">融資擔保品估計總市值</div>
-            <div class="metric-val text-cyan" id="mkt-summary-mktval">-- 億元</div>
-            <div class="metric-sub">全市場融資在倉現值</div>
-          </div>
-          <div class="metric-card glass-panel">
-            <div class="metric-title">信用交易資料結算日</div>
-            <div class="metric-val" id="mkt-summary-date">--</div>
-            <div class="metric-sub">TWSE 官方發布日</div>
-          </div>
-        </section>
+        </div>
 
         <section class="portfolio-container glass-panel">
           <div class="section-top-bar">
@@ -412,11 +411,11 @@
             </div>
             <div class="bar-controls">
               <div class="perf-period-switch" id="market-rank-type-switch">
-                <button class="btn-period active" data-mtype="margin_market">🔥 全市場融資維持率排行</button>
-                <button class="btn-period" data-mtype="yield">高殖利率</button>
-                <button class="btn-period" data-mtype="pe">低本益比</button>
-                <button class="btn-period" data-mtype="rev">營收年增 YoY</button>
-                <button class="btn-period" data-mtype="roe">高 ROE</button>
+                <button class="btn-period active" data-mtype="margin_market">[全市場融資排行]</button>
+                <button class="btn-period" data-mtype="yield">[殖利率排行]</button>
+                <button class="btn-period" data-mtype="pe">[低本益比排行]</button>
+                <button class="btn-period" data-mtype="rev">[營收年增(YoY)排行]</button>
+                <button class="btn-period" data-mtype="roe">[高ROE排行]</button>
               </div>
               <select id="market-filter-select" class="search-input" style="width: auto; padding: 4px 8px;">
                 <option value="all">全部 (個股+ETF)</option>
@@ -436,7 +435,7 @@
                   <th>今日融資餘額 (張) ⇕</th>
                   <th>融資使用率 % ⇕</th>
                   <th>今日買賣超 (張)</th>
-                  <th>130%斷頭價</th>
+                  <th id="th-call-price">130%斷頭價</th>
                   <th>在庫狀態</th>
                 </tr>
               </thead>
@@ -474,6 +473,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=1.1.5"></script>
+  <script src="app.js?v=1.1.7"></script>
 </body>
 </html>

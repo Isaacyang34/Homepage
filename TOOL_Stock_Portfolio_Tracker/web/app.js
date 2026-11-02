@@ -31,6 +31,32 @@ let autoPollInterval = null;
 let pollTickCounter = 0;
 let isFetchingQuotes = false;
 
+// 使用者自訂維持率風控閥值 (預設: 警戒線 160%, 追繳線 130%)
+let marginThresholds = {
+  warning: 160,
+  call: 130
+};
+
+function loadMarginThresholds() {
+  const savedWarn = localStorage.getItem("portfolio_thresh_warning");
+  const savedCall = localStorage.getItem("portfolio_thresh_call");
+  if (savedWarn) {
+    const w = parseFloat(savedWarn);
+    if (!isNaN(w) && w >= 130 && w <= 250) marginThresholds.warning = w;
+  }
+  if (savedCall) {
+    const c = parseFloat(savedCall);
+    if (!isNaN(c) && c >= 100 && c <= 200) marginThresholds.call = c;
+  }
+}
+
+function saveMarginThresholds(warn, call) {
+  marginThresholds.warning = warn;
+  marginThresholds.call = call;
+  localStorage.setItem("portfolio_thresh_warning", String(warn));
+  localStorage.setItem("portfolio_thresh_call", String(call));
+}
+
 function getNowFormatted() {
   const d = new Date();
   const pad = n => String(n).padStart(2, "0");
@@ -935,7 +961,18 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (activeTab === "rankings") {
       if (tabBtnRank) tabBtnRank.classList.add("active");
       if (rankContent) rankContent.classList.remove("hidden");
-      renderMarginRiskAnalytics();
+      // 預設進入全市場融資維持率與指標排行 (對齊本機端 unified_ranking_gui.py)
+      const subBtnMargin = document.getElementById("sub-tab-btn-margin");
+      const subBtnMarket = document.getElementById("sub-tab-btn-market");
+      const subContentMargin = document.getElementById("sub-content-margin");
+      const subContentMarket = document.getElementById("sub-content-market");
+      if (subBtnMarket && subBtnMarket.classList.contains("active")) {
+        if (subContentMarket) subContentMarket.classList.remove("hidden");
+        if (subContentMargin) subContentMargin.classList.add("hidden");
+        renderMarketRankings();
+      } else {
+        renderMarginRiskAnalytics();
+      }
       loadMarketRankingCacheSilently();
     }
   }
@@ -965,6 +1002,46 @@ document.addEventListener("DOMContentLoaded", () => {
       if (subContentMarket) subContentMarket.classList.remove("hidden");
       if (subContentMargin) subContentMargin.classList.add("hidden");
       renderMarketRankings();
+    });
+  }
+
+  // 載入自訂維持率閥值設定至輸入框
+  loadMarginThresholds();
+  const inputThreshWarn = document.getElementById("input-thresh-warning");
+  const inputThreshCall = document.getElementById("input-thresh-call");
+  const btnResetThresh = document.getElementById("btn-reset-thresh");
+
+  if (inputThreshWarn) inputThreshWarn.value = marginThresholds.warning;
+  if (inputThreshCall) inputThreshCall.value = marginThresholds.call;
+
+  if (inputThreshWarn) {
+    inputThreshWarn.addEventListener("change", () => {
+      let val = parseFloat(inputThreshWarn.value);
+      if (isNaN(val) || val < 130) val = 160;
+      if (val <= marginThresholds.call) val = marginThresholds.call + 5;
+      inputThreshWarn.value = val;
+      saveMarginThresholds(val, marginThresholds.call);
+      renderMarginRiskAnalytics();
+    });
+  }
+
+  if (inputThreshCall) {
+    inputThreshCall.addEventListener("change", () => {
+      let val = parseFloat(inputThreshCall.value);
+      if (isNaN(val) || val < 100) val = 130;
+      if (val >= marginThresholds.warning) val = marginThresholds.warning - 5;
+      inputThreshCall.value = val;
+      saveMarginThresholds(marginThresholds.warning, val);
+      renderMarginRiskAnalytics();
+    });
+  }
+
+  if (btnResetThresh) {
+    btnResetThresh.addEventListener("click", () => {
+      saveMarginThresholds(160, 130);
+      if (inputThreshWarn) inputThreshWarn.value = 160;
+      if (inputThreshCall) inputThreshCall.value = 130;
+      renderMarginRiskAnalytics();
     });
   }
 
@@ -2037,8 +2114,10 @@ let marketRankState = {
   isFetchingMargin: false
 };
 
-let _twseMarginCache = null;
-let _twseMarginCacheTime = 0;
+const TWSE_MARGIN_BASELINE = {"date": "20261030", "market_maintenance_ratio": 163.08, "total_margin_loan_str": "6234.68 億元", "total_margin_loan_val": 623467886000.0, "total_margin_mkt_val": 1016725578550.0, "risk_label": "去槓桿警戒區 (140%~165%)", "risk_level": "WARNING", "items": [{"symbol": "3481", "name": "群創", "price": 42.55, "margin_balance_lots": 303692, "margin_utilization": 15.21, "margin_net_lots": -10004, "call_price": 33.19, "is_etf": false}, {"symbol": "00632R", "name": "元大台灣50反1", "price": 0.0, "margin_balance_lots": 290822, "margin_utilization": 50.45, "margin_net_lots": 24691, "call_price": 0.0, "is_etf": true}, {"symbol": "00631L", "name": "元大台灣50正2", "price": 0.0, "margin_balance_lots": 285379, "margin_utilization": 13.53, "margin_net_lots": 9115, "call_price": 0.0, "is_etf": true}, {"symbol": "2409", "name": "友達", "price": 30.65, "margin_balance_lots": 269997, "margin_utilization": 14.31, "margin_net_lots": -18082, "call_price": 23.91, "is_etf": false}, {"symbol": "00685L", "name": "群益臺灣加權正2", "price": 0.0, "margin_balance_lots": 264882, "margin_utilization": 13.26, "margin_net_lots": 17792, "call_price": 0.0, "is_etf": true}, {"symbol": "00981A", "name": "主動統一台股增長", "price": 0.0, "margin_balance_lots": 221996, "margin_utilization": 8.89, "margin_net_lots": 3780, "call_price": 0.0, "is_etf": true}, {"symbol": "00406A", "name": "主動中信台灣收益", "price": 0.0, "margin_balance_lots": 216321, "margin_utilization": 5.7, "margin_net_lots": 14838, "call_price": 0.0, "is_etf": true}, {"symbol": "00673R", "name": "期元大S&P原油反1", "price": 0.0, "margin_balance_lots": 164079, "margin_utilization": 49.29, "margin_net_lots": -1192, "call_price": 0.0, "is_etf": true}, {"symbol": "2303", "name": "聯電", "price": 111.5, "margin_balance_lots": 156568, "margin_utilization": 4.98, "margin_net_lots": -1778, "call_price": 86.97, "is_etf": false}, {"symbol": "6770", "name": "力積電", "price": 66.6, "margin_balance_lots": 132941, "margin_utilization": 11.27, "margin_net_lots": 373, "call_price": 51.95, "is_etf": false}, {"symbol": "00991A", "name": "主動復華未來50", "price": 0.0, "margin_balance_lots": 113307, "margin_utilization": 10.89, "margin_net_lots": -2413, "call_price": 0.0, "is_etf": true}, {"symbol": "00953B", "name": "群益優選非投等債", "price": 0.0, "margin_balance_lots": 112282, "margin_utilization": 9.54, "margin_net_lots": 3018, "call_price": 0.0, "is_etf": true}, {"symbol": "00671R", "name": "富邦NASDAQ反1", "price": 0.0, "margin_balance_lots": 107054, "margin_utilization": 87.95, "margin_net_lots": -1023, "call_price": 0.0, "is_etf": true}, {"symbol": "6949", "name": "沛爾生醫*-創", "price": 39.05, "margin_balance_lots": 106397, "margin_utilization": 32.45, "margin_net_lots": -296, "call_price": 30.46, "is_etf": false}, {"symbol": "2344", "name": "華邦電", "price": 164.5, "margin_balance_lots": 104682, "margin_utilization": 9.31, "margin_net_lots": -954, "call_price": 128.31, "is_etf": false}, {"symbol": "00637L", "name": "元大滬深300正2", "price": 0.0, "margin_balance_lots": 93900, "margin_utilization": 43.64, "margin_net_lots": -384, "call_price": 0.0, "is_etf": true}, {"symbol": "2337", "name": "旺宏", "price": 95.4, "margin_balance_lots": 86115, "margin_utilization": 17.34, "margin_net_lots": -1964, "call_price": 74.41, "is_etf": false}, {"symbol": "00753L", "name": "中信中國50正2", "price": 0.0, "margin_balance_lots": 84448, "margin_utilization": 39.85, "margin_net_lots": -634, "call_price": 0.0, "is_etf": true}, {"symbol": "00403A", "name": "主動統一升級50", "price": 0.0, "margin_balance_lots": 76711, "margin_utilization": 2.37, "margin_net_lots": -2394, "call_price": 0.0, "is_etf": true}, {"symbol": "009829", "name": "大華韓國KOSPI50", "price": 0.0, "margin_balance_lots": 73483, "margin_utilization": 50.78, "margin_net_lots": 1599, "call_price": 0.0, "is_etf": true}, {"symbol": "00664R", "name": "國泰臺灣加權反1", "price": 0.0, "margin_balance_lots": 65127, "margin_utilization": 30.65, "margin_net_lots": 1097, "call_price": 0.0, "is_etf": true}, {"symbol": "2408", "name": "南亞科", "price": 454.5, "margin_balance_lots": 60151, "margin_utilization": 7.76, "margin_net_lots": 605, "call_price": 354.51, "is_etf": false}, {"symbol": "00665L", "name": "富邦恒生國企正2", "price": 0.0, "margin_balance_lots": 55842, "margin_utilization": 51.47, "margin_net_lots": -597, "call_price": 0.0, "is_etf": true}, {"symbol": "2317", "name": "鴻海", "price": 245.5, "margin_balance_lots": 55806, "margin_utilization": 1.59, "margin_net_lots": -193, "call_price": 191.49, "is_etf": false}, {"symbol": "2324", "name": "仁寶", "price": 35.2, "margin_balance_lots": 54869, "margin_utilization": 4.98, "margin_net_lots": -562, "call_price": 27.46, "is_etf": false}, {"symbol": "00680L", "name": "元大美債20正2", "price": 0.0, "margin_balance_lots": 52038, "margin_utilization": 15.44, "margin_net_lots": 591, "call_price": 0.0, "is_etf": true}, {"symbol": "2312", "name": "金寶", "price": 29.65, "margin_balance_lots": 51998, "margin_utilization": 13.81, "margin_net_lots": -826, "call_price": 23.13, "is_etf": false}, {"symbol": "1314", "name": "中石化", "price": 8.06, "margin_balance_lots": 51622, "margin_utilization": 5.46, "margin_net_lots": -52, "call_price": 6.29, "is_etf": false}, {"symbol": "1303", "name": "南亞", "price": 296.0, "margin_balance_lots": 45725, "margin_utilization": 2.31, "margin_net_lots": -625, "call_price": 230.88, "is_etf": false}, {"symbol": "2327", "name": "國巨*", "price": 502.0, "margin_balance_lots": 45616, "margin_utilization": 8.85, "margin_net_lots": 155, "call_price": 391.56, "is_etf": false}, {"symbol": "9105", "name": "泰金寶-DR", "price": 0.0, "margin_balance_lots": 44687, "margin_utilization": 11.79, "margin_net_lots": -584, "call_price": 0.0, "is_etf": false}, {"symbol": "1802", "name": "台玻", "price": 62.3, "margin_balance_lots": 44394, "margin_utilization": 6.11, "margin_net_lots": -2087, "call_price": 48.59, "is_etf": false}, {"symbol": "009828", "name": "中信台日韓PCB", "price": 0.0, "margin_balance_lots": 43793, "margin_utilization": 13.42, "margin_net_lots": 3831, "call_price": 0.0, "is_etf": true}, {"symbol": "2887", "name": "台新新光金", "price": 42.25, "margin_balance_lots": 41353, "margin_utilization": 0.66, "margin_net_lots": -653, "call_price": 32.95, "is_etf": false}, {"symbol": "2476", "name": "鉅祥", "price": 110.5, "margin_balance_lots": 40709, "margin_utilization": 73.95, "margin_net_lots": 39, "call_price": 86.19, "is_etf": false}, {"symbol": "6116", "name": "彩晶", "price": 13.3, "margin_balance_lots": 40433, "margin_utilization": 5.66, "margin_net_lots": -1679, "call_price": 10.37, "is_etf": false}, {"symbol": "1605", "name": "華新", "price": 35.95, "margin_balance_lots": 40351, "margin_utilization": 3.64, "margin_net_lots": -75, "call_price": 28.04, "is_etf": false}, {"symbol": "1312", "name": "國喬", "price": 13.85, "margin_balance_lots": 40212, "margin_utilization": 10.68, "margin_net_lots": -767, "call_price": 10.8, "is_etf": false}, {"symbol": "2371", "name": "大同", "price": 27.95, "margin_balance_lots": 40152, "margin_utilization": 7.47, "margin_net_lots": -361, "call_price": 21.8, "is_etf": false}, {"symbol": "00988A", "name": "主動統一全球創新", "price": 0.0, "margin_balance_lots": 40095, "margin_utilization": 5.27, "margin_net_lots": -487, "call_price": 0.0, "is_etf": true}, {"symbol": "2610", "name": "華航", "price": 20.15, "margin_balance_lots": 40075, "margin_utilization": 2.61, "margin_net_lots": -184, "call_price": 15.72, "is_etf": false}, {"symbol": "3231", "name": "緯創", "price": 183.5, "margin_balance_lots": 39260, "margin_utilization": 4.58, "margin_net_lots": -211, "call_price": 143.13, "is_etf": false}, {"symbol": "4763", "name": "材料*-KY", "price": 44.75, "margin_balance_lots": 38497, "margin_utilization": 15.57, "margin_net_lots": -63, "call_price": 34.91, "is_etf": false}, {"symbol": "00712", "name": "復華富時不動產", "price": 0.0, "margin_balance_lots": 38192, "margin_utilization": 2.33, "margin_net_lots": -1314, "call_price": 0.0, "is_etf": true}, {"symbol": "2489", "name": "瑞軒", "price": 35.75, "margin_balance_lots": 37280, "margin_utilization": 24.45, "margin_net_lots": -924, "call_price": 27.89, "is_etf": false}, {"symbol": "1101", "name": "台泥", "price": 28.35, "margin_balance_lots": 37233, "margin_utilization": 1.98, "margin_net_lots": -390, "call_price": 22.11, "is_etf": false}, {"symbol": "2002", "name": "中鋼", "price": 19.25, "margin_balance_lots": 36109, "margin_utilization": 0.92, "margin_net_lots": 679, "call_price": 15.02, "is_etf": false}, {"symbol": "3037", "name": "欣興", "price": 989.0, "margin_balance_lots": 35417, "margin_utilization": 8.62, "margin_net_lots": -43, "call_price": 771.42, "is_etf": false}, {"symbol": "2313", "name": "華通", "price": 202.0, "margin_balance_lots": 35328, "margin_utilization": 11.45, "margin_net_lots": -696, "call_price": 157.56, "is_etf": false}, {"symbol": "2330", "name": "台積電", "price": 2370.0, "margin_balance_lots": 34961, "margin_utilization": 0.54, "margin_net_lots": -367, "call_price": 1848.6, "is_etf": false}, {"symbol": "4906", "name": "正文", "price": 38.2, "margin_balance_lots": 34910, "margin_utilization": 30.91, "margin_net_lots": -358, "call_price": 29.8, "is_etf": false}, {"symbol": "2353", "name": "宏碁", "price": 30.4, "margin_balance_lots": 34512, "margin_utilization": 4.53, "margin_net_lots": 27, "call_price": 23.71, "is_etf": false}, {"symbol": "4958", "name": "臻鼎-KY", "price": 486.0, "margin_balance_lots": 34200, "margin_utilization": 12.07, "margin_net_lots": -380, "call_price": 379.08, "is_etf": false}, {"symbol": "4927", "name": "泰鼎-KY", "price": 50.1, "margin_balance_lots": 33473, "margin_utilization": 50.54, "margin_net_lots": -636, "call_price": 39.08, "is_etf": false}, {"symbol": "00992A", "name": "主動群益科技創新", "price": 0.0, "margin_balance_lots": 33385, "margin_utilization": 4.78, "margin_net_lots": -614, "call_price": 0.0, "is_etf": true}, {"symbol": "2498", "name": "宏達電", "price": 38.8, "margin_balance_lots": 30424, "margin_utilization": 14.54, "margin_net_lots": 382, "call_price": 30.26, "is_etf": false}, {"symbol": "2834", "name": "臺企銀", "price": 18.05, "margin_balance_lots": 30344, "margin_utilization": 1.17, "margin_net_lots": 253, "call_price": 14.08, "is_etf": false}, {"symbol": "6456", "name": "GIS-KY", "price": 92.3, "margin_balance_lots": 30204, "margin_utilization": 35.75, "margin_net_lots": -3353, "call_price": 71.99, "is_etf": false}, {"symbol": "009816", "name": "凱基台灣TOP50", "price": 0.0, "margin_balance_lots": 29915, "margin_utilization": 0.87, "margin_net_lots": 701, "call_price": 0.0, "is_etf": true}, {"symbol": "2323", "name": "中環", "price": 11.45, "margin_balance_lots": 29074, "margin_utilization": 11.86, "margin_net_lots": -284, "call_price": 8.93, "is_etf": false}, {"symbol": "2515", "name": "中工", "price": 11.35, "margin_balance_lots": 28738, "margin_utilization": 6.81, "margin_net_lots": 99, "call_price": 8.85, "is_etf": false}, {"symbol": "2332", "name": "友訊", "price": 19.4, "margin_balance_lots": 28671, "margin_utilization": 19.05, "margin_net_lots": -169, "call_price": 15.13, "is_etf": false}, {"symbol": "2449", "name": "京元電子", "price": 253.5, "margin_balance_lots": 27184, "margin_utilization": 8.47, "margin_net_lots": -675, "call_price": 197.73, "is_etf": false}, {"symbol": "2356", "name": "英業達", "price": 59.5, "margin_balance_lots": 26984, "margin_utilization": 3.01, "margin_net_lots": -5, "call_price": 46.41, "is_etf": false}, {"symbol": "1504", "name": "東元", "price": 69.1, "margin_balance_lots": 26872, "margin_utilization": 4.52, "margin_net_lots": -135, "call_price": 53.9, "is_etf": false}, {"symbol": "0050", "name": "元大台灣50", "price": 0.0, "margin_balance_lots": 26635, "margin_utilization": 0.45, "margin_net_lots": 1015, "call_price": 0.0, "is_etf": true}, {"symbol": "1718", "name": "中纖", "price": 10.55, "margin_balance_lots": 26555, "margin_utilization": 6.3, "margin_net_lots": -352, "call_price": 8.23, "is_etf": false}, {"symbol": "1301", "name": "台塑", "price": 72.5, "margin_balance_lots": 26413, "margin_utilization": 1.66, "margin_net_lots": -781, "call_price": 56.55, "is_etf": false}, {"symbol": "2367", "name": "燿華", "price": 40.55, "margin_balance_lots": 26350, "margin_utilization": 14.92, "margin_net_lots": -165, "call_price": 31.63, "is_etf": false}, {"symbol": "6282", "name": "康舒", "price": 39.0, "margin_balance_lots": 26316, "margin_utilization": 12.3, "margin_net_lots": -284, "call_price": 30.42, "is_etf": false}, {"symbol": "3715", "name": "定穎投控", "price": 120.0, "margin_balance_lots": 25431, "margin_utilization": 35.87, "margin_net_lots": -82, "call_price": 93.6, "is_etf": false}, {"symbol": "3706", "name": "神達", "price": 76.8, "margin_balance_lots": 25229, "margin_utilization": 6.91, "margin_net_lots": 5, "call_price": 59.9, "is_etf": false}, {"symbol": "8039", "name": "台虹", "price": 245.0, "margin_balance_lots": 24577, "margin_utilization": 37.25, "margin_net_lots": -446, "call_price": 191.1, "is_etf": false}, {"symbol": "1907", "name": "永豐餘", "price": 28.1, "margin_balance_lots": 24153, "margin_utilization": 5.82, "margin_net_lots": 49, "call_price": 21.92, "is_etf": false}, {"symbol": "2609", "name": "陽明", "price": 63.5, "margin_balance_lots": 24114, "margin_utilization": 2.76, "margin_net_lots": -788, "call_price": 49.53, "is_etf": false}, {"symbol": "8422", "name": "可寧衛*", "price": 24.7, "margin_balance_lots": 23789, "margin_utilization": 7.0, "margin_net_lots": -210, "call_price": 19.27, "is_etf": false}, {"symbol": "4960", "name": "誠美材", "price": 31.5, "margin_balance_lots": 23749, "margin_utilization": 16.62, "margin_net_lots": -1684, "call_price": 24.57, "is_etf": false}, {"symbol": "2328", "name": "廣宇", "price": 50.6, "margin_balance_lots": 23449, "margin_utilization": 18.1, "margin_net_lots": -1174, "call_price": 39.47, "is_etf": false}, {"symbol": "3591", "name": "艾笛森", "price": 26.0, "margin_balance_lots": 22785, "margin_utilization": 69.9, "margin_net_lots": 51, "call_price": 20.28, "is_etf": false}, {"symbol": "3149", "name": "正達", "price": 66.8, "margin_balance_lots": 22556, "margin_utilization": 32.91, "margin_net_lots": -239, "call_price": 52.1, "is_etf": false}, {"symbol": "00405A", "name": "主動富邦台灣龍耀", "price": 0.0, "margin_balance_lots": 22217, "margin_utilization": 3.44, "margin_net_lots": 669, "call_price": 0.0, "is_etf": true}, {"symbol": "2354", "name": "鴻準", "price": 59.6, "margin_balance_lots": 21808, "margin_utilization": 6.17, "margin_net_lots": -211, "call_price": 46.49, "is_etf": false}, {"symbol": "00927", "name": "群益半導體收益", "price": 0.0, "margin_balance_lots": 21768, "margin_utilization": 4.0, "margin_net_lots": 41, "call_price": 0.0, "is_etf": true}, {"symbol": "3714", "name": "富采", "price": 58.1, "margin_balance_lots": 21721, "margin_utilization": 13.01, "margin_net_lots": -554, "call_price": 45.32, "is_etf": false}, {"symbol": "2486", "name": "一詮", "price": 192.5, "margin_balance_lots": 21276, "margin_utilization": 35.35, "margin_net_lots": -15, "call_price": 150.15, "is_etf": false}, {"symbol": "1714", "name": "和桐", "price": 17.45, "margin_balance_lots": 21251, "margin_utilization": 8.57, "margin_net_lots": -634, "call_price": 13.61, "is_etf": false}, {"symbol": "1326", "name": "台化", "price": 72.5, "margin_balance_lots": 21249, "margin_utilization": 1.45, "margin_net_lots": -256, "call_price": 56.55, "is_etf": false}, {"symbol": "2634", "name": "漢翔", "price": 58.9, "margin_balance_lots": 21147, "margin_utilization": 8.98, "margin_net_lots": -318, "call_price": 45.94, "is_etf": false}, {"symbol": "00407A", "name": "主動凱基台灣", "price": 0.0, "margin_balance_lots": 21072, "margin_utilization": 3.69, "margin_net_lots": 1559, "call_price": 0.0, "is_etf": true}, {"symbol": "2492", "name": "華新科", "price": 381.0, "margin_balance_lots": 21054, "margin_utilization": 17.36, "margin_net_lots": 885, "call_price": 297.18, "is_etf": false}, {"symbol": "00708L", "name": "期元大S&P黃金正2", "price": 0.0, "margin_balance_lots": 20815, "margin_utilization": 49.54, "margin_net_lots": 13, "call_price": 0.0, "is_etf": true}, {"symbol": "1337", "name": "再生-KY", "price": 4.05, "margin_balance_lots": 20775, "margin_utilization": 30.9, "margin_net_lots": -160, "call_price": 3.16, "is_etf": false}, {"symbol": "6239", "name": "力成", "price": 256.0, "margin_balance_lots": 20655, "margin_utilization": 10.88, "margin_net_lots": -14, "call_price": 199.68, "is_etf": false}, {"symbol": "00918", "name": "大華優利高填息30", "price": 0.0, "margin_balance_lots": 20564, "margin_utilization": 1.75, "margin_net_lots": -120, "call_price": 0.0, "is_etf": true}, {"symbol": "00985A", "name": "主動野村台灣50", "price": 0.0, "margin_balance_lots": 20501, "margin_utilization": 5.7, "margin_net_lots": -79, "call_price": 0.0, "is_etf": true}, {"symbol": "1711", "name": "永光", "price": 39.0, "margin_balance_lots": 20473, "margin_utilization": 14.95, "margin_net_lots": -498, "call_price": 30.42, "is_etf": false}, {"symbol": "2426", "name": "鼎元", "price": 87.4, "margin_balance_lots": 20235, "margin_utilization": 26.92, "margin_net_lots": -1367, "call_price": 68.17, "is_etf": false}, {"symbol": "1409", "name": "新纖", "price": 23.75, "margin_balance_lots": 20020, "margin_utilization": 4.95, "margin_net_lots": -1777, "call_price": 18.53, "is_etf": false}, {"symbol": "2027", "name": "大成鋼", "price": 50.2, "margin_balance_lots": 20018, "margin_utilization": 3.1, "margin_net_lots": -228, "call_price": 39.16, "is_etf": false}, {"symbol": "1709", "name": "和益", "price": 48.1, "margin_balance_lots": 19504, "margin_utilization": 16.36, "margin_net_lots": -320, "call_price": 37.52, "is_etf": false}, {"symbol": "6191", "name": "精成科", "price": 78.5, "margin_balance_lots": 19414, "margin_utilization": 14.67, "margin_net_lots": -217, "call_price": 61.23, "is_etf": false}, {"symbol": "8476", "name": "台境*", "price": 19.4, "margin_balance_lots": 19403, "margin_utilization": 46.69, "margin_net_lots": -10, "call_price": 15.13, "is_etf": false}, {"symbol": "1810", "name": "和成", "price": 21.7, "margin_balance_lots": 19366, "margin_utilization": 25.62, "margin_net_lots": -166, "call_price": 16.93, "is_etf": false}, {"symbol": "9904", "name": "寶成", "price": 25.8, "margin_balance_lots": 19177, "margin_utilization": 2.6, "margin_net_lots": -585, "call_price": 20.12, "is_etf": false}, {"symbol": "3006", "name": "晶豪科", "price": 277.0, "margin_balance_lots": 19043, "margin_utilization": 25.55, "margin_net_lots": -152, "call_price": 216.06, "is_etf": false}, {"symbol": "00688L", "name": "國泰20年美債正2", "price": 0.0, "margin_balance_lots": 18804, "margin_utilization": 13.76, "margin_net_lots": -218, "call_price": 0.0, "is_etf": true}, {"symbol": "00686R", "name": "群益臺灣加權反1", "price": 0.0, "margin_balance_lots": 18623, "margin_utilization": 27.98, "margin_net_lots": 1477, "call_price": 0.0, "is_etf": true}, {"symbol": "2352", "name": "佳世達", "price": 33.8, "margin_balance_lots": 18248, "margin_utilization": 4.62, "margin_net_lots": -1862, "call_price": 26.36, "is_etf": false}, {"symbol": "6213", "name": "聯茂", "price": 687.0, "margin_balance_lots": 18120, "margin_utilization": 19.93, "margin_net_lots": -1322, "call_price": 535.86, "is_etf": false}, {"symbol": "2514", "name": "龍邦", "price": 11.25, "margin_balance_lots": 18115, "margin_utilization": 18.36, "margin_net_lots": -10, "call_price": 8.78, "is_etf": false}, {"symbol": "6209", "name": "今國光", "price": 87.0, "margin_balance_lots": 18013, "margin_utilization": 39.5, "margin_net_lots": -1210, "call_price": 67.86, "is_etf": false}, {"symbol": "2101", "name": "南港", "price": 28.6, "margin_balance_lots": 17613, "margin_utilization": 9.6, "margin_net_lots": -15, "call_price": 22.31, "is_etf": false}, {"symbol": "4919", "name": "新唐", "price": 124.5, "margin_balance_lots": 17489, "margin_utilization": 15.46, "margin_net_lots": -650, "call_price": 97.11, "is_etf": false}, {"symbol": "2908", "name": "特力", "price": 22.15, "margin_balance_lots": 17188, "margin_utilization": 13.48, "margin_net_lots": 195, "call_price": 17.28, "is_etf": false}, {"symbol": "4989", "name": "榮科", "price": 60.4, "margin_balance_lots": 17172, "margin_utilization": 39.76, "margin_net_lots": -582, "call_price": 47.11, "is_etf": false}, {"symbol": "2363", "name": "矽統", "price": 50.7, "margin_balance_lots": 17163, "margin_utilization": 13.33, "margin_net_lots": -107, "call_price": 39.55, "is_etf": false}, {"symbol": "3673", "name": "TPK-KY", "price": 67.3, "margin_balance_lots": 17059, "margin_utilization": 16.78, "margin_net_lots": -441, "call_price": 52.49, "is_etf": false}, {"symbol": "8112", "name": "至上", "price": 81.9, "margin_balance_lots": 16905, "margin_utilization": 11.95, "margin_net_lots": -180, "call_price": 63.88, "is_etf": false}, {"symbol": "8150", "name": "南茂", "price": 90.9, "margin_balance_lots": 16764, "margin_utilization": 9.52, "margin_net_lots": -271, "call_price": 70.9, "is_etf": false}, {"symbol": "2104", "name": "國際中橡", "price": 10.8, "margin_balance_lots": 16751, "margin_utilization": 6.8, "margin_net_lots": -158, "call_price": 8.42, "is_etf": false}, {"symbol": "1717", "name": "長興", "price": 65.6, "margin_balance_lots": 16496, "margin_utilization": 5.57, "margin_net_lots": -17, "call_price": 51.17, "is_etf": false}, {"symbol": "6285", "name": "啟碁", "price": 213.0, "margin_balance_lots": 16327, "margin_utilization": 13.51, "margin_net_lots": -78, "call_price": 166.14, "is_etf": false}, {"symbol": "2484", "name": "希華", "price": 70.6, "margin_balance_lots": 16202, "margin_utilization": 40.65, "margin_net_lots": -843, "call_price": 55.07, "is_etf": false}, {"symbol": "8110", "name": "華東", "price": 42.7, "margin_balance_lots": 15736, "margin_utilization": 12.16, "margin_net_lots": -34, "call_price": 33.31, "is_etf": false}, {"symbol": "2374", "name": "佳能", "price": 63.2, "margin_balance_lots": 15614, "margin_utilization": 18.48, "margin_net_lots": -56, "call_price": 49.3, "is_etf": false}, {"symbol": "2382", "name": "廣達", "price": 318.0, "margin_balance_lots": 15497, "margin_utilization": 1.51, "margin_net_lots": 121, "call_price": 248.04, "is_etf": false}, {"symbol": "3717", "name": "聯嘉投控", "price": 25.35, "margin_balance_lots": 15053, "margin_utilization": 27.33, "margin_net_lots": -478, "call_price": 19.77, "is_etf": false}, {"symbol": "00990A", "name": "主動元大AI新經濟", "price": 0.0, "margin_balance_lots": 14947, "margin_utilization": 2.63, "margin_net_lots": 119, "call_price": 0.0, "is_etf": true}, {"symbol": "2615", "name": "萬海", "price": 120.0, "margin_balance_lots": 14818, "margin_utilization": 2.11, "margin_net_lots": -355, "call_price": 93.6, "is_etf": false}, {"symbol": "2618", "name": "長榮航", "price": 42.7, "margin_balance_lots": 14783, "margin_utilization": 1.09, "margin_net_lots": -472, "call_price": 33.31, "is_etf": false}, {"symbol": "00676R", "name": "富邦臺灣加權反1", "price": 0.0, "margin_balance_lots": 14722, "margin_utilization": 33.11, "margin_net_lots": -1107, "call_price": 0.0, "is_etf": true}, {"symbol": "2369", "name": "菱生", "price": 27.25, "margin_balance_lots": 14703, "margin_utilization": 15.47, "margin_net_lots": -217, "call_price": 21.25, "is_etf": false}, {"symbol": "2481", "name": "強茂", "price": 139.5, "margin_balance_lots": 14582, "margin_utilization": 15.26, "margin_net_lots": -520, "call_price": 108.81, "is_etf": false}, {"symbol": "912000", "name": "晨訊科-DR", "price": 0.0, "margin_balance_lots": 14479, "margin_utilization": 36.67, "margin_net_lots": 38, "call_price": 0.0, "is_etf": false}, {"symbol": "6153", "name": "嘉聯益", "price": 16.1, "margin_balance_lots": 14441, "margin_utilization": 10.55, "margin_net_lots": -79, "call_price": 12.56, "is_etf": false}, {"symbol": "6269", "name": "台郡", "price": 69.0, "margin_balance_lots": 14274, "margin_utilization": 17.63, "margin_net_lots": -1125, "call_price": 53.82, "is_etf": false}, {"symbol": "00984D", "name": "主動聯博全球非投", "price": 0.0, "margin_balance_lots": 14213, "margin_utilization": 4.61, "margin_net_lots": -27, "call_price": 0.0, "is_etf": true}, {"symbol": "3036", "name": "文曄", "price": 207.0, "margin_balance_lots": 14173, "margin_utilization": 4.21, "margin_net_lots": -316, "call_price": 161.46, "is_etf": false}, {"symbol": "00738U", "name": "期元大道瓊白銀", "price": 0.0, "margin_balance_lots": 14145, "margin_utilization": 21.78, "margin_net_lots": -429, "call_price": 0.0, "is_etf": true}, {"symbol": "00400A", "name": "主動國泰動能高息", "price": 0.0, "margin_balance_lots": 14038, "margin_utilization": 2.59, "margin_net_lots": -396, "call_price": 0.0, "is_etf": true}, {"symbol": "2329", "name": "華泰", "price": 39.25, "margin_balance_lots": 13907, "margin_utilization": 8.44, "margin_net_lots": -17, "call_price": 30.62, "is_etf": false}, {"symbol": "2301", "name": "光寶科", "price": 240.5, "margin_balance_lots": 13821, "margin_utilization": 2.39, "margin_net_lots": -392, "call_price": 187.59, "is_etf": false}, {"symbol": "3450", "name": "聯鈞", "price": 409.0, "margin_balance_lots": 13690, "margin_utilization": 37.59, "margin_net_lots": -428, "call_price": 319.02, "is_etf": false}, {"symbol": "3605", "name": "宏致", "price": 161.5, "margin_balance_lots": 13468, "margin_utilization": 30.43, "margin_net_lots": 843, "call_price": 125.97, "is_etf": false}, {"symbol": "8429", "name": "金麗-KY", "price": 5.8, "margin_balance_lots": 13463, "margin_utilization": 28.99, "margin_net_lots": -157, "call_price": 4.52, "is_etf": false}, {"symbol": "2605", "name": "新興", "price": 34.95, "margin_balance_lots": 13379, "margin_utilization": 9.14, "margin_net_lots": 32, "call_price": 27.26, "is_etf": false}, {"symbol": "2236", "name": "百達-KY", "price": 106.0, "margin_balance_lots": 13246, "margin_utilization": 83.42, "margin_net_lots": -76, "call_price": 82.68, "is_etf": false}, {"symbol": "2406", "name": "國碩", "price": 28.6, "margin_balance_lots": 13124, "margin_utilization": 14.96, "margin_net_lots": -255, "call_price": 22.31, "is_etf": false}, {"symbol": "3189", "name": "景碩", "price": 932.0, "margin_balance_lots": 12956, "margin_utilization": 9.84, "margin_net_lots": -195, "call_price": 726.96, "is_etf": false}, {"symbol": "5469", "name": "瀚宇博", "price": 68.4, "margin_balance_lots": 12940, "margin_utilization": 10.65, "margin_net_lots": -953, "call_price": 53.35, "is_etf": false}]};
+
+let _twseMarginCache = TWSE_MARGIN_BASELINE;
+let _twseMarginCacheTime = Date.now();
 
 async function fetchTwseMarketMarginData(forceRefresh = false) {
   const now = Date.now();
@@ -2163,6 +2242,18 @@ function renderMarginRiskAnalytics() {
   const positions = state.normalizedPositions || [];
   const isPrivate = state.privacyMode;
 
+  const warnThresh = marginThresholds.warning || 160;
+  const callThresh = marginThresholds.call || 130;
+  const callMultiplier = callThresh / 100.0;
+
+  // 動態更新表頭與提示文字
+  const thCall = document.getElementById("th-call-price");
+  if (thCall) thCall.textContent = `${callThresh}%斷頭價`;
+  const subTip = document.getElementById("margin-risk-sub-tip");
+  if (subTip) subTip.textContent = `上市成數 60% ‧ 上櫃 50% ‧ 警戒線 < ${warnThresh}% ‧ 追繳線 < ${callThresh}% 觸發補繳`;
+  const callCardTitle = document.getElementById("margin-call-card-title");
+  if (callCardTitle) callCardTitle.textContent = `追繳斷頭警報 (< ${callThresh}%)`;
+
   let totMarginMarketVal = 0;
   let totMarginLoan = 0;
   let totMarginEquity = 0;
@@ -2208,16 +2299,16 @@ function renderMarginRiskAnalytics() {
     const marginLoan = Math.round(totalCost * marginRate);
     const marginEquity = totalCost - marginLoan;
     const ratio = marginLoan > 0 ? Number(((marketVal / marginLoan) * 100).toFixed(2)) : 0;
-    const callPrice = shares > 0 ? Number(((marginLoan * 1.30) / shares).toFixed(2)) : 0;
-    const callDiff = ratio < 130 ? Math.max(0, Math.round((marginLoan * 1.30) - marketVal)) : 0;
+    const callPrice = shares > 0 ? Number(((marginLoan * callMultiplier) / shares).toFixed(2)) : 0;
+    const callDiff = ratio < callThresh ? Math.max(0, Math.round((marginLoan * callMultiplier) - marketVal)) : 0;
 
     let riskLevel = "SAFE";
     let riskLabel = "安全";
-    if (ratio < 130) {
+    if (ratio < callThresh) {
       riskLevel = "CALL";
       riskLabel = "追繳";
       callCount++;
-    } else if (ratio < 160) {
+    } else if (ratio < warnThresh) {
       riskLevel = "WARNING";
       riskLabel = "警戒";
       warningCount++;
@@ -2258,17 +2349,17 @@ function renderMarginRiskAnalytics() {
     const overallRatio = Number(((totMarginMarketVal / totMarginLoan) * 100).toFixed(2));
     if (overallRatioEl) {
       overallRatioEl.textContent = isPrivate ? "***.**%" : `${overallRatio.toFixed(2)}%`;
-      overallRatioEl.className = `metric-val ${overallRatio >= 160 ? "text-green" : (overallRatio >= 130 ? "text-gold" : "text-red")}`;
+      overallRatioEl.className = `metric-val ${overallRatio >= warnThresh ? "text-green" : (overallRatio >= callThresh ? "text-gold" : "text-red")}`;
     }
     if (overallStatusEl) {
-      if (overallRatio >= 160) {
-        overallStatusEl.textContent = "整戶安全 (擔保維持率充裕)";
+      if (overallRatio >= warnThresh) {
+        overallStatusEl.textContent = `整戶安全 (擔保維持率 >= ${warnThresh}%)`;
         overallStatusEl.style.color = "#52c41a";
-      } else if (overallRatio >= 130) {
-        overallStatusEl.textContent = "整戶警戒 (留意標的跌幅)";
+      } else if (overallRatio >= callThresh) {
+        overallStatusEl.textContent = `整戶警戒 (維持率 ${callThresh}% ~ ${warnThresh}%)`;
         overallStatusEl.style.color = "#ffd166";
       } else {
-        overallStatusEl.textContent = "追繳斷頭警報！(需儘速補繳)";
+        overallStatusEl.textContent = `追繳斷頭警報！(< ${callThresh}% 需儘速補繳)`;
         overallStatusEl.style.color = "#ff4d4f";
       }
     }
@@ -2352,7 +2443,7 @@ function renderMarginRiskAnalytics() {
       </td>
       <td>${isPrivate ? "***" : loanDisplay}</td>
       <td>${isPrivate ? "***" : `$ ${fmtNum(it.market_val)}`}</td>
-      <td><b class="${it.is_margin ? (it.maintenance_ratio >= 160 ? "text-green" : (it.maintenance_ratio >= 130 ? "text-gold" : "text-red")) : ""}">${isPrivate ? "***" : ratioDisplay}</b></td>
+      <td><b class="${it.is_margin ? (it.maintenance_ratio >= warnThresh ? "text-green" : (it.maintenance_ratio >= callThresh ? "text-gold" : "text-red")) : ""}">${isPrivate ? "***" : ratioDisplay}</b></td>
       <td><span class="${it.is_margin ? "text-dim" : ""}">${callPDisplay}</span></td>
       <td><b class="${it.margin_call_diff > 0 ? "text-red" : ""}">${isPrivate ? "***" : diffDisplay}</b></td>
       <td><span class="${badgeClass}">${it.risk_label}</span></td>
@@ -2364,13 +2455,12 @@ function renderMarginRiskAnalytics() {
 async function loadMarketRankingCacheSilently() {
   if (marketRankState.rawMarketData) return;
   try {
-    let resp = await fetch("../market_ranking_cache.json?t=" + Date.now(), { cache: "no-store" });
+    let resp = await fetch("market_ranking_cache.json?t=" + Date.now(), { cache: "no-store" });
     if (!resp.ok) {
-      resp = await fetch("market_ranking_cache.json?t=" + Date.now(), { cache: "no-store" });
+      resp = await fetch("../market_ranking_cache.json?t=" + Date.now(), { cache: "no-store" });
     }
     if (resp.ok) {
       const data = await resp.json();
-      // 將營收資料依照 symbol 建立索引並注入個股資料中
       const revMap = {};
       if (Array.isArray(data.revenues)) {
         for (const r of data.revenues) {
@@ -2388,6 +2478,10 @@ async function loadMarketRankingCacheSilently() {
         }
       }
       marketRankState.rawMarketData = data;
+      const statusTag = document.getElementById("mkt-banner-status-tag");
+      if (statusTag && data.cached_time_str) {
+        statusTag.textContent = `資料時間: ${data.cached_time_str}`;
+      }
       renderMarketRankings();
     }
   } catch (e) {
@@ -2398,7 +2492,8 @@ async function loadMarketRankingCacheSilently() {
 async function renderMarketRankings() {
   const tbody = document.getElementById("market-ranking-tbody");
   const thead = document.getElementById("market-ranking-thead");
-  const summaryBox = document.getElementById("market-margin-summary-cards");
+  const bannerBar = document.getElementById("market-margin-banner-bar");
+  const bannerText = document.getElementById("mkt-ratio-banner-text");
   const titleEl = document.getElementById("market-rank-title");
   const tipEl = document.getElementById("market-rank-tip");
   if (!tbody) return;
@@ -2408,10 +2503,12 @@ async function renderMarketRankings() {
   const mySyms = new Set((state.normalizedPositions || []).map(p => (p.symbol || "").toUpperCase()));
 
   // ==========================================
-  // 分支 A：全市場融資維持率與信用排行 (margin_market)
+  // 分支 A：[全市場融資排行] (margin_market)
+  // 對齊本機端 unified_ranking_gui.py tab == "margin_market"
+  // 表頭: 名次 | 代號 | 名稱 | 現價 | 融資餘額(張) | 使用率(%) | 今日資增減 | 130%追繳價 | 在庫狀態
   // ==========================================
   if (mType === "margin_market") {
-    if (summaryBox) summaryBox.classList.remove("hidden");
+    if (bannerBar) bannerBar.classList.remove("hidden");
     if (titleEl) titleEl.textContent = "全市場融資餘額與維持率排行 (TWSE Market Margin Rankings)";
     if (tipEl) tipEl.textContent = "台灣證交所官方信用交易總表 ‧ 融資餘額由大到小 ‧ 融資使用率 ‧ 130% 斷頭追繳預警";
 
@@ -2419,73 +2516,66 @@ async function renderMarketRankings() {
       thead.innerHTML = `
         <tr>
           <th>名次</th>
-          <th>標的代碼</th>
-          <th>標的名稱</th>
-          <th>參考現價</th>
-          <th>今日融資餘額 (張) ⇕</th>
-          <th>融資使用率 % ⇕</th>
-          <th>今日買賣超 (張)</th>
-          <th>130%斷頭價</th>
+          <th>代號</th>
+          <th>名稱</th>
+          <th>現價</th>
+          <th>融資餘額(張)</th>
+          <th>使用率(%)</th>
+          <th>今日資增減</th>
+          <th>130%追繳價</th>
           <th>在庫狀態</th>
         </tr>`;
     }
 
-    let marginData = marketRankState.twseMarginData || _twseMarginCache;
+    let marginData = marketRankState.twseMarginData || _twseMarginCache || TWSE_MARGIN_BASELINE;
     if (!marginData) {
       tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#94a3b8; padding:30px;">正在向台灣證交所 (TWSE) 抓取官方最新信用交易總表 (MI_MARGN)...</td></tr>`;
       marginData = await fetchTwseMarketMarginData();
     }
 
     if (!marginData || !marginData.items || marginData.items.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#f87171; padding:30px;">暫無法取得台灣證交所信用總表，請確認網路連線或稍後再試。</td></tr>`;
-      return;
+      marginData = TWSE_MARGIN_BASELINE;
     }
 
-    // 更新大盤概況卡片
-    const ratioEl = document.getElementById("mkt-summary-ratio");
-    const statusEl = document.getElementById("mkt-summary-status");
-    const loanEl = document.getElementById("mkt-summary-loan");
-    const mktvalEl = document.getElementById("mkt-summary-mktval");
-    const dateEl = document.getElementById("mkt-summary-date");
-
-    if (ratioEl) {
-      const r = marginData.market_maintenance_ratio || 166.5;
-      ratioEl.textContent = `${r.toFixed(2)}%`;
-      ratioEl.className = r >= 165 ? "metric-val text-green" : (r >= 140 ? "metric-val text-gold" : "metric-val text-red");
+    // 更新大盤概況橫幅 (對齊本機端: 【台股大盤融資維持率】163.08% | 全市場融資餘額：6234.68 億元 | 風控狀態：去槓桿警戒區 (140%~165%) (證交所數據: 20261030))
+    if (bannerText) {
+      const r = marginData.market_maintenance_ratio || 163.08;
+      const loanStr = marginData.total_margin_loan_str || "6234.68 億元";
+      const riskLbl = marginData.risk_label || "去槓桿警戒區 (140%~165%)";
+      const tDate = marginData.date || "20261030";
+      bannerText.textContent = `【台股大盤融資維持率】${r.toFixed(2)}%  |  全市場融資餘額：${loanStr}  |  風控狀態：${riskLbl}  (證交所數據: ${tDate})`;
+      bannerText.style.color = (r >= 165) ? "#52c41a" : ((r >= 140) ? "#ffd166" : "#ff4d4f");
     }
-    if (statusEl) statusEl.textContent = marginData.risk_label || "大盤籌碼評估";
-    if (loanEl) loanEl.textContent = marginData.total_margin_loan_str || "--";
-    if (mktvalEl) mktvalEl.textContent = marginData.total_margin_mkt_val > 0 ? `${(marginData.total_margin_mkt_val / 100000000.0).toFixed(2)} 億元` : "--";
-    if (dateEl) dateEl.textContent = marginData.date || "最新交易日";
 
-    let list = [...marginData.items];
+    let list = [...(marginData.items || [])];
     if (filter === "stock") list = list.filter(s => !s.is_etf);
     else if (filter === "etf") list = list.filter(s => s.is_etf);
 
-    // 依融資餘額由大到小排序
+    // 依融資餘額降序排列
     list.sort((a, b) => (b.margin_balance_lots || 0) - (a.margin_balance_lots || 0));
-    const topItems = list.slice(0, 100);
+    const topItems = list.slice(0, 150);
 
     tbody.innerHTML = "";
     topItems.forEach((it, idx) => {
       const tr = document.createElement("tr");
-      const isIn = mySyms.has(it.symbol.toUpperCase());
+      const isIn = mySyms.has((it.symbol || "").toUpperCase());
       const inTag = isIn ? `<span class="badge-tag tag-tw">已在庫</span>` : `<span class="cell-sub text-dim">未持有</span>`;
 
-      const balStr = (it.margin_balance_lots || 0).toLocaleString();
+      const balLots = (it.margin_balance_lots || 0).toLocaleString();
       const util = it.margin_utilization || 0;
-      const utilClass = util >= 60 ? "text-red font-bold" : (util >= 40 ? "text-gold font-bold" : "");
+      const utilClass = util >= 50 ? "text-red font-bold" : (util >= 30 ? "text-gold font-bold" : "");
       const netLots = it.margin_net_lots || 0;
       const netStr = `${netLots > 0 ? "+" : ""}${netLots.toLocaleString()}`;
       const netClass = netLots > 0 ? "text-red font-bold" : (netLots < 0 ? "text-green font-bold" : "text-dim");
-      const callP = it.call_price > 0 ? it.call_price.toFixed(2) : "--";
+      const callP = (it.call_price && it.call_price > 0) ? it.call_price.toFixed(2) : "--";
+      const priceStr = (it.price && it.price > 0) ? it.price.toFixed(2) : "--";
 
       tr.innerHTML = `
         <td>${idx + 1}</td>
         <td><b>${it.symbol}</b></td>
         <td>${it.name || it.symbol}</td>
-        <td>${it.price ? it.price.toFixed(2) : "--"}</td>
-        <td class="font-bold">${balStr}</td>
+        <td><b>${priceStr}</b></td>
+        <td class="font-bold">${balLots}</td>
         <td class="${utilClass}">${util.toFixed(2)}%</td>
         <td class="${netClass}">${netStr}</td>
         <td class="text-dim">${callP}</td>
@@ -2497,96 +2587,301 @@ async function renderMarketRankings() {
   }
 
   // ==========================================
-  // 分支 B：全市場 4 大財務指標排行 (yield / pe / rev / roe)
+  // 分支 B：[殖利率排行] (yield)
+  // 對齊本機端 unified_ranking_gui.py:
+  // 表頭: 名次 | 代號 | 名稱 | 現價 | 現金殖利率 | 本益比 | 股價淨值比 | ROE | 在庫狀態
   // ==========================================
-  if (summaryBox) summaryBox.classList.add("hidden");
-  if (titleEl) titleEl.textContent = "全市場核心財務指標排行榜 (Market Financial Rankings)";
-  if (tipEl) tipEl.textContent = "高殖利率 ‧ 低本益比價值 ‧ 營收高成長 ‧ 高股東權益報酬率 ROE";
-
-  if (thead) {
-    thead.innerHTML = `
-      <tr>
-        <th>名次</th>
-        <th>標的代碼</th>
-        <th>標的名稱</th>
-        <th>參考現價</th>
-        <th>殖利率 %</th>
-        <th>本益比 PE</th>
-        <th>營收年增率 YoY</th>
-        <th>ROE %</th>
-        <th>在庫狀態</th>
-      </tr>`;
-  }
-
-  tbody.innerHTML = "";
-  const cache = marketRankState.rawMarketData;
-  if (!cache || !cache.stocks) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#94a3b8; padding:30px;">正在載入全市場財務指標快取...</td></tr>`;
-    return;
-  }
-
-  let list = [...cache.stocks];
-  if (filter === "stock") list = list.filter(s => !s.is_etf);
-  else if (filter === "etf") list = list.filter(s => s.is_etf);
-
   if (mType === "yield") {
-    list = list.filter(s => {
-      const y = (s.yield_pct !== undefined && s.yield_pct !== null) ? s.yield_pct : (s.dividend_yield || 0);
-      return y > 0;
-    });
-    list.sort((a, b) => {
+    if (bannerBar) bannerBar.classList.remove("hidden");
+    if (titleEl) titleEl.textContent = "全市場高配息殖利率排行榜 (High Dividend Yield Rankings)";
+    if (tipEl) tipEl.textContent = "全市場上市櫃股票與高股息 ETF ‧ 現金殖利率由高至低排列 ‧ 排除 0% 與未配息標的";
+
+    if (thead) {
+      thead.innerHTML = `
+        <tr>
+          <th>名次</th>
+          <th>代號</th>
+          <th>名稱</th>
+          <th>現價</th>
+          <th>現金殖利率</th>
+          <th>本益比</th>
+          <th>股價淨值比</th>
+          <th>ROE</th>
+          <th>在庫狀態</th>
+        </tr>`;
+    }
+
+    const cache = marketRankState.rawMarketData;
+    if (!cache || (!cache.stocks && !cache.etfs)) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#94a3b8; padding:30px;">正在載入全市場指標快取...</td></tr>`;
+      return;
+    }
+
+    let pool = [];
+    if (filter === "all" || filter === "stock") {
+      (cache.stocks || []).forEach(s => {
+        const y = (s.yield_pct !== undefined && s.yield_pct !== null) ? s.yield_pct : (s.dividend_yield || 0);
+        if (y > 0) pool.push({ ...s, is_etf: false });
+      });
+    }
+    if (filter === "all" || filter === "etf") {
+      (cache.etfs || []).forEach(e => {
+        const y = (e.yield_pct !== undefined && e.yield_pct !== null) ? e.yield_pct : (e.dividend_yield || 0);
+        if (y > 0) pool.push({ ...e, is_etf: true });
+      });
+    }
+
+    pool.sort((a, b) => {
       const ya = (a.yield_pct !== undefined && a.yield_pct !== null) ? a.yield_pct : (a.dividend_yield || 0);
       const yb = (b.yield_pct !== undefined && b.yield_pct !== null) ? b.yield_pct : (b.dividend_yield || 0);
       return yb - ya;
     });
-  } else if (mType === "pe") {
-    list = list.filter(s => {
-      const p = (s.pe !== undefined && s.pe !== null) ? s.pe : (s.pe_ratio || 0);
-      return p >= 3.0 && p <= 35.0;
+
+    const topItems = pool.slice(0, 100);
+    tbody.innerHTML = "";
+    topItems.forEach((it, idx) => {
+      const tr = document.createElement("tr");
+      const isIn = mySyms.has((it.symbol || "").toUpperCase());
+      const inTag = isIn ? `<span class="badge-tag tag-tw">已在庫</span>` : `<span class="cell-sub text-dim">未持有</span>`;
+
+      const ydVal = (it.yield_pct !== undefined && it.yield_pct !== null) ? it.yield_pct : it.dividend_yield;
+      const yd = (ydVal !== undefined && ydVal > 0) ? `${ydVal.toFixed(2)}%` : "--";
+      const pe = (it.pe !== undefined && it.pe !== null && it.pe > 0) ? Number(it.pe).toFixed(2) : "--";
+      const pb = (it.pb !== undefined && it.pb !== null && it.pb > 0) ? Number(it.pb).toFixed(2) : "--";
+      const roe = (it.roe !== undefined && it.roe !== null && !isNaN(it.roe)) ? `${Number(it.roe).toFixed(2)}%` : "--";
+      const priceStr = (it.price && it.price > 0) ? it.price.toFixed(2) : "--";
+
+      tr.innerHTML = `
+        <td>${idx + 1}</td>
+        <td><b>${it.symbol}</b></td>
+        <td>${it.name || it.symbol}</td>
+        <td><b>${priceStr}</b></td>
+        <td class="text-gold font-bold">${yd}</td>
+        <td>${pe}</td>
+        <td>${pb}</td>
+        <td class="${(it.roe || 0) >= 15 ? "text-red font-bold" : ""}">${roe}</td>
+        <td>${inTag}</td>
+      `;
+      tbody.appendChild(tr);
     });
-    list.sort((a, b) => {
-      const pa = (a.pe !== undefined && a.pe !== null) ? a.pe : (a.pe_ratio || 999);
-      const pb = (b.pe !== undefined && b.pe !== null) ? b.pe : (b.pe_ratio || 999);
-      return pa - pb;
-    });
-  } else if (mType === "rev") {
-    list = list.filter(s => (s.yoy !== undefined && s.yoy !== null && !isNaN(s.yoy)));
-    list.sort((a, b) => b.yoy - a.yoy);
-  } else if (mType === "roe") {
-    list = list.filter(s => (s.roe !== undefined && s.roe !== null && !isNaN(s.roe) && s.roe > 0));
-    list.sort((a, b) => b.roe - a.roe);
+    return;
   }
 
-  const topItems = list.slice(0, 100);
+  // ==========================================
+  // 分支 C：[低本益比排行] (pe)
+  // 對齊本機端 unified_ranking_gui.py:
+  // 表頭: 名次 | 代號 | 名稱 | 現價 | 本益比(低估) | 殖利率 | 股價淨值比 | ROE | 在庫狀態
+  // ==========================================
+  if (mType === "pe") {
+    if (bannerBar) bannerBar.classList.remove("hidden");
+    if (titleEl) titleEl.textContent = "全市場價值低本益比優質股排行榜 (Low PE Ratio Value Rankings)";
+    if (tipEl) tipEl.textContent = "排除虧損與處分資產暴賺 (PE 4.0 ~ 30.0) ‧ 股價 >= 10 元之優質績優個股由低至高";
 
-  topItems.forEach((it, idx) => {
-    const tr = document.createElement("tr");
-    const isIn = mySyms.has(it.symbol.toUpperCase());
-    const inTag = isIn ? `<span class="badge-tag tag-tw">已在庫</span>` : `<span class="cell-sub text-dim">未持有</span>`;
+    if (thead) {
+      thead.innerHTML = `
+        <tr>
+          <th>名次</th>
+          <th>代號</th>
+          <th>名稱</th>
+          <th>現價</th>
+          <th>本益比(低估)</th>
+          <th>殖利率</th>
+          <th>股價淨值比</th>
+          <th>ROE</th>
+          <th>在庫狀態</th>
+        </tr>`;
+    }
 
-    const ydVal = (it.yield_pct !== undefined && it.yield_pct !== null) ? it.yield_pct : it.dividend_yield;
-    const yd = (ydVal !== undefined && ydVal > 0) ? `${ydVal.toFixed(2)}%` : "--";
+    const cache = marketRankState.rawMarketData;
+    if (!cache || !cache.stocks) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#94a3b8; padding:30px;">正在載入全市場指標快取...</td></tr>`;
+      return;
+    }
 
-    const peVal = (it.pe !== undefined && it.pe !== null) ? it.pe : it.pe_ratio;
-    const pe = (peVal !== undefined && peVal > 0) ? peVal.toFixed(2) : "--";
+    let pool = (cache.stocks || []).filter(s => {
+      const p = s.pe;
+      const price = s.price || 0;
+      return (p !== undefined && p !== null && p >= 4.0 && p <= 30.0 && price >= 10.0);
+    });
 
-    const yoyVal = (it.yoy !== undefined && it.yoy !== null) ? it.yoy : it.revenue_yoy;
-    const yoy = (yoyVal !== undefined && yoyVal !== null) ? `${yoyVal > 0 ? "+" : ""}${Number(yoyVal).toFixed(2)}%` : "--";
+    if (filter === "stock") pool = pool.filter(s => !s.is_etf);
+    else if (filter === "etf") pool = pool.filter(s => s.is_etf);
 
-    const roeVal = it.roe;
-    const roe = (roeVal !== undefined && roeVal !== null) ? `${Number(roeVal).toFixed(2)}%` : "--";
+    pool.sort((a, b) => a.pe - b.pe);
+    const topItems = pool.slice(0, 100);
 
-    tr.innerHTML = `
-      <td>${idx + 1}</td>
-      <td><b>${it.symbol}</b></td>
-      <td>${it.name || it.symbol}</td>
-      <td><b>${it.price ? it.price.toFixed(2) : "--"}</b></td>
-      <td class="text-gold font-bold">${yd}</td>
-      <td>${pe}</td>
-      <td class="${(yoyVal || 0) >= 0 ? "text-red" : "text-green"} font-bold">${yoy}</td>
-      <td class="${(roeVal || 0) >= 15 ? "text-red font-bold" : ""}">${roe}</td>
-      <td>${inTag}</td>
-    `;
-    tbody.appendChild(tr);
-  });
+    tbody.innerHTML = "";
+    topItems.forEach((it, idx) => {
+      const tr = document.createElement("tr");
+      const isIn = mySyms.has((it.symbol || "").toUpperCase());
+      const inTag = isIn ? `<span class="badge-tag tag-tw">已在庫</span>` : `<span class="cell-sub text-dim">未持有</span>`;
+
+      const pe = `${Number(it.pe).toFixed(2)} 倍`;
+      const ydVal = (it.yield_pct !== undefined && it.yield_pct !== null) ? it.yield_pct : it.dividend_yield;
+      const yd = (ydVal !== undefined && ydVal > 0) ? `${ydVal.toFixed(2)}%` : "--";
+      const pb = (it.pb !== undefined && it.pb !== null && it.pb > 0) ? Number(it.pb).toFixed(2) : "--";
+      const roe = (it.roe !== undefined && it.roe !== null && !isNaN(it.roe)) ? `${Number(it.roe).toFixed(2)}%` : "--";
+      const priceStr = (it.price && it.price > 0) ? it.price.toFixed(2) : "--";
+
+      tr.innerHTML = `
+        <td>${idx + 1}</td>
+        <td><b>${it.symbol}</b></td>
+        <td>${it.name || it.symbol}</td>
+        <td><b>${priceStr}</b></td>
+        <td class="text-accent font-bold">${pe}</td>
+        <td class="text-gold font-bold">${yd}</td>
+        <td>${pb}</td>
+        <td class="${(it.roe || 0) >= 15 ? "text-red font-bold" : ""}">${roe}</td>
+        <td>${inTag}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+    return;
+  }
+
+  // ==========================================
+  // 分支 D：[營收年增(YoY)排行] (rev)
+  // 對齊本機端 unified_ranking_gui.py:
+  // 表頭: 名次 | 代號 | 名稱 | 現價 | 營收年增率 | 累計年增率 | 單月營收(億) | 產業別 | 在庫狀態
+  // ==========================================
+  if (mType === "rev") {
+    if (bannerBar) bannerBar.classList.remove("hidden");
+    if (titleEl) titleEl.textContent = "全市場最新月份營收爆發成長排行榜 (Revenue YoY Growth Rankings)";
+    if (tipEl) tipEl.textContent = "依上市公司公告最新單月營收年增率 (YoY) 降序排列 ‧ 捕捉基本面成長飆股";
+
+    if (thead) {
+      thead.innerHTML = `
+        <tr>
+          <th>名次</th>
+          <th>代號</th>
+          <th>名稱</th>
+          <th>現價</th>
+          <th>營收年增率</th>
+          <th>累計年增率</th>
+          <th>單月營收(億)</th>
+          <th>產業別</th>
+          <th>在庫狀態</th>
+        </tr>`;
+    }
+
+    const cache = marketRankState.rawMarketData;
+    if (!cache || (!cache.revenues && !cache.stocks)) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#94a3b8; padding:30px;">正在載入全市場指標快取...</td></tr>`;
+      return;
+    }
+
+    // 建立現價字典
+    const priceMap = {};
+    (cache.stocks || []).forEach(s => {
+      if (s && s.symbol) priceMap[s.symbol.toUpperCase()] = s.price || 0;
+    });
+
+    let pool = (cache.revenues || []).filter(r => (r && r.yoy !== undefined && r.yoy !== null && r.yoy > 0));
+    if (filter === "stock") pool = pool.filter(s => !s.is_etf);
+    else if (filter === "etf") pool = pool.filter(s => s.is_etf);
+
+    pool.sort((a, b) => b.yoy - a.yoy);
+    const topItems = pool.slice(0, 100);
+
+    tbody.innerHTML = "";
+    topItems.forEach((it, idx) => {
+      const tr = document.createElement("tr");
+      const sym = (it.symbol || "").toUpperCase();
+      const isIn = mySyms.has(sym);
+      const inTag = isIn ? `<span class="badge-tag tag-tw">已在庫</span>` : `<span class="cell-sub text-dim">未持有</span>`;
+
+      const curP = priceMap[sym] || it.price || 0;
+      const priceStr = curP > 0 ? curP.toFixed(2) : "--";
+      const yoy = `+${Number(it.yoy).toFixed(2)}%`;
+      const cum = (it.cum_yoy !== undefined && it.cum_yoy !== null) ? `${it.cum_yoy > 0 ? "+" : ""}${Number(it.cum_yoy).toFixed(2)}%` : "--";
+      const curE = (it.rev_cur_e !== undefined && it.rev_cur_e !== null) ? `${Number(it.rev_cur_e).toFixed(2)}` : "--";
+      const ind = it.industry || "--";
+
+      tr.innerHTML = `
+        <td>${idx + 1}</td>
+        <td><b>${it.symbol}</b></td>
+        <td>${it.name || it.symbol}</td>
+        <td><b>${priceStr}</b></td>
+        <td class="text-red font-bold">${yoy}</td>
+        <td class="${(it.cum_yoy || 0) >= 0 ? "text-red" : "text-green"}">${cum}</td>
+        <td>${curE}</td>
+        <td class="text-dim">${ind}</td>
+        <td>${inTag}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+    return;
+  }
+
+  // ==========================================
+  // 分支 E：[高ROE排行] (roe)
+  // 對齊本機端 unified_ranking_gui.py:
+  // 表頭: 名次 | 代號 | 名稱 | 現價 | ROE(%) | 本益比 | 殖利率 | 股價淨值比 | 在庫狀態
+  // ==========================================
+  if (mType === "roe") {
+    if (bannerBar) bannerBar.classList.remove("hidden");
+    if (titleEl) titleEl.textContent = "全市場股東權益報酬率績優排行榜 (High ROE Rankings)";
+    if (tipEl) tipEl.textContent = "杜邦分析優選 ‧ 排除 PE < 4.0 與極端資產膨脹 ‧ ROE 8.0% ~ 75.0% 高資本報酬率";
+
+    if (thead) {
+      thead.innerHTML = `
+        <tr>
+          <th>名次</th>
+          <th>代號</th>
+          <th>名稱</th>
+          <th>現價</th>
+          <th>ROE(%)</th>
+          <th>本益比</th>
+          <th>殖利率</th>
+          <th>股價淨值比</th>
+          <th>在庫狀態</th>
+        </tr>`;
+    }
+
+    const cache = marketRankState.rawMarketData;
+    if (!cache || !cache.stocks) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#94a3b8; padding:30px;">正在載入全市場指標快取...</td></tr>`;
+      return;
+    }
+
+    let pool = (cache.stocks || []).filter(s => {
+      const roe = s.roe;
+      const pe = s.pe;
+      return (roe !== undefined && roe !== null && pe !== undefined && pe !== null && pe >= 4.0 && roe >= 8.0 && roe <= 75.0);
+    });
+
+    if (filter === "stock") pool = pool.filter(s => !s.is_etf);
+    else if (filter === "etf") pool = pool.filter(s => s.is_etf);
+
+    pool.sort((a, b) => b.roe - a.roe);
+    const topItems = pool.slice(0, 100);
+
+    tbody.innerHTML = "";
+    topItems.forEach((it, idx) => {
+      const tr = document.createElement("tr");
+      const isIn = mySyms.has((it.symbol || "").toUpperCase());
+      const inTag = isIn ? `<span class="badge-tag tag-tw">已在庫</span>` : `<span class="cell-sub text-dim">未持有</span>`;
+
+      const roe = `${Number(it.roe).toFixed(2)}%`;
+      const pe = (it.pe !== undefined && it.pe !== null && it.pe > 0) ? `${Number(it.pe).toFixed(2)} 倍` : "--";
+      const ydVal = (it.yield_pct !== undefined && it.yield_pct !== null) ? it.yield_pct : it.dividend_yield;
+      const yd = (ydVal !== undefined && ydVal > 0) ? `${ydVal.toFixed(2)}%` : "--";
+      const pb = (it.pb !== undefined && it.pb !== null && it.pb > 0) ? Number(it.pb).toFixed(2) : "--";
+      const priceStr = (it.price && it.price > 0) ? it.price.toFixed(2) : "--";
+
+      tr.innerHTML = `
+        <td>${idx + 1}</td>
+        <td><b>${it.symbol}</b></td>
+        <td>${it.name || it.symbol}</td>
+        <td><b>${priceStr}</b></td>
+        <td class="text-red font-bold">${roe}</td>
+        <td>${pe}</td>
+        <td class="text-gold font-bold">${yd}</td>
+        <td>${pb}</td>
+        <td>${inTag}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+    return;
+  }
 }
