@@ -38,6 +38,7 @@ from updater import (
 )
 from market_ranking_gui import MarketRankingDialog
 from login_gui import LoginDialog, UserManageDialog
+from portfolio_etf_gui import PortfolioETFFrame, PortfolioETFStudioDialog
 
 def clean_number(val_str: str, default: float = 0.0) -> float:
     """寬容解析數值：自動相容千分位逗號、全形小數點(．/。)、全形逗點與貨幣符號"""
@@ -300,8 +301,8 @@ class PortfolioApp(tk.Tk):
         if is_startup_login_required():
             self.positions = []
             if "stock_count" in self.cards:
-                self.cards["stock_count"].configure(text="🔒 已鎖定")
-            self.status_lbl.configure(text="🔒 此帳戶已啟用安全密碼，請輸入密碼以解鎖持股庫存...")
+                self.cards["stock_count"].configure(text="[鎖定] 已鎖定")
+            self.status_lbl.configure(text="[鎖定] 此帳戶已啟用安全密碼，請輸入密碼以解鎖持股庫存...")
             self.after(50, self._show_startup_login_gate)
         else:
             self.reload_positions()
@@ -377,9 +378,9 @@ class PortfolioApp(tk.Tk):
         uname = cur_u.get("username", "default")
         self.title(f"本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker) {get_app_version()} - [{dname}]")
         if hasattr(self, 'lbl_user_info') and self.lbl_user_info:
-            self.lbl_user_info.configure(text=f"👤 當前帳戶: {dname} (@{uname})")
+            self.lbl_user_info.configure(text=f"[帳戶] 當前帳戶: {dname} (@{uname})")
         if hasattr(self, 'status_user_lbl') and self.status_user_lbl:
-            self.status_user_lbl.configure(text=f"👤 {dname}")
+            self.status_user_lbl.configure(text=f"[{dname}]")
 
     def on_switch_user(self):
         """主畫面隨時切換使用者"""
@@ -422,9 +423,9 @@ class PortfolioApp(tk.Tk):
 
     def on_update_deferred(self, cloud_ver: str):
         """當使用者選擇稍後更新時，在視窗標題與狀態列進行友好提示"""
-        self.title(f"本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker) {get_app_version()} [🔔 新版 {cloud_ver} 待關閉更新]")
+        self.title(f"本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker) {get_app_version()} [ 新版 {cloud_ver} 待關閉更新]")
         if hasattr(self, 'status_lbl') and self.status_lbl:
-            self.status_lbl.configure(text=f"🔔 新版本 {cloud_ver} 已下載就緒，將於程式關閉時自動置換升級")
+            self.status_lbl.configure(text=f"[!] 新版本 {cloud_ver} 已下載就緒，將於程式關閉時自動置換升級")
 
     def _on_app_close(self):
         """主視窗關閉事件：檢查是否有待套用的延遲更新"""
@@ -452,12 +453,12 @@ class PortfolioApp(tk.Tk):
 
         # 1. 系統選單 (System Menu)
         menu_system = tk.Menu(menubar, tearoff=0)
-        menu_system.add_command(label="👤 切換使用者帳號", command=self.on_switch_user)
-        menu_system.add_command(label="👥 帳號密碼與權限管理...", command=self.on_manage_users)
+        menu_system.add_command(label="[帳戶] 切換使用者帳號", command=self.on_switch_user)
+        menu_system.add_command(label="[管理] 帳號密碼與權限管理...", command=self.on_manage_users)
         menu_system.add_command(label="☁️ 雲端加密同步 (E2EE)...", command=self.on_open_cloud_sync)
-        menu_system.add_command(label="🎨 介面與外觀設定...", command=self.on_open_settings)
+        menu_system.add_command(label="[外觀] 介面與外觀設定...", command=self.on_open_settings)
         menu_system.add_separator()
-        menu_system.add_command(label="🚨 回報錯誤與診斷日誌 (GitHub Issues)...", command=self.on_open_error_reporter)
+        menu_system.add_command(label="[!] 回報錯誤與診斷日誌 (GitHub Issues)...", command=self.on_open_error_reporter)
         menu_system.add_separator()
         menu_system.add_command(label="❌ 結束程式", command=self._on_app_close)
         menubar.add_cascade(label="系統 (S)", menu=menu_system)
@@ -465,18 +466,18 @@ class PortfolioApp(tk.Tk):
         # 2. 功能選單 (Features Menu)
         menu_tools = tk.Menu(menubar, tearoff=0)
         menu_tools.add_command(label="⟳ 資料更新與盤後同步...", command=self.on_open_data_update)
-        menu_tools.add_command(label="💰 股息分析月曆 (Ctrl+D)...", command=self.on_open_dividend_analyzer)
-        menu_tools.add_command(label="📊 市場排行 (4大指標)...", command=self.on_open_market_ranking)
-        menu_tools.add_command(label="📈 K線個股走勢圖...", command=self.on_view_kline)
+        menu_tools.add_command(label="[股息] 股息分析月曆 (Ctrl+D)...", command=self.on_open_dividend_analyzer)
+        menu_tools.add_command(label="[排行] 市場排行 (4大指標)...", command=self.on_open_market_ranking)
+        menu_tools.add_command(label="[K線] 個股走勢圖...", command=self.on_view_kline)
         menubar.add_cascade(label="功能 (F)", menu=menu_tools)
 
         # 3. 說明選單 (Help Menu)
         menu_help = tk.Menu(menubar, tearoff=0)
         menu_help.add_command(label="⬆️ 檢查軟體版本與線上更新...", command=self.on_check_online_update)
-        menu_help.add_command(label="🚨 回報錯誤與診斷日誌 (GitHub Issues)...", command=self.on_open_error_reporter)
+        menu_help.add_command(label="[!] 回報錯誤與診斷日誌 (GitHub Issues)...", command=self.on_open_error_reporter)
         menu_help.add_separator()
-        menu_help.add_command(label="📂 開啟日誌所在資料夾", command=self.on_open_log_folder)
-        menu_help.add_command(label="📖 自行申請與設定 Firebase 教學...", command=self.on_show_firebase_help)
+        menu_help.add_command(label="[資料夾] 開啟日誌所在資料夾", command=self.on_open_log_folder)
+        menu_help.add_command(label="[說明] 自行申請與設定 Firebase 教學...", command=self.on_show_firebase_help)
         menu_help.add_separator()
         menu_help.add_command(label=f"ℹ️ 關於 Stock Portfolio Tracker ({self.running_version})", command=self.on_show_about)
         menubar.add_cascade(label="說明 (H)", menu=menu_help)
@@ -570,14 +571,14 @@ class PortfolioApp(tk.Tk):
         uname = cur_u.get("username", "default")
 
         self.lbl_user_info = tk.Label(
-            self.user_bar, text=f"👤 當前帳戶: {dname} (@{uname})",
+            self.user_bar, text=f"[帳戶] 當前帳戶: {dname} (@{uname})",
             font=(self.font_family, self.font_size, "bold"),
             fg="#38bdf8", bg=self.bg_color
         )
         self.lbl_user_info.pack(side=tk.LEFT)
 
         self.btn_switch_user = tk.Button(
-            self.user_bar, text="👤 切換帳號",
+            self.user_bar, text="[帳戶] 切換帳號",
             font=(self.font_family, max(8, self.font_size - 1), "bold"),
             bg="#2b2b36", fg="#ffffff",
             activebackground="#3a86ff", activeforeground="#ffffff",
@@ -587,7 +588,7 @@ class PortfolioApp(tk.Tk):
         self.btn_switch_user.pack(side=tk.LEFT, padx=(12, 4))
 
         self.btn_manage_user = tk.Button(
-            self.user_bar, text="👥 帳號管理",
+            self.user_bar, text="[管理] 帳號管理",
             font=(self.font_family, max(8, self.font_size - 1), "bold"),
             bg="#2b2b36", fg="#ffd166",
             activebackground="#3a86ff", activeforeground="#ffffff",
@@ -620,7 +621,7 @@ class PortfolioApp(tk.Tk):
         self.btn_update.pack(side=tk.LEFT, padx=3)
 
         self.btn_report_error = tk.Button(
-            top_right_box, text="[🚨 錯誤回報]",
+            top_right_box, text="[[!] 錯誤回報]",
             font=(self.font_family, max(8, self.font_size - 1), "bold"),
             bg="#2b2b36", fg="#f43f5e",
             activebackground="#f43f5e", activeforeground="#ffffff",
@@ -635,30 +636,60 @@ class PortfolioApp(tk.Tk):
         self.top_cards_container.pack(fill=tk.X)
         self.rebuild_cards()
 
-        # 2. 中間庫存清單表格
+        # 1.5 中間視圖分頁導航標籤列 (存股清單 vs 自組 ETF 績效)
+        self.main_tab_nav = tk.Frame(self, bg="#13131a", height=32)
+        self.main_tab_nav.pack(fill=tk.X, padx=12, pady=(2, 2))
+        self.current_main_tab = "portfolio"
+
+        self.btn_tab_portfolio = tk.Button(
+            self.main_tab_nav, text="[存股持股明細]",
+            bg="#232332", fg="#38bdf8", activebackground="#2a2a3c", activeforeground="#38bdf8",
+            relief=tk.FLAT, font=("Microsoft JhengHei UI", 9, "bold"), cursor="hand2",
+            padx=12, pady=3, command=lambda: self.switch_main_tab("portfolio")
+        )
+        self.btn_tab_portfolio.pack(side=tk.LEFT, padx=(0, 4))
+
+        self.btn_tab_etf = tk.Button(
+            self.main_tab_nav, text="[自組ETF K線與多期績效]",
+            bg="#181822", fg="#9090a0", activebackground="#2a2a3c", activeforeground="#ffffff",
+            relief=tk.FLAT, font=("Microsoft JhengHei UI", 9, "bold"), cursor="hand2",
+            padx=12, pady=3, command=lambda: self.switch_main_tab("etf")
+        )
+        self.btn_tab_etf.pack(side=tk.LEFT, padx=4)
+
+        # 2. 中間庫存清單表格容器
         self.mid_frame = ttk.Frame(self, padding=(12, 5, 12, 5))
         self.mid_frame.pack(fill=tk.BOTH, expand=True)
         self.rebuild_table()
 
+        # 2.5 自組 ETF K 線與多期績效容器 (分頁)
+        self.portfolio_etf_container = tk.Frame(self, bg="#181820")
+        self.portfolio_etf_frame = PortfolioETFFrame(
+            self.portfolio_etf_container,
+            get_positions_callback=lambda: self.positions
+        )
+        self.portfolio_etf_frame.pack(fill=tk.BOTH, expand=True)
+
         # 3. 底部功能按鈕與工具列 (無重複按鈕，專注於核心圖表與設定)
         bottom_frame = ttk.Frame(self, padding=(12, 8, 12, 12))
+        self.bottom_frame_ref = bottom_frame
         bottom_frame.pack(fill=tk.X)
 
         self.btn_data_update = ttk.Button(bottom_frame, text="[⟳ 資料更新]", command=self.on_open_data_update, style="Action.TButton")
         btn_data_update = self.btn_data_update
         btn_data_update.pack(side=tk.LEFT, padx=2)
 
-        btn_dividend_analyzer = ttk.Button(bottom_frame, text="[💰 股息分析] 現金流月曆", command=self.on_open_dividend_analyzer, style="Action.TButton")
+        btn_dividend_analyzer = ttk.Button(bottom_frame, text="[股息分析] 現金流月曆", command=self.on_open_dividend_analyzer, style="Action.TButton")
         btn_dividend_analyzer.pack(side=tk.LEFT, padx=2)
 
-        btn_ranking = ttk.Button(bottom_frame, text="[📊 市場排行] 4大指標", command=self.on_open_market_ranking, style="Action.TButton")
+        btn_ranking = ttk.Button(bottom_frame, text="[市場排行] 4大指標", command=self.on_open_market_ranking, style="Action.TButton")
         btn_ranking.pack(side=tk.LEFT, padx=2)
 
         btn_view_kline = ttk.Button(bottom_frame, text="[K線] 個股走勢圖", command=self.on_view_kline, style="Action.TButton")
         btn_view_kline.pack(side=tk.LEFT, padx=2)
 
         # 右側區域：設定按鈕 (最右側) 與 自動刷新秒數控制
-        btn_settings = ttk.Button(bottom_frame, text="[⚙ 設定] 介面與外觀", command=self.on_open_settings, style="Action.TButton")
+        btn_settings = ttk.Button(bottom_frame, text="[設定] 介面與外觀", command=self.on_open_settings, style="Action.TButton")
         btn_settings.pack(side=tk.RIGHT, padx=(10, 2))
 
         self.auto_refresh_var = tk.BooleanVar(value=True)
@@ -675,7 +706,7 @@ class PortfolioApp(tk.Tk):
         self.status_bar = tk.Frame(self, bg="#13131a", height=26)
         self.status_bar.pack(fill=tk.X, side=tk.BOTTOM)
 
-        self.status_user_lbl = tk.Label(self.status_bar, text=f"👤 {dname}", bg="#13131a", fg="#38bdf8", font=("Microsoft JhengHei UI", 9, "bold"))
+        self.status_user_lbl = tk.Label(self.status_bar, text=f"[{dname}]", bg="#13131a", fg="#38bdf8", font=("Microsoft JhengHei UI", 9, "bold"))
         self.status_user_lbl.pack(side=tk.LEFT, padx=(12, 4), pady=3)
 
         self.status_lbl = tk.Label(self.status_bar, text="系統就緒", bg="#13131a", fg=self.muted_text, font=("Microsoft JhengHei UI", 9))
@@ -1076,6 +1107,11 @@ class PortfolioApp(tk.Tk):
         self._is_fetching = False
         set_update_timestamp("quotes")
         self.refresh_ui_table()
+        if hasattr(self, "portfolio_etf_frame") and getattr(self, "current_main_tab", "portfolio") == "etf":
+            try:
+                self.portfolio_etf_frame.refresh_data()
+            except Exception:
+                pass
         self.status_lbl.configure(text=f"最後更新時間: {update_time}")
         if self.active_update_dialog and self.active_update_dialog.winfo_exists():
             self.active_update_dialog.refresh_timestamps()
@@ -1379,7 +1415,7 @@ class PortfolioApp(tk.Tk):
     def _on_found_newer_version(self, cloud_ver: str):
         """發現新版本時：按鈕變色為鮮明亮橘色高亮警示，並同步更新視窗標題與資料更新按鈕"""
         self.btn_update.configure(
-            text=f"[🔥 發現新版 {cloud_ver}]",
+            text=f"[* 發現新版 {cloud_ver}]",
             bg="#f59e0b", fg="#ffffff",
             activebackground="#d97706", activeforeground="#ffffff"
         )
@@ -1388,8 +1424,8 @@ class PortfolioApp(tk.Tk):
                 self.btn_data_update.configure(text=f"[⟳ 資料/軟體更新 ({cloud_ver})]")
             except Exception:
                 pass
-        self.title(f"本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker) {get_app_version()} [🔥 發現新版 {cloud_ver}]")
-        self.status_lbl.configure(text=f"💡 發現軟體新版本 {cloud_ver}！點擊右上角「[🔥 發現新版]」即可檢視更新內容並決定是否升級。")
+        self.title(f"本地端台美股庫存即時損益、歷史與股息追蹤系統 (Stock Portfolio Tracker) {get_app_version()} [* 發現新版 {cloud_ver}]")
+        self.status_lbl.configure(text=f"[i] 發現軟體新版本 {cloud_ver}！點擊右上角「[* 發現新版]」即可檢視更新內容並決定是否升級。")
 
     def auto_check_post_market_history(self):
         """軟體開啟後自動比對盤後歷史資料是否要更新"""
@@ -1424,7 +1460,7 @@ class PortfolioApp(tk.Tk):
     def on_update_history_all(self, silent: bool = False):
         """背景非同步更新盤後歷史資料 (不佔用視窗、不鎖定畫面、底部狀態列顯示進度)"""
         if self.is_history_updating:
-            self.status_lbl.configure(text="💡 盤後歷史資料正在背景同步中，請稍候...")
+            self.status_lbl.configure(text="[i] 盤後歷史資料正在背景同步中，請稍候...")
             return
 
         if not self.positions:
@@ -1509,6 +1545,37 @@ class PortfolioApp(tk.Tk):
         if not self.is_history_updating:
             self.history_pbar.pack_forget()
             self.history_progress_lbl.configure(text="", fg="#52c41a")
+
+
+    def switch_main_tab(self, tab_name: str):
+        """切換主視窗中央視圖分頁 (存股持股明細 vs 自組 ETF 走勢與績效)"""
+        self.current_main_tab = tab_name
+        if tab_name == "portfolio":
+            try:
+                self.portfolio_etf_container.pack_forget()
+            except Exception:
+                pass
+            self.mid_frame.pack(fill=tk.BOTH, expand=True, before=self.bottom_frame_ref)
+            self.btn_tab_portfolio.config(bg="#232332", fg="#38bdf8")
+            self.btn_tab_etf.config(bg="#181822", fg="#9090a0")
+        else:
+            try:
+                self.mid_frame.pack_forget()
+            except Exception:
+                pass
+            self.portfolio_etf_container.pack(fill=tk.BOTH, expand=True, before=self.bottom_frame_ref)
+            self.btn_tab_portfolio.config(bg="#181822", fg="#9090a0")
+            self.btn_tab_etf.config(bg="#232332", fg="#38bdf8")
+            if hasattr(self, "portfolio_etf_frame"):
+                self.portfolio_etf_frame.refresh_data()
+
+    def on_open_portfolio_etf(self):
+        """開啟或切換至自組 ETF 淨值走勢與各股多期績效分頁/獨立視窗"""
+        if getattr(self, "current_main_tab", "portfolio") != "etf":
+            self.switch_main_tab("etf")
+        else:
+            # 若已在 ETF 分頁，則彈出全功能獨立分析視窗供全螢幕比對
+            PortfolioETFStudioDialog(self, get_positions_callback=lambda: self.positions)
 
     def on_view_kline(self):
         selected = self.tree.selection()
@@ -1768,7 +1835,7 @@ class PositionEditDialog(tk.Toplevel):
             return
 
         # 5. 代碼長度足夠：立即顯示「查詢驗證中...」讓使用者即時看見回饋
-        self.lbl_detect.configure(text="🔍 查詢驗證中...", fg="#3a86ff")
+        self.lbl_detect.configure(text="[搜尋] 查詢驗證中...", fg="#3a86ff")
 
         # 6. 防抖 180ms 後發起查詢，避免連續輸入時頻繁發起請求
         self._detect_timer = self.after(180, lambda: self._do_debounced_detect(val, current_seq))
@@ -1872,7 +1939,7 @@ class PositionEditDialog(tk.Toplevel):
         self.ent_lot_note.delete(0, tk.END)
         self.ent_lot_note.insert(0, target.get("note", ""))
 
-        self.btn_add_lot.configure(text="[💾 儲存修改批次]", bg="#f59e0b", activebackground="#d97706")
+        self.btn_add_lot.configure(text="[儲存] 儲存修改批次", bg="#f59e0b", activebackground="#d97706")
         self.btn_cancel_lot_edit.pack(side=tk.LEFT, padx=4)
 
     def on_cancel_edit_lot(self):
@@ -2163,7 +2230,7 @@ class TradeLotManagerDialog(tk.Toplevel):
         self.ent_note.delete(0, tk.END)
         self.ent_note.insert(0, target.get("note", ""))
 
-        self.btn_add_lot.configure(text="[💾 儲存修改批次]", bg="#f59e0b", activebackground="#d97706")
+        self.btn_add_lot.configure(text="[儲存] 儲存修改批次", bg="#f59e0b", activebackground="#d97706")
         self.btn_cancel_edit.grid(row=0, column=9, padx=4, pady=2)
 
     def on_cancel_edit(self):
@@ -2484,7 +2551,7 @@ class SettingsDialog(tk.Toplevel):
         tab_cols = self.tab_frames["cols"]
         lbl_hint = tk.Label(
             tab_cols,
-            text="💡 列表順序代表表格中【由左至右】的顯示順序。選取欄位後，可透過中間按鈕調整左右位置、增減或置頂置底：",
+            text="[i] 列表順序代表表格中【由左至右】的顯示順序。選取欄位後，可透過中間按鈕調整左右位置、增減或置頂置底：",
             bg="#20202a", fg="#a0a0b0", font=("Microsoft JhengHei UI", 9)
         )
         lbl_hint.pack(anchor="w", padx=12, pady=(10, 6))
@@ -3082,7 +3149,7 @@ class HistoryViewerDialog(tk.Toplevel):
 def show_firebase_setup_help(parent: tk.Widget):
     """展示自行申請與設定 Firebase RTDB 的詳細指引"""
     help_win = tk.Toplevel(parent)
-    help_win.title("📖 Firebase Realtime Database 申請與安全設定教學")
+    help_win.title("[說明] Firebase Realtime Database 申請與安全設定教學")
     help_win.geometry("560x520")
     help_win.resizable(False, False)
     help_win.configure(bg="#1e1e26")
@@ -3155,11 +3222,11 @@ def show_firebase_setup_help(parent: tk.Widget):
         else:
             messagebox.showinfo("檔案位置", f"完整手冊位於：{doc_path}", parent=help_win)
 
-    tk.Button(btn_box, text="📋 一鍵複製 Firebase 安全規則 (JSON)", bg="#00f090", fg="#101014", font=("Microsoft JhengHei UI", 9, "bold"), relief="flat", command=copy_rules).pack(fill=tk.X, ipady=4, pady=(0, 4))
+    tk.Button(btn_box, text="[複製] 一鍵複製 Firebase 安全規則 (JSON)", bg="#00f090", fg="#101014", font=("Microsoft JhengHei UI", 9, "bold"), relief="flat", command=copy_rules).pack(fill=tk.X, ipady=4, pady=(0, 4))
     
     sub_btns = tk.Frame(btn_box, bg="#1e1e26")
     sub_btns.pack(fill=tk.X)
-    tk.Button(sub_btns, text="📄 打開詳細說明文件 (FIREBASE_SETUP_GUIDE.md)", bg="#2d2d38", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=open_guide_doc).pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=3, padx=(0, 4))
+    tk.Button(sub_btns, text="[文件] 打開詳細說明文件 (FIREBASE_SETUP_GUIDE.md)", bg="#2d2d38", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=open_guide_doc).pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=3, padx=(0, 4))
     tk.Button(sub_btns, text="關閉", bg="#3a3a46", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=help_win.destroy).pack(side=tk.RIGHT, ipadx=10, ipady=3)
 
 
@@ -3205,7 +3272,7 @@ class CloudSyncDialog(tk.Toplevel):
         badge.pack(fill=tk.X, pady=(2, 8))
         tk.Label(
             badge,
-            text=f"👤 目前本機登入帳戶: [{self.username}] (ID: {self.user_id}) - 雲端同步設定與金鑰已綁定此帳號",
+            text=f"[帳戶] 目前本機登入帳戶: [{self.username}] (ID: {self.user_id}) - 雲端同步設定與金鑰已綁定此帳號",
             bg="#1a1a24", fg="#3a86ff", font=("Microsoft JhengHei UI", 9, "bold")
         ).pack(anchor="w")
 
@@ -3244,20 +3311,20 @@ class CloudSyncDialog(tk.Toplevel):
         btn_sk_help = tk.Button(sk_frame, text="❓ 這是什麼？如何使用？", bg="#202028", fg="#00f090", activebackground="#202028", activeforeground="#ffffff", font=("Microsoft JhengHei UI", 8, "underline"), relief="flat", bd=0, cursor="hand2", command=self.show_secret_key_help)
         btn_sk_help.pack(side=tk.LEFT, padx=8)
 
-        btn_copy_sk = tk.Button(sk_frame, text="📋 複製金鑰", bg="#3a3a46", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=self.copy_secret_key)
+        btn_copy_sk = tk.Button(sk_frame, text="[複製] 複製金鑰", bg="#3a3a46", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=self.copy_secret_key)
         btn_copy_sk.pack(side=tk.RIGHT)
 
         self.ent_sk = tk.Entry(form, bg="#1a1a22", fg="#00f090", font=("Consolas", 10, "bold"), relief="flat")
         self.ent_sk.insert(0, self.secret_key)
         self.ent_sk.configure(state="readonly")
         self.ent_sk.pack(fill=tk.X, ipady=3)
-        tk.Label(form, text="💡 手機/平板登入網頁時需填入此金鑰。就像 1Password，無此金鑰即使猜中密碼也無法解密", bg="#202028", fg="#8e95a5", font=("Microsoft JhengHei UI", 8)).pack(anchor="w", pady=(2, 0))
+        tk.Label(form, text="[i] 手機/平板登入網頁時需填入此金鑰。就像 1Password，無此金鑰即使猜中密碼也無法解密", bg="#202028", fg="#8e95a5", font=("Microsoft JhengHei UI", 8)).pack(anchor="w", pady=(2, 0))
 
         # Firebase RTDB 設定區塊
         fb_frame = tk.Frame(form, bg="#202028")
         fb_frame.pack(fill=tk.X, pady=(10, 2))
         tk.Label(fb_frame, text="Firebase RTDB 網址 (可留空使用預設):", bg="#202028", fg="#8e95a5", font=("Microsoft JhengHei UI", 8)).pack(side=tk.LEFT)
-        btn_fb_help = tk.Button(fb_frame, text="📖 自行申請與設定教學", bg="#202028", fg="#3a86ff", activebackground="#202028", activeforeground="#ffffff", font=("Microsoft JhengHei UI", 8, "underline"), relief="flat", bd=0, cursor="hand2", command=self.show_firebase_help)
+        btn_fb_help = tk.Button(fb_frame, text="[說明] 自行申請與設定教學", bg="#202028", fg="#3a86ff", activebackground="#202028", activeforeground="#ffffff", font=("Microsoft JhengHei UI", 8, "underline"), relief="flat", bd=0, cursor="hand2", command=self.show_firebase_help)
         btn_fb_help.pack(side=tk.RIGHT)
 
         self.ent_url = tk.Entry(form, bg="#2d2d38", fg="#a0a0b0", insertbackground="#ffffff", font=("Microsoft JhengHei UI", 9), relief="flat")
@@ -3268,12 +3335,12 @@ class CloudSyncDialog(tk.Toplevel):
         # 手機端網頁指引卡片
         web_card = tk.Frame(form, bg="#181822", padx=10, pady=8, highlightthickness=1, highlightbackground="#2d2d3d")
         web_card.pack(fill=tk.X, pady=(12, 0))
-        tk.Label(web_card, text="📱 跨平台手機/平板看盤網頁短網址：", bg="#181822", fg="#8e95a5", font=("Microsoft JhengHei UI", 8)).pack(anchor="w")
+        tk.Label(web_card, text="[網頁] 跨平台手機/平板看盤網頁短網址：", bg="#181822", fg="#8e95a5", font=("Microsoft JhengHei UI", 8)).pack(anchor="w")
         
         web_sub = tk.Frame(web_card, bg="#181822")
         web_sub.pack(fill=tk.X, pady=(2, 0))
         tk.Label(web_sub, text=self.web_url, bg="#181822", fg="#00f090", font=("Consolas", 9, "bold")).pack(side=tk.LEFT)
-        btn_copy_url = tk.Button(web_sub, text="📋 複製短網址", bg="#2d2d38", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=self.copy_web_url)
+        btn_copy_url = tk.Button(web_sub, text="[複製] 複製短網址", bg="#2d2d38", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=self.copy_web_url)
         btn_copy_url.pack(side=tk.RIGHT)
 
         self.lbl_status = tk.Label(form, text="", bg="#202028", fg="#52c41a", font=("Microsoft JhengHei UI", 9), wraplength=510, justify="left")
@@ -3283,7 +3350,7 @@ class CloudSyncDialog(tk.Toplevel):
         btns = tk.Frame(self, bg="#202028", padx=20, pady=12)
         btns.pack(fill=tk.X)
 
-        self.btn_sync = tk.Button(btns, text="[🚀 一鍵加密並同步到雲端]", bg="#3a86ff", fg="#ffffff", font=("Microsoft JhengHei UI", 10, "bold"), relief="flat", command=self.do_upload)
+        self.btn_sync = tk.Button(btns, text=">> 一鍵加密並同步到雲端", bg="#3a86ff", fg="#ffffff", font=("Microsoft JhengHei UI", 10, "bold"), relief="flat", command=self.do_upload)
         self.btn_sync.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=6, padx=(0, 8))
 
         btn_cancel = tk.Button(btns, text="關閉", bg="#3a3a46", fg="#ffffff", font=("Microsoft JhengHei UI", 9), relief="flat", command=self.destroy)
@@ -3319,7 +3386,7 @@ class CloudSyncDialog(tk.Toplevel):
         content = tk.Frame(help_win, bg="#1e1e26", padx=20, pady=16)
         content.pack(fill=tk.BOTH, expand=True)
 
-        tk.Label(content, text="🔐 雙因子設備金鑰 (Secret Key) 使用指引", bg="#1e1e26", fg="#ffd166", font=("Microsoft JhengHei UI", 12, "bold")).pack(anchor="w")
+        tk.Label(content, text="[金鑰] 雙因子設備金鑰 (Secret Key) 使用指引", bg="#1e1e26", fg="#ffd166", font=("Microsoft JhengHei UI", 12, "bold")).pack(anchor="w")
 
         info_text = (
             "【為什麼需要這串金鑰？】\n"
@@ -3391,7 +3458,7 @@ class CloudSyncDialog(tk.Toplevel):
         threading.Thread(target=worker, daemon=True).start()
 
     def _on_upload_done(self, ok: bool, msg: str):
-        self.btn_sync.configure(state=tk.NORMAL, text="[🚀 一鍵加密並同步到雲端]")
+        self.btn_sync.configure(state=tk.NORMAL, text=">> 一鍵加密並同步到雲端")
         if ok:
             self.lbl_status.configure(text=f"✔ {msg}", fg="#52c41a")
             messagebox.showinfo("成功", f"{msg}\n\n您現在可使用手機或平板開啟雲端網頁：\n{self.web_url}\n\n輸入使用者代號、主密碼與 Secret Key 即可安全解密！", parent=self)

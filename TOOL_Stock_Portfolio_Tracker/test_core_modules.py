@@ -619,6 +619,68 @@ class TestUILayoutIntegrity(unittest.TestCase):
         self.assertTrue(run_full_ui_layout_inspection(), "發現 GUI 對話框排版裁切瑕疵！")
 
 
+
+class TestPortfolioETFService(unittest.TestCase):
+    """自組投資組合 ETF 淨值蠟燭走勢與各股多週期績效測試"""
+
+    def test_synthetic_etf_synthesis(self):
+        """驗證多檔持股能夠正確合成自組 ETF (OHLCV、NAV、MA5、MA20)"""
+        from portfolio_etf_service import calculate_portfolio_synthetic_etf
+        mock_positions = [
+            {"symbol": "0050", "name": "元大台灣50", "shares": 1000, "cost_price": 70.0},
+            {"symbol": "2330", "name": "台積電", "shares": 100, "cost_price": 500.0}
+        ]
+        res = calculate_portfolio_synthetic_etf(mock_positions, base_nav=100.0)
+        self.assertEqual(res["symbol"], "PORTFOLIO")
+        self.assertEqual(res["base_nav"], 100.0)
+        self.assertGreater(len(res["records"]), 0)
+        
+        first_r = res["records"][0]
+        self.assertEqual(first_r["close"], 100.0, "基準日收盤淨值必須嚴格等於 100.0")
+        self.assertIn("open", first_r)
+        self.assertIn("high", first_r)
+        self.assertIn("low", first_r)
+        self.assertIn("volume", first_r)
+
+        # 驗證均線
+        last_r = res["records"][-1]
+        self.assertIsNotNone(last_r["ma5"])
+        self.assertIsNotNone(last_r["ma20"])
+        self.assertGreater(res["total_market_value"], 0)
+
+    def test_performance_matrix_calculation(self):
+        """驗證各股多週期績效矩陣 (日%、週%、月%、年/全期%、權重%)"""
+        from portfolio_etf_service import calculate_stocks_performance_matrix
+        mock_positions = [
+            {"symbol": "0050", "name": "元大台灣50", "shares": 1000, "cost_price": 70.0},
+            {"symbol": "2330", "name": "台積電", "shares": 100, "cost_price": 500.0}
+        ]
+        perf = calculate_stocks_performance_matrix(mock_positions)
+        self.assertEqual(len(perf["items"]), 2)
+        self.assertGreater(perf["total_market_value"], 0)
+        self.assertGreater(perf["total_cost"], 0)
+
+        tot_weight = sum(it["weight_pct"] for it in perf["items"])
+        self.assertAlmostEqual(tot_weight, 100.0, places=1, msg="各股持股權重加總應為 100%")
+
+        for it in perf["items"]:
+            self.assertIn("day_pct", it)
+            self.assertIn("week_pct", it)
+            self.assertIn("month_pct", it)
+            self.assertIn("year_pct", it)
+            self.assertIn("unrealized_pnl", it)
+
+    def test_empty_positions_guard(self):
+        """驗證庫存為空時的防呆機制"""
+        from portfolio_etf_service import calculate_portfolio_synthetic_etf, calculate_stocks_performance_matrix
+        res = calculate_portfolio_synthetic_etf([])
+        self.assertEqual(len(res["records"]), 0)
+        self.assertEqual(res["base_nav"], 100.0)
+
+        perf = calculate_stocks_performance_matrix([])
+        self.assertEqual(len(perf["items"]), 0)
+        self.assertEqual(perf["total_market_value"], 0.0)
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
 

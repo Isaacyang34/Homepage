@@ -865,3 +865,353 @@ body {
   vertical-align: middle;
   line-height: 1.3;
 }
+
+
+/* --- 自組 ETF 淨值走勢與各股多週期績效專屬樣式 --- */
+
+.main-tabs-container {
+  display: flex;
+  gap: 10px;
+  margin: 14px 0 16px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 8px;
+}
+
+.main-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.main-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.main-tab-btn.active {
+  background: rgba(56, 189, 248, 0.16);
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #38bdf8;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.15);
+}
+
+.tab-icon {
+  font-size: 1.1rem;
+}
+
+/* 自組 ETF 頂部指標卡 */
+.etf-summary-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  border-radius: 12px;
+}
+
+.etf-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.etf-code-pill {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 0.85rem;
+  padding: 3px 10px;
+  border-radius: 6px;
+  letter-spacing: 0.05em;
+}
+
+.etf-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.etf-metrics-row {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.etf-metric-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.etf-metric-label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.etf-nav-val {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #ffffff;
+  font-family: 'Inter', monospace;
+}
+
+.etf-return-val {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-family: 'Inter', monospace;
+}
+
+.etf-day-val {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-family: 'Inter', monospace;
+}
+
+.etf-market-val {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #38bdf8;
+  font-family: 'Inter', monospace;
+}
+
+.etf-summary-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.etf-kline-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-etf-range {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  font-size: 0.8rem;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-etf-range:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.btn-etf-range.active {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.etf-base-info {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+/* 自組 ETF K 線圖容器 */
+.etf-chart-container {
+  padding: 16px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.etf-chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.chart-legend {
+  display: flex;
+  gap: 16px;
+  font-size: 0.82rem;
+  color: #94a3b8;
+  font-family: 'Inter', monospace;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-color {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.legend-ma5 {
+  background: #fadb14;
+}
+
+.legend-ma20 {
+  background: #b37feb;
+}
+
+.chart-crosshair-info {
+  font-size: 0.82rem;
+  color: #cbd5e1;
+  font-family: 'Inter', monospace;
+}
+
+.canvas-wrap {
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+#etf-kline-canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 6px;
+  background: #14141d;
+}
+
+/* 各股多週期績效專用區塊 */
+.etf-perf-container {
+  padding: 18px 20px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+}
+
+.etf-perf-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.perf-title-group h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: #ffffff;
+}
+
+.perf-sub-tip {
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.perf-period-switch {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-period {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
+  font-size: 0.85rem;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-period:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.btn-period.active {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.etf-perf-grid {
+  display: grid;
+  grid-template-columns: 48% 52%;
+  gap: 16px;
+}
+
+.perf-barchart-box {
+  background: #14141d;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#perf-bar-canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.perf-table-box {
+  background: #14141d;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.perf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.perf-table th {
+  padding: 8px 10px;
+  text-align: right;
+  color: #94a3b8;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.perf-table th:first-child, .perf-table th:nth-child(2) {
+  text-align: left;
+}
+
+.perf-table td {
+  padding: 7px 10px;
+  text-align: right;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-family: 'Inter', monospace;
+}
+
+.perf-table td:first-child, .perf-table td:nth-child(2) {
+  text-align: left;
+  font-family: inherit;
+}
+
+@media (max-width: 900px) {
+  .etf-perf-grid {
+    grid-template-columns: 1fr;
+  }
+}

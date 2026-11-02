@@ -135,6 +135,18 @@
       </div>
     </section>
 
+    <!-- 主分頁導航列 (Tab Navigation) -->
+    <div class="main-tabs-container">
+      <button id="tab-btn-positions" class="main-tab-btn active">
+        <span class="tab-icon">📦</span> 存股庫存部位明細
+      </button>
+      <button id="tab-btn-etf" class="main-tab-btn">
+        <span class="tab-icon">📈</span> 自組 ETF 淨值走勢 & 多期績效分析
+      </button>
+    </div>
+
+    <!-- 分頁 1 容器：存股部位與資產佔比 -->
+    <div id="positions-tab-content">
     <!-- 資產權重與分佈 -->
     <section class="allocation-section glass-panel">
       <div class="section-header">
@@ -189,6 +201,108 @@
         <!-- 動態注入卡片 -->
       </div>
     </section>
+    </div> <!-- 結束 positions-tab-content -->
+
+    <!-- 分頁 2 容器：自組 ETF 淨值走勢與各股多週期績效分析 -->
+    <div id="etf-analytics-tab-content" class="hidden">
+      <!-- 頂部自組 ETF 指標看板卡片 -->
+      <section class="etf-summary-card glass-panel">
+        <div class="etf-summary-left">
+          <div class="etf-badge-row">
+            <span class="etf-code-pill">PORTFOLIO</span>
+            <span class="etf-name">自組投資組合 ETF (Composite NAV Index)</span>
+          </div>
+          <div class="etf-metrics-row">
+            <div class="etf-metric-item">
+              <span class="etf-metric-label">最新淨值 (NAV)</span>
+              <span class="etf-nav-val" id="etf-nav-val">--.--</span>
+            </div>
+            <div class="etf-metric-item">
+              <span class="etf-metric-label">累積收益率</span>
+              <span class="etf-return-val" id="etf-return-val">--.--%</span>
+            </div>
+            <div class="etf-metric-item">
+              <span class="etf-metric-label">當日漲跌</span>
+              <span class="etf-day-val" id="etf-day-val">--.--%</span>
+            </div>
+            <div class="etf-metric-item">
+              <span class="etf-metric-label">組合總市值</span>
+              <span class="etf-market-val" id="etf-market-val">$ 0</span>
+            </div>
+          </div>
+        </div>
+        <div class="etf-summary-right">
+          <div class="etf-kline-controls">
+            <button class="btn-etf-range active" data-days="0">全部</button>
+            <button class="btn-etf-range" data-days="120">120日</button>
+            <button class="btn-etf-range" data-days="60">60日</button>
+            <button class="btn-etf-range" data-days="30">30日</button>
+          </div>
+          <div class="etf-base-info" id="etf-base-info">基準淨值: 100.00</div>
+        </div>
+      </section>
+
+      <!-- 中間自組 ETF 專業 K 線圖 (HTML5 Canvas) -->
+      <section class="etf-chart-container glass-panel">
+        <div class="etf-chart-header">
+          <div class="chart-legend">
+            <span class="legend-item"><span class="legend-color legend-ma5"></span> MA5: <b id="etf-kline-ma5">--</b></span>
+            <span class="legend-item"><span class="legend-color legend-ma20"></span> MA20: <b id="etf-kline-ma20">--</b></span>
+            <span class="legend-item">VOL: <b id="etf-kline-vol">--</b></span>
+          </div>
+          <div class="chart-crosshair-info" id="etf-crosshair-info">
+            懸停於圖表上查看日期與詳細開高低收
+          </div>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="etf-kline-canvas" width="1000" height="420"></canvas>
+        </div>
+      </section>
+
+      <!-- 下半部：各股多週期績效排行與長條圖 -->
+      <section class="etf-perf-container glass-panel">
+        <div class="etf-perf-top">
+          <div class="perf-title-group">
+            <h3>各股多週期績效分析 (Stock Performance Matrix)</h3>
+            <span class="perf-sub-tip">視覺化橫向紅漲綠跌長條圖 ‧ 橫跨日/週/月/年多週期</span>
+          </div>
+          <div class="perf-period-switch" id="perf-period-switch">
+            <button class="btn-period active" data-period="day">當日績效</button>
+            <button class="btn-period" data-period="week">當週 (5日)</button>
+            <button class="btn-period" data-period="month">當月 (20日)</button>
+            <button class="btn-period" data-period="year">全期 / 年化</button>
+          </div>
+        </div>
+
+        <div class="etf-perf-grid">
+          <!-- 左側：長條圖 Canvas -->
+          <div class="perf-barchart-box">
+            <canvas id="perf-bar-canvas" width="480" height="380"></canvas>
+          </div>
+
+          <!-- 右側：詳細績效與權重數據表格 -->
+          <div class="perf-table-box table-responsive">
+            <table class="perf-table" id="perf-table">
+              <thead>
+                <tr>
+                  <th class="th-sortable" data-psort="symbol">代號 ⇕</th>
+                  <th class="th-sortable" data-psort="name">標的名稱 ⇕</th>
+                  <th class="th-sortable" data-psort="weight_pct">權重% ⇕</th>
+                  <th class="th-sortable" data-psort="day_pct">當日% ⇕</th>
+                  <th class="th-sortable" data-psort="week_pct">當週% ⇕</th>
+                  <th class="th-sortable" data-psort="month_pct">當月% ⇕</th>
+                  <th class="th-sortable" data-psort="year_pct">全期/年% ⇕</th>
+                  <th class="th-sortable" data-psort="unrealized_pnl">未實現損益 ⇕</th>
+                </tr>
+              </thead>
+              <tbody id="perf-tbody">
+                <!-- 動態注入各股績效行 -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div> <!-- 結束 etf-analytics-tab-content -->
 
     <!-- 手機端專屬底部懸浮快捷列 (Mobile Floating Action Bar) -->
     <nav class="mobile-bottom-bar glass-panel mobile-only">

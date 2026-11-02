@@ -281,6 +281,28 @@ def gather_full_portfolio_data(user_id: Optional[int] = None) -> Dict[str, Any]:
         "hist_div_received": round(hist_div_sum)
     }
 
+    # 6. 計算自組 ETF 淨值走勢與各股多週期績效
+    synthetic_etf = {}
+    try:
+        from portfolio_etf_service import calculate_portfolio_synthetic_etf, calculate_stocks_performance_matrix
+        etf_res = calculate_portfolio_synthetic_etf(positions)
+        perf_res = calculate_stocks_performance_matrix(positions)
+        synthetic_etf = {
+            "symbol": etf_res.get("symbol", "PORTFOLIO"),
+            "name": etf_res.get("name", "自組投資組合 ETF"),
+            "base_nav": etf_res.get("base_nav", 100.0),
+            "current_nav": etf_res.get("current_nav", 100.0),
+            "nav_change_pct": etf_res.get("nav_change_pct", 0.0),
+            "total_return_pct": etf_res.get("total_return_pct", 0.0),
+            "base_date": etf_res.get("base_date", ""),
+            "latest_date": etf_res.get("latest_date", ""),
+            "total_market_value": etf_res.get("total_market_value", 0.0),
+            "records": etf_res.get("records", []),
+            "performance": perf_res
+        }
+    except Exception as e:
+        synthetic_etf = {"error": str(e)}
+
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     quotes_time = get_setting("last_quotes_update_time", now_str)
     portfolio_time = get_setting("last_portfolio_change_time", now_str)
@@ -292,7 +314,8 @@ def gather_full_portfolio_data(user_id: Optional[int] = None) -> Dict[str, Any]:
         "summary": summary,
         "positions": enriched_positions,
         "trade_lots": lots_by_symbol,
-        "dividends": divs_by_symbol
+        "dividends": divs_by_symbol,
+        "synthetic_etf": synthetic_etf
     }
 
 def sync_to_cloud(user_id: str, password: str, firebase_url: Optional[str] = None, local_user_id: Optional[int] = None) -> Tuple[bool, str]:

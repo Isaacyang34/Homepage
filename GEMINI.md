@@ -38,6 +38,9 @@
   * CheckBox 與 Label 若文字較長，必須給予獨立單列 (Row) 或充足寬度（>250px），嚴禁多欄擠壓導致文字截斷（如「標籤顯示」被吃掉）。
   * DataGridView 必須為欄位明確設置 `FillWeight` 與 `MinimumWidth`，防止欄位標題受擠壓縮水。
 * **雙保險滾動機制**：所有容器面板一律預設啟用 `AutoScroll = true`，防止 DPI 縮放破版。
+* **同畫面零冗餘控制項與單一職責入口鐵律 (Zero Redundant Buttons & Single Entry Point)**：
+  * **嚴格禁止重複入口**：在同一個可視畫面或視窗層級中，**嚴禁對同一功能或同一視圖切換提供多個重複按鈕**（例如已有頂部/區域分頁標籤，**嚴格禁止在底部工具列或快捷列再額外放置一模一樣的功能按鈕**）！
+  * **單一職責單一入口 (Single Source of Interaction)**：每項操作只保留唯一且最符合直覺的專屬入口，徹底杜絕畫面雜亂與認知混亂！
 * **詳細規範**：參考 `.agents/rules/ui_layout_robustness_rule.md`。
 
 ## 5. 變更歷程即時記錄鐵律 (Mandatory Real-Time Changelog Documentation - 全案最高強制規範)
@@ -261,5 +264,52 @@
   * 每次發布更新 Firebase RTDB 後，必須透過 HTTP GET 立即回讀 `/update/version.json` 驗證 `notes` 內容與長度，確保現場工控機讀取之更新說明永遠為 100% 正確的繁體中文。
 * **詳細規範**：參考 `.agents/rules/zero_mojibake_release_notes_rule.md`。
 
+## 23. 暫態穿透隧道生命週期守護與動態 Webhook 同步鐵律 (Ephemeral Tunnel Watchdog & Dynamic Webhook Sync Rule - 全案最高強制規範)
+* **核心物理限制 (TryCloudflare TTL Eviction & Zombie Hang)**：
+  * 免費免註冊臨時隧道（如 `trycloudflare.com`）具備官方生存期上限（通常運行數小時後由 Cloudflare 端強制回收）。
+  * 被回收後 Cloudflare 端回報：`ERR Register tunnel error: Unauthorized: Tunnel not found`。原生 `cloudflared` 進程不會主動退出或重取新網址，而是陷入無限重試死鎖，導致外網 Webhook 徹底失效。
+* **看門狗代碼誤判烏龍自殺機制 (Watchdog False-Positive Suicide Loop - 永久禁絕重大血淚教訓)**：
+  * **致命錯誤根因**：`cloudflared` 在**每一次正常啟動時**，都會輸出一行無害提示：`Cannot determine default configuration path. No file [config.yml config.yaml]`。
+  * **烏龍自殺連鎖反應**：若看門狗誤將此正常提示列入死亡判定條件，將導致**隧道每 60 秒就被看門狗誤判為已死 $\rightarrow$ 每隔一分鐘主動殺死進程並重新申請新網址 $\rightarrow$ 徹夜無腦重啟數百次**！
+  * **死亡判斷嚴格白名單 (Death Keyword Whitelist)**：
+    * 僅允許以下明確死亡字串：`Unauthorized: Tunnel not found`、`network is unreachable`、`connection closed`、`connection terminated`。
+    * **絕對嚴禁字串**：**嚴格禁止將 `Cannot determine default configuration path` 或任何無害 INF/WRN 提示列為死亡條件！**
+* **徹夜高頻衝撞引發 HTTP 429 官方封鎖 (Anti-Hammering & Error 1015 Cooldown)**：
+  * 頻繁重啟會向 `api.trycloudflare.com` 發送大量申請，導致 IP 遭 Cloudflare 防火牆判定為惡意轟炸（`HTTP 429` / `error code: 1015`）。
+  * **智能退避冷卻鐵律**：凡檢測到 `status 429` 或 `error code: 1015`，**必須立即停止重試，進入至少 30 分鐘完全靜默冷卻期 (`rateLimitCooldownUntil`)**，嚴禁在下一週期繼續衝撞導致懲罰計時器被重置！
+* **動態 Webhook API 零介入自動同步與過濾 (Automated Dynamic Endpoint Sync & Sanitization)**：
+  * 新臨時 URL 生成後，正則提取必須過濾排除官方報錯的 `api.trycloudflare.com`，且**嚴格禁止依賴使用者手動複製貼上**。
+  * 服務必須透過平台提供的管理 API（如 LINE Messaging API `PUT /v2/bot/channel/webhook/endpoint`）在程式內部自動同步最新 Webhook 端點。
+  * 同步完成後必須立即發起 Webhook 原生探測（如 LINE `POST /v2/bot/channel/webhook/test`），確認回傳 `statusCode: 200, success: true` 始視為自癒成功。
+* **全盤前置條件審查鐵律 (Upfront Complete Prerequisite Check - 杜絕做一半碰壁)**：
+  * 提議或引導使用者採用第三方方案（如 Cloudflare Named Tunnel、Ngrok 等）前，**必須 100% 查清並確認所有硬性前置條件**（例如：Cloudflare Named Tunnel 必須自備註冊網域 Zone；Android Termux 運行通用 Go 程式缺少 `resolv.conf` 會發生 DNS 拒絕解析）。
+  * 凡前置條件不符合或尚未確認前，**嚴格禁止貿然讓使用者展開註冊或配置流程**！
+* **詳細規範**：參考 `.agents/rules/ephemeral_tunnel_watchdog_rule.md`。
+
+## 24. 工作區環境純淨防護與專案資料物理封裝鐵律 (Workspace Cleanliness & Project Isolation Rule - 全案最高強制規範)
+* **專案資料與 Release 永遠放一起 (Strict Project Locality)**：
+  * 每個專案的源代碼、設定、文件、測試、以及打包編譯產出的便攜目錄或 **`Release/` 資料夾，必須 100% 嚴格封裝在該專案自身目錄內部**（如 `Dyanmometer/Release/`、`ios2pixel/Release/`）。
+  * **根目錄 Release 資料夾絕對禁用**：**嚴格禁止在工作區根目錄（`AI_Projects/`）建立或放置 `Release/` 資料夾**！根目錄絕不是任何專案的發布或暫存場，嚴禁邏輯錯亂的分離放置。
+* **過渡檔案用畢即清鐵律 (Zero-Lingering Artifacts & Auto-Purge)**：
+  * 開發、除錯、測試、視覺辨識（OCR/CV）或封裝期間產生的所有過渡截圖（`*.jpg`、`*.png`、`sample_*.jpg`、`crop_*.jpg`）、臨時測試程式（`test_*.py`、`test.html`、測試用 `.exe`）、中間封裝包（臨時 `.apk`、`.zip`），**必須在測試驗證結束後，於同一個 Turn 內強制調用指令徹底刪除清空**！
+  * 絕不允許任何一張測試截圖或過渡檔案遺留在磁碟上，嚴禁讓使用者開口提醒或手動整理。
+* **工作區根目錄純淨防線 (Clean Root Guard)**：
+  * 工作區根目錄只允許存在：全域設定檔（`GEMINI.md`、`.gitignore` 等）、GitHub Pages 首頁門戶檔案（`index.html`、`styles.css` 及門戶入口直接引用的公開展示頁）與標準分類的專案頂層目錄（`ESP32_*`、`WEB_*`、`TOOL_*`、`Dyanmometer`、`ios2pixel*` 等）。
+  * 嚴格禁止任何無所歸屬的孤立檔案或測試腳本隨意散落於根目錄。
+* **詳細規範**：參考 `.agents/rules/workspace_cleanliness_and_project_isolation_rule.md`。
 
 
+## 25. AI 自我端到端實測驗收鐵律 (Mandatory AI Self-Verification & Evidence Acceptance Rule - 全案最高強制規範)
+* **嚴禁將使用者當作測試員 (Zero User-As-Tester)**：
+  * **嚴格禁止**在修改完程式碼、UI 版面或 API 後，未經 AI 自主端到端完整測試驗收，就草率向使用者回報「請您測試看看」、「你可以試試看」！使用者是專案主導者與驗收者，絕非義務除錯人員！
+* **標準 3 步驗收閉環 (3-Step Self-Acceptance Pipeline - 嚴禁跳步)**：
+  1. **真實探測 (Live End-to-End Probe)**：
+     - 修改完成後，第一動作必須在本機或目標裝置上透過腳本/指令對實際端點、API、DOM 元素或資料庫發起真實調用。
+     - 取得真實 HTTP 狀態碼、回傳 JSON Payload 與執行日誌。
+  2. **嚴格斷言與殘留掃描 (Strict Assertion & Residue Scan)**：
+     - 程式碼、HTML、UI 元素、日誌等必須經由腳本執行正則/關鍵字斷言。
+     - **正向斷言**：確認新增之欄位、邏輯或元件 100% 存在且數值正確。
+     - **負向斷言**：確認要求刪除之舊按鈕、贅字、舊路由或暫存檔 100% 徹底清除無殘留（count == 0）。
+  3. **佐證回報 (Hard Evidence Presentation)**：
+     - 回報時必須附上剛才自我驗收執行的「實測終端輸出（Output Snippet）」或「實測數據」，以硬核客觀證據向使用者證明已 100% 驗收通過，嚴禁空口承諾！
+* **詳細規範**：參考 .agents/rules/mandatory_ai_self_verification_rule.md。

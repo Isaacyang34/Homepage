@@ -514,6 +514,63 @@ document.addEventListener("DOMContentLoaded", () => {
     renderContentByMode(q);
   });
 
+  // 主分頁切換監聽 (存股部位 vs 自組 ETF 績效)
+  const tabBtnPos = document.getElementById("tab-btn-positions");
+  const tabBtnEtf = document.getElementById("tab-btn-etf");
+  const posContent = document.getElementById("positions-tab-content");
+  const etfContent = document.getElementById("etf-analytics-tab-content");
+
+  if (tabBtnPos && tabBtnEtf) {
+    tabBtnPos.addEventListener("click", () => {
+      tabBtnPos.classList.add("active");
+      tabBtnEtf.classList.remove("active");
+      if (posContent) posContent.classList.remove("hidden");
+      if (etfContent) etfContent.classList.add("hidden");
+    });
+
+    tabBtnEtf.addEventListener("click", () => {
+      tabBtnEtf.classList.add("active");
+      tabBtnPos.classList.remove("active");
+      if (posContent) posContent.classList.add("hidden");
+      if (etfContent) etfContent.classList.remove("hidden");
+      renderEtfAnalytics();
+    });
+  }
+
+  // 自組 ETF K 線範圍按鈕切換
+  document.querySelectorAll(".btn-etf-range").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      document.querySelectorAll(".btn-etf-range").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      etfChartState.displayDays = parseInt(btn.getAttribute("data-days") || "0", 10);
+      drawEtfKlineChart();
+    });
+  });
+
+  // 各股績效多週期切換
+  document.querySelectorAll(".btn-period").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      document.querySelectorAll(".btn-period").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      etfChartState.perfPeriod = btn.getAttribute("data-period") || "day";
+      drawPerfBarChart();
+    });
+  });
+
+  // 各股績效表格表頭排序
+  document.querySelectorAll("[data-psort]").forEach(th => {
+    th.addEventListener("click", () => {
+      const field = th.getAttribute("data-psort");
+      if (etfChartState.perfSortField === field) {
+        etfChartState.perfSortOrder = etfChartState.perfSortOrder === "asc" ? "desc" : "asc";
+      } else {
+        etfChartState.perfSortField = field;
+        etfChartState.perfSortOrder = "desc";
+      }
+      renderPerfTable();
+    });
+  });
+
   // 表頭點擊排序監聽
   const sortHeaders = document.querySelectorAll("#portfolio-table th.th-sortable");
   sortHeaders.forEach(th => {
@@ -748,6 +805,9 @@ function renderDashboard(data, cloudUpdateTime, quotesUpdateTime, portfolioSyncT
 
   // 渲染當前視圖模式
   renderContentByMode(document.getElementById("filter-input").value.trim().toLowerCase());
+
+  // 渲染自組 ETF 淨值走勢與各股多週期績效
+  renderEtfAnalytics();
 }
 
 function renderContentByMode(keyword) {
@@ -1030,5 +1090,434 @@ function renderCardsView(keyword) {
       </div>
     `;
     container.appendChild(card);
+  });
+}
+
+
+// ============================================================================
+// 自組 ETF (Portfolio Synthetic ETF) 淨值走勢與各股多週期績效分析前端引擎
+// ============================================================================
+
+let etfChartState = {
+  displayDays: 0, // 0 代表全部
+  perfPeriod: "day", // "day", "week", "month", "year"
+  perfSortField: "weight_pct",
+  perfSortOrder: "desc",
+  hoverRecord: null
+};
+
+function renderEtfAnalytics() {
+  const data = state.decryptedData;
+  if (!data) return;
+
+  const etfData = data.synthetic_etf || {};
+  const records = etfData.records || [];
+  const perfData = etfData.performance || {};
+  const items = perfData.items || [];
+
+  const isPrivate = state.privacyMode;
+
+  // 1. 更新頂部指標卡
+  const navValEl = document.getElementById("etf-nav-val");
+  const returnValEl = document.getElementById("etf-return-val");
+  const dayValEl = document.getElementById("etf-day-val");
+  const mktValEl = document.getElementById("etf-market-val");
+  const baseInfoEl = document.getElementById("etf-base-info");
+
+  const currentNav = etfData.current_nav || 100.0;
+  const totalReturn = etfData.total_return_pct || 0.0;
+  const dayChange = etfData.nav_change_pct || 0.0;
+  const totalMkt = perfData.total_market_value || etfData.total_market_value || 0;
+  const baseDate = etfData.base_date || "";
+
+  if (navValEl) navValEl.textContent = isPrivate ? "***.**" : currentNav.toFixed(2);
+  if (returnValEl) {
+    const s = totalReturn > 0 ? "+" : "";
+    returnValEl.textContent = `${s}${totalReturn.toFixed(2)}%`;
+    returnValEl.className = `etf-return-val ${totalReturn >= 0 ? "text-red" : "text-green"}`;
+  }
+  if (dayValEl) {
+    const s = dayChange > 0 ? "+" : "";
+    dayValEl.textContent = `${s}${dayChange.toFixed(2)}%`;
+    dayValEl.className = `etf-day-val ${dayChange >= 0 ? "text-red" : "text-green"}`;
+  }
+  if (mktValEl) mktValEl.textContent = isPrivate ? "$ ********" : `$ ${fmtNum(Math.round(totalMkt))}`;
+  if (baseInfoEl) baseInfoEl.textContent = `基準淨值: 100.00 (${baseDate})`;
+
+  // 2. 繪製自組 ETF K 線圖
+  drawEtfKlineChart();
+
+  // 3. 繪製各股多週期長條圖
+  drawPerfBarChart();
+
+  // 4. 渲染各股績效詳細數據表格
+  renderPerfTable();
+}
+
+function drawEtfKlineChart() {
+  const canvas = document.getElementById("etf-kline-canvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+
+  const data = state.decryptedData;
+  const etfData = (data && data.synthetic_etf) ? data.synthetic_etf : {};
+  let records = etfData.records || [];
+
+  if (records.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "14px 'Noto Sans TC', sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("暫無歷史 K 線資料，請於電腦端執行【盤後更新】並重新同步", canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  // 天數過濾
+  const days = etfChartState.displayDays;
+  if (days > 0 && records.length > days) {
+    records = records.slice(records.length - days);
+  }
+
+  // 依畫布大小縮放
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const paddingLeft = 15;
+  const paddingRight = 65;
+  const paddingTop = 25;
+  const paddingBottom = 25;
+  const volHeightRatio = 0.25;
+
+  const chartW = w - paddingLeft - paddingRight;
+  const totalChartH = h - paddingTop - paddingBottom;
+  const volH = totalChartH * volHeightRatio;
+  const kH = totalChartH - volH - 15;
+
+  const kTop = paddingTop;
+  const kBottom = kTop + kH;
+  const volTop = kBottom + 15;
+  const volBottom = volTop + volH;
+
+  // 計算價格最高、最低與成交量最高
+  let minP = Infinity;
+  let maxP = -Infinity;
+  let maxV = 0;
+
+  records.forEach(r => {
+    if (r.low < minP) minP = r.low;
+    if (r.high > maxP) maxP = r.high;
+    if (r.ma5 && r.ma5 < minP) minP = r.ma5;
+    if (r.ma5 && r.ma5 > maxP) maxP = r.ma5;
+    if (r.ma20 && r.ma20 < minP) minP = r.ma20;
+    if (r.ma20 && r.ma20 > maxP) maxP = r.ma20;
+    if (r.volume > maxV) maxV = r.volume;
+  });
+
+  const pMargin = (maxP - minP) * 0.05 || 1.0;
+  minP -= pMargin;
+  maxP += pMargin;
+  if (maxV <= 0) maxV = 1;
+
+  const pRange = maxP - minP;
+  const yFromPrice = p => kBottom - ((p - minP) / pRange) * kH;
+  const yFromVol = v => volBottom - (v / maxV) * volH;
+
+  // 繪製格線與右側標尺
+  ctx.strokeStyle = "#232332";
+  ctx.lineWidth = 1;
+  ctx.fillStyle = "#828299";
+  ctx.font = "11px Inter, sans-serif";
+  ctx.textAlign = "left";
+
+  const gridSteps = 4;
+  for (let i = 0; i <= gridSteps; i++) {
+    const p = minP + (pRange / gridSteps) * i;
+    const y = yFromPrice(p);
+    ctx.beginPath();
+    ctx.moveTo(paddingLeft, y);
+    ctx.lineTo(paddingLeft + chartW, y);
+    ctx.stroke();
+    ctx.fillText(p.toFixed(2), paddingLeft + chartW + 6, y + 4);
+  }
+
+  // 繪製蠟燭線與成交量
+  const n = records.length;
+  const candleW = Math.max(Math.min((chartW / n) * 0.7, 14), 2);
+  const stepX = chartW / n;
+
+  const cUp = "#ff4d4f";
+  const cDown = "#52c41a";
+  const cFlat = "#cccccc";
+
+  const ma5Points = [];
+  const ma20Points = [];
+
+  records.forEach((r, i) => {
+    const xCenter = paddingLeft + (i + 0.5) * stepX;
+    const yOpen = yFromPrice(r.open);
+    const yClose = yFromPrice(r.close);
+    const yHigh = yFromPrice(r.high);
+    const yLow = yFromPrice(r.low);
+
+    const isUp = r.close > r.open;
+    const isDown = r.close < r.open;
+    const col = isUp ? cUp : (isDown ? cDown : cFlat);
+
+    // 上下影線
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(xCenter, yHigh);
+    ctx.lineTo(xCenter, yLow);
+    ctx.stroke();
+
+    // 實體蠟燭
+    ctx.fillStyle = col;
+    const rectTop = Math.min(yOpen, yClose);
+    const rectH = Math.max(Math.abs(yClose - yOpen), 1.5);
+    ctx.fillRect(xCenter - candleW / 2, rectTop, candleW, rectH);
+
+    // 成交量柱
+    const yV = yFromVol(r.volume);
+    ctx.fillStyle = col;
+    ctx.fillRect(xCenter - candleW / 2, yV, candleW, volBottom - yV);
+
+    // 紀錄 MA 點
+    if (r.ma5) ma5Points.push({ x: xCenter, y: yFromPrice(r.ma5) });
+    if (r.ma20) ma20Points.push({ x: xCenter, y: yFromPrice(r.ma20) });
+  });
+
+  // 繪製 MA5 (黃)
+  if (ma5Points.length > 1) {
+    ctx.strokeStyle = "#fadb14";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ma5Points.forEach((pt, i) => {
+      if (i === 0) ctx.moveTo(pt.x, pt.y);
+      else ctx.lineTo(pt.x, pt.y);
+    });
+    ctx.stroke();
+  }
+
+  // 繪製 MA20 (紫)
+  if (ma20Points.length > 1) {
+    ctx.strokeStyle = "#b37feb";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ma20Points.forEach((pt, i) => {
+      if (i === 0) ctx.moveTo(pt.x, pt.y);
+      else ctx.lineTo(pt.x, pt.y);
+    });
+    ctx.stroke();
+  }
+
+  // 更新預設頂部 MA 數值
+  const latestR = records[records.length - 1];
+  if (latestR) {
+    document.getElementById("etf-kline-ma5").textContent = latestR.ma5 ? latestR.ma5.toFixed(2) : "--";
+    document.getElementById("etf-kline-ma20").textContent = latestR.ma20 ? latestR.ma20.toFixed(2) : "--";
+    document.getElementById("etf-kline-vol").textContent = fmtNum(Math.round(latestR.volume / 1000)) + " 張";
+  }
+
+  // 綁定懸停游標事件
+  if (!canvas.getAttribute("data-bound")) {
+    canvas.setAttribute("data-bound", "true");
+    canvas.addEventListener("mousemove", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const mouseX = (e.clientX - rect.left) * scaleX;
+
+      const idx = Math.floor((mouseX - paddingLeft) / stepX);
+      if (idx >= 0 && idx < records.length) {
+        const r = records[idx];
+        const infoEl = document.getElementById("etf-crosshair-info");
+        if (infoEl) {
+          const s = r.change_pct > 0 ? "+" : "";
+          infoEl.innerHTML = `<b>${r.date}</b> | 開: <b>${r.open.toFixed(2)}</b> 高: <b>${r.high.toFixed(2)}</b> 低: <b>${r.low.toFixed(2)}</b> 收: <b>${r.close.toFixed(2)}</b> (${s}${r.change_pct.toFixed(2)}%)`;
+        }
+        if (r.ma5) document.getElementById("etf-kline-ma5").textContent = r.ma5.toFixed(2);
+        if (r.ma20) document.getElementById("etf-kline-ma20").textContent = r.ma20.toFixed(2);
+        if (r.volume) document.getElementById("etf-kline-vol").textContent = fmtNum(Math.round(r.volume / 1000)) + " 張";
+      }
+    });
+
+    canvas.addEventListener("mouseleave", () => {
+      const infoEl = document.getElementById("etf-crosshair-info");
+      if (infoEl) infoEl.textContent = "懸停於圖表上查看日期與詳細開高低收";
+    });
+  }
+}
+
+function drawPerfBarChart() {
+  const canvas = document.getElementById("perf-bar-canvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+
+  const data = state.decryptedData;
+  const etfData = (data && data.synthetic_etf) ? data.synthetic_etf : {};
+  const perfData = etfData.performance || {};
+  let items = [...(perfData.items || [])];
+
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  if (items.length === 0) {
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "14px 'Noto Sans TC', sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("暫無個股多週期績效數據", w / 2, h / 2);
+    return;
+  }
+
+  const period = etfChartState.perfPeriod;
+  const keyMap = {
+    "day": { key: "day_pct", label: "當日績效" },
+    "week": { key: "week_pct", label: "當週 (5日)" },
+    "month": { key: "month_pct", label: "當月 (20日)" },
+    "year": { key: "year_pct", label: "全期 / 年化" }
+  };
+  const cfg = keyMap[period] || keyMap["day"];
+
+  // 依照該週期數值排序
+  items.sort((a, b) => b[cfg.key] - a[cfg.key]);
+
+  // 找出最大絕對值
+  const maxAbs = Math.max(...items.map(x => Math.abs(x[cfg.key])), 5.0);
+
+  const paddingTop = 28;
+  const paddingBottom = 15;
+  const labelW = 110;
+  const valW = 60;
+  const chartW = w - labelW - valW - 20;
+  const zeroX = labelW + chartW / 2;
+
+  // 繪製標題與中心軸
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "12px 'Noto Sans TC', sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(`-- ${cfg.label} 排行榜 (紅漲 / 綠跌) --`, w / 2, 16);
+
+  ctx.strokeStyle = "#2b2b3d";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(zeroX, paddingTop);
+  ctx.lineTo(zeroX, h - paddingBottom);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  const n = items.length;
+  const rowH = (h - paddingTop - paddingBottom) / n;
+  const barH = Math.max(Math.min(rowH * 0.65, 18), 8);
+
+  const cUp = "#ff4d4f";
+  const cDown = "#52c41a";
+  const cFlat = "#999999";
+
+  items.forEach((it, i) => {
+    const yCenter = paddingTop + (i + 0.5) * rowH;
+    const val = it[cfg.key] || 0;
+    const sym = it.symbol;
+    const name = it.name || sym;
+
+    // 左側股票標籤
+    ctx.fillStyle = "#cbd5e1";
+    ctx.font = "11px Inter, sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText(`${sym} ${name.slice(0, 5)}`, labelW - 6, yCenter + 4);
+
+    // 柱體寬度
+    const barLen = (Math.abs(val) / maxAbs) * (chartW / 2);
+    let x1, x2, col, valX, valAlign, valText;
+
+    if (val > 0) {
+      x1 = zeroX;
+      x2 = zeroX + barLen;
+      col = cUp;
+      valX = x2 + 5;
+      valAlign = "left";
+      valText = `+${val.toFixed(2)}%`;
+    } else if (val < 0) {
+      x1 = zeroX - barLen;
+      x2 = zeroX;
+      col = cDown;
+      valX = x1 - 5;
+      valAlign = "right";
+      valText = `${val.toFixed(2)}%`;
+    } else {
+      x1 = zeroX - 1;
+      x2 = zeroX + 1;
+      col = cFlat;
+      valX = x2 + 5;
+      valAlign = "left";
+      valText = `0.00%`;
+    }
+
+    // 繪製柱體
+    ctx.fillStyle = col;
+    ctx.fillRect(x1, yCenter - barH / 2, Math.max(x2 - x1, 1), barH);
+
+    // 繪製數值
+    ctx.font = "bold 10px Inter, monospace";
+    ctx.textAlign = valAlign;
+    ctx.fillText(valText, valX, yCenter + 3.5);
+  });
+}
+
+function renderPerfTable() {
+  const tbody = document.getElementById("perf-tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  const data = state.decryptedData;
+  const etfData = (data && data.synthetic_etf) ? data.synthetic_etf : {};
+  const perfData = etfData.performance || {};
+  let items = [...(perfData.items || [])];
+
+  if (items.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:#94a3b8; padding:20px;">尚無個股多週期數據</td></tr>`;
+    return;
+  }
+
+  // 排序
+  const field = etfChartState.perfSortField;
+  const order = etfChartState.perfSortOrder;
+  items.sort((a, b) => {
+    let vA = a[field];
+    let vB = b[field];
+    if (typeof vA === "string") return order === "asc" ? vA.localeCompare(vB) : vB.localeCompare(a);
+    return order === "asc" ? vA - vB : vB - vA;
+  });
+
+  const isPrivate = state.privacyMode;
+
+  items.forEach(it => {
+    const tr = document.createElement("tr");
+
+    const signD = it.day_pct > 0 ? "+" : "";
+    const signW = it.week_pct > 0 ? "+" : "";
+    const signM = it.month_pct > 0 ? "+" : "";
+    const signY = it.year_pct > 0 ? "+" : "";
+    const signU = it.unrealized_pnl > 0 ? "+" : "";
+
+    const colD = it.day_pct >= 0 ? "text-red" : "text-green";
+    const colW = it.week_pct >= 0 ? "text-red" : "text-green";
+    const colM = it.month_pct >= 0 ? "text-red" : "text-green";
+    const colY = it.year_pct >= 0 ? "text-red" : "text-green";
+    const colU = it.unrealized_pnl >= 0 ? "text-red" : "text-green";
+
+    tr.innerHTML = `
+      <td><b>${it.symbol}</b></td>
+      <td>${it.name}</td>
+      <td>${it.weight_pct.toFixed(2)}%</td>
+      <td class="${colD}">${signD}${it.day_pct.toFixed(2)}%</td>
+      <td class="${colW}">${signW}${it.week_pct.toFixed(2)}%</td>
+      <td class="${colM}">${signM}${it.month_pct.toFixed(2)}%</td>
+      <td class="${colY}">${signY}${it.year_pct.toFixed(2)}%</td>
+      <td class="${colU}">${isPrivate ? "***" : `${signU}${fmtNum(Math.round(it.unrealized_pnl))}`}</td>
+    `;
+    tbody.appendChild(tr);
   });
 }
