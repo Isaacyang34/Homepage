@@ -1324,3 +1324,58 @@ body {
   font-weight: 500;
   padding: 8px 12px;
 }
+
+
+/* -------------------------------------------------------------
+   Table Column Sorting Styles (Portfolio & Market Rankings)
+------------------------------------------------------------- */
+.portfolio-table th.th-sortable,
+.perf-table th.th-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease, background 0.15s ease;
+  white-space: nowrap;
+}
+
+.portfolio-table th.th-sortable:hover,
+.perf-table th.th-sortable:hover {
+  color: #38bdf8 !important;
+  background: rgba(56, 189, 248, 0.08) !important;
+}
+
+.portfolio-table th.th-sortable::after,
+.perf-table th.th-sortable::after {
+  content: " ⇕";
+  font-size: 11px;
+  color: #64748b;
+  opacity: 0.45;
+  margin-left: 4px;
+}
+
+.portfolio-table th.th-sortable.sorted-asc,
+.perf-table th.th-sortable.sorted-asc {
+  color: #38bdf8 !important;
+}
+
+.portfolio-table th.th-sortable.sorted-asc::after,
+.perf-table th.th-sortable.sorted-asc::after {
+  content: " ▲";
+  font-size: 10px;
+  color: #38bdf8;
+  opacity: 1;
+  font-weight: bold;
+}
+
+.portfolio-table th.th-sortable.sorted-desc,
+.perf-table th.th-sortable.sorted-desc {
+  color: #38bdf8 !important;
+}
+
+.portfolio-table th.th-sortable.sorted-desc::after,
+.perf-table th.th-sortable.sorted-desc::after {
+  content: " ▼";
+  font-size: 10px;
+  color: #38bdf8;
+  opacity: 1;
+  font-weight: bold;
+}

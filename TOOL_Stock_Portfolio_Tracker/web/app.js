@@ -5,7 +5,7 @@
  */
 
 const DEFAULT_FIREBASE_URL = "https://my-stock-tracker-2a94e-default-rtdb.asia-southeast1.firebasedatabase.app";
-const WEB_VERSION = "V1.2.1";
+const WEB_VERSION = "V1.2.2";
 const PALETTE = ["#3a86ff", "#00f090", "#ffbe0b", "#ff3366", "#8338ec", "#06d6a0", "#118ab2", "#fb5607"];
 
 let state = {
@@ -1045,15 +1045,53 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 全市場指標按鈕切換
+  // 全市場指標按鈕切換 (切換分頁時重設各分頁最佳預設排序)
   document.querySelectorAll("#market-rank-type-switch .btn-period").forEach(btn => {
     btn.addEventListener("click", () => {
       document.querySelectorAll("#market-rank-type-switch .btn-period").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
-      marketRankState.currentType = btn.getAttribute("data-mtype") || "yield";
+      const newType = btn.getAttribute("data-mtype") || "yield";
+      if (marketRankState.currentType !== newType) {
+        marketRankState.currentType = newType;
+        if (newType === "margin_market") {
+          marketRankState.sortField = "margin_balance_lots";
+          marketRankState.sortOrder = "desc";
+        } else if (newType === "yield") {
+          marketRankState.sortField = "yield_pct";
+          marketRankState.sortOrder = "desc";
+        } else if (newType === "pe") {
+          marketRankState.sortField = "pe";
+          marketRankState.sortOrder = "asc";
+        } else if (newType === "rev") {
+          marketRankState.sortField = "yoy";
+          marketRankState.sortOrder = "desc";
+        } else if (newType === "roe") {
+          marketRankState.sortField = "roe";
+          marketRankState.sortOrder = "desc";
+        }
+      }
       renderMarketRankings();
     });
   });
+
+  // 全市場指標表頭點擊排序監聽 (點一下遞增，再點一下遞減，支援所有分頁與名次)
+  const marketThead = document.getElementById("market-ranking-thead");
+  if (marketThead) {
+    marketThead.addEventListener("click", (e) => {
+      const th = e.target.closest("th[data-msort]");
+      if (!th) return;
+      const field = th.getAttribute("data-msort");
+      if (!field) return;
+      if (marketRankState.sortField === field) {
+        marketRankState.sortOrder = (marketRankState.sortOrder === "asc" ? "desc" : "asc");
+      } else {
+        marketRankState.sortField = field;
+        const defaultAsc = ["rank", "pe", "symbol", "name", "industry"];
+        marketRankState.sortOrder = defaultAsc.includes(field) ? "asc" : "desc";
+      }
+      renderMarketRankings();
+    });
+  }
 
   const mFilterSelect = document.getElementById("market-filter-select");
   if (mFilterSelect) {
@@ -2138,6 +2176,8 @@ let marketRankState = {
   currentType: "margin_market", // 預設切至全市場融資維持率排行 (對齊本機端 unified_ranking_gui.py)
   filter: "all",
   ratioMode: "all_three", // "all_three" | "call_only" | "buffer_only" | "ratio_only"
+  sortField: "margin_balance_lots", // 預設依融資餘額降序
+  sortOrder: "desc",
   rawMarketData: null,
   twseMarginData: null,
   isFetchingMargin: false
@@ -2878,73 +2918,81 @@ async function renderMarketRankings() {
   const filter = marketRankState.filter || "all";
   const mySyms = new Set((state.normalizedPositions || []).map(p => (p.symbol || "").toUpperCase()));
 
+  function getMThClass(field) {
+    if (marketRankState.sortField === field) {
+      return `th-sortable ${marketRankState.sortOrder === "asc" ? "sorted-asc" : "sorted-desc"}`;
+    }
+    return "th-sortable";
+  }
+
   // ==========================================
   // 分支 A：[全市場融資排行] (margin_market)
   // 對齊本機端 unified_ranking_gui.py tab == "margin_market"
   // 支援三者共存切換：130%追繳價 / 距斷頭緩衝% / 市場估算維持率 / 個人在庫真實維持率
+  // 支援欄位點擊遞增/遞減排序 (包含名次、數值)
   // ==========================================
   if (mType === "margin_market") {
     if (bannerBar) bannerBar.classList.remove("hidden");
     if (titleEl) titleEl.textContent = "全市場融資餘額與維持率排行 (TWSE Market Margin Rankings)";
-    if (tipEl) tipEl.textContent = "台灣證交所官方信用交易總表 ‧ 融資餘額由大到小 ‧ 融資使用率 ‧ 130% 斷頭追繳預警與維持率";
+    if (tipEl) tipEl.textContent = "台灣證交所官方信用交易總表 ‧ 融資餘額由大到小 ‧ 融資使用率 ‧ 130% 斷頭追繳預警與維持率 (點擊表頭切換遞增/遞減排序)";
 
     const rMode = marketRankState.ratioMode || "all_three";
 
-    // 依切換模式動態設定表頭欄位
+    // 依切換模式動態設定表頭欄位與排序屬性
     if (thead) {
       if (rMode === "all_three") {
         thead.innerHTML = `
           <tr>
-            <th>名次</th>
-            <th>代號</th>
-            <th>名稱</th>
-            <th>現價</th>
-            <th>融資餘額(張)</th>
-            <th>使用率(%)</th>
-            <th>今日資增減</th>
-            <th title="現價跌破即觸發 130% 追繳">130%追繳價</th>
-            <th title="距 130% 追繳之跌幅安全緩衝空間">緩衝空間%</th>
-            <th title="近 60 日融資成本估算維持率 / 個人在庫真實維持率">估算維持率%</th>
-            <th>在庫狀態</th>
+            <th class="${getMThClass('rank')}" data-msort="rank" title="點擊切換名次正序/倒序">名次</th>
+            <th class="${getMThClass('symbol')}" data-msort="symbol">代號</th>
+            <th class="${getMThClass('name')}" data-msort="name">名稱</th>
+            <th class="${getMThClass('price')}" data-msort="price">現價</th>
+            <th class="${getMThClass('margin_balance_lots')}" data-msort="margin_balance_lots">融資餘額(張)</th>
+            <th class="${getMThClass('margin_utilization')}" data-msort="margin_utilization">使用率(%)</th>
+            <th class="${getMThClass('margin_net_lots')}" data-msort="margin_net_lots">今日資增減</th>
+            <th class="${getMThClass('call_price')}" data-msort="call_price" title="現價跌破即觸發 130% 追繳">130%追繳價</th>
+            <th class="${getMThClass('buffer_pct')}" data-msort="buffer_pct" title="距 130% 追繳之跌幅安全緩衝空間">緩衝空間%</th>
+            <th class="${getMThClass('est_ratio')}" data-msort="est_ratio" title="近 60 日融資成本估算維持率 / 個人在庫真實維持率">估算維持率%</th>
+            <th class="${getMThClass('in_stock')}" data-msort="in_stock">在庫狀態</th>
           </tr>`;
       } else if (rMode === "call_only") {
         thead.innerHTML = `
           <tr>
-            <th>名次</th>
-            <th>代號</th>
-            <th>名稱</th>
-            <th>現價</th>
-            <th>融資餘額(張)</th>
-            <th>使用率(%)</th>
-            <th>今日資增減</th>
-            <th>130%追繳價</th>
-            <th>在庫狀態</th>
+            <th class="${getMThClass('rank')}" data-msort="rank" title="點擊切換名次正序/倒序">名次</th>
+            <th class="${getMThClass('symbol')}" data-msort="symbol">代號</th>
+            <th class="${getMThClass('name')}" data-msort="name">名稱</th>
+            <th class="${getMThClass('price')}" data-msort="price">現價</th>
+            <th class="${getMThClass('margin_balance_lots')}" data-msort="margin_balance_lots">融資餘額(張)</th>
+            <th class="${getMThClass('margin_utilization')}" data-msort="margin_utilization">使用率(%)</th>
+            <th class="${getMThClass('margin_net_lots')}" data-msort="margin_net_lots">今日資增減</th>
+            <th class="${getMThClass('call_price')}" data-msort="call_price">130%追繳價</th>
+            <th class="${getMThClass('in_stock')}" data-msort="in_stock">在庫狀態</th>
           </tr>`;
       } else if (rMode === "buffer_only") {
         thead.innerHTML = `
           <tr>
-            <th>名次</th>
-            <th>代號</th>
-            <th>名稱</th>
-            <th>現價</th>
-            <th>融資餘額(張)</th>
-            <th>使用率(%)</th>
-            <th>今日資增減</th>
-            <th title="距離 130% 追繳價的緩衝跌幅空間">距130%緩衝空間(%)</th>
-            <th>在庫狀態</th>
+            <th class="${getMThClass('rank')}" data-msort="rank" title="點擊切換名次正序/倒序">名次</th>
+            <th class="${getMThClass('symbol')}" data-msort="symbol">代號</th>
+            <th class="${getMThClass('name')}" data-msort="name">名稱</th>
+            <th class="${getMThClass('price')}" data-msort="price">現價</th>
+            <th class="${getMThClass('margin_balance_lots')}" data-msort="margin_balance_lots">融資餘額(張)</th>
+            <th class="${getMThClass('margin_utilization')}" data-msort="margin_utilization">使用率(%)</th>
+            <th class="${getMThClass('margin_net_lots')}" data-msort="margin_net_lots">今日資增減</th>
+            <th class="${getMThClass('buffer_pct')}" data-msort="buffer_pct" title="距離 130% 追繳價的緩衝跌幅空間">距130%緩衝空間(%)</th>
+            <th class="${getMThClass('in_stock')}" data-msort="in_stock">在庫狀態</th>
           </tr>`;
       } else { // ratio_only
         thead.innerHTML = `
           <tr>
-            <th>名次</th>
-            <th>代號</th>
-            <th>名稱</th>
-            <th>現價</th>
-            <th>融資餘額(張)</th>
-            <th>使用率(%)</th>
-            <th>今日資增減</th>
-            <th title="市場近 60 日持倉成本估算維持率 (在庫者呈現個人真實維持率)">市場估算維持率(%)</th>
-            <th>在庫狀態</th>
+            <th class="${getMThClass('rank')}" data-msort="rank" title="點擊切換名次正序/倒序">名次</th>
+            <th class="${getMThClass('symbol')}" data-msort="symbol">代號</th>
+            <th class="${getMThClass('name')}" data-msort="name">名稱</th>
+            <th class="${getMThClass('price')}" data-msort="price">現價</th>
+            <th class="${getMThClass('margin_balance_lots')}" data-msort="margin_balance_lots">融資餘額(張)</th>
+            <th class="${getMThClass('margin_utilization')}" data-msort="margin_utilization">使用率(%)</th>
+            <th class="${getMThClass('margin_net_lots')}" data-msort="margin_net_lots">今日資增減</th>
+            <th class="${getMThClass('est_ratio')}" data-msort="est_ratio" title="市場近 60 日持倉成本估算維持率 (在庫者呈現個人真實維持率)">市場估算維持率(%)</th>
+            <th class="${getMThClass('in_stock')}" data-msort="in_stock">在庫狀態</th>
           </tr>`;
       }
     }
@@ -2991,16 +3039,85 @@ async function renderMarketRankings() {
     if (filter === "stock") list = list.filter(s => !s.is_etf);
     else if (filter === "etf") list = list.filter(s => s.is_etf);
 
-    // 依融資餘額降序排列
+    // 原始預設榜單：融資餘額降序排列，固定賦予原始基準排名 (orig_rank: 1..150)
     list.sort((a, b) => (b.margin_balance_lots || 0) - (a.margin_balance_lots || 0));
     const topItems = list.slice(0, 150);
+
+    topItems.forEach((it, idx) => {
+      it.orig_rank = idx + 1;
+      const sym = (it.symbol || "").toUpperCase();
+      const myPos = myPosMap[sym];
+      it.isIn = !!myPos;
+      it.priceVal = (it.price && it.price > 0) ? it.price : 0;
+      it.callPVal = it.priceVal > 0 ? Number((it.priceVal * 0.78).toFixed(2)) : (it.call_price || 0);
+      it.bufferPctVal = it.priceVal > 0 ? -22.0 : -999;
+      if (it.isIn && myPos && myPos.ratio !== null) {
+        it.estRatioVal = myPos.ratio;
+      } else {
+        it.estRatioVal = it.priceVal > 0 ? 166.67 : 0;
+      }
+    });
+
+    // 依點擊之欄位與正反序排序
+    const sField = marketRankState.sortField || "margin_balance_lots";
+    const isAsc = marketRankState.sortOrder === "asc";
+
+    topItems.sort((a, b) => {
+      let valA, valB;
+      switch (sField) {
+        case "rank":
+          valA = a.orig_rank || 0;
+          valB = b.orig_rank || 0;
+          break;
+        case "symbol":
+          return isAsc ? (a.symbol || "").localeCompare(b.symbol || "") : (b.symbol || "").localeCompare(a.symbol || "");
+        case "name":
+          return isAsc ? (a.name || "").localeCompare(b.name || "") : (b.name || "").localeCompare(a.name || "");
+        case "price":
+          valA = a.priceVal;
+          valB = b.priceVal;
+          break;
+        case "margin_balance_lots":
+          valA = a.margin_balance_lots || 0;
+          valB = b.margin_balance_lots || 0;
+          break;
+        case "margin_utilization":
+          valA = a.margin_utilization || 0;
+          valB = b.margin_utilization || 0;
+          break;
+        case "margin_net_lots":
+          valA = a.margin_net_lots || 0;
+          valB = b.margin_net_lots || 0;
+          break;
+        case "call_price":
+          valA = a.callPVal;
+          valB = b.callPVal;
+          break;
+        case "buffer_pct":
+          valA = a.bufferPctVal;
+          valB = b.bufferPctVal;
+          break;
+        case "est_ratio":
+          valA = a.estRatioVal;
+          valB = b.estRatioVal;
+          break;
+        case "in_stock":
+          valA = a.isIn ? 1 : 0;
+          valB = b.isIn ? 1 : 0;
+          break;
+        default:
+          valA = a.orig_rank || 0;
+          valB = b.orig_rank || 0;
+      }
+      return isAsc ? valA - valB : valB - valA;
+    });
 
     tbody.innerHTML = "";
     topItems.forEach((it, idx) => {
       const tr = document.createElement("tr");
       const sym = (it.symbol || "").toUpperCase();
       const myPos = myPosMap[sym];
-      const isIn = !!myPos;
+      const isIn = it.isIn;
       const inTag = isIn ? `<span class="badge-tag tag-tw">已在庫</span>` : `<span class="cell-sub text-dim">未持有</span>`;
 
       const balLots = (it.margin_balance_lots || 0).toLocaleString();
@@ -3009,25 +3126,21 @@ async function renderMarketRankings() {
       const netLots = it.margin_net_lots || 0;
       const netStr = `${netLots > 0 ? "+" : ""}${netLots.toLocaleString()}`;
       const netClass = netLots > 0 ? "text-red font-bold" : (netLots < 0 ? "text-green font-bold" : "text-dim");
-      const priceVal = (it.price && it.price > 0) ? it.price : 0;
+      const priceVal = it.priceVal;
       const priceStr = priceVal > 0 ? priceVal.toFixed(2) : "--";
 
       // 1. 130% 追繳價
-      const callPVal = priceVal > 0 ? Number((priceVal * 0.78).toFixed(2)) : (it.call_price || 0);
-      const callP = callPVal > 0 ? callPVal.toFixed(2) : "--";
+      const callP = it.callPVal > 0 ? it.callPVal.toFixed(2) : "--";
 
       // 2. 距 130% 跌幅緩衝空間 (%)
-      const bufferPct = priceVal > 0 ? -22.0 : null; // 官方融資成數 60% 算式：跌幅空間永遠精確為 -22.0%
-      const bufferStr = bufferPct !== null ? "-22.0%" : "--";
+      const bufferStr = priceVal > 0 ? "-22.0%" : "--";
       const bufferClass = "text-gold font-bold";
 
       // 3. 市場估算維持率 (%) & 在庫真實維持率
-      let estRatio = 166.67; // 融資買進基準維持率 (100% / 0.6)
-      let ratioLabel = `${estRatio.toFixed(1)}%`;
+      let ratioLabel = `${it.estRatioVal.toFixed(1)}%`;
       let ratioClass = "text-green";
 
-      if (isIn && myPos.ratio !== null) {
-        // 若個人在庫有融資部位，直接帶入個人真實維持率 (方案 C)
+      if (isIn && myPos && myPos.ratio !== null) {
         ratioLabel = `${myPos.ratio.toFixed(2)}% (我的)`;
         ratioClass = myPos.ratio >= 160 ? "text-green font-bold" : (myPos.ratio >= 130 ? "text-gold font-bold" : "text-red font-bold");
       } else if (priceVal <= 0) {
@@ -3035,9 +3148,16 @@ async function renderMarketRankings() {
         ratioClass = "text-dim";
       }
 
+      // 名次顯示邏輯：依名次排序或預設排序時顯示單一數字；若依其他欄位重新排序則呈現「新排名 (#原排名)」
+      const rankDisplay = (sField === "rank")
+        ? it.orig_rank
+        : (sField === "margin_balance_lots" && !isAsc 
+            ? it.orig_rank 
+            : `${idx + 1} <span class="cell-sub text-dim" style="font-size:11px;">(#${it.orig_rank})</span>`);
+
       if (rMode === "all_three") {
         tr.innerHTML = `
-          <td>${idx + 1}</td>
+          <td>${rankDisplay}</td>
           <td><b>${it.symbol}</b></td>
           <td>${it.name || it.symbol}</td>
           <td><b>${priceStr}</b></td>
@@ -3051,7 +3171,7 @@ async function renderMarketRankings() {
         `;
       } else if (rMode === "call_only") {
         tr.innerHTML = `
-          <td>${idx + 1}</td>
+          <td>${rankDisplay}</td>
           <td><b>${it.symbol}</b></td>
           <td>${it.name || it.symbol}</td>
           <td><b>${priceStr}</b></td>
@@ -3063,7 +3183,7 @@ async function renderMarketRankings() {
         `;
       } else if (rMode === "buffer_only") {
         tr.innerHTML = `
-          <td>${idx + 1}</td>
+          <td>${rankDisplay}</td>
           <td><b>${it.symbol}</b></td>
           <td>${it.name || it.symbol}</td>
           <td><b>${priceStr}</b></td>
@@ -3075,7 +3195,7 @@ async function renderMarketRankings() {
         `;
       } else { // ratio_only
         tr.innerHTML = `
-          <td>${idx + 1}</td>
+          <td>${rankDisplay}</td>
           <td><b>${it.symbol}</b></td>
           <td>${it.name || it.symbol}</td>
           <td><b>${priceStr}</b></td>
@@ -3091,28 +3211,29 @@ async function renderMarketRankings() {
     });
     return;
   }
+
   // ==========================================
   // 分支 B：[殖利率排行] (yield)
-  // 對齊本機端 unified_ranking_gui.py:
-  // 表頭: 名次 | 代號 | 名稱 | 現價 | 現金殖利率 | 本益比 | 股價淨值比 | ROE | 在庫狀態
+  // 對齊本機端 unified_ranking_gui.py
+  // 支援欄位點擊遞增/遞減排序 (包含名次、數值)
   // ==========================================
   if (mType === "yield") {
     if (bannerBar) bannerBar.classList.remove("hidden");
     if (titleEl) titleEl.textContent = "全市場高配息殖利率排行榜 (High Dividend Yield Rankings)";
-    if (tipEl) tipEl.textContent = "全市場上市櫃股票與高股息 ETF ‧ 現金殖利率由高至低排列 ‧ 排除 0% 與未配息標的";
+    if (tipEl) tipEl.textContent = "全市場上市櫃股票與高股息 ETF ‧ 現金殖利率由高至低排列 ‧ 排除 0% 與未配息標的 (點擊表頭切換遞增/遞減排序)";
 
     if (thead) {
       thead.innerHTML = `
         <tr>
-          <th>名次</th>
-          <th>代號</th>
-          <th>名稱</th>
-          <th>現價</th>
-          <th>現金殖利率</th>
-          <th>本益比</th>
-          <th>股價淨值比</th>
-          <th>ROE</th>
-          <th>在庫狀態</th>
+          <th class="${getMThClass('rank')}" data-msort="rank" title="點擊切換名次正序/倒序">名次</th>
+          <th class="${getMThClass('symbol')}" data-msort="symbol">代號</th>
+          <th class="${getMThClass('name')}" data-msort="name">名稱</th>
+          <th class="${getMThClass('price')}" data-msort="price">現價</th>
+          <th class="${getMThClass('yield_pct')}" data-msort="yield_pct">現金殖利率</th>
+          <th class="${getMThClass('pe')}" data-msort="pe">本益比</th>
+          <th class="${getMThClass('pb')}" data-msort="pb">股價淨值比</th>
+          <th class="${getMThClass('roe')}" data-msort="roe">ROE</th>
+          <th class="${getMThClass('in_stock')}" data-msort="in_stock">在庫狀態</th>
         </tr>`;
     }
 
@@ -3143,21 +3264,55 @@ async function renderMarketRankings() {
     });
 
     const topItems = pool.slice(0, 100);
+    topItems.forEach((it, idx) => {
+      it.orig_rank = idx + 1;
+      it.priceVal = (it.price && it.price > 0) ? it.price : 0;
+      it.yieldVal = (it.yield_pct !== undefined && it.yield_pct !== null) ? it.yield_pct : (it.dividend_yield || 0);
+      it.peVal = (it.pe !== undefined && it.pe !== null && it.pe > 0) ? Number(it.pe) : 0;
+      it.pbVal = (it.pb !== undefined && it.pb !== null && it.pb > 0) ? Number(it.pb) : 0;
+      it.roeVal = (it.roe !== undefined && it.roe !== null && !isNaN(it.roe)) ? Number(it.roe) : 0;
+      it.isIn = mySyms.has((it.symbol || "").toUpperCase());
+    });
+
+    const sField = marketRankState.sortField || "yield_pct";
+    const isAsc = marketRankState.sortOrder === "asc";
+
+    topItems.sort((a, b) => {
+      let valA, valB;
+      switch (sField) {
+        case "rank": valA = a.orig_rank; valB = b.orig_rank; break;
+        case "symbol": return isAsc ? (a.symbol || "").localeCompare(b.symbol || "") : (b.symbol || "").localeCompare(a.symbol || "");
+        case "name": return isAsc ? (a.name || "").localeCompare(b.name || "") : (b.name || "").localeCompare(a.name || "");
+        case "price": valA = a.priceVal; valB = b.priceVal; break;
+        case "yield_pct": valA = a.yieldVal; valB = b.yieldVal; break;
+        case "pe": valA = a.peVal; valB = b.peVal; break;
+        case "pb": valA = a.pbVal; valB = b.pbVal; break;
+        case "roe": valA = a.roeVal; valB = b.roeVal; break;
+        case "in_stock": valA = a.isIn ? 1 : 0; valB = b.isIn ? 1 : 0; break;
+        default: valA = a.orig_rank; valB = b.orig_rank;
+      }
+      return isAsc ? valA - valB : valB - valA;
+    });
+
     tbody.innerHTML = "";
     topItems.forEach((it, idx) => {
       const tr = document.createElement("tr");
-      const isIn = mySyms.has((it.symbol || "").toUpperCase());
-      const inTag = isIn ? `<span class="badge-tag tag-tw">已在庫</span>` : `<span class="cell-sub text-dim">未持有</span>`;
+      const inTag = it.isIn ? `<span class="badge-tag tag-tw">已在庫</span>` : `<span class="cell-sub text-dim">未持有</span>`;
 
-      const ydVal = (it.yield_pct !== undefined && it.yield_pct !== null) ? it.yield_pct : it.dividend_yield;
-      const yd = (ydVal !== undefined && ydVal > 0) ? `${ydVal.toFixed(2)}%` : "--";
-      const pe = (it.pe !== undefined && it.pe !== null && it.pe > 0) ? Number(it.pe).toFixed(2) : "--";
-      const pb = (it.pb !== undefined && it.pb !== null && it.pb > 0) ? Number(it.pb).toFixed(2) : "--";
+      const yd = it.yieldVal > 0 ? `${it.yieldVal.toFixed(2)}%` : "--";
+      const pe = it.peVal > 0 ? it.peVal.toFixed(2) : "--";
+      const pb = it.pbVal > 0 ? it.pbVal.toFixed(2) : "--";
       const roe = (it.roe !== undefined && it.roe !== null && !isNaN(it.roe)) ? `${Number(it.roe).toFixed(2)}%` : "--";
-      const priceStr = (it.price && it.price > 0) ? it.price.toFixed(2) : "--";
+      const priceStr = it.priceVal > 0 ? it.priceVal.toFixed(2) : "--";
+
+      const rankDisplay = (sField === "rank")
+        ? it.orig_rank
+        : (sField === "yield_pct" && !isAsc 
+            ? it.orig_rank 
+            : `${idx + 1} <span class="cell-sub text-dim" style="font-size:11px;">(#${it.orig_rank})</span>`);
 
       tr.innerHTML = `
-        <td>${idx + 1}</td>
+        <td>${rankDisplay}</td>
         <td><b>${it.symbol}</b></td>
         <td>${it.name || it.symbol}</td>
         <td><b>${priceStr}</b></td>
@@ -3174,26 +3329,26 @@ async function renderMarketRankings() {
 
   // ==========================================
   // 分支 C：[低本益比排行] (pe)
-  // 對齊本機端 unified_ranking_gui.py:
-  // 表頭: 名次 | 代號 | 名稱 | 現價 | 本益比(低估) | 殖利率 | 股價淨值比 | ROE | 在庫狀態
+  // 對齊本機端 unified_ranking_gui.py
+  // 支援欄位點擊遞增/遞減排序 (包含名次、數值)
   // ==========================================
   if (mType === "pe") {
     if (bannerBar) bannerBar.classList.remove("hidden");
     if (titleEl) titleEl.textContent = "全市場價值低本益比優質股排行榜 (Low PE Ratio Value Rankings)";
-    if (tipEl) tipEl.textContent = "排除虧損與處分資產暴賺 (PE 4.0 ~ 30.0) ‧ 股價 >= 10 元之優質績優個股由低至高";
+    if (tipEl) tipEl.textContent = "排除虧損與處分資產暴賺 (PE 4.0 ~ 30.0) ‧ 股價 >= 10 元之優質績優個股 (點擊表頭切換遞增/遞減排序)";
 
     if (thead) {
       thead.innerHTML = `
         <tr>
-          <th>名次</th>
-          <th>代號</th>
-          <th>名稱</th>
-          <th>現價</th>
-          <th>本益比(低估)</th>
-          <th>殖利率</th>
-          <th>股價淨值比</th>
-          <th>ROE</th>
-          <th>在庫狀態</th>
+          <th class="${getMThClass('rank')}" data-msort="rank" title="點擊切換名次正序/倒序">名次</th>
+          <th class="${getMThClass('symbol')}" data-msort="symbol">代號</th>
+          <th class="${getMThClass('name')}" data-msort="name">名稱</th>
+          <th class="${getMThClass('price')}" data-msort="price">現價</th>
+          <th class="${getMThClass('pe')}" data-msort="pe">本益比(低估)</th>
+          <th class="${getMThClass('yield_pct')}" data-msort="yield_pct">殖利率</th>
+          <th class="${getMThClass('pb')}" data-msort="pb">股價淨值比</th>
+          <th class="${getMThClass('roe')}" data-msort="roe">ROE</th>
+          <th class="${getMThClass('in_stock')}" data-msort="in_stock">在庫狀態</th>
         </tr>`;
     }
 
@@ -3215,21 +3370,55 @@ async function renderMarketRankings() {
     pool.sort((a, b) => a.pe - b.pe);
     const topItems = pool.slice(0, 100);
 
+    topItems.forEach((it, idx) => {
+      it.orig_rank = idx + 1;
+      it.priceVal = (it.price && it.price > 0) ? it.price : 0;
+      it.peVal = (it.pe !== undefined && it.pe !== null && it.pe > 0) ? Number(it.pe) : 0;
+      it.yieldVal = (it.yield_pct !== undefined && it.yield_pct !== null) ? it.yield_pct : (it.dividend_yield || 0);
+      it.pbVal = (it.pb !== undefined && it.pb !== null && it.pb > 0) ? Number(it.pb) : 0;
+      it.roeVal = (it.roe !== undefined && it.roe !== null && !isNaN(it.roe)) ? Number(it.roe) : 0;
+      it.isIn = mySyms.has((it.symbol || "").toUpperCase());
+    });
+
+    const sField = marketRankState.sortField || "pe";
+    const isAsc = marketRankState.sortOrder === "asc";
+
+    topItems.sort((a, b) => {
+      let valA, valB;
+      switch (sField) {
+        case "rank": valA = a.orig_rank; valB = b.orig_rank; break;
+        case "symbol": return isAsc ? (a.symbol || "").localeCompare(b.symbol || "") : (b.symbol || "").localeCompare(a.symbol || "");
+        case "name": return isAsc ? (a.name || "").localeCompare(b.name || "") : (b.name || "").localeCompare(a.name || "");
+        case "price": valA = a.priceVal; valB = b.priceVal; break;
+        case "pe": valA = a.peVal; valB = b.peVal; break;
+        case "yield_pct": valA = a.yieldVal; valB = b.yieldVal; break;
+        case "pb": valA = a.pbVal; valB = b.pbVal; break;
+        case "roe": valA = a.roeVal; valB = b.roeVal; break;
+        case "in_stock": valA = a.isIn ? 1 : 0; valB = b.isIn ? 1 : 0; break;
+        default: valA = a.orig_rank; valB = b.orig_rank;
+      }
+      return isAsc ? valA - valB : valB - valA;
+    });
+
     tbody.innerHTML = "";
     topItems.forEach((it, idx) => {
       const tr = document.createElement("tr");
-      const isIn = mySyms.has((it.symbol || "").toUpperCase());
-      const inTag = isIn ? `<span class="badge-tag tag-tw">已在庫</span>` : `<span class="cell-sub text-dim">未持有</span>`;
+      const inTag = it.isIn ? `<span class="badge-tag tag-tw">已在庫</span>` : `<span class="cell-sub text-dim">未持有</span>`;
 
-      const pe = `${Number(it.pe).toFixed(2)} 倍`;
-      const ydVal = (it.yield_pct !== undefined && it.yield_pct !== null) ? it.yield_pct : it.dividend_yield;
-      const yd = (ydVal !== undefined && ydVal > 0) ? `${ydVal.toFixed(2)}%` : "--";
-      const pb = (it.pb !== undefined && it.pb !== null && it.pb > 0) ? Number(it.pb).toFixed(2) : "--";
+      const pe = `${it.peVal.toFixed(2)} 倍`;
+      const yd = it.yieldVal > 0 ? `${it.yieldVal.toFixed(2)}%` : "--";
+      const pb = it.pbVal > 0 ? it.pbVal.toFixed(2) : "--";
       const roe = (it.roe !== undefined && it.roe !== null && !isNaN(it.roe)) ? `${Number(it.roe).toFixed(2)}%` : "--";
-      const priceStr = (it.price && it.price > 0) ? it.price.toFixed(2) : "--";
+      const priceStr = it.priceVal > 0 ? it.priceVal.toFixed(2) : "--";
+
+      const rankDisplay = (sField === "rank")
+        ? it.orig_rank
+        : (sField === "pe" && isAsc 
+            ? it.orig_rank 
+            : `${idx + 1} <span class="cell-sub text-dim" style="font-size:11px;">(#${it.orig_rank})</span>`);
 
       tr.innerHTML = `
-        <td>${idx + 1}</td>
+        <td>${rankDisplay}</td>
         <td><b>${it.symbol}</b></td>
         <td>${it.name || it.symbol}</td>
         <td><b>${priceStr}</b></td>
@@ -3246,26 +3435,26 @@ async function renderMarketRankings() {
 
   // ==========================================
   // 分支 D：[營收年增(YoY)排行] (rev)
-  // 對齊本機端 unified_ranking_gui.py:
-  // 表頭: 名次 | 代號 | 名稱 | 現價 | 營收年增率 | 累計年增率 | 單月營收(億) | 產業別 | 在庫狀態
+  // 對齊本機端 unified_ranking_gui.py
+  // 支援欄位點擊遞增/遞減排序 (包含名次、數值)
   // ==========================================
   if (mType === "rev") {
     if (bannerBar) bannerBar.classList.remove("hidden");
     if (titleEl) titleEl.textContent = "全市場最新月份營收爆發成長排行榜 (Revenue YoY Growth Rankings)";
-    if (tipEl) tipEl.textContent = "依上市公司公告最新單月營收年增率 (YoY) 降序排列 ‧ 捕捉基本面成長飆股";
+    if (tipEl) tipEl.textContent = "依上市公司公告最新單月營收年增率 (YoY) 降序排列 ‧ 捕捉基本面成長飆股 (點擊表頭切換遞增/遞減排序)";
 
     if (thead) {
       thead.innerHTML = `
         <tr>
-          <th>名次</th>
-          <th>代號</th>
-          <th>名稱</th>
-          <th>現價</th>
-          <th>營收年增率</th>
-          <th>累計年增率</th>
-          <th>單月營收(億)</th>
-          <th>產業別</th>
-          <th>在庫狀態</th>
+          <th class="${getMThClass('rank')}" data-msort="rank" title="點擊切換名次正序/倒序">名次</th>
+          <th class="${getMThClass('symbol')}" data-msort="symbol">代號</th>
+          <th class="${getMThClass('name')}" data-msort="name">名稱</th>
+          <th class="${getMThClass('price')}" data-msort="price">現價</th>
+          <th class="${getMThClass('yoy')}" data-msort="yoy">營收年增率</th>
+          <th class="${getMThClass('cum_yoy')}" data-msort="cum_yoy">累計年增率</th>
+          <th class="${getMThClass('rev_cur_e')}" data-msort="rev_cur_e">單月營收(億)</th>
+          <th class="${getMThClass('industry')}" data-msort="industry">產業別</th>
+          <th class="${getMThClass('in_stock')}" data-msort="in_stock">在庫狀態</th>
         </tr>`;
     }
 
@@ -3288,22 +3477,56 @@ async function renderMarketRankings() {
     pool.sort((a, b) => b.yoy - a.yoy);
     const topItems = pool.slice(0, 100);
 
+    topItems.forEach((it, idx) => {
+      it.orig_rank = idx + 1;
+      const sym = (it.symbol || "").toUpperCase();
+      it.priceVal = priceMap[sym] || it.price || 0;
+      it.yoyVal = it.yoy || 0;
+      it.cumYoyVal = it.cum_yoy || 0;
+      it.revCurEVal = it.rev_cur_e || 0;
+      it.indVal = it.industry || "--";
+      it.isIn = mySyms.has(sym);
+    });
+
+    const sField = marketRankState.sortField || "yoy";
+    const isAsc = marketRankState.sortOrder === "asc";
+
+    topItems.sort((a, b) => {
+      let valA, valB;
+      switch (sField) {
+        case "rank": valA = a.orig_rank; valB = b.orig_rank; break;
+        case "symbol": return isAsc ? (a.symbol || "").localeCompare(b.symbol || "") : (b.symbol || "").localeCompare(a.symbol || "");
+        case "name": return isAsc ? (a.name || "").localeCompare(b.name || "") : (b.name || "").localeCompare(a.name || "");
+        case "price": valA = a.priceVal; valB = b.priceVal; break;
+        case "yoy": valA = a.yoyVal; valB = b.yoyVal; break;
+        case "cum_yoy": valA = a.cumYoyVal; valB = b.cumYoyVal; break;
+        case "rev_cur_e": valA = a.revCurEVal; valB = b.revCurEVal; break;
+        case "industry": return isAsc ? a.indVal.localeCompare(b.indVal) : b.indVal.localeCompare(a.indVal);
+        case "in_stock": valA = a.isIn ? 1 : 0; valB = b.isIn ? 1 : 0; break;
+        default: valA = a.orig_rank; valB = b.orig_rank;
+      }
+      return isAsc ? valA - valB : valB - valA;
+    });
+
     tbody.innerHTML = "";
     topItems.forEach((it, idx) => {
       const tr = document.createElement("tr");
-      const sym = (it.symbol || "").toUpperCase();
-      const isIn = mySyms.has(sym);
-      const inTag = isIn ? `<span class="badge-tag tag-tw">已在庫</span>` : `<span class="cell-sub text-dim">未持有</span>`;
+      const inTag = it.isIn ? `<span class="badge-tag tag-tw">已在庫</span>` : `<span class="cell-sub text-dim">未持有</span>`;
 
-      const curP = priceMap[sym] || it.price || 0;
-      const priceStr = curP > 0 ? curP.toFixed(2) : "--";
-      const yoy = `+${Number(it.yoy).toFixed(2)}%`;
+      const priceStr = it.priceVal > 0 ? it.priceVal.toFixed(2) : "--";
+      const yoy = `+${Number(it.yoyVal).toFixed(2)}%`;
       const cum = (it.cum_yoy !== undefined && it.cum_yoy !== null) ? `${it.cum_yoy > 0 ? "+" : ""}${Number(it.cum_yoy).toFixed(2)}%` : "--";
       const curE = (it.rev_cur_e !== undefined && it.rev_cur_e !== null) ? `${Number(it.rev_cur_e).toFixed(2)}` : "--";
-      const ind = it.industry || "--";
+      const ind = it.indVal;
+
+      const rankDisplay = (sField === "rank")
+        ? it.orig_rank
+        : (sField === "yoy" && !isAsc 
+            ? it.orig_rank 
+            : `${idx + 1} <span class="cell-sub text-dim" style="font-size:11px;">(#${it.orig_rank})</span>`);
 
       tr.innerHTML = `
-        <td>${idx + 1}</td>
+        <td>${rankDisplay}</td>
         <td><b>${it.symbol}</b></td>
         <td>${it.name || it.symbol}</td>
         <td><b>${priceStr}</b></td>
@@ -3320,26 +3543,26 @@ async function renderMarketRankings() {
 
   // ==========================================
   // 分支 E：[高ROE排行] (roe)
-  // 對齊本機端 unified_ranking_gui.py:
-  // 表頭: 名次 | 代號 | 名稱 | 現價 | ROE(%) | 本益比 | 殖利率 | 股價淨值比 | 在庫狀態
+  // 對齊本機端 unified_ranking_gui.py
+  // 支援欄位點擊遞增/遞減排序 (包含名次、數值)
   // ==========================================
   if (mType === "roe") {
     if (bannerBar) bannerBar.classList.remove("hidden");
     if (titleEl) titleEl.textContent = "全市場股東權益報酬率績優排行榜 (High ROE Rankings)";
-    if (tipEl) tipEl.textContent = "杜邦分析優選 ‧ 排除 PE < 4.0 與極端資產膨脹 ‧ ROE 8.0% ~ 75.0% 高資本報酬率";
+    if (tipEl) tipEl.textContent = "杜邦分析優選 ‧ 排除 PE < 4.0 與極端資產膨脹 ‧ ROE 8.0% ~ 75.0% 高資本報酬率 (點擊表頭切換遞增/遞減排序)";
 
     if (thead) {
       thead.innerHTML = `
         <tr>
-          <th>名次</th>
-          <th>代號</th>
-          <th>名稱</th>
-          <th>現價</th>
-          <th>ROE(%)</th>
-          <th>本益比</th>
-          <th>殖利率</th>
-          <th>股價淨值比</th>
-          <th>在庫狀態</th>
+          <th class="${getMThClass('rank')}" data-msort="rank" title="點擊切換名次正序/倒序">名次</th>
+          <th class="${getMThClass('symbol')}" data-msort="symbol">代號</th>
+          <th class="${getMThClass('name')}" data-msort="name">名稱</th>
+          <th class="${getMThClass('price')}" data-msort="price">現價</th>
+          <th class="${getMThClass('roe')}" data-msort="roe">ROE(%)</th>
+          <th class="${getMThClass('pe')}" data-msort="pe">本益比</th>
+          <th class="${getMThClass('yield_pct')}" data-msort="yield_pct">殖利率</th>
+          <th class="${getMThClass('pb')}" data-msort="pb">股價淨值比</th>
+          <th class="${getMThClass('in_stock')}" data-msort="in_stock">在庫狀態</th>
         </tr>`;
     }
 
@@ -3361,21 +3584,55 @@ async function renderMarketRankings() {
     pool.sort((a, b) => b.roe - a.roe);
     const topItems = pool.slice(0, 100);
 
+    topItems.forEach((it, idx) => {
+      it.orig_rank = idx + 1;
+      it.priceVal = (it.price && it.price > 0) ? it.price : 0;
+      it.roeVal = (it.roe !== undefined && it.roe !== null && !isNaN(it.roe)) ? Number(it.roe) : 0;
+      it.peVal = (it.pe !== undefined && it.pe !== null && it.pe > 0) ? Number(it.pe) : 0;
+      it.yieldVal = (it.yield_pct !== undefined && it.yield_pct !== null) ? it.yield_pct : (it.dividend_yield || 0);
+      it.pbVal = (it.pb !== undefined && it.pb !== null && it.pb > 0) ? Number(it.pb) : 0;
+      it.isIn = mySyms.has((it.symbol || "").toUpperCase());
+    });
+
+    const sField = marketRankState.sortField || "roe";
+    const isAsc = marketRankState.sortOrder === "asc";
+
+    topItems.sort((a, b) => {
+      let valA, valB;
+      switch (sField) {
+        case "rank": valA = a.orig_rank; valB = b.orig_rank; break;
+        case "symbol": return isAsc ? (a.symbol || "").localeCompare(b.symbol || "") : (b.symbol || "").localeCompare(a.symbol || "");
+        case "name": return isAsc ? (a.name || "").localeCompare(b.name || "") : (b.name || "").localeCompare(a.name || "");
+        case "price": valA = a.priceVal; valB = b.priceVal; break;
+        case "roe": valA = a.roeVal; valB = b.roeVal; break;
+        case "pe": valA = a.peVal; valB = b.peVal; break;
+        case "yield_pct": valA = a.yieldVal; valB = b.yieldVal; break;
+        case "pb": valA = a.pbVal; valB = b.pbVal; break;
+        case "in_stock": valA = a.isIn ? 1 : 0; valB = b.isIn ? 1 : 0; break;
+        default: valA = a.orig_rank; valB = b.orig_rank;
+      }
+      return isAsc ? valA - valB : valB - valA;
+    });
+
     tbody.innerHTML = "";
     topItems.forEach((it, idx) => {
       const tr = document.createElement("tr");
-      const isIn = mySyms.has((it.symbol || "").toUpperCase());
-      const inTag = isIn ? `<span class="badge-tag tag-tw">已在庫</span>` : `<span class="cell-sub text-dim">未持有</span>`;
+      const inTag = it.isIn ? `<span class="badge-tag tag-tw">已在庫</span>` : `<span class="cell-sub text-dim">未持有</span>`;
 
-      const roe = `${Number(it.roe).toFixed(2)}%`;
-      const pe = (it.pe !== undefined && it.pe !== null && it.pe > 0) ? `${Number(it.pe).toFixed(2)} 倍` : "--";
-      const ydVal = (it.yield_pct !== undefined && it.yield_pct !== null) ? it.yield_pct : it.dividend_yield;
-      const yd = (ydVal !== undefined && ydVal > 0) ? `${ydVal.toFixed(2)}%` : "--";
-      const pb = (it.pb !== undefined && it.pb !== null && it.pb > 0) ? Number(it.pb).toFixed(2) : "--";
-      const priceStr = (it.price && it.price > 0) ? it.price.toFixed(2) : "--";
+      const roe = `${it.roeVal.toFixed(2)}%`;
+      const pe = it.peVal > 0 ? `${it.peVal.toFixed(2)} 倍` : "--";
+      const yd = it.yieldVal > 0 ? `${it.yieldVal.toFixed(2)}%` : "--";
+      const pb = it.pbVal > 0 ? it.pbVal.toFixed(2) : "--";
+      const priceStr = it.priceVal > 0 ? it.priceVal.toFixed(2) : "--";
+
+      const rankDisplay = (sField === "rank")
+        ? it.orig_rank
+        : (sField === "roe" && !isAsc 
+            ? it.orig_rank 
+            : `${idx + 1} <span class="cell-sub text-dim" style="font-size:11px;">(#${it.orig_rank})</span>`);
 
       tr.innerHTML = `
-        <td>${idx + 1}</td>
+        <td>${rankDisplay}</td>
         <td><b>${it.symbol}</b></td>
         <td>${it.name || it.symbol}</td>
         <td><b>${priceStr}</b></td>
