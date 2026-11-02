@@ -1063,6 +1063,13 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  const btnExportCsv = document.getElementById("btn-export-market-csv");
+  if (btnExportCsv) {
+    btnExportCsv.addEventListener("click", () => {
+      downloadCurrentMarketCsv();
+    });
+  }
+
   const mRatioModeSelect = document.getElementById("market-ratio-mode-select");
   if (mRatioModeSelect) {
     const savedRatioMode = localStorage.getItem("portfolio_market_ratio_mode");
@@ -2501,6 +2508,87 @@ async function loadMarketRankingCacheSilently() {
     }
   } catch (e) {
     console.warn("載入 market_ranking_cache 失敗:", e);
+  }
+}
+
+
+/**
+ * 將目前全市場排行榜表格內容匯出為標準 UTF-8 CSV 檔 (含 BOM，支援 Excel 零亂碼)
+ */
+function downloadCurrentMarketCsv() {
+  const table = document.getElementById("market-ranking-table");
+  if (!table) return;
+
+  const mType = marketRankState.currentType || "margin_market";
+  const typeNames = {
+    margin_market: "全市場融資排行",
+    yield: "高殖利率排行",
+    pe: "低本益比排行",
+    rev: "營收年增YoY排行",
+    roe: "高ROE排行"
+  };
+  const typeName = typeNames[mType] || "市場指標排行";
+
+  // 取得篩選標籤
+  const filter = marketRankState.filter || "all";
+  const filterNames = {
+    all: "全部",
+    stock: "僅股票",
+    etf: "僅ETF"
+  };
+  const filterName = filterNames[filter] || "全部";
+
+  const rows = [];
+  const thead = table.querySelector("thead");
+  if (thead) {
+    const ths = thead.querySelectorAll("th");
+    const headers = [];
+    ths.forEach(th => {
+      headers.push(`"${th.textContent.trim().replace(/"/g, '""')}"`);
+    });
+    if (headers.length > 0) rows.push(headers.join(","));
+  }
+
+  const tbody = table.querySelector("tbody");
+  if (tbody) {
+    const trs = tbody.querySelectorAll("tr");
+    trs.forEach(tr => {
+      const tds = tr.querySelectorAll("td");
+      if (tds.length === 1) return; // 略過加載中或空訊息提示行
+      const cols = [];
+      tds.forEach(td => {
+        let val = td.innerText.trim();
+        // 清除多餘換行
+        val = val.replace(/\r?\n/g, " ");
+        cols.push(`"${val.replace(/"/g, '""')}"`);
+      });
+      if (cols.length > 0) rows.push(cols.join(","));
+    });
+  }
+
+  if (rows.length <= 1) {
+    alert("目前無表格資料可匯出！");
+    return;
+  }
+
+  // 組合 CSV 內容並加入 UTF-8 BOM (\uFEFF) 確保 Excel 正確解析中文
+  const csvContent = "\uFEFF" + rows.join("\r\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+
+  const now = new Date();
+  const dStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+  const fileName = `台股_${typeName}_${filterName}_${dStr}.csv`;
+
+  const link = document.createElement("a");
+  if (link.download !== undefined) {
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", fileName);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 }
 
