@@ -69,7 +69,10 @@ async function fetchCnyesLiveQuotes(twSymbols) {
   for (let i = 0; i < twSymbols.length; i += batchSize) {
     const chunk = twSymbols.slice(i, i + batchSize);
     const symbolsParam = chunk
-      .map(s => `TWS:${s.replace(/[^A-Z0-9.\-]/gi, "")}:STOCK`)
+      .map(s => {
+        const clean = s.replace(/(\.TW|\.TWO)$/i, "").replace(/[^A-Z0-9]/gi, "");
+        return `TWS:${clean}:STOCK`;
+      })
       .join(",");
     const url = `https://ws.api.cnyes.com/ws/api/v1/quote/quotes/${symbolsParam}?column=I&_t=${Date.now()}`;
     try {
@@ -111,6 +114,8 @@ async function fetchCnyesLiveQuotes(twSymbols) {
           time: formatEpochToTaiwanTime(matchEpoch) || getNowFormatted(),
           source: "LIVE_CNYES"
         };
+        result[`${sym}.TW`] = result[sym];
+        result[`${sym}.TWO`] = result[sym];
       }
     } catch (e) {
       // 單批失敗時自動交由下一層 TradingView 即時引擎接手
@@ -289,8 +294,11 @@ async function fetchLiveQuotesAndUpdateUI() {
       }
     });
 
+    const clientNow = getNowFormatted();
+    state.lastClientRefreshTime = clientNow;
+
     if (!quotesTime) {
-      quotesTime = getNowFormatted();
+      quotesTime = clientNow;
     }
     state.quoteSourceLabel = liveHitCount > 0 ? "即時" : "雲端快取";
     state.lastQuotesTime = quotesTime;
@@ -1221,8 +1229,10 @@ function renderDashboard(data, cloudUpdateTime, quotesUpdateTime, portfolioSyncT
   const quoteEl = document.getElementById("quote-time-lbl");
   if (quoteEl) {
     const srcTag = state.quoteSourceLabel || "即時";
-    quoteEl.innerHTML = `<span class="live-dot"></span> ${srcTag}: ${quotesTime}`;
-    quoteEl.title = `即時行情報價與損益最新計算時間 (${srcTag}): ${quotesTime}`;
+    const refreshSec = state.lastClientRefreshTime ? state.lastClientRefreshTime.split(" ")[1] : (quotesUpdateTime && quotesUpdateTime.includes(" ") ? quotesUpdateTime.split(" ")[1] : "");
+    const refreshText = refreshSec ? ` <span style="font-size: 11px; opacity: 0.85; margin-left: 3px;">(連線 ${refreshSec})</span>` : "";
+    quoteEl.innerHTML = `<span class="live-dot"></span> ${srcTag}: ${quotesTime}${refreshText}`;
+    quoteEl.title = `市場成交撮合時間: ${quotesTime}\n前端瀏覽器最後連線刷新時間: ${state.lastClientRefreshTime || "剛剛"} (${srcTag}直連)`;
   }
 
   const divs = data.dividends || {};
