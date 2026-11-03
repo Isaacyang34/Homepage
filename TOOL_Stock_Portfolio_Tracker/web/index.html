@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://*.firebaseio.com https://*.firebasedatabase.app https://ws.api.cnyes.com https://scanner.tradingview.com https://www.twse.com.tw; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://*.firebaseio.com https://*.firebasedatabase.app https://ws.api.cnyes.com https://scanner.tradingview.com https://www.twse.com.tw; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;">
   <title>零知識加密投資庫存分析儀表板 | Stock Portfolio Viewer</title>
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <link rel="apple-touch-icon" href="app_icon.png">
@@ -521,6 +521,9 @@
     <!-- 手機端專屬底部懸浮快捷列 (Mobile Floating Action Bar) -->
     
     <!-- 區塊 4：個股基本面深度分析 & 價值河流圖 VIEW -->
+    </div> <!-- rankings-tab-content END -->
+
+    <!-- 區塊 4：個股基本面深度分析 & 價值河流圖 VIEW -->
     <div id="fundamental-tab-content" class="hidden">
       <!-- 頂部切換個股與即時數據 -->
       <div class="panel glass-panel" style="margin-bottom: 1.5rem; border-radius: 12px; padding: 1.25rem 1.5rem;">
@@ -649,6 +652,7 @@
     </footer>
   </div>
 
-  <script src="app.js?v=1.3.0.1793680000"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="app.js?v=1.3.0.1793688888"></script>
 </body>
 </html>

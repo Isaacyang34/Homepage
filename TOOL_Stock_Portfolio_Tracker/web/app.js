@@ -4132,3 +4132,389 @@ function renderPostMarketRankings(criteria = "composite") {
   });
 }
 window.renderPostMarketRankings = renderPostMarketRankings;
+
+
+// ==========================================
+// 🎨 原生 HTML5 Canvas 2D 雙保險河流圖與圖表繪製器 (零依賴 / 零外掛 / 100% 穩定)
+// ==========================================
+function drawNativePeRiver(canvas, riverData) {
+  if (!canvas || !riverData) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const w = canvas.parentElement ? canvas.parentElement.clientWidth : 500;
+  const h = 260;
+  canvas.width = w;
+  canvas.height = h;
+
+  const padLeft = 45;
+  const padRight = 55;
+  const padTop = 30;
+  const padBottom = 30;
+  const plotW = w - padLeft - padRight;
+  const plotH = h - padTop - padBottom;
+
+  const qCount = riverData.quarters.length;
+  if (qCount < 2) return;
+
+  // 計算全區間最小與最大價格
+  let allVals = [...riverData.prices, ...riverData.band_16x, ...riverData.band_32x];
+  let minVal = Math.min(...allVals) * 0.92;
+  let maxVal = Math.max(...allVals) * 1.08;
+
+  function getX(i) { return padLeft + (i / (qCount - 1)) * plotW; }
+  function getY(v) { return padTop + plotH - ((v - minVal) / (maxVal - minVal)) * plotH; }
+
+  // 繪製 4 條河流帶
+  const bands = [
+    { upper: riverData.band_32x, lower: riverData.band_28x, fill: "rgba(244, 63, 94, 0.16)", stroke: "rgba(244, 63, 94, 0.7)", label: "32x" },
+    { upper: riverData.band_28x, lower: riverData.band_24x, fill: "rgba(251, 146, 60, 0.16)", stroke: "rgba(251, 146, 60, 0.7)", label: "28x" },
+    { upper: riverData.band_24x, lower: riverData.band_20x, fill: "rgba(250, 204, 21, 0.16)", stroke: "rgba(250, 204, 21, 0.7)", label: "24x" },
+    { upper: riverData.band_20x, lower: riverData.band_16x, fill: "rgba(0, 240, 144, 0.18)", stroke: "rgba(0, 240, 144, 0.7)", label: "20x" }
+  ];
+
+  bands.forEach(b => {
+    ctx.beginPath();
+    for (let i = 0; i < qCount; i++) {
+      const x = getX(i);
+      const y = getY(b.upper[i]);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    for (let i = qCount - 1; i >= 0; i--) {
+      ctx.lineTo(getX(i), getY(b.lower[i]));
+    }
+    ctx.closePath();
+    ctx.fillStyle = b.fill;
+    ctx.fill();
+
+    // 上邊界虛線
+    ctx.beginPath();
+    ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = b.stroke;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < qCount; i++) {
+      const x = getX(i);
+      const y = getY(b.upper[i]);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // 16x 下底線
+  ctx.beginPath();
+  ctx.setLineDash([3, 3]);
+  ctx.strokeStyle = "rgba(0, 240, 144, 0.7)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < qCount; i++) {
+    const x = getX(i);
+    const y = getY(riverData.band_16x[i]);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 標籤刻度
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "11px Inter, sans-serif";
+  ctx.textAlign = "center";
+  riverData.quarters.forEach((q, i) => {
+    ctx.fillText(q, getX(i), h - 10);
+  });
+
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#f43f5e";
+  ctx.fillText("32x", w - padRight + 6, getY(riverData.band_32x[qCount - 1]) + 4);
+  ctx.fillStyle = "#fb923c";
+  ctx.fillText("28x", w - padRight + 6, getY(riverData.band_28x[qCount - 1]) + 4);
+  ctx.fillStyle = "#facc15";
+  ctx.fillText("24x", w - padRight + 6, getY(riverData.band_24x[qCount - 1]) + 4);
+  ctx.fillStyle = "#38bdf8";
+  ctx.fillText("20x", w - padRight + 6, getY(riverData.band_20x[qCount - 1]) + 4);
+  ctx.fillStyle = "#00f090";
+  ctx.fillText("16x", w - padRight + 6, getY(riverData.band_16x[qCount - 1]) + 4);
+
+  // 實際收盤價曲線
+  ctx.beginPath();
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 2.5;
+  for (let i = 0; i < qCount; i++) {
+    const x = getX(i);
+    const y = getY(riverData.prices[i]);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // 點位與最新數值
+  riverData.prices.forEach((p, i) => {
+    const x = getX(i);
+    const y = getY(p);
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+    ctx.strokeStyle = "#0ea5e9";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    if (i === qCount - 1) {
+      // 最新價發光大圓點
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = "#38bdf8";
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 12px Inter, sans-serif";
+      ctx.textAlign = "right";
+      ctx.fillText(`$${p.toLocaleString()}`, x - 8, y - 6);
+    }
+  });
+}
+
+function drawNativeRevYoy(canvas, revData) {
+  if (!canvas || !revData) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const w = canvas.parentElement ? canvas.parentElement.clientWidth : 500;
+  const h = 260;
+  canvas.width = w;
+  canvas.height = h;
+
+  const padLeft = 45;
+  const padRight = 45;
+  const padTop = 30;
+  const padBottom = 30;
+  const plotW = w - padLeft - padRight;
+  const plotH = h - padTop - padBottom;
+
+  const count = revData.length;
+  if (count === 0) return;
+
+  const maxRev = Math.max(...revData.map(d => d.rev)) * 1.25;
+  const barW = Math.max(16, (plotW / count) * 0.45);
+
+  // 繪製柱狀圖 (營收)
+  revData.forEach((d, i) => {
+    const cx = padLeft + (i + 0.5) * (plotW / count);
+    const bh = (d.rev / maxRev) * plotH;
+    const by = padTop + plotH - bh;
+
+    ctx.fillStyle = "rgba(56, 189, 248, 0.45)";
+    ctx.fillRect(cx - barW / 2, by, barW, bh);
+
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "10px Inter, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(d.month.split("/")[1] + "月", cx, h - 10);
+    ctx.fillText(d.rev + "億", cx, by - 4);
+  });
+
+  // 繪製折線圖 (YoY)
+  const yoys = revData.map(d => d.yoy);
+  const minYoy = Math.min(0, Math.min(...yoys) - 5);
+  const maxYoy = Math.max(...yoys) * 1.25;
+
+  function getYoyY(yoy) {
+    return padTop + plotH - ((yoy - minYoy) / (maxYoy - minYoy)) * plotH;
+  }
+
+  ctx.beginPath();
+  ctx.strokeStyle = "#00f090";
+  ctx.lineWidth = 2.5;
+  revData.forEach((d, i) => {
+    const cx = padLeft + (i + 0.5) * (plotW / count);
+    const cy = getYoyY(d.yoy);
+    if (i === 0) ctx.moveTo(cx, cy); else ctx.lineTo(cx, cy);
+  });
+  ctx.stroke();
+
+  revData.forEach((d, i) => {
+    const cx = padLeft + (i + 0.5) * (plotW / count);
+    const cy = getYoyY(d.yoy);
+    ctx.beginPath();
+    ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = "#00f090";
+    ctx.fill();
+
+    ctx.fillStyle = "#00f090";
+    ctx.font = "bold 10px Inter, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(`${d.yoy > 0 ? "+" : ""}${d.yoy}%`, cx, cy - 6);
+  });
+}
+
+function drawNativeMargins(canvas, marginData) {
+  if (!canvas || !marginData) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const w = canvas.parentElement ? canvas.parentElement.clientWidth : 500;
+  const h = 260;
+  canvas.width = w;
+  canvas.height = h;
+
+  const padLeft = 40;
+  const padRight = 30;
+  const padTop = 30;
+  const padBottom = 30;
+  const plotW = w - padLeft - padRight;
+  const plotH = h - padTop - padBottom;
+
+  const count = marginData.length;
+  if (count === 0) return;
+
+  function getX(i) { return padLeft + (i / (count - 1)) * plotW; }
+  function getY(v) { return padTop + plotH - (v / 80) * plotH; }
+
+  const lines = [
+    { key: "gross", color: "#00f090", label: "毛利率" },
+    { key: "op", color: "#facc15", label: "營業利益率" },
+    { key: "net", color: "#38bdf8", label: "稅後淨利率" }
+  ];
+
+  lines.forEach(line => {
+    ctx.beginPath();
+    ctx.strokeStyle = line.color;
+    ctx.lineWidth = 2.5;
+    marginData.forEach((d, i) => {
+      const x = getX(i);
+      const y = getY(d[line.key]);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    marginData.forEach((d, i) => {
+      const x = getX(i);
+      const y = getY(d[line.key]);
+      ctx.beginPath();
+      ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = line.color;
+      ctx.fill();
+      if (i === count - 1) {
+        ctx.fillStyle = line.color;
+        ctx.font = "bold 10px Inter, sans-serif";
+        ctx.textAlign = "left";
+        ctx.fillText(`${d[line.key]}%`, x + 6, y + 3);
+      }
+    });
+  });
+
+  marginData.forEach((d, i) => {
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "10px Inter, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(d.quarter, getX(i), h - 10);
+  });
+}
+
+function renderPeRiverChart(riverData) {
+  const canvas = document.getElementById("peRiverChart");
+  if (!canvas || !riverData) return;
+  if (typeof Chart !== "undefined") {
+    try {
+      if (peRiverChart) peRiverChart.destroy();
+      peRiverChart = new Chart(canvas, {
+        type: "line",
+        data: {
+          labels: riverData.quarters,
+          datasets: [
+            { label: "實際收盤價", data: riverData.prices, borderColor: "#ffffff", borderWidth: 3, pointBackgroundColor: "#ffffff", pointRadius: 5, tension: 0.2, order: 1 },
+            { label: "32x PE (昂貴超買)", data: riverData.band_32x, borderColor: "rgba(244, 63, 94, 0.7)", backgroundColor: "rgba(244, 63, 94, 0.12)", fill: "+1", borderWidth: 1.5, pointRadius: 0, tension: 0.2 },
+            { label: "28x PE (偏高警戒)", data: riverData.band_28x, borderColor: "rgba(251, 146, 60, 0.7)", backgroundColor: "rgba(251, 146, 60, 0.12)", fill: "+1", borderWidth: 1.5, pointRadius: 0, tension: 0.2 },
+            { label: "24x PE (合理常態)", data: riverData.band_24x, borderColor: "rgba(250, 204, 21, 0.7)", backgroundColor: "rgba(250, 204, 21, 0.12)", fill: "+1", borderWidth: 1.5, pointRadius: 0, tension: 0.2 },
+            { label: "20x PE (偏低便宜)", data: riverData.band_20x, borderColor: "rgba(56, 189, 248, 0.7)", backgroundColor: "rgba(56, 189, 248, 0.12)", fill: "+1", borderWidth: 1.5, pointRadius: 0, tension: 0.2 },
+            { label: "16x PE (超值低估)", data: riverData.band_16x, borderColor: "rgba(0, 240, 144, 0.7)", backgroundColor: "rgba(0, 240, 144, 0.15)", fill: "origin", borderWidth: 1.5, pointRadius: 0, tension: 0.2 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: "top", labels: { color: "#94a3b8", font: { size: 10 }, boxWidth: 12 } } },
+          scales: {
+            x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#94a3b8" } },
+            y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#94a3b8" } }
+          }
+        }
+      });
+      return;
+    } catch (e) {
+      console.warn("Chart.js failed, falling back to Native Canvas:", e);
+    }
+  }
+  drawNativePeRiver(canvas, riverData);
+}
+
+function renderRevYoyChart(revData) {
+  const canvas = document.getElementById("revYoyChart");
+  if (!canvas || !revData) return;
+  if (typeof Chart !== "undefined") {
+    try {
+      if (revYoyChart) revYoyChart.destroy();
+      const labels = revData.map(d => d.month);
+      const revs = revData.map(d => d.rev);
+      const yoys = revData.map(d => d.yoy);
+      revYoyChart = new Chart(canvas, {
+        data: {
+          labels: labels,
+          datasets: [
+            { type: "bar", label: "月營收 (億元)", data: revs, backgroundColor: "rgba(56, 189, 248, 0.5)", borderColor: "#38bdf8", borderWidth: 1, yAxisID: "y" },
+            { type: "line", label: "YoY 年增率 (%)", data: yoys, borderColor: "#00f090", borderWidth: 2.5, pointBackgroundColor: "#00f090", pointRadius: 4, tension: 0.2, yAxisID: "y1" }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: "top", labels: { color: "#94a3b8", font: { size: 10 }, boxWidth: 12 } } },
+          scales: {
+            x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#94a3b8" } },
+            y: { position: "left", grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#94a3b8" } },
+            y1: { position: "right", grid: { display: false }, ticks: { color: "#00f090", callback: v => v + "%" } }
+          }
+        }
+      });
+      return;
+    } catch (e) {
+      console.warn("Chart.js failed, falling back to Native Canvas:", e);
+    }
+  }
+  drawNativeRevYoy(canvas, revData);
+}
+
+function renderMarginsChart(marginData) {
+  const canvas = document.getElementById("marginsChart");
+  if (!canvas || !marginData) return;
+  if (typeof Chart !== "undefined") {
+    try {
+      if (marginsChart) marginsChart.destroy();
+      const labels = marginData.map(d => d.quarter);
+      const gross = marginData.map(d => d.gross);
+      const op = marginData.map(d => d.op);
+      const net = marginData.map(d => d.net);
+      marginsChart = new Chart(canvas, {
+        type: "line",
+        data: {
+          labels: labels,
+          datasets: [
+            { label: "毛利率 (%)", data: gross, borderColor: "#00f090", borderWidth: 2, pointRadius: 4, tension: 0.2 },
+            { label: "營業利益率 (%)", data: op, borderColor: "#facc15", borderWidth: 2, pointRadius: 4, tension: 0.2 },
+            { label: "稅後淨利率 (%)", data: net, borderColor: "#38bdf8", borderWidth: 2, pointRadius: 4, tension: 0.2 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: "top", labels: { color: "#94a3b8", font: { size: 10 }, boxWidth: 12 } } },
+          scales: {
+            x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#94a3b8" } },
+            y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#94a3b8", callback: v => v + "%" } }
+          }
+        }
+      });
+      return;
+    } catch (e) {
+      console.warn("Chart.js failed, falling back to Native Canvas:", e);
+    }
+  }
+  drawNativeMargins(canvas, marginData);
+}
