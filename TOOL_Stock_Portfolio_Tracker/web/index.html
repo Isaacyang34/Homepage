@@ -524,138 +524,153 @@
     </div> <!-- rankings-tab-content END -->
 
     <!-- 區塊 4：個股基本面深度分析 & 價值河流圖 VIEW -->
+    <!-- 區塊 4：個股基本面深度分析 & 價值河流圖 VIEW (100% 對齊桌面版專業操盤版型) -->
     <div id="fundamental-tab-content" class="hidden">
-      <!-- 頂部切換個股與即時數據 -->
-      <div class="panel glass-panel" style="margin-bottom: 1.5rem; border-radius: 12px; padding: 1.25rem 1.5rem;">
-        <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-          <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
-            <h2 style="font-size: 1.25rem; font-weight: 700; color: #fff; margin: 0;">🌊 個股基本面與價值河流圖分析</h2>
-            <!-- 輸入判定與全市場自動完成搜尋框 -->
-            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-              <div style="position: relative; display: flex; align-items: center;">
-                <input 
-                  type="text" 
-                  id="fundamental-stock-input" 
-                  list="stock-datalist" 
-                  placeholder="輸入代號或名稱 (例: 2330, 8112, 至上)..." 
-                  value="2330 台積電"
-                  style="background: #181824; color: #ffffff; border: 1px solid rgba(56, 189, 248, 0.5); border-radius: 8px; padding: 0.45rem 0.85rem; font-size: 0.95rem; font-weight: 600; min-width: 250px; outline: none; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"
-                  onkeydown="if(event.key==='Enter') executeStockFundamentalSearch()"
-                />
-                <datalist id="stock-datalist">
-                  <!-- 由 JS 自動從全市場快取注入 1,088 檔股票 -->
-                </datalist>
-              </div>
-              <button 
-                id="btn-search-fundamental" 
-                onclick="executeStockFundamentalSearch()" 
-                style="background: linear-gradient(135deg, #0284c7, #0369a1); color: #ffffff; border: 1px solid #38bdf8; border-radius: 8px; padding: 0.45rem 1rem; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: all 0.2s;"
-              >
-                🔍 查詢分析
-              </button>
+      <!-- 頂部精簡緊湊資訊列 (與本機桌面版 100% 對齊：左標的輸入 + 中名稱產業 + 右現價/EPS/PE/狀態) -->
+      <div class="panel glass-panel" style="margin-bottom: 1rem; border-radius: 10px; padding: 0.75rem 1.25rem; background: #1a1a26; border: 1px solid #2e2e42;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+          <!-- 左側：標的選取與查詢 -->
+          <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+            <span style="font-weight: 700; color: #94a3b8; font-size: 0.95rem;">標的選取/輸入:</span>
+            <div style="position: relative; display: flex; align-items: center;">
+              <input 
+                type="text" 
+                id="fundamental-stock-input" 
+                list="stock-datalist" 
+                placeholder="2330, 0050, 至上..." 
+                value="2330"
+                style="background: #101018; color: #ffffff; border: 1px solid rgba(56, 189, 248, 0.5); border-radius: 6px; padding: 0.4rem 0.8rem; font-size: 0.95rem; font-weight: 700; width: 140px; outline: none;"
+                onkeydown="if(event.key==='Enter') executeStockFundamentalSearch()"
+              />
+              <datalist id="stock-datalist"></datalist>
             </div>
+            <button 
+              id="btn-search-fundamental" 
+              onclick="executeStockFundamentalSearch()" 
+              style="background: #2563eb; color: #ffffff; border: none; border-radius: 6px; padding: 0.4rem 1rem; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: background 0.2s;"
+              onmouseover="this.style.background='#1d4ed8'"
+              onmouseout="this.style.background='#2563eb'"
+            >
+              [查詢分析]
+            </button>
+            <!-- 標的名稱與產業別 (同動桌面標題) -->
+            <span id="fd-stock-fullname" style="font-size: 1.05rem; font-weight: 800; color: #ffffff; margin-left: 0.5rem;">
+              台積電 (TSMC) (2330.TW · 半導體製造 / 先進晶圓製程)
+            </span>
           </div>
-          <!-- 快捷熱門標的晶片列 -->
-          <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; margin-top: 0.5rem; width: 100%;">
-            <span style="font-size: 0.8rem; color: #64748b; font-weight: 600;">快速切換:</span>
-            <button class="search-chip-btn" onclick="openStockFundamentalAnalysis('2330.TW')">2330 台積電</button>
-            <button class="search-chip-btn" onclick="openStockFundamentalAnalysis('8112.TW')">8112 至上</button>
-            <button class="search-chip-btn" onclick="openStockFundamentalAnalysis('2002.TW')">2002 中鋼</button>
-            <button class="search-chip-btn" onclick="openStockFundamentalAnalysis('00878.TW')">00878 國泰</button>
-            <button class="search-chip-btn" onclick="openStockFundamentalAnalysis('00919.TW')">00919 群益</button>
-            <button class="search-chip-btn" onclick="openStockFundamentalAnalysis('2317.TW')">2317 鴻海</button>
-            <button class="search-chip-btn" onclick="openStockFundamentalAnalysis('2382.TW')">2382 廣達</button>
-            <button class="search-chip-btn" onclick="openStockFundamentalAnalysis('2603.TW')">2603 長榮</button>
-          </div>
-          <div style="display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;">
-            <div>參考現價: <span id="fd-price" style="font-size: 1.25rem; font-weight: 700; color: #38bdf8;">2,490 元</span></div>
-            <div>近四季 EPS: <span id="fd-eps" style="font-weight: 700; color: #00f090;">102.5 元</span></div>
-            <div>目前本益比: <span id="fd-pe" style="font-weight: 700;">24.3 倍</span></div>
-            <div id="fd-status-badge" class="cloud-badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 4px 10px; border-radius: 6px; font-weight: 600;">合理常態 (24x 河流帶)</div>
+
+          <!-- 右側即時物理指標 (同動桌面頂部數值) -->
+          <div style="display: flex; gap: 1.25rem; align-items: center; flex-wrap: wrap;">
+            <span id="fd-price" style="font-size: 1.35rem; font-weight: 800; color: #38bdf8;">$2,490.0</span>
+            <span style="font-size: 1rem; font-weight: 700; color: #00f090;">EPS: <span id="fd-eps">102.50元</span></span>
+            <span style="font-size: 1rem; font-weight: 700; color: #facc15;"><span id="fd-pe">24.3倍</span></span>
+            <span id="fd-status-badge" style="background: #242436; color: #38bdf8; border: 1px solid rgba(56,189,248,0.4); padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 0.85rem;">
+              合理常態 (24x 河流帶中線)
+            </span>
           </div>
         </div>
       </div>
 
-      <!-- 四大核心圖表網格 -->
-      <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); gap: 1.5rem;">
-        <!-- 圖表 1：本益比河流圖 (P/E River Band) -->
-        <div class="panel glass-panel" style="border-radius: 12px; padding: 1.25rem;">
-          <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-            <h3 style="font-size: 1.05rem; font-weight: 600; color: #fff; margin: 0;">🌊 本益比河流圖 (P/E River Band)</h3>
-            <span style="font-size: 0.8rem; color: #94a3b8;">16x / 20x / 24x / 28x / 32x 五階估值帶</span>
+      <!-- 7:3 專業操盤雙欄儀表板架構 (左 70% 核心圖表 / 右 30% 杜邦與財務安全側邊欄) -->
+      <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: stretch; margin-bottom: 2rem;">
+        <!-- 左側 70% 區域：上方河流圖 + 下方營收/三率雙圖並排 -->
+        <div style="flex: 1 1 68%; min-width: 580px; display: flex; flex-direction: column; gap: 1rem;">
+          <!-- 上方：本益比估值河流圖 (P/E River Valuation Bands 16x ~ 32x) -->
+          <div class="panel glass-panel" style="border-radius: 10px; padding: 1rem; background: #181824; border: 1px solid #28283c;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <h3 style="font-size: 0.95rem; font-weight: 700; color: #38bdf8; margin: 0;">
+                [河流] 本益比估值河流圖 (P/E River Valuation Bands 16x ~ 32x)
+              </h3>
+              <span style="font-size: 0.78rem; color: #94a3b8;">16x / 20x / 24x / 28x / 32x 五階估值帶</span>
+            </div>
+            <div style="height: 330px; position: relative;">
+              <canvas id="peRiverChart"></canvas>
+            </div>
+            <div style="margin-top: 0.5rem; font-size: 0.8rem; color: #94a3b8; line-height: 1.4;">
+              💡 <b>河流圖位階判讀</b>：股價落在 16x~20x（河流下緣）具高度安全邊際；突破 28x~32x（河流上緣）為高估超買警示區。
+            </div>
           </div>
-          <div style="height: 260px; position: relative;">
-            <canvas id="peRiverChart"></canvas>
-          </div>
-          <div style="margin-top: 0.75rem; font-size: 0.82rem; color: #94a3b8; line-height: 1.5;">
-            💡 <b>河流圖位階判讀</b>：股價落在 16x~20x（河流下緣）具高度安全邊際；突破 28x~32x（河流上緣）為高估超買警示區。
+
+          <!-- 下方：月營收與三率走勢 50%:50% 並排 -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <!-- 下左：月營收 YoY -->
+            <div class="panel glass-panel" style="border-radius: 10px; padding: 0.85rem; background: #181824; border: 1px solid #28283c;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <h4 style="font-size: 0.88rem; font-weight: 700; color: #facc15; margin: 0;">
+                  [趨勢] 月營收 (億元) 與 年增率 YoY (%)
+                </h4>
+              </div>
+              <div style="height: 190px; position: relative;">
+                <canvas id="revYoyChart"></canvas>
+              </div>
+            </div>
+
+            <!-- 下右：獲利能力三率走勢 -->
+            <div class="panel glass-panel" style="border-radius: 10px; padding: 0.85rem; background: #181824; border: 1px solid #28283c;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <h4 style="font-size: 0.88rem; font-weight: 700; color: #00f090; margin: 0;">
+                  [獲利] 近 5 季獲利能力三率走勢 (毛利 / 營業 / 淨利率 %)
+                </h4>
+              </div>
+              <div style="height: 190px; position: relative;">
+                <canvas id="marginsChart"></canvas>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- 圖表 2：月營收與年增率 (YoY) -->
-        <div class="panel glass-panel" style="border-radius: 12px; padding: 1.25rem;">
-          <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-            <h3 style="font-size: 1.05rem; font-weight: 600; color: #fff; margin: 0;">📊 月營收與年增率 (YoY) 走勢</h3>
-            <span style="font-size: 0.8rem; color: #94a3b8;">柱狀：營收(億元) / 折線：YoY (%)</span>
+        <!-- 右側 30% 獨立側邊欄：杜邦 ROE + 財務安全指標 (一眼可得，完全不需向下捲動) -->
+        <div style="flex: 0 0 30%; min-width: 320px; display: flex; flex-direction: column; gap: 1rem;">
+          <!-- 上卡片：[杜邦] 股東權益報酬率 (DuPont ROE) -->
+          <div class="panel glass-panel" style="border-radius: 10px; padding: 1.1rem; background: #181824; border: 1px solid #28283c;">
+            <h3 style="font-size: 1rem; font-weight: 700; color: #38bdf8; margin: 0 0 0.85rem 0;">
+              [杜邦] 股東權益報酬率 (DuPont ROE)
+            </h3>
+            <div style="background: #202030; border-radius: 8px; padding: 1rem; border: 1px solid #2f2f45;">
+              <div style="font-size: 1.4rem; font-weight: 800; color: #00f090; margin-bottom: 0.65rem;">
+                綜合 ROE: <span id="dp-roe">41.5%</span>
+              </div>
+              <div style="font-size: 0.9rem; color: #e2e8f0; margin-bottom: 0.4rem;">
+                · 稅後純益率 (Net Margin): <b id="dp-net-margin" style="color:#38bdf8;">43.2%</b>
+              </div>
+              <div style="font-size: 0.9rem; color: #e2e8f0; margin-bottom: 0.4rem;">
+                · 總資產周轉率 (Turnover): <b id="dp-asset-turnover" style="color:#facc15;">0.65次</b>
+              </div>
+              <div style="font-size: 0.9rem; color: #e2e8f0; margin-bottom: 0.75rem;">
+                · 權益乘數槓桿 (Multiplier): <b id="dp-equity-multiplier" style="color:#a78bfa;">1.48倍</b>
+              </div>
+              <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 0.65rem; font-size: 0.84rem; color: #94a3b8; line-height: 1.45;">
+                <b>綜合診斷</b>: <span id="dp-verdict">超優質高獲利模式 (純益率 > 40% 且兼顧槓桿自律安全)</span>
+              </div>
+            </div>
           </div>
-          <div style="height: 260px; position: relative;">
-            <canvas id="revYoyChart"></canvas>
-          </div>
-          <div style="margin-top: 0.75rem; font-size: 0.82rem; color: #94a3b8; line-height: 1.5;">
-            💡 <b>成長動能檢定</b>：單月營收維持高檔且年增率 (YoY) 維持雙位數正成長，代表營收動能充沛。
-          </div>
-        </div>
 
-        <!-- 圖表 3：獲利能力分析 (三率走勢) -->
-        <div class="panel glass-panel" style="border-radius: 12px; padding: 1.25rem;">
-          <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-            <h3 style="font-size: 1.05rem; font-weight: 600; color: #fff; margin: 0;">📈 獲利能力三率走勢 (毛利率/營益率/淨利率)</h3>
-            <span style="font-size: 0.8rem; color: #94a3b8;">近 5 季對比</span>
-          </div>
-          <div style="height: 260px; position: relative;">
-            <canvas id="marginsChart"></canvas>
-          </div>
-          <div style="margin-top: 0.75rem; font-size: 0.82rem; color: #94a3b8; line-height: 1.5;">
-            💡 <b>定價權分析</b>：營業毛利率與淨利率維持擴張趨勢，反映具備核心技術定價權與成本控制能力。
-          </div>
-        </div>
-
-        <!-- 模組 4：杜邦分析拆解與安全性檢測 -->
-        <div class="panel glass-panel" style="border-radius: 12px; padding: 1.25rem;">
-          <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-            <h3 style="font-size: 1.05rem; font-weight: 600; color: #fff; margin: 0;">🛡️ 杜邦分析拆解 (DuPont) & 安全性檢測</h3>
-          </div>
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1rem;">
-            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem; text-align: center;">
-              <div style="font-size: 0.75rem; color: #94a3b8;">稅後淨利率</div>
-              <div id="dp-net-margin" style="font-size: 1.3rem; font-weight: 700; color: #38bdf8;">43.2%</div>
-            </div>
-            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem; text-align: center;">
-              <div style="font-size: 0.75rem; color: #94a3b8;">資產周轉率</div>
-              <div id="dp-asset-turnover" style="font-size: 1.3rem; font-weight: 700; color: #facc15;">0.65 次</div>
-            </div>
-            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem; text-align: center;">
-              <div style="font-size: 0.75rem; color: #94a3b8;">權益乘數</div>
-              <div id="dp-equity-multiplier" style="font-size: 1.3rem; font-weight: 700; color: #a78bfa;">1.48 倍</div>
-            </div>
-          </div>
-          <div style="background: rgba(0, 240, 144, 0.08); border: 1px solid rgba(0,240,144,0.3); border-radius: 8px; padding: 0.8rem 1rem; margin-bottom: 1rem;">
-            <div style="font-weight: 700; color: #00f090; margin-bottom: 0.2rem;">🎯 綜合 ROE 達 <span id="dp-roe">41.5%</span></div>
-            <div id="dp-verdict" style="font-size: 0.82rem; color: #cbd5e1;">頂級定價權護城河 (淨利率 > 40% 且超低槓桿保守結構)</div>
-          </div>
-          <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.8rem 1rem;">
-            <div style="font-weight: 600; margin-bottom: 0.5rem; color: #fff; font-size: 0.85rem;">🔒 財務體質安全性指標</div>
-            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; font-size: 0.82rem;">
-              <div>自由現金流: <b id="sec-fcf" style="color: #00f090;">+6,200 億</b></div>
-              <div>營業現金流: <b id="sec-ocf" style="color: #00f090;">+1.15 兆</b></div>
-              <div>負債比率: <b id="sec-debt" style="color: #38bdf8;">32.5% (穩健)</b></div>
-              <div>流動比率: <b id="sec-current" style="color: #38bdf8;">215% (安全)</b></div>
+          <!-- 下卡片：[安全] 財務體質與現金流檢驗 -->
+          <div class="panel glass-panel" style="border-radius: 10px; padding: 1.1rem; background: #181824; border: 1px solid #28283c; flex: 1;">
+            <h3 style="font-size: 1rem; font-weight: 700; color: #facc15; margin: 0 0 0.85rem 0;">
+              [安全] 財務體質與現金流檢驗
+            </h3>
+            <div style="background: #202030; border-radius: 8px; padding: 1rem; border: 1px solid #2f2f45; display: flex; flex-direction: column; gap: 0.55rem;">
+              <div style="font-size: 0.9rem; color: #e2e8f0;">
+                · 自由現金流: <b id="sec-fcf" style="color: #00f090;">+6,200 億</b>
+              </div>
+              <div style="font-size: 0.9rem; color: #e2e8f0;">
+                · 營業現金流: <b id="sec-ocf" style="color: #00f090;">+1.15 兆</b>
+              </div>
+              <div style="font-size: 0.9rem; color: #e2e8f0;">
+                · 負債比率: <b id="sec-debt" style="color: #38bdf8;">32.5% (安全標準 &lt; 50%)</b>
+              </div>
+              <div style="font-size: 0.9rem; color: #e2e8f0;">
+                · 流動比率: <b id="sec-current" style="color: #38bdf8;">215% (速動比: 182%)</b>
+              </div>
+              <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 0.65rem; font-size: 0.84rem; color: #94a3b8; line-height: 1.45;">
+                <b>綜合診斷</b>: <span id="sec-status">極度安全 (自由現金流充沛，抗景氣循環能力超強)</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
-
 
     <nav class="mobile-bottom-bar glass-panel mobile-only">
       <button id="m-btn-view-toggle" class="m-nav-btn">
