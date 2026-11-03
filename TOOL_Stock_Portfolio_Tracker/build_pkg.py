@@ -41,8 +41,27 @@ MODULE_FILES = [
     "fundamental_analyzer_gui.py"
 ]
 
+def check_windowed_stdio_safety(app_dir: str) -> bool:
+    """編譯前安全守門員：執行無主控台 (Windowed/Null-Stdio) 語法檢驗，嚴禁任何未防護裸調用混入封裝包"""
+    print("[0/3] 執行無主控台 (Windowed/Null-Stdio) 語法安全防護檢驗...")
+    import unittest
+    tests_dir = os.path.join(app_dir, "tests")
+    if not os.path.exists(tests_dir):
+        return True
+    suite = unittest.defaultTestLoader.discover(tests_dir, pattern="test_windowed_stdio_safety.py")
+    runner = unittest.TextTestRunner(verbosity=1)
+    result = runner.run(suite)
+    if not result.wasSuccessful():
+        print("\n[!] 致命錯誤: 模組中存在未防護之 stdio 裸調用，嚴格拒絕編譯與打包！")
+        return False
+    print("[0/3] 無主控台語法安全檢測 PASS (0 裸調用，0 NoneType 異常)\n")
+    return True
+
 def build_app_core_pkg(output_pkg_path: str = "app_core.pkg") -> bool:
     app_dir = os.path.dirname(os.path.abspath(__file__))
+    if not check_windowed_stdio_safety(app_dir):
+        return False
+
     stage_dir = os.path.join(app_dir, "temp_pkg_stage")
     
     if os.path.exists(stage_dir):

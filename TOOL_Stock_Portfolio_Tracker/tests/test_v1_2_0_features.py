@@ -155,6 +155,15 @@ class TestV1200Features(unittest.TestCase):
         self.assertIn("renderPeRiverChart", js)
         print("  [PASS] test_05_web_html_and_js_integrity 通過")
 
+    def test_06_windowed_stdio_safety(self):
+        """Phase 3 Assert: 靜態與執行期無主控台 (Null-Stdio) 安全測試 (防範 'NoneType' has no attribute 'reconfigure' 致命崩潰)"""
+        import test_windowed_stdio_safety
+        suite = unittest.TestLoader().loadTestsFromTestCase(test_windowed_stdio_safety.TestWindowedStdioSafety)
+        runner = unittest.TextTestRunner(verbosity=1)
+        res = runner.run(suite)
+        self.assertTrue(res.wasSuccessful(), "存在未防護之 stdio 裸調用或 Null-Stdio 匯入崩潰！")
+        print("  [PASS] test_06_windowed_stdio_safety 通過 (AST 掃描 0 裸調用，Null-Stdio 模擬 0 崩潰)")
+
 
 def run_all_tests():
     suite = unittest.TestLoader().loadTestsFromTestCase(TestV1200Features)
