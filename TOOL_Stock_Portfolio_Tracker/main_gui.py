@@ -704,6 +704,9 @@ class PortfolioApp(tk.Tk):
         btn_view_kline = ttk.Button(bottom_frame, text="[K線] 個股走勢圖", command=self.on_view_kline, style="Action.TButton")
         btn_view_kline.pack(side=tk.LEFT, padx=2)
 
+        btn_fundamental = ttk.Button(bottom_frame, text="[基本面] 價值河流圖", command=self.on_open_fundamental_analyzer, style="Action.TButton")
+        btn_fundamental.pack(side=tk.LEFT, padx=2)
+
         # 右側區域：設定按鈕 (最右側) 與 自動刷新秒數控制
         btn_settings = ttk.Button(bottom_frame, text="[設定] 介面與外觀", command=self.on_open_settings, style="Action.TButton")
         btn_settings.pack(side=tk.RIGHT, padx=(10, 2))
@@ -1600,6 +1603,28 @@ class PortfolioApp(tk.Tk):
         else:
             # 若已在 ETF 分頁，則彈出全功能獨立分析視窗供全螢幕比對
             PortfolioETFStudioDialog(self, get_positions_callback=lambda: self.positions)
+
+    def on_open_fundamental_analyzer(self, symbol=None, name=""):
+        """開啟個股基本面深度分析與價值河流圖視窗"""
+        if not symbol:
+            selected = self.tree.selection()
+            if selected:
+                try:
+                    pos_id = int(selected[0])
+                    pos = next((p for p in self.positions if p["id"] == pos_id), None)
+                    if pos:
+                        symbol = pos.get("symbol", "")
+                        name = pos.get("name", "")
+                except Exception:
+                    pass
+            if not symbol:
+                symbol = "2330.TW"
+                name = "台積電"
+        try:
+            from fundamental_analyzer_gui import FundamentalAnalysisDialog
+            FundamentalAnalysisDialog(self, symbol=symbol, name=name, get_positions_callback=lambda: self.positions)
+        except Exception as e:
+            messagebox.showerror("錯誤", f"開啟基本面分析視窗失敗: {e}", parent=self)
 
     def on_view_kline(self):
         selected = self.tree.selection()

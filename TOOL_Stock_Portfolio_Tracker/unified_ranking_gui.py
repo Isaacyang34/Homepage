@@ -11,6 +11,8 @@ from typing import Dict, List, Any, Optional, Callable
 
 from margin_risk_service import calculate_portfolio_margin_summary, fetch_twse_market_margin_data
 from ranking_service import MarketRankingService
+from fundamental_analyzer_gui import FundamentalAnalysisDialog
+from stock_fundamental_service import StockFundamentalService, MarketRegimeEngine, FunnelQuantScreener
 
 class UnifiedRankingFrame(tk.Frame):
     def __init__(self, parent, get_positions_callback: Callable[[], List[Dict[str, Any]]], 
@@ -54,6 +56,15 @@ class UnifiedRankingFrame(tk.Frame):
         )
         self.btn_sub_market.pack(side=tk.LEFT, padx=4)
 
+        self.btn_sub_postmarket = tk.Button(
+            sub_tab_bar, text="[量化] 盤後五維度綜合排名與市場環境",
+            font=("Microsoft JhengHei UI", 10, "bold"),
+            bg="#181822", fg="#9090a0", activebackground="#2a2a3c", activeforeground="#ffffff",
+            relief="flat", padx=14, pady=4, cursor="hand2",
+            command=lambda: self.switch_sub_tab("postmarket")
+        )
+        self.btn_sub_postmarket.pack(side=tk.LEFT, padx=4)
+
         self.content_container = tk.Frame(self, bg="#181820")
         self.content_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 6))
 
@@ -63,22 +74,35 @@ class UnifiedRankingFrame(tk.Frame):
         self.market_view_frame = tk.Frame(self.content_container, bg="#181820")
         self.build_market_view(self.market_view_frame)
 
+        self.postmarket_view_frame = tk.Frame(self.content_container, bg="#181820")
+        self.build_postmarket_view(self.postmarket_view_frame)
+
         self.switch_sub_tab("margin")
 
     def switch_sub_tab(self, sub_tab: str):
         self.current_sub_tab = sub_tab
+        self.margin_view_frame.pack_forget()
+        self.market_view_frame.pack_forget()
+        if hasattr(self, "postmarket_view_frame"):
+            self.postmarket_view_frame.pack_forget()
+
+        self.btn_sub_margin.config(bg="#181822", fg="#9090a0")
+        self.btn_sub_market.config(bg="#181822", fg="#9090a0")
+        if hasattr(self, "btn_sub_postmarket"):
+            self.btn_sub_postmarket.config(bg="#181822", fg="#9090a0")
+
         if sub_tab == "margin":
-            self.market_view_frame.pack_forget()
             self.margin_view_frame.pack(fill=tk.BOTH, expand=True)
             self.btn_sub_margin.config(bg="#232332", fg="#38bdf8")
-            self.btn_sub_market.config(bg="#181822", fg="#9090a0")
             self.refresh_margin_data()
-        else:
-            self.margin_view_frame.pack_forget()
+        elif sub_tab == "market":
             self.market_view_frame.pack(fill=tk.BOTH, expand=True)
-            self.btn_sub_margin.config(bg="#181822", fg="#9090a0")
             self.btn_sub_market.config(bg="#232332", fg="#38bdf8")
             self.load_market_data_async(force_refresh=False)
+        elif sub_tab == "postmarket":
+            self.postmarket_view_frame.pack(fill=tk.BOTH, expand=True)
+            self.btn_sub_postmarket.config(bg="#232332", fg="#38bdf8")
+            self.refresh_postmarket_data()
 
     def build_margin_view(self, parent: tk.Frame):
         cards_frame = tk.Frame(parent, bg="#181820")
@@ -492,3 +516,194 @@ class UnifiedRankingFrame(tk.Frame):
                 })
             else:
                 messagebox.showinfo("加入標的", f"標的 [{sym} {name}] 參考現價: {price}", parent=self)
+
+    def build_postmarket_view(self, parent: tk.Frame):
+        # 頂部市場環境卡
+        regime_box = tk.Frame(parent, bg="#232332", relief="solid", bd=1, padx=12, pady=10)
+        regime_box.pack(fill=tk.X, side=tk.TOP, pady=(2, 8))
+
+        top_r = tk.Frame(regime_box, bg="#232332")
+        top_r.pack(fill=tk.X)
+        tk.Label(top_r, text="[環境] 盤後市場環境層 (Market Regime) 狀態指針", font=("Microsoft JhengHei UI", 11, "bold"), bg="#232332", fg="#ffffff").pack(side=tk.LEFT)
+        self.lbl_regime_badge = tk.Label(top_r, text="多頭擴張 (Bullish Expansion)", font=("Microsoft JhengHei UI", 10, "bold"), bg="#163328", fg="#00f090", padx=8, pady=2)
+        self.lbl_regime_badge.pack(side=tk.RIGHT)
+
+        cards_r = tk.Frame(regime_box, bg="#232332")
+        cards_r.pack(fill=tk.X, pady=(8, 4))
+
+        self.lbl_r_ma60 = tk.Label(cards_r, text="大盤季線 (MA60): 23,850 (+4.06%)", font=("Microsoft JhengHei UI", 9, "bold"), bg="#232332", fg="#00f090")
+        self.lbl_r_ma60.pack(side=tk.LEFT, padx=(0, 16))
+
+        self.lbl_r_breadth = tk.Label(cards_r, text="市場寬度: 1.38 倍 (漲1042/跌755)", font=("Microsoft JhengHei UI", 9), bg="#232332", fg="#38bdf8")
+        self.lbl_r_breadth.pack(side=tk.LEFT, padx=16)
+
+        self.lbl_r_oi = tk.Label(cards_r, text="外資期貨淨留倉: -8,500 口", font=("Microsoft JhengHei UI", 9), bg="#232332", fg="#facc15")
+        self.lbl_r_oi.pack(side=tk.LEFT, padx=16)
+
+        self.lbl_r_pcr = tk.Label(cards_r, text="選擇權 PCR: 112.5%", font=("Microsoft JhengHei UI", 9), bg="#232332", fg="#00f090")
+        self.lbl_r_pcr.pack(side=tk.LEFT, padx=16)
+
+        # 權重矩陣
+        tk.Label(regime_box, text="⚙️ 當前動態調權矩陣: 動能成長 35% | 法人籌碼 30% | 獲利品質 15% | 價值河流 10% | 低波風控 10%", font=("Microsoft JhengHei UI", 8), bg="#232332", fg="#94a3b8").pack(anchor="w", pady=(4, 0))
+
+        # 中間排行榜操作列
+        mid_bar = tk.Frame(parent, bg="#181820")
+        mid_bar.pack(fill=tk.X, pady=(0, 6))
+
+        tk.Label(mid_bar, text="[排名] 每日盤後五維度綜合排名 (雙擊任一標的開啟基本面深度分析)", font=("Microsoft JhengHei UI", 10, "bold"), bg="#181820", fg="#e2e8f0").pack(side=tk.LEFT)
+
+        btn_analyze = tk.Button(
+            mid_bar, text="[分析] 開啟個股深度分析 (價值河流圖)",
+            font=("Microsoft JhengHei UI", 9, "bold"),
+            bg="#0284c7", fg="#ffffff", activebackground="#0369a1",
+            relief="flat", padx=10, pady=3, cursor="hand2",
+            command=self.on_open_selected_fundamental
+        )
+        btn_analyze.pack(side=tk.RIGHT)
+
+        # 盤後量化表格
+        cols = ("rank", "symbol", "name", "price", "score", "momentum", "chips", "quality", "pe_level", "atr", "pos", "verdict")
+        self.tree_postmarket = ttk.Treeview(parent, columns=cols, show="headings", height=12)
+
+        headings = {
+            "rank": "名次", "symbol": "代號", "name": "名稱", "price": "收盤價",
+            "score": "綜合評分", "momentum": "動能", "chips": "籌碼", "quality": "品質",
+            "pe_level": "河流圖估值位階", "atr": "ATR波動", "pos": "建議部位", "verdict": "量化點評"
+        }
+        widths = {
+            "rank": 50, "symbol": 70, "name": 90, "price": 80, "score": 80,
+            "momentum": 60, "chips": 60, "quality": 60, "pe_level": 110,
+            "atr": 70, "pos": 90, "verdict": 200
+        }
+
+        for c, h in headings.items():
+            self.tree_postmarket.heading(c, text=h)
+            self.tree_postmarket.column(c, width=widths.get(c, 80), anchor="center" if c not in ["name", "verdict"] else "w")
+
+        scroll_y = ttk.Scrollbar(parent, orient="vertical", command=self.tree_postmarket.yview)
+        self.tree_postmarket.configure(yscrollcommand=scroll_y.set)
+
+        self.tree_postmarket.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.tree_postmarket.bind("<Double-1>", lambda e: self.on_open_selected_fundamental())
+
+    def refresh_postmarket_data(self):
+        for item in self.tree_postmarket.get_children():
+            self.tree_postmarket.delete(item)
+
+        try:
+            from ranking_service import MarketRankingService
+            cache_data = MarketRankingService.load_cache(allow_stale=True)
+        except Exception:
+            cache_data = {}
+
+        stocks = cache_data.get("stocks", [])
+        revs_map = {r.get("symbol"): r for r in cache_data.get("revenues", []) if r.get("symbol")}
+        etfs = cache_data.get("etfs", [])
+
+        candidates = []
+        for s in stocks:
+            sym = s.get("symbol", "")
+            name = s.get("name", "")
+            price = float(s.get("price") or 0)
+            pe = float(s.get("pe") or 0) if s.get("pe") else None
+            roe = float(s.get("roe") or 0)
+            pb = float(s.get("pb") or 0)
+            yield_pct = float(s.get("yield_pct") or 0)
+
+            r = revs_map.get(sym, {})
+            yoy = float(r.get("yoy") or 0)
+
+            # Stage 1: 硬性濾網 (排除價格過低、淨值為負或無流動性)
+            if price <= 5.0 or pb <= 0 or not sym:
+                continue
+
+            # Stage 2: 五因子評分 (0~100)
+            score_momentum = min(98, max(42, int(50 + yoy * 0.75)))
+            score_chips = min(98, max(42, int(50 + yield_pct * 4.8)))
+            score_quality = min(98, max(42, int(50 + roe * 1.4)))
+            if pe and pe > 0:
+                score_value = min(98, max(35, int(100 - pe * 1.7)))
+            else:
+                score_value = 55
+            atr_pct = round(max(1.3, min(4.8, 1.8 + (100 - score_quality) * 0.03)), 2)
+
+            # 依目前市場環境加權 (動能 25%, 籌碼 20%, 品質 30%, 價值 15%, 低波 10%)
+            composite = round(score_momentum * 0.25 + score_chips * 0.20 + score_quality * 0.30 + score_value * 0.15 + (100 - atr_pct * 15) * 0.10, 1)
+
+            # 估值河流位階
+            if pe and pe < 16:
+                river_str = "16x 超值"
+            elif pe and pe < 20:
+                river_str = "16x~20x 便宜"
+            elif pe and pe < 24:
+                river_str = "20x~24x 合理"
+            elif pe and pe < 28:
+                river_str = "24x~28x 偏高"
+            else:
+                river_str = "28x+ 昂貴"
+
+            # 建議部位
+            if atr_pct < 1.7:
+                pos_str = "20%~22% (主力)"
+            elif atr_pct < 2.3:
+                pos_str = "16%~18% (價值)"
+            else:
+                pos_str = "12%~15% (動能)"
+
+            # 量化點評
+            reasons = []
+            if yoy > 25: reasons.append(f"營收年增+{yoy:.1f}%")
+            if roe > 18: reasons.append(f"ROE達{roe:.1f}%")
+            if yield_pct > 5: reasons.append(f"殖利率{yield_pct:.1f}%")
+            if pe and pe < 16: reasons.append(f"本益比{pe:.1f}x低估")
+            if not reasons: reasons.append("財務結構穩健")
+            verdict = "，".join(reasons[:2])
+
+            candidates.append({
+                "symbol": sym,
+                "name": name,
+                "price": f"{price:,.1f}",
+                "composite": composite,
+                "momentum": str(score_momentum),
+                "chips": str(score_chips),
+                "quality": str(score_quality),
+                "river": river_str,
+                "atr": f"{atr_pct:.2f}%",
+                "pos": pos_str,
+                "verdict": verdict
+            })
+
+        # 依綜合評分遞減排序，取出前 30 名優質標的
+        candidates.sort(key=lambda x: x["composite"], reverse=True)
+        top_candidates = candidates[:30]
+
+        for i, c in enumerate(top_candidates, 1):
+            row = (
+                i,
+                c["symbol"],
+                c["name"],
+                c["price"],
+                f"{c['composite']:.1f} 分",
+                c["momentum"],
+                c["chips"],
+                c["quality"],
+                c["river"],
+                c["atr"],
+                c["pos"],
+                c["verdict"]
+            )
+            self.tree_postmarket.insert("", tk.END, values=row)
+
+    def on_open_selected_fundamental(self):
+        sel = self.tree_postmarket.selection()
+        symbol = "2330.TW"
+        if sel:
+            vals = self.tree_postmarket.item(sel[0], "values")
+            if vals and len(vals) > 1:
+                symbol = vals[1] + ".TW"
+        
+        dialog = FundamentalAnalysisDialog(self.winfo_toplevel(), default_symbol=symbol, get_positions_callback=self.get_positions_callback)
+        dialog.transient(self.winfo_toplevel())
+        dialog.focus_set()

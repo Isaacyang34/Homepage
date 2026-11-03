@@ -2,248 +2,486 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>台股投資組合追蹤與 AI 量化戰情室 - Stock Portfolio Tracker</title>
-  <link rel="stylesheet" href="css/style.css">
-  <!-- Chart.js CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-    <script>
-      window.IS_STATIC_CLOUD = true;
-      window.STATIC_PORTFOLIO_DATA = {"summary": {"total_equity": 5951670.0, "total_market_value": 5451670.0, "total_cost": 2163000.0, "cash_balance": 500000.0, "total_unrealized_pnl": 3288670.0, "total_roi": 152.04, "position_count": 4}, "positions": [{"id": 6, "symbol": "00878.TW", "name": "國泰永續高股息", "shares": 10000, "cost_price": 30.0, "current_price": 35.47, "market_value": 354700.0, "total_cost": 300000.0, "unrealized_pnl": 54700.0, "pnl_percentage": 18.23, "weight_percentage": 5.96, "buy_date": "2026-10-15", "target_price": null, "stop_loss_price": null, "notes": null}, {"id": 5, "symbol": "00919.TW", "name": "群益台灣精選高息", "shares": 3000, "cost_price": 25.0, "current_price": 32.49, "market_value": 97470.0, "total_cost": 75000.0, "unrealized_pnl": 22470.0, "pnl_percentage": 29.96, "weight_percentage": 1.64, "buy_date": "2026-10-15", "target_price": null, "stop_loss_price": null, "notes": null}, {"id": 4, "symbol": "2002.TW", "name": "中鋼", "shares": 1000, "cost_price": 28.0, "current_price": 19.5, "market_value": 19500.0, "total_cost": 28000.0, "unrealized_pnl": -8500.0, "pnl_percentage": -30.36, "weight_percentage": 0.33, "buy_date": "2026-10-15", "target_price": null, "stop_loss_price": null, "notes": null}, {"id": 1, "symbol": "2330.TW", "name": "台積電", "shares": 2000, "cost_price": 880.0, "current_price": 2490.0, "market_value": 4980000.0, "total_cost": 1760000.0, "unrealized_pnl": 3220000.0, "pnl_percentage": 182.95, "weight_percentage": 83.67, "buy_date": "2024-03-15", "target_price": 1150.0, "stop_loss_price": 820.0, "notes": "AI 晶片先進製程 3nm/2nm 壟斷優勢"}]};
-      window.STATIC_ANALYSIS_DATA = {"00878.TW": {"factors": {"symbol": "00878.TW", "name": "國泰永續高股息", "current_price": 35.47, "overall_score": 82.8, "rating": "偏多操作", "radar_factors": {"動能因子 (Momentum)": 86, "價值因子 (Value)": 75, "品質因子 (Quality/ROE)": 88, "低波動因子 (Low-Vol)": 82, "法人籌碼 (Institutional)": 79}, "metrics": {"本益比 (PE)": 15.6, "股價淨值比 (PB)": 4.19, "股東權益報酬率 (ROE)": "26.2%", "近5日三大法人買賣超": "+11794 張", "20日波動率 (Annualized)": "16.8%"}}, "debate": {"bull_agent": {"role": "多方投資總監 (Bullish Analyst)", "stance": "強烈看多", "arguments": ["先進製程與高階伺服器供應鏈市佔率達 80% 以上，定價話語權極強。", "外資與投信連續 5 個交易日呈現淨買超，大戶籌碼集中度提升 1.8%。", "月營收連續 3 個月保持雙位數 YoY 年增長，基本面成長動能無虞。"], "confidence": 88}, "bear_agent": {"role": "風控長與放空策略師 (Bearish Risk Controller)", "stance": "警戒獲利回吐", "arguments": ["近一個月累積漲幅顯著，短線乖離率過大，技術指標進入超買區（RSI > 75）。", "全球宏觀降息預期反覆與地緣政治緊張，可能引發國際熱錢短線獲利了結避險。", "上檔面臨歷史整數心理壓力關卡，追高風險收益比（Risk/Reward）降低。"], "confidence": 72}, "arbitrator": {"role": "首席量化仲裁者 (Chief Quant Arbitrator)", "verdict": "偏多續抱 / 回檔加碼", "rationale": "雖然短線存在乖離過大風險，但整體品質與籌碼因子評分高達 90 分，中長期結構多頭未變。建議維持既有持倉，若拉回至 20MA (33.0 ~ 34.1) 可進行分批加碼，跌破停損價 33.0 則嚴格離場。", "target_price": 41.9, "stop_loss": 33.0, "position_sizing": "建議持倉上限 20% ~ 25%"}}}, "00919.TW": {"factors": {"symbol": "00919.TW", "name": "群益台灣精選高息", "current_price": 32.49, "overall_score": 73.3, "rating": "偏多操作", "radar_factors": {"動能因子 (Momentum)": 66, "價值因子 (Value)": 52, "品質因子 (Quality/ROE)": 77, "低波動因子 (Low-Vol)": 85, "法人籌碼 (Institutional)": 85}, "metrics": {"本益比 (PE)": 23.6, "股價淨值比 (PB)": 5.12, "股東權益報酬率 (ROE)": "30.9%", "近5日三大法人買賣超": "+9375 張", "20日波動率 (Annualized)": "18.0%"}}, "debate": {"bull_agent": {"role": "多方投資總監 (Bullish Analyst)", "stance": "強烈看多", "arguments": ["先進製程與高階伺服器供應鏈市佔率達 80% 以上，定價話語權極強。", "外資與投信連續 5 個交易日呈現淨買超，大戶籌碼集中度提升 1.8%。", "月營收連續 3 個月保持雙位數 YoY 年增長，基本面成長動能無虞。"], "confidence": 88}, "bear_agent": {"role": "風控長與放空策略師 (Bearish Risk Controller)", "stance": "警戒獲利回吐", "arguments": ["近一個月累積漲幅顯著，短線乖離率過大，技術指標進入超買區（RSI > 75）。", "全球宏觀降息預期反覆與地緣政治緊張，可能引發國際熱錢短線獲利了結避險。", "上檔面臨歷史整數心理壓力關卡，追高風險收益比（Risk/Reward）降低。"], "confidence": 72}, "arbitrator": {"role": "首席量化仲裁者 (Chief Quant Arbitrator)", "verdict": "偏多續抱 / 回檔加碼", "rationale": "雖然短線存在乖離過大風險，但整體品質與籌碼因子評分高達 90 分，中長期結構多頭未變。建議維持既有持倉，若拉回至 20MA (30.2 ~ 31.2) 可進行分批加碼，跌破停損價 30.2 則嚴格離場。", "target_price": 38.3, "stop_loss": 30.2, "position_sizing": "建議持倉上限 20% ~ 25%"}}}, "2002.TW": {"factors": {"symbol": "2002.TW", "name": "中鋼", "current_price": 19.5, "overall_score": 89.9, "rating": "強力買進", "radar_factors": {"動能因子 (Momentum)": 94, "價值因子 (Value)": 77, "品質因子 (Quality/ROE)": 90, "低波動因子 (Low-Vol)": 89, "法人籌碼 (Institutional)": 95}, "metrics": {"本益比 (PE)": 23.7, "股價淨值比 (PB)": 2.74, "股東權益報酬率 (ROE)": "18.2%", "近5日三大法人買賣超": "+10860 張", "20日波動率 (Annualized)": "17.4%"}}, "debate": {"bull_agent": {"role": "多方投資總監 (Bullish Analyst)", "stance": "強烈看多", "arguments": ["先進製程與高階伺服器供應鏈市佔率達 80% 以上，定價話語權極強。", "外資與投信連續 5 個交易日呈現淨買超，大戶籌碼集中度提升 1.8%。", "月營收連續 3 個月保持雙位數 YoY 年增長，基本面成長動能無虞。"], "confidence": 88}, "bear_agent": {"role": "風控長與放空策略師 (Bearish Risk Controller)", "stance": "警戒獲利回吐", "arguments": ["近一個月累積漲幅顯著，短線乖離率過大，技術指標進入超買區（RSI > 75）。", "全球宏觀降息預期反覆與地緣政治緊張，可能引發國際熱錢短線獲利了結避險。", "上檔面臨歷史整數心理壓力關卡，追高風險收益比（Risk/Reward）降低。"], "confidence": 72}, "arbitrator": {"role": "首席量化仲裁者 (Chief Quant Arbitrator)", "verdict": "偏多續抱 / 回檔加碼", "rationale": "雖然短線存在乖離過大風險，但整體品質與籌碼因子評分高達 90 分，中長期結構多頭未變。建議維持既有持倉，若拉回至 20MA (18.1 ~ 18.7) 可進行分批加碼，跌破停損價 18.1 則嚴格離場。", "target_price": 23.0, "stop_loss": 18.1, "position_sizing": "建議持倉上限 20% ~ 25%"}}}, "2330.TW": {"factors": {"symbol": "2330.TW", "name": "台積電", "current_price": 2490.0, "overall_score": 76.3, "rating": "偏多操作", "radar_factors": {"動能因子 (Momentum)": 81, "價值因子 (Value)": 83, "品質因子 (Quality/ROE)": 72, "低波動因子 (Low-Vol)": 68, "法人籌碼 (Institutional)": 77}, "metrics": {"本益比 (PE)": 24.3, "股價淨值比 (PB)": 5.21, "股東權益報酬率 (ROE)": "27.5%", "近5日三大法人買賣超": "+4690 張", "20日波動率 (Annualized)": "20.1%"}}, "debate": {"bull_agent": {"role": "多方投資總監 (Bullish Analyst)", "stance": "強烈看多", "arguments": ["先進製程與高階伺服器供應鏈市佔率達 80% 以上，定價話語權極強。", "外資與投信連續 5 個交易日呈現淨買超，大戶籌碼集中度提升 1.8%。", "月營收連續 3 個月保持雙位數 YoY 年增長，基本面成長動能無虞。"], "confidence": 88}, "bear_agent": {"role": "風控長與放空策略師 (Bearish Risk Controller)", "stance": "警戒獲利回吐", "arguments": ["近一個月累積漲幅顯著，短線乖離率過大，技術指標進入超買區（RSI > 75）。", "全球宏觀降息預期反覆與地緣政治緊張，可能引發國際熱錢短線獲利了結避險。", "上檔面臨歷史整數心理壓力關卡，追高風險收益比（Risk/Reward）降低。"], "confidence": 72}, "arbitrator": {"role": "首席量化仲裁者 (Chief Quant Arbitrator)", "verdict": "偏多續抱 / 回檔加碼", "rationale": "雖然短線存在乖離過大風險，但整體品質與籌碼因子評分高達 90 分，中長期結構多頭未變。建議維持既有持倉，若拉回至 20MA (2315.7 ~ 2390.4) 可進行分批加碼，跌破停損價 2315.7 則嚴格離場。", "target_price": 2938.2, "stop_loss": 2315.7, "position_sizing": "建議持倉上限 20% ~ 25%"}}}};
-    </script>
-    
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://*.firebaseio.com https://*.firebasedatabase.app https://ws.api.cnyes.com https://scanner.tradingview.com https://www.twse.com.tw; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline';">
+  <title>零知識加密投資庫存分析儀表板 | Stock Portfolio Viewer</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="apple-touch-icon" href="app_icon.png">
+  <link rel="stylesheet" href="style.css?v=1.3.0.20261103">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
-  <header>
-    <div class="brand">
-      <div class="brand-icon">📈</div>
-      <div>
-        <h1>TW Stock Portfolio & AI Quant War Room</h1>
-        <div style="font-size: 0.75rem; color: var(--text-muted);">統一共享資料庫 × 投資組合資產追蹤 × AI 多空量化辯論</div>
-      </div>
-    </div>
-
-    <!-- 雙功能切換頁籤 -->
-    <div class="nav-tabs-wrapper">
-      <button class="nav-tab active" id="tab-portfolio" onclick="switchView('portfolio')">
-        📊 投資組合資產追蹤
-      </button>
-      <button class="nav-tab" id="tab-quant" onclick="switchView('quant')">
-        🧠 AI 量化多空戰情室
-      </button>
-    </div>
-
-    <div style="display: flex; align-items: center; gap: 0.75rem;">
-      <span class="cloud-badge">共用資料庫連線中</span>
-      <div class="actions">
-        <button class="btn-primary" onclick="openAddModal()">＋ 新增持股</button>
-        <button class="btn-secondary" onclick="exportAndSyncToGitHub()">🚀 推播至 GitHub</button>
-      </div>
-    </div>
-  </header>
-
-  <main>
-    <!-- 功能 1：投資組合資產追蹤 VIEW -->
-    <section id="view-portfolio">
-      <!-- 頂部資產總覽 KPI -->
-      <div class="kpi-grid">
-        <div class="kpi-card">
-          <div class="kpi-title">總資產淨值 (Total Equity)</div>
-          <div class="kpi-value" id="kpi-total-equity">NT$ 0</div>
-          <div class="kpi-sub">現金儲備: <span id="kpi-cash" style="color: #94a3b8;">NT$ 0</span></div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-title">持股市值 (Market Value)</div>
-          <div class="kpi-value" id="kpi-market-value">NT$ 0</div>
-          <div class="kpi-sub">總投入成本: <span id="kpi-total-cost" style="color: #94a3b8;">NT$ 0</span></div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-title">未實現損益 (Unrealized PnL)</div>
-          <div class="kpi-value" id="kpi-unrealized-pnl">NT$ 0</div>
-          <div class="kpi-sub" id="kpi-roi-badge">報酬率: 0.00%</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-title">持股檔數 / 數據聯動</div>
-          <div class="kpi-value" id="kpi-count">0 檔</div>
-          <div class="kpi-sub" style="color: #38bdf8;">與量化戰情室資料即時同步</div>
+  <!-- 登入與解密卡片 (未解密時顯示) -->
+  <div id="login-modal" class="modal-overlay">
+    <div class="login-card glass-panel">
+      <div class="brand-header">
+        <div class="brand-title-wrap">
+          <h2>投資庫存雲端儀表板</h2>
+          <span class="version-pill">V1.3.0</span>
         </div>
       </div>
 
-      <div class="layout-grid">
-        <!-- 左側持股清單 -->
-        <section class="panel">
-          <div class="panel-header">
-            <h2>📊 我的持股清單 (Portfolio Holdings)</h2>
-            <span style="font-size: 0.8rem; color: var(--text-muted);">點擊「AI 診斷」可於右側展開量化雷達</span>
-          </div>
-          <div class="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>標的</th>
-                  <th>股數</th>
-                  <th>均價</th>
-                  <th>現價</th>
-                  <th>市值</th>
-                  <th>未實現損益</th>
-                  <th>佔比</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody id="positions-tbody">
-                <!-- 動態渲染 -->
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <!-- 右側：資產配置 + 快速診斷 -->
-        <section class="panel">
-          <div class="panel-header">
-            <h2>🥧 資產配置分佈 (Asset Allocation)</h2>
-          </div>
-          <div style="height: 220px; position: relative;">
-            <canvas id="allocationChart"></canvas>
-          </div>
-
-          <div class="debate-card" id="analysis-panel" style="display: none;">
-            <div class="panel-header" style="margin-bottom: 0.75rem;">
-              <h3>🤖 <span id="target-stock-title">2330 台積電</span> 快速量化雷達</h3>
-              <span id="target-stock-score" class="cloud-badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">評分: 88.5</span>
-            </div>
-            <div style="height: 180px; position: relative; margin-bottom: 0.5rem;">
-              <canvas id="radarChart"></canvas>
-            </div>
-          </div>
-        </section>
-      </div>
-    </section>
-
-    <!-- 功能 2：AI 量化多空戰情室 VIEW -->
-    <section id="view-quant" style="display: none;">
-      <!-- 量化戰情頂部 KPI -->
-      <div class="kpi-grid">
-        <div class="kpi-card">
-          <div class="kpi-title">歷史策略年化報酬率</div>
-          <div class="kpi-value color-up" id="quant-annual-ret">+32.4%</div>
-          <div class="kpi-sub">基準對比: 台灣加權指數 (+18.2%)</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-title">夏普比率 (Sharpe Ratio)</div>
-          <div class="kpi-value" style="color: #38bdf8;" id="quant-sharpe">1.85</div>
-          <div class="kpi-sub">風險調整後超額收益極佳</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-title">歷史最大回撤 (MDD)</div>
-          <div class="kpi-value color-down" id="quant-mdd">-11.8%</div>
-          <div class="kpi-sub">風控停損與動態縮減水位生效</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-title">多空勝率 / 盈虧比</div>
-          <div class="kpi-value" style="color: #f59e0b;" id="quant-winrate">68.5%</div>
-          <div class="kpi-sub">平均盈虧比: 2.4 : 1</div>
-        </div>
-      </div>
-
-      <div class="layout-grid">
-        <!-- 左側：AI 多空辯論攻防與仲裁者 -->
-        <section class="panel">
-          <div class="panel-header">
-            <h2>⚔️ AI 多空智能體辯論室 (Bull vs Bear Debate)</h2>
-            <div style="display: flex; gap: 0.5rem;">
-              <select id="quant-stock-selector" onchange="onQuantStockChange(this.value)" style="background: rgba(255,255,255,0.05); color: #fff; border: 1px solid var(--border-color); border-radius: 6px; padding: 0.3rem 0.6rem; font-size: 0.85rem;">
-                <!-- 動態注入持股選單 -->
-              </select>
-            </div>
-          </div>
-
-          <div class="agent-box bull-box" style="margin-top: 1rem;">
-            <div class="agent-title" style="color: var(--up-red);">
-              <span>🐂 多方投資總監 (Bullish Analyst)</span>
-              <span id="quant-bull-confidence">信心度: 88%</span>
-            </div>
-            <ul id="quant-bull-arguments" style="padding-left: 1.2rem; font-size: 0.85rem; line-height: 1.6; color: #cbd5e1;"></ul>
-          </div>
-
-          <div class="agent-box bear-box">
-            <div class="agent-title" style="color: var(--down-green);">
-              <span>🐻 風控長 (Bearish Risk Controller)</span>
-              <span id="quant-bear-confidence">信心度: 72%</span>
-            </div>
-            <ul id="quant-bear-arguments" style="padding-left: 1.2rem; font-size: 0.85rem; line-height: 1.6; color: #cbd5e1;"></ul>
-          </div>
-
-          <div class="agent-box arbitrator-box">
-            <div class="agent-title" style="color: #f59e0b;">
-              <span>⚖️ 首席量化仲裁者 (Chief Quant Arbitrator): <strong id="quant-verdict-action">偏多續抱</strong></span>
-            </div>
-            <p id="quant-verdict-rationale" style="font-size: 0.85rem; line-height: 1.6; color: #f1f5f9;"></p>
-            <div style="margin-top: 0.6rem; font-size: 0.85rem; color: #94a3b8; display: flex; gap: 1.5rem;">
-              <span>建議目標價: <strong id="quant-verdict-target" style="color: var(--up-red);">--</strong></span>
-              <span>建議停損價: <strong id="quant-verdict-stop" style="color: var(--down-green);">--</strong></span>
-              <span>建議倉位: <strong id="quant-verdict-size" style="color: #38bdf8;">--</strong></span>
-            </div>
-          </div>
-        </section>
-
-        <!-- 右側：策略累計報酬走勢圖與五大因子檢驗 -->
-        <section class="panel">
-          <div class="panel-header">
-            <h2>📈 策略累積報酬走勢 (Strategy Backtest)</h2>
-          </div>
-          <div style="height: 200px; position: relative; margin-bottom: 1.5rem;">
-            <canvas id="backtestTrendChart"></canvas>
-          </div>
-
-          <div class="panel-header">
-            <h2>🎯 五大核心因子雷達強度</h2>
-          </div>
-          <div style="height: 200px; position: relative;">
-            <canvas id="quantRadarChart"></canvas>
-          </div>
-        </section>
-      </div>
-    </section>
-  </main>
-
-  <!-- 新增持股彈窗 -->
-  <div class="modal-overlay" id="addModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>新增持股到共用資料庫</h3>
-        <button onclick="closeAddModal()" style="background: none; border: none; color: #fff; font-size: 1.2rem; cursor: pointer;">✕</button>
-      </div>
-      <form id="addPositionForm" onsubmit="submitPosition(event)">
+      <form id="login-form">
         <div class="form-group">
-          <label>股票代號 (如 2002 或 2330)</label>
-          <input type="text" id="input-symbol" required placeholder="例如: 2002">
+          <label for="input-user">使用者代號 (User ID)</label>
+          <input type="text" id="input-user" placeholder="請輸入代號 (例如: isaac)" required autocomplete="username">
         </div>
+
         <div class="form-group">
-          <label>持股名稱 (選填，自動線上查詢)</label>
-          <input type="text" id="input-name" placeholder="例如: 中鋼 (留空自動查詢)">
+          <label for="input-password">專屬加密主密碼</label>
+          <input type="password" id="input-password" placeholder="請輸入主密碼" required autocomplete="current-password">
         </div>
+
         <div class="form-group">
-          <label>買入股數 (Shares)</label>
-          <input type="number" id="input-shares" required min="1" placeholder="例如: 1000">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label for="input-secret-key" style="margin-bottom: 0;">設備金鑰 (Secret Key)</label>
+            <span id="saved-key-tag" style="display: none; font-size: 11px; color: #00f090; font-weight: 600;">✅ 本設備已記憶</span>
+          </div>
+          <input type="text" id="input-secret-key" placeholder="首次登入請輸入電腦端顯示的金鑰" autocomplete="off" spellcheck="false">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
+            <span style="font-size: 11px; color: #8e95a5;">只要登入一次，手機/電腦會自動永久記住</span>
+            <button type="button" id="btn-clear-key" style="background: none; border: none; color: #8e95a5; font-size: 11px; cursor: pointer; text-decoration: underline; display: none;">清除金鑰</button>
+          </div>
         </div>
-        <div class="form-group">
-          <label>買入成本均價 (Cost Price)</label>
-          <input type="number" step="0.1" id="input-cost" required min="0.1" placeholder="例如: 19.5">
+
+        <div class="advanced-toggle" id="toggle-advanced">
+          <span>⚙ 進階伺服器設定 (選填)</span>
         </div>
-        <div class="form-group">
-          <label>投資理由或備註</label>
-          <textarea id="input-notes" rows="2" placeholder="選填，例如: 鋼鐵景氣循環低檔築底"></textarea>
+
+        <div class="form-group advanced-group hidden" id="advanced-group">
+          <label for="input-rtdb">自訂 Firebase RTDB 網址</label>
+          <input type="url" id="input-rtdb" placeholder="https://your-rtdb.firebaseio.com">
         </div>
-        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.25rem;">
-          <button type="button" class="btn-secondary" onclick="closeAddModal()">取消</button>
-          <button type="submit" class="btn-primary">確認新增</button>
+
+        <button type="submit" id="btn-unlock" class="btn-primary">
+          <span class="btn-icon">🔓</span> 解密並載入資產分析
+        </button>
+
+        <div id="login-status" class="status-msg"></div>
+        <div style="margin-top: 14px; text-align: center; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 10px;">
+          <span style="font-size: 11px; color: #64748b; font-weight: 500;">Web Edition V1.3.0</span>
         </div>
       </form>
     </div>
   </div>
 
-  <script src="js/app.js"></script>
+  <!-- 主要儀表板 (解密成功後顯示) -->
+  <div id="app-container" class="app-layout hidden">
+    <!-- 頂部導航列 -->
+    <header class="top-navbar glass-panel">
+      <div class="nav-left">
+        <div class="logo-text">PORTFOLIO <span class="highlight">INSIGHT</span> <span class="version-pill">V1.3.0</span></div>
+        <div class="badge-user" id="user-badge">👤 使用者: -</div>
+        <div class="badge-device" id="device-badge">📱 偵測設備中...</div>
+        <div class="sync-time" id="sync-time-lbl" title="存股部位與批次同步時間"><span class="badge-icon">📦</span> 存股: -</div>
+        <div class="quote-time" id="quote-time-lbl" title="即時行情與損益更新時間"><span class="live-dot"></span> 行情: -</div>
+      </div>
+      <div class="nav-right desktop-actions">
+        <!-- 視圖切換按鈕 (卡片 / 表格) -->
+        <div class="view-switch-group">
+          <button id="btn-view-cards" class="btn-switch" title="切換為卡片流視圖">📱 卡片</button>
+          <button id="btn-view-table" class="btn-switch" title="切換為完整表格視圖"> 表格</button>
+        </div>
+        <button id="btn-toggle-privacy" class="btn-tool" title="切換隱私脫敏模式">
+          <span class="tool-icon">👁</span> <span id="privacy-text">隱藏金額</span>
+        </button>
+        <button id="btn-refresh" class="btn-tool" title="重新載入雲端密文與即時行情">
+          <span class="tool-icon">🔄</span> 重新整理
+        </button>
+        <button id="btn-logout" class="btn-tool btn-danger" title="銷毀記憶體並登出">
+          <span class="tool-icon">🔒</span> 安全登出
+        </button>
+      </div>
+    </header>
+
+    <!-- 頂部核心指標卡片 (6大總和指標網格) -->
+    <section class="metrics-grid">
+      <div class="metric-card glass-panel">
+        <div class="metric-title">總市值 / 投資成本 (NT$)</div>
+        <div class="metric-val text-accent" id="val-total-market">$ 0</div>
+        <div class="metric-sub" id="val-total-cost">原始成本: $ 0</div>
+      </div>
+
+      <div class="metric-card glass-panel">
+        <div class="metric-title">總未實現損益 (累積報酬率)</div>
+        <div class="metric-val" id="val-total-pnl">$ 0 (+0.00%)</div>
+        <div class="metric-sub">資本利得總結算</div>
+      </div>
+
+      <div class="metric-card glass-panel">
+        <div class="metric-title">當日總損益 (今日波動)</div>
+        <div class="metric-val" id="val-day-pnl">$ 0 (+0.00%)</div>
+        <div class="metric-sub">較昨日收盤價變動總額</div>
+      </div>
+
+      <div class="metric-card glass-panel">
+        <div class="metric-title">當週總損益 (本週波動)</div>
+        <div class="metric-val" id="val-week-pnl">$ 0 (+0.00%)</div>
+        <div class="metric-sub">較上週基準變動總額</div>
+      </div>
+
+      <div class="metric-card glass-panel">
+        <div class="metric-title">預估全年總股息 (年化殖利率)</div>
+        <div class="metric-val text-gold" id="val-total-div">$ 0 (0.00%)</div>
+        <div class="metric-sub">年度被動現金流預估</div>
+      </div>
+
+      <div class="metric-card glass-panel">
+        <div class="metric-title">歷年累計已領股息 (已入帳)</div>
+        <div class="metric-val text-cyan" id="val-hist-div">$ 0</div>
+        <div class="metric-sub">歷史批次實收現金股利總和</div>
+      </div>
+    </section>
+
+    <!-- 主分頁導航列 (Tab Navigation) -->
+    <div class="main-tabs-container">
+      <button id="tab-btn-positions" class="main-tab-btn active">
+        <span class="tab-icon">📦</span> 存股庫存部位明細
+      </button>
+      <button id="tab-btn-etf" class="main-tab-btn">
+        <span class="tab-icon">📈</span> 自組 ETF 淨值走勢 & 多期績效分析
+      </button>
+      <button id="tab-btn-rankings" class="main-tab-btn">
+        <span class="tab-icon">🏆</span> 綜合指標與融資風控排行
+      </button>
+    </div>
+
+    <!-- 分頁 1 容器：存股部位與資產佔比 -->
+    <div id="positions-tab-content">
+    <!-- 資產權重與分佈 -->
+    <section class="allocation-section glass-panel">
+      <div class="section-header">
+        <h3>標的資產配置佔比 (Asset Allocation)</h3>
+        <span class="stock-count-badge" id="stock-count-badge">在庫標的: 0 檔</span>
+      </div>
+      <div class="allocation-bar" id="allocation-bar"></div>
+      <div class="allocation-legend" id="allocation-legend"></div>
+    </section>
+
+    <!-- 持股部位展示區塊 (預設採用專業表格形式) -->
+    <section class="portfolio-container glass-panel">
+      <div class="section-top-bar">
+        <div class="bar-title-group">
+          <h3>持股部位明細 (Portfolio Positions)</h3>
+          <span id="active-view-indicator" class="active-view-indicator">完整數據表格 ‧ 支援點擊表頭排序</span>
+        </div>
+        <div class="bar-controls">
+          <input type="text" id="filter-input" placeholder="🔍 搜尋代碼或名稱..." class="search-input">
+        </div>
+      </div>
+
+      <!-- 模式 B：專業表格 (預設主視圖，支援首欄凍結與平滑橫向滑動) -->
+      <div id="desktop-table-view" class="table-responsive">
+        <table class="portfolio-table" id="portfolio-table">
+          <thead>
+            <tr>
+              <th class="th-sticky th-sortable" data-sort="symbol">標的代碼 / 名稱 ⇕</th>
+              <th class="th-sortable" data-sort="shares">持有股數 ⇕</th>
+              <th class="th-sortable" data-sort="cost_price">成本均價 ⇕</th>
+              <th class="th-sortable" data-sort="current_price">參考現價 ⇕</th>
+              <th class="th-sortable" data-sort="unrealized_pnl">未實現損益 ⇕</th>
+              <th class="th-sortable" data-sort="day_pnl">當日損益 ⇕</th>
+              <th class="th-sortable" data-sort="week_pnl">當週損益 ⇕</th>
+              <th class="th-sortable" data-sort="cash_dividend">每股股息 (頻率) ⇕</th>
+              <th class="th-sortable" data-sort="yield_on_cost">成本殖利率 ⇕</th>
+              <th class="th-sortable" data-sort="total_dividend">預估年股息 ⇕</th>
+              <th class="th-sortable" data-sort="hist_div_received">歷年已領股息 ⇕</th>
+              <th>個股深度分析</th>
+            </tr>
+          </thead>
+          <tbody id="portfolio-tbody">
+            <!-- 動態注入表格行 -->
+          </tbody>
+          <tfoot id="portfolio-tfoot">
+            <!-- 動態注入總和合計列 -->
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- 模式 A：自適應卡片流 (備用切換視圖) -->
+      <div id="mobile-cards-view" class="cards-view-grid hidden">
+        <!-- 動態注入卡片 -->
+      </div>
+    </section>
+    </div> <!-- 結束 positions-tab-content -->
+
+    <!-- 分頁 2 容器：自組 ETF 淨值走勢與各股多週期績效分析 -->
+    <div id="etf-analytics-tab-content" class="hidden">
+      <!-- 頂部自組 ETF 指標看板卡片 -->
+      <section class="etf-summary-card glass-panel">
+        <div class="etf-summary-left">
+          <div class="etf-badge-row">
+            <span class="etf-code-pill">PORTFOLIO</span>
+            <span class="etf-name">自組投資組合 ETF (Composite NAV Index)</span>
+          </div>
+          <div class="etf-metrics-row">
+            <div class="etf-metric-item">
+              <span class="etf-metric-label">最新淨值 (NAV)</span>
+              <span class="etf-nav-val" id="etf-nav-val">--.--</span>
+            </div>
+            <div class="etf-metric-item">
+              <span class="etf-metric-label">累積收益率</span>
+              <span class="etf-return-val" id="etf-return-val">--.--%</span>
+            </div>
+            <div class="etf-metric-item">
+              <span class="etf-metric-label">當日漲跌</span>
+              <span class="etf-day-val" id="etf-day-val">--.--%</span>
+            </div>
+            <div class="etf-metric-item">
+              <span class="etf-metric-label">組合總市值</span>
+              <span class="etf-market-val" id="etf-market-val">$ 0</span>
+            </div>
+          </div>
+        </div>
+        <div class="etf-summary-right">
+          <div class="etf-kline-controls">
+            <button class="btn-etf-range active" data-days="0">全部</button>
+            <button class="btn-etf-range" data-days="120">120日</button>
+            <button class="btn-etf-range" data-days="60">60日</button>
+            <button class="btn-etf-range" data-days="30">30日</button>
+          </div>
+          <div class="etf-base-info" id="etf-base-info">基準淨值: 100.00</div>
+        </div>
+      </section>
+
+      <!-- 中間自組 ETF 專業 K 線圖 (HTML5 Canvas) -->
+      <section class="etf-chart-container glass-panel">
+        <div class="etf-chart-header">
+          <div class="chart-legend">
+            <span class="legend-item"><span class="legend-color legend-ma5"></span> MA5: <b id="etf-kline-ma5">--</b></span>
+            <span class="legend-item"><span class="legend-color legend-ma20"></span> MA20: <b id="etf-kline-ma20">--</b></span>
+            <span class="legend-item">VOL: <b id="etf-kline-vol">--</b></span>
+          </div>
+          <div class="chart-crosshair-info" id="etf-crosshair-info">
+            懸停於圖表上查看日期與詳細開高低收
+          </div>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="etf-kline-canvas" width="1000" height="420"></canvas>
+        </div>
+      </section>
+
+      <!-- 下半部：各股多週期績效排行與長條圖 -->
+      <section class="etf-perf-container glass-panel">
+        <div class="etf-perf-top">
+          <div class="perf-title-group">
+            <h3>各股多週期績效分析 (Stock Performance Matrix)</h3>
+            <span class="perf-sub-tip">視覺化橫向紅漲綠跌長條圖 ‧ 橫跨日/週/月/年多週期</span>
+          </div>
+          <div class="perf-period-switch" id="perf-period-switch">
+            <button class="btn-period active" data-period="day">當日績效</button>
+            <button class="btn-period" data-period="week">當週 (5日)</button>
+            <button class="btn-period" data-period="month">當月 (20日)</button>
+            <button class="btn-period" data-period="year">全期 / 年化</button>
+          </div>
+        </div>
+
+        <div class="etf-perf-grid">
+          <!-- 左側：長條圖 Canvas -->
+          <div class="perf-barchart-box">
+            <canvas id="perf-bar-canvas" width="480" height="380"></canvas>
+          </div>
+
+          <!-- 右側：詳細績效與權重數據表格 -->
+          <div class="perf-table-box table-responsive">
+            <table class="perf-table" id="perf-table">
+              <thead>
+                <tr>
+                  <th class="th-sortable" data-psort="symbol">代號 ⇕</th>
+                  <th class="th-sortable" data-psort="name">標的名稱 ⇕</th>
+                  <th class="th-sortable" data-psort="weight_pct">權重% ⇕</th>
+                  <th class="th-sortable" data-psort="day_pct">當日% ⇕</th>
+                  <th class="th-sortable" data-psort="week_pct">當週% ⇕</th>
+                  <th class="th-sortable" data-psort="month_pct">當月% ⇕</th>
+                  <th class="th-sortable" data-psort="year_pct">全期/年% ⇕</th>
+                  <th class="th-sortable" data-psort="unrealized_pnl">未實現損益 ⇕</th>
+                </tr>
+              </thead>
+              <tbody id="perf-tbody">
+                <!-- 動態注入各股績效行 -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div> <!-- 結束 etf-analytics-tab-content -->
+
+    <!-- 分頁 3 容器：綜合指標與融資風控排行 -->
+    <div id="rankings-tab-content" class="hidden">
+      <!-- 頂部子導航按鈕 (個人庫存融資風控 vs 全市場 4 大指標) -->
+      <div class="sub-tabs-container glass-panel">
+        <button id="sub-tab-btn-margin" class="sub-tab-btn">
+          [風控] 個人庫存融資維持率排行
+        </button>
+        <button id="sub-tab-btn-market" class="sub-tab-btn active">
+          [市場] 全市場融資維持率與指標排行
+        </button>
+      </div>
+
+      <!-- 子分頁 3-A：個人庫存融資風控與維持率排行 -->
+      <div id="sub-content-margin" class="hidden">
+        <!-- 4 大風控總覽指標卡片 -->
+        <section class="metrics-grid">
+          <div class="metric-card glass-panel">
+            <div class="metric-title">整戶擔保融資維持率</div>
+            <div class="metric-val text-accent" id="margin-overall-ratio">--.-%</div>
+            <div class="metric-sub" id="margin-overall-status">全現股部位 (無融資借款)</div>
+          </div>
+          <div class="metric-card glass-panel">
+            <div class="metric-title">融資借款總額 (NT$)</div>
+            <div class="metric-val text-gold" id="margin-total-loan">$ 0</div>
+            <div class="metric-sub" id="margin-total-equity">自備保證金: $ 0</div>
+          </div>
+          <div class="metric-card glass-panel">
+            <div class="metric-title">融資擔保品總市值</div>
+            <div class="metric-val text-cyan" id="margin-total-market">$ 0</div>
+            <div class="metric-sub">融資在倉現值</div>
+          </div>
+          <div class="metric-card glass-panel">
+            <div class="metric-title" id="margin-call-card-title">追繳斷頭警報 (&lt; 130%)</div>
+            <div class="metric-val" id="margin-call-count">0 檔 (安全)</div>
+            <div class="metric-sub" id="margin-call-diff">需補繳差額: $ 0</div>
+          </div>
+        </section>
+
+        <!-- 融資維持率明細表格 -->
+        <section class="portfolio-container glass-panel">
+          <div class="section-top-bar">
+            <div class="bar-title-group">
+              <h3>個人庫存融資維持率與斷頭價監控 (Margin Risk Matrix)</h3>
+              <span class="perf-sub-tip" id="margin-risk-sub-tip">上市成數 60% ‧ 上櫃 50% ‧ 維持率 &lt; 130% 觸發追繳通知</span>
+            </div>
+            <div class="bar-controls" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <div style="display:flex; align-items:center; gap:5px; background:rgba(255,255,255,0.04); padding:4px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); font-size:12px;">
+                <span style="color:#ffd166; font-weight:600;">[!] 警戒線:</span>
+                <input type="number" id="input-thresh-warning" min="130" max="200" step="5" value="160" style="width:58px; background:#1e1e2d; border:1px solid #4b5563; color:#f3f4f6; padding:2px 4px; border-radius:4px; font-size:12px; font-weight:bold; text-align:center;">
+                <span style="color:#9ca3af;">%</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:5px; background:rgba(255,255,255,0.04); padding:4px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); font-size:12px;">
+                <span style="color:#ff4d4f; font-weight:600;">[X] 追繳線:</span>
+                <input type="number" id="input-thresh-call" min="100" max="160" step="5" value="130" style="width:58px; background:#1e1e2d; border:1px solid #4b5563; color:#f3f4f6; padding:2px 4px; border-radius:4px; font-size:12px; font-weight:bold; text-align:center;">
+                <span style="color:#9ca3af;">%</span>
+              </div>
+              <button id="btn-reset-thresh" class="btn-period" style="font-size:11px; padding:3px 8px;" title="恢復預設標準法規 (160% / 130%)">恢復預設</button>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="portfolio-table" id="margin-risk-table">
+              <thead>
+                <tr>
+                  <th class="th-sticky">標的代碼 / 名稱</th>
+                  <th>交易別</th>
+                  <th>持有股數</th>
+                  <th>成本均價</th>
+                  <th>參考現價</th>
+                  <th>融資借款額</th>
+                  <th>目前市值</th>
+                  <th>融資維持率 ⇕</th>
+                  <th id="th-call-price">130%斷頭價</th>
+                  <th>需補繳差額</th>
+                  <th>風控等級</th>
+                </tr>
+              </thead>
+              <tbody id="margin-risk-tbody">
+                <!-- 動態注入 -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <!-- 子分頁 3-B：全市場融資維持率與核心指標排行 (對齊本機端 unified_ranking_gui.py) -->
+      <div id="sub-content-market">
+        <!-- 大盤整體融資維持率橫幅看板 (對齊本機端 unified_ranking_gui.py summary_bar) -->
+        <div class="market-summary-banner glass-panel" id="market-margin-banner-bar" style="margin-bottom: 12px; padding: 10px 16px; border-radius: 8px; border-left: 4px solid #38bdf8; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: 0.95rem;">
+          <div id="mkt-ratio-banner-text" style="font-weight: 700; color: #ffd166; letter-spacing: 0.5px;">
+            【台股大盤融資維持率】163.08%  |  全市場融資餘額：6234.68 億元  |  風控狀態：去槓桿警戒區 (140%~165%)  (證交所數據: 20261030)
+          </div>
+          <div style="font-size: 0.85rem; color: #94a3b8;" id="mkt-banner-status-tag">
+            資料時間: 剛剛
+          </div>
+        </div>
+
+        <section class="portfolio-container glass-panel">
+          <div class="section-top-bar">
+            <div class="bar-title-group">
+              <h3 id="market-rank-title">全市場融資餘額與維持率排行 (TWSE Market Margin Rankings)</h3>
+              <span class="perf-sub-tip" id="market-rank-tip">台灣證交所官方信用交易總表 ‧ 融資餘額由大到小 ‧ 融資使用率 ‧ 130% 斷頭追繳預警</span>
+            </div>
+            <div class="bar-controls">
+              <div class="perf-period-switch" id="market-rank-type-switch">
+                <button class="btn-period active" data-mtype="margin_market">[全市場融資排行]</button>
+                <button class="btn-period" data-mtype="yield">[殖利率排行]</button>
+                <button class="btn-period" data-mtype="pe">[低本益比排行]</button>
+                <button class="btn-period" data-mtype="rev">[營收年增(YoY)排行]</button>
+                <button class="btn-period" data-mtype="roe">[高ROE排行]</button>
+                <button id="btn-export-all-tabs-csv" class="btn-period" style="background:#059669; color:#ffffff; border:1px solid #10b981; font-weight:bold; cursor:pointer;" title="一鍵批量依序下載所有分頁排行 CSV 檔案 (5 個獨立檔案)">[全部匯出 CSV]</button>
+              </div>
+              <select id="market-filter-select" class="search-input" style="width: auto; padding: 4px 8px;">
+                <option value="all">全部 (個股+ETF)</option>
+                <option value="stock">僅股票 (排除ETF)</option>
+                <option value="etf">僅ETF (高股息/債券)</option>
+              </select>
+              <select id="market-ratio-mode-select" class="market-mode-select">
+                <option value="all_three">風控欄位：三者全覽 (追繳價+緩衝%+維持率)</option>
+                <option value="call_only">風控欄位：130%追繳價</option>
+                <option value="buffer_only">風控欄位：距130%緩衝跌幅 (%)</option>
+                <option value="ratio_only">風控欄位：市場估算維持率 (%)</option>
+              </select>
+              <button id="btn-export-market-csv" class="btn-period" style="font-size:12px; padding:5px 12px; background:#0284c7; color:#ffffff; border:1px solid #38bdf8; font-weight:bold; cursor:pointer;" title="將當前分頁排行資料匯出為 UTF-8 CSV 檔">[匯出 CSV]</button>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="perf-table" id="market-ranking-table">
+              <thead id="market-ranking-thead">
+                <tr>
+                  <th>名次</th>
+                  <th>標的代碼</th>
+                  <th>標的名稱</th>
+                  <th>參考現價</th>
+                  <th>今日融資餘額 (張) ⇕</th>
+                  <th>融資使用率 % ⇕</th>
+                  <th>今日買賣超 (張)</th>
+                  <th id="th-call-price">130%斷頭價</th>
+                  <th>在庫狀態</th>
+                </tr>
+              </thead>
+              <tbody id="market-ranking-tbody">
+                <!-- 動態注入 -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+    <!-- 手機端專屬底部懸浮快捷列 (Mobile Floating Action Bar) -->
+    <nav class="mobile-bottom-bar glass-panel mobile-only">
+      <button id="m-btn-view-toggle" class="m-nav-btn">
+        <span class="m-icon">🔀</span>
+        <span class="m-label" id="m-view-label">表格</span>
+      </button>
+      <button id="m-btn-privacy" class="m-nav-btn">
+        <span class="m-icon">👁</span>
+        <span class="m-label">隱私</span>
+      </button>
+      <button id="m-btn-refresh" class="m-nav-btn">
+        <span class="m-icon">🔄</span>
+        <span class="m-label">更新</span>
+      </button>
+      <button id="m-btn-logout" class="m-nav-btn text-danger">
+        <span class="m-icon">🔒</span>
+        <span class="m-label">登出</span>
+      </button>
+    </nav>
+
+    <!-- 底部安全宣告 -->
+    <footer class="app-footer">
+      <span>🛡 零知識端到端加密 ‧ 瀏覽器直連即時行情 ‧ 伺服器端零明文 ‧ Web V1.2.3</span>
+    </footer>
+  </div>
+
+  <script src="app.js?v=1.2.3.1793606500"></script>
 </body>
 </html>

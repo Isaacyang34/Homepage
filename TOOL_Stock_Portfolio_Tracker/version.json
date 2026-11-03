@@ -1,11 +1,17 @@
 {
-  "version": "V1.1.4.0",
-  "release_date": "2026-11-02",
+  "version": "V1.2.0.0",
+  "release_date": "2026-11-03",
   "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
-  "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.4.0.zip",
-  "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.1.4.0_Portable.zip",
-  "changelog": "【V1.1.4.0 融資擔保維持率風控精算與綜合指標/風控排行第 3 主分頁全新發布】\n\n1. [個人庫存融資擔保維持率與斷頭追繳風控引擎 (Margin Risk Engine)]：\n   - 依據台股法規標準（上市成數 60%、上櫃成數 50%）精準計算單檔融資借款金額與自備保證金。\n   - 即時運算單檔融資維持率、法定 130% 追繳臨界斷頭價、補繳差額試算，並提供綠(安全 >= 160%) / 黃(警戒 130%~160%) / 紅(追繳斷頭 < 130%) 風控等級標籤。\n   - 自動統計整戶擔保融資維持率、融資總借款、融資擔保品總市值與追繳警報檔數。\n2. [全新第 3 主分頁：綜合指標與風控排行 (Desktop & Web 雙端原地秒切)]：\n   - 桌面端與 Web 雲端版同步增設頂部主分頁「[綜合指標與風控排行]」，免彈出獨立視窗即可一鍵切換。\n   - 具備兩大專屬子切換：\n     * [子分頁 A] 個人庫存融資維持率風控排行：整戶維持率看板、追繳警報與維持率數據表格。\n     * [子分頁 B] 全市場 4 大核心財務指標排行：高殖利率、低本益比合理價值、最新營收年增 YoY、高股東權益報酬率 ROE 排行榜。\n3. [持股新增/編輯支援現股與融資交易類別]：\n   - 新增與編輯標的時支援單選【現股】與【融資】，並自動帶出法定融資成數。\n4. [雲端 Web 版多引擎瀏覽器直連即時撮合行情]：\n   - 支援鉅亨網與 TradingView 雙引擎直連 (0.16s 毫秒級)，電腦關機時手機打開網頁依然即時抓取最新成交價與昨收價，動態重算損益與融資維持率！",
+  "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.2.0.0.zip",
+  "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.2.0.0_Portable.zip",
+  "changelog": "【V1.2.0.0 個股基本面深度分析 & 盤後量化五維度排名重大發布】\n\n1. [個股基本面深度分析 & 價值河流圖 (Fundamental River Valuation)]：\n   - 本益比河流圖 (P/E River Band 16x~32x) 歷史五階估值位階與即時收盤價疊加。\n   - 月營收與年增率 (YoY) 雙軸圖表、獲利能力三率走勢 (毛利率、營益率、淨利率)。\n   - 杜邦分析拆解卡 (ROE = 純益率 × 資產周轉率 × 權益乘數) 與財務安全性指標 (自由現金流、負債比、流動比)。\n2. [盤後五維度綜合排名與市場環境層 (Market Regime)]：\n   - 大盤季線 (MA60)、市場寬度、外資期貨淨留倉、選擇權 Put/Call Ratio 指針。\n   - 自適應動態調權矩陣（多頭動能籌碼偏重、空頭品質價值偏重）。\n   - 盤後多維量化排行榜：綜合評分榜、強勢動能榜、獲利三率榜、河流低估榜。\n3. [點擊個股一鍵導入深度分析]：\n   - 庫存部位明細與盤後排名表，點擊股票代碼或「🔍 深度分析」操作按鈕一鍵直達個股分析。\n4. [五層漏斗篩選與 ATR 波動度部位風控]：\n   - 硬性濾網淘汰賽、五因子百分位評分、ATR 波動度平價建議倉位 (5%~25%) 與可解釋決策理由。",
   "recent_versions": [
+    {
+      "version": "V1.2.0.0",
+      "release_date": "2026-11-03",
+      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.2.0.0.zip",
+      "changelog": "【V1.2.0.0 個股基本面深度分析 & 盤後量化五維度排名重大發布】\n\n1. [個股基本面深度分析 & 價值河流圖 (Fundamental River Valuation)]：\n   - 本益比河流圖 (P/E River Band 16x~32x) 歷史五階估值位階與即時收盤價疊加。\n   - 月營收與年增率 (YoY) 雙軸圖表、獲利能力三率走勢 (毛利率、營益率、淨利率)。\n   - 杜邦分析拆解卡 (ROE = 純益率 × 資產周轉率 × 權益乘數) 與財務安全性指標 (自由現金流、負債比、流動比)。\n2. [盤後五維度綜合排名與市場環境層 (Market Regime)]：\n   - 大盤季線 (MA60)、市場寬度、外資期貨淨留倉、選擇權 Put/Call Ratio 指針。\n   - 自適應動態調權矩陣（多頭動能籌碼偏重、空頭品質價值偏重）。\n   - 盤後多維量化排行榜：綜合評分榜、強勢動能榜、獲利三率榜、河流低估榜。\n3. [點擊個股一鍵導入深度分析]：\n   - 庫存部位明細與盤後排名表，點擊股票代碼或「🔍 深度分析」操作按鈕一鍵直達個股分析。\n4. [五層漏斗篩選與 ATR 波動度部位風控]：\n   - 硬性濾網淘汰賽、五因子百分位評分、ATR 波動度平價建議倉位 (5%~25%) 與可解釋決策理由。"
+    },
     {
       "version": "V1.1.4.0",
       "release_date": "2026-11-02",

@@ -9,9 +9,9 @@ import shutil
 import zipfile
 import compileall
 
-if hasattr(sys.stdout, "reconfigure"):
+if sys.stdout is not None and hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
-if hasattr(sys.stderr, "reconfigure"):
+if sys.stderr is not None and hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
 MODULE_FILES = [
@@ -36,7 +36,9 @@ MODULE_FILES = [
     "portfolio_etf_service.py",
     "portfolio_etf_gui.py",
     "margin_risk_service.py",
-    "unified_ranking_gui.py"
+    "unified_ranking_gui.py",
+    "stock_fundamental_service.py",
+    "fundamental_analyzer_gui.py"
 ]
 
 def build_app_core_pkg(output_pkg_path: str = "app_core.pkg") -> bool:

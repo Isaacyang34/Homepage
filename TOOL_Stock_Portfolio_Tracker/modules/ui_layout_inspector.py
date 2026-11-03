@@ -11,9 +11,9 @@ import tkinter as tk
 from typing import List, Tuple, Dict, Any
 
 # 確保主控台 UTF-8 編碼避免 Windows 亂碼
-if hasattr(sys.stdout, "reconfigure"):
+if sys.stdout is not None and hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
-if hasattr(sys.stderr, "reconfigure"):
+if sys.stderr is not None and hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
 app_dir = os.path.dirname(os.path.abspath(__file__))

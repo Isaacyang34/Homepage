@@ -3,9 +3,9 @@ import sys
 import os
 
 # 確保主控台 UTF-8 編碼避免 Windows 亂碼
-if hasattr(sys.stdout, "reconfigure"):
+if sys.stdout is not None and hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
-if hasattr(sys.stderr, "reconfigure"):
+if sys.stderr is not None and hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
 # 1. 程式最早期啟動日誌紀錄與未捕捉例外攔截器 (保證任何崩潰 100% 寫入 update_debug.log)

@@ -19,9 +19,9 @@ import hashlib
 import subprocess
 from typing import Dict, Any, List, Tuple
 
-if hasattr(sys.stdout, "reconfigure"):
+if sys.stdout is not None and hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
-if hasattr(sys.stderr, "reconfigure"):
+if sys.stderr is not None and hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
