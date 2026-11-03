@@ -1379,3 +1379,30 @@ body {
   opacity: 1;
   font-weight: bold;
 }
+
+
+/* 強制高對比輸入框與下拉選單樣式 (杜絕 Windows OS 白底白字) */
+select, option, input, datalist {
+  background-color: #181824 !important;
+  color: #ffffff !important;
+}
+option:hover, option:checked {
+  background-color: #0284c7 !important;
+  color: #ffffff !important;
+}
+.search-chip-btn {
+  background: rgba(255, 255, 255, 0.06);
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.search-chip-btn:hover {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.4);
+}

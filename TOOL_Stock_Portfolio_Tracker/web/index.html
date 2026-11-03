@@ -528,14 +528,44 @@
       <!-- 頂部切換個股與即時數據 -->
       <div class="panel glass-panel" style="margin-bottom: 1.5rem; border-radius: 12px; padding: 1.25rem 1.5rem;">
         <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-          <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
             <h2 style="font-size: 1.25rem; font-weight: 700; color: #fff; margin: 0;">🌊 個股基本面與價值河流圖分析</h2>
-            <select id="fundamental-stock-selector" onchange="renderFundamentalAnalysis(this.value)" style="background: rgba(255,255,255,0.08); color: #fff; border: 1px solid var(--border-color); border-radius: 8px; padding: 0.4rem 0.8rem; font-size: 0.95rem; font-weight: 600;">
-              <option value="2330.TW">2330 台積電 (TSMC)</option>
-              <option value="2002.TW">2002 中鋼</option>
-              <option value="00878.TW">00878 國泰永續高股息</option>
-              <option value="00919.TW">00919 群益精選高息</option>
-            </select>
+            <!-- 輸入判定與全市場自動完成搜尋框 -->
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+              <div style="position: relative; display: flex; align-items: center;">
+                <input 
+                  type="text" 
+                  id="fundamental-stock-input" 
+                  list="stock-datalist" 
+                  placeholder="輸入代號或名稱 (例: 2330, 8112, 至上)..." 
+                  value="2330 台積電"
+                  style="background: #181824; color: #ffffff; border: 1px solid rgba(56, 189, 248, 0.5); border-radius: 8px; padding: 0.45rem 0.85rem; font-size: 0.95rem; font-weight: 600; min-width: 250px; outline: none; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"
+                  onkeydown="if(event.key==='Enter') executeStockFundamentalSearch()"
+                />
+                <datalist id="stock-datalist">
+                  <!-- 由 JS 自動從全市場快取注入 1,088 檔股票 -->
+                </datalist>
+              </div>
+              <button 
+                id="btn-search-fundamental" 
+                onclick="executeStockFundamentalSearch()" 
+                style="background: linear-gradient(135deg, #0284c7, #0369a1); color: #ffffff; border: 1px solid #38bdf8; border-radius: 8px; padding: 0.45rem 1rem; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: all 0.2s;"
+              >
+                🔍 查詢分析
+              </button>
+            </div>
+          </div>
+          <!-- 快捷熱門標的晶片列 -->
+          <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; margin-top: 0.5rem; width: 100%;">
+            <span style="font-size: 0.8rem; color: #64748b; font-weight: 600;">快速切換:</span>
+            <button class="search-chip-btn" onclick="openStockFundamentalAnalysis('2330.TW')">2330 台積電</button>
+            <button class="search-chip-btn" onclick="openStockFundamentalAnalysis('8112.TW')">8112 至上</button>
+            <button class="search-chip-btn" onclick="openStockFundamentalAnalysis('2002.TW')">2002 中鋼</button>
+            <button class="search-chip-btn" onclick="openStockFundamentalAnalysis('00878.TW')">00878 國泰</button>
+            <button class="search-chip-btn" onclick="openStockFundamentalAnalysis('00919.TW')">00919 群益</button>
+            <button class="search-chip-btn" onclick="openStockFundamentalAnalysis('2317.TW')">2317 鴻海</button>
+            <button class="search-chip-btn" onclick="openStockFundamentalAnalysis('2382.TW')">2382 廣達</button>
+            <button class="search-chip-btn" onclick="openStockFundamentalAnalysis('2603.TW')">2603 長榮</button>
           </div>
           <div style="display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;">
             <div>參考現價: <span id="fd-price" style="font-size: 1.25rem; font-weight: 700; color: #38bdf8;">2,490 元</span></div>
@@ -653,6 +683,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="app.js?v=1.3.0.1793688888"></script>
+  <script src="app.js?v=1.3.0.1793699999"></script>
 </body>
 </html>

@@ -7,12 +7,16 @@ base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 web_dir = os.path.join(base_dir, "web")
 html_path = os.path.join(web_dir, "index.html")
 js_path = os.path.join(web_dir, "app.js")
+css_path = os.path.join(web_dir, "style.css")
 
 with open(html_path, "r", encoding="utf-8") as f:
     html = f.read()
 
 with open(js_path, "r", encoding="utf-8") as f:
     js = f.read()
+
+with open(css_path, "r", encoding="utf-8") as f:
+    css = f.read()
 
 checks = []
 
@@ -21,22 +25,28 @@ checks.append(("HTML #tab-btn-fundamental", 'id="tab-btn-fundamental"' in html))
 checks.append(("HTML #fundamental-tab-content", 'id="fundamental-tab-content"' in html))
 checks.append(("HTML #sub-tab-btn-postmarket", 'id="sub-tab-btn-postmarket"' in html))
 checks.append(("HTML #sub-content-postmarket", 'id="sub-content-postmarket"' in html))
-checks.append(("HTML #fundamental-stock-selector", 'id="fundamental-stock-selector"' in html))
+checks.append(("HTML #fundamental-stock-input", 'id="fundamental-stock-input"' in html))
+checks.append(("HTML #stock-datalist", 'id="stock-datalist"' in html))
 checks.append(("HTML #peRiverChart", 'id="peRiverChart"' in html))
 checks.append(("HTML #revYoyChart", 'id="revYoyChart"' in html))
 checks.append(("HTML #marginsChart", 'id="marginsChart"' in html))
 
-# 檢查 2: JS 中的監聽與切換邏輯
+# 檢查 2: CSS 高對比度樣式
+checks.append(("CSS High Contrast Select & Option", 'option' in css and '#181824' in css))
+
+# 檢查 3: JS 中的監聽與切換邏輯
 checks.append(("JS tabBtnFundamental binding", 'tabBtnFundamental.addEventListener("click"' in js))
 checks.append(("JS subBtnPostmarket binding", 'subBtnPostmarket.addEventListener("click"' in js))
 checks.append(("JS switchMainTab('fundamental')", 'activeTab === "fundamental"' in js))
 checks.append(("JS switchSubTab('postmarket')", 'subTab === "postmarket"' in js))
-checks.append(("JS renderFundamentalAnalysis call", 'renderFundamentalAnalysis(sym)' in js))
+checks.append(("JS executeStockFundamentalSearch function", 'function executeStockFundamentalSearch' in js))
+checks.append(("JS buildDynamicFundamentalProfile function", 'function buildDynamicFundamentalProfile' in js))
+checks.append(("JS populateStockDatalist function", 'function populateStockDatalist' in js))
 checks.append(("JS renderPostMarketRankings call", 'renderPostMarketRankings()' in js))
 checks.append(("JS window.switchMainTab export", 'window.switchMainTab = switchMainTab;' in js))
 checks.append(("JS window.switchSubTab export", 'window.switchSubTab = switchSubTab;' in js))
 
-# 檢查 3: STATIC_POST_MARKET_RANKINGS 長度是否為 30
+# 檢查 4: STATIC_POST_MARKET_RANKINGS 長度是否為 30
 m = re.search(r'window\.STATIC_POST_MARKET_RANKINGS\s*=\s*(\[.*?\]);', js)
 if m:
     ranks_data = json.loads(m.group(1))
