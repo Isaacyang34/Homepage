@@ -313,3 +313,27 @@
   3. **佐證回報 (Hard Evidence Presentation)**：
      - 回報時必須附上剛才自我驗收執行的「實測終端輸出（Output Snippet）」或「實測數據」，以硬核客觀證據向使用者證明已 100% 驗收通過，嚴禁空口承諾！
 * **詳細規範**：參考 .agents/rules/mandatory_ai_self_verification_rule.md。
+
+
+## 26. Python GUI 無主控台 (Windowed / `--noconsole`) 執行期空串流防護與編譯閉鎖鐵律 (Windowed Null-Stdio Safety & Build Gate Rule - 全案最高強制規範)
+* **核心物理限制 (The Headless / Windowed Stdio Void)**：
+  * 在 Windows GUI 模式下（使用 `pythonw.exe` 執行或以 PyInstaller `--noconsole` / `--windowed` 參數打包之桌面應用），Windows 作業系統**完全不附加主控台視窗 (No Console Attached)**。
+  * 此時 Python 直譯器核心會將標準串流直接置為 `None`：`sys.stdout = None`、`sys.stderr = None`、`sys.stdin = None`。
+  * **致命缺陷 (The Silent Crash Trap)**：在一般的終端或 IDE 測試環境下（Console Python），`sys.stdout` 是正常串流，常規單元測試無法發現問題。一旦原始碼出現對 `sys.stdout` 或 `sys.stderr` 的任何裸調用（如 `sys.stdout.reconfigure(encoding="utf-8")`、`sys.stdout.write(...)`），桌面版 exe 在使用者雙擊的**第一毫秒便會拋出 `AttributeError: 'NoneType' object has no attribute 'reconfigure'` 導致閃退或未捕捉例外彈窗**！
+* **三防線常態化自動測試 (Mandatory 3-Layer Test Suite)**：
+  1. **AST 抽象語法樹靜態掃描 (`test_01_ast_static_scan`)**：遍歷專案所有 `.py` 原始碼，解析語法樹中所有存取 `sys.stdout`、`sys.stderr` 之節點，強制斷言必須包裹在 `if sys.stdout is not None and hasattr(sys.stdout, ...):` 或 `try...except:` 保護區塊內！發現任何裸調用立即 FAIL 並標註檔名行號。
+  2. **Null-Stdio 執行期動態匯入模擬 (`test_02_runtime_null_stdio_simulation`)**：在測試進程中動態宣告 `sys.stdout = None`、`sys.stderr = None`，強制批次動態載入（`importlib.reload`）專案全部核心模組，斷言 0 個模組拋出 `AttributeError`。
+  3. **DEVNULL 獨立子程序煙霧實測 (`test_03_subprocess_isolated_launch`)**：以獨立行程執行 `stdin=DEVNULL, stdout=DEVNULL, stderr=DEVNULL` 啟動主入口與核心流程，斷言行程 Exit Code 必為 0。
+* **編譯打包門禁閉鎖 (Build Pipeline Gate Lockout - 物理防禦)**：
+  * 凡執行 `build_pkg.py`、`package_release.py` 或任何二進位封裝流程，**第 [0] 步必須強制呼叫 `test_windowed_stdio_safety.py` 進行門禁檢驗**！
+  * 若掃描到任何未防護之裸調用，編譯腳本**物理中斷退出（Exit Code != 0），嚴格拒絕生成任何 `.pkg` 或 `.exe`**！徹底杜絕帶病執行檔流出！
+* **標準安全寫法規範 (Coding Standard)**：
+  * 嚴禁直接呼叫 `sys.stdout.reconfigure(...)`。
+  * 必須一律採用雙保險寫法：
+    ```python
+    if sys.stdout is not None and hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if sys.stderr is not None and hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+    ```
+* **詳細規範**：參考 `.agents/rules/windowed_null_stdio_safety_and_build_gate_rule.md`。
