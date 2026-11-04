@@ -299,6 +299,7 @@ class PortfolioApp(tk.Tk):
 
         # 啟動登入門閘檢查：若需要密碼驗證或多帳號選擇，主視窗保持隱藏 (withdraw)，直接彈出登入解鎖對話框
         from database import is_startup_login_required
+        self._portfolio_changed_in_session = False
         if is_startup_login_required():
             self.positions = []
             if "stock_count" in self.cards:
@@ -429,7 +430,33 @@ class PortfolioApp(tk.Tk):
             self.status_lbl.configure(text=f"[!] 新版本 {cloud_ver} 已下載就緒，將於程式關閉時自動置換升級")
 
     def _on_app_close(self):
-        """主視窗關閉事件：檢查是否有待套用的延遲更新"""
+        """主視窗關閉事件：檢查本次會話持股異動並詢問是否輸入密碼同步，檢查是否有待套用的延遲更新"""
+        try:
+            u_id = get_setting("cloud_user_id", "").strip()
+            if getattr(self, "_portfolio_changed_in_session", False) and u_id:
+                ans = messagebox.askyesno(
+                    "存股異動 ‧ 雲端同步確認",
+                    "檢測到本次開啟期間存股部位已有異動（新增/修改/刪除/批次調整）。\n\n"
+                    "是否要在關閉程式前將最新存股資料同步至雲端？\n\n"
+                    "• 按【是 (Yes)】：輸入雲端密碼核實後同步\n"
+                    "• 按【否 (No)】：僅保留於本地電腦，不上傳",
+                    parent=self
+                )
+                if ans:
+                    dlg = CloudCloseSyncDialog(self, u_id, self.user_id)
+                    self.wait_window(dlg)
+                    if not getattr(dlg, "success", False):
+                        still_exit = messagebox.askyesno(
+                            "同步未完成",
+                            "雲端同步尚未完成。是否仍要退出程式？\n\n"
+                            "• 按【是 (Yes)】：直接關閉程式 (異動已完整保存在本機)\n"
+                            "• 按【否 (No)】：返回主程式繼續操作",
+                            parent=self
+                        )
+                        if not still_exit:
+                            return
+        except Exception:
+            pass
         try:
             from updater import is_pending_update, apply_update_now, _PENDING_UPDATE, log_update_debug
             if is_pending_update():
@@ -1265,55 +1292,23 @@ class PortfolioApp(tk.Tk):
         if confirm:
             self.row_action_frame.place_forget()
             delete_position(pos_id)
+            self._portfolio_changed_in_session = True
             set_setting("last_portfolio_change_time", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             self.reload_positions()
             self.refresh_ui_table()
             messagebox.showinfo("成功", "已成功刪除持股！", parent=self)
-            self.prompt_sync_on_portfolio_change()
 
-    def _on_position_saved(self, prompt_sync=True):
+    def _on_position_saved(self, prompt_sync=False):
+        self._portfolio_changed_in_session = True
         set_setting("last_portfolio_change_time", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         self.reload_positions()
         self.benchmarks_cache.clear()
         self.trigger_refresh()
         self.trigger_dividend_update(silent=True)
-        if prompt_sync:
-            self.prompt_sync_on_portfolio_change()
 
     def prompt_sync_on_portfolio_change(self):
-        """存股部位異動時，主動詢問使用者是否要上傳更新至雲端 (待使用者確認才做更新動作)"""
-        if get_setting("prompt_sync_on_change", "1") != "1":
-            return
-        u_id = get_setting("cloud_user_id", "").strip()
-        if not u_id:
-            return
-
-        confirm = messagebox.askyesno(
-            "存股異動 ‧ 雲端更新提醒",
-            "檢測到本地存股部位已有異動（新增/編輯/刪除）。\n\n是否要立即將最新的存股部位加密同步至雲端？\n\n（點擊「是」立即上傳；點擊「否」稍後手動上傳）",
-            parent=self
-        )
-        if not confirm:
-            return
-
-        p_wd = get_setting("cloud_password", "").strip()
-        if not p_wd:
-            self.on_open_cloud_sync()
-            return
-
-        self.status_lbl.configure(text="正在加密同步存股部位至雲端...", fg="#38bdf8")
-        def _worker():
-            ok, msg = sync_to_cloud(u_id, p_wd)
-            def _on_done():
-                if ok:
-                    now_t = datetime.now().strftime("%H:%M:%S")
-                    self.status_lbl.configure(text=f"✔ 存股已同步至雲端 ({now_t})", fg="#00f090")
-                    messagebox.showinfo("同步成功", "已成功將最新的存股資料加密同步至雲端！\n\n手機/網頁端將自動採用最新存股部位。", parent=self)
-                else:
-                    self.status_lbl.configure(text="❌ 雲端同步失敗", fg="#ff4d4f")
-                    messagebox.showwarning("同步未完成", f"雲端同步失敗: {msg}", parent=self)
-            self.after(0, _on_done)
-        threading.Thread(target=_worker, daemon=True).start()
+        """存股部位異動改於關閉程式前統一確認與核實，平時保持安靜不打擾"""
+        return
 
     def on_open_settings(self):
         SettingsDialog(self, on_applied=self._on_settings_applied)
@@ -3312,11 +3307,385 @@ def show_firebase_setup_help(parent: tk.Widget):
     tk.Button(sub_btns, text="關閉", bg="#3a3a46", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=help_win.destroy).pack(side=tk.RIGHT, ipadx=10, ipady=3)
 
 
+class SyncConflictDialog(tk.Toplevel):
+    """雲端與本機持股差異比對與決策對話框 (智慧合併 / 雙向融合 / 覆蓋 / 取消)"""
+    def __init__(self, parent, diff_report: Dict[str, Any], local_data: Dict[str, Any], cloud_data: Dict[str, Any]):
+        super().__init__(parent)
+        self.title("雲端與本機持股差異比對與決策")
+        self.geometry("820x560")
+        self.minsize(720, 480)
+        self.configure(bg="#1e1e28")
+        if parent and parent.winfo_viewable():
+            try:
+                self.transient(parent)
+            except Exception:
+                pass
+        try:
+            self.grab_set()
+        except Exception:
+            pass
+
+        self.diff_report = diff_report
+        self.local_data = local_data
+        self.cloud_data = cloud_data
+        self.choice = "CANCEL"
+
+        self._build_ui()
+
+    def _build_ui(self):
+        # 頂部提示卡片
+        header = tk.Frame(self, bg="#252534", padx=16, pady=12)
+        header.pack(fill=tk.X)
+
+        tk.Label(
+            header,
+            text="[比對] 發現雲端與本機持股存在差異",
+            font=("Microsoft JhengHei UI", 12, "bold"),
+            bg="#252534",
+            fg="#ffd166"
+        ).pack(anchor="w")
+
+        tk.Label(
+            header,
+            text="在覆蓋或同步前，請檢視以下差異。推薦使用「智慧雙向合併」，可同時保留兩台電腦的所有新增標的與買入批次：",
+            font=("Microsoft JhengHei UI", 9),
+            bg="#252534",
+            fg="#cbd5e1"
+        ).pack(anchor="w", pady=(4, 0))
+
+        # 中間差異 Treeview 表格
+        tree_frame = tk.Frame(self, bg="#1e1e28", padx=16, pady=8)
+        tree_frame.pack(fill=tk.BOTH, expand=True)
+
+        columns = ("symbol", "name", "diff_type", "local_info", "cloud_info", "detail")
+        self.tree = ttk.Treeview(tree_frame, columns=columns, show="headings", selectmode="browse")
+
+        self.tree.heading("symbol", text="代號")
+        self.tree.heading("name", text="名稱")
+        self.tree.heading("diff_type", text="差異類別")
+        self.tree.heading("local_info", text="本機狀態")
+        self.tree.heading("cloud_info", text="雲端狀態")
+        self.tree.heading("detail", text="詳細差異說明")
+
+        self.tree.column("symbol", width=70, anchor="center")
+        self.tree.column("name", width=90, anchor="center")
+        self.tree.column("diff_type", width=100, anchor="center")
+        self.tree.column("local_info", width=170, anchor="w")
+        self.tree.column("cloud_info", width=170, anchor="w")
+        self.tree.column("detail", width=180, anchor="w")
+
+        vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
+        hsb = ttk.Scrollbar(tree_frame, orient="horizontal", command=self.tree.xview)
+        self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb.grid(row=1, column=0, sticky="ew")
+        tree_frame.grid_rowconfigure(0, weight=1)
+        tree_frame.grid_columnconfigure(0, weight=1)
+
+        # 填入差異資料
+        cloud_only = self.diff_report.get("cloud_only", [])
+        local_only = self.diff_report.get("local_only", [])
+        diffs = self.diff_report.get("differences", [])
+
+        self.tree.tag_configure("cloud_only", foreground="#38bdf8")
+        self.tree.tag_configure("local_only", foreground="#4ade80")
+        self.tree.tag_configure("diff", foreground="#fb923c")
+
+        for item in cloud_only:
+            sym = item.get("symbol", "")
+            nm = item.get("name", sym)
+            c_shares = item.get("shares", 0)
+            c_cost = item.get("cost_price", 0.0)
+            lots_cnt = len(item.get("lots", []))
+            self.tree.insert("", "end", values=(
+                sym, nm, "[雲端獨有]",
+                "(本機無此標的)",
+                "{:,.0f} 股 / ${:,.2f}".format(c_shares, c_cost),
+                "雲端含有 {} 筆買入批次".format(lots_cnt)
+            ), tags=("cloud_only",))
+
+        for item in local_only:
+            sym = item.get("symbol", "")
+            nm = item.get("name", sym)
+            l_shares = item.get("shares", 0)
+            l_cost = item.get("cost_price", 0.0)
+            lots_cnt = len(item.get("lots", []))
+            self.tree.insert("", "end", values=(
+                sym, nm, "[本機獨有]",
+                "{:,.0f} 股 / ${:,.2f}".format(l_shares, l_cost),
+                "(雲端無此標的)",
+                "本機含有 {} 筆買入批次".format(lots_cnt)
+            ), tags=("local_only",))
+
+        for item in diffs:
+            sym = item.get("symbol", "")
+            nm = item.get("name", sym)
+            l_shares = item.get("local_shares", 0)
+            l_cost = item.get("local_cost", 0.0)
+            c_shares = item.get("cloud_shares", 0)
+            c_cost = item.get("cloud_cost", 0.0)
+            reason = item.get("reason", "資料不一致")
+            self.tree.insert("", "end", values=(
+                sym, nm, "[內容差異]",
+                "{:,.0f} 股 / ${:,.2f}".format(l_shares, l_cost),
+                "{:,.0f} 股 / ${:,.2f}".format(c_shares, c_cost),
+                reason
+            ), tags=("diff",))
+
+        # 狀態摘要條
+        summary_txt = "差異彙總：雲端獨有 {} 檔 ‧ 本機獨有 {} 檔 ‧ 內容差異 {} 檔".format(len(cloud_only), len(local_only), len(diffs))
+        tk.Label(self, text=summary_txt, font=("Microsoft JhengHei UI", 9, "bold"), bg="#1e1e28", fg="#94a3b8", padx=16).pack(anchor="w", pady=(0, 6))
+
+        # 底部決策按鈕區
+        btn_bar = tk.Frame(self, bg="#16161e", padx=16, pady=12)
+        btn_bar.pack(fill=tk.X, side=tk.BOTTOM)
+
+        btn_merge = tk.Button(
+            btn_bar,
+            text="[智慧雙向合併 (兩端兼得)]",
+            bg="#2563eb",
+            fg="#ffffff",
+            activebackground="#1d4ed8",
+            activeforeground="#ffffff",
+            font=("Microsoft JhengHei UI", 10, "bold"),
+            relief="flat",
+            command=self._on_smart_merge
+        )
+        btn_merge.pack(side=tk.LEFT, padx=(0, 8), ipadx=8, ipady=6)
+
+        btn_local = tk.Button(
+            btn_bar,
+            text="[以本機為主 (覆蓋雲端)]",
+            bg="#334155",
+            fg="#f1f5f9",
+            activebackground="#475569",
+            activeforeground="#ffffff",
+            font=("Microsoft JhengHei UI", 9),
+            relief="flat",
+            command=self._on_local_overwrite
+        )
+        btn_local.pack(side=tk.LEFT, padx=(0, 8), ipadx=6, ipady=6)
+
+        btn_cloud = tk.Button(
+            btn_bar,
+            text="[以雲端為主 (覆蓋本機)]",
+            bg="#334155",
+            fg="#f1f5f9",
+            activebackground="#475569",
+            activeforeground="#ffffff",
+            font=("Microsoft JhengHei UI", 9),
+            relief="flat",
+            command=self._on_cloud_restore
+        )
+        btn_cloud.pack(side=tk.LEFT, padx=(0, 8), ipadx=6, ipady=6)
+
+        btn_cancel = tk.Button(
+            btn_bar,
+            text="[取消] 不上傳",
+            bg="#262630",
+            fg="#94a3b8",
+            activebackground="#333344",
+            activeforeground="#ffffff",
+            font=("Microsoft JhengHei UI", 9),
+            relief="flat",
+            command=self._on_cancel
+        )
+        btn_cancel.pack(side=tk.RIGHT, ipadx=8, ipady=6)
+
+    def _on_smart_merge(self):
+        self.choice = "SMART_MERGE"
+        self.destroy()
+
+    def _on_local_overwrite(self):
+        self.choice = "LOCAL_OVERWRITE"
+        self.destroy()
+
+    def _on_cloud_restore(self):
+        confirm = messagebox.askyesno(
+            "確認以雲端覆蓋本機",
+            "確定要以雲端存檔覆蓋還原本機資料庫嗎？\n\n注意：本機獨有或未同步的變更將會被完全清除！",
+            parent=self, icon="warning"
+        )
+        if not confirm:
+            return
+        self.choice = "CLOUD_RESTORE"
+        self.destroy()
+
+    def _on_cancel(self):
+        self.choice = "CANCEL"
+        self.destroy()
+
+
+class CloudCloseSyncDialog(tk.Toplevel):
+    """程式關閉前，使用者輸入雲端加密密碼並核實後同步之專屬安全視窗 (支援差異比對與智慧合併)"""
+    def __init__(self, parent, user_id: str, local_user_id: int):
+        super().__init__(parent)
+        self.title("雲端同步密碼核實與差異決策")
+        self.geometry("460x250")
+        self.resizable(False, False)
+        self.configure(bg="#202028")
+        if parent and parent.winfo_viewable():
+            try:
+                self.transient(parent)
+            except Exception:
+                pass
+        try:
+            self.grab_set()
+        except Exception:
+            pass
+
+        self.user_id = user_id
+        self.local_user_id = local_user_id
+        self.success = False
+
+        pad_frame = tk.Frame(self, bg="#202028", padx=20, pady=16)
+        pad_frame.pack(fill=tk.BOTH, expand=True)
+
+        tk.Label(pad_frame, text="[驗證] 請輸入雲端主密碼以核實身份", font=("Microsoft JhengHei UI", 11, "bold"), bg="#202028", fg="#38bdf8").pack(anchor="w")
+        tk.Label(pad_frame, text="雲端帳號: {}\n為防範多台電腦密鑰不一致導致資料損毀，需先驗證密碼方可同步：".format(self.user_id), font=("Microsoft JhengHei UI", 9), bg="#202028", fg="#cbd5e1", justify="left").pack(anchor="w", pady=(6, 10))
+
+        self.ent_pwd = tk.Entry(pad_frame, show="*", font=("Consolas", 12), bg="#2d2d38", fg="#ffffff", insertbackground="#ffffff", relief="flat")
+        self.ent_pwd.pack(fill=tk.X, ipady=4)
+        self.ent_pwd.focus_set()
+        self.ent_pwd.bind("<Return>", lambda e: self.do_verify_and_sync())
+
+        self.lbl_status = tk.Label(pad_frame, text="", font=("Microsoft JhengHei UI", 9), bg="#202028", fg="#facc15")
+        self.lbl_status.pack(anchor="w", pady=(6, 0))
+
+        btn_box = tk.Frame(self, bg="#1a1a22", padx=16, pady=10)
+        btn_box.pack(fill=tk.X, side=tk.BOTTOM)
+
+        self.btn_cancel = tk.Button(btn_box, text="取消不上傳", bg="#3a3a46", fg="#ffffff", relief="flat", font=("Microsoft JhengHei UI", 9), command=self.destroy)
+        self.btn_cancel.pack(side=tk.RIGHT, padx=(6, 0), ipadx=8, ipady=4)
+
+        self.btn_confirm = tk.Button(btn_box, text="[核實並立即同步]", bg="#2563eb", fg="#ffffff", relief="flat", font=("Microsoft JhengHei UI", 9, "bold"), command=self.do_verify_and_sync)
+        self.btn_confirm.pack(side=tk.RIGHT, ipadx=10, ipady=4)
+
+    def do_verify_and_sync(self):
+        pwd = self.ent_pwd.get().strip()
+        if not pwd:
+            messagebox.showwarning("提示", "請輸入雲端加密主密碼！", parent=self)
+            return
+
+        self.btn_confirm.configure(state=tk.DISABLED)
+        self.btn_cancel.configure(state=tk.DISABLED)
+        self.lbl_status.configure(text="正在連線雲端進行密碼核實...", fg="#38bdf8")
+        self.update_idletasks()
+
+        from crypto_sync import verify_cloud_password, fetch_and_decrypt_from_cloud, sync_to_cloud, gather_full_portfolio_data
+        from sync_merge_service import compare_portfolios, smart_merge_into_local, restore_cloud_to_local
+
+        def _worker():
+            ok_v, msg_v = verify_cloud_password(self.user_id, pwd, local_user_id=self.local_user_id)
+            if not ok_v:
+                def _fail():
+                    self.lbl_status.configure(text="核實失敗: {}".format(msg_v), fg="#ef4444")
+                    self.btn_confirm.configure(state=tk.NORMAL)
+                    self.btn_cancel.configure(state=tk.NORMAL)
+                    messagebox.showerror("密碼核實失敗", "密碼與雲端現有密鑰不符！\n\n為防範多台電腦密鑰不一致導致雲端資料損毀，已拒絕同步。\n\n詳細原因: {}".format(msg_v), parent=self)
+                self.after(0, _fail)
+                return
+
+            def _step_compare():
+                self.lbl_status.configure(text="密碼核實通過！正在比對雲端與本機持股差異...", fg="#38bdf8")
+            self.after(0, _step_compare)
+
+            ok_f, cloud_data, msg_f = fetch_and_decrypt_from_cloud(self.user_id, pwd, local_user_id=self.local_user_id)
+            local_data = gather_full_portfolio_data(user_id=self.local_user_id)
+            decision = "LOCAL_OVERWRITE"
+
+            if ok_f and cloud_data and isinstance(cloud_data, dict) and cloud_data.get("positions"):
+                diff_report = compare_portfolios(local_data, cloud_data)
+                if diff_report.get("has_diff"):
+                    dialog_done = threading.Event()
+                    user_choice = ["CANCEL"]
+
+                    def _show_diff_dialog():
+                        diff_dlg = SyncConflictDialog(self, diff_report, local_data, cloud_data)
+                        self.wait_window(diff_dlg)
+                        user_choice[0] = diff_dlg.choice
+                        dialog_done.set()
+
+                    self.after(0, _show_diff_dialog)
+                    dialog_done.wait()
+                    decision = user_choice[0]
+
+            if decision == "CANCEL":
+                def _cancel_flow():
+                    self.lbl_status.configure(text="已取消同步。", fg="#94a3b8")
+                    self.btn_confirm.configure(state=tk.NORMAL)
+                    self.btn_cancel.configure(state=tk.NORMAL)
+                self.after(0, _cancel_flow)
+                return
+
+            if decision == "CLOUD_RESTORE":
+                def _restore_flow():
+                    self.lbl_status.configure(text="正在以雲端存檔還原本機資料庫...", fg="#38bdf8")
+                self.after(0, _restore_flow)
+                ok_r = restore_cloud_to_local(cloud_data, user_id=self.local_user_id)
+                def _done_restore():
+                    if ok_r:
+                        if hasattr(self.master, "reload_positions") and hasattr(self.master, "refresh_ui_table"):
+                            self.master.reload_positions()
+                            self.master.refresh_ui_table()
+                        self.success = True
+                        messagebox.showinfo("還原成功", "已成功以雲端存檔覆蓋還原本機持股資料庫！", parent=self)
+                        self.destroy()
+                    else:
+                        self.lbl_status.configure(text="以雲端覆蓋本機失敗", fg="#ef4444")
+                        self.btn_confirm.configure(state=tk.NORMAL)
+                        self.btn_cancel.configure(state=tk.NORMAL)
+                        messagebox.showerror("還原失敗", "以雲端資料覆蓋還原本機失敗！", parent=self)
+                self.after(0, _done_restore)
+                return
+
+            if decision == "SMART_MERGE":
+                def _merge_step():
+                    self.lbl_status.configure(text="正在執行智慧雙向合併...", fg="#38bdf8")
+                self.after(0, _merge_step)
+                ok_m = smart_merge_into_local(local_data, cloud_data, user_id=self.local_user_id)
+                if not ok_m:
+                    def _merge_fail():
+                        self.lbl_status.configure(text="智慧合併失敗", fg="#ef4444")
+                        self.btn_confirm.configure(state=tk.NORMAL)
+                        self.btn_cancel.configure(state=tk.NORMAL)
+                        messagebox.showerror("合併失敗", "智慧合併過程發生錯誤！", parent=self)
+                    self.after(0, _merge_fail)
+                    return
+                def _refresh_app():
+                    if hasattr(self.master, "reload_positions") and hasattr(self.master, "refresh_ui_table"):
+                        self.master.reload_positions()
+                        self.master.refresh_ui_table()
+                self.after(0, _refresh_app)
+
+            def _step_upload():
+                self.lbl_status.configure(text="正在加密上傳至雲端...", fg="#00f090")
+            self.after(0, _step_upload)
+
+            ok_s, msg_s = sync_to_cloud(self.user_id, pwd, local_user_id=self.local_user_id)
+            def _done():
+                if ok_s:
+                    self.success = True
+                    msg_txt = "智慧合併成功，已將融合後之最新存股同步至雲端！" if decision == "SMART_MERGE" else "已成功將存股加密同步至雲端！"
+                    messagebox.showinfo("同步成功", msg_txt, parent=self)
+                    self.destroy()
+                else:
+                    self.lbl_status.configure(text="上傳失敗: {}".format(msg_s), fg="#ef4444")
+                    self.btn_confirm.configure(state=tk.NORMAL)
+                    self.btn_cancel.configure(state=tk.NORMAL)
+                    messagebox.showerror("上傳失敗", "雲端同步失敗: {}".format(msg_s), parent=self)
+            self.after(0, _done)
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+
 class CloudSyncDialog(tk.Toplevel):
-    """零知識端到端加密雲端同步對話框 (支援 OWASP 600K + 128-bit SecretKey 雙因子 + 嚴格多帳號隔離防覆蓋)"""
+    """零知識端到端加密雲端同步對話框 (支援 OWASP 600K + 128-bit SecretKey 雙因子 + 差異比對智慧合併)"""
     def __init__(self, parent, on_restored=None):
         super().__init__(parent)
-        self.title("☁️ 零知識加密雲端同步 (OWASP 600K + 雙因子金鑰)")
+        self.title("[雲端] 零知識加密雲端同步 (OWASP 600K + 雙因子金鑰)")
         self.geometry("560x700")
         self.resizable(False, False)
         self.configure(bg="#202028")
@@ -3354,7 +3723,7 @@ class CloudSyncDialog(tk.Toplevel):
         badge.pack(fill=tk.X, pady=(2, 8))
         tk.Label(
             badge,
-            text=f"[帳戶] 目前本機登入帳戶: [{self.username}] (ID: {self.user_id}) - 雲端同步設定與金鑰已綁定此帳號",
+            text="[帳戶] 目前本機登入帳戶: [{}] (ID: {}) - 雲端同步設定與金鑰已綁定此帳號".format(self.username, self.user_id),
             bg="#1a1a24", fg="#3a86ff", font=("Microsoft JhengHei UI", 9, "bold")
         ).pack(anchor="w")
 
@@ -3382,15 +3751,15 @@ class CloudSyncDialog(tk.Toplevel):
         self.chk_prompt_sync.pack(anchor="w", pady=(2, 0))
 
         last_sync = get_user_setting(self.user_id, "last_cloud_sync_time", "尚未同步")
-        self.lbl_last_sync = tk.Label(form, text=f"☁️ 雲端最後同步時間: {last_sync}", bg="#202028", fg="#8e95a5", font=("Microsoft JhengHei UI", 8))
+        self.lbl_last_sync = tk.Label(form, text="[雲端] 最後同步時間: {}".format(last_sync), bg="#202028", fg="#8e95a5", font=("Microsoft JhengHei UI", 8))
         self.lbl_last_sync.pack(anchor="w", pady=(2, 0))
 
         # 雙因子 128-bit 設備金鑰 (Secret Key)
         sk_frame = tk.Frame(form, bg="#202028")
         sk_frame.pack(fill=tk.X, pady=(10, 2))
-        tk.Label(sk_frame, text=f"雙因子設備金鑰 (Secret Key) [{self.username}專用]:", bg="#202028", fg="#ffd166", font=("Microsoft JhengHei UI", 9, "bold")).pack(side=tk.LEFT)
+        tk.Label(sk_frame, text="雙因子設備金鑰 (Secret Key) [{}專用]:".format(self.username), bg="#202028", fg="#ffd166", font=("Microsoft JhengHei UI", 9, "bold")).pack(side=tk.LEFT)
         
-        btn_sk_help = tk.Button(sk_frame, text="❓ 這是什麼？如何使用？", bg="#202028", fg="#00f090", activebackground="#202028", activeforeground="#ffffff", font=("Microsoft JhengHei UI", 8, "underline"), relief="flat", bd=0, cursor="hand2", command=self.show_secret_key_help)
+        btn_sk_help = tk.Button(sk_frame, text="[?] 這是什麼？如何使用？", bg="#202028", fg="#00f090", activebackground="#202028", activeforeground="#ffffff", font=("Microsoft JhengHei UI", 8, "underline"), relief="flat", bd=0, cursor="hand2", command=self.show_secret_key_help)
         btn_sk_help.pack(side=tk.LEFT, padx=8)
 
         btn_copy_sk = tk.Button(sk_frame, text="[複製] 複製金鑰", bg="#3a3a46", fg="#ffffff", font=("Microsoft JhengHei UI", 8), relief="flat", command=self.copy_secret_key)
@@ -3446,12 +3815,12 @@ class CloudSyncDialog(tk.Toplevel):
     def copy_web_url(self):
         self.clipboard_clear()
         self.clipboard_append(self.web_url)
-        messagebox.showinfo("已複製", f"看盤網頁短網址已複製到剪貼簿：\n{self.web_url}\n\n傳到手機即可在瀏覽器開啟並加入主畫面！", parent=self)
+        messagebox.showinfo("已複製", "看盤網頁短網址已複製到剪貼簿：\n{}\n\n傳到手機即可在瀏覽器開啟並加入主畫面！".format(self.web_url), parent=self)
 
     def show_secret_key_help(self):
         """展示雙因子設備金鑰詳細原理與具體操作指引"""
         help_win = tk.Toplevel(self)
-        help_win.title("❓ 什麼是雙因子設備金鑰 (Secret Key)？")
+        help_win.title("[說明] 什麼是雙因子設備金鑰 (Secret Key)？")
         help_win.geometry("540x480")
         help_win.resizable(False, False)
         help_win.configure(bg="#1e1e26")
@@ -3509,11 +3878,10 @@ class CloudSyncDialog(tk.Toplevel):
         # 防覆蓋檢查：若輸入之雲端 User ID 與當前本地登入帳號名稱不同，強制彈窗確認
         if clean_user != self.username.lower():
             confirm = messagebox.askyesno(
-                "⚠️ 雲端帳號不一致警示 (防覆蓋確認)",
-                f"注意：您目前登入的本機帳號為【{self.username}】，\n"
-                f"但您在雲端代號輸入了【{clean_user}】！\n\n"
-                f"若繼續上傳，將會覆蓋雲端帳戶【{clean_user}】的庫存資料。\n"
-                f"您確定要將當前【{self.username}】的存股上傳至【{clean_user}】嗎？",
+                "[!] 雲端帳號不一致警示 (防覆蓋確認)",
+                "注意：您目前登入的本機帳號為【{}】，\n但您在雲端代號輸入了【{}】！\n\n若繼續上傳，將會覆蓋雲端帳戶【{}】的庫存資料。\n您確定要將當前【{}】的存股上傳至【{}】嗎？".format(
+                    self.username, clean_user, clean_user, self.username, clean_user
+                ),
                 parent=self, icon="warning"
             )
             if not confirm:
@@ -3530,22 +3898,90 @@ class CloudSyncDialog(tk.Toplevel):
         else:
             set_user_setting(self.user_id, "cloud_password", "")
 
-        self.btn_sync.configure(state=tk.DISABLED, text="正在本機加密與上傳...")
-        self.lbl_status.configure(text="正在執行 PBKDF2 (600,000次) + AAD + 32KB Padding...", fg="#52c41a")
+        self.btn_sync.configure(state=tk.DISABLED, text="正在比對雲端資料...")
+        self.lbl_status.configure(text="正在獲取雲端現有存檔比對差異...", fg="#38bdf8")
 
         def worker():
+            from crypto_sync import fetch_and_decrypt_from_cloud, sync_to_cloud, gather_full_portfolio_data
+            from sync_merge_service import compare_portfolios, smart_merge_into_local, restore_cloud_to_local
+
+            # 1. 抓取雲端現有資料進行比對
+            ok_f, cloud_data, msg_f = fetch_and_decrypt_from_cloud(clean_user, pwd, url, local_user_id=self.user_id)
+            local_data = gather_full_portfolio_data(user_id=self.user_id)
+            decision = "LOCAL_OVERWRITE"
+
+            if ok_f and cloud_data and isinstance(cloud_data, dict) and cloud_data.get("positions"):
+                diff_report = compare_portfolios(local_data, cloud_data)
+                if diff_report.get("has_diff"):
+                    dialog_done = threading.Event()
+                    user_choice = ["CANCEL"]
+
+                    def _show_diff_dialog():
+                        diff_dlg = SyncConflictDialog(self, diff_report, local_data, cloud_data)
+                        self.wait_window(diff_dlg)
+                        user_choice[0] = diff_dlg.choice
+                        dialog_done.set()
+
+                    self.after(0, _show_diff_dialog)
+                    dialog_done.wait()
+                    decision = user_choice[0]
+
+            if decision == "CANCEL":
+                self.after(0, lambda: self._on_upload_cancelled())
+                return
+
+            if decision == "CLOUD_RESTORE":
+                ok_r = restore_cloud_to_local(cloud_data, user_id=self.user_id)
+                self.after(0, lambda: self._on_restore_done(ok_r))
+                return
+
+            if decision == "SMART_MERGE":
+                self.after(0, lambda: self.lbl_status.configure(text="正在執行智慧雙向合併...", fg="#38bdf8"))
+                ok_m = smart_merge_into_local(local_data, cloud_data, user_id=self.user_id)
+                if not ok_m:
+                    self.after(0, lambda: self._on_upload_done(False, "智慧合併處理失敗"))
+                    return
+                # 刷新主介面
+                if hasattr(self.master, "reload_positions") and hasattr(self.master, "refresh_ui_table"):
+                    self.after(0, lambda: (self.master.reload_positions(), self.master.refresh_ui_table()))
+
+            self.after(0, lambda: (
+                self.btn_sync.configure(state=tk.DISABLED, text="正在本機加密與上傳..."),
+                self.lbl_status.configure(text="正在執行 PBKDF2 (600,000次) + AAD + 32KB Padding...", fg="#52c41a")
+            ))
+
             ok, msg = sync_to_cloud(clean_user, pwd, url, local_user_id=self.user_id)
+            if ok and decision == "SMART_MERGE":
+                msg = "智慧雙向合併完成！兩端持股與買入批次已完全融合並同步至雲端。"
             self.after(0, lambda: self._on_upload_done(ok, msg))
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def _on_upload_cancelled(self):
+        self.btn_sync.configure(state=tk.NORMAL, text=">> 一鍵加密並同步到雲端")
+        self.lbl_status.configure(text="已取消同步上傳。", fg="#94a3b8")
+
+    def _on_restore_done(self, ok: bool):
+        self.btn_sync.configure(state=tk.NORMAL, text=">> 一鍵加密並同步到雲端")
+        if ok:
+            if hasattr(self.master, "reload_positions") and hasattr(self.master, "refresh_ui_table"):
+                self.master.reload_positions()
+                self.master.refresh_ui_table()
+            self.lbl_status.configure(text="[OK] 已成功以雲端資料覆蓋還原本機！", fg="#52c41a")
+            messagebox.showinfo("還原成功", "已成功以雲端存檔覆蓋還原本機持股資料庫！", parent=self)
+            if self.on_restored:
+                self.on_restored()
+        else:
+            self.lbl_status.configure(text="[!] 覆蓋還原失敗", fg="#ff4d4f")
+            messagebox.showerror("還原失敗", "以雲端資料覆蓋還原本機失敗！", parent=self)
+
     def _on_upload_done(self, ok: bool, msg: str):
         self.btn_sync.configure(state=tk.NORMAL, text=">> 一鍵加密並同步到雲端")
         if ok:
-            self.lbl_status.configure(text=f"✔ {msg}", fg="#52c41a")
-            messagebox.showinfo("成功", f"{msg}\n\n您現在可使用手機或平板開啟雲端網頁：\n{self.web_url}\n\n輸入使用者代號、主密碼與 Secret Key 即可安全解密！", parent=self)
+            self.lbl_status.configure(text="[OK] {}".format(msg), fg="#52c41a")
+            messagebox.showinfo("成功", "{}\n\n您現在可使用手機或平板開啟雲端網頁：\n{}\n\n輸入使用者代號、主密碼與 Secret Key 即可安全解密！".format(msg, self.web_url), parent=self)
         else:
-            self.lbl_status.configure(text=f"[!] {msg}", fg="#ff4d4f")
+            self.lbl_status.configure(text="[!] {}".format(msg), fg="#ff4d4f")
             messagebox.showerror("失敗", msg, parent=self)
 
 

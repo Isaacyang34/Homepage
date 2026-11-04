@@ -1,44 +1,32 @@
 {
-  "version": "V1.2.0.0",
-  "release_date": "2026-11-03",
+  "version": "V1.2.1.0",
+  "release_date": "2026-11-04",
   "download_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/Stock_Portfolio_Tracker.exe",
-  "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.2.0.0.zip",
-  "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.2.0.0_Portable.zip",
-  "changelog": "【V1.2.0.0 個股基本面深度分析 & 盤後量化五維度排名重大發布】\n\n1. [個股基本面深度分析 & 價值河流圖 (Fundamental River Valuation)]：\n   - 本益比河流圖 (P/E River Band 16x~32x) 歷史五階估值位階與即時收盤價疊加。\n   - 月營收與年增率 (YoY) 雙軸圖表、獲利能力三率走勢 (毛利率、營益率、淨利率)。\n   - 杜邦分析拆解卡 (ROE = 純益率 × 資產周轉率 × 權益乘數) 與財務安全性指標 (自由現金流、負債比、流動比)。\n2. [盤後五維度綜合排名與市場環境層 (Market Regime)]：\n   - 大盤季線 (MA60)、市場寬度、外資期貨淨留倉、選擇權 Put/Call Ratio 指針。\n   - 自適應動態調權矩陣（多頭動能籌碼偏重、空頭品質價值偏重）。\n   - 盤後多維量化排行榜：綜合評分榜、強勢動能榜、獲利三率榜、河流低估榜。\n3. [點擊個股一鍵導入深度分析]：\n   - 庫存部位明細與盤後排名表，點擊股票代碼或「🔍 深度分析」操作按鈕一鍵直達個股分析。\n4. [五層漏斗篩選與 ATR 波動度部位風控]：\n   - 硬性濾網淘汰賽、五因子百分位評分、ATR 波動度平價建議倉位 (5%~25%) 與可解釋決策理由。",
+  "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.2.1.0.zip",
+  "full_package_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_releases/Stock_Portfolio_Tracker_V1.2.1.0_Portable.zip",
+  "changelog": "【V1.2.1.0 多設備雲端智慧雙向合併與差異決策衝突防護全新發布】\\n\\n1. [背景定時自動同步徹底停用]：\\n   - 徹底移除未經授權之背景定時同步與靜默上傳，全面回歸使用者自主控制。\\n2. [會話異動追蹤與關閉前密碼核實]：\\n   - 僅在當次執行會話有新增、修改或刪除存股時，於軟體關閉前主動彈出確認視窗，輸入雲端主密碼並核實通過後方可同步，防範多台電腦密鑰不一致導致覆蓋。\\n3. [多設備差異比對與決策對話框 (SyncConflictDialog)]：\\n   - 當使用者發起手動同步或關閉同步時，系統自動將雲端現有存檔與本機存股進行精確比對，表格化條列呈現「雲端獨有」、「本機獨有」與「內容差異 (股數/成本/批次)」。\\n   - 提供四大明確決策入口：\\n     * 【智慧雙向合併 (兩端兼得)】：自動聯集合併兩台電腦的新增持股與買入批次重算均價，達成 0 資料遺失，合併後自動加密上傳至雲端。\\n     * 【以本機為主 (覆蓋雲端)】：以本機電腦持股資料強制覆蓋雲端存檔。\\n     * 【以雲端為主 (覆蓋本機)】：以雲端歷史存檔 100% 還原本機 SQLite 資料庫。\\n     * 【取消】：取消同步上傳，維持現狀。\\n4. [開機 100% 離線極速載入]：\\n   - 軟體啟動時不進行任何雲端連線比對，保持極速秒開與 100% 離線可用性。\\n5. [UI 控制項規範符合]：\\n   - 全面落實 WinForms / Tkinter GDI+ 零 Emoji 規範與版面防裁切保證。",
   "recent_versions": [
+    {
+      "version": "V1.2.1.0",
+      "release_date": "2026-11-04",
+      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.2.1.0.zip",
+      "changelog": "【V1.2.1.0 多設備雲端智慧雙向合併與差異決策衝突防護全新發布】\\n\\n1. [背景定時自動同步徹底停用]：\\n   - 徹底移除未經授權之背景定時同步與靜默上傳，全面回歸使用者自主控制。\\n2. [會話異動追蹤與關閉前密碼核實]：\\n   - 僅在當次執行會話有新增、修改或刪除存股時，於軟體關閉前主動彈出確認視窗，輸入雲端主密碼並核實通過後方可同步，防範多台電腦密鑰不一致導致覆蓋。\\n3. [多設備差異比對與決策對話框 (SyncConflictDialog)]：\\n   - 當使用者發起手動同步或關閉同步時，系統自動將雲端現有存檔與本機存股進行精確比對，表格化條列呈現「雲端獨有」、「本機獨有」與「內容差異 (股數/成本/批次)」。\\n   - 提供四大明確決策入口：\\n     * 【智慧雙向合併 (兩端兼得)】：自動聯集合併兩台電腦的新增持股與買入批次重算均價，達成 0 資料遺失，合併後自動加密上傳至雲端。\\n     * 【以本機為主 (覆蓋雲端)】：以本機電腦持股資料強制覆蓋雲端存檔。\\n     * 【以雲端為主 (覆蓋本機)】：以雲端歷史存檔 100% 還原本機 SQLite 資料庫。\\n     * 【取消】：取消同步上傳，維持現狀。\\n4. [開機 100% 離線極速載入]：\\n   - 軟體啟動時不進行任何雲端連線比對，保持極速秒開與 100% 離線可用性。\\n5. [UI 控制項規範符合]：\\n   - 全面落實 WinForms / Tkinter GDI+ 零 Emoji 規範與版面防裁切保證。"
+    },
     {
       "version": "V1.2.0.0",
       "release_date": "2026-11-03",
       "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.2.0.0.zip",
-      "changelog": "【V1.2.0.0 個股基本面深度分析 & 盤後量化五維度排名重大發布】\n\n1. [個股基本面深度分析 & 價值河流圖 (Fundamental River Valuation)]：\n   - 本益比河流圖 (P/E River Band 16x~32x) 歷史五階估值位階與即時收盤價疊加。\n   - 月營收與年增率 (YoY) 雙軸圖表、獲利能力三率走勢 (毛利率、營益率、淨利率)。\n   - 杜邦分析拆解卡 (ROE = 純益率 × 資產周轉率 × 權益乘數) 與財務安全性指標 (自由現金流、負債比、流動比)。\n2. [盤後五維度綜合排名與市場環境層 (Market Regime)]：\n   - 大盤季線 (MA60)、市場寬度、外資期貨淨留倉、選擇權 Put/Call Ratio 指針。\n   - 自適應動態調權矩陣（多頭動能籌碼偏重、空頭品質價值偏重）。\n   - 盤後多維量化排行榜：綜合評分榜、強勢動能榜、獲利三率榜、河流低估榜。\n3. [點擊個股一鍵導入深度分析]：\n   - 庫存部位明細與盤後排名表，點擊股票代碼或「🔍 深度分析」操作按鈕一鍵直達個股分析。\n4. [五層漏斗篩選與 ATR 波動度部位風控]：\n   - 硬性濾網淘汰賽、五因子百分位評分、ATR 波動度平價建議倉位 (5%~25%) 與可解釋決策理由。"
+      "changelog": "【V1.2.0.0 個股基本面深度分析 & 盤後量化五維度排名重大發布】\\n\\n1. [個股基本面深度分析 & 價值河流圖 (Fundamental River Valuation)]：\\n   - 本益比河流圖 (P/E River Band 16x~32x) 歷史五階估值位階與即時收盤價疊加。\\n   - 月營收與年增率 (YoY) 雙軸圖表、獲利能力三率走勢 (毛利率、營益率、淨利率)。\\n   - 杜邦分析拆解卡 (ROE = 純益率 × 資產周轉率 × 權益乘數) 與財務安全性指標 (自由現金流、負債比、流動比)。\\n2. [盤後五維度綜合排名與市場環境層 (Market Regime)]：\\n   - 大盤季線 (MA60)、市場寬度、外資期貨淨留倉、選擇權 Put/Call Ratio 指針。\\n   - 自適應動態調權矩陣（多頭動能籌碼偏重、空頭品質價值偏重）。\\n   - 盤後多維量化排行榜：綜合評分榜、強勢動能榜、獲利三率榜、河流低估榜。\\n3. [點擊個股一鍵導入深度分析]：\\n   - 庫存部位明細與盤後排名表，點擊股票代碼或「🔍 深度分析」操作按鈕一鍵直達個股分析。\\n4. [五層漏斗篩選與 ATR 波動度部位風控]：\\n   - 硬性濾網淘汰賽、五因子百分位評分、ATR 波動度平價建議倉位 (5%~25%) 與可解釋決策理由。"
     },
     {
       "version": "V1.1.4.0",
       "release_date": "2026-11-02",
       "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.4.0.zip",
-      "changelog": "【V1.1.4.0 融資擔保維持率風控精算與綜合指標/風控排行第 3 主分頁全新發布】\n\n1. [個人庫存融資擔保維持率與斷頭追繳風控引擎 (Margin Risk Engine)]：\n   - 依據台股法規標準（上市成數 60%、上櫃成數 50%）精準計算單檔融資借款金額與自備保證金。\n   - 即時運算單檔融資維持率、法定 130% 追繳臨界斷頭價、補繳差額試算，並提供綠(安全 >= 160%) / 黃(警戒 130%~160%) / 紅(追繳斷頭 < 130%) 風控等級標籤。\n   - 自動統計整戶擔保融資維持率、融資總借款、融資擔保品總市值與追繳警報檔數。\n2. [全新第 3 主分頁：綜合指標與風控排行 (Desktop & Web 雙端原地秒切)]：\n   - 桌面端與 Web 雲端版同步增設頂部主分頁「[綜合指標與風控排行]」，免彈出獨立視窗即可一鍵切換。\n   - 具備兩大專屬子切換：\n     * [子分頁 A] 個人庫存融資維持率風控排行：整戶維持率看板、追繳警報與維持率數據表格。\n     * [子分頁 B] 全市場 4 大核心財務指標排行：高殖利率、低本益比合理價值、最新營收年增 YoY、高股東權益報酬率 ROE 排行榜。\n3. [持股新增/編輯支援現股與融資交易類別]：\n   - 新增與編輯標的時支援單選【現股】與【融資】，並自動帶出法定融資成數。\n4. [雲端 Web 版多引擎瀏覽器直連即時撮合行情]：\n   - 支援鉅亨網與 TradingView 雙引擎直連 (0.16s 毫秒級)，電腦關機時手機打開網頁依然即時抓取最新成交價與昨收價，動態重算損益與融資維持率！"
-    },
-    {
-      "version": "V1.1.3.1",
-      "release_date": "2026-11-02",
-      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.3.1.zip",
-      "changelog": "【V1.1.3.1 雲端 Web 版多引擎瀏覽器直連即時行情與全庫存即時動態重算】\n\n1. [瀏覽器直連即時行情引擎 (CNYES + TradingView 雙引擎直連)]：\n   - 徹底解決「更新日期寫著剛剛、但價格與損益完全停滯在舊數據」的痛點。純前端瀏覽器直連鉅亨網 (0.16s 毫秒級撮合) 與 TradingView 雙引擎，零後端、零依賴電腦開機、零等待 GitHub Actions。\n   - 支援上市、上櫃股票、各類原型/債券 ETF 及美股實時行情即時成交價與官方昨收價。\n2. [全庫存損益即時動態重算 (Dynamic PnL Recalculation)]：\n   - 修復雲端解密後因讀取舊靜態欄位導致當日損益被鎖死在 $0 的缺陷。每當最新成交價抵達，自動依券商手續費與證交稅規則動態精算每檔持股與全庫存之未實現損益、當日損益/漲跌幅、當週損益與年化殖利率。\n3. [自組 ETF 淨值走勢與各股多週期矩陣盤中同步更新]：\n   - 盤中即時行情抵達時，自組 ETF 即時更新當日 NAV、當日漲跌幅、今日最新蠟燭棒 (OHLCV) 與 MA5/MA20 均線，各股多週期績效排行榜同步動態跳動。\n4. [自動定時刷新與分頁喚醒機制]：\n   - 每 10 秒自動刷新最新行情，手機解鎖或切換回瀏覽器分頁時立即觸發無延遲更新。"
-    },
-    {
-      "version": "V1.1.3.0",
-      "release_date": "2026-11-02",
-      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.3.0.zip",
-      "changelog": "【V1.1.3.0 自組投資組合 ETF 淨值走勢與各股多週期績效全新分頁】\n\n1. [自組投資組合 ETF 淨值蠟燭走勢 (Synthetic Portfolio ETF)]：\n   - 將存股組合整合成一檔專業虛擬 ETF 指數（代碼 PORTFOLIO），以基期淨值 100.00 為基準，每日線性加權各股 Open、High、Low、Close 與總成交量，生成標準紅漲綠跌蠟燭圖與 MA5、MA20 均線。\n   - 支援 30日 / 60日 / 120日 / 全區間切換，並具備即時十字游標懸停行情列。\n2. [各股每日/週/月/年多週期績效分析 (Stock Performance Matrix)]：\n   - 精確計算每檔持股的當日績效 (Day %)、當週績效 (Week 5d %)、當月績效 (Month 20d %)、全期/年化績效 (Year %)、市值權重 % 與未實現損益。\n   - 提供直觀自繪橫向紅漲綠跌排行榜長條圖（0% 中心軸正負雙向延展）與支援點擊表頭排序的詳細數據表格。\n3. [全新專屬分頁呈現 (Desktop & Web 雙端無縫呈現)]：\n   - 桌面端主視窗新增頂部切換分頁「[存股持股明細]」與「[自組ETF K線與多期績效]」，並於底部新增快捷按鈕「[自組ETF] K線與績效」，支援彈出全功能獨立分析視窗。\n   - 跨平台 Web 端同步新增主導航 Tab，純前端原生 HTML5 Canvas 高效自繪自組 ETF K 線與各股績效長條圖，手機電腦秒開且 100% 響應式佈局！\n4. [WinForms / Tkinter 零 Emoji 與排版防裁切全面達標]：\n   - 徹底清除控制項所有多位元組 Emoji，符合 Windows XP 32-bit GDI+ 相容規範與無裁切佈局標準。"
-    },
-    {
-      "version": "V1.1.2.6",
-      "release_date": "2026-10-30",
-      "patch_url": "https://raw.githubusercontent.com/Isaacyang34/Homepage/gh-pages/TOOL_Stock_Portfolio_Tracker/dist_patches/patch_V1.1.2.6.zip",
-      "changelog": "【V1.1.2.6 標的即時辨識極速響應、防抖降噪與過期時序狀態清空】\n\n1. [0ms 本地記憶體快取與預載權威庫] 新增執行期高頻記憶體快取與上市櫃主流股票/ETF 本地權威資料庫，常見標的輸入 0 毫秒瞬時秒辨，徹底消除打字卡頓。\n2. [時序序號防衛與過期狀態立即清空] 引入 Sequence Token 機制，退格刪除代碼或字元未滿4碼時立即清空前一刻殘留之錯誤警告並提示「輸入中...」，舊請求絕不覆蓋新輸入。\n3. [鍵盤輸入防抖 Debounce] 實作 180ms 連續按鍵防抖，避免連續打字時頻繁發起網路查詢。\n4. [備援查詢網路超時縮減] 將外部備援查詢超時縮減至 1.2s，杜絕無效代碼查詢時卡死數秒。"
+      "changelog": "【V1.1.4.0 融資擔保維持率風控精算與綜合指標/風控排行第 3 主分頁全新發布】\\n\\n1. [個人庫存融資擔保維持率與斷頭追繳風控引擎 (Margin Risk Engine)]：\\n   - 依據台股法規標準（上市成數 60%、上櫃成數 50%）精準計算單檔融資借款金額與自備保證金。\\n   - 即時運算單檔融資維持率、法定 130% 追繳臨界斷頭價、補繳差額試算，並提供綠(安全 >= 160%) / 黃(警戒 130%~160%) / 紅(追繳斷頭 < 130%) 風控等級標籤。\\n   - 自動統計整戶擔保融資維持率、融資總借款、融資擔保品總市值與追繳警報檔數。\\n2. [全新第 3 主分頁：綜合指標與風控排行 (Desktop & Web 雙端原地秒切)]：\\n   - 桌面端與 Web 雲端版同步增設頂部主分頁「[綜合指標與風控排行]」，免彈出獨立視窗即可一鍵切換。\\n   - 具備兩大專屬子切換：\\n     * [子分頁 A] 個人庫存融資維持率風控排行：整戶維持率看板、追繳警報與維持率數據表格。\\n     * [子分頁 B] 全市場 4 大核心財務指標排行：高殖利率、低本益比合理價值、最新營收年增 YoY、高股東權益報酬率 ROE 排行榜。\\n3. [持股新增/編輯支援現股與融資交易類別]：\\n   - 新增與編輯標的時支援單選【現股】與【融資】，並自動帶出法定融資成數。\\n4. [雲端 Web 版多引擎瀏覽器直連即時撮合行情]：\\n   - 支援鉅亨網與 TradingView 雙引擎直連 (0.16s 毫秒級)，電腦關機時手機打開網頁依然即時抓取最新成交價與昨收價，動態重算損益與融資維持率！"
     }
   ],
-  "patch_size": 467375,
-  "patch_sha256": "418b2fe5dd45aaee594ca566a4f844ad0ad7ee931631bb85f94ec44d16c1bf3d",
-  "release_size": 28848733,
-  "release_sha256": "088c740c4c37458030d37fb509fc514bb4be9c598643f373e1da0cc36c799f7c"
+  "patch_size": 467314,
+  "patch_sha256": "386e7b111c281ddc1054bf84519af52b625264a14ae77356a7fb8de6cd912349",
+  "release_size": 28848672,
+  "release_sha256": "ed221d719f30de7d64048dd15c84b46a76e697fe41e688e1bd99e6b906ac62c1"
 }

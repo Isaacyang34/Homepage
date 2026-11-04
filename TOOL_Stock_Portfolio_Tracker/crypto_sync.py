@@ -388,12 +388,12 @@ def sync_to_cloud(user_id: str, password: str, firebase_url: Optional[str] = Non
     except Exception as e:
         return False, f"連線異常: {e}"
 
-def fetch_and_decrypt_from_cloud(user_id: str, password: str, firebase_url: Optional[str] = None) -> Tuple[bool, Optional[Dict[str, Any]], str]:
+def fetch_and_decrypt_from_cloud(user_id: str, password: str, firebase_url: Optional[str] = None, local_user_id: Optional[int] = None) -> Tuple[bool, Optional[Dict[str, Any]], str]:
     """從雲端下載密文並於本地解密 (用於跨電腦同步還原)"""
     clean_user = user_id.strip().lower()
     target_url = (firebase_url or get_setting("cloud_firebase_url", DEFAULT_FIREBASE_URL)).strip().rstrip("/")
     api_endpoint = f"{target_url}/portfolios/{clean_user}.json"
-    secret_key = get_or_create_secret_key()
+    secret_key = get_or_create_secret_key(local_user_id)
 
     try:
         resp = requests.get(api_endpoint, timeout=12)
@@ -401,8 +401,8 @@ def fetch_and_decrypt_from_cloud(user_id: str, password: str, firebase_url: Opti
             return False, None, f"雲端讀取失敗: HTTP {resp.status_code}"
         
         enc_data = resp.json()
-        if not enc_data or "ciphertext_b64" not in enc_data:
-            return False, None, f"找不到使用者 [{clean_user}] 的雲端密文！"
+        if not enc_data or not isinstance(enc_data, dict) or "ciphertext_b64" not in enc_data:
+            return True, None, "雲端尚無存檔資料 (首次使用)"
 
         # 解密
         decrypted = decrypt_portfolio_payload(enc_data, password, secret_key, clean_user)
@@ -419,66 +419,41 @@ def fetch_and_decrypt_from_cloud(user_id: str, password: str, firebase_url: Opti
 _LAST_AUTO_SYNC_TIMESTAMP: float = 0.0
 _AUTO_SYNC_LOCK = threading.Lock()
 
+def verify_cloud_password(user_id: str, password: str, firebase_url: Optional[str] = None, local_user_id: Optional[int] = None) -> Tuple[bool, str]:
+    """
+    核實使用者輸入的密碼是否能成功解密雲端現有密文
+    - 若雲端已有密文：嘗試解密，成功才視為密鑰吻合；失敗則拒絕覆蓋，杜絕跨電腦密鑰不一致導致資料損毀
+    - 若雲端尚無密文：視為首次使用，通過核實
+    """
+    clean_user = user_id.strip().lower()
+    target_url = (firebase_url or get_setting("cloud_firebase_url", DEFAULT_FIREBASE_URL)).strip().rstrip("/")
+    api_endpoint = f"{target_url}/portfolios/{clean_user}.json"
+    secret_key = get_or_create_secret_key(local_user_id)
+
+    try:
+        resp = requests.get(api_endpoint, timeout=10)
+        if resp.status_code != 200:
+            return False, f"無法連線至雲端伺服器 (HTTP {resp.status_code})"
+        enc_data = resp.json()
+        if not enc_data or not isinstance(enc_data, dict) or "ciphertext_b64" not in enc_data:
+            return True, "雲端尚無既有密文，核實通過"
+
+        decrypted = decrypt_portfolio_payload(enc_data, password, secret_key, clean_user)
+        if decrypted and isinstance(decrypted, dict):
+            return True, "密碼與雲端密鑰完全吻合，核實通過"
+        return False, "解密結果異常，密碼可能不正確"
+    except Exception as e:
+        return False, f"密碼與雲端現有密鑰不符 (解密失敗: {e})"
+
 def is_auto_sync_enabled() -> bool:
-    """是否啟用自動雲端同步 (預設關閉：依規範本機端不主動背景同步)"""
-    return get_setting("cloud_auto_sync", "0") == "1"
+    """全面停用自動背景同步，回歸使用者關閉前確認與手動同步"""
+    return False
 
 def set_auto_sync_enabled(enabled: bool):
-    """設定是否啟用自動雲端同步"""
-    set_setting("cloud_auto_sync", "1" if enabled else "0")
+    """設定是否啟用自動雲端同步 (強制保持關閉)"""
+    set_setting("cloud_auto_sync", "0")
 
 def trigger_auto_sync_to_cloud(force: bool = False, min_interval_sec: float = 180.0, source: str = "auto", callback=None):
-    """
-    非同步觸發背景自動加密同步至雲端
-    - force=True (持股新增/修改/刪除、收盤結算): 立即同步，不設限流
-    - force=False (盤中定時報價刷新): 限流 min_interval_sec (預設3分鐘)，避免頻繁上傳
-    - 採用後台守護線程 (Daemon Thread) 執行，0% 阻礙 UI
-    """
-    global _LAST_AUTO_SYNC_TIMESTAMP
-    
-    if not is_auto_sync_enabled():
-        return
-        
-    user_id = get_setting("cloud_user_id", "").strip()
-    password = get_setting("cloud_password", "").strip()
-    if not user_id or not password:
-        return
-        
-    now = time.time()
-    if not force:
-        if (now - _LAST_AUTO_SYNC_TIMESTAMP) < min_interval_sec:
-            return
+    """已徹底停用自動背景定時同步，所有雲端同步嚴格限定使用者手動或關閉前核實後執行"""
+    return
 
-    def _worker():
-        global _LAST_AUTO_SYNC_TIMESTAMP
-        with _AUTO_SYNC_LOCK:
-            now_inner = time.time()
-            if not force and (now_inner - _LAST_AUTO_SYNC_TIMESTAMP) < min_interval_sec:
-                return
-            try:
-                ok, msg = sync_to_cloud(user_id, password)
-                if ok:
-                    _LAST_AUTO_SYNC_TIMESTAMP = time.time()
-                    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    print(f"[crypto_sync] 自動雲端同步成功 ({source}): {now_str}")
-                    if callback:
-                        try:
-                            callback(True, now_str)
-                        except Exception:
-                            pass
-                else:
-                    print(f"[crypto_sync] 自動雲端同步未完成 ({source}): {msg}")
-                    if callback:
-                        try:
-                            callback(False, msg)
-                        except Exception:
-                            pass
-            except Exception as e:
-                print(f"[crypto_sync] 自動雲端同步異常 ({source}): {e}")
-                if callback:
-                    try:
-                        callback(False, str(e))
-                    except Exception:
-                        pass
-
-    threading.Thread(target=_worker, daemon=True).start()
