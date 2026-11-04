@@ -283,45 +283,54 @@ def step_2_5_run_ui_layout_inspection() -> bool:
 
 
 
-def step_3_compile_bytecode() -> bool:
-
-    """Step 3: 編譯二進位核心包 (app_core.pkg)"""
-
-    print("\n[Step 3/6] 編譯位元碼並封裝 app_core.pkg...")
+def step_3_compile_bytecode(target_version: str = "") -> bool:
+    """Step 3: 編譯二進位核心包 (app_core.pkg) 並執行位元組版號強一致性閉鎖驗證"""
+    print(f"\n[Step 3/6] 編譯位元碼並封裝 app_core.pkg (目標發布版本: {target_version})...")
 
     pkg_path = os.path.join(APP_DIR, "app_core.pkg")
     if os.path.exists(pkg_path):
         os.remove(pkg_path)
+
     build_script = os.path.join(APP_DIR, "build_pkg.py")
-
     cmd = [sys.executable, build_script]
-
     res = subprocess.run(cmd, cwd=APP_DIR, capture_output=True, text=True, encoding="utf-8", errors="replace")
 
     if res.returncode != 0:
-
-        print("  [X] 二進位封裝失敗:")
-
+        print("  [X] 致命錯誤: 二進位封裝失敗 (build_pkg.py 異常退出):")
+        print(res.stdout)
         print(res.stderr)
-
         return False
-
-
-
-    pkg_path = os.path.join(APP_DIR, "app_core.pkg")
 
     if not os.path.exists(pkg_path):
-
-        print("  [X] 錯誤: 未產出 app_core.pkg！")
-
+        print("  [X] 致命錯誤: 未產出 app_core.pkg！")
         return False
 
-
+    # 【位元組版本強閉鎖檢驗】：直接解壓 app_core.pkg 內部讀取 updater.pyc 位元組常數，確保版號與 target_version 100% 絕對吻合
+    if target_version:
+        try:
+            import zipfile, marshal
+            with zipfile.ZipFile(pkg_path, "r") as zf:
+                if "updater.pyc" not in zf.namelist():
+                    print("  [X] 致命錯誤: app_core.pkg 缺少核心模組 updater.pyc！")
+                    return False
+                raw_pyc = zf.read("updater.pyc")
+                code_obj = marshal.loads(raw_pyc[16:])
+                found_match = False
+                for const in code_obj.co_consts:
+                    if isinstance(const, str) and const == target_version:
+                        found_match = True
+                        break
+                if not found_match:
+                    print(f"  [X] 致命閉鎖攔截: app_core.pkg 內部 updater.pyc 之位元組版號與目標發布版本不符！目標: {target_version}")
+                    print("      嚴格拒絕使用殘留舊版或版本不一致之二進位包！")
+                    return False
+                print(f"  ✔ 二進位位元組版號強一致性驗證通過: {target_version} (100% 吻合)")
+        except Exception as e:
+            print(f"  [X] 位元組版號檢驗異常: {e}")
+            return False
 
     print(f"  ✔ 二進位核心封裝成功: {pkg_path} ({os.path.getsize(pkg_path):,} bytes)")
-
     return True
-
 
 
 def step_4_package_patch(version: str) -> str:
@@ -586,7 +595,7 @@ def main():
 
         sys.exit(1)
 
-    if not step_3_compile_bytecode():
+    if not step_3_compile_bytecode(target_version):
 
         sys.exit(1)
 
