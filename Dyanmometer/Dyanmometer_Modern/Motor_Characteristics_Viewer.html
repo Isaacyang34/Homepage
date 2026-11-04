@@ -2275,8 +2275,33 @@
                     if (line.startsWith("Point,")) continue;
                     const cols = line.split(",");
                     if (cols.length >= 10 && !isNaN(parseFloat(cols[1]))) {
-                        const isFull = cols.length >= 20;
-                        const pt = isFull ? {
+                        const isNewFull = cols.length >= 22;
+                        const isOldFull = cols.length >= 20;
+                        const pt = isNewFull ? {
+                            index: parseInt(cols[0]) || (parsedData.summaryPoints.length + 1),
+                            targetSpeed: parseFloat(cols[1]) || 0,
+                            targetTorque: parseFloat(cols[2]) || 0,
+                            speed: parseFloat(cols[3]) || 0,
+                            frequency: parseFloat(cols[4]) || 0,
+                            freqU1: parseFloat(cols[5]) || 0,
+                            freqI1: parseFloat(cols[6]) || 0,
+                            torque: parseFloat(cols[7]) || 0,
+                            u1: parseFloat(cols[8]) || 0,
+                            u2: parseFloat(cols[9]) || 0,
+                            u3: parseFloat(cols[10]) || 0,
+                            i1: parseFloat(cols[11]) || 0,
+                            i2: parseFloat(cols[12]) || 0,
+                            i3: parseFloat(cols[13]) || 0,
+                            elecPower: parseFloat(cols[14]) || 0,
+                            mechPower: parseFloat(cols[15]) || 0,
+                            pf: parseFloat(cols[16]) || 0,
+                            efficiency: parseFloat(cols[17]) || 0,
+                            kt: parseFloat(cols[18]) || 0,
+                            voltage: parseFloat(cols[19]) || 220.0,
+                            current: parseFloat(cols[20]) || 0,
+                            temp: parseFloat(cols[21]) || 35.0,
+                            status: cols[22] || "OK"
+                        } : isOldFull ? {
                             index: parseInt(cols[0]) || (parsedData.summaryPoints.length + 1),
                             targetSpeed: parseFloat(cols[1]) || 0,
                             targetTorque: parseFloat(cols[2]) || 0,
@@ -2322,7 +2347,30 @@
                     if (line.startsWith("Point,")) continue;
                     const cols = line.split(",");
                     if (cols.length >= 15 && !isNaN(parseFloat(cols[2]))) {
-                        const smp = {
+                        const isNewSmp = cols.length >= 21;
+                        const smp = isNewSmp ? {
+                            point: parseInt(cols[0]) || 1,
+                            sec: parseInt(cols[1]) || 1,
+                            speed: parseFloat(cols[2]) || 0,
+                            frequency: parseFloat(cols[3]) || 0,
+                            freqU1: parseFloat(cols[4]) || 0,
+                            freqI1: parseFloat(cols[5]) || 0,
+                            torque: parseFloat(cols[6]) || 0,
+                            u1: parseFloat(cols[7]) || 0,
+                            u2: parseFloat(cols[8]) || 0,
+                            u3: parseFloat(cols[9]) || 0,
+                            i1: parseFloat(cols[10]) || 0,
+                            i2: parseFloat(cols[11]) || 0,
+                            i3: parseFloat(cols[12]) || 0,
+                            elecPower: parseFloat(cols[13]) || 0,
+                            mechPower: parseFloat(cols[14]) || 0,
+                            pf: parseFloat(cols[15]) || 0,
+                            efficiency: parseFloat(cols[16]) || 0,
+                            kt: parseFloat(cols[17]) || 0,
+                            voltage: parseFloat(cols[18]) || 220,
+                            current: parseFloat(cols[19]) || 0,
+                            temp: parseFloat(cols[20]) || 35.0
+                        } : {
                             point: parseInt(cols[0]) || 1,
                             sec: parseInt(cols[1]) || 1,
                             speed: parseFloat(cols[2]) || 0,

@@ -480,6 +480,9 @@ namespace DynamometerHMI
             dgvNoLoad.Columns.Add("Phase", "階段");
             dgvNoLoad.Columns.Add("TargetSpd", "目標轉速(rpm)");
             dgvNoLoad.Columns.Add("ActSpd", "實測轉速(rpm)");
+            dgvNoLoad.Columns.Add("ActFreq", "實測頻率(Hz)");
+            dgvNoLoad.Columns.Add("FreqU", "WT333_U1(Hz)");
+            dgvNoLoad.Columns.Add("FreqI", "WT333_I1(Hz)");
             dgvNoLoad.Columns.Add("MaxTemp", "軸承最高溫(℃)");
             dgvNoLoad.Columns.Add("DeltaT", "30min溫差(℃)");
             dgvNoLoad.Columns.Add("Event", "事件與判定");
@@ -1566,6 +1569,9 @@ namespace DynamometerHMI
                     phaseStr,
                     string.Format("{0:F0}", targetSpd),
                     (actSpd > 0.0) ? string.Format("{0:F0}", actSpd) : "-- (無回授)",
+                    string.Format("{0:F2}", actFrequency),
+                    string.Format("{0:F2}", wtFreqU),
+                    string.Format("{0:F2}", wtFreqI),
                     (maxTemp > -100.0) ? string.Format("{0:F1}", maxTemp) : "--.-",
                     (deltaT > 0.0) ? string.Format("{0:F2}", deltaT) : "--",
                     eventStr

@@ -4495,7 +4495,7 @@ namespace DynamometerHMI
                     equivRecordWriter.WriteLine(string.Format("# 測試啟動時間: {0:yyyy-MM-dd HH:mm:ss} | 測試模式: {1}", DateTime.Now, safeTag));
                     equivRecordWriter.WriteLine("# 欄位特性: 純電機電氣與機械量連續紀錄 (不含任何溫度通道)");
                     equivRecordWriter.WriteLine("# ========================================================================================");
-                    equivRecordWriter.WriteLine("Timestamp,Elapsed_sec,Stage,FreqName,TargetFreq_Hz,Uf09_V,Speed_rpm,Frequency_Hz,Torque_Nm,Voltage_U1_V,Voltage_U2_V,Voltage_U3_V,Voltage_Sigma_V,Current_I1_A,Current_I2_A,Current_I3_A,Current_Sigma_A,Power_P1_kW,Power_P2_kW,Power_P3_kW,ElecPower_kW,MechPower_kW,PF,Status");
+                    equivRecordWriter.WriteLine("Timestamp,Elapsed_sec,Stage,FreqName,TargetFreq_Hz,Frequency_Hz,Freq_U1_Hz,Freq_I1_Hz,Uf09_V,Speed_rpm,Torque_Nm,Voltage_U1_V,Voltage_U2_V,Voltage_U3_V,Voltage_Sigma_V,Current_I1_A,Current_I2_A,Current_I3_A,Current_Sigma_A,Power_P1_kW,Power_P2_kW,Power_P3_kW,ElecPower_kW,MechPower_kW,PF,Status");
                     equivRecordWriter.Flush();
 
                     equivRecordStartTime = DateTime.Now;
@@ -4571,9 +4571,11 @@ namespace DynamometerHMI
                     string safeStage = (stage ?? "").Replace(",", "_");
                     string safeFreqName = (freqName ?? "").Replace(",", "_");
 
-                    string line = string.Format("\"{0:yyyy-MM-dd HH:mm:ss.fff}\",{1:F2},\"{2}\",\"{3}\",{4:F1},{5},{6:F1},{7:F2},{8:F2},{9:F2},{10:F2},{11:F2},{12:F2},{13:F3},{14:F3},{15:F3},{16:F3},{17:F3},{18:F3},{19:F3},{20:F3},{21:F3},{22:F3},\"{23}\"",
-                        now, elapsedSec, safeStage, safeFreqName, targetFreq, curUf09,
-                        spd, freq, trq,
+                    double fU = wtFreqU;
+                    double fI = wtFreqI;
+                    string line = string.Format("\"{0:yyyy-MM-dd HH:mm:ss.fff}\",{1:F2},\"{2}\",\"{3}\",{4:F1},{5:F2},{6:F2},{7:F2},{8},{9:F1},{10:F2},{11:F2},{12:F2},{13:F2},{14:F2},{15:F3},{16:F3},{17:F3},{18:F3},{19:F3},{20:F3},{21:F3},{22:F3},{23:F3},{24:F3},\"{25}\"",
+                        now, elapsedSec, safeStage, safeFreqName, targetFreq, freq, fU, fI, curUf09,
+                        spd, trq,
                         u1, u2, u3, uSig,
                         i1, i2, i3, iSig,
                         p1, p2, p3, pElec, pMech, pf, safeStatus);

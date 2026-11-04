@@ -3205,7 +3205,9 @@ namespace DynamometerHMI
             if (dutyElapsedSec % 5 == 0)
             {
                 dutyResults.Add(new string[] {
-                    dutyElapsedSec.ToString(), currentPhaseName, actSpeed.ToString("F1"), actTorque.ToString("F2"),
+                        dutyElapsedSec.ToString(), currentPhaseName, actSpeed.ToString("F1"),
+                        actFrequency.ToString("F2"), wtFreqU.ToString("F2"), wtFreqI.ToString("F2"),
+                        actTorque.ToString("F2"),
                     actMechPower.ToString("F2"), actEfficiency.ToString("F1"), actTemp.ToString("F1")
                 });
             }
@@ -3319,7 +3321,7 @@ namespace DynamometerHMI
                 string path = Path.Combine(logDir, string.Format("Report_Duty_Cycle_{0}.csv", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
                 using (StreamWriter sw = new StreamWriter(path, false, Encoding.UTF8))
                 {
-                    sw.WriteLine("TimeSec,Speed_rpm,Torque_Nm,MechPower_kW,Efficiency_pct,Temp_C");
+                    sw.WriteLine("TimeSec,Phase,Speed_rpm,Frequency_Hz,Freq_U1_Hz,Freq_I1_Hz,Torque_Nm,MechPower_kW,Efficiency_pct,Temp_C");
                     foreach (var row in dutyResults)
                     {
                         sw.WriteLine(string.Join(",", row));

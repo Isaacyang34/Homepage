@@ -609,8 +609,10 @@ namespace DynamometerHMI
 
                     // 記錄詳細測試行
                     effResults.Add(new string[] {
-                        curPt.Index.ToString(), curPt.TargetSpeed.ToString("F0"), curPt.TargetTorque.ToString("F1"),
-                        actAbsSpd.ToString("F1"), actAbsTrq.ToString("F2"),
+                    curPt.Index.ToString(), curPt.TargetSpeed.ToString("F0"), curPt.TargetTorque.ToString("F1"),
+                    actAbsSpd.ToString("F1"),
+                    actFrequency.ToString("F2"), wtFreqU.ToString("F2"), wtFreqI.ToString("F2"),
+                    actAbsTrq.ToString("F2"),
                         (pElec / 1000.0).ToString("F3"), (pMech / 1000.0).ToString("F3"),
                         eff.ToString("F1"), isTargetReached ? "PASS" : "WARN"
                     });
@@ -783,7 +785,7 @@ namespace DynamometerHMI
                     {
                         sw.WriteLine();
                         sw.WriteLine("# 各測試點詳細遙測記錄");
-                        sw.WriteLine("點位,目標轉速(rpm),目標轉矩(Nm),實測轉速(rpm),實測轉矩(Nm),輸入電功率(kW),輸出機械功率(kW),實測效率(%),判定");
+                        sw.WriteLine("點次,目標轉速(rpm),目標轉矩(Nm),實測轉速(rpm),實測頻率(Hz),U1頻率(Hz),I1頻率(Hz),實測轉矩(Nm),輸入電功率(kW),輸出機械功率(kW),效率(%),判定");
                         foreach (string[] row in effResults)
                         {
                             sw.WriteLine(string.Join(",", row));

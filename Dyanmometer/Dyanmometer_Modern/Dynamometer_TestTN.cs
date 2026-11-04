@@ -1380,7 +1380,8 @@ namespace DynamometerHMI
                     wtU1, wtU2, wtU3,
                     wtI1, wtI2, wtI3,
                     actElecPower, actMechPower, actPf, actEfficiency,
-                    actKt, actVoltageSigma, actCurrentSigma, actTemp
+                    actKt, actVoltageSigma, actCurrentSigma, actTemp,
+                    wtFreqU, wtFreqI
                 });
 
                 // 依指示：採樣時即刻進行頻率比對診斷記錄
@@ -1456,8 +1457,12 @@ namespace DynamometerHMI
 
                     if (tnChart != null) tnChart.AddPoint(avgSpd, avgTrq, avgMechPwr);
 
+                    double avgFU = curPt.Samples.Count > 0 && curPt.Samples[0].Length > 17 ? curPt.Samples.Average(s => s[17]) : (double)wtFreqU;
+                    double avgFI = curPt.Samples.Count > 0 && curPt.Samples[0].Length > 18 ? curPt.Samples.Average(s => s[18]) : (double)wtFreqI;
                     tnResults.Add(new string[] {
-                        targetSpd.ToString("F0"), avgSpd.ToString("F1"), avgTrq.ToString("F2"),
+                        targetSpd.ToString("F0"), avgSpd.ToString("F1"),
+                        avgFreq.ToString("F2"), avgFU.ToString("F2"), avgFI.ToString("F2"),
+                        avgTrq.ToString("F2"),
                         avgMechPwr.ToString("F2"), avgEff.ToString("F1"), actKt.ToString("F2"),
                         "PASS"
                     });
@@ -2008,7 +2013,9 @@ namespace DynamometerHMI
                     if (tnChart != null) tnChart.AddPoint(actAbsSpd, actAbsTrq, actMechPower);
 
                     tnResults.Add(new string[] {
-                        tnCurrentStep.ToString(), actAbsSpd.ToString("F1"), actAbsTrq.ToString("F2"),
+                        tnCurrentStep.ToString(), actAbsSpd.ToString("F1"),
+                        actFrequency.ToString("F2"), wtFreqU.ToString("F2"), wtFreqI.ToString("F2"),
+                        actAbsTrq.ToString("F2"),
                         actMechPower.ToString("F2"), actEfficiency.ToString("F1"), actKt.ToString("F2"),
                         isPass ? "PASS" : "FAIL"
                     });
@@ -2181,7 +2188,7 @@ namespace DynamometerHMI
                     using (StreamWriter sw = new StreamWriter(multiPath, false, Encoding.UTF8))
                     {
                         sw.WriteLine("=== T-N 多點自訂測試彙總報表 ===");
-                        sw.WriteLine("Point,TargetSpeed_rpm,TargetTorque_Nm,AvgSpeed_rpm,AvgFrequency_Hz,AvgTorque_Nm,AvgVoltage_U1_V,AvgVoltage_U2_V,AvgVoltage_U3_V,AvgCurrent_I1_A,AvgCurrent_I2_A,AvgCurrent_I3_A,AvgElecPower_kW,AvgMechPower_kW,AvgPF,AvgEfficiency_pct,AvgKt_NmA,AvgVoltSigma_V,AvgCurrSigma_A,AvgMotorTemp_C,Status");
+                        sw.WriteLine("Point,TargetSpeed_rpm,TargetTorque_Nm,AvgSpeed_rpm,AvgFrequency_Hz,AvgFreq_U1_Hz,AvgFreq_I1_Hz,AvgTorque_Nm,AvgVoltage_U1_V,AvgVoltage_U2_V,AvgVoltage_U3_V,AvgCurrent_I1_A,AvgCurrent_I2_A,AvgCurrent_I3_A,AvgElecPower_kW,AvgMechPower_kW,AvgPF,AvgEfficiency_pct,AvgKt_NmA,AvgVoltSigma_V,AvgCurrSigma_A,AvgMotorTemp_C,Status");
                         for (int i = 0; i < tnCustomPoints.Count; i++)
                         {
                             var pt = tnCustomPoints[i];
@@ -2203,10 +2210,12 @@ namespace DynamometerHMI
                             double ptVoltSigma = hasSamples ? pt.Samples.Average(s => s[14]) : 0.0;
                             double ptCurrSigma = hasSamples ? pt.Samples.Average(s => s[15]) : 0.0;
                             double ptTemp = hasSamples ? pt.Samples.Average(s => s[16]) : 0.0;
+                            double ptFreqU = (hasSamples && pt.Samples[0].Length > 17) ? pt.Samples.Average(s => s[17]) : 0.0;
+                            double ptFreqI = (hasSamples && pt.Samples[0].Length > 18) ? pt.Samples.Average(s => s[18]) : 0.0;
 
-                            sw.WriteLine(string.Format("{0},{1:F0},{2:F2},{3:F1},{4:F2},{5:F2},{6:F2},{7:F2},{8:F2},{9:F3},{10:F3},{11:F3},{12:F2},{13:F2},{14:F3},{15:F1},{16:F2},{17:F1},{18:F2},{19:F1},{20}",
+                            sw.WriteLine(string.Format("{0},{1:F0},{2:F2},{3:F1},{4:F2},{5:F2},{6:F2},{7:F2},{8:F2},{9:F2},{10:F2},{11:F3},{12:F3},{13:F3},{14:F2},{15:F2},{16:F3},{17:F1},{18:F2},{19:F1},{20:F2},{21:F1},{22}",
                                 pt.Index, pt.TargetSpeed, pt.TargetTorque,
-                                ptSpd, ptFreq, ptTrq,
+                                ptSpd, ptFreq, ptFreqU, ptFreqI, ptTrq,
                                 ptU1, ptU2, ptU3,
                                 ptI1, ptI2, ptI3,
                                 ptElecPwr, ptMechPwr, ptPf, ptEff,
@@ -2215,23 +2224,25 @@ namespace DynamometerHMI
                         }
                         sw.WriteLine();
                         sw.WriteLine("=== 各測試點 30 秒每秒穩定資料明細 (1Hz) ===");
-                        sw.WriteLine("Point,SampleSec,Speed_rpm,Frequency_Hz,Torque_Nm,Voltage_U1_V,Voltage_U2_V,Voltage_U3_V,Current_I1_A,Current_I2_A,Current_I3_A,ElecPower_kW,MechPower_kW,PF,Efficiency_pct,Kt_NmA,VoltSigma_V,CurrSigma_A,MotorTemp_C");
+                        sw.WriteLine("Point,SampleSec,Speed_rpm,Frequency_Hz,Freq_U1_Hz,Freq_I1_Hz,Torque_Nm,Voltage_U1_V,Voltage_U2_V,Voltage_U3_V,Current_I1_A,Current_I2_A,Current_I3_A,ElecPower_kW,MechPower_kW,PF,Efficiency_pct,Kt_NmA,VoltSigma_V,CurrSigma_A,MotorTemp_C");
                         for (int i = 0; i < tnCustomPoints.Count; i++)
                         {
                             var pt = tnCustomPoints[i];
-                            sw.WriteLine(); //  依 Modify.txt: 在確定穩定後抓取30筆數據時給資料一個斷行
+                            sw.WriteLine(); // 區段空行
                             for (int s = 0; s < pt.Samples.Count; s++)
                             {
                                 var row = pt.Samples[s];
-                                sw.WriteLine(string.Format("{0},{1},{2:F1},{3:F2},{4:F2},{5:F2},{6:F2},{7:F2},{8:F3},{9:F3},{10:F3},{11:F2},{12:F2},{13:F3},{14:F1},{15:F2},{16:F1},{17:F2},{18:F1}",
+                                double sFU = (row.Length > 17) ? row[17] : 0.0;
+                                double sFI = (row.Length > 18) ? row[18] : 0.0;
+                                sw.WriteLine(string.Format("{0},{1},{2:F1},{3:F2},{4:F2},{5:F2},{6:F2},{7:F2},{8:F2},{9:F2},{10:F3},{11:F3},{12:F3},{13:F2},{14:F2},{15:F3},{16:F1},{17:F2},{18:F1},{19:F2},{20:F1}",
                                     pt.Index, s + 1,
-                                    row[0], row[1], row[2],
+                                    row[0], row[1], sFU, sFI, row[2],
                                     row[3], row[4], row[5],
                                     row[6], row[7], row[8],
                                     row[9], row[10], row[11], row[12],
                                     row[13], row[14], row[15], row[16]));
                             }
-                            sw.WriteLine(); //  依 Modify.txt: 結束後也多一個斷行方便識別測試區間
+                            sw.WriteLine();
                         }
                     }
                     PurgeLocalLogs(false);
@@ -2242,7 +2253,7 @@ namespace DynamometerHMI
                 string path = Path.Combine(logDir, string.Format("Report_TN_Curve_{0}.csv", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
                 using (StreamWriter sw = new StreamWriter(path, false, Encoding.UTF8))
                 {
-                    sw.WriteLine("Step,TargetRpm,ActualSpeed_rpm,ActualTorque_Nm,MechPower_kW,Efficiency_pct,Kt_NmA,Status");
+                    sw.WriteLine("Step,TargetRpm,ActualSpeed_rpm,ActualFrequency_Hz,Freq_U1_Hz,Freq_I1_Hz,ActualTorque_Nm,MechPower_kW,Efficiency_pct,Kt_NmA,Status");
                     for (int i = 0; i < tnResults.Count; i++)
                     {
                         sw.WriteLine(string.Format("{0},{1}", i + 1, string.Join(",", tnResults[i])));
