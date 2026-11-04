@@ -9,7 +9,8 @@ import json
 import math
 
 # Force UTF-8 output
-sys.stdout.reconfigure(encoding="utf-8")
+if sys.stdout is not None and hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 print("=" * 70)
 print("  E2E VERIFICATION SUITE: QUERY 0050 FUNDAMENTAL ENGINE")

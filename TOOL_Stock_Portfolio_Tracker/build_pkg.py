@@ -38,7 +38,8 @@ MODULE_FILES = [
     "margin_risk_service.py",
     "unified_ranking_gui.py",
     "stock_fundamental_service.py",
-    "fundamental_analyzer_gui.py"
+    "fundamental_analyzer_gui.py",
+    "sync_merge_service.py"
 ]
 
 def check_windowed_stdio_safety(app_dir: str) -> bool:
@@ -100,4 +101,5 @@ def build_app_core_pkg(output_pkg_path: str = "app_core.pkg") -> bool:
     return True
 
 if __name__ == "__main__":
-    build_app_core_pkg()
+    success = build_app_core_pkg()
+    sys.exit(0 if success else 1)

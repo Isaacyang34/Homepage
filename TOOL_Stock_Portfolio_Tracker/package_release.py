@@ -289,6 +289,9 @@ def step_3_compile_bytecode() -> bool:
 
     print("\n[Step 3/6] 編譯位元碼並封裝 app_core.pkg...")
 
+    pkg_path = os.path.join(APP_DIR, "app_core.pkg")
+    if os.path.exists(pkg_path):
+        os.remove(pkg_path)
     build_script = os.path.join(APP_DIR, "build_pkg.py")
 
     cmd = [sys.executable, build_script]
