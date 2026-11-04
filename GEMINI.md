@@ -337,3 +337,21 @@
         sys.stderr.reconfigure(encoding="utf-8")
     ```
 * **詳細規範**：參考 `.agents/rules/windowed_null_stdio_safety_and_build_gate_rule.md`。
+
+
+## 27. 全專案二進位發布實體版號一致性與建置熔斷最高鐵律 (Universal Binary Integrity, Anti-Stale Artifact & Build Gate Rule - 全案最高強制規範)
+* **核心致命盲區 (The Ghost Artifact Dilemma)**：
+  * 在任何編譯/封裝型專案（C# WinForms、Python PyInstaller、二進位包 `app_core.pkg`、C++ 或韌體打包）：
+  * 若建置工具編譯失敗卻以 Exit Code 0 退出，且發布腳本未清理舊二進位產物；
+  * 發布腳本將誤把「上一版的殘留舊產物」打進補丁或便攜包！導致外部宣告版號（`version.json`）已更新，但執行檔內部永遠運行於舊版，引發使用者重啟死循環！
+* **全案通用四重物理硬閉鎖防線 (Mandatory 4-Layer Build & Release Gate - 全專案強制執行)**：
+  1. **前置物理清空鐵律 (Pre-Build Purge Gate)**：任何發布流水線（`.ps1`、`.py`、`.bat`）在發起編譯指令的第一行，**強制物理刪除當前目錄下所有目標二進位產物（`.exe`、`.pkg`、`.zip`、`.bin`）**，杜絕舊檔殘留！
+  2. **非零退出碼嚴格熔斷鐵律 (Non-Zero Exit Code Circuit Breaker)**：所有單元測試、語法檢驗、排版防裁切、位元碼編譯腳本，只要有任何一處未通過，**必須強制拋出非零退出碼（`sys.exit(1)` 或 `exit 1` / `throw`）**；主發布腳本捕獲 Exit Code != 0 **立即熔斷中斷，嚴禁掠過報錯繼續發布**！
+  3. **實體二進位內部版號強一致性反序列化驗證 (Post-Build Binary Reflection Gate - 核心殺手鐧)**：
+     - 打包成 zip 或發布前，發布腳本必須主動**「穿透/逆向/反序列化」實體二進位檔案內部的真實版號**：
+       - C# PE 執行檔：調用 `[System.Diagnostics.FileVersionInfo]::GetVersionInfo($exePath).FileVersion`。
+       - Python 二進位包：使用 `zipfile` + `marshal` 反序列化 `updater.pyc` 讀取實體常數。
+       - 韌體 Image：讀取 Header 中的版本欄位。
+     - **物理斷言**：實體內部反向解析之版本，**必須與目標發布版號 (`target_version` / `version.json`) 100% 絕對完全一致**！若不符直接拋出致命錯誤熔斷，拒絕產出與發布幽靈版本！
+  4. **發布端 200 OK 實測探測閉鎖 (Post-Release Probe Lockout)**：發布後對遠端 Raw 下載網址發起 HTTP HEAD 實測探測，驗證 `HTTP 200 OK` 且大小符合。
+* **詳細規範**：參考 `.agents/rules/universal_binary_integrity_and_build_gate_rule.md`。
