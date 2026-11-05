@@ -5816,14 +5816,22 @@ namespace DynamometerHMI
                         {
                             try
                             {
-                                byte[] rawE1 = SendModbusReadBlock(streamPower, 100, 18);
-                                byte[] rawE2 = SendModbusReadBlock(streamPower, 200, 14);
-                                byte[] rawE3 = SendModbusReadBlock(streamPower, 300, 14);
-                                byte[] rawSig = SendModbusReadBlock(streamPower, 400, 14);
+                                // 橫河 WT333E 物理通道十進位位址真實映射 (對齊真機面板)：
+                                // Reg 100: SIGMA (總和/平均 - USig, ISig, PSig, SSig, QSig, PFSig, PhiSig)
+                                // Reg 200: Element 1 (第 1 相 - U1, I1, P1, S1, Q1, PF1, Phi1, FreqU, FreqI)
+                                // Reg 300: Element 2 (第 2 相 - U2, I2, P2, S2, Q2, PF2, Phi2)
+                                // Reg 400: Element 3 (第 3 相 - U3, I3, P3, S3, Q3, PF3, Phi3)
+                                byte[] rawSig = SendModbusReadBlock(streamPower, 100, 14);
+                                byte[] rawE1  = SendModbusReadBlock(streamPower, 200, 18);
+                                byte[] rawE2  = SendModbusReadBlock(streamPower, 300, 14);
+                                byte[] rawE3  = SendModbusReadBlock(streamPower, 400, 14);
 
-                                if (rawE1 != null && rawE1.Length >= 9 + 12)
+                                if ((rawE1 != null && rawE1.Length >= 9 + 12) || (rawSig != null && rawSig.Length >= 9 + 12))
                                 {
-                                    lastRawWt333eHex = BitConverter.ToString(rawE1, 0, Math.Min(rawE1.Length, 32)).Replace("-", " ");
+                                    if (rawE1 != null)
+                                        lastRawWt333eHex = BitConverter.ToString(rawE1, 0, Math.Min(rawE1.Length, 32)).Replace("-", " ");
+                                    else if (rawSig != null)
+                                        lastRawWt333eHex = BitConverter.ToString(rawSig, 0, Math.Min(rawSig.Length, 32)).Replace("-", " ");
                                     int baseOffset = 9;
 
                                     float raw_u1 = SanitizeFloat(ParseModbusFloat(rawE1, baseOffset + 0), 0f, 1500f);
@@ -5863,7 +5871,7 @@ namespace DynamometerHMI
                                     float raw_uSig = 0f, raw_iSig = 0f, raw_pSig = 0f, raw_sSig = 0f, raw_qSig = 0f, raw_pfSig = 1f, raw_phiSig = 0f;
                                     if (rawSig != null && rawSig.Length >= baseOffset + 12)
                                     {
-                                        // SIGMA (Reg 400): 14 regs = 7 floats = USig, ISig, PSig, SSig, QSig, PFSig, PhiSig
+                                        // SIGMA (Reg 100): 14 regs = 7 floats = USig, ISig, PSig, SSig, QSig, PFSig, PhiSig
                                         // 對齊 WT333E_Tester_GUI.cs QueryFullPowerData() fs[0..6] 映射
                                         raw_uSig   = SanitizeFloat(ParseModbusFloat(rawSig, baseOffset + 0),  0f, 1500f);
                                         raw_iSig   = SanitizeFloat(ParseModbusFloat(rawSig, baseOffset + 4),  -500f, 500f);
