@@ -909,23 +909,70 @@
 
     <script>
         // ================================================================
-        //  雲端連線設定
+        //  全域核心狀態與變數宣告 (防止 ReferenceError 崩潰與 TDZ 阻斷)
         // ================================================================
-        function _buildEndpoint() {
+        let _isVipUser = true; // 所有人預設享有 24 小時無限時即時連線，無密碼卡控與時限
+        let _remoteWhitelistKey = "dyn888";
+        const GUEST_TIME_LIMIT_SEC = 300;
+        let _guestRemainingSec = GUEST_TIME_LIMIT_SEC;
+        let _guestCountdownTimer = null;
+        let eventSource = null;
+        let pollTimer = null;
+        let lastReceivedTime = 0;
+        let packetCount = 0;
+        // (訪客變數已在頂部統一宣告)
+        const MAX_POINTS = 60;
+        const historyPoints = {
+            speed: [],
+            torque: [],
+            power: []
+        };
+
+        // ================================================================
+        //  雲端連線設定 (智慧自適應雙模連線: 本地極速 SSE + 雲端 Firebase RTDB)
+        // ================================================================
+        function isLocalServer() {
+            try {
+                const h = window.location.hostname;
+                const p = window.location.protocol;
+                return p.startsWith("http") && (h === "localhost" || h === "127.0.0.1" || /^192\.168\./.test(h) || /^10\./.test(h) || /^172\.(1[6-9]|2[0-9]|3[01])\./.test(h));
+            } catch(e) {
+                return false;
+            }
+        }
+
+        function _buildSseEndpoint() {
+            if (isLocalServer()) {
+                return "/sse";
+            }
             const p1 = "https://dynamometer-live-";
             const p2 = "default-rtdb.asia-south";
             const p3 = "east1.firebasedatabase.app/live.json";
             return p1 + p2 + p3;
         }
 
-        const SSE_URL = _buildEndpoint();
-        const STATUS_URL = SSE_URL;
+        function _buildStatusEndpoint() {
+            if (isLocalServer()) {
+                return "/api/status";
+            }
+            const p1 = "https://dynamometer-live-";
+            const p2 = "default-rtdb.asia-south";
+            const p3 = "east1.firebasedatabase.app/live.json";
+            return p1 + p2 + p3;
+        }
+
+        const SSE_URL = _buildSseEndpoint();
+        const STATUS_URL = _buildStatusEndpoint();
         const FB_BASE = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app";
 
-        // ================================================================
-        //  全端無限時即時連線監控引擎 (Unlimited Access Engine)
-        // ================================================================
-        let _isVipUser = true; // 所有人預設享有 24 小時無限時即時連線，無密碼卡控與時限
+        // 更新雲端/本地連線標籤
+        setTimeout(() => {
+            const lbl = document.getElementById("cloudDbLabel");
+            if (lbl) {
+                lbl.textContent = isLocalServer() ? "連線端點: 本地工控機極速 SSE (Local HMI)" : "Firebase: dynamometer-live-default-rtdb (asia-southeast1)";
+            }
+        }, 100);
+
 
         // Toast 訊息提示元件
         function showToast(msg, type = "info") {
@@ -1017,6 +1064,7 @@
                 if (pillGuest) pillGuest.style.display = "flex";
                 if (formBody) formBody.style.display = "block";
                 if (activeBody) activeBody.style.display = "none";
+                const tabSpecBadge = document.getElementById("tabSpecBadge");
                 if (tabSpecBadge) {
                     tabSpecBadge.textContent = "🔒 VIP";
                     tabSpecBadge.className = "tab-vip-lock-badge";
@@ -1186,8 +1234,7 @@
         // ================================================================
         //  訪客即時審計與足跡追蹤引擎 (Visitor Audit & Telemetry Engine)
         // ================================================================
-        let _currentVisitorSession = null;
-        let _sessionStartTime = Date.now();
+        // (訪客變數已在頂部統一宣告)
 
         function _getVisitorUUID() {
             let vid = localStorage.getItem("dyn_vid");
@@ -1420,20 +1467,10 @@
         }
 
         // ────────────────────────────────────────────
+        // ────────────────────────────────────────────
         //  原始業務邏輯區 (驗證通過後才能執行)
         // ────────────────────────────────────────────
-        let lastReceivedTime = 0;
-        let packetCount = 0;
-        let eventSource = null;
-        let pollTimer = null;
-
-        // 歷史趨勢點 (最大保留 60 筆)
-        const historyPoints = {
-            speed: [],
-            torque: [],
-            power: []
-        };
-        const MAX_POINTS = 60;
+        // (核心全域變數已在頂部統一宣告，杜絕重複宣告崩潰)
 
         // 初始化溫度格子
         function initTempGrid() {
@@ -1477,12 +1514,12 @@
                     alertBanner.style.borderColor = "rgba(239, 68, 68, 0.6)";
                     alertBanner.style.color = "#fca5a5";
                     alertBanner.innerHTML = `💥 <strong>【現場 HMI 程式崩潰警報】</strong> 原因: ${data.crash_reason || "非預期例外終止"} (${data.last_alert_time || "剛才"})`;
-                } else if (data.last_alert_msg) {
+                } else if (data.last_alert_msg && window._dismissedAlert !== (data.last_alert_time + data.last_alert_msg)) {
                     alertBanner.style.display = "flex";
                     alertBanner.style.background = "rgba(245, 158, 11, 0.2)";
                     alertBanner.style.borderColor = "rgba(245, 158, 11, 0.5)";
                     alertBanner.style.color = "#fcd34d";
-                    alertBanner.innerHTML = `⚠️ <strong>【最新跳脫警報: ${data.last_alert_cat || "ALERT"}】</strong> ${data.last_alert_msg} (${data.last_alert_time || ""})`;
+                    alertBanner.innerHTML = `<div style="flex:1;">⚠️ <strong>【最新跳脫警報: ${data.last_alert_cat || "ALERT"}】</strong> ${data.last_alert_msg} (${data.last_alert_time || ""})</div><button onclick="window._dismissedAlert='${(data.last_alert_time || "") + data.last_alert_msg}'; document.getElementById('alertBanner').style.display='none';" style="background:none; border:none; color:#fcd34d; font-size:16px; cursor:pointer; padding:0 8px;" title="關閉警報">✕</button>`;
                 } else {
                     alertBanner.style.display = "none";
                 }
@@ -1668,16 +1705,26 @@
 
                 eventSource.onopen = () => {
                     const dot = document.getElementById("statusDot");
-                    dot.classList.remove("offline");
-                    dot.classList.add("pulse");
-                    document.getElementById("statusText").textContent = "Firebase 連線正常 (LIVE)";
+                    if (dot) {
+                        dot.classList.remove("offline");
+                        dot.classList.add("pulse");
+                    }
+                    const st = document.getElementById("statusText");
+                    if (st) {
+                        st.textContent = isLocalServer() ? "本地 HMI 串流中 (LIVE)" : "Firebase 連線正常 (LIVE)";
+                    }
                 };
 
                 eventSource.onerror = (err) => {
                     const dot = document.getElementById("statusDot");
-                    dot.classList.add("offline");
-                    dot.classList.remove("pulse");
-                    document.getElementById("statusText").textContent = "Firebase 重試中...";
+                    if (dot) {
+                        dot.classList.add("offline");
+                        dot.classList.remove("pulse");
+                    }
+                    const st = document.getElementById("statusText");
+                    if (st) {
+                        st.textContent = isLocalServer() ? "本地串流重試中 (輪詢備援啟動)..." : "Firebase 重試中 (輪詢備援啟動)...";
+                    }
                 };
             } catch (ex) {
                 console.warn("SSE 不可用，切換為輪詢模式:", ex);
