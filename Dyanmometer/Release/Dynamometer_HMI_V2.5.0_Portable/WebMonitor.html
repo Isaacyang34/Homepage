@@ -935,6 +935,7 @@
             try {
                 const h = window.location.hostname;
                 const p = window.location.protocol;
+                if (p === "file:") return true; // 本機雙擊直接開啟，優先連線本地 HMI 原生埠
                 return p.startsWith("http") && (h === "localhost" || h === "127.0.0.1" || /^192\.168\./.test(h) || /^10\./.test(h) || /^172\.(1[6-9]|2[0-9]|3[01])\./.test(h));
             } catch(e) {
                 return false;
@@ -942,6 +943,10 @@
         }
 
         function _buildSseEndpoint() {
+            const p = window.location.protocol;
+            if (p === "file:") {
+                return "http://localhost:8080/sse";
+            }
             if (isLocalServer()) {
                 return "/sse";
             }
@@ -952,6 +957,10 @@
         }
 
         function _buildStatusEndpoint() {
+            const p = window.location.protocol;
+            if (p === "file:") {
+                return "http://localhost:8080/api/status";
+            }
             if (isLocalServer()) {
                 return "/api/status";
             }
@@ -1736,16 +1745,31 @@
             const now = Date.now();
             if (now - lastReceivedTime > 1500) {
                 try {
-                    const resp = await fetch(STATUS_URL, { cache: "no-store" });
-                    if (resp.ok) {
+                    let resp = null;
+                    try {
+                        resp = await fetch(STATUS_URL, { cache: "no-store" });
+                    } catch (netErr) {
+                        // 若本地端點尚未啟動 (如 file:// 模式)，自動無縫切換至雲端 Firebase RTDB 備援
+                        if (STATUS_URL.includes("localhost") && FB_BASE) {
+                            resp = await fetch(`${FB_BASE}/live.json`, { cache: "no-store" });
+                        } else {
+                            throw netErr;
+                        }
+                    }
+                    if (resp && resp.ok) {
                         const data = await resp.json();
                         if (data) renderTelemetry(data.data || data);
                     }
                 } catch (e) {
                     const dot = document.getElementById("statusDot");
-                    dot.classList.add("offline");
-                    dot.classList.remove("pulse");
-                    document.getElementById("statusText").textContent = "等待 Firebase 數據...";
+                    if (dot) {
+                        dot.classList.add("offline");
+                        dot.classList.remove("pulse");
+                    }
+                    const st = document.getElementById("statusText");
+                    if (st) {
+                        st.textContent = isLocalServer() ? "等待本地 HMI 數據 (請啟動 HMI)..." : "等待雲端數據...";
+                    }
                 }
             }
         }

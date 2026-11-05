@@ -38,7 +38,7 @@ namespace DynamometerHMI
         private bool isCloudUploadRunning = false;
 
         // ── 軟體線上熱更新設定 (Online Auto-Update & In-Place Hot Swap) ──────
-        public const string APP_VERSION = "2.10.111";
+        public const string APP_VERSION = "2.10.112";
         public string cloudUpdateManifestUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/update/version.json";
         public Button btnOnlineUpdate = null;
         private bool? lastCloudUploadSuccess = null;
@@ -1094,12 +1094,21 @@ namespace DynamometerHMI
             ttWeb.SetToolTip(btnOpenWebMonitor, "[圖表] 一鍵開啟本地/遠端監看網頁 (WebMonitor.html)\n直接在瀏覽器即時查看指針儀表與雲端曲線");
             btnOpenWebMonitor.Click += (s, e) => {
                 try {
-                    string htmlPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WebMonitor.html");
-                    if (File.Exists(htmlPath)) {
-                        System.Diagnostics.Process.Start(htmlPath);
+                    // 若 WebServer 尚未啟動，自動就地啟動本機極速 WebServer
+                    if (_webServer == null || !_webServer.IsRunning)
+                    {
+                        StartWebServer();
                     }
+                    int p = (_webServer != null && _webServer.IsRunning) ? _webServer.Port : webServerPort;
+                    string localUrl = "http://localhost:" + p + "/WebMonitor.html";
+                    System.Diagnostics.Process.Start(localUrl);
                 } catch (Exception ex) {
-                    MessageBox.Show("無法開啟監看網頁: " + ex.Message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    try {
+                        string htmlPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WebMonitor.html");
+                        if (File.Exists(htmlPath)) System.Diagnostics.Process.Start(htmlPath);
+                    } catch {
+                        MessageBox.Show("無法開啟監看網頁: " + ex.Message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
                 }
             };
 
@@ -1486,10 +1495,20 @@ namespace DynamometerHMI
                 btnOpenHtml.FlatAppearance.BorderSize = 0;
                 btnOpenHtml.Click += (s, e) => {
                     try {
-                        string htmlPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WebMonitor.html");
-                        if (File.Exists(htmlPath)) System.Diagnostics.Process.Start(htmlPath);
+                        if (_webServer == null || !_webServer.IsRunning)
+                        {
+                            StartWebServer();
+                        }
+                        int p = (_webServer != null && _webServer.IsRunning) ? _webServer.Port : webServerPort;
+                        string localUrl = "http://localhost:" + p + "/WebMonitor.html";
+                        System.Diagnostics.Process.Start(localUrl);
                     } catch (Exception ex) {
-                        MessageBox.Show("無法開啟監看網頁: " + ex.Message);
+                        try {
+                            string htmlPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WebMonitor.html");
+                            if (File.Exists(htmlPath)) System.Diagnostics.Process.Start(htmlPath);
+                        } catch {
+                            MessageBox.Show("無法開啟監看網頁: " + ex.Message);
+                        }
                     }
                 };
                 diagForm.Controls.Add(btnOpenHtml);
