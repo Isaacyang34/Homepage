@@ -38,7 +38,7 @@ namespace DynamometerHMI
         private bool isCloudUploadRunning = false;
 
         // ── 軟體線上熱更新設定 (Online Auto-Update & In-Place Hot Swap) ──────
-        public const string APP_VERSION = "2.10.112";
+        public const string APP_VERSION = "2.10.113";
         public string cloudUpdateManifestUrl = "https://dynamometer-live-default-rtdb.asia-southeast1.firebasedatabase.app/update/version.json";
         public Button btnOnlineUpdate = null;
         private bool? lastCloudUploadSuccess = null;
@@ -1094,25 +1094,20 @@ namespace DynamometerHMI
             ttWeb.SetToolTip(btnOpenWebMonitor, "[圖表] 一鍵開啟本地/遠端監看網頁 (WebMonitor.html)\n直接在瀏覽器即時查看指針儀表與雲端曲線");
             btnOpenWebMonitor.Click += (s, e) => {
                 try {
-                    // 若 WebServer 尚未啟動，自動就地啟動本機極速 WebServer
-                    if (_webServer == null || !_webServer.IsRunning)
-                    {
-                        StartWebServer();
-                    }
-                    int p = (_webServer != null && _webServer.IsRunning) ? _webServer.Port : webServerPort;
-                    string localUrl = "http://localhost:" + p + "/WebMonitor.html";
-                    System.Diagnostics.Process.Start(localUrl);
+                    // 直接開啟雲端實時監控中心網址 (GitHub Pages 雲端託管，自帶 VIP 白名單參數)
+                    const string cloudUrl = "https://isaacyang34.github.io/Homepage/WebMonitor.html?vip=dyn888";
+                    System.Diagnostics.Process.Start(cloudUrl);
                 } catch (Exception ex) {
                     try {
-                        string htmlPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WebMonitor.html");
-                        if (File.Exists(htmlPath)) System.Diagnostics.Process.Start(htmlPath);
+                        // 備援：若無法直開外部 URL，回退至本地 WebServer
+                        if (_webServer == null || !_webServer.IsRunning) { StartWebServer(); }
+                        int p = (_webServer != null && _webServer.IsRunning) ? _webServer.Port : webServerPort;
+                        System.Diagnostics.Process.Start("http://localhost:" + p + "/WebMonitor.html");
                     } catch {
-                        MessageBox.Show("無法開啟監看網頁: " + ex.Message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        MessageBox.Show("無法開啟雲端監看網頁: " + ex.Message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     }
                 }
-            };
-
-            // 4.5 雲端日誌上傳按鈕 (Upload Latest Log to Cloud for AI Analysis)
+            };// 4.5 雲端日誌上傳按鈕 (Upload Latest Log to Cloud for AI Analysis)
             Button btnUploadLogToCloud = new Button()
             {
                 Text = "[雲] 上傳日誌",
@@ -1495,23 +1490,18 @@ namespace DynamometerHMI
                 btnOpenHtml.FlatAppearance.BorderSize = 0;
                 btnOpenHtml.Click += (s, e) => {
                     try {
-                        if (_webServer == null || !_webServer.IsRunning)
-                        {
-                            StartWebServer();
-                        }
-                        int p = (_webServer != null && _webServer.IsRunning) ? _webServer.Port : webServerPort;
-                        string localUrl = "http://localhost:" + p + "/WebMonitor.html";
-                        System.Diagnostics.Process.Start(localUrl);
+                        const string cloudUrl = "https://isaacyang34.github.io/Homepage/WebMonitor.html?vip=dyn888";
+                        System.Diagnostics.Process.Start(cloudUrl);
                     } catch (Exception ex) {
                         try {
-                            string htmlPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WebMonitor.html");
-                            if (File.Exists(htmlPath)) System.Diagnostics.Process.Start(htmlPath);
+                            if (_webServer == null || !_webServer.IsRunning) { StartWebServer(); }
+                            int p = (_webServer != null && _webServer.IsRunning) ? _webServer.Port : webServerPort;
+                            System.Diagnostics.Process.Start("http://localhost:" + p + "/WebMonitor.html");
                         } catch {
-                            MessageBox.Show("無法開啟監看網頁: " + ex.Message);
+                            MessageBox.Show("無法開啟雲端監看網頁: " + ex.Message);
                         }
                     }
-                };
-                diagForm.Controls.Add(btnOpenHtml);
+                };diagForm.Controls.Add(btnOpenHtml);
 
                 Button btnClose = new Button()
                 {
