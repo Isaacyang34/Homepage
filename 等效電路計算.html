@@ -134,10 +134,11 @@
                     <div class="text-sm text-red-600 mb-4 font-bold bg-red-50 p-2 rounded flex items-center gap-2 shadow-inner">
                         <span data-i18n="target_hint_pre">🎯 目標電流：</span><span id="target_ibr_hint" class="text-lg font-mono">---</span> A
                     </div>
-                    <div class="grid grid-cols-3 gap-4 mb-4">
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
                         <div class="input-group"><label>V_LL (V)</label><input type="number" id="v_br" step="0.01"></div>
                         <div class="input-group"><label>I_L (A)</label><input type="number" id="i_br" step="0.01"></div>
                         <div class="input-group"><label>P (W)</label><input type="number" id="p_br" step="0.1"></div>
+                        <div class="input-group"><label data-i18n="label_f_br">測試頻率 f_br (Hz)</label><input type="number" id="f_br" step="0.1" placeholder="留白=同工頻" data-i18n-ph="f_br_ph"></div>
                     </div>
                     <details class="group bg-red-50/50 rounded-lg border border-red-100">
                         <summary class="flex items-center justify-between p-2 font-medium text-xs text-red-700 hover:text-red-900 cursor-pointer">
@@ -243,8 +244,29 @@
                                 <div class="text-[9px] text-slate-400 mt-0.5">佔額定電流比例</div>
                             </div>
                         </div>
-                        <div class="text-[11px] text-indigo-200/90 bg-indigo-900/40 p-2.5 rounded border border-indigo-800/40 leading-relaxed" data-i18n="id_physics_note">
-                            💡 <strong>物理意涵說明：</strong>直接利用額定相電壓除以工頻互感抗（ω_e · Lm = Xm），算出的才是鐵芯設計的理論最佳勵磁電流 Id*。通常與簡單看 VF 儀表的無載讀值有落差（因無載電流包含漏抗壓降、鐵損分量及摩擦功耗）。
+                        <!-- 新增：FOC 轉子時間常數對比 -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                            <div class="bg-emerald-950/80 p-2.5 rounded border border-emerald-600/70 text-center">
+                                <div class="text-[11px] text-emerald-300 font-bold flex items-center justify-center gap-1">
+                                    <span>🎯</span>
+                                    <span data-i18n="label_tau_r_opt">τ_r (FOC 運轉最佳時間常數)</span>
+                                </div>
+                                <div id="res_tau_r_opt" class="text-lg font-mono font-bold text-emerald-200 mt-0.5">--- ms</div>
+                                <div class="text-[9px] text-emerald-400/80 mt-0.5" data-i18n="desc_tau_r_opt">Lr / R₂ (智慧修正運轉值) ⭐️ 變頻器必填基準</div>
+                            </div>
+                            <div class="bg-slate-900/90 p-2.5 rounded border border-slate-700 text-center">
+                                <div class="text-[11px] text-slate-300 font-bold flex items-center justify-center gap-1">
+                                    <span>⚠️</span>
+                                    <span data-i18n="label_tau_r_raw">τ_r (堵轉原始值 / 偏小)</span>
+                                </div>
+                                <div id="res_tau_r_raw" class="text-lg font-mono font-bold text-rose-300 mt-0.5">--- ms</div>
+                                <div class="text-[9px] text-slate-400 mt-0.5" data-i18n="desc_tau_r_raw">Lr / R₂ (未修正堵轉值) ⚠️ 含集膚效應會失步</div>
+                            </div>
+                        </div>
+
+                        <div class="text-[11px] text-indigo-200/90 bg-indigo-900/40 p-2.5 rounded border border-indigo-800/40 leading-relaxed space-y-1.5" data-i18n="id_physics_note">
+                            <p>💡 <strong>勵磁電流意涵：</strong>直接利用額定相電壓除以工頻互感抗（ω_e · Lm = Xm），算出的才是鐵芯設計的理論最佳勵磁電流 Id*。</p>
+                            <p>⚠️ <strong>FOC 轉子時間常數 (τ_r) 避坑指南：</strong>堵轉試驗因轉子導條承受 50Hz 高頻切換，受「深槽集膚效應」影響測出的 R₂ 虛高，導致堵轉原始 τ_r 嚴重偏小！若直接填入變頻器，會導致轉差估計過大、磁通去磁崩潰，出現「電壓升不到額定、電流異常劇增」的典型故障。<strong>請務必填入綠色框中的【FOC 運轉最佳時間常數】！</strong></p>
                         </div>
                     </div>
 
@@ -311,6 +333,7 @@
                             <div id="calc_id">理論最佳勵磁電流 Id* = ψ_r,rated / Lm ≈ V_ph / (ω_e · Lm) = V_ph / Xm = --- A (RMS/相)</div>
                             <div id="calc_id_pk">向量控制峰值 Id*(peak) = √2 × Id* = --- A</div>
                             <div id="calc_id_compare">實務對照：理論 Id* = --- A vs 實測無載相電流 I_NL(ph) = --- A</div>
+                            <div id="calc_tau_r">轉子時間常數 τ_r(運轉最佳) = Lr / R2_used = --- s vs 堵轉原始值 = --- s</div>
                         </div>
                     </details>
                 </div>
@@ -384,7 +407,13 @@
                 label_id_rms: "Id* (勵磁電流 RMS)",
                 label_id_pk: "Id* (向量峰值 Peak)",
                 label_id_ratio: "Id* / I_rated (佔比)",
-                id_physics_note: "💡 <strong>物理意涵說明：</strong>直接利用額定相電壓除以工頻互感抗（ω_e · Lm = Xm），算出的才是鐵芯設計的理論最佳勵磁電流 Id*。通常與簡單看 VF 儀表的無載讀值有落差（因無載電流包含漏抗壓降、鐵損分量及摩擦功耗）。"
+                id_physics_note: "<p>💡 <strong>勵磁電流意涵：</strong>利用額定相電壓除以工頻互感抗（ω_e · Lm = Xm），算出的才是鐵芯設計的理論最佳勵磁電流 Id*。</p><p>⚠️ <strong>FOC 轉子時間常數 (τ_r) 避坑指南：</strong>堵轉試驗因轉子導條承受 50Hz 高頻切換，受「深槽集膚效應」影響測出的 R₂ 虛高，導致堵轉原始 τ_r 嚴重偏小！若直接填入變頻器，會導致轉差估計過大、磁通去磁崩潰，出現「電壓升不到額定、電流異常劇增」的典型故障。<strong>請務必填入綠色框中的【FOC 運轉最佳時間常數】！</strong></p>",
+                label_f_br: "測試頻率 f_br (Hz)",
+                f_br_ph: "留白=同工頻",
+                label_tau_r_opt: "τ_r (FOC 運轉最佳時間常數)",
+                label_tau_r_raw: "τ_r (堵轉原始值 / 偏小)",
+                desc_tau_r_opt: "Lr / R₂ (智慧修正運轉值) ⭐️ 變頻器必填基準",
+                desc_tau_r_raw: "Lr / R₂ (未修正堵轉值) ⚠️ 含集膚效應會失步"
             },
             en: {
                 main_title: "Motor T-Equivalent Calculator",
@@ -401,6 +430,12 @@
                 theory_blocked_title: "Blocked Rotor (15-60Hz)", theory_running_title: "Running (~2Hz)",
                 theory_blocked_desc: "Surface current (High R₂)", theory_running_desc: "Uniform distribution (Low R₂)",
                 theory_logic_desc: "Smart Fit reverse-calculates R₂ by <b>matching measured Torque (Nm)</b> precisely, bridging the frequency gap.",
+                label_f_br: "Test Freq f_br (Hz)",
+                f_br_ph: "Blank=Rated",
+                label_tau_r_opt: "τ_r (FOC Optimal Time Constant)",
+                label_tau_r_raw: "τ_r (Raw Blocked-Rotor / Detuned)",
+                desc_tau_r_opt: "Lr / R₂ (Smart Fit) ⭐️ Inverter Tuning Standard",
+                desc_tau_r_raw: "Lr / R₂ (Raw Blocked) ⚠️ Skin effect causes stall",
                 theory_col_item: "Item", theory_col_before: "Before", theory_col_after: "After",
                 theory_row_r2: "R₂ Value", theory_row_torque: "Pred. Torque",
                 sop_btn: "💡 Testing SOP Guide",
@@ -529,7 +564,7 @@
 
         function resetUI() {
             const empty = "---";
-            const ids = ['res_r1', 'res_r2', 'res_x1', 'res_x2', 'res_xm', 'res_i_pred', 'res_i_meas', 'res_p_pred', 'res_p_meas', 'res_slip', 'res_pf', 'res_pf_meas', 'res_r2_used', 'res_efficiency', 'res_efficiency_meas', 'res_est_freq', 'res_l1', 'res_l2', 'res_lm', 'res_rm', 'res_psi_r', 'res_id_rms', 'res_id_pk', 'res_id_ratio'];
+            const ids = ['res_r1', 'res_r2', 'res_x1', 'res_x2', 'res_xm', 'res_i_pred', 'res_i_meas', 'res_p_pred', 'res_p_meas', 'res_slip', 'res_pf', 'res_pf_meas', 'res_r2_used', 'res_efficiency', 'res_efficiency_meas', 'res_est_freq', 'res_l1', 'res_l2', 'res_lm', 'res_rm', 'res_psi_r', 'res_id_rms', 'res_id_pk', 'res_id_ratio', 'res_tau_r_opt', 'res_tau_r_raw'];
             ids.forEach(id => safeSetText(id, empty + (id.includes('res_r') || id.includes('res_x') ? " Ω" : (id.includes('slip') || id.includes('efficiency') || id.includes('ratio') ? " %" : (id.includes('res_l') ? " mH" : (id.includes('id_') ? " A" : (id.includes('psi') ? " Wb" : "")))))));
             ['svg_r1', 'svg_r2', 'svg_x1', 'svg_x2', 'svg_xm'].forEach(id => safeSetText(id, empty + " mΩ"));
             ['err_i', 'err_p', 'err_pf', 'err_eta'].forEach(id => safeSetText(id, empty + " %"));
@@ -594,7 +629,16 @@
                 }
 
                 const Rb = Pbp / (Ibp * Ibp), Zb = Vbp / Ibp; if(Zb < Rb) throw new Error("物理矛盾：測得阻抗小於電阻。");
-                const Xb = Math.sqrt(Zb*Zb - Rb*Rb), R2e = Rb - R1, X1 = Xb*x1r, X2 = Xb*(1-x1r);
+                const Xb_meas = Math.sqrt(Zb*Zb - Rb*Rb);
+                
+                // IEEE 112 規範：折算堵轉漏抗回額定工頻
+                const est_f_base = !isNaN(rs) ? rs / 30 : 50;
+                const f_br_in = parseFloat(document.getElementById('f_br').value);
+                const f_br_used = (!isNaN(f_br_in) && f_br_in > 0) ? f_br_in : est_f_base;
+                const f_scale = est_f_base / f_br_used;
+                const Xb = Xb_meas * f_scale;
+                
+                const R2e = Rb - R1, X1 = Xb*x1r, X2 = Xb*(1-x1r);
                 const Zn = Vnp/Inp, Rn = Pnp/(Inp*Inp), Xn = Math.sqrt(Zn*Zn - Rn*Rn), Xm = Xn - X1;
                 const Pc = p_nl - (3 * Inp * Inp * R1); 
                 
@@ -603,7 +647,7 @@
                 // 寫入詳細計算過程 (Blocked-Rotor)
                 safeSetText('calc_zbr', `Z_BR = V_BR(ph) / I_BR(ph) = ${f(Vbp)} / ${f(Ibp)} = ${f(Zb, " Ω")}`);
                 safeSetText('calc_rbr', `R_BR = P_BR(ph) / I_BR(ph)² = ${f(Pbp)} / ${f(Ibp)}² = ${f(Rb, " Ω")}`);
-                safeSetText('calc_xbr', `X_BR = √(Z_BR² - R_BR²) = √(${f(Zb)}² - ${f(Rb)}²) = ${f(Xb, " Ω")}`);
+                safeSetText('calc_xbr', `X_BR(@${f_br_used.toFixed(1)}Hz) = √(${f(Zb)}² - ${f(Rb)}²) = ${f(Xb_meas, " Ω")}` + (Math.abs(f_scale - 1) > 0.01 ? ` ➔ 折算至額定工頻(${est_f_base.toFixed(1)}Hz): X_BR = ${f(Xb_meas)} × (${est_f_base.toFixed(1)}/${f_br_used.toFixed(1)}) = ${f(Xb, " Ω")}` : ''));
                 safeSetText('calc_r2', `R2 = R_BR - R1 = ${f(Rb)} - ${f(R1)} = ${f(R2e, " Ω")}`);
                 safeSetText('calc_x1', `X1 = X_BR * k = ${f(Xb)} * ${x1r} = ${f(X1, " Ω")}`);
                 safeSetText('calc_x2', `X2 = X_BR * (1-k) = ${f(Xb)} * ${(1-x1r).toFixed(2)} = ${f(X2, " Ω")}`);
@@ -667,6 +711,15 @@
                 safeSetText('res_id_pk', id_pk.toFixed(2) + " A");
                 safeSetText('res_id_ratio', (id_ratio > 0 ? id_ratio.toFixed(1) + " %" : "--- %"));
 
+                // ====== 新增：FOC 轉子時間常數 τ_r ======
+                const Lr_H = (Lm_mH + L2_mH) / 1000.0;
+                const tau_r_opt = R2u > 0 ? (Lr_H / R2u) * 1000 : 0; // 運轉態最佳 (ms)
+                const tau_r_raw = R2e > 0 ? (Lr_H / R2e) * 1000 : 0; // 堵轉原始 (ms)
+
+                safeSetText('res_tau_r_opt', tau_r_opt > 0 ? `${tau_r_opt.toFixed(1)} ms (${(tau_r_opt/1000).toFixed(4)} s)` : "--- ms");
+                safeSetText('res_tau_r_raw', tau_r_raw > 0 ? `${tau_r_raw.toFixed(1)} ms (${(tau_r_raw/1000).toFixed(4)} s)` : "--- ms");
+                safeSetText('calc_tau_r', `轉子時間常數 τ_r(運轉最佳) = Lr / R2_used = ${(Lr_H*1000).toFixed(2)} mH / ${f(R2u)} = ${(tau_r_opt/1000).toFixed(4)} s (${tau_r_opt.toFixed(1)} ms) vs 堵轉原始值 = ${(tau_r_raw/1000).toFixed(4)} s (${tau_r_raw.toFixed(1)} ms)`);
+
                 // 寫入 Id* 詳細計算過程
                 safeSetText('calc_psi_r', `額定轉子磁鏈 ψ_r,rated ≈ V_ph / ω_e = ${f(Vph)} / ${omega.toFixed(2)} = ${psi_r_rated.toFixed(4)} Wb (V·s)`);
                 safeSetText('calc_id', `理論最佳勵磁電流 Id* = ψ_r,rated / Lm ≈ V_ph / (ω_e · Lm) = V_ph / Xm = ${f(Vph)} / ${f(Xm)} = ${id_rms.toFixed(3)} A (RMS/相)`);
@@ -692,7 +745,7 @@
                     const el = document.getElementById(id); if(el) el.className = "text-xs font-bold " + (Math.abs(e) <= 5 ? "text-emerald-400" : (Math.abs(e) <= 12 ? "text-yellow-400" : "text-red-400"));
                 };
                 updateErr('err_i', Ip, i_meas); updateErr('err_p', Pip, p_meas); updateErr('err_pf', PFp, PFm); updateErr('err_eta', Ep, Em);
-                calcState = {...calcState, PFp, PFm, Ip, i_meas, Pip, p_meas, Ep, Em, R2u, err_I:Ip, L1_mH, L2_mH, Lm_mH, Rm_val, est_freq, psi_r_rated, id_rms, id_pk, id_ratio};
+                calcState = {...calcState, PFp, PFm, Ip, i_meas, Pip, p_meas, Ep, Em, R2u, err_I:Ip, L1_mH, L2_mH, Lm_mH, Rm_val, est_freq, psi_r_rated, id_rms, id_pk, id_ratio, tau_r_opt, tau_r_raw, f_br_used};
             } catch (e) {
                 calcState = null; const el = document.getElementById('error_msg'); el.innerHTML = "<strong>錯誤：</strong> " + e.message; el.className = "bg-red-50 text-red-800 p-4 rounded-lg border border-red-200 shadow-sm font-bold text-xs";
             }
