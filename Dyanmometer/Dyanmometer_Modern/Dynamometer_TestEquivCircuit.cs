@@ -101,6 +101,30 @@ namespace DynamometerHMI
         private List<KeyValuePair<int, double>> autoTuneHistory = new List<KeyValuePair<int, double>>();
         private int originalUf09Val = 260; // 記錄原始 uf09 數值以供安全復歸
 
+        // ── 空載與額定 30 秒連續採樣與去極值存檔狀態 ──
+        private System.Windows.Forms.Timer tmrNoLoadSampler = null;
+        private System.Windows.Forms.Timer tmrRatedSampler = null;
+        private bool isNoLoadSampling = false;
+        private bool isRatedSampling = false;
+        private int noLoadSamplingRemainingHalfSec = 60; // 30 秒 (每 500ms 一次，共 60 筆)
+        private int ratedSamplingRemainingHalfSec = 60;
+
+        public class EquivSamplingPoint
+        {
+            public DateTime Time;
+            public double Speed;
+            public double Torque;
+            public double Voltage;
+            public double Current;
+            public double PowerKw;
+            public double PowerW;
+            public double PowerFactor;
+            public double Frequency;
+        }
+
+        private List<EquivSamplingPoint> noLoadSampleBuffer = new List<EquivSamplingPoint>();
+        private List<EquivSamplingPoint> ratedSampleBuffer = new List<EquivSamplingPoint>();
+
         // 8 個頻率點試驗資料模型與執行緒
         private System.Threading.Thread lockedSweepThread;
         private volatile bool isLockedSweepRunning = false;
@@ -434,7 +458,7 @@ namespace DynamometerHMI
 
             btnEquivCaptureLiveNoLoad = new Button()
             {
-                Text = "[寫入] 擷取即時數據",
+                Text = "[寫入] 30秒空載採樣",
                 Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(240, 253, 244),
@@ -442,7 +466,7 @@ namespace DynamometerHMI
                 FlatStyle = FlatStyle.Flat
             };
             btnEquivCaptureLiveNoLoad.FlatAppearance.BorderColor = Color.FromArgb(187, 247, 208);
-            btnEquivCaptureLiveNoLoad.Click += (s, e) => CaptureLiveNoLoadData();
+            btnEquivCaptureLiveNoLoad.Click += (s, e) => ToggleNoLoadSampling();
 
             tlpBtns.Controls.Add(btnEquivLoadNoLoadFromTest, 0, 0);
             tlpBtns.Controls.Add(btnEquivCaptureLiveNoLoad, 1, 0);
@@ -549,7 +573,7 @@ namespace DynamometerHMI
 
             btnEquivCaptureLiveRated = new Button()
             {
-                Text = "[寫入] 擷取即時數據",
+                Text = "[寫入] 30秒額定採樣",
                 Font = new Font("微軟正黑體", 9f, FontStyle.Bold),
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(240, 253, 244),
@@ -557,7 +581,7 @@ namespace DynamometerHMI
                 FlatStyle = FlatStyle.Flat
             };
             btnEquivCaptureLiveRated.FlatAppearance.BorderColor = Color.FromArgb(187, 247, 208);
-            btnEquivCaptureLiveRated.Click += (s, e) => CaptureLiveRatedData();
+            btnEquivCaptureLiveRated.Click += (s, e) => ToggleRatedSampling();
 
             tlpBtns.Controls.Add(btnEquivLoadRatedFromTn, 0, 0);
             tlpBtns.Controls.Add(btnEquivCaptureLiveRated, 1, 0);
@@ -1408,150 +1432,93 @@ namespace DynamometerHMI
 
         #endregion
 
-        #region 數據載入與即時採樣實作
+        #region 數據載入與 30 秒連續採樣去極值實作
 
-        // 1. 從馬達專屬資料夾或「空載測試」分頁載入
-        private bool LoadNoLoadDataFromTestTab(bool showPrompt = true)
+        private static double CalculateTrimmedMean(IEnumerable<double> values, double trimRatio)
+        {
+            var list = values.ToList();
+            if (list.Count == 0) return 0.0;
+            if (list.Count <= 4) return list.Average();
+            list.Sort();
+            int trimCount = (int)Math.Floor(list.Count * trimRatio);
+            if (trimCount < 1 && list.Count >= 5) trimCount = 1;
+            if (list.Count - (trimCount * 2) < 3) trimCount = 0;
+            var valid = list.Skip(trimCount).Take(list.Count - (trimCount * 2)).ToList();
+            return valid.Count > 0 ? valid.Average() : list.Average();
+        }
+
+        // 1. 從馬達專屬資料夾載入空載紀錄檔 (NoLoad_Electrical_Rated_Latest.csv)
+        private bool LoadNoLoadDataFromTestTab(bool showPrompt)
         {
             try
             {
                 string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
                 string motorDir = GetMotorDedicatedLogDirectory(mName);
-                bool loadedFromFile = false;
 
                 if (Directory.Exists(motorDir))
                 {
-                    // 搜尋 NoLoad 測試檔案或最新包含 NoLoad 關鍵字的 CSV
-                    var files = Directory.GetFiles(motorDir, "*.csv")
-                        .Where(f => f.IndexOf("NoLoad", StringComparison.OrdinalIgnoreCase) >= 0)
-                        .OrderByDescending(f => File.GetLastWriteTime(f))
-                        .ToList();
-
-                    if (files.Count > 0)
+                    // 優先搜尋專屬空載電氣量日誌 (NoLoad_Electrical_Rated_Latest.csv)
+                    string latestFile = Path.Combine(motorDir, "NoLoad_Electrical_Rated_Latest.csv");
+                    if (!File.Exists(latestFile))
                     {
-                        string targetFile = files[0];
-                        string[] lines = File.ReadAllLines(targetFile, Encoding.UTF8);
+                        var files = Directory.GetFiles(motorDir, "NoLoad_Electrical_Rated_*.csv")
+                            .OrderByDescending(f => File.GetLastWriteTime(f))
+                            .ToList();
+                        if (files.Count > 0) latestFile = files[0];
+                    }
 
-                        List<double[]> dataRows = new List<double[]>();
-                        int headerIdx = -1;
-                        Dictionary<string, int> colMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                    if (File.Exists(latestFile))
+                    {
+                        string[] lines = File.ReadAllLines(latestFile, Encoding.UTF8);
+                        double avgSpd = 0, avgV = 0, avgI = 0, avgP_W = 0, avgPf = 0, avgFreq = 0;
 
-                        for (int l = 0; l < lines.Length; l++)
+                        foreach (string l in lines)
                         {
-                            string line = lines[l].Trim();
-                            if (string.IsNullOrEmpty(line)) continue;
-                            if (line.StartsWith("#")) continue;
-
-                            if (headerIdx < 0 && line.Contains("Speed_rpm") && line.Contains("Voltage_Sigma_V"))
+                            string trimL = l.Trim();
+                            if (!trimL.StartsWith("#")) continue;
+                            if (trimL.StartsWith("# AverageVoltage_V:")) double.TryParse(trimL.Substring(19).Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out avgV);
+                            else if (trimL.StartsWith("# AverageCurrent_A:")) double.TryParse(trimL.Substring(19).Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out avgI);
+                            else if (trimL.StartsWith("# AveragePower_W:")) double.TryParse(trimL.Substring(17).Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out avgP_W);
+                            else if (trimL.StartsWith("# AveragePower_kW:"))
                             {
-                                headerIdx = l;
-                                string[] headers = line.Split(',');
-                                for (int c = 0; c < headers.Length; c++)
-                                {
-                                    colMap[headers[c].Trim()] = c;
-                                }
-                                continue;
+                                double pKw;
+                                if (double.TryParse(trimL.Substring(18).Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out pKw) && avgP_W <= 0) avgP_W = pKw * 1000.0;
                             }
-
-                            if (headerIdx >= 0)
-                            {
-                                string[] parts = line.Split(',');
-                                if (parts.Length >= colMap.Count && colMap.ContainsKey("Speed_rpm"))
-                                {
-                                    try
-                                    {
-                                        double spd = double.Parse(parts[colMap["Speed_rpm"]]);
-                                        double v = colMap.ContainsKey("Voltage_Sigma_V") ? double.Parse(parts[colMap["Voltage_Sigma_V"]]) : 0;
-                                        double i = colMap.ContainsKey("Current_Sigma_A") ? double.Parse(parts[colMap["Current_Sigma_A"]]) : 0;
-                                        double pKw = colMap.ContainsKey("ElecPower_kW") ? double.Parse(parts[colMap["ElecPower_kW"]]) : 0;
-                                        double pf = colMap.ContainsKey("PF") ? double.Parse(parts[colMap["PF"]]) : 0.08;
-                                        double freq = colMap.ContainsKey("Frequency_Hz") ? double.Parse(parts[colMap["Frequency_Hz"]]) : 50.0;
-                                        if (spd > 10.0 && v > 10.0)
-                                        {
-                                            dataRows.Add(new double[] { spd, v, i, pKw * 1000.0, pf, freq });
-                                        }
-                                    }
-                                    catch { }
-                                }
-                            }
+                            else if (trimL.StartsWith("# AveragePowerFactor:")) double.TryParse(trimL.Substring(21).Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out avgPf);
+                            else if (trimL.StartsWith("# AverageSpeed_rpm:")) double.TryParse(trimL.Substring(19).Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out avgSpd);
+                            else if (trimL.StartsWith("# AverageFrequency_Hz:")) double.TryParse(trimL.Substring(22).Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out avgFreq);
                         }
 
-                        if (dataRows.Count > 0)
+                        if (avgV > 10.0 && avgI > 0.05)
                         {
-                            int takeCount = Math.Min(10, dataRows.Count);
-                            var stableRows = dataRows.Skip(dataRows.Count - takeCount).ToList();
-                            double avgSpd = stableRows.Average(r => r[0]);
-                            double avgV = stableRows.Average(r => r[1]);
-                            double avgI = stableRows.Average(r => r[2]);
-                            double avgP = stableRows.Average(r => r[3]);
-                            double avgPf = stableRows.Average(r => r[4]);
-                            double avgFreq = stableRows.Average(r => r[5]);
-
-                            if (avgV > 0) numEquivV0.Value = (decimal)Math.Round(avgV, 1);
-                            if (avgI > 0) numEquivI0.Value = (decimal)Math.Round(avgI, 2);
-                            if (avgP > 0) numEquivP0.Value = (decimal)Math.Round(avgP, 1);
+                            numEquivV0.Value = (decimal)Math.Round(avgV, 1);
+                            numEquivI0.Value = (decimal)Math.Round(avgI, 2);
+                            if (avgP_W > 0) numEquivP0.Value = (decimal)Math.Round(avgP_W, 1);
                             if (avgPf > 0) numEquivPf0.Value = (decimal)Math.Round(avgPf, 3);
                             if (avgSpd > 0) numEquivN0.Value = (decimal)Math.Round(avgSpd);
                             if (avgFreq > 0) numEquivF0.Value = (decimal)Math.Round(avgFreq, 2);
 
                             isNoLoadDataReady = true;
-                            lblNoLoadItemStatus.Text = string.Format("[O] 已自檔案讀取: {0} ({1:HH:mm:ss})", Path.GetFileName(targetFile), DateTime.Now);
+                            lblNoLoadItemStatus.Text = string.Format("[O] 已自空載紀錄檔讀取 ({0:HH:mm:ss})", DateTime.Now);
                             lblNoLoadItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
-                            WriteHmiLog("EQUIV", string.Format("【等效電路】成功自馬達檔案提取空載數據: V0={0:F1}V, I0={1:F2}A, P0={2:F1}W, N0={3:F0}rpm, F0={4:F1}Hz ({5})",
-                                avgV, avgI, avgP, avgSpd, avgFreq, Path.GetFileName(targetFile)));
-                            loadedFromFile = true;
+                            WriteHmiLog("EQUIV", string.Format("【等效電路】成功自空載電氣紀錄檔讀取數據: V0={0:F1}V, I0={1:F2}A, P0={2:F1}W, N0={3:F0}rpm ({4})",
+                                avgV, avgI, avgP_W, avgSpd, Path.GetFileName(latestFile)));
 
                             if (showPrompt)
                             {
-                                MessageBox.Show(string.Format("已成功自空載紀錄檔提取數據：\r\n\r\n• 檔案：{0}\r\n• 空載電壓 V0 = {1:F1} V\r\n• 空載電流 I0 = {2:F2} A\r\n• 空載功率 P0 = {3:F1} W\r\n• 空載轉速 N0 = {4:F0} rpm",
-                                    Path.GetFileName(targetFile), avgV, avgI, avgP, avgSpd), "載入成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                MessageBox.Show(string.Format("已成功自空載電氣紀錄檔提取數據：\r\n\r\n• 檔案：{0}\r\n• 空載電壓 V0 = {1:F1} V\r\n• 空載電流 I0 = {2:F2} A\r\n• 空載功率 P0 = {3:F1} W\r\n• 空載轉速 N0 = {4:F0} rpm\r\n• 空載頻率 F0 = {5:F2} Hz",
+                                    Path.GetFileName(latestFile), avgV, avgI, avgP_W, avgSpd, avgFreq), "載入成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             }
                             return true;
                         }
                     }
                 }
 
-                if (!loadedFromFile)
+                if (showPrompt)
                 {
-                    // 若無檔案，備援從 dgvNoLoad 載入
-                    if (dgvNoLoad != null && dgvNoLoad.Rows.Count > 0)
-                    {
-                        DataGridViewRow targetRow = null;
-                        for (int i = dgvNoLoad.Rows.Count - 1; i >= 0; i--)
-                        {
-                            var r = dgvNoLoad.Rows[i];
-                            string ev = Convert.ToString(r.Cells["Event"].Value ?? "");
-                            if (ev.Contains("達標") || ev.Contains("完成") || ev.Contains("額定") || i == dgvNoLoad.Rows.Count - 1)
-                            {
-                                targetRow = r;
-                                break;
-                            }
-                        }
-
-                        if (targetRow != null)
-                        {
-                            double spd = 0.0;
-                            double.TryParse(Convert.ToString(targetRow.Cells["ActSpd"].Value ?? "0"), out spd);
-                            if (spd > 0)
-                            {
-                                numEquivN0.Value = (decimal)Math.Round(spd);
-                                isNoLoadDataReady = true;
-                                lblNoLoadItemStatus.Text = "[O] 已載入空載分頁數據 (" + DateTime.Now.ToString("HH:mm:ss") + ")";
-                                lblNoLoadItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
-                                WriteHmiLog("EQUIV", "【等效電路】已成功從空載測試分頁提取運轉數據！");
-                                if (showPrompt)
-                                {
-                                    MessageBox.Show("已成功從空載測試分頁提取運轉數據！", "載入成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                                }
-                                return true;
-                            }
-                        }
-                    }
-
-                    if (showPrompt)
-                    {
-                        MessageBox.Show("於馬達資料夾中未找到空載紀錄檔 (NoLoad)，且空載測試分頁尚無數據！\r\n請先執行空載測試或直接手動輸入/即時採樣。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
+                    MessageBox.Show(string.Format("於馬達專屬資料夾中未找到有效空載電氣紀錄檔 (NoLoad_Electrical_Rated_Latest.csv)！\r\n\r\n" +
+                        "請在空載運轉時點擊【[寫入] 30秒空載採樣】按鈕，\r\n" +
+                        "系統將自動連續採集 30 秒數據做去極值平均，填入表格並自動保存檔案供未來隨時載入。", mName), "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 return false;
             }
@@ -1565,48 +1532,239 @@ namespace DynamometerHMI
             }
         }
 
-        // 1. 擷取當前即時空載數據
-        private void CaptureLiveNoLoadData()
+        // ── 空載 30 秒採樣與去極值存檔控制 ──
+        private void ToggleNoLoadSampling()
         {
-            try
+            if (isNoLoadSampling)
             {
-                double v = (actVoltageSigma > 10.0) ? actVoltageSigma : ((wtU1 + wtU2 + wtU3) / 3.0);
-                double i = (actCurrentSigma > 0.05) ? actCurrentSigma : ((wtI1 + wtI2 + wtI3) / 3.0);
-                double p = (actElecPower > 0.01) ? (actElecPower * 1000.0) : (wtP1 + wtP2 + wtP3);
-                double pf = (wtPFSig > 0.0) ? wtPFSig : 0.08;
-                double spd = Math.Abs(actSpeed);
-                double f = (actFrequency > 1.0) ? actFrequency : 
-                           (wtFreqU > 1.0 ? wtFreqU : 
-                           (numEquivF0.Value > 1.0m ? (double)numEquivF0.Value :
-                           (lastB_Dr05.HasValue ? ConvertKebDr05ToFrequency(lastB_Dr05.Value) :
-                           (kebDrFreq2 > 1.0 ? kebDrFreq2 : 50.0))));
-
-                if (v > 0) numEquivV0.Value = (decimal)Math.Round(v, 1);
-                if (i > 0) numEquivI0.Value = (decimal)Math.Round(i, 2);
-                if (p > 0) numEquivP0.Value = (decimal)Math.Round(p, 1);
-                if (pf > 0) numEquivPf0.Value = (decimal)Math.Round(pf, 3);
-                if (spd > 0) numEquivN0.Value = (decimal)Math.Round(spd);
-                if (f > 0) numEquivF0.Value = (decimal)Math.Round(f, 2);
-
-                isNoLoadDataReady = true;
-                lblNoLoadItemStatus.Text = "[O] 即時空載數據已採樣 (" + DateTime.Now.ToString("HH:mm:ss") + ")";
-                lblNoLoadItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
-                WriteHmiLog("EQUIV", string.Format("【等效電路】即時空載採樣成功: V0={0:F1}V, I0={1:F2}A, P0={2:F1}W, N0={3:F0}rpm", v, i, p, spd));
+                if (noLoadSampleBuffer.Count >= 6)
+                {
+                    FinishNoLoadSampling(earlyFinish: true);
+                }
+                else
+                {
+                    CancelNoLoadSampling();
+                }
             }
-            catch (Exception ex)
+            else
             {
-                MessageBox.Show("即時空載採樣失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                StartNoLoadSampling();
             }
         }
 
-        // 2. 從「S1 不補轉差紀錄檔」或「T-N 分頁」載入額定點
-        private bool LoadRatedDataFromTnTab(bool showPrompt = true)
+        private void StartNoLoadSampling()
+        {
+            try
+            {
+                if (isRatedSampling)
+                {
+                    MessageBox.Show("目前正在執行額定 30 秒採樣，請稍候完成後再啟動空載採樣！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                if (noLoadSampleBuffer == null) noLoadSampleBuffer = new List<EquivSamplingPoint>();
+                noLoadSampleBuffer.Clear();
+                noLoadSamplingRemainingHalfSec = 60; // 30 秒 (500ms 一次)
+                isNoLoadSampling = true;
+
+                if (tmrNoLoadSampler == null)
+                {
+                    tmrNoLoadSampler = new System.Windows.Forms.Timer();
+                    tmrNoLoadSampler.Interval = 500;
+                    tmrNoLoadSampler.Tick += (s, e) => OnNoLoadSamplingTick();
+                }
+
+                btnEquivCaptureLiveNoLoad.Text = "[採集中] 30s (0/60)";
+                btnEquivCaptureLiveNoLoad.BackColor = Color.FromArgb(254, 240, 138);
+                btnEquivCaptureLiveNoLoad.ForeColor = Color.FromArgb(161, 98, 7);
+
+                lblNoLoadItemStatus.Text = "[採集中] 30秒空載電氣量去極值採樣中 (剩餘 30s)... (再次點擊可提前結算)";
+                lblNoLoadItemStatus.ForeColor = Color.FromArgb(217, 119, 6);
+
+                WriteHmiLog("EQUIV", "【等效電路】啟動 30 秒空載電氣量連續採樣 (去極值後平均)... (再次點擊可提前結算)");
+                tmrNoLoadSampler.Start();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("啟動空載採樣失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void OnNoLoadSamplingTick()
+        {
+            if (!isNoLoadSampling) return;
+            try
+            {
+                noLoadSamplingRemainingHalfSec--;
+                int totalSecLeft = (int)Math.Ceiling(noLoadSamplingRemainingHalfSec / 2.0);
+
+                double vSig = (actVoltageSigma > 10.0) ? actVoltageSigma : ((wtU1 + wtU2 + wtU3) / 3.0);
+                double iSig = ((wtI1 + wtI2 + wtI3) / 3.0 > 0.05) ? ((wtI1 + wtI2 + wtI3) / 3.0) : ((actCurrentSigma > 0.05) ? actCurrentSigma : 0.0);
+                double pKw = (actElecPower > 0.01) ? actElecPower : ((wtP1 + wtP2 + wtP3) / 1000.0);
+                double pW = pKw * 1000.0;
+                double pf = (wtPFSig > 0.0) ? wtPFSig : 0.08;
+                double spd = Math.Abs(actSpeed);
+                double fHz = (actFrequency > 1.0) ? actFrequency : 
+                             (wtFreqU > 1.0 ? wtFreqU : 
+                             (numEquivF0.Value > 1.0m ? (double)numEquivF0.Value :
+                             (lastB_Dr05.HasValue ? ConvertKebDr05ToFrequency(lastB_Dr05.Value) :
+                             (kebDrFreq2 > 1.0 ? kebDrFreq2 : 50.0))));
+
+                noLoadSampleBuffer.Add(new EquivSamplingPoint
+                {
+                    Time = DateTime.Now,
+                    Speed = spd,
+                    Torque = 0.0,
+                    Voltage = vSig,
+                    Current = iSig,
+                    PowerKw = pKw,
+                    PowerW = pW,
+                    PowerFactor = pf,
+                    Frequency = fHz
+                });
+
+                int count = noLoadSampleBuffer.Count;
+                btnEquivCaptureLiveNoLoad.Text = string.Format("[採集中] {0}s ({1}/60)", totalSecLeft, count);
+                lblNoLoadItemStatus.Text = string.Format("[採集中] 剩餘 {0}s ({1}/60筆) | V0={2:F1}V, I0={3:F2}A, N0={4:F0}rpm", totalSecLeft, count, vSig, iSig, spd);
+
+                if (noLoadSamplingRemainingHalfSec <= 0 || count >= 60)
+                {
+                    FinishNoLoadSampling(earlyFinish: false);
+                }
+            }
+            catch (Exception ex)
+            {
+                CancelNoLoadSampling();
+                WriteHmiLog("EQUIV_ERR", "空載採樣異常: " + ex.Message);
+            }
+        }
+
+        private void FinishNoLoadSampling(bool earlyFinish)
+        {
+            if (tmrNoLoadSampler != null) tmrNoLoadSampler.Stop();
+            isNoLoadSampling = false;
+
+            try
+            {
+                if (noLoadSampleBuffer == null || noLoadSampleBuffer.Count == 0)
+                {
+                    CancelNoLoadSampling();
+                    return;
+                }
+
+                double avgV = CalculateTrimmedMean(noLoadSampleBuffer.Select(x => x.Voltage), 0.15);
+                double avgI = CalculateTrimmedMean(noLoadSampleBuffer.Select(x => x.Current), 0.15);
+                double avgP_W = CalculateTrimmedMean(noLoadSampleBuffer.Select(x => x.PowerW), 0.15);
+                double avgPf = CalculateTrimmedMean(noLoadSampleBuffer.Select(x => x.PowerFactor), 0.15);
+                double avgSpd = CalculateTrimmedMean(noLoadSampleBuffer.Select(x => x.Speed), 0.15);
+                double avgFreq = CalculateTrimmedMean(noLoadSampleBuffer.Select(x => x.Frequency), 0.15);
+
+                if (avgV > 0) numEquivV0.Value = (decimal)Math.Round(avgV, 1);
+                if (avgI > 0) numEquivI0.Value = (decimal)Math.Round(avgI, 2);
+                if (avgP_W > 0) numEquivP0.Value = (decimal)Math.Round(avgP_W, 1);
+                if (avgPf > 0) numEquivPf0.Value = (decimal)Math.Round(avgPf, 3);
+                if (avgSpd > 0) numEquivN0.Value = (decimal)Math.Round(avgSpd);
+                if (avgFreq > 0) numEquivF0.Value = (decimal)Math.Round(avgFreq, 2);
+
+                isNoLoadDataReady = (avgV > 10.0 && avgI > 0.05);
+
+                string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
+                string motorDir = GetMotorDedicatedLogDirectory(mName);
+                if (!Directory.Exists(motorDir)) Directory.CreateDirectory(motorDir);
+
+                string timeStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                string fileHist = Path.Combine(motorDir, string.Format("NoLoad_Electrical_Rated_{0}.csv", timeStamp));
+                string fileLatest = Path.Combine(motorDir, "NoLoad_Electrical_Rated_Latest.csv");
+
+                int totalCount = noLoadSampleBuffer.Count;
+                int trimSide = (int)Math.Floor(totalCount * 0.15);
+                int validCount = Math.Max(1, totalCount - (trimSide * 2));
+
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine("# ========================================================================================");
+                sb.AppendLine("# 動力計系統 - 馬達空載特性電氣數據 (IEEE Std 112 / IEC 60034-2-1)");
+                sb.AppendLine(string.Format("# 待測馬達: 【{0}】 | 採樣方式: 30秒去極值連續採樣 (Trimmed Mean 15%)", mName));
+                sb.AppendLine(string.Format("# 總採樣筆數: {0} 筆 | 有效均值筆數: {1} 筆", totalCount, validCount));
+                sb.AppendLine(string.Format("# AverageVoltage_V: {0:F2}", avgV));
+                sb.AppendLine(string.Format("# AverageCurrent_A: {0:F3}", avgI));
+                sb.AppendLine(string.Format("# AveragePower_W: {0:F1}", avgP_W));
+                sb.AppendLine(string.Format("# AveragePower_kW: {0:F4}", avgP_W / 1000.0));
+                sb.AppendLine(string.Format("# AveragePowerFactor: {0:F4}", avgPf));
+                sb.AppendLine(string.Format("# AverageSpeed_rpm: {0:F2}", avgSpd));
+                sb.AppendLine(string.Format("# AverageFrequency_Hz: {0:F2}", avgFreq));
+                sb.AppendLine("# GeneratedTime: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                sb.AppendLine("# ========================================================================================");
+                sb.AppendLine("Index,Timestamp,Speed_rpm,Voltage_Sigma_V,Current_Sigma_A,ElecPower_kW,Power_W,PF,Frequency_Hz,Included_In_Average");
+
+                var sortedV = noLoadSampleBuffer.Select(x => x.Voltage).OrderBy(x => x).ToList();
+                double vMin = sortedV.Count > trimSide ? sortedV[trimSide] : 0.0;
+                double vMax = sortedV.Count > trimSide ? sortedV[sortedV.Count - 1 - trimSide] : double.MaxValue;
+
+                for (int i = 0; i < noLoadSampleBuffer.Count; i++)
+                {
+                    var p = noLoadSampleBuffer[i];
+                    bool inc = (p.Voltage >= vMin && p.Voltage <= vMax);
+                    sb.AppendLine(string.Format("{0},{1},{2:F2},{3:F2},{4:F3},{5:F4},{6:F1},{7:F4},{8:F2},{9}",
+                        i + 1, p.Time.ToString("HH:mm:ss.fff"), p.Speed, p.Voltage, p.Current, p.PowerKw, p.PowerW, p.PowerFactor, p.Frequency, (inc ? "Yes" : "No")));
+                }
+
+                string content = sb.ToString();
+                File.WriteAllText(fileHist, content, Encoding.UTF8);
+                File.WriteAllText(fileLatest, content, Encoding.UTF8);
+
+                btnEquivCaptureLiveNoLoad.Text = "[寫入] 30秒空載採樣";
+                btnEquivCaptureLiveNoLoad.BackColor = Color.FromArgb(240, 253, 244);
+                btnEquivCaptureLiveNoLoad.ForeColor = Color.FromArgb(22, 163, 74);
+
+                lblNoLoadItemStatus.Text = string.Format("[O] 30秒採樣已儲存 ({0:HH:mm:ss})", DateTime.Now);
+                lblNoLoadItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
+
+                WriteHmiLog("EQUIV", string.Format("【等效電路】空載 30 秒去極值採樣完成 ({0}筆) 並已保存：V0={1:F1}V, I0={2:F2}A, P0={3:F1}W, N0={4:F0}rpm -> {5}",
+                    totalCount, avgV, avgI, avgP_W, avgSpd, Path.GetFileName(fileLatest)));
+
+                MessageBox.Show(string.Format("已成功完成 30 秒空載電氣量連續採樣 (去極值平均) 並已儲存檔案！\r\n\r\n" +
+                    "• 待測馬達：{0}\r\n" +
+                    "• 採樣筆數：共 {1} 筆 (有效均值筆數: {2} 筆)\r\n" +
+                    "• 空載電壓 V0 = {3:F1} V\r\n" +
+                    "• 空載電流 I0 = {4:F2} A\r\n" +
+                    "• 空載功率 P0 = {5:F1} W\r\n" +
+                    "• 空載功率因數 PF0 = {6:F3}\r\n" +
+                    "• 空載轉速 N0 = {7:F0} rpm\r\n" +
+                    "• 空載頻率 F0 = {8:F2} Hz\r\n\r\n" +
+                    "已保存至：\r\n{9}\r\n(未來點擊【[檔案] 載入空載紀錄檔】即可直接載入此檔案)",
+                    mName, totalCount, validCount, avgV, avgI, avgP_W, avgPf, avgSpd, avgFreq, fileLatest),
+                    "空載採樣與存檔成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                CancelNoLoadSampling();
+                MessageBox.Show("空載採樣計算或儲存失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void CancelNoLoadSampling()
+        {
+            if (tmrNoLoadSampler != null) tmrNoLoadSampler.Stop();
+            isNoLoadSampling = false;
+            btnEquivCaptureLiveNoLoad.Text = "[寫入] 30秒空載採樣";
+            btnEquivCaptureLiveNoLoad.BackColor = Color.FromArgb(240, 253, 244);
+            btnEquivCaptureLiveNoLoad.ForeColor = Color.FromArgb(22, 163, 74);
+            lblNoLoadItemStatus.Text = "[--] 已取消採樣";
+            lblNoLoadItemStatus.ForeColor = Color.FromArgb(100, 116, 139);
+        }
+
+        private void CaptureLiveNoLoadData()
+        {
+            ToggleNoLoadSampling();
+        }
+
+        // 2. 從「S1 不補轉差紀錄檔」載入額定點 (S1_Rated_NoSlip_Latest.csv)
+        private bool LoadRatedDataFromTnTab(bool showPrompt)
         {
             try
             {
                 string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
                 string motorDir = GetMotorDedicatedLogDirectory(mName);
-                bool loadedFromS1 = false;
 
                 if (Directory.Exists(motorDir))
                 {
@@ -1622,19 +1780,20 @@ namespace DynamometerHMI
                     if (File.Exists(latestS1File))
                     {
                         string[] lines = File.ReadAllLines(latestS1File, Encoding.UTF8);
-                        double avgSpd = 0, avgTrq = 0, avgV = 0, avgI = 0, avgP = 0, avgPf = 0, slip = 0;
+                        double avgSpd = 0, avgTrq = 0, avgV = 0, avgI = 0, avgP = 0, avgPf = 0, slip = 0, avgFreq = 0;
 
                         foreach (string l in lines)
                         {
                             string trimL = l.Trim();
                             if (!trimL.StartsWith("#")) continue;
-                            if (trimL.StartsWith("# AverageSpeed_rpm:")) double.TryParse(trimL.Substring(19).Trim(), out avgSpd);
-                            else if (trimL.StartsWith("# AverageTorque_Nm:")) double.TryParse(trimL.Substring(19).Trim(), out avgTrq);
-                            else if (trimL.StartsWith("# AverageVoltage_V:")) double.TryParse(trimL.Substring(19).Trim(), out avgV);
-                            else if (trimL.StartsWith("# AverageCurrent_A:")) double.TryParse(trimL.Substring(19).Trim(), out avgI);
-                            else if (trimL.StartsWith("# AveragePower_kW:")) double.TryParse(trimL.Substring(18).Trim(), out avgP);
-                            else if (trimL.StartsWith("# AveragePowerFactor:")) double.TryParse(trimL.Substring(21).Trim(), out avgPf);
-                            else if (trimL.StartsWith("# Slip_pct:")) double.TryParse(trimL.Substring(11).Trim(), out slip);
+                            if (trimL.StartsWith("# AverageSpeed_rpm:")) double.TryParse(trimL.Substring(19).Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out avgSpd);
+                            else if (trimL.StartsWith("# AverageTorque_Nm:")) double.TryParse(trimL.Substring(19).Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out avgTrq);
+                            else if (trimL.StartsWith("# AverageVoltage_V:")) double.TryParse(trimL.Substring(19).Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out avgV);
+                            else if (trimL.StartsWith("# AverageCurrent_A:")) double.TryParse(trimL.Substring(19).Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out avgI);
+                            else if (trimL.StartsWith("# AveragePower_kW:")) double.TryParse(trimL.Substring(18).Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out avgP);
+                            else if (trimL.StartsWith("# AveragePowerFactor:")) double.TryParse(trimL.Substring(21).Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out avgPf);
+                            else if (trimL.StartsWith("# AverageFrequency_Hz:")) double.TryParse(trimL.Substring(22).Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out avgFreq);
+                            else if (trimL.StartsWith("# Slip_pct:")) double.TryParse(trimL.Substring(11).Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out slip);
                         }
 
                         if (avgSpd > 0 && avgTrq > 0)
@@ -1645,77 +1804,43 @@ namespace DynamometerHMI
                             if (avgI > 0) numEquivIn.Value = (decimal)Math.Round(avgI, 2);
                             if (avgP > 0) numEquivPn.Value = (decimal)Math.Round(avgP, 3);
                             if (avgPf > 0) numEquivPfn.Value = (decimal)Math.Round(avgPf, 3);
+
+                            if (slip <= 0.0)
+                            {
+                                int driveId = (cmbEquivKebDrive != null && cmbEquivKebDrive.SelectedIndex == 1) ? 1 : 2;
+                int poles = (driveId == 1) ? (kebMotorPoles1 > 0 ? kebMotorPoles1 : 4) : (kebMotorPoles2 > 0 ? kebMotorPoles2 : 4);
+                                double effectiveF = (avgFreq > 1.0) ? avgFreq : (numEquivF0.Value > 1.0m ? (double)numEquivF0.Value : 50.0);
+                                double syncSpd = (120.0 * effectiveF) / poles;
+                                if (syncSpd <= avgSpd)
+                                {
+                                    double[] standardSyncSpds = new double[] { 750, 900, 1000, 1200, 1500, 1800, 3000, 3600 };
+                                    foreach (double sVal in standardSyncSpds) { if (sVal > avgSpd) { syncSpd = sVal; break; } }
+                                }
+                                slip = (syncSpd > 0 && avgSpd > 0) ? Math.Max(0.0, ((syncSpd - avgSpd) / syncSpd) * 100.0) : 0.0;
+                            }
                             if (slip > 0) numEquivSlip.Value = (decimal)Math.Round(slip, 2);
 
                             isRatedDataReady = true;
                             lblRatedItemStatus.Text = string.Format("[O] 已自 S1 不補轉差檔讀取 ({0:HH:mm:ss})", DateTime.Now);
                             lblRatedItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
-                            WriteHmiLog("EQUIV", string.Format("【等效電路】成功自 S1 紀錄檔提取額定數據 (30筆平均): TN={0:F2}Nm, NN={1:F0}rpm (不補轉差), VN={2:F1}V, IN={3:F2}A, sN={4:F2}% ({5})",
+                            WriteHmiLog("EQUIV", string.Format("【等效電路】成功自 S1 紀錄檔提取額定數據: TN={0:F2}Nm, NN={1:F0}rpm (不補轉差), VN={2:F1}V, IN={3:F2}A, sN={4:F2}% ({5})",
                                 avgTrq, avgSpd, avgV, avgI, slip, Path.GetFileName(latestS1File)));
-                            loadedFromS1 = true;
 
                             if (showPrompt)
                             {
-                                MessageBox.Show(string.Format("已成功自 S1 紀錄檔提取額定數據：\r\n\r\n• 檔案：{0}\r\n• 額定轉矩 TN = {1:F2} Nm\r\n• 額定轉速 NN = {2:F0} rpm\r\n• 額定電壓 VN = {3:F1} V\r\n• 額定電流 IN = {4:F2} A\r\n• 轉差率 sN = {5:F2} %",
-                                    Path.GetFileName(latestS1File), avgTrq, avgSpd, avgV, avgI, slip), "載入成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                MessageBox.Show(string.Format("已成功自 S1 紀錄檔提取額定數據：\r\n\r\n• 檔案：{0}\r\n• 額定轉矩 TN = {1:F2} Nm\r\n• 額定轉速 NN = {2:F0} rpm\r\n• 額定電壓 VN = {3:F1} V\r\n• 額定電流 IN = {4:F2} A\r\n• 輸入電功率 PN = {5:F3} kW\r\n• 轉差率 sN = {6:F2} %",
+                                    Path.GetFileName(latestS1File), avgTrq, avgSpd, avgV, avgI, avgP, slip), "載入成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             }
                             return true;
                         }
                     }
                 }
 
-                if (!loadedFromS1)
+                if (showPrompt)
                 {
-                    // 備援從 T-N 分頁載入
-                    bool found = false;
-                    if (dgvTnPoints != null && dgvTnPoints.Rows.Count > 0)
-                    {
-                        var row = dgvTnPoints.Rows[dgvTnPoints.Rows.Count - 1];
-                        double spd = 0, trq = 0, pwr = 0;
-                        double.TryParse(Convert.ToString(row.Cells["Speed"].Value ?? "0"), out spd);
-                        double.TryParse(Convert.ToString(row.Cells["Torque"].Value ?? "0"), out trq);
-                        double.TryParse(Convert.ToString(row.Cells["Pwr"].Value ?? "0"), out pwr);
-
-                        if (spd > 0 && trq > 0)
-                        {
-                            numEquivNn.Value = (decimal)Math.Round(spd);
-                            numEquivTn.Value = (decimal)Math.Round(trq, 2);
-                            if (pwr > 0) numEquivPn.Value = (decimal)Math.Round(pwr, 3);
-                            found = true;
-                        }
-                    }
-
-                    if (found)
-                    {
-                        int poles = kebMotorPoles2 > 0 ? kebMotorPoles2 : 4;
-                        double effectiveF0 = (numEquivF0.Value > 1.0m) ? (double)numEquivF0.Value :
-                                             (lastB_Dr05.HasValue ? ConvertKebDr05ToFrequency(lastB_Dr05.Value) :
-                                             (kebDrFreq2 > 1.0 ? kebDrFreq2 : 50.0));
-                        double syncSpd = (120.0 * effectiveF0) / poles;
-                        double actSpdVal = (double)numEquivNn.Value;
-                        if (syncSpd > 0 && actSpdVal > 0)
-                        {
-                            double s = (syncSpd - actSpdVal) / syncSpd;
-                            if (s > 0) numEquivSlip.Value = (decimal)Math.Round(s * 100.0, 2);
-                        }
-
-                        isRatedDataReady = true;
-                        lblRatedItemStatus.Text = "[O] 已載入 T-N 額定運轉數據 (" + DateTime.Now.ToString("HH:mm:ss") + ")";
-                        lblRatedItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
-                        WriteHmiLog("EQUIV", "【等效電路】已成功從 T-N 分頁提取額定運轉數據！");
-                        if (showPrompt)
-                        {
-                            MessageBox.Show("已成功從 T-N 分頁提取額定運轉數據！", "載入成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        }
-                        return true;
-                    }
-                    else
-                    {
-                        if (showPrompt)
-                        {
-                            MessageBox.Show("於馬達資料夾中未找到 S1 不補轉差紀錄檔 (S1_Rated_NoSlip_Latest.csv)，且 T-N 分頁亦無數據！\r\n請先執行 S1 測試 (自動完成40筆採樣) 或直接手動輸入/即時採樣。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        }
-                    }
+                    MessageBox.Show(string.Format("於馬達專屬資料夾中未找到 S1 不補轉差紀錄檔 (S1_Rated_NoSlip_Latest.csv)！\r\n\r\n" +
+                        "請在額定加載運轉時點擊【[寫入] 30秒額定採樣】按鈕，\r\n" +
+                        "系統將自動連續採集 30 秒數據做去極值平均，填入表格並自動保存檔案供未來隨時載入。", mName), "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 return false;
             }
@@ -1729,47 +1854,255 @@ namespace DynamometerHMI
             }
         }
 
-        // 2. 擷取即時額定運轉數據 (不補轉差)
-        private void CaptureLiveRatedData()
+        // ── 額定 (不補轉差) 30 秒採樣與去極值存檔控制 ──
+        private void ToggleRatedSampling()
+        {
+            if (isRatedSampling)
+            {
+                if (ratedSampleBuffer.Count >= 6)
+                {
+                    FinishRatedSampling(earlyFinish: true);
+                }
+                else
+                {
+                    CancelRatedSampling();
+                }
+            }
+            else
+            {
+                StartRatedSampling();
+            }
+        }
+
+        private void StartRatedSampling()
         {
             try
             {
-                double v = (actVoltageSigma > 10.0) ? actVoltageSigma : ((wtU1 + wtU2 + wtU3) / 3.0);
-                double i = (actCurrentSigma > 0.05) ? actCurrentSigma : ((wtI1 + wtI2 + wtI3) / 3.0);
-                double pKw = (actElecPower > 0.01) ? actElecPower : ((wtP1 + wtP2 + wtP3) / 1000.0);
-                double trq = Math.Abs(actTorque);
-                double spd = Math.Abs(actSpeed);
-                double pf = (wtPFSig > 0.0) ? wtPFSig : 0.86;
-
-                if (trq > 0) numEquivTn.Value = (decimal)Math.Round(trq, 2);
-                if (spd > 0) numEquivNn.Value = (decimal)Math.Round(spd);
-                if (v > 0) numEquivVn.Value = (decimal)Math.Round(v, 1);
-                if (i > 0) numEquivIn.Value = (decimal)Math.Round(i, 2);
-                if (pKw > 0) numEquivPn.Value = (decimal)Math.Round(pKw, 3);
-                if (pf > 0) numEquivPfn.Value = (decimal)Math.Round(pf, 3);
-
-                int poles = kebMotorPoles2 > 0 ? kebMotorPoles2 : 4;
-                double f = (numEquivF0.Value > 1.0m) ? (double)numEquivF0.Value :
-                           (actFrequency > 1.0 ? actFrequency :
-                           (wtFreqU > 1.0 ? wtFreqU :
-                           (lastB_Dr05.HasValue ? ConvertKebDr05ToFrequency(lastB_Dr05.Value) :
-                           (kebDrFreq2 > 1.0 ? kebDrFreq2 : 50.0))));
-                double syncSpd = (120.0 * f) / poles;
-                if (syncSpd > 0 && spd > 0)
+                if (isNoLoadSampling)
                 {
-                    double s = (syncSpd - spd) / syncSpd;
-                    if (s > 0) numEquivSlip.Value = (decimal)Math.Round(s * 100.0, 2);
+                    MessageBox.Show("目前正在執行空載 30 秒採樣，請稍候完成後再啟動額定採樣！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
                 }
 
-                isRatedDataReady = true;
-                lblRatedItemStatus.Text = "[O] 即時額定數據已採樣 (不補轉差) (" + DateTime.Now.ToString("HH:mm:ss") + ")";
-                lblRatedItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
-                WriteHmiLog("EQUIV", string.Format("【等效電路】即時額定採樣成功: TN={0:F2}Nm, NN={1:F0}rpm (不補轉差), VN={2:F1}V, IN={3:F2}A", trq, spd, v, i));
+                if (ratedSampleBuffer == null) ratedSampleBuffer = new List<EquivSamplingPoint>();
+                ratedSampleBuffer.Clear();
+                ratedSamplingRemainingHalfSec = 60; // 30 秒
+                isRatedSampling = true;
+
+                if (tmrRatedSampler == null)
+                {
+                    tmrRatedSampler = new System.Windows.Forms.Timer();
+                    tmrRatedSampler.Interval = 500;
+                    tmrRatedSampler.Tick += (s, e) => OnRatedSamplingTick();
+                }
+
+                btnEquivCaptureLiveRated.Text = "[採集中] 30s (0/60)";
+                btnEquivCaptureLiveRated.BackColor = Color.FromArgb(254, 240, 138);
+                btnEquivCaptureLiveRated.ForeColor = Color.FromArgb(161, 98, 7);
+
+                lblRatedItemStatus.Text = "[採集中] 30秒額定運轉(不補轉差)去極值採樣中 (剩餘 30s)... (再次點擊可提前結算)";
+                lblRatedItemStatus.ForeColor = Color.FromArgb(217, 119, 6);
+
+                WriteHmiLog("EQUIV", "【等效電路】啟動 30 秒額定(不補轉差)電氣量連續採樣 (去極值後平均)... (再次點擊可提前結算)");
+                tmrRatedSampler.Start();
             }
             catch (Exception ex)
             {
-                MessageBox.Show("即時額定採樣失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("啟動額定採樣失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private void OnRatedSamplingTick()
+        {
+            if (!isRatedSampling) return;
+            try
+            {
+                ratedSamplingRemainingHalfSec--;
+                int totalSecLeft = (int)Math.Ceiling(ratedSamplingRemainingHalfSec / 2.0);
+
+                double vSig = (actVoltageSigma > 10.0) ? actVoltageSigma : ((wtU1 + wtU2 + wtU3) / 3.0);
+                double iSig = ((wtI1 + wtI2 + wtI3) / 3.0 > 0.05) ? ((wtI1 + wtI2 + wtI3) / 3.0) : ((actCurrentSigma > 0.05) ? actCurrentSigma : 0.0);
+                double pKw = (actElecPower > 0.01) ? actElecPower : ((wtP1 + wtP2 + wtP3) / 1000.0);
+                double pf = (wtPFSig > 0.0) ? wtPFSig : 0.86;
+                double trq = Math.Abs(actTorque);
+                double spd = Math.Abs(actSpeed);
+                double fHz = (actFrequency > 1.0) ? actFrequency : 
+                             (wtFreqU > 1.0 ? wtFreqU : 
+                             (numEquivF0.Value > 1.0m ? (double)numEquivF0.Value :
+                             (lastB_Dr05.HasValue ? ConvertKebDr05ToFrequency(lastB_Dr05.Value) :
+                             (kebDrFreq2 > 1.0 ? kebDrFreq2 : 50.0))));
+
+                ratedSampleBuffer.Add(new EquivSamplingPoint
+                {
+                    Time = DateTime.Now,
+                    Speed = spd,
+                    Torque = trq,
+                    Voltage = vSig,
+                    Current = iSig,
+                    PowerKw = pKw,
+                    PowerW = pKw * 1000.0,
+                    PowerFactor = pf,
+                    Frequency = fHz
+                });
+
+                int count = ratedSampleBuffer.Count;
+                btnEquivCaptureLiveRated.Text = string.Format("[採集中] {0}s ({1}/60)", totalSecLeft, count);
+                lblRatedItemStatus.Text = string.Format("[採集中] 剩餘 {0}s ({1}/60筆) | TN={2:F2}Nm, NN={3:F0}rpm, VN={4:F1}V, IN={5:F2}A", totalSecLeft, count, trq, spd, vSig, iSig);
+
+                if (ratedSamplingRemainingHalfSec <= 0 || count >= 60)
+                {
+                    FinishRatedSampling(earlyFinish: false);
+                }
+            }
+            catch (Exception ex)
+            {
+                CancelRatedSampling();
+                WriteHmiLog("EQUIV_ERR", "額定採樣異常: " + ex.Message);
+            }
+        }
+
+        private void FinishRatedSampling(bool earlyFinish)
+        {
+            if (tmrRatedSampler != null) tmrRatedSampler.Stop();
+            isRatedSampling = false;
+
+            try
+            {
+                if (ratedSampleBuffer == null || ratedSampleBuffer.Count == 0)
+                {
+                    CancelRatedSampling();
+                    return;
+                }
+
+                double avgTrq = CalculateTrimmedMean(ratedSampleBuffer.Select(x => x.Torque), 0.15);
+                double avgSpd = CalculateTrimmedMean(ratedSampleBuffer.Select(x => x.Speed), 0.15);
+                double avgV = CalculateTrimmedMean(ratedSampleBuffer.Select(x => x.Voltage), 0.15);
+                double avgI = CalculateTrimmedMean(ratedSampleBuffer.Select(x => x.Current), 0.15);
+                double avgP_kW = CalculateTrimmedMean(ratedSampleBuffer.Select(x => x.PowerKw), 0.15);
+                double avgPf = CalculateTrimmedMean(ratedSampleBuffer.Select(x => x.PowerFactor), 0.15);
+                double avgFreq = CalculateTrimmedMean(ratedSampleBuffer.Select(x => x.Frequency), 0.15);
+
+                int driveId = (cmbEquivKebDrive != null && cmbEquivKebDrive.SelectedIndex == 1) ? 1 : 2;
+                int poles = (driveId == 1) ? (kebMotorPoles1 > 0 ? kebMotorPoles1 : 4) : (kebMotorPoles2 > 0 ? kebMotorPoles2 : 4);
+                double effectiveF = (avgFreq > 1.0) ? avgFreq : (numEquivF0.Value > 1.0m ? (double)numEquivF0.Value : 50.0);
+                double syncSpd = (120.0 * effectiveF) / poles;
+
+                if (syncSpd <= avgSpd)
+                {
+                    double[] standardSyncSpds = new double[] { 750, 900, 1000, 1200, 1500, 1800, 3000, 3600 };
+                    foreach (double sVal in standardSyncSpds)
+                    {
+                        if (sVal > avgSpd)
+                        {
+                            syncSpd = sVal;
+                            break;
+                        }
+                    }
+                }
+                double slip = (syncSpd > 0 && avgSpd > 0) ? Math.Max(0.0, ((syncSpd - avgSpd) / syncSpd) * 100.0) : 0.0;
+
+                if (avgTrq > 0) numEquivTn.Value = (decimal)Math.Round(avgTrq, 2);
+                if (avgSpd > 0) numEquivNn.Value = (decimal)Math.Round(avgSpd);
+                if (avgV > 0) numEquivVn.Value = (decimal)Math.Round(avgV, 1);
+                if (avgI > 0) numEquivIn.Value = (decimal)Math.Round(avgI, 2);
+                if (avgP_kW > 0) numEquivPn.Value = (decimal)Math.Round(avgP_kW, 3);
+                if (avgPf > 0) numEquivPfn.Value = (decimal)Math.Round(avgPf, 3);
+                if (slip > 0) numEquivSlip.Value = (decimal)Math.Round(slip, 2);
+
+                isRatedDataReady = (avgTrq > 0.1 && avgSpd > 10.0 && avgV > 10.0 && avgI > 0.05);
+
+                string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
+                string motorDir = GetMotorDedicatedLogDirectory(mName);
+                if (!Directory.Exists(motorDir)) Directory.CreateDirectory(motorDir);
+
+                string timeStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                string fileHist = Path.Combine(motorDir, string.Format("S1_Rated_NoSlip_40pts_{0}.csv", timeStamp));
+                string fileLatest = Path.Combine(motorDir, "S1_Rated_NoSlip_Latest.csv");
+
+                int totalCount = ratedSampleBuffer.Count;
+                int trimSide = (int)Math.Floor(totalCount * 0.15);
+                int validCount = Math.Max(1, totalCount - (trimSide * 2));
+
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine("# ========================================================================================");
+                sb.AppendLine("# 動力計系統 - S1 額定運轉數據 (不補轉差 IEEE Std 112)");
+                sb.AppendLine(string.Format("# 待測馬達: 【{0}】 | 採樣方式: 30秒去極值連續採樣 (Trimmed Mean 15%)", mName));
+                sb.AppendLine(string.Format("# 總採樣筆數: {0} 筆 | 有效均值筆數: {1} 筆", totalCount, validCount));
+                sb.AppendLine(string.Format("# AverageSpeed_rpm: {0:F2}", avgSpd));
+                sb.AppendLine(string.Format("# AverageTorque_Nm: {0:F3}", avgTrq));
+                sb.AppendLine(string.Format("# AverageVoltage_V: {0:F2}", avgV));
+                sb.AppendLine(string.Format("# AverageCurrent_A: {0:F3}", avgI));
+                sb.AppendLine(string.Format("# AveragePower_kW: {0:F4}", avgP_kW));
+                sb.AppendLine(string.Format("# AveragePowerFactor: {0:F4}", avgPf));
+                sb.AppendLine(string.Format("# AverageFrequency_Hz: {0:F2}", avgFreq));
+                sb.AppendLine(string.Format("# SyncSpeed_rpm: {0:F1}", syncSpd));
+                sb.AppendLine(string.Format("# Slip_pct: {0:F2}", slip));
+                sb.AppendLine("# MotorPoles: " + poles);
+                sb.AppendLine("# GeneratedTime: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                sb.AppendLine("# ========================================================================================");
+                sb.AppendLine("Index,Timestamp,Speed_rpm,Torque_Nm,Voltage_V,Current_A,Power_kW,PowerFactor,Freq_Hz,Included_In_Average");
+
+                var sortedTrq = ratedSampleBuffer.Select(x => x.Torque).OrderBy(x => x).ToList();
+                double tMin = sortedTrq.Count > trimSide ? sortedTrq[trimSide] : 0.0;
+                double tMax = sortedTrq.Count > trimSide ? sortedTrq[sortedTrq.Count - 1 - trimSide] : double.MaxValue;
+
+                for (int i = 0; i < ratedSampleBuffer.Count; i++)
+                {
+                    var p = ratedSampleBuffer[i];
+                    bool inc = (p.Torque >= tMin && p.Torque <= tMax);
+                    sb.AppendLine(string.Format("{0},{1},{2:F2},{3:F3},{4:F2},{5:F3},{6:F4},{7:F4},{8:F2},{9}",
+                        i + 1, p.Time.ToString("HH:mm:ss.fff"), p.Speed, p.Torque, p.Voltage, p.Current, p.PowerKw, p.PowerFactor, p.Frequency, (inc ? "Yes" : "No")));
+                }
+
+                string content = sb.ToString();
+                File.WriteAllText(fileHist, content, Encoding.UTF8);
+                File.WriteAllText(fileLatest, content, Encoding.UTF8);
+
+                btnEquivCaptureLiveRated.Text = "[寫入] 30秒額定採樣";
+                btnEquivCaptureLiveRated.BackColor = Color.FromArgb(240, 253, 244);
+                btnEquivCaptureLiveRated.ForeColor = Color.FromArgb(22, 163, 74);
+
+                lblRatedItemStatus.Text = string.Format("[O] 30秒採樣已儲存 ({0:HH:mm:ss})", DateTime.Now);
+                lblRatedItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
+
+                WriteHmiLog("EQUIV", string.Format("【等效電路】額定 30 秒去極值採樣完成 ({0}筆) 並已保存：TN={1:F2}Nm, NN={2:F0}rpm (不補轉差), VN={3:F1}V, IN={4:F2}A, sN={5:F2}% -> {6}",
+                    totalCount, avgTrq, avgSpd, avgV, avgI, slip, Path.GetFileName(fileLatest)));
+
+                MessageBox.Show(string.Format("已成功完成 30 秒額定運轉(不補轉差)連續採樣 (去極值平均) 並已儲存檔案！\r\n\r\n" +
+                    "• 待測馬達：{0}\r\n" +
+                    "• 採樣筆數：共 {1} 筆 (有效均值筆數: {2} 筆)\r\n" +
+                    "• 額定轉矩 TN = {3:F2} Nm\r\n" +
+                    "• 額定轉速 NN = {4:F0} rpm\r\n" +
+                    "• 額定電壓 VN = {5:F1} V\r\n" +
+                    "• 額定電流 IN = {6:F2} A\r\n" +
+                    "• 輸入電功率 PN = {7:F3} kW\r\n" +
+                    "• 功率因數 PFN = {8:F3}\r\n" +
+                    "• 轉差率 sN = {9:F2} %\r\n\r\n" +
+                    "已保存至：\r\n{10}\r\n(未來點擊【[檔案] 載入 S1 不補轉差檔】即可直接載入此檔案)",
+                    mName, totalCount, validCount, avgTrq, avgSpd, avgV, avgI, avgP_kW, avgPf, slip, fileLatest),
+                    "額定採樣與存檔成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                CancelRatedSampling();
+                MessageBox.Show("額定採樣計算或儲存失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void CancelRatedSampling()
+        {
+            if (tmrRatedSampler != null) tmrRatedSampler.Stop();
+            isRatedSampling = false;
+            btnEquivCaptureLiveRated.Text = "[寫入] 30秒額定採樣";
+            btnEquivCaptureLiveRated.BackColor = Color.FromArgb(240, 253, 244);
+            btnEquivCaptureLiveRated.ForeColor = Color.FromArgb(22, 163, 74);
+            lblRatedItemStatus.Text = "[--] 已取消採樣";
+            lblRatedItemStatus.ForeColor = Color.FromArgb(100, 116, 139);
+        }
+
+        private void CaptureLiveRatedData()
+        {
+            ToggleRatedSampling();
         }
 
         // 檢查馬達專屬資料夾中是否存在實體空載日誌
@@ -1779,10 +2112,10 @@ namespace DynamometerHMI
             {
                 string dir = GetMotorDedicatedLogDirectory(mName);
                 if (!Directory.Exists(dir)) return false;
-                var files = Directory.GetFiles(dir, "*.csv")
-                    .Where(f => f.IndexOf("NoLoad", StringComparison.OrdinalIgnoreCase) >= 0)
-                    .ToList();
-                return files.Count > 0;
+                string latest = Path.Combine(dir, "NoLoad_Electrical_Rated_Latest.csv");
+                if (File.Exists(latest)) return true;
+                var files = Directory.GetFiles(dir, "NoLoad_Electrical_Rated_*.csv");
+                return files != null && files.Length > 0;
             }
             catch { return false; }
         }
@@ -3695,8 +4028,14 @@ namespace DynamometerHMI
                 res.Rc = (3.0 * Vphase_0 * Vphase_0) / p_core;
 
                 // 3. 額定特性與轉矩估算
-                int poles = kebMotorPoles2 > 0 ? kebMotorPoles2 : 4;
+                int driveId = (cmbEquivKebDrive != null && cmbEquivKebDrive.SelectedIndex == 1) ? 1 : 2;
+                int poles = (driveId == 1) ? (kebMotorPoles1 > 0 ? kebMotorPoles1 : 4) : (kebMotorPoles2 > 0 ? kebMotorPoles2 : 4);
                 double syncSpd = 120.0 * f0 / poles;
+                if (syncSpd <= NN)
+                {
+                    double[] standardSyncSpds = new double[] { 750, 900, 1000, 1200, 1500, 1800, 3000, 3600 };
+                    foreach (double sVal in standardSyncSpds) { if (sVal > NN) { syncSpd = sVal; break; } }
+                }
                 double omega_sync = 2.0 * Math.PI * syncSpd / 60.0;
                 double Vphase_N = VN / Math.Sqrt(3.0);
 
