@@ -3259,10 +3259,10 @@ namespace DynamometerDeviceTester
                 {
                     try
                     {
-                        byte[] rawSig = SendModbusReadBlock(streamPowerSocket, 100, 14);
-                        byte[] rawE1  = SendModbusReadBlock(streamPowerSocket, 200, 18);
-                        byte[] rawE2  = SendModbusReadBlock(streamPowerSocket, 300, 14);
-                        byte[] rawE3  = SendModbusReadBlock(streamPowerSocket, 400, 14);
+                        byte[] rawE1  = SendModbusReadBlock(streamPowerSocket, 100, 18);
+                        byte[] rawE2  = SendModbusReadBlock(streamPowerSocket, 200, 14);
+                        byte[] rawE3  = SendModbusReadBlock(streamPowerSocket, 300, 14);
+                        byte[] rawSig = SendModbusReadBlock(streamPowerSocket, 400, 14);
 
                         if ((rawE1 != null && rawE1.Length >= 9 + 12) || (rawSig != null && rawSig.Length >= 9 + 12))
                         {
@@ -3413,10 +3413,10 @@ namespace DynamometerDeviceTester
                     using (NetworkStream ns = tc.GetStream())
                     {
                         ns.ReadTimeout = 1000;
-                        byte[] rawSig = SendModbusReadBlock(ns, 100, 14);
-                        byte[] rawE1  = SendModbusReadBlock(ns, 200, 18);
-                        byte[] rawE2  = SendModbusReadBlock(ns, 300, 14);
-                        byte[] rawE3  = SendModbusReadBlock(ns, 400, 14);
+                        byte[] rawE1  = SendModbusReadBlock(ns, 100, 18);
+                        byte[] rawE2  = SendModbusReadBlock(ns, 200, 14);
+                        byte[] rawE3  = SendModbusReadBlock(ns, 300, 14);
+                        byte[] rawSig = SendModbusReadBlock(ns, 400, 14);
 
                         if ((rawE1 != null && rawE1.Length >= 9 + 12) || (rawSig != null && rawSig.Length >= 9 + 12))
                         {

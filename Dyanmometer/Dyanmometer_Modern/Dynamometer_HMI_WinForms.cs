@@ -5816,15 +5816,15 @@ namespace DynamometerHMI
                         {
                             try
                             {
-                                // 橫河 WT333E 物理通道十進位位址真實映射 (對齊真機面板)：
-                                // Reg 100: SIGMA (總和/平均 - USig, ISig, PSig, SSig, QSig, PFSig, PhiSig)
-                                // Reg 200: Element 1 (第 1 相 - U1, I1, P1, S1, Q1, PF1, Phi1, FreqU, FreqI)
-                                // Reg 300: Element 2 (第 2 相 - U2, I2, P2, S2, Q2, PF2, Phi2)
-                                // Reg 400: Element 3 (第 3 相 - U3, I3, P3, S3, Q3, PF3, Phi3)
-                                byte[] rawSig = SendModbusReadBlock(streamPower, 100, 14);
-                                byte[] rawE1  = SendModbusReadBlock(streamPower, 200, 18);
-                                byte[] rawE2  = SendModbusReadBlock(streamPower, 300, 14);
-                                byte[] rawE3  = SendModbusReadBlock(streamPower, 400, 14);
+                                // 橫河 WT333E 物理通道十進位位址真實映射 (對齊真機面板與原廠手冊 IM WT310E-17EN 9.3 節)：
+                                // Reg 100: Element 1 (第 1 相 - U1, I1, P1, S1, Q1, PF1, Phi1, FreqU, FreqI)
+                                // Reg 200: Element 2 (第 2 相 - U2, I2, P2, S2, Q2, PF2, Phi2)
+                                // Reg 300: Element 3 (第 3 相 - U3, I3, P3, S3, Q3, PF3, Phi3)
+                                // Reg 400: SIGMA (總和/平均 - USig, ISig, PSig, SSig, QSig, PFSig, PhiSig)
+                                byte[] rawE1  = SendModbusReadBlock(streamPower, 100, 18);
+                                byte[] rawE2  = SendModbusReadBlock(streamPower, 200, 14);
+                                byte[] rawE3  = SendModbusReadBlock(streamPower, 300, 14);
+                                byte[] rawSig = SendModbusReadBlock(streamPower, 400, 14);
 
                                 if ((rawE1 != null && rawE1.Length >= 9 + 12) || (rawSig != null && rawSig.Length >= 9 + 12))
                                 {

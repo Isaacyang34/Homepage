@@ -574,21 +574,21 @@ namespace WT333E_Portable_Tester
             byte funcCode = (byte)(cmbFuncCode.SelectedIndex == 0 ? 0x04 : 0x03);
             int decodeMode = cmbByteOrder.SelectedIndex;
 
-            // 1. Read SIGMA (Addr 100, Count 14 = 7 Floats)
-            byte[] rawSig = SendModbusSingleBlock(ns, unitId, funcCode, 100, 14);
-            if (rawSig == null) return null;
-
-            // 2. Read E1 (Addr 200, Count 18 = 9 Floats)
-            byte[] rawE1 = SendModbusSingleBlock(ns, unitId, funcCode, 200, 18);
+            // 1. Read E1 (Addr 100, Count 18 = 9 Floats)
+            byte[] rawE1 = SendModbusSingleBlock(ns, unitId, funcCode, 100, 18);
             if (rawE1 == null) return null;
 
-            // 3. Read E2 (Addr 300, Count 14 = 7 Floats)
-            byte[] rawE2 = SendModbusSingleBlock(ns, unitId, funcCode, 300, 14);
+            // 2. Read E2 (Addr 200, Count 14 = 7 Floats)
+            byte[] rawE2 = SendModbusSingleBlock(ns, unitId, funcCode, 200, 14);
             if (rawE2 == null) return null;
 
-            // 4. Read E3 (Addr 400, Count 14 = 7 Floats)
-            byte[] rawE3 = SendModbusSingleBlock(ns, unitId, funcCode, 400, 14);
+            // 3. Read E3 (Addr 300, Count 14 = 7 Floats)
+            byte[] rawE3 = SendModbusSingleBlock(ns, unitId, funcCode, 300, 14);
             if (rawE3 == null) return null;
+
+            // 4. Read SIGMA (Addr 400, Count 14 = 7 Floats)
+            byte[] rawSig = SendModbusSingleBlock(ns, unitId, funcCode, 400, 14);
+            if (rawSig == null) return null;
 
             float[] f1 = ExtractFloatArray(rawE1, 9, rawE1.Length - 9, decodeMode);
             float[] f2 = ExtractFloatArray(rawE2, 9, rawE2.Length - 9, decodeMode);
