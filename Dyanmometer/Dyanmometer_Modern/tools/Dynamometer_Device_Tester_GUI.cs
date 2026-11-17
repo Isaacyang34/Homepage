@@ -485,7 +485,7 @@ namespace DynamometerDeviceTester
 
             Button btnOneClickKeb = new Button()
             {
-                Text = "⚡ 一鍵智能診斷 (COM1)",
+                Text = "[電氣] 一鍵智能診斷 (COM1)",
                 Location = new Point(610, 8),
                 Size = new Size(185, 32),
                 BackColor = Color.FromArgb(16, 185, 129),
@@ -814,7 +814,7 @@ namespace DynamometerDeviceTester
 
             Button btnRunCustomDll = new Button()
             {
-                Text = "⚡ 原廠 DLL Request Rd (讀取)",
+                Text = "[電氣] 原廠 DLL Request Rd (讀取)",
                 Location = new Point(764, 16),
                 Size = new Size(200, 48),
                 BackColor = Color.FromArgb(16, 185, 129),
@@ -1241,7 +1241,7 @@ namespace DynamometerDeviceTester
             if (spKeb2 != null && spKeb2.IsOpen) { try { spKeb2.Close(); spKeb2.Dispose(); spKeb2 = null; } catch { } }
 
             txtKebLog.AppendText("\r\n===============================================================\r\n");
-            txtKebLog.AppendText(" [⚡ KEB 2014原廠位址記憶體透視] COM1 @ 9600 bps 8-E-1 ...\r\n");
+            txtKebLog.AppendText(" [[電氣] KEB 2014原廠位址記憶體透視] COM1 @ 9600 bps 8-E-1 ...\r\n");
             txtKebLog.AppendText("===============================================================\r\n");
             txtKebLog.SelectionStart = txtKebLog.Text.Length;
             txtKebLog.ScrollToCaret();
@@ -1293,7 +1293,7 @@ namespace DynamometerDeviceTester
                     {
                         foundAny = true;
                         int bestVal = BitConverter.ToInt32(rxBuf, 24);
-                        txtKebLog.AppendText(string.Format("  [DLL Service 0] ✅ {0} >> 數值: {1} (Hex: 0x{1:X4})\r\n", pName, bestVal));
+                        txtKebLog.AppendText(string.Format("  [DLL Service 0] [OK] {0} >> 數值: {1} (Hex: 0x{1:X4})\r\n", pName, bestVal));
                         report.AppendLine(string.Format("• {0}: 成功 >> {1} (Hex: 0x{1:X4})", pName, bestVal));
 
                         if (pAddr == 0x0212 || pAddr == 0x020A) lblKebDcBus1.Text = string.Format("{0} V", bestVal);
@@ -1347,7 +1347,7 @@ namespace DynamometerDeviceTester
                     {
                         string rxHex = BitConverter.ToString(buf, 0, r).Replace("-", " ");
                         string rxAscii = Encoding.ASCII.GetString(buf, 0, r).Replace("\x02", "<STX>").Replace("\x03", "<ETX>");
-                        txtKebLog.AppendText(string.Format("  [原生 DIN66019] ✅ 收到回應 ({0}B): HEX [{1}] | ASCII [{2}]\r\n", r, rxHex, rxAscii));
+                        txtKebLog.AppendText(string.Format("  [原生 DIN66019] [OK] 收到回應 ({0}B): HEX [{1}] | ASCII [{2}]\r\n", r, rxHex, rxAscii));
 
                         int stxIdx = -1, etxIdx = -1;
                         for (int i = 0; i < r; i++)
@@ -1362,7 +1362,7 @@ namespace DynamometerDeviceTester
                             {
                                 string hexData = content.Substring(content.Length - 4, 4);
                                 uint uVal = Convert.ToUInt32(hexData, 16);
-                                txtKebLog.AppendText(string.Format("  🎉 [原生解碼] 母線電壓 ru.10: {0} V (0x{1})\r\n", uVal, hexData));
+                                txtKebLog.AppendText(string.Format("  [OK] [原生解碼] 母線電壓 ru.10: {0} V (0x{1})\r\n", uVal, hexData));
                                 report.AppendLine(string.Format("• Node {0} [原生電文]: 成功 >> ru.10 = {1} V", node, uVal));
                                 foundAny = true;
                             }
@@ -1403,7 +1403,7 @@ namespace DynamometerDeviceTester
         private void RunOneClickKebDiagnosis()
         {
             txtKebLog.AppendText("\r\n===============================================================\r\n");
-            txtKebLog.AppendText(" [⚡ 一鍵智能診斷啟動] 開始對 【COM1】 執行全自動掃描 (9600/38400/19200 bps)...\r\n");
+            txtKebLog.AppendText(" [[電氣] 一鍵智能診斷啟動] 開始對 【COM1】 執行全自動掃描 (9600/38400/19200 bps)...\r\n");
             txtKebLog.AppendText("===============================================================\r\n");
 
             // 先停止背景輪詢並關閉序列埠，防止 COM 埠衝突 (Access Denied)
@@ -1428,7 +1428,7 @@ namespace DynamometerDeviceTester
 
             foreach (string port in ports)
             {
-                txtKebLog.AppendText(string.Format(" 🔍 正在探測序列埠 {0} (輪詢 9600/38400/19200 bps) ...\r\n", port));
+                txtKebLog.AppendText(string.Format(" [探測] 正在探測序列埠 {0} (輪詢 9600/38400/19200 bps) ...\r\n", port));
                 Application.DoEvents();
 
                 int comIdx = 0; // COM1
@@ -1462,7 +1462,7 @@ namespace DynamometerDeviceTester
                                 ru07.HasValue ? (ru07.Value * 0.125).ToString("F1") : "--",
                                 sy51.HasValue ? sy51.Value : (ru00.HasValue ? ru00.Value : 0));
 
-                            txtKebLog.AppendText(string.Format("   🎉 [✅ 原廠 DLL 連線成功] {0}\r\n", info));
+                            txtKebLog.AppendText(string.Format("   [OK] [[OK] 原廠 DLL 連線成功] {0}\r\n", info));
                             foundDrives.Add(info);
 
                             if (!cmbKebPort1.Items.Contains(port)) cmbKebPort1.Items.Add(port);
@@ -1511,7 +1511,7 @@ namespace DynamometerDeviceTester
                                             ru07.HasValue ? (ru07.Value * 0.125).ToString("F1") : "--",
                                             sy51.HasValue ? sy51.Value : (ru00.HasValue ? ru00.Value : 0));
 
-                                        txtKebLog.AppendText(string.Format("   🎉 [✅ DIN66019 成功] {0}\r\n", info));
+                                        txtKebLog.AppendText(string.Format("   [OK] [[OK] DIN66019 成功] {0}\r\n", info));
                                         foundDrives.Add(info);
 
                                         if (!cmbKebPort1.Items.Contains(port)) cmbKebPort1.Items.Add(port);
@@ -1538,7 +1538,7 @@ namespace DynamometerDeviceTester
             txtKebLog.AppendText("\r\n===============================================================\r\n");
             if (foundDrives.Count > 0)
             {
-                txtKebLog.AppendText(string.Format(" 🎉 [診斷完成] 成功鎖定 {0} 台 KEB F5 變頻器！已自動更新控制面板參數。\r\n", foundDrives.Count));
+                txtKebLog.AppendText(string.Format(" [OK] [診斷完成] 成功鎖定 {0} 台 KEB F5 變頻器！已自動更新控制面板參數。\r\n", foundDrives.Count));
                 txtKebLog.AppendText(" >> 您可點擊【單次】或【輪詢】開始進行運轉與監控。\r\n");
             }
             else
@@ -1596,7 +1596,7 @@ namespace DynamometerDeviceTester
             Thread.Sleep(50);
 
             txtKebLog.AppendText(string.Format("\r\n===============================================================\r\n"));
-            txtKebLog.AppendText(string.Format(" [⚡ 原廠 DLL 測試啟動] 埠: {0} (索引 {1}) @ {2} bps, 站號: {3}, Addr: 0x{4:X4}, Set: {5}\r\n",
+            txtKebLog.AppendText(string.Format(" [[電氣] 原廠 DLL 測試啟動] 埠: {0} (索引 {1}) @ {2} bps, 站號: {3}, Addr: 0x{4:X4}, Set: {5}\r\n",
                 portName, comIdx, baud, node, addr, pSet));
             txtKebLog.AppendText(string.Format("===============================================================\r\n"));
             txtKebLog.SelectionStart = txtKebLog.Text.Length;
@@ -1650,10 +1650,10 @@ namespace DynamometerDeviceTester
                             anySuccess = true;
                             int finalData = BitConverter.ToInt32(rxBuf, 24);
 
-                            txtKebLog.AppendText(string.Format("   🎉 [{0} / Service {1}] 讀取成功！最終值: {2} (0x{2:X8})\r\n", protName, svc, finalData));
+                            txtKebLog.AppendText(string.Format("   [OK] [{0} / Service {1}] 讀取成功！最終值: {2} (0x{2:X8})\r\n", protName, svc, finalData));
                             MessageBox.Show(string.Format(
                                 "【KEB DLL 讀取成功】\n協議: {0}\nService: {1}\nAddr: 0x{2:X4}\nAck: 0 (正常)\n實測數據: {3}",
-                                protName, svc, addr, finalData), "KEB 測試成功 ✅");
+                                protName, svc, addr, finalData), "KEB 測試成功 [OK]");
                             break;
                         }
                     }
@@ -1686,7 +1686,7 @@ namespace DynamometerDeviceTester
             if (spKeb2 != null && spKeb2.IsOpen) { try { spKeb2.Close(); spKeb2.Dispose(); spKeb2 = null; } catch { } }
 
             txtKebLog.AppendText(string.Format("\r\n===============================================================\r\n"));
-            txtKebLog.AppendText(string.Format(" [⚡ 原生 DIN 66019-II 測試啟動] {0} @ {1} bps 8-E-1, 站號: {2}, Addr: 0x{3:X4}, Set: {4}\r\n",
+            txtKebLog.AppendText(string.Format(" [[電氣] 原生 DIN 66019-II 測試啟動] {0} @ {1} bps 8-E-1, 站號: {2}, Addr: 0x{3:X4}, Set: {4}\r\n",
                 portName, baud, node, addr, pSet));
             txtKebLog.AppendText(string.Format("===============================================================\r\n"));
             txtKebLog.SelectionStart = txtKebLog.Text.Length;
@@ -1753,7 +1753,7 @@ namespace DynamometerDeviceTester
                         {
                             string hexData = content.Substring(content.Length - 8, 8);
                             uint uVal = Convert.ToUInt32(hexData, 16);
-                            txtKebLog.AppendText(string.Format("   🎉 [解析成功] Data: 0x{0} (十進位: {1})\r\n", hexData, uVal));
+                            txtKebLog.AppendText(string.Format("   [OK] [解析成功] Data: 0x{0} (十進位: {1})\r\n", hexData, uVal));
                             MessageBox.Show(string.Format("【原生電文解析成功】\n參數 0x{0:X4}\nData 數值: {1} (0x{2})", addr, uVal, hexData), "DIN 66019 成功");
                         }
                     }
@@ -2382,7 +2382,7 @@ namespace DynamometerDeviceTester
         {
             if (string.IsNullOrEmpty(ip)) ip = "192.168.0.11";
             txtPowerLog.AppendText(string.Format("\r\n===============================================================\r\n"));
-            txtPowerLog.AppendText(string.Format(" [⚡ 官方手冊 SCPI 測試啟動] 目標 IP: {0}, 首選埠: {1} ...\r\n", ip, targetPort));
+            txtPowerLog.AppendText(string.Format(" [[電氣] 官方手冊 SCPI 測試啟動] 目標 IP: {0}, 首選埠: {1} ...\r\n", ip, targetPort));
             txtPowerLog.AppendText(string.Format("===============================================================\r\n"));
 
             int[] tryPorts = new int[] { targetPort, 10001, 1001, 51064 };
@@ -2409,7 +2409,7 @@ namespace DynamometerDeviceTester
                                 byte[] idnBuf = new byte[512];
                                 int idnLen = ns.Read(idnBuf, 0, idnBuf.Length);
                                 string idnStr = Encoding.ASCII.GetString(idnBuf, 0, idnLen).Trim();
-                                txtPowerLog.AppendText(string.Format("   ✅ [握手成功] *IDN? 回應: [{0}]\r\n", idnStr));
+                                txtPowerLog.AppendText(string.Format("   [OK] [握手成功] *IDN? 回應: [{0}]\r\n", idnStr));
 
                                 string initSeq = ":COMMUNICATE:HEADER OFF\n:NUMERIC:FORMAT ASCII\n:NUMERIC:NORMAL:PRESET 1\n:NUMERIC:NORMAL:NUMBER 13\n"
                                                + ":NUMERIC:NORMAL:ITEM1 U,1\n:NUMERIC:NORMAL:ITEM2 I,1\n:NUMERIC:NORMAL:ITEM3 P,1\n"
@@ -2427,7 +2427,7 @@ namespace DynamometerDeviceTester
                                 byte[] valBuf = new byte[2048];
                                 int valLen = ns.Read(valBuf, 0, valBuf.Length);
                                 string rawVal = Encoding.ASCII.GetString(valBuf, 0, valLen).Trim();
-                                txtPowerLog.AppendText(string.Format("   🎉 [官方回傳 ASCII 數據] [{0}]\r\n", rawVal));
+                                txtPowerLog.AppendText(string.Format("   [OK] [官方回傳 ASCII 數據] [{0}]\r\n", rawVal));
 
                                 UpdatePowerTable(rawVal);
                                 success = true;
@@ -2448,7 +2448,7 @@ namespace DynamometerDeviceTester
         private void RunOfficialUsbTest()
         {
             txtPowerLog.AppendText(string.Format("\r\n===============================================================\r\n"));
-            txtPowerLog.AppendText(string.Format(" [⚡ USB 介面專屬通訊測試啟動 (USBTMC / tmctl 原廠通道)] ...\r\n"));
+            txtPowerLog.AppendText(string.Format(" [[電氣] USB 介面專屬通訊測試啟動 (USBTMC / tmctl 原廠通道)] ...\r\n"));
             txtPowerLog.AppendText(string.Format("===============================================================\r\n"));
             Application.DoEvents();
 
@@ -2461,7 +2461,7 @@ namespace DynamometerDeviceTester
 
                 if (ret == 0 && id >= 0)
                 {
-                    txtPowerLog.AppendText(string.Format(">> [1/3] ✅ USB 通道初始化成功！裝置代碼 ID: {0}\r\n", id));
+                    txtPowerLog.AppendText(string.Format(">> [1/3] [OK] USB 通道初始化成功！裝置代碼 ID: {0}\r\n", id));
 
                     TmcSend(id, "*IDN?");
                     StringBuilder sbIdn = new StringBuilder(512);
@@ -2478,7 +2478,7 @@ namespace DynamometerDeviceTester
                     StringBuilder sbVal = new StringBuilder(4096);
                     TmcReceive(id, sbVal, 4096, ref rLen);
                     string valStr = sbVal.ToString().Trim();
-                    txtPowerLog.AppendText(string.Format(">> [3/3] 🎉 [收到 USB SCPI 數據]: [{0}]\r\n", valStr));
+                    txtPowerLog.AppendText(string.Format(">> [3/3] [OK] [收到 USB SCPI 數據]: [{0}]\r\n", valStr));
 
                     UpdatePowerTable(valStr);
                     TmcFinish(id);
@@ -2504,7 +2504,7 @@ namespace DynamometerDeviceTester
             if (string.IsNullOrEmpty(ip)) ip = "192.168.0.11";
 
             txtPowerLog.AppendText("\r\n===============================================================\r\n");
-            txtPowerLog.AppendText(string.Format(" [🔍 128 暫存器全矩陣 Dump 獵捕啟動] (IP: {0}) ...\r\n", ip));
+            txtPowerLog.AppendText(string.Format(" [[探測] 128 暫存器全矩陣 Dump 獵捕啟動] (IP: {0}) ...\r\n", ip));
             txtPowerLog.AppendText(" >> 目標：搜尋所有 ~15A 電流與 ~52V 電壓的實體暫存器 Offset\r\n");
             txtPowerLog.AppendText("===============================================================\r\n");
             Application.DoEvents();
@@ -2540,10 +2540,10 @@ namespace DynamometerDeviceTester
                                     {
                                         float val = ParseModbusValue(resp, 9 + i * 4, 0);
                                         string tag = "";
-                                        if (Math.Abs(val) >= 12.0f && Math.Abs(val) <= 18.0f) tag = " 🎯[電流~15A]";
-                                        else if (val >= 45.0f && val <= 60.0f) tag = " ⚡[電壓~52V]";
-                                        else if (val >= 100.0f && val <= 130.0f) tag = " ⚡[線電壓~110V]";
-                                        else if (Math.Abs(val) >= 25.0f && Math.Abs(val) <= 35.0f) tag = " 📌[電流總和~30A]";
+                                        if (Math.Abs(val) >= 12.0f && Math.Abs(val) <= 18.0f) tag = " [目標][電流~15A]";
+                                        else if (val >= 45.0f && val <= 60.0f) tag = " [電氣][電壓~52V]";
+                                        else if (val >= 100.0f && val <= 130.0f) tag = " [電氣][線電壓~110V]";
+                                        else if (Math.Abs(val) >= 25.0f && Math.Abs(val) <= 35.0f) tag = " [標記][電流總和~30A]";
 
                                         txtPowerLog.AppendText(string.Format("  F{0,2} [Reg {1} / +{2,2}B]: {3,10:F2}{4}\r\n",
                                             i, baseAddr + i * 2, i * 4, val, tag));
@@ -2571,7 +2571,7 @@ namespace DynamometerDeviceTester
             if (string.IsNullOrEmpty(ip)) ip = "192.168.0.11";
 
             txtPowerLog.AppendText("\r\n===============================================================\r\n");
-            txtPowerLog.AppendText(" [⚡ 3P3W 兩瓦特表物理合成驗證啟動] ...\r\n");
+            txtPowerLog.AppendText(" [[電氣] 3P3W 兩瓦特表物理合成驗證啟動] ...\r\n");
             txtPowerLog.AppendText(" >> 原理：Element 1 (L1) + Element 2 (L3) 實測，Element 3 由平衡向量合成\r\n");
             txtPowerLog.AppendText("===============================================================\r\n");
             Application.DoEvents();
@@ -2653,7 +2653,7 @@ namespace DynamometerDeviceTester
             if (string.IsNullOrEmpty(ip)) ip = "192.168.0.11";
 
             txtPowerLog.AppendText("\r\n===============================================================\r\n");
-            txtPowerLog.AppendText(" [⚡ 參數分組模式 (U/I/P 獨立區塊) 驗證啟動] ...\r\n");
+            txtPowerLog.AppendText(" [[電氣] 參數分組模式 (U/I/P 獨立區塊) 驗證啟動] ...\r\n");
             txtPowerLog.AppendText(" >> 原理：電壓區塊 (F0..F3) / 電流區塊 (F4..F7) / 功率區塊 (F8..F11)\r\n");
             txtPowerLog.AppendText("===============================================================\r\n");
             Application.DoEvents();
@@ -2735,7 +2735,7 @@ namespace DynamometerDeviceTester
             if (string.IsNullOrEmpty(ip)) ip = "192.168.0.11";
 
             txtPowerLog.AppendText(string.Format("\r\n===============================================================\r\n"));
-            txtPowerLog.AppendText(string.Format(" [⚡ WT333E 物理約束與 Sigma 閉環自動診斷啟動] (IP: {0}) ...\r\n", ip));
+            txtPowerLog.AppendText(string.Format(" [[電氣] WT333E 物理約束與 Sigma 閉環自動診斷啟動] (IP: {0}) ...\r\n", ip));
             txtPowerLog.AppendText(string.Format(" >> 約束條件：三相電流平衡 (~15A)、三相電壓平衡 (~52V)、Sigma 功率閉環\r\n"));
             txtPowerLog.AppendText(string.Format("===============================================================\r\n"));
             Application.DoEvents();
@@ -2877,7 +2877,7 @@ namespace DynamometerDeviceTester
                     {
                         cmbPowerModbusOffset.SelectedIndex = bestStrideIndex;
                     }
-                    txtPowerLog.AppendText(string.Format("🎉 【🎯 物理約束與閉環吻合，已自動鎖定最佳位址】\r\n   -> {0}\r\n", bestReport));
+                    txtPowerLog.AppendText(string.Format("[OK] 【[目標] 物理約束與閉環吻合，已自動鎖定最佳位址】\r\n   -> {0}\r\n", bestReport));
                     DoPowerQuery();
                 }
                 else
@@ -3091,7 +3091,7 @@ namespace DynamometerDeviceTester
                     else
                     {
                         txtPowerLog.AppendText(string.Format("[FAIL] tmctl Wire=4 初始化回傳碼: {0}\r\n", ret));
-                        MessageBox.Show("tmctl.dll (Wire=4) 連線失敗 (Code: " + ret + ")。\n建議點擊【⚡ 一鍵智能診斷通道】掃描可用通訊埠！", "提示");
+                        MessageBox.Show("tmctl.dll (Wire=4) 連線失敗 (Code: " + ret + ")。\n建議點擊【[電氣] 一鍵智能診斷通道】掃描可用通訊埠！", "提示");
                     }
                 }
                 catch (Exception ex)
@@ -3134,7 +3134,7 @@ namespace DynamometerDeviceTester
                 catch (Exception ex)
                 {
                     txtPowerLog.AppendText(string.Format("[FAIL] 連線 {0}:{1} 失敗: {2}\r\n", ip, port, ex.Message));
-                    MessageBox.Show("連線失敗: " + ex.Message + "\n建議點擊【⚡ 一鍵智能診斷通道】掃描可用通訊埠！", "錯誤");
+                    MessageBox.Show("連線失敗: " + ex.Message + "\n建議點擊【[電氣] 一鍵智能診斷通道】掃描可用通訊埠！", "錯誤");
                 }
             }
         }
@@ -3259,20 +3259,20 @@ namespace DynamometerDeviceTester
                 {
                     try
                     {
-                        byte[] rawE1 = SendModbusReadBlock(streamPowerSocket, 100, 18);
-                        byte[] rawE2 = SendModbusReadBlock(streamPowerSocket, 200, 14);
-                        byte[] rawE3 = SendModbusReadBlock(streamPowerSocket, 300, 14);
-                        byte[] rawSig = SendModbusReadBlock(streamPowerSocket, 400, 14);
+                        byte[] rawSig = SendModbusReadBlock(streamPowerSocket, 100, 14);
+                        byte[] rawE1  = SendModbusReadBlock(streamPowerSocket, 200, 18);
+                        byte[] rawE2  = SendModbusReadBlock(streamPowerSocket, 300, 14);
+                        byte[] rawE3  = SendModbusReadBlock(streamPowerSocket, 400, 14);
 
-                        if (rawE1 != null && rawE1.Length >= 9 + 12)
+                        if ((rawE1 != null && rawE1.Length >= 9 + 12) || (rawSig != null && rawSig.Length >= 9 + 12))
                         {
                             powerSampleCount++;
                             int decodeMode = (cmbPowerDecodeMode != null && cmbPowerDecodeMode.SelectedIndex >= 0) ? cmbPowerDecodeMode.SelectedIndex : 0;
                             
-                            float u1 = ParseModbusValue(rawE1, 9 + 0, decodeMode);
-                            float i1 = ParseModbusValue(rawE1, 9 + 4, decodeMode);
-                            float p1 = NormalizePowerVal(ParseModbusValue(rawE1, 9 + 8, decodeMode));
-                            float pf1 = (rawE1.Length >= 9 + 24) ? ParseModbusValue(rawE1, 9 + 20, decodeMode) : 1f;
+                            float u1 = (rawE1 != null && rawE1.Length >= 9 + 12) ? ParseModbusValue(rawE1, 9 + 0, decodeMode) : 0f;
+                            float i1 = (rawE1 != null && rawE1.Length >= 9 + 12) ? ParseModbusValue(rawE1, 9 + 4, decodeMode) : 0f;
+                            float p1 = (rawE1 != null && rawE1.Length >= 9 + 12) ? NormalizePowerVal(ParseModbusValue(rawE1, 9 + 8, decodeMode)) : 0f;
+                            float pf1 = (rawE1 != null && rawE1.Length >= 9 + 24) ? ParseModbusValue(rawE1, 9 + 20, decodeMode) : 1f;
 
                             float u2 = (rawE2 != null && rawE2.Length >= 9 + 12) ? ParseModbusValue(rawE2, 9 + 0, decodeMode) : 0f;
                             float i2 = (rawE2 != null && rawE2.Length >= 9 + 12) ? ParseModbusValue(rawE2, 9 + 4, decodeMode) : 0f;
@@ -3285,8 +3285,8 @@ namespace DynamometerDeviceTester
                             float pf3 = (rawE3 != null && rawE3.Length >= 9 + 24) ? ParseModbusValue(rawE3, 9 + 20, decodeMode) : 1f;
 
                             float uSigma = (rawSig != null && rawSig.Length >= 9 + 12) ? ParseModbusValue(rawSig, 9 + 0, decodeMode) : ((u1 + u2 + u3) / 3f);
-                            float iSigma = (rawSig != null && rawSig.Length >= 9 + 12) ? ParseModbusValue(rawSig, 9 + 4, decodeMode) : ((i1 + i2 + i3) / 3f);
-                            float pSigma = (rawSig != null && rawSig.Length >= 9 + 12) ? NormalizePowerVal(ParseModbusValue(rawSig, 9 + 8, decodeMode)) : (p1 + p2 + p3);
+                            float iSigma = (i1 > 0.05f && i2 > 0.05f && i3 > 0.05f) ? ((i1 + i2 + i3) / 3f) : ((rawSig != null && rawSig.Length >= 9 + 12) ? ParseModbusValue(rawSig, 9 + 4, decodeMode) : i1);
+                            float pSigma = (rawSig != null && rawSig.Length >= 9 + 12) ? NormalizePowerVal(ParseModbusValue(rawSig, 9 + 8, decodeMode)) : ((p2 != 0f || p3 != 0f) ? (p1 + p2 + p3) : p1);
                             float pfSigma = (rawSig != null && rawSig.Length >= 9 + 24) ? ParseModbusValue(rawSig, 9 + 20, decodeMode) : pf1;
 
                             if (dgvPower != null && dgvPower.Rows.Count >= 3 && dgvPower.Columns.Count >= 6)
@@ -3413,19 +3413,20 @@ namespace DynamometerDeviceTester
                     using (NetworkStream ns = tc.GetStream())
                     {
                         ns.ReadTimeout = 1000;
-                        byte[] rawE1 = SendModbusReadBlock(ns, 100, 18);
-                        byte[] rawE2 = SendModbusReadBlock(ns, 200, 14);
-                        byte[] rawE3 = SendModbusReadBlock(ns, 300, 14);
-                        byte[] rawSig = SendModbusReadBlock(ns, 400, 14);
+                        byte[] rawSig = SendModbusReadBlock(ns, 100, 14);
+                        byte[] rawE1  = SendModbusReadBlock(ns, 200, 18);
+                        byte[] rawE2  = SendModbusReadBlock(ns, 300, 14);
+                        byte[] rawE3  = SendModbusReadBlock(ns, 400, 14);
 
-                        if (rawE1 != null && rawE1.Length >= 9 + 12)
+                        if ((rawE1 != null && rawE1.Length >= 9 + 12) || (rawSig != null && rawSig.Length >= 9 + 12))
                         {
-                            txtPowerLog.AppendText(string.Format("[OK] 成功收到 WT333E Modbus TCP 回應！Element 1 長度: {0} Bytes\r\n", rawE1.Length));
+                            txtPowerLog.AppendText(string.Format("[OK] 成功收到 WT333E Modbus TCP 回應！Sig: {0}B, E1: {1}B, E2: {2}B, E3: {3}B\r\n",
+                                rawSig != null ? rawSig.Length : 0, rawE1 != null ? rawE1.Length : 0, rawE2 != null ? rawE2.Length : 0, rawE3 != null ? rawE3.Length : 0));
                             int decodeMode = (cmbPowerDecodeMode != null && cmbPowerDecodeMode.SelectedIndex >= 0) ? cmbPowerDecodeMode.SelectedIndex : 0;
                             
-                            float u1 = ParseModbusValue(rawE1, 9 + 0, decodeMode);
-                            float i1 = ParseModbusValue(rawE1, 9 + 4, decodeMode);
-                            float p1 = NormalizePowerVal(ParseModbusValue(rawE1, 9 + 8, decodeMode));
+                            float u1 = (rawE1 != null && rawE1.Length >= 9 + 12) ? ParseModbusValue(rawE1, 9 + 0, decodeMode) : 0f;
+                            float i1 = (rawE1 != null && rawE1.Length >= 9 + 12) ? ParseModbusValue(rawE1, 9 + 4, decodeMode) : 0f;
+                            float p1 = (rawE1 != null && rawE1.Length >= 9 + 12) ? NormalizePowerVal(ParseModbusValue(rawE1, 9 + 8, decodeMode)) : 0f;
                             float pf1 = (rawE1.Length >= 9 + 24) ? ParseModbusValue(rawE1, 9 + 20, decodeMode) : 1f;
 
                             float u2 = (rawE2 != null && rawE2.Length >= 9 + 12) ? ParseModbusValue(rawE2, 9 + 0, decodeMode) : 0f;
@@ -3439,8 +3440,8 @@ namespace DynamometerDeviceTester
                             float pf3 = (rawE3 != null && rawE3.Length >= 9 + 24) ? ParseModbusValue(rawE3, 9 + 20, decodeMode) : 1f;
 
                             float uSigma = (rawSig != null && rawSig.Length >= 9 + 12) ? ParseModbusValue(rawSig, 9 + 0, decodeMode) : ((u1 + u2 + u3) / 3f);
-                            float iSigma = (rawSig != null && rawSig.Length >= 9 + 12) ? ParseModbusValue(rawSig, 9 + 4, decodeMode) : ((i1 + i2 + i3) / 3f);
-                            float pSigma = (rawSig != null && rawSig.Length >= 9 + 12) ? NormalizePowerVal(ParseModbusValue(rawSig, 9 + 8, decodeMode)) : (p1 + p2 + p3);
+                            float iSigma = (i1 > 0.05f && i2 > 0.05f && i3 > 0.05f) ? ((i1 + i2 + i3) / 3f) : ((rawSig != null && rawSig.Length >= 9 + 12) ? ParseModbusValue(rawSig, 9 + 4, decodeMode) : i1);
+                            float pSigma = (rawSig != null && rawSig.Length >= 9 + 12) ? NormalizePowerVal(ParseModbusValue(rawSig, 9 + 8, decodeMode)) : ((p2 != 0f || p3 != 0f) ? (p1 + p2 + p3) : p1);
                             float pfSigma = (rawSig != null && rawSig.Length >= 9 + 24) ? ParseModbusValue(rawSig, 9 + 20, decodeMode) : pf1;
 
                             if (dgvPower != null && dgvPower.Rows.Count >= 3 && dgvPower.Columns.Count >= 6)
@@ -3726,9 +3727,9 @@ namespace DynamometerDeviceTester
 
                 string modeName = cmbPowerDecodeMode != null ? cmbPowerDecodeMode.Text : "模式 1";
                 string selName = cmbPowerModbusOffset != null ? cmbPowerModbusOffset.SelectedItem.ToString() : "";
-                txtPowerLog.AppendText(string.Format("   📊 [{0}] U1: {1:F1}V, U2: {2:F1}V, U3: {3:F1}V | I1: {4:F2}A, I2: {5:F2}A, I3: {6:F2}A | P總: {7:F2}kW\r\n",
+                txtPowerLog.AppendText(string.Format("   [圖表] [{0}] U1: {1:F1}V, U2: {2:F1}V, U3: {3:F1}V | I1: {4:F2}A, I2: {5:F2}A, I3: {6:F2}A | P總: {7:F2}kW\r\n",
                     selName, u1, u2, u3, i1, i2, i3, pSigma));
-                txtPowerLog.AppendText(string.Format("   🔎 [即時暫存器透視] {0}\r\n", matrixStr));
+                txtPowerLog.AppendText(string.Format("   [探測] [即時暫存器透視] {0}\r\n", matrixStr));
             }
             catch (Exception ex)
             {

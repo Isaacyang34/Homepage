@@ -1623,8 +1623,16 @@
                     return;
                 }
 
+                // 核心支援：若雲端回傳的是 /logs/latest.json 原始文字日誌，直接解析 csv_content
+                if (data.csv_content) {
+                    setFbStatus(`成功接收雲端日誌！檔名: ${data.csv_filename || "Auto_Log.csv"} (${data.csv_rows_count || 0} 行)，立即載入分析...`, "success");
+                    document.getElementById("firebaseModal").style.display = "none";
+                    parseDynamometerCsv(data.csv_content, data.csv_filename || "latest_log.csv");
+                    return;
+                }
+
                 if (!data.data) {
-                    setFbStatus("報告資料中未包含二進位 ZIP 數據，可能上傳格式不符。", "error");
+                    setFbStatus("報告資料中未包含二進位 ZIP 或 CSV 數據，可能上傳格式不符。", "error");
                     return;
                 }
 
@@ -2340,6 +2348,7 @@
                             temp: 35.0,
                             status: cols[10] || "OK"
                         };
+                        const isFull = isNewFull || isOldFull;
                         if (!isFull && pt.current > 0) pt.kt = pt.torque / pt.current;
                         parsedData.summaryPoints.push(pt);
                     }

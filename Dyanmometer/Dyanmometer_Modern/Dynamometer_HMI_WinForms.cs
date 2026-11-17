@@ -5909,8 +5909,11 @@ namespace DynamometerHMI
                                     float i2 = raw_i2 * (float)scaleI2;
                                     float i3 = raw_i3 * (float)scaleI3;
 
-                                    float uSigma = (raw_uSig > 1f) ? raw_uSig : ((u2 > 1f && u3 > 1f) ? ((u1 + u2 + u3) / 3.0f) : u1);
-                                    float iSigma = (raw_iSig > 0.05f) ? raw_iSig : ((i2 > 0.05f && i3 > 0.05f) ? ((i1 + i2 + i3) / 3.0f) : i1);
+                                    // 三相負載電流與電壓計算：
+                                    // 橫河 WT333E 在 3P3W (兩瓦特計法) 結線下，原廠硬體 raw_iSig 為 (I1+I3)/2，忽略了 Element 2。
+                                    // 在三相馬達測試時，三相均有負載電流，真實線電流強制採用三相算術平均值 (I1+I2+I3)/3！
+                                    float uSigma = (u1 > 1f && u2 > 1f && u3 > 1f) ? ((u1 + u2 + u3) / 3.0f) : ((raw_uSig > 1f) ? raw_uSig : u1);
+                                    float iSigma = (i1 > 0.05f && i2 > 0.05f && i3 > 0.05f) ? ((i1 + i2 + i3) / 3.0f) : ((raw_iSig > 0.05f) ? raw_iSig : ((i2 > 0.05f && i3 > 0.05f) ? ((i1 + i2 + i3) / 3.0f) : i1));
                                     double pSigma = (Math.Abs(raw_pSig) > 0.0001f) ? (double)raw_pSig : ((raw_p2 != 0f || raw_p3 != 0f) ? (raw_p1 + raw_p2 + raw_p3) : raw_p1);
                                     double realPf = (Math.Abs(raw_pfSig) > 0.001f && Math.Abs(raw_pfSig) <= 1.0f) ? (double)raw_pfSig : (double)raw_pf1;
 
@@ -6605,9 +6608,10 @@ namespace DynamometerHMI
             }
             if (isRunning)
             {
-                WriteHmiLog("TELEMETRY", string.Format("[A:{0} | B:{1}] Spd={2:F1}rpm, Torq={3:F2}Nm, SmoothTorq={4:F2}Nm, MechPwr={5:F2}kW, ElecPwr={6:F2}kW, Eff={7:F1}%, Volt={8:F1}V, Curr={9:F2}A, Temp={10:F1}C",
+                WriteHmiLog("TELEMETRY", string.Format("[A:{0} | B:{1}] Spd={2:F1}rpm, Torq={3:F2}Nm, SmoothTorq={4:F2}Nm, MechPwr={5:F2}kW, ElecPwr={6:F2}kW, Eff={7:F1}%, Volt={8:F1}V, Curr={9:F2}A [I1={11:F2},I2={12:F2},I3={13:F2}], Temp={10:F1}C",
                     GetKebModeShortName(currentKebMode1), GetKebModeShortName(currentKebMode2),
-                    actSpeed, actTorque, smoothedTorque, actMechPower, actElecPower, actEfficiency, actVoltageSigma, actCurrentSigma, actTemp));
+                    actSpeed, actTorque, smoothedTorque, actMechPower, actElecPower, actEfficiency, actVoltageSigma, actCurrentSigma, actTemp,
+                    wtI1, wtI2, wtI3));
             }
         }
         /// <summary>
