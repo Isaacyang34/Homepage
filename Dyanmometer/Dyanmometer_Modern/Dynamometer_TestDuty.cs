@@ -685,7 +685,7 @@ namespace DynamometerHMI
         {
             Form dlg = new Form()
             {
-                Text = "S1 熱平衡多通道選取 (全選取通道 30min 溫差皆 < 1.0°C 才停機)",
+                Text = "S1 溫度監控通道選取 (鎖定實測最高溫進行熱平衡判定)",
                 Width = 450,
                 Height = 500,
                 StartPosition = FormStartPosition.CenterParent,
@@ -698,7 +698,7 @@ namespace DynamometerHMI
 
             Label lHint = new Label()
             {
-                Text = "請勾選需參與熱平衡判定 (30分鐘溫差<1.0°C) 與即時監控之通道：\n(若設備已連線，可點擊「[電] 依實測選取」自動偵測真正有訊號的通道)",
+                Text = "請勾選參與監控之溫度通道（系統將動態追蹤實測最高溫進行 30 分鐘溫差 < 1.0℃ 熱平衡判定）：\n(若設備已連線，可點擊「[電] 依實測選取」自動偵測真正有訊號的通道)",
                 Dock = DockStyle.Top,
                 Height = 44,
                 Padding = new Padding(6),
@@ -3104,63 +3104,43 @@ namespace DynamometerHMI
                     }
                     else
                     {
-                        bool allPass = true;
-                        double maxDeltaT = 0.0;
-                        int maxCh = -1;
-                        List<string> chDetails = new List<string>();
+                        // 僅鎖定實測最高溫通道 (maxChIdx, dutyMonitoredTemp) 進行 30 分鐘熱平衡判定 (去除其他非最高溫次要通道干擾)
+                        double tNowMax = dutyMonitoredTemp;
+                        double tOldMax = (maxChIdx >= 0 && maxChIdx < baselineSample.Value.Length) ? baselineSample.Value[maxChIdx] : tNowMax;
+                        double diffMax = Math.Abs(tNowMax - tOldMax);
+                        bool isBalanced = (diffMax < 1.0);
 
-                        for (int ch = 0; ch < 20; ch++)
-                        {
-                            if (s1MonitoredChannels[ch])
-                            {
-                                double tNow = chSnapshot[ch];
-                                double tOld = baselineSample.Value[ch];
-                                double diff = Math.Abs(tNow - tOld);
-                                if (diff > maxDeltaT)
-                                {
-                                    maxDeltaT = diff;
-                                    maxCh = ch;
-                                }
-                                chDetails.Add(string.Format("CH{0}:Δ{1:F1}℃", ch + 1, diff));
-                                if (diff >= 1.0)
-                                {
-                                    allPass = false;
-                                }
-                            }
-                        }
-
-                        string thermalSummary = string.Format("S1 熱平衡: 實測近30分最大溫差 = {0:F2}℃ (CH{1}, 門檻<1.0℃) | 溫升斜率: {2:+0.00;-0.00}℃/分 | {3}",
-                            maxDeltaT, maxCh + 1, s1Slope, allPass ? "全通道已達平衡！" : s1EstText);
+                        string thermalSummary = string.Format("S1 熱平衡: 最高溫近30分溫差 = {0:F2}℃ (CH{1}, 門檻<1.0℃) | 溫升斜率: {2:+0.00;-0.00}℃/分 | {3}",
+                            diffMax, maxChIdx + 1, s1Slope, isBalanced ? "最高溫已達熱平衡！" : s1EstText);
                         lblThermalStatus.Text = thermalSummary;
-                        lblThermalStatus.ForeColor = allPass ? Color.SeaGreen : Color.DarkOrange;
+                        lblThermalStatus.ForeColor = isBalanced ? Color.SeaGreen : Color.DarkOrange;
                         if (lblS1ThermalStatus != null)
                         {
-                            lblS1ThermalStatus.Text = string.Format("近30分實測溫差: {0:F2}℃ (CH{1}) | 斜率: {2:+0.00;-0.00}℃/分 | {3}",
-                                maxDeltaT, maxCh + 1, s1Slope, allPass ? "已達熱平衡" : s1EstText);
-                            lblS1ThermalStatus.ForeColor = allPass ? Color.SeaGreen : Color.DarkOrange;
+                            lblS1ThermalStatus.Text = string.Format("最高溫30分溫差: {0:F2}℃ (CH{1}) | 斜率: {2:+0.00;-0.00}℃/分 | {3}",
+                                diffMax, maxChIdx + 1, s1Slope, isBalanced ? "最高溫已達平衡" : s1EstText);
+                            lblS1ThermalStatus.ForeColor = isBalanced ? Color.SeaGreen : Color.DarkOrange;
                         }
 
-                        if (allPass)
+                        if (isBalanced)
                         {
                             dutyTimer.Stop();
                             if (isManualRecording)
                             {
                                 StopManualRecording(showPrompt: false);
                             }
-                            string chStr = string.Join(", ", chDetails);
-                            StartGradualAutoStop(spdDrive, trqDrive, "S1熱平衡達標(30min溫差<1.0℃)", () => {
+                            StartGradualAutoStop(spdDrive, trqDrive, "S1熱平衡達標(最高溫30min溫差<1.0℃)", () => {
                                 btnStartDuty.Enabled = true;
                                 btnStopDuty.Enabled = false;
                                 if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
                                 if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
 
-                                lblDutyStatus.Text = "[成功] S1 熱平衡達標 (30min溫差<1.0℃)，試驗自動完成！";
-                                lblDutyPhaseAction.Text = "所有監控通道 30 分鐘溫差均小於 1℃，已平穩降載降速停機。";
+                                lblDutyStatus.Text = string.Format("[成功] S1 熱平衡達標！最高溫 CH{0} 近30分溫差 {1:F2}℃ (< 1.0℃)，試驗自動完成！", maxChIdx + 1, diffMax);
+                                lblDutyPhaseAction.Text = string.Format("最高溫通道 (CH{0}: {1:F1}℃) 30 分鐘溫差僅 {2:F2}℃，已達穩定熱平衡，平穩停機完成。", maxChIdx + 1, tNowMax, diffMax);
                                 if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
                                 if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
 
-                                WriteHmiLog("DUTY_S1_BALANCE", string.Format("【S1 熱平衡達標自動停機】耗時 {0} 分鐘，所有勾選通道 30 分鐘溫差皆 < 1.0℃ ({1})！", elapsedMins, chStr));
-                                MessageBox.Show(string.Format("S1 連續工作制熱平衡已達標！\n\n已運轉時間: {0} 分鐘\n各通道30min溫差: {1}\n\n已自動先降負載再降速平滑停機，請點擊「匯出報表」儲存數據。", elapsedMins, chStr), "熱平衡達標·試驗完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                WriteHmiLog("DUTY_S1_BALANCE", string.Format("【S1 熱平衡達標自動停機】耗時 {0} 分鐘，最高溫 CH{1} ({2:F1}℃) 30 分鐘溫差僅 {3:F2}℃ (< 1.0℃)，正式宣告熱平衡！", elapsedMins, maxChIdx + 1, tNowMax, diffMax));
+                                MessageBox.Show(string.Format("S1 連續工作制熱平衡已達標！\n\n已運轉時間: {0} 分鐘\n最高溫監控通道: CH{1} (實測: {2:F1}℃)\n近 30 分鐘溫差: {3:F2}℃ (< 1.0℃)\n\n最高溫已達穩定熱平衡，系統已自動平滑降載停機，請點擊「匯出報表」儲存數據。", elapsedMins, maxChIdx + 1, tNowMax, diffMax), "S1 熱平衡達標·試驗完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             });
                             return;
                         }
