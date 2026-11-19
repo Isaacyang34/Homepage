@@ -2844,6 +2844,7 @@ namespace DynamometerHMI
         private void SaveDgvColWidths(StringBuilder sb, string sectionName, DataGridView dgv)
         {
             if (dgv == null || dgv.Columns.Count == 0) return;
+            if (dgv.AutoSizeColumnsMode == DataGridViewAutoSizeColumnsMode.Fill) return; // Fill 模式下不儲存靜態絕對欄寬
             sb.AppendLine("[" + sectionName + "]");
             for (int i = 0; i < dgv.Columns.Count; i++)
             {
@@ -2854,6 +2855,7 @@ namespace DynamometerHMI
         private void LoadDgvColWidths(Dictionary<string, string> map, string sectionName, DataGridView dgv)
         {
             if (dgv == null || dgv.Columns.Count == 0) return;
+            if (dgv.AutoSizeColumnsMode == DataGridViewAutoSizeColumnsMode.Fill) return; // Fill 模式下由視窗寬度自適應填滿
             for (int i = 0; i < dgv.Columns.Count; i++)
             {
                 string key = sectionName + ".Col" + i;

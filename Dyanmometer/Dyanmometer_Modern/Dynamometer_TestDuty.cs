@@ -559,7 +559,7 @@ namespace DynamometerHMI
             {
                 Dock = DockStyle.Fill,
                 BackgroundColor = Color.White,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
                 RowHeadersVisible = false,
                 AllowUserToAddRows = false,
                 RowTemplate = { Height = 32 },
@@ -575,15 +575,28 @@ namespace DynamometerHMI
             dgvDuty.Columns.Add("Eff", "效率 (%)");
             dgvDuty.Columns.Add("Temp", "馬達溫度 (°C)");
             dgvDuty.Columns.Add("Thermal", "熱平衡判定");
-            dgvDuty.Columns[0].Width = 110;
-            dgvDuty.Columns[1].Width = 90;
-            dgvDuty.Columns[2].Width = 110;
-            dgvDuty.Columns[3].Width = 110;
-            dgvDuty.Columns[4].Width = 110;
-            dgvDuty.Columns[5].Width = 90;
-            dgvDuty.Columns[6].Width = 120;
-            dgvDuty.Columns[7].Width = 120;
-            dgvDuty.ColumnWidthChanged += (s, e) => SaveLayoutConfig();
+
+            dgvDuty.Columns[0].MinimumWidth = 95;  dgvDuty.Columns[0].FillWeight = 10;
+            dgvDuty.Columns[1].MinimumWidth = 80;  dgvDuty.Columns[1].FillWeight = 9;
+            dgvDuty.Columns[2].MinimumWidth = 95;  dgvDuty.Columns[2].FillWeight = 10;
+            dgvDuty.Columns[3].MinimumWidth = 95;  dgvDuty.Columns[3].FillWeight = 10;
+            dgvDuty.Columns[4].MinimumWidth = 95;  dgvDuty.Columns[4].FillWeight = 10;
+            dgvDuty.Columns[5].MinimumWidth = 80;  dgvDuty.Columns[5].FillWeight = 8;
+            dgvDuty.Columns[6].MinimumWidth = 110; dgvDuty.Columns[6].FillWeight = 12;
+            dgvDuty.Columns[7].MinimumWidth = 220; dgvDuty.Columns[7].FillWeight = 31;
+
+            ContextMenuStrip cmsDuty = new ContextMenuStrip();
+            ToolStripMenuItem mnuAutoFit = new ToolStripMenuItem("自動適應內容寬度");
+            mnuAutoFit.Click += (s, e) => {
+                dgvDuty.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells;
+            };
+            ToolStripMenuItem mnuFillWidth = new ToolStripMenuItem("填滿視窗寬度");
+            mnuFillWidth.Click += (s, e) => {
+                dgvDuty.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            };
+            cmsDuty.Items.Add(mnuAutoFit);
+            cmsDuty.Items.Add(mnuFillWidth);
+            dgvDuty.ContextMenuStrip = cmsDuty;
 
             splitDuty.Panel2.Controls.Add(dgvDuty);
             tab.Controls.Add(splitDuty);
@@ -2922,12 +2935,12 @@ namespace DynamometerHMI
                     }
 
                     // ── S1 即時溫升斜率與預估完成時間演算 ──
+                    // ── S1 即時溫升斜率與預估完成時間演算 ──
                     double s1Slope = CalculateS1ThermalSlopePerMin(s1TempHistory, s1MonitoredChannels, 120);
-                    double s1DeltaT30m = s1Slope * 30.0;
                     string s1EstText = "";
                     if (dutyElapsedSec < 60)
                     {
-                        s1EstText = "預估熱平衡: 採樣建立中...";
+                        s1EstText = "預估達標: 採樣建立中...";
                     }
                     else if (s1Slope <= 0.0333)
                     {
@@ -2938,7 +2951,7 @@ namespace DynamometerHMI
                         else
                         {
                             int remTo30m = (1800 - dutyElapsedSec) / 60;
-                            s1EstText = string.Format("斜率已達標，滿30m確認 (剩餘 {0} 分鐘)", Math.Max(1, remTo30m));
+                            s1EstText = string.Format("斜率已達標，等待滿30分確認 (剩餘 {0} 分鐘)", Math.Max(1, remTo30m));
                         }
                     }
                     else
@@ -2947,18 +2960,22 @@ namespace DynamometerHMI
                         double tau = 30.0; // 分鐘
                         double remMin = Math.Max(1.0, Math.Min(300.0, tau * Math.Log(s1Slope / 0.0333)));
                         DateTime estComplete = DateTime.Now.AddMinutes(remMin);
-                        s1EstText = string.Format("預估熱平衡: 約 {0:F0} 分鐘後 ({1:HH:mm})", remMin, estComplete);
+                        s1EstText = string.Format("預估達標: 約 {0:F0} 分鐘後 ({1:HH:mm})", remMin, estComplete);
                     }
+
+                    // 計算最高溫通道從測試開始到現在的實測累計溫升 (取消無意義的 30m 虛擬推算值)
+                    double s1InitialMaxTemp = (s1TempHistory.Count > 0 && s1TempHistory[0].Value != null && maxChIdx >= 0 && maxChIdx < 20) ? s1TempHistory[0].Value[maxChIdx] : dutyMonitoredTemp;
+                    double s1CumulativeRise = Math.Max(0.0, dutyMonitoredTemp - s1InitialMaxTemp);
 
                     if (dutyElapsedSec < 1800 || baselineSample.Value == null)
                     {
-                        string warmUpMsg = string.Format("S1 熱平衡: 採樣中 ({0:D2}:{1:D2}/30:00) | 斜率: {2:+0.00;-0.00}℃/m (30m: {3:+0.1;-0.1}℃) | {4}",
-                            elapsedMins, elapsedSecs, s1Slope, s1DeltaT30m, s1EstText);
+                        string warmUpMsg = string.Format("S1 熱平衡: 採樣累積中 ({0:D2}:{1:D2}/30:00) | 溫升斜率: {2:+0.00;-0.00}℃/分 | 累計溫升: {3:+0.1;-0.1}℃ | {4}",
+                            elapsedMins, elapsedSecs, s1Slope, s1CumulativeRise, s1EstText);
                         lblThermalStatus.Text = warmUpMsg;
                         lblThermalStatus.ForeColor = Color.DarkOrange;
                         if (lblS1ThermalStatus != null)
                         {
-                            lblS1ThermalStatus.Text = string.Format("溫升斜率: {0:+0.00;-0.00}℃/m (30m: {1:+0.1;-0.1}℃) | {2}", s1Slope, s1DeltaT30m, s1EstText);
+                            lblS1ThermalStatus.Text = string.Format("溫升斜率: {0:+0.00;-0.00}℃/分 | 累計溫升: {1:+0.1;-0.1}℃ | {2}", s1Slope, s1CumulativeRise, s1EstText);
                             lblS1ThermalStatus.ForeColor = (s1Slope <= 0.0333) ? Color.SeaGreen : Color.DarkOrange;
                         }
                     }
@@ -2989,14 +3006,14 @@ namespace DynamometerHMI
                             }
                         }
 
-                        string thermalSummary = string.Format("S1 熱平衡: 實測30m最大ΔT = {0:F2}℃ (CH{1}) | 斜率: {2:+0.00;-0.00}℃/m | {3}",
-                            maxDeltaT, maxCh + 1, s1Slope, allPass ? " 全通道已達標 (<1.0℃)" : s1EstText);
+                        string thermalSummary = string.Format("S1 熱平衡: 實測近30分最大溫差 = {0:F2}℃ (CH{1}, 門檻<1.0℃) | 溫升斜率: {2:+0.00;-0.00}℃/分 | {3}",
+                            maxDeltaT, maxCh + 1, s1Slope, allPass ? "全通道已達平衡！" : s1EstText);
                         lblThermalStatus.Text = thermalSummary;
                         lblThermalStatus.ForeColor = allPass ? Color.SeaGreen : Color.DarkOrange;
                         if (lblS1ThermalStatus != null)
                         {
-                            lblS1ThermalStatus.Text = string.Format("溫升斜率: {0:+0.00;-0.00}℃/m (30m實測: {1:F1}℃) | {2}",
-                                s1Slope, maxDeltaT, allPass ? "全通道達標" : s1EstText);
+                            lblS1ThermalStatus.Text = string.Format("近30分實測溫差: {0:F2}℃ (CH{1}) | 斜率: {2:+0.00;-0.00}℃/分 | {3}",
+                                maxDeltaT, maxCh + 1, s1Slope, allPass ? "已達熱平衡" : s1EstText);
                             lblS1ThermalStatus.ForeColor = allPass ? Color.SeaGreen : Color.DarkOrange;
                         }
 
@@ -3356,7 +3373,16 @@ namespace DynamometerHMI
                 double pMech = (actAbsSpd * actAbsTrq) / 9549.0;
                 string effStr = (actEfficiency > 0 && actEfficiency <= 100) ? actEfficiency.ToString("F1") : "--";
                 string tempStr = string.Format("{0:F1} (CH{1})", dutyMonitoredTemp, maxChIdx + 1);
-                string thStr = (dutyModeIdx == 0) ? (lblThermalStatus != null ? lblThermalStatus.Text.Replace("熱平衡判定: ", "") : "--") : (dutyModeIdx == 2 ? (lblS6ThermalStatus != null ? lblS6ThermalStatus.Text : "--") : "--");
+                string thStr = "--";
+                if (dutyModeIdx == 0)
+                {
+                    if (lblThermalStatus != null && !string.IsNullOrEmpty(lblThermalStatus.Text))
+                        thStr = lblThermalStatus.Text.Replace("S1 熱平衡: ", "").Replace("熱平衡判定: ", "");
+                }
+                else if (dutyModeIdx == 2)
+                {
+                    thStr = (lblS6ThermalStatus != null ? lblS6ThermalStatus.Text : "--");
+                }
 
                 dgvDuty.Rows.Add(timeStr, currentPhaseName, actAbsSpd.ToString("F0"), actAbsTrq.ToString("F1"), pMech.ToString("F2"), effStr, tempStr, thStr);
 
