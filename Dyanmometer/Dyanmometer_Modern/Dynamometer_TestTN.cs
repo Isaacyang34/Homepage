@@ -15,10 +15,10 @@ namespace DynamometerHMI
         // =========================================================================
         private int tnCurrentLossCounter = 0;
         private int tnStallCounter = 0;
-        // 低轉速 (<300 rpm) 預先激磁狀態機 (解決未激磁高轉起載反轉矩與衝過載跳機問題)
-        private int tnPreExciteStage = 0; // 0: 完成/無須預激磁, 1: 待測端低速起轉 (<=300 rpm), 2: 加載端低速激磁上電確認 (Sy50=4, cs18=0)
+        // 加載端預先激磁與平穩起轉狀態機 (解決未在低速激磁直接轉到指定轉速引發之反轉扭矩與機械衝擊問題)
+        private int tnPreExciteStage = 0; // 0: 完成/無須預激磁, 1: 加載端零速激磁建立階段 (Sy50=4, cs18=0%), 2: 低速平穩起轉過渡階段 (若目標>200rpm)
         private int tnPreExciteWaitSec = 0; // 激磁建立等待計時
-        private const double TN_LOW_SPEED_EXCITE_RPM = 250.0; // 低速激磁基準轉速 (250 rpm <= 300 rpm)
+        private const double TN_LOW_SPEED_EXCITE_RPM = 200.0; // 低速平穩起轉過渡基準轉速 (200 rpm)
         // =========================================================================
         private void BuildTnTab(TabPage tab)
         {
@@ -909,43 +909,38 @@ namespace DynamometerHMI
                 if (prgTnMini != null) { prgTnMini.Minimum = 0; prgTnMini.Maximum = tnCustomPoints.Count; prgTnMini.Value = 0; }
 
                 var p0 = tnCustomPoints[0];
-                // 加載端啟動轉矩歸零停機 (Sy50=0, cs18=0)
-                KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0);
-                SetHmiKebCommand(trqCom, trqBaud, trqNode, 0, string.Format("{0}TN加載端空載停機待命 (Sy50=0, cs18=0)", trqDriveName));
+                // 【加載端零速預激磁】：在待測端起轉前，加載端先行上電激磁 (Sy50=4, cs18=0%)，徹底消滅高速突加激磁之反轉扭矩！
+                KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // 轉矩強制為 0
+                SetHmiKebCommand(trqCom, trqBaud, trqNode, 4, string.Format("{0}TN加載端零速預激磁 (Sy50=4, cs18=0%)", trqDriveName));
 
-                // 待測端空載起轉：若目標轉速 >= 300 rpm，強制啟動「低轉速 (<300 rpm) 預先激磁流程」
-                bool needPreExciteMulti = (p0.TargetSpeed >= 300.0);
-                double initialRunSpeed = needPreExciteMulti ? TN_LOW_SPEED_EXCITE_RPM : p0.TargetSpeed;
-                tnPreExciteStage = needPreExciteMulti ? 1 : 0;
+                // 待測端初始維持零速等待加載端磁通飽和
+                tnPreExciteStage = 1; // 1: 加載端零速激磁建立階段, 2: 低速平穩起轉過渡階段 (若目標>200rpm)
                 tnPreExciteWaitSec = 0;
-                tnCurrentSpeedCmd = initialRunSpeed;
+                tnCurrentSpeedCmd = 0.0;
 
-                KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)initialRunSpeed, needPreExciteMulti ? "T-N多點第1點低速預激磁轉速 (Sy52)" : "T-N多點第1點初轉速 (Sy52)");
+                KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, 0, "T-N多點待測端初始零速等待激磁 (Sy52=0)");
                 KebWriteParamWithDll(spdCom, spdBaud, spdNode, 0x0F12, 1000);
-                SetHmiKebCommand(spdCom, spdBaud, spdNode, 4, string.Format("{0}TN待測端正轉 (Sy50=4)", spdDriveName));
+                SetHmiKebCommand(spdCom, spdBaud, spdNode, 4, string.Format("{0}TN待測端預備正轉 (Sy50=4)", spdDriveName));
 
                 if (spdDrive == 2)
                 {
-                    if (numHmiKebSpeed2 != null) numHmiKebSpeed2.Value = Math.Max(0, Math.Min(6000, (decimal)initialRunSpeed));
+                    if (numHmiKebSpeed2 != null) numHmiKebSpeed2.Value = 0;
                     if (numHmiKebTorque2 != null) numHmiKebTorque2.Value = 0;
                     if (numHmiKebSpeed1 != null) numHmiKebSpeed1.Value = 0;
                     if (numHmiKebTorque1 != null) numHmiKebTorque1.Value = 0;
                 }
                 else
                 {
-                    if (numHmiKebSpeed1 != null) numHmiKebSpeed1.Value = Math.Max(0, Math.Min(6000, (decimal)initialRunSpeed));
+                    if (numHmiKebSpeed1 != null) numHmiKebSpeed1.Value = 0;
                     if (numHmiKebTorque1 != null) numHmiKebTorque1.Value = 0;
                     if (numHmiKebSpeed2 != null) numHmiKebSpeed2.Value = 0;
                     if (numHmiKebTorque2 != null) numHmiKebTorque2.Value = 0;
                 }
 
-                dgvTnMultiPoints.Rows[0].Cells[3].Value = needPreExciteMulti ? "[低速預激磁]" : "[...] 提速中";
-                lblTnStatus.Text = needPreExciteMulti
-                    ? string.Format("多點測試啟動：待測端先起轉至低轉速 {0:F0} rpm 建立加載端激磁 (目標 {1:F0} rpm / {2:F1} Nm)",
-                        initialRunSpeed, p0.TargetSpeed, p0.TargetTorque)
-                    : string.Format("多點測試啟動：第 1/{0} 點 (目標 {1:F0} rpm / {2:F1} Nm)",
-                        tnCustomPoints.Count, p0.TargetSpeed, p0.TargetTorque);
-                lblTnCountdown.Text = needPreExciteMulti ? "低速預激磁" : "提速空載中";
+                dgvTnMultiPoints.Rows[0].Cells[3].Value = "[加載端激磁中]";
+                lblTnStatus.Text = string.Format("多點測試啟動：加載端 {0} 先行零速激磁建壓中 | 第 1/{1} 點目標 {2:F0} rpm / {3:F1} Nm",
+                    trqDriveName, tnCustomPoints.Count, p0.TargetSpeed, p0.TargetTorque);
+                lblTnCountdown.Text = "加載端激磁中";
                 if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                 if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
 
@@ -953,8 +948,8 @@ namespace DynamometerHMI
                 webRemoteStatusText = lblTnStatus.Text;
                 webRemotePhaseText = lblTnCountdown.Text;
 
-                WriteHmiLog("TN_CONFIG", string.Format("【T-N 多點測試啟動】共 {0} 組自訂點位，第 1 點: 目標 {1:F0} rpm / {2:F1} Nm | 低速激磁策略: {3} (加載端初始歸零 cs18=0%)",
-                    tnCustomPoints.Count, p0.TargetSpeed, p0.TargetTorque, needPreExciteMulti ? "啟用(250rpm先激磁)" : "跳過(<300rpm直上)"));
+                WriteHmiLog("TN_CONFIG", string.Format("【T-N 多點測試啟動】共 {0} 組自訂點位，第 1 點: 目標 {1:F0} rpm / {2:F1} Nm | 加載端 {3} 先行零速激磁 (Sy50=4, cs18=0%)，待測端零速熱備妥起轉",
+                    tnCustomPoints.Count, p0.TargetSpeed, p0.TargetTorque, trqDriveName));
 
                 if (!isRunning) BtnStart_Click(null, null);
                 tnTimer.Start();
@@ -967,38 +962,36 @@ namespace DynamometerHMI
                 tnAdaptedTorquePct = 0.0;
             }
 
-            // 同步更新主畫面數值輸入框 (待測端顯示初轉速，加載端強制顯示 0，未選者歸零)
+            // 同步更新主畫面數值輸入框 (預激磁階段雙載台歸零待命)
             if (spdDrive == 2) // B載台待測 (速度), A載台加載 (轉矩)
             {
-                if (numHmiKebSpeed2 != null) numHmiKebSpeed2.Value = Math.Max(0, Math.Min(6000, tnCurrentStep));
+                if (numHmiKebSpeed2 != null) numHmiKebSpeed2.Value = 0;
                 if (numHmiKebTorque2 != null) numHmiKebTorque2.Value = 0;
                 if (numHmiKebSpeed1 != null) numHmiKebSpeed1.Value = 0;
-                if (numHmiKebTorque1 != null) numHmiKebTorque1.Value = 0; // 加載端強制歸零
+                if (numHmiKebTorque1 != null) numHmiKebTorque1.Value = 0;
             }
             else // A載台待測 (速度), B載台加載 (轉矩)
             {
-                if (numHmiKebSpeed1 != null) numHmiKebSpeed1.Value = Math.Max(0, Math.Min(6000, tnCurrentStep));
+                if (numHmiKebSpeed1 != null) numHmiKebSpeed1.Value = 0;
                 if (numHmiKebTorque1 != null) numHmiKebTorque1.Value = 0;
                 if (numHmiKebSpeed2 != null) numHmiKebSpeed2.Value = 0;
-                if (numHmiKebTorque2 != null) numHmiKebTorque2.Value = 0; // 加載端強制歸零
+                if (numHmiKebTorque2 != null) numHmiKebTorque2.Value = 0;
             }
 
             // 【嚴禁竄改變頻器硬體架構暫存器】：廢除 SetHmiKebMode，完全保留現場 V/F (cs00=0) 或既有參數！
 
-            // 1. 加載端啟動瞬間轉矩強制歸零 (cs.18 = 0) 並維持 STOP (Sy.50 = 0)，嚴禁空載提速階段硬轉對沖！
+            // 1. 【加載端零速預激磁】：在待測端起轉前，加載端先行上電激磁 (Sy50=4, cs18=0%)，徹底消滅高速突加激磁之反轉扭矩！
             KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // cs.18 = 0
-            SetHmiKebCommand(trqCom, trqBaud, trqNode, 0, string.Format("{0}TN加載端空載停機待命 (Sy50=0, cs18=0)", trqDriveName));
+            SetHmiKebCommand(trqCom, trqBaud, trqNode, 4, string.Format("{0}TN加載端零速預激磁 (Sy50=4, cs18=0%)", trqDriveName));
 
-            // 2. 待測端空載起轉：若起始轉速 >= 300 rpm，先起轉至低轉速 250 rpm 激磁加載端；若 < 300 rpm 則直接起轉
-            bool needPreExciteRamp = (tnCurrentStep >= 300);
-            double initialRampSpeed = needPreExciteRamp ? TN_LOW_SPEED_EXCITE_RPM : (double)tnCurrentStep;
-            tnPreExciteStage = needPreExciteRamp ? 1 : 0;
+            // 2. 待測端初始維持零速等待加載端磁通飽和
+            tnPreExciteStage = 1; // 1: 加載端零速激磁建立階段, 2: 低速平穩起轉過渡階段 (若目標>200rpm)
             tnPreExciteWaitSec = 0;
-            tnCurrentSpeedCmd = initialRampSpeed;
+            tnCurrentSpeedCmd = 0.0;
 
-            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)initialRampSpeed, needPreExciteRamp ? "T-N 低速預激磁轉速 (Sy52)" : "T-N 初轉速 (Sy52)");
+            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, 0, "T-N梯度待測端初始零速等待激磁 (Sy52=0)");
             KebWriteParamWithDll(spdCom, spdBaud, spdNode, 0x0F12, 1000); // 待測端放行 100% 轉矩
-            SetHmiKebCommand(spdCom, spdBaud, spdNode, 4, string.Format("{0}TN待測端正轉 (Sy50=4)", spdDriveName));
+            SetHmiKebCommand(spdCom, spdBaud, spdNode, 4, string.Format("{0}TN待測端預備正轉 (Sy50=4)", spdDriveName));
 
             tnPhase = 0; // 0: 等待轉速到位與轉矩收斂達標, 1: 穩定持載 10 秒倒數
             tnConvergeTimeoutSec = 0;
@@ -1006,10 +999,8 @@ namespace DynamometerHMI
             tnTrqSustainedSec = 0;
             tnDwellRemaining = (int)numTnDwell.Value;
 
-            lblTnStatus.Text = needPreExciteRamp
-                ? string.Format("正在啟動：{0}待測低速 {1:F0} rpm (激磁建立中) | 目標 {2} rpm", spdDriveName, initialRampSpeed, tnCurrentStep)
-                : string.Format("正在啟動：{0}待測 {1} rpm | {2}加載 (初始 0.0%)", spdDriveName, tnCurrentStep, trqDriveName);
-            lblTnCountdown.Text = needPreExciteRamp ? "低速預激磁" : "提速空載中";
+            lblTnStatus.Text = string.Format("正在啟動：加載端 {0} 先行零速激磁建壓中 | 目標 {1} rpm / {2:F1} Nm", trqDriveName, tnCurrentStep, targetTrqVal);
+            lblTnCountdown.Text = "加載端激磁中";
             if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
             if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
             // ── 遠端監看同步 ──
@@ -1017,8 +1008,8 @@ namespace DynamometerHMI
             webRemoteStatusText = lblTnStatus.Text;
             webRemotePhaseText  = lblTnCountdown.Text;
 
-            WriteHmiLog("TN_CONFIG", string.Format("【T-N 啟動測試】測試配置: {0}待測 (速度) / {1}加載 (轉矩) | 起始轉速: {2} rpm, 步進: {3} rpm, 結束: {4} rpm, 目標轉矩: {5:F1} Nm | 低速激磁策略: {6} (加載端轉矩啟動歸零 0.0%)",
-                spdDriveName, trqDriveName, tnCurrentStep, numTnStepRpm.Value, numTnEndRpm.Value, targetTrqVal, needPreExciteRamp ? "啟用(250rpm先激磁)" : "跳過(<300rpm直上)"));
+            WriteHmiLog("TN_CONFIG", string.Format("【T-N 啟動測試】測試配置: {0}待測 (速度) / {1}加載 (轉矩) | 起始轉速: {2} rpm, 步進: {3} rpm, 結束: {4} rpm, 目標轉矩: {5:F1} Nm | 加載端零速預激磁 (Sy50=4, cs18=0%)，待測端零速熱備妥起轉",
+                spdDriveName, trqDriveName, tnCurrentStep, numTnStepRpm.Value, numTnEndRpm.Value, targetTrqVal));
 
             if (!isRunning) BtnStart_Click(null, null);
 
@@ -1172,51 +1163,63 @@ namespace DynamometerHMI
             {
                 tnConvergeTimeoutSec++;
 
-                // 【低轉速 (<300 rpm) 預先激磁狀態機處理】
+                // 【加載端預先激磁與平穩起轉狀態機處理】
                 if (tnPreExciteStage == 1)
                 {
-                    // 階段 1：待測端在低轉速 (<=300 rpm) 區間運轉，等待轉速到達 >= 180 rpm
-                    ApplyTnSpeedTracking(spdCom, spdBaud, spdNode, spdDrive, TN_LOW_SPEED_EXCITE_RPM, actAbsSpd);
+                    // 階段 1：加載端在零速下建立磁場 (維持 1 秒讓轉子磁通飽和)
                     KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // cs.18 = 0%
+                    tnPreExciteWaitSec++;
 
-                    if (actAbsSpd >= 180.0)
+                    if (tnPreExciteWaitSec >= 1)
                     {
-                        // 轉速已進入低速區間，立即讓加載端上電激磁 (Sy50=4, cs18=0%)
-                        SetHmiKebCommand(trqCom, trqBaud, trqNode, 4, string.Format("{0}TN加載端低速激磁上電 (Sy50=4, cs18=0%)", trqDriveName));
-                        tnPreExciteStage = 2;
                         tnPreExciteWaitSec = 0;
-                        WriteHmiLog("TN_PRE_EXCITE", string.Format("【低速預激磁】待測端已達低速 {0:F0} rpm，加載端 {1} 上電激磁 (Sy50=4, cs18=0%)，等待磁場穩定...", actAbsSpd, trqDriveName));
+                        if (targetSpd > TN_LOW_SPEED_EXCITE_RPM)
+                        {
+                            // 目標轉速較高 (>200 rpm)，進入階段 2：先平穩起轉至低速區間 (200 rpm)
+                            tnPreExciteStage = 2;
+                            tnCurrentSpeedCmd = TN_LOW_SPEED_EXCITE_RPM;
+                            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)TN_LOW_SPEED_EXCITE_RPM, "T-N多點平穩起轉至低速區間 (Sy52)");
+                            WriteHmiLog("TN_PRE_EXCITE", string.Format("【加載端激磁建立完成】加載端 {0} 磁場已飽和 (Sy50=4, cs18=0%)，待測端先平穩起轉至低速 {1:F0} rpm", trqDriveName, TN_LOW_SPEED_EXCITE_RPM));
+                        }
+                        else
+                        {
+                            // 目標轉速本身即為低速 (<=200 rpm)，直接提速至目標轉速
+                            tnPreExciteStage = 0;
+                            tnCurrentSpeedCmd = targetSpd;
+                            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)targetSpd, "T-N多點激磁完成直接提速至目標轉速 (Sy52)");
+                            WriteHmiLog("TN_PRE_EXCITE", string.Format("【加載端激磁建立完成】加載端 {0} 磁場已飽和 (Sy50=4, cs18=0%)，待測端正式起轉提速至目標 {1:F0} rpm", trqDriveName, targetSpd));
+                        }
                     }
-                    lblTnStatus.Text = string.Format("[預激磁] 待測端低速起轉中：實測 {0:F0} rpm (目標 {1:F0} rpm) | 加載端準備上電", actAbsSpd, TN_LOW_SPEED_EXCITE_RPM);
-                    lblTnCountdown.Text = "低速起轉中";
+                    lblTnStatus.Text = string.Format("[預激磁] 加載端零速建立磁場中 ({0}/1s)：待測端零速待命 | cs18=0%", tnPreExciteWaitSec);
+                    lblTnCountdown.Text = string.Format("激磁中 ({0}s)", tnPreExciteWaitSec);
                     if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                     if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
                     if (dgvTnMultiPoints.Rows.Count > tnMultiCurrentIndex)
-                        dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = "[預激磁] 低速起轉";
+                        dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = "[預激磁] 加載端激磁";
                     return;
                 }
                 else if (tnPreExciteStage == 2)
                 {
-                    // 階段 2：等待加載端上電確認 (維持 2 秒讓轉子磁通飽和穩定建立)
+                    // 階段 2：待測端在低速 (200 rpm) 區間運轉，確認轉子在受控零力矩下順暢旋轉 (實測 >= 120 rpm 或等待 2 秒)
                     ApplyTnSpeedTracking(spdCom, spdBaud, spdNode, spdDrive, TN_LOW_SPEED_EXCITE_RPM, actAbsSpd);
                     KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // 確保 cs.18 嚴格為 0%
                     tnPreExciteWaitSec++;
 
-                    if (tnPreExciteWaitSec >= 2)
+                    if (actAbsSpd >= 120.0 || tnPreExciteWaitSec >= 2)
                     {
-                        // 加載端激磁已完全建立！待測端正式提速至目標測試轉速
+                        // 低速過渡完成！待測端正式提速至目標測試轉速
                         tnPreExciteStage = 0;
                         tnPreExciteWaitSec = 0;
                         tnCurrentSpeedCmd = targetSpd;
-                        KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)targetSpd, "T-N多點預激磁完成提速至目標轉速 (Sy52)");
-                        WriteHmiLog("TN_PRE_EXCITE", string.Format("【預激磁完成】加載端激磁確認建立 (cs18=0%)，待測端正式提速至目標 {0:F0} rpm", targetSpd));
+                        KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)targetSpd, "T-N多點預激磁過渡完成提速至目標轉速 (Sy52)");
+                        WriteHmiLog("TN_PRE_EXCITE", string.Format("【低速過渡完成】實測 {0:F0} rpm，加載端零負載運轉穩定，待測端正式提速至目標 {1:F0} rpm", actAbsSpd, targetSpd));
                     }
-                    lblTnStatus.Text = string.Format("[預激磁] 加載端激磁建立確認中 ({0}/2s)：實測 {1:F0} rpm | cs18=0%", tnPreExciteWaitSec, actAbsSpd);
-                    lblTnCountdown.Text = string.Format("激磁確認 ({0}s)", tnPreExciteWaitSec);
+                    lblTnStatus.Text = string.Format("[低速過渡] 待測端低速運轉中 ({0}/2s)：實測 {1:F0} rpm | 加載端零負載跟隨", tnPreExciteWaitSec, actAbsSpd);
+                    lblTnCountdown.Text = string.Format("低速過渡 ({0}s)", tnPreExciteWaitSec);
                     if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                     if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
                     if (dgvTnMultiPoints.Rows.Count > tnMultiCurrentIndex)
-                        dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = "[預激磁] 確認中";
+                        dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = "[預激磁] 低速過渡";
                     return;
                 }
 
@@ -1522,7 +1525,7 @@ namespace DynamometerHMI
                         if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                         if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
                         if (dgvTnMultiPoints.Rows.Count > tnMultiCurrentIndex)
-                            dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = "⏳ 調扭加載中";
+                            dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = "[...] 調扭加載中";
                     }
                     else
                     {
@@ -1641,7 +1644,7 @@ namespace DynamometerHMI
                     if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                     if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
                     if (dgvTnMultiPoints.Rows.Count > tnMultiCurrentIndex)
-                        dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = "⏳ 變速調整中";
+                        dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = "[...] 變速調整中";
                 }
             }
 
@@ -1822,45 +1825,57 @@ namespace DynamometerHMI
                 // 轉速未到位前，加載端維持 0 轉矩空載 (cs.18 = 0)，讓待測端順暢提速！
                 if (!tnStepSpeedReached)
                 {
-                    // 【低轉速 (<300 rpm) 預先激磁狀態機處理】
+                    // 【加載端預先激磁與平穩起轉狀態機處理】
                     if (tnPreExciteStage == 1)
                     {
-                        // 階段 1：待測端在低轉速 (<=300 rpm) 區間運轉，等待轉速到達 >= 180 rpm
-                        ApplyTnSpeedTracking(spdCom, spdBaud, spdNode, spdDrive, TN_LOW_SPEED_EXCITE_RPM, actAbsSpd);
+                        // 階段 1：加載端在零速下建立磁場 (維持 1 秒讓轉子磁通飽和)
                         KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // cs.18 = 0%
+                        tnPreExciteWaitSec++;
 
-                        if (actAbsSpd >= 180.0)
+                        if (tnPreExciteWaitSec >= 1)
                         {
-                            // 轉速已進入低速區間，立即讓加載端上電激磁 (Sy50=4, cs18=0%)
-                            SetHmiKebCommand(trqCom, trqBaud, trqNode, 4, string.Format("{0}TN加載端低速激磁上電 (Sy50=4, cs18=0%)", trqDriveName));
-                            tnPreExciteStage = 2;
                             tnPreExciteWaitSec = 0;
-                            WriteHmiLog("TN_PRE_EXCITE", string.Format("【低速預激磁】待測端已達低速 {0:F0} rpm，加載端 {1} 上電激磁 (Sy50=4, cs18=0%)，等待磁場穩定...", actAbsSpd, trqDriveName));
+                            if (targetSpd > TN_LOW_SPEED_EXCITE_RPM)
+                            {
+                                // 目標轉速較高 (>200 rpm)，進入階段 2：先平穩起轉至低速區間 (200 rpm)
+                                tnPreExciteStage = 2;
+                                tnCurrentSpeedCmd = TN_LOW_SPEED_EXCITE_RPM;
+                                KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)TN_LOW_SPEED_EXCITE_RPM, "T-N梯度平穩起轉至低速區間 (Sy52)");
+                                WriteHmiLog("TN_PRE_EXCITE", string.Format("【加載端激磁建立完成】加載端 {0} 磁場已飽和 (Sy50=4, cs18=0%)，待測端先平穩起轉至低速 {1:F0} rpm", trqDriveName, TN_LOW_SPEED_EXCITE_RPM));
+                            }
+                            else
+                            {
+                                // 目標轉速本身即為低速 (<=200 rpm)，直接提速至目標轉速
+                                tnPreExciteStage = 0;
+                                tnCurrentSpeedCmd = targetSpd;
+                                KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)targetSpd, "T-N梯度激磁完成直接提速至目標轉速 (Sy52)");
+                                WriteHmiLog("TN_PRE_EXCITE", string.Format("【加載端激磁建立完成】加載端 {0} 磁場已飽和 (Sy50=4, cs18=0%)，待測端正式起轉提速至目標 {1:F0} rpm", trqDriveName, targetSpd));
+                            }
                         }
-                        lblTnStatus.Text = string.Format("[預激磁] 待測端低速起轉中：實測 {0:F0} rpm (目標 {1:F0} rpm) | 加載端準備上電", actAbsSpd, TN_LOW_SPEED_EXCITE_RPM);
-                        lblTnCountdown.Text = "低速起轉中";
+                        lblTnStatus.Text = string.Format("[預激磁] 加載端零速建立磁場中 ({0}/1s)：待測端零速待命 | cs18=0%", tnPreExciteWaitSec);
+                        lblTnCountdown.Text = string.Format("激磁中 ({0}s)", tnPreExciteWaitSec);
                         if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                         if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
                         return;
                     }
                     else if (tnPreExciteStage == 2)
                     {
-                        // 階段 2：等待加載端上電確認 (維持 2 秒讓轉子磁通飽和穩定建立)
+                        // 階段 2：待測端在低速 (200 rpm) 區間運轉，確認轉子在受控零力矩下順暢旋轉 (實測 >= 120 rpm 或等待 2 秒)
                         ApplyTnSpeedTracking(spdCom, spdBaud, spdNode, spdDrive, TN_LOW_SPEED_EXCITE_RPM, actAbsSpd);
                         KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // 確保 cs.18 嚴格為 0%
                         tnPreExciteWaitSec++;
 
-                        if (tnPreExciteWaitSec >= 2)
+                        if (actAbsSpd >= 120.0 || tnPreExciteWaitSec >= 2)
                         {
-                            // 加載端激磁已完全建立！待測端正式提速至目標測試轉速
+                            // 低速過渡完成！待測端正式提速至目標測試轉速
                             tnPreExciteStage = 0;
                             tnPreExciteWaitSec = 0;
                             tnCurrentSpeedCmd = targetSpd;
-                            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)targetSpd, "T-N梯度預激磁完成提速至目標轉速 (Sy52)");
-                            WriteHmiLog("TN_PRE_EXCITE", string.Format("【預激磁完成】加載端激磁確認建立 (cs18=0%)，待測端正式提速至目標 {0:F0} rpm", targetSpd));
+                            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)targetSpd, "T-N梯度預激磁過渡完成提速至目標轉速 (Sy52)");
+                            WriteHmiLog("TN_PRE_EXCITE", string.Format("【低速過渡完成】實測 {0:F0} rpm，加載端零負載運轉穩定，待測端正式提速至目標 {1:F0} rpm", actAbsSpd, targetSpd));
                         }
-                        lblTnStatus.Text = string.Format("[預激磁] 加載端激磁建立確認中 ({0}/2s)：實測 {1:F0} rpm | cs18=0%", tnPreExciteWaitSec, actAbsSpd);
-                        lblTnCountdown.Text = string.Format("激磁確認 ({0}s)", tnPreExciteWaitSec);
+                        lblTnStatus.Text = string.Format("[低速過渡] 待測端低速運轉中 ({0}/2s)：實測 {1:F0} rpm | 加載端零負載跟隨", tnPreExciteWaitSec, actAbsSpd);
+                        lblTnCountdown.Text = string.Format("低速過渡 ({0}s)", tnPreExciteWaitSec);
                         if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                         if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
                         return;
