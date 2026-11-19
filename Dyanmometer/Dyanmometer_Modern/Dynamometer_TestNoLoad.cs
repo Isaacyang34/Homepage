@@ -237,13 +237,6 @@ namespace DynamometerHMI
                 SaveLayoutConfig();
             };
 
-            var ttRated = new ToolTip();
-            ttRated.SetToolTip(chkNoLoadRatedTest, "【額定轉速溫升測試】\n勾選以進行額定轉速持續運轉與 30 分鐘熱平衡判定。");
-            var ttMidSpd = new ToolTip();
-            ttMidSpd.SetToolTip(chkNoLoadMidSpdTest, "【中間轉速溫升測試】\n勾選以進行中間轉速運轉與 30 分鐘熱平衡判定。");
-            var ttMaxSpd = new ToolTip();
-            ttMaxSpd.SetToolTip(chkNoLoadMaxSpdTest, "【最高轉速階梯測試】\n勾選以進行最高轉速運轉與 30 分鐘熱平衡判定。");
-
             tblParamsInner.Controls.Add(chkNoLoadRatedTest, 0, 1);
             tblParamsInner.Controls.Add(numNoLoadRatedSpd, 1, 1);
             tblParamsInner.Controls.Add(chkNoLoadMidSpdTest, 2, 1);
@@ -268,6 +261,13 @@ namespace DynamometerHMI
                 SaveLayoutConfig();
             };
 
+            var ttRated = new ToolTip();
+            if (chkNoLoadRatedTest != null) ttRated.SetToolTip(chkNoLoadRatedTest, "【額定轉速溫升測試】\n勾選以進行額定轉速持續運轉與 30 分鐘熱平衡判定。");
+            var ttMidSpd = new ToolTip();
+            if (chkNoLoadMidSpdTest != null) ttMidSpd.SetToolTip(chkNoLoadMidSpdTest, "【中間轉速溫升測試】\n勾選以進行中間轉速運轉與 30 分鐘熱平衡判定。");
+            var ttMaxSpd = new ToolTip();
+            if (chkNoLoadMaxSpdTest != null) ttMaxSpd.SetToolTip(chkNoLoadMaxSpdTest, "【最高轉速階梯測試】\n勾選以進行最高轉速運轉與 30 分鐘熱平衡判定。");
+
             Label lblStep = new Label() { Text = "升速梯度 (rpm):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold) };
             numNoLoadStepSpd = new NumericUpDown() { Dock = DockStyle.Fill, Minimum = 50, Maximum = 3000, Value = 500, Increment = 50, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
             numNoLoadStepSpd.ValueChanged += (s, e) => SaveLayoutConfig();
@@ -282,8 +282,8 @@ namespace DynamometerHMI
             numNoLoadStepDwellSec = new NumericUpDown() { Dock = DockStyle.Fill, Minimum = 10, Maximum = 1800, Value = 60, Increment = 10, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
             numNoLoadStepDwellSec.ValueChanged += (s, e) => SaveLayoutConfig();
             var ttDwell = new ToolTip();
-            ttDwell.SetToolTip(lblDwell, "【階梯評估時間 (秒)】\n按梯度升速一個階梯時，在該轉速下『持溫停留評估穩定度』的秒數。\n在此期間若未超溫且運轉穩定，即判定評估通過，繼續提速至下一階梯。");
-            ttDwell.SetToolTip(numNoLoadStepDwellSec, "【階梯評估時間 (秒)】\n按梯度升速一個階梯時，在該轉速下『持溫停留評估穩定度』的秒數。\n在此期間若未超溫且運轉穩定，即判定評估通過，繼續提速至下一階梯。");
+            if (lblDwell != null) ttDwell.SetToolTip(lblDwell, "【階梯評估時間 (秒)】\n按梯度升速一個階梯時，在該轉速下『持溫停留評估穩定度』的秒數。\n在此期間若未超溫且運轉穩定，即判定評估通過，繼續提速至下一階梯。");
+            if (numNoLoadStepDwellSec != null) ttDwell.SetToolTip(numNoLoadStepDwellSec, "【階梯評估時間 (秒)】\n按梯度升速一個階梯時，在該轉速下『持溫停留評估穩定度』的秒數。\n在此期間若未超溫且運轉穩定，即判定評估通過，繼續提速至下一階梯。");
 
             Label lblTempLim = new Label() { Text = "溫度閥值 (℃):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), ForeColor = Color.FromArgb(220, 38, 38) };
             numNoLoadTempLimit = new NumericUpDown() { Dock = DockStyle.Fill, Minimum = 20, Maximum = 180, DecimalPlaces = 1, Value = 75.0m, Increment = 1.0m, Font = new Font("微軟正黑體", 11f, FontStyle.Bold), ForeColor = Color.FromArgb(220, 38, 38) };
