@@ -63,7 +63,8 @@ namespace DynamometerHMI
             double targetSpd, double targetTrq,
             double actSpd, double actTrq,
             out string statusDesc,
-            string tag = "")
+            string tag = "",
+            bool enableSlipComp = true)
         {
             tracker.ElapsedSec++;
 
@@ -156,18 +157,31 @@ namespace DynamometerHMI
                     tracker.AdaptedTorquePct, actTrq, targetTrq, tracker.NmPerPointOnePct);
             }
 
-            // ── 步驟 C：待測端 SY52 同步補轉差 ──
+            // ── 步驟 C：待測端 SY52 速度控制 (補轉差 / 不補轉差自然轉差) ──
             double spdSlip = targetSpd - actSpd;
-            if (spdSlip > 2.0)
+            if (!enableSlipComp)
             {
-                tracker.CurrentSpeedCmd += (spdSlip > 10.0 ? 3.0 : 1.0);
-                tracker.CurrentSpeedCmd = Math.Min(targetSpd * 1.35, tracker.CurrentSpeedCmd);
-                KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)Math.Round(tracker.CurrentSpeedCmd), tag + " 補轉差 (SY52)");
+                // 不補轉差：待測端嚴格維持 targetSpd 給定頻率，不隨帶載掉速向上補償
+                if (Math.Round(tracker.CurrentSpeedCmd) != Math.Round(targetSpd))
+                {
+                    tracker.CurrentSpeedCmd = targetSpd;
+                    KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)Math.Round(targetSpd), tag + " 不補轉差固定 (SY52)");
+                }
             }
-            else if (spdSlip < -3.0)
+            else
             {
-                tracker.CurrentSpeedCmd -= 1.0;
-                KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)Math.Round(tracker.CurrentSpeedCmd), tag + " 微調速度 (SY52)");
+                // 自動補轉差：若加載導致轉速低於目標轉速 (掉速超過帶寬 2 rpm)，待測端主動補償 SY52
+                if (spdSlip > 2.0)
+                {
+                    tracker.CurrentSpeedCmd += (spdSlip > 10.0 ? 3.0 : 1.0);
+                    tracker.CurrentSpeedCmd = Math.Min(targetSpd * 1.35, tracker.CurrentSpeedCmd);
+                    KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)Math.Round(tracker.CurrentSpeedCmd), tag + " 補轉差 (SY52)");
+                }
+                else if (spdSlip < -3.0)
+                {
+                    tracker.CurrentSpeedCmd -= 1.0;
+                    KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)Math.Round(tracker.CurrentSpeedCmd), tag + " 微調速度 (SY52)");
+                }
             }
 
             // 同步主畫面數字輸入框顯示
@@ -178,7 +192,7 @@ namespace DynamometerHMI
 
             // ── 步驟 D：雙達標判定 ──
             bool isTrqReached = Math.Abs(trqErr) <= Math.Max(1.0, targetTrq * 0.08);
-            bool isSpdReached = Math.Abs(spdSlip) <= Math.Max(6.0, targetSpd * 0.015);
+            bool isSpdReached = enableSlipComp ? (Math.Abs(spdSlip) <= Math.Max(6.0, targetSpd * 0.015)) : (actSpd >= targetSpd * 0.70);
 
             if (isTrqReached && isSpdReached)
             {

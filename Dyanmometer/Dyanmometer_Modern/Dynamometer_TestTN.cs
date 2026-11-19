@@ -18,6 +18,7 @@ namespace DynamometerHMI
         // 使用者現場黃金時序：停在 300 rpm 加載端激磁不給轉矩量 -> 等待 3 秒 -> 額定轉速分 4 段梯度加速 (<=300rpm直上)
         private int tnExciteStage = 0; // 0: 正常測試, 1: 待測端升至300rpm, 2: 300rpm加載端激磁等待3秒, 3: 4段梯度加速中
         private int tnExciteWaitSec = 0;
+        private int tnRampHoldSec = 0; // 梯度加速每段階梯穩定維持計時器 (需維持滿 2 秒)
         private int tnRampStep = 0; // 0..3 (第 1..4 段)
         private double[] tnRampSpeeds = new double[4];
         private const double TN_EXCITE_BASE_RPM = 300.0; // 低速激磁基準轉速 (300 rpm)
@@ -917,6 +918,7 @@ namespace DynamometerHMI
                     tnExciteStage = 1; // 1: 待測端升至 300 rpm, 2: 300 rpm 激磁等待 3 秒, 3: 4 段梯度加速
                     tnExciteWaitSec = 0;
                     tnRampStep = 0;
+                    tnRampHoldSec = 0;
                     tnRampSpeeds[0] = Math.Max(300.0, p0.TargetSpeed * 0.25);
                     tnRampSpeeds[1] = Math.Max(tnRampSpeeds[0], p0.TargetSpeed * 0.50);
                     tnRampSpeeds[2] = Math.Max(tnRampSpeeds[1], p0.TargetSpeed * 0.75);
@@ -1012,6 +1014,7 @@ namespace DynamometerHMI
                 tnExciteStage = 1; // 1: 待測端升至 300 rpm, 2: 300 rpm 激磁等待 3 秒, 3: 4 段梯度加速
                 tnExciteWaitSec = 0;
                 tnRampStep = 0;
+                tnRampHoldSec = 0;
                 tnRampSpeeds[0] = Math.Max(300.0, (double)tnCurrentStep * 0.25);
                 tnRampSpeeds[1] = Math.Max(tnRampSpeeds[0], (double)tnCurrentStep * 0.50);
                 tnRampSpeeds[2] = Math.Max(tnRampSpeeds[1], (double)tnCurrentStep * 0.75);
@@ -1253,45 +1256,63 @@ namespace DynamometerHMI
                         tnExciteStage = 3;
                         tnRampStep = 0;
                         tnExciteWaitSec = 0;
+                        tnRampHoldSec = 0;
                         WriteHmiLog("TN_EXCITE", string.Format("【300 rpm 激磁完成】加載端 {0} 磁場已在 300 rpm 穩定建立滿 3 秒，正式啟動 4 段梯度加速至目標 {1:F0} rpm", trqDriveName, targetSpd));
                     }
                     return;
                 }
-                // 階段 3：加速採用梯度上升，用設定的額定轉速分成 4 段加速，加載端全程保持 0 轉矩熱備妥跟隨
+                // 階段 3：加速採用梯度上升，用設定的額定轉速分成 4 段加速，每段達速後穩定維持滿 2 秒再加速
                 else if (tnExciteStage == 3)
                 {
                     KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // 加速全程加載端維持 0 轉矩
-                    tnExciteWaitSec++;
 
                     int curStepIdx = Math.Min(3, Math.Max(0, tnRampStep));
                     double rampTarget = tnRampSpeeds[curStepIdx];
 
-                    if (tnExciteWaitSec == 1)
+                    if (tnRampHoldSec == 0 && tnExciteWaitSec == 0)
                     {
                         KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)rampTarget, string.Format("T-N梯度加速第 {0}/4 段 (Sy52={1:F0})", curStepIdx + 1, rampTarget));
                         WriteHmiLog("TN_EXCITE", string.Format("【4段梯度加速 {0}/4】下達轉速命令 {1:F0} rpm (加載端保持 cs18=0%)", curStepIdx + 1, rampTarget));
                     }
+                    tnExciteWaitSec++;
 
-                    lblTnStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：目標 {1:F0} rpm (實測 {2:F0} rpm) | 加載端零力矩跟隨", curStepIdx + 1, rampTarget, actAbsSpd);
-                    lblTnCountdown.Text = string.Format("梯度升速 ({0}/4)", curStepIdx + 1);
+                    // 判定轉速是否到達該段目標 (>= 90% 或 誤差 <= Max(25 rpm, 8%)，或超時 12 秒安全放行)
+                    bool isAtStepSpeed = (actAbsSpd >= rampTarget * 0.90) || (Math.Abs(actAbsSpd - rampTarget) <= Math.Max(25.0, rampTarget * 0.08)) || (tnExciteWaitSec >= 12);
+
+                    if (!isAtStepSpeed)
+                    {
+                        tnRampHoldSec = 0;
+                        lblTnStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：升速至 {1:F0} rpm (實測 {2:F0} rpm) | 加載端零力矩跟隨", curStepIdx + 1, rampTarget, actAbsSpd);
+                        lblTnCountdown.Text = string.Format("升速 ({0}/4)", curStepIdx + 1);
+                    }
+                    else
+                    {
+                        // 已達速：精確穩定維持滿 2 秒再加速！
+                        tnRampHoldSec++;
+                        lblTnStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：已達 {1:F0} rpm，穩定維持中 ({2}/2秒) | 加載端零力矩跟隨", curStepIdx + 1, rampTarget, tnRampHoldSec);
+                        lblTnCountdown.Text = string.Format("穩定 ({0}/4) {1}s", curStepIdx + 1, tnRampHoldSec);
+
+                        if (tnRampHoldSec >= 2)
+                        {
+                            WriteHmiLog("TN_EXCITE", string.Format("【4段梯度加速 {0}/4 穩定完成】已在 {1:F0} rpm 穩定維持滿 2 秒，推進至下一階段", curStepIdx + 1, rampTarget));
+                            tnRampStep++;
+                            tnExciteWaitSec = 0;
+                            tnRampHoldSec = 0;
+
+                            if (tnRampStep >= 4)
+                            {
+                                tnExciteStage = 0;
+                                tnCurrentSpeedCmd = targetSpd;
+                                KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)targetSpd, "T-N 4段梯度完成提速至需求轉速 (Sy52)");
+                                WriteHmiLog("TN_EXCITE", string.Format("【4段梯度加速全部完成】各段皆平穩維持滿 2 秒到達需求轉速 {0:F0} rpm，加載端零力矩無反轉，正式進入T-N測試！", targetSpd));
+                            }
+                        }
+                    }
+
                     if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
                     if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
                     if (dgvTnMultiPoints.Rows.Count > tnMultiCurrentIndex)
                         dgvTnMultiPoints.Rows[tnMultiCurrentIndex].Cells[3].Value = string.Format("[升速] 梯度{0}/4", curStepIdx + 1);
-
-                    bool stepReached = (actAbsSpd >= rampTarget * 0.90) || (tnExciteWaitSec >= 2);
-                    if (stepReached)
-                    {
-                        tnRampStep++;
-                        tnExciteWaitSec = 0;
-                        if (tnRampStep >= 4)
-                        {
-                            tnExciteStage = 0;
-                            tnCurrentSpeedCmd = targetSpd;
-                            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)targetSpd, "T-N 4段梯度完成提速至需求轉速 (Sy52)");
-                            WriteHmiLog("TN_EXCITE", string.Format("【4段梯度加速全部完成】已順暢平滑到達需求轉速 {0:F0} rpm，加載端零力矩無反轉，正式進入T-N測試！", targetSpd));
-                        }
-                    }
                     return;
                 }
 
@@ -1936,43 +1957,61 @@ namespace DynamometerHMI
                             tnExciteStage = 3;
                             tnRampStep = 0;
                             tnExciteWaitSec = 0;
+                            tnRampHoldSec = 0;
                             WriteHmiLog("TN_EXCITE", string.Format("【300 rpm 激磁完成】加載端 {0} 磁場已在 300 rpm 穩定建立滿 3 秒，正式啟動 4 段梯度加速至目標 {1:F0} rpm", trqDriveName, targetSpd));
                         }
                         return;
                     }
-                    // 階段 3：加速採用梯度上升，用設定的額定轉速分成 4 段加速，加載端全程保持 0 轉矩熱備妥跟隨
+                    // 階段 3：加速採用梯度上升，用設定的額定轉速分成 4 段加速，每段達速後穩定維持滿 2 秒再加速
                     else if (tnExciteStage == 3)
                     {
                         KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // 加速全程加載端維持 0 轉矩
-                        tnExciteWaitSec++;
 
                         int curStepIdx = Math.Min(3, Math.Max(0, tnRampStep));
                         double rampTarget = tnRampSpeeds[curStepIdx];
 
-                        if (tnExciteWaitSec == 1)
+                        if (tnRampHoldSec == 0 && tnExciteWaitSec == 0)
                         {
                             KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)rampTarget, string.Format("T-N梯度加速第 {0}/4 段 (Sy52={1:F0})", curStepIdx + 1, rampTarget));
                             WriteHmiLog("TN_EXCITE", string.Format("【4段梯度加速 {0}/4】下達轉速命令 {1:F0} rpm (加載端保持 cs18=0%)", curStepIdx + 1, rampTarget));
                         }
+                        tnExciteWaitSec++;
 
-                        lblTnStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：目標 {1:F0} rpm (實測 {2:F0} rpm) | 加載端零力矩跟隨", curStepIdx + 1, rampTarget, actAbsSpd);
-                        lblTnCountdown.Text = string.Format("梯度升速 ({0}/4)", curStepIdx + 1);
-                        if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
-                        if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
+                        // 判定轉速是否到達該段目標 (>= 90% 或 誤差 <= Max(25 rpm, 8%)，或超時 12 秒安全放行)
+                        bool isAtStepSpeed = (actAbsSpd >= rampTarget * 0.90) || (Math.Abs(actAbsSpd - rampTarget) <= Math.Max(25.0, rampTarget * 0.08)) || (tnExciteWaitSec >= 12);
 
-                        bool stepReached = (actAbsSpd >= rampTarget * 0.90) || (tnExciteWaitSec >= 2);
-                        if (stepReached)
+                        if (!isAtStepSpeed)
                         {
-                            tnRampStep++;
-                            tnExciteWaitSec = 0;
-                            if (tnRampStep >= 4)
+                            tnRampHoldSec = 0;
+                            lblTnStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：升速至 {1:F0} rpm (實測 {2:F0} rpm) | 加載端零力矩跟隨", curStepIdx + 1, rampTarget, actAbsSpd);
+                            lblTnCountdown.Text = string.Format("升速 ({0}/4)", curStepIdx + 1);
+                        }
+                        else
+                        {
+                            // 已達速：精確穩定維持滿 2 秒再加速！
+                            tnRampHoldSec++;
+                            lblTnStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：已達 {1:F0} rpm，穩定維持中 ({2}/2秒) | 加載端零力矩跟隨", curStepIdx + 1, rampTarget, tnRampHoldSec);
+                            lblTnCountdown.Text = string.Format("穩定 ({0}/4) {1}s", curStepIdx + 1, tnRampHoldSec);
+
+                            if (tnRampHoldSec >= 2)
                             {
-                                tnExciteStage = 0;
-                                tnCurrentSpeedCmd = targetSpd;
-                                KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)targetSpd, "T-N 4段梯度完成提速至需求轉速 (Sy52)");
-                                WriteHmiLog("TN_EXCITE", string.Format("【4段梯度加速全部完成】已順暢平滑到達需求轉速 {0:F0} rpm，加載端零力矩無反轉，正式進入T-N測試！", targetSpd));
+                                WriteHmiLog("TN_EXCITE", string.Format("【4段梯度加速 {0}/4 穩定完成】已在 {1:F0} rpm 穩定維持滿 2 秒，推進至下一階段", curStepIdx + 1, rampTarget));
+                                tnRampStep++;
+                                tnExciteWaitSec = 0;
+                                tnRampHoldSec = 0;
+
+                                if (tnRampStep >= 4)
+                                {
+                                    tnExciteStage = 0;
+                                    tnCurrentSpeedCmd = targetSpd;
+                                    KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)targetSpd, "T-N 4段梯度完成提速至需求轉速 (Sy52)");
+                                    WriteHmiLog("TN_EXCITE", string.Format("【4段梯度加速全部完成】各段皆平穩維持滿 2 秒到達需求轉速 {0:F0} rpm，加載端零力矩無反轉，正式進入T-N測試！", targetSpd));
+                                }
                             }
                         }
+
+                        if (lblTnMiniStatus != null) lblTnMiniStatus.Text = lblTnStatus.Text;
+                        if (lblTnMiniCountdown != null) lblTnMiniCountdown.Text = lblTnCountdown.Text;
                         return;
                     }
 
@@ -2252,6 +2291,7 @@ namespace DynamometerHMI
             tnExciteStage = 0;
             tnExciteWaitSec = 0;
             tnRampStep = 0;
+            tnRampHoldSec = 0;
 
             string fullReason = string.IsNullOrEmpty(detail) ? reason : string.Format("{0} ({1})", reason, detail);
             WriteHmiLog("TN_STOP_EVENT", string.Format("【T-N 測試停止觸發】原因: {0} | 當前實測快照: 轉速={1:F1} rpm, 轉矩={2:F2} Nm, 電流={3:F2} A, 電壓={4:F1} V, 功率={5:F2} kW, PF={6:F3}, ru00_A={7}, ru00_B={8}",

@@ -155,6 +155,11 @@ namespace DynamometerHMI
             btnS1SelectChannels.Click += (s, e) => { ShowS1ChannelSelectDialog(); };
             lblS1SelectedChHint = new Label() { Text = "(已選 CH1~4，共 4 通道)", Location = new Point(185, 148), AutoSize = true, ForeColor = Color.FromArgb(70, 80, 95), Font = new Font("微軟正黑體", 11.5f) };
 
+            chkDutySlipComp = new CheckBox() { Text = "自動補轉差 (維持額定轉速)", Location = new Point(410, 146), AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold), Checked = true };
+            chkDutySlipComp.CheckedChanged += (s, e) => {
+                chkDutySlipComp.Text = chkDutySlipComp.Checked ? "自動補轉差 (維持額定轉速)" : "不補轉差 (固定頻率自然轉差)";
+            };
+
             // S2 第三列：[通道:...] 斷行獨立一行排版
             lblS2TempCh = new Label() { Text = "通道:", Location = new Point(12, 148), AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
             cmbS2TempCh = new ComboBox() { Location = new Point(65, 144), Width = 110, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("微軟正黑體", 11f) };
@@ -382,7 +387,7 @@ namespace DynamometerHMI
                 lblKebAutoModeHint,
                 lMode, cmbDutyMode, lRole, cmbDutyRole,
                 lSpd, numDutySpeed, lTrq, numDutyTorque,
-                chkS1ThermalStop, btnS1SelectChannels, lblS1SelectedChHint, lblDutyAbStatus,
+                chkS1ThermalStop, btnS1SelectChannels, lblS1SelectedChHint, chkDutySlipComp, lblDutyAbStatus,
                 lblS2Duration, numS2DurationMin, chkS2TempStop, lblS2TempCh, cmbS2TempCh, lblS2TempThresh, numS2TempThreshold, lblS2TempRealtime,
                 lblS2AnchorTitle, lblS2AnchorSy52, numS2AnchorSy52, lblS2AnchorCs18, numS2AnchorCs18, btnS2RecordAnchor, btnS2ResetAnchor,
                 lblS6CycleLabel, numS6CycleMin, lblS6EdLabel, numS6Ed, lblS6CyclesLabel, numS6Cycles, lblS6CalcInfo,
@@ -700,6 +705,7 @@ namespace DynamometerHMI
             if (chkS1ThermalStop != null) chkS1ThermalStop.Visible = isS1;
             if (btnS1SelectChannels != null) btnS1SelectChannels.Visible = isS1;
             if (lblS1SelectedChHint != null) lblS1SelectedChHint.Visible = isS1;
+            if (chkDutySlipComp != null) chkDutySlipComp.Visible = isS1;
             if (lblS1ThermalStatus != null) lblS1ThermalStatus.Visible = isS1;
             if (lblDutyAbStatus != null) lblDutyAbStatus.Visible = (isS1 || isS2 || isS6);
             if (lblDutyAllChTempsDisp != null) lblDutyAllChTempsDisp.Visible = isS1;
@@ -1267,6 +1273,7 @@ namespace DynamometerHMI
             dutyExciteStage = 0;
             dutyExciteWaitSec = 0;
             dutyRampStep = 0;
+            dutyRampHoldSec = 0;
             s6SpeedReached = false;
             s6DutyPhase = 0;
             s6TrialStage = 0;
@@ -1574,6 +1581,7 @@ namespace DynamometerHMI
                 dutyExciteStage = 1; // 1: 待測端升至 300 rpm, 2: 300 rpm 加載端激磁等待 3 秒, 3: 4 段梯度加速
                 dutyExciteWaitSec = 0;
                 dutyRampStep = 0;
+                dutyRampHoldSec = 0;
                 dutyRampSpeeds[0] = Math.Max(300.0, targetSpd * 0.25);
                 dutyRampSpeeds[1] = Math.Max(dutyRampSpeeds[0], targetSpd * 0.50);
                 dutyRampSpeeds[2] = Math.Max(dutyRampSpeeds[1], targetSpd * 0.75);
@@ -1875,45 +1883,62 @@ namespace DynamometerHMI
                     dutyExciteStage = 3;
                     dutyRampStep = 0;
                     dutyExciteWaitSec = 0;
+                    dutyRampHoldSec = 0;
                     WriteHmiLog("DUTY_EXCITE", string.Format("【300 rpm 激磁完成】加載端 {0} 磁場已在 300 rpm 穩定建立滿 3 秒，正式啟動 4 段梯度加速至目標 {1:F0} rpm", trqDriveName, targetSpd));
                 }
                 return;
             }
-            // 階段 3：加速採用梯度上升，用設定的額定轉速分成 4 段加速，加載端全程保持 0 轉矩熱備妥跟隨
+            // 階段 3：加速採用梯度上升，用設定的額定轉速分成 4 段加速，每段達速後穩定維持滿 2 秒再加速
             else if (dutyExciteStage == 3)
             {
                 KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // 加速全程加載端維持 0 轉矩
-                dutyExciteWaitSec++;
 
                 int curStepIdx = Math.Min(3, Math.Max(0, dutyRampStep));
                 double rampTarget = dutyRampSpeeds[curStepIdx];
 
-                if (dutyExciteWaitSec == 1)
+                if (dutyRampHoldSec == 0 && dutyExciteWaitSec == 0)
                 {
                     // 剛進入該段梯度：下達該段目標轉速
                     KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)rampTarget, string.Format("DUTY梯度加速第 {0}/4 段 (Sy52={1:F0})", curStepIdx + 1, rampTarget));
                     WriteHmiLog("DUTY_EXCITE", string.Format("【4段梯度加速 {0}/4】下達轉速命令 {1:F0} rpm (加載端保持 cs18=0%)", curStepIdx + 1, rampTarget));
                 }
+                dutyExciteWaitSec++;
 
-                lblDutyStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：目標 {1:F0} rpm (實測 {2:F0} rpm) | 加載端零力矩跟隨", curStepIdx + 1, rampTarget, actAbsSpd);
-                lblDutyPhaseAction.Text = string.Format("梯度升速 {0}/4 段中，避免加速中轉矩方向改變...", curStepIdx + 1);
-                if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
-                if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
+                // 判定轉速是否到達該段目標 (>= 90% 或 誤差 <= Max(25 rpm, 8%)，或超時 12 秒安全放行)
+                bool isAtStepSpeed = (actAbsSpd >= rampTarget * 0.90) || (Math.Abs(actAbsSpd - rampTarget) <= Math.Max(25.0, rampTarget * 0.08)) || (dutyExciteWaitSec >= 12);
 
-                // 每段維持 2 秒或轉速到達該段目標 92%
-                bool stepReached = (actAbsSpd >= rampTarget * 0.90) || (dutyExciteWaitSec >= 2);
-                if (stepReached)
+                if (!isAtStepSpeed)
                 {
-                    dutyRampStep++;
-                    dutyExciteWaitSec = 0;
-                    if (dutyRampStep >= 4)
+                    dutyRampHoldSec = 0;
+                    lblDutyStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：升速至 {1:F0} rpm (實測 {2:F0} rpm) | 加載端零力矩跟隨", curStepIdx + 1, rampTarget, actAbsSpd);
+                    lblDutyPhaseAction.Text = string.Format("梯度升速第 {0}/4 段推進中，消除動態反轉力矩...", curStepIdx + 1);
+                }
+                else
+                {
+                    // 已達速：精確穩定維持滿 2 秒再加速！
+                    dutyRampHoldSec++;
+                    lblDutyStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：已達 {1:F0} rpm，穩定維持中 ({2}/2秒) | 加載端零力矩跟隨", curStepIdx + 1, rampTarget, dutyRampHoldSec);
+                    lblDutyPhaseAction.Text = string.Format("梯度第 {0}/4 段穩定維持中 ({1}/2秒)，轉矩磁場平衡對齊...", curStepIdx + 1, dutyRampHoldSec);
+
+                    if (dutyRampHoldSec >= 2)
                     {
-                        // 4 段全部完成！正式提速至需求轉速，進入正常加載測試
-                        dutyExciteStage = 0;
-                        KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)s6CurrentSpeedCmd, "DUTY 4段梯度完成提速至需求轉速 (Sy52)");
-                        WriteHmiLog("DUTY_EXCITE", string.Format("【4段梯度加速全部完成】已順暢平滑到達需求轉速 {0:F0} rpm，加載端零力矩無反轉，正式進入工作制測試！", targetSpd));
+                        WriteHmiLog("DUTY_EXCITE", string.Format("【4段梯度加速 {0}/4 穩定完成】已在 {1:F0} rpm 穩定維持滿 2 秒，推進至下一階段", curStepIdx + 1, rampTarget));
+                        dutyRampStep++;
+                        dutyExciteWaitSec = 0;
+                        dutyRampHoldSec = 0;
+
+                        if (dutyRampStep >= 4)
+                        {
+                            // 4 段全部完成！正式提速至需求轉速，進入正常加載測試
+                            dutyExciteStage = 0;
+                            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)s6CurrentSpeedCmd, "DUTY 4段梯度完成提速至需求轉速 (Sy52)");
+                            WriteHmiLog("DUTY_EXCITE", string.Format("【4段梯度加速全部完成】各段皆平穩維持滿 2 秒到達需求轉速 {0:F0} rpm，加載端零力矩無反轉，正式進入工作制測試！", targetSpd));
+                        }
                     }
                 }
+
+                if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
+                if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
                 return;
             }
 
@@ -2771,11 +2796,14 @@ namespace DynamometerHMI
                     s1TempHistory.RemoveAll(x => x.Key < expireTime);
                 }
 
-                // 【S1 專屬：不補轉差 40 筆取中間 30 筆平均採樣機制】
-                // 當轉矩首次接近目標 (扭力穩定) 時啟動
-                bool isTrqNearTarget = Math.Abs(actAbsTrq - targetTrq) <= Math.Max(1.0, targetTrq * 0.06);
-                if (!s1NoSlipCompleted)
+                // 【S1 補轉差 / 不補轉差選項判定】：
+                bool enableSlipComp = (chkDutySlipComp == null || chkDutySlipComp.Checked);
+
+                // 若使用者取消勾選「不補轉差 (自然轉差)」，才執行 40 筆取中間 30 筆平均採樣機制；
+                // 若勾選「自動補轉差 (維持額定轉速)」，則全程維持閉迴路追隨，絕不跳出不補轉差字樣！
+                if (!enableSlipComp && !s1NoSlipCompleted)
                 {
+                    bool isTrqNearTarget = Math.Abs(actAbsTrq - targetTrq) <= Math.Max(1.0, targetTrq * 0.06);
                     if (!isS1RecordingNoSlip)
                     {
                         if (isTrqNearTarget && actAbsSpd >= targetSpd * 0.7)
@@ -2846,16 +2874,16 @@ namespace DynamometerHMI
                     bool s1Converged = ExecuteUnifiedDualTrackingStep(
                         s1LoadTracker, spdDrive, trqDrive,
                         targetSpd, targetTrq, actAbsSpd, actAbsTrq,
-                        out s1TrackStatus, "S1");
+                        out s1TrackStatus, "S1", enableSlipComp);
 
                     s6AdaptedTorquePct = s1LoadTracker.AdaptedTorquePct;
                     s6CurrentSpeedCmd = s1LoadTracker.CurrentSpeedCmd;
 
                     elapsedMins = dutyElapsedSec / 60;
                     elapsedSecs = dutyElapsedSec % 60;
-                    string noSlipTag = s1NoSlipCompleted ? " [不補轉差40筆已存]" : "";
-                    lblDutyStatus.Text = string.Format("【S1 連續】已運轉: {0:D2}:{1:D2}{2} | 目標轉矩: {3:F1} Nm, 實測: {4:F1} Nm", elapsedMins, elapsedSecs, noSlipTag, targetTrq, actAbsTrq);
-                    lblDutyPhaseAction.Text = string.Format("【恆定加載】加載輸出 {0:F1}%, 實測轉速 {1:F0} rpm", s6AdaptedTorquePct, actAbsSpd);
+                    string slipTag = enableSlipComp ? "" : " [自然轉差]";
+                    lblDutyStatus.Text = string.Format("【S1 連續】已運轉: {0:D2}:{1:D2}{2} | 目標轉矩: {3:F1} Nm, 實測: {4:F1} Nm", elapsedMins, elapsedSecs, slipTag, targetTrq, actAbsTrq);
+                    lblDutyPhaseAction.Text = string.Format("【恆定加載】加載輸出 {0:F1}%, 實測轉速 {1:F0} rpm ({2})", s6AdaptedTorquePct, actAbsSpd, enableSlipComp ? "自動補轉差維持額定轉速" : "固定頻率自然轉差");
                 }
 
                 if (lblDutyAbStatus != null)
