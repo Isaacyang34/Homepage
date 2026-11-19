@@ -357,7 +357,7 @@ namespace DynamometerHMI
         // 使用者現場黃金時序：停在 300 rpm 加載端激磁不給轉矩量 -> 等待 3 秒 -> 額定轉速分 4 段梯度加速 (<=300rpm直上)
         private int dutyExciteStage = 0; // 0: 正常測試, 1: 待測端升至300rpm, 2: 300rpm加載端激磁等待3秒, 3: 4段梯度加速中
         private int dutyExciteWaitSec = 0;
-        private int dutyRampHoldSec = 0; // 梯度加速每段階梯穩定維持計時器 (需維持滿 2 秒)
+        private DateTime dutyRampReachedTime = DateTime.MinValue; // 回饋速度達到後的穩定維持計時基準 (需維持滿 2 秒)
         private int dutyRampStep = 0; // 0..3 (第 1..4 段)
         private double[] dutyRampSpeeds = new double[4];
         private const double DUTY_EXCITE_BASE_RPM = 300.0; // 低速激磁基準轉速 (300 rpm)

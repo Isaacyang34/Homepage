@@ -1286,7 +1286,7 @@ namespace DynamometerHMI
             dutyExciteStage = 0;
             dutyExciteWaitSec = 0;
             dutyRampStep = 0;
-            dutyRampHoldSec = 0;
+            dutyRampReachedTime = DateTime.MinValue;
             s6SpeedReached = false;
             s6DutyPhase = 0;
             s6TrialStage = 0;
@@ -1594,10 +1594,10 @@ namespace DynamometerHMI
                 dutyExciteStage = 1; // 1: 待測端升至 300 rpm, 2: 300 rpm 加載端激磁等待 3 秒, 3: 4 段梯度加速
                 dutyExciteWaitSec = 0;
                 dutyRampStep = 0;
-                dutyRampHoldSec = 0;
-                dutyRampSpeeds[0] = Math.Max(300.0, targetSpd * 0.25);
-                dutyRampSpeeds[1] = Math.Max(dutyRampSpeeds[0], targetSpd * 0.50);
-                dutyRampSpeeds[2] = Math.Max(dutyRampSpeeds[1], targetSpd * 0.75);
+                dutyRampReachedTime = DateTime.MinValue;
+                dutyRampSpeeds[0] = Math.Round(300.0 + (targetSpd - 300.0) * 0.25);
+                dutyRampSpeeds[1] = Math.Round(300.0 + (targetSpd - 300.0) * 0.50);
+                dutyRampSpeeds[2] = Math.Round(300.0 + (targetSpd - 300.0) * 0.75);
                 dutyRampSpeeds[3] = targetSpd;
 
                 // 加載端預備：轉矩強制為 0，尚未到達 300 rpm 前保持停機待命 (Sy50=0)
@@ -1896,12 +1896,12 @@ namespace DynamometerHMI
                     dutyExciteStage = 3;
                     dutyRampStep = 0;
                     dutyExciteWaitSec = 0;
-                    dutyRampHoldSec = 0;
+                    dutyRampReachedTime = DateTime.MinValue;
                     WriteHmiLog("DUTY_EXCITE", string.Format("【300 rpm 激磁完成】加載端 {0} 磁場已在 300 rpm 穩定建立滿 3 秒，正式啟動 4 段梯度加速至目標 {1:F0} rpm", trqDriveName, targetSpd));
                 }
                 return;
             }
-            // 階段 3：加速採用梯度上升，用設定的額定轉速分成 4 段加速，每段達速後穩定維持滿 2 秒再加速
+            // 階段 3：加速採用梯度上升，用設定的額定轉速分成 4 段加速，回饋轉速達到後穩定維持滿 2 秒再加速
             else if (dutyExciteStage == 3)
             {
                 KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // 加速全程加載端維持 0 轉矩
@@ -1909,43 +1909,48 @@ namespace DynamometerHMI
                 int curStepIdx = Math.Min(3, Math.Max(0, dutyRampStep));
                 double rampTarget = dutyRampSpeeds[curStepIdx];
 
-                if (dutyRampHoldSec == 0 && dutyExciteWaitSec == 0)
+                if (dutyExciteWaitSec == 0)
                 {
                     // 剛進入該段梯度：下達該段目標轉速
                     KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)rampTarget, string.Format("DUTY梯度加速第 {0}/4 段 (Sy52={1:F0})", curStepIdx + 1, rampTarget));
                     WriteHmiLog("DUTY_EXCITE", string.Format("【4段梯度加速 {0}/4】下達轉速命令 {1:F0} rpm (加載端保持 cs18=0%)", curStepIdx + 1, rampTarget));
+                    dutyRampReachedTime = DateTime.MinValue;
                 }
                 dutyExciteWaitSec++;
 
-                // 判定轉速是否到達該段目標 (>= 90% 或 誤差 <= Max(25 rpm, 8%)，或超時 12 秒安全放行)
-                bool isAtStepSpeed = (actAbsSpd >= rampTarget * 0.90) || (Math.Abs(actAbsSpd - rampTarget) <= Math.Max(25.0, rampTarget * 0.08)) || (dutyExciteWaitSec >= 12);
+                // 判定實測回饋轉速是否到達該段目標 (回饋轉速 >= 95% 或 誤差 <= 15 rpm，或超時 15 秒安全放行)
+                bool isAtStepSpeed = (actAbsSpd >= rampTarget * 0.95) || (Math.Abs(actAbsSpd - rampTarget) <= 15.0) || (dutyExciteWaitSec >= 15);
 
-                if (!isAtStepSpeed)
+                if (!isAtStepSpeed && dutyRampReachedTime == DateTime.MinValue)
                 {
-                    dutyRampHoldSec = 0;
-                    lblDutyStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：升速至 {1:F0} rpm (實測 {2:F0} rpm) | 加載端零力矩跟隨", curStepIdx + 1, rampTarget, actAbsSpd);
-                    lblDutyPhaseAction.Text = string.Format("梯度升速第 {0}/4 段推進中，消除動態反轉力矩...", curStepIdx + 1);
+                    lblDutyStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：升速至 {1:F0} rpm (實測回饋 {2:F0} rpm) | 加載端零力矩跟隨", curStepIdx + 1, rampTarget, actAbsSpd);
+                    lblDutyPhaseAction.Text = string.Format("梯度升速第 {0}/4 段推進中，等待回饋轉速到達目標...", curStepIdx + 1);
                 }
                 else
                 {
-                    // 已達速：精確穩定維持滿 2 秒再加速！
-                    dutyRampHoldSec++;
-                    lblDutyStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：已達 {1:F0} rpm，穩定維持中 ({2}/2秒) | 加載端零力矩跟隨", curStepIdx + 1, rampTarget, dutyRampHoldSec);
-                    lblDutyPhaseAction.Text = string.Format("梯度第 {0}/4 段穩定維持中 ({1}/2秒)，轉矩磁場平衡對齊...", curStepIdx + 1, dutyRampHoldSec);
-
-                    if (dutyRampHoldSec >= 2)
+                    // 回饋速度已達標：自達標時刻起精確穩定維持滿 2 秒再加速！
+                    if (dutyRampReachedTime == DateTime.MinValue)
                     {
-                        WriteHmiLog("DUTY_EXCITE", string.Format("【4段梯度加速 {0}/4 穩定完成】已在 {1:F0} rpm 穩定維持滿 2 秒，推進至下一階段", curStepIdx + 1, rampTarget));
+                        dutyRampReachedTime = DateTime.Now;
+                    }
+                    double elapsedSec = (DateTime.Now - dutyRampReachedTime).TotalSeconds;
+
+                    lblDutyStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：回饋已達 {1:F0} rpm，穩定維持中 ({2:F1}/2.0秒) | 加載端零力矩跟隨", curStepIdx + 1, actAbsSpd, Math.Min(2.0, elapsedSec));
+                    lblDutyPhaseAction.Text = string.Format("梯度第 {0}/4 段穩態維持中 ({1:F1}/2.0秒)，轉矩磁場平衡對齊...", curStepIdx + 1, Math.Min(2.0, elapsedSec));
+
+                    if (elapsedSec >= 2.0)
+                    {
+                        WriteHmiLog("DUTY_EXCITE", string.Format("【4段梯度加速 {0}/4 穩定完成】實測回饋已在 {1:F0} rpm 穩定維持滿 2 秒，推進至下一階段", curStepIdx + 1, actAbsSpd));
                         dutyRampStep++;
                         dutyExciteWaitSec = 0;
-                        dutyRampHoldSec = 0;
+                        dutyRampReachedTime = DateTime.MinValue;
 
                         if (dutyRampStep >= 4)
                         {
                             // 4 段全部完成！正式提速至需求轉速，進入正常加載測試
                             dutyExciteStage = 0;
                             KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)s6CurrentSpeedCmd, "DUTY 4段梯度完成提速至需求轉速 (Sy52)");
-                            WriteHmiLog("DUTY_EXCITE", string.Format("【4段梯度加速全部完成】各段皆平穩維持滿 2 秒到達需求轉速 {0:F0} rpm，加載端零力矩無反轉，正式進入工作制測試！", targetSpd));
+                            WriteHmiLog("DUTY_EXCITE", string.Format("【4段梯度加速全部完成】各段皆在實測回饋到位後平穩維持滿 2 秒到達需求轉速 {0:F0} rpm，加載端零力矩無反轉，正式進入工作制測試！", targetSpd));
                         }
                     }
                 }
