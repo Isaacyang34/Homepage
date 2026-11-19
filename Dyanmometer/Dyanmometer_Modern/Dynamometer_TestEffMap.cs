@@ -423,9 +423,9 @@ namespace DynamometerHMI
             KebWriteParamWithDll(spdCom, spdBaud, spdNode, 0x0F12, 1000); // 待測端放行 100% 轉矩
             SetHmiKebCommand(spdCom, spdBaud, spdNode, 4, string.Format("{0}效率待測端正轉 (Sy50=4)", spdDriveName));
 
-            // 加載端初轉矩歸零並停機待命
+            // 加載端零速預激磁 (Sy50=4, cs18=0%)，徹底消滅高速突加激磁之反轉扭矩
             KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0);
-            SetHmiKebCommand(trqCom, trqBaud, trqNode, 0, string.Format("{0}效率加載端空載待命 (Sy50=0)", trqDriveName));
+            SetHmiKebCommand(trqCom, trqBaud, trqNode, 4, string.Format("{0}效率加載端零速預激磁 (Sy50=4, cs18=0%)", trqDriveName));
 
             if (effHeatmap != null)
             {

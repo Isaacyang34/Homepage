@@ -80,19 +80,20 @@ namespace DynamometerHMI
 
             if (tracker.CurrentSpeedCmd <= 0) tracker.CurrentSpeedCmd = targetSpd;
 
-            // 1. 加載端激磁熱備妥檢查 (待測端轉速達到 65% 時啟動激磁 Sy50=4，但此時 CS18 仍為 0)
+            // 1. 加載端激磁熱備妥雙保險 (確保加載端維持 Sy50=4)
             int curTrqSy50 = (trqDrive == 1) ? lastSy50Cmd1 : lastSy50Cmd2;
-            if (actSpd >= targetSpd * 0.65 && curTrqSy50 != 4)
+            if (curTrqSy50 != 4)
             {
-                SetHmiKebCommand(trqCom, trqBaud, trqNode, 4, string.Format("{0}加載端達速激磁熱備妥 (Sy50=4)", trqDriveName));
+                SetHmiKebCommand(trqCom, trqBaud, trqNode, 4, string.Format("{0}加載端激磁熱備妥 (Sy50=4)", trqDriveName));
                 if (trqDrive == 1) lastSy50Cmd1 = 4; else lastSy50Cmd2 = 4;
             }
 
-            // 2. 轉速尚未達 65%：保持空載極速提速，加載端 cs.18 強制保持 0
-            if (actSpd < targetSpd * 0.65)
+            // 2. 轉速尚未真正到位 (需達目標轉速 88% 以上且誤差在帶寬內)：保持空載提速，加載端 cs.18 強制保持 0，嚴禁半路提前加載！
+            bool spdReached = (targetSpd <= 0) || (actSpd >= targetSpd * 0.88) || (Math.Abs(targetSpd - actSpd) <= Math.Max(25.0, targetSpd * 0.08));
+            if (!spdReached)
             {
                 KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0);
-                statusDesc = string.Format("【空載極速提速】實測 {0:F0}/{1:F0} rpm (加載端保持 0%)", actSpd, targetSpd);
+                statusDesc = string.Format("【空載平穩提速】實測 {0:F0}/{1:F0} rpm (加載端零轉矩熱備妥跟隨中)", actSpd, targetSpd);
                 return false;
             }
 

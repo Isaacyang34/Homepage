@@ -353,7 +353,10 @@ namespace DynamometerHMI
         private bool isS2Calibrating = false; // 是否正處於 S2 錨點偵測校驗狀態中
         private int s2CalibStage = 0; // 0: 提速, 1: 加載補差調節, 2: 雙達標穩定 10 秒倒數
         private int s2CalibTimer = 10; // 穩定 10 秒倒數計時器
-        private bool isLoadMotorPreEnergized = false; // 方案 B：加載端低速激磁預備旗標 (避免高速上電反轉矩)
+        private bool isLoadMotorPreEnergized = false; // 加載端激磁預備旗標
+        private int dutyPreExciteStage = 0; // 0: 完成/無須預激磁, 1: 加載端零速激磁建立階段 (Sy50=4, cs18=0%), 2: 低速平穩起轉過渡階段 (若目標>200rpm)
+        private int dutyPreExciteWaitSec = 0; // 激磁建立等待計時
+        private const double DUTY_LOW_SPEED_EXCITE_RPM = 200.0; // 低速平穩起轉過渡基準轉速 (200 rpm)
 
         // S6 V/F 自適應試運轉定錨與正式週期狀態機變數 (含明確錨點數值輸入與重置)
         private NumericUpDown numS6AnchorNoLoadSpd, numS6AnchorLoadedSpd, numS6AnchorLoadedCs18;

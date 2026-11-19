@@ -1264,6 +1264,8 @@ namespace DynamometerHMI
             }
             isS2Calibrating = false;
             isLoadMotorPreEnergized = false;
+            dutyPreExciteStage = 0;
+            dutyPreExciteWaitSec = 0;
             s6SpeedReached = false;
             s6DutyPhase = 0;
             s6TrialStage = 0;
@@ -1370,7 +1372,6 @@ namespace DynamometerHMI
 
             int spdCom = GetHmiKebComIdx(spdDrive), spdBaud = GetHmiKebBaudIdx(spdDrive), spdNode = (spdDrive == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
             int trqCom = GetHmiKebComIdx(trqDrive), trqBaud = GetHmiKebBaudIdx(trqDrive), trqNode = (trqDrive == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
-
             string spdDriveName = (spdDrive == 1) ? "A載台" : "B載台";
             string trqDriveName = (trqDrive == 1) ? "A載台" : "B載台";
 
@@ -1563,17 +1564,26 @@ namespace DynamometerHMI
                 if (numHmiKebTorque2 != null) numHmiKebTorque2.Value = 0;
             }
 
-            // 發送指令
-            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)s6CurrentSpeedCmd, "待測端目標轉速 SY52");
-            KebWriteParamWithDll(spdCom, spdBaud, spdNode, 0x0F12, 1000); // 放行 100% 轉矩
-            SetHmiKebCommand(spdCom, spdBaud, spdNode, 4, "待測端啟轉運轉 (Sy50=4)");
+            // 1. 【加載端零速預激磁】：在待測端起轉前，加載端先行上電激磁 (Sy50=4, cs18=0%)，徹底消滅高速突加激磁之反轉扭矩！
+            KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // 轉矩嚴格為 0%
+            SetHmiKebCommand(trqCom, trqBaud, trqNode, 4, string.Format("{0}加載端零速預激磁 (Sy50=4, cs18=0%)", trqDriveName));
+            isLoadMotorPreEnergized = true;
 
-            //  啟轉後短暫等待並校驗變頻器真實故障碼 ru.43 (0x022B)，若硬體跳脫則中止
+            // 2. 待測端初始維持零速等待加載端磁通飽和
+            dutyPreExciteStage = 1; // 1: 加載端零速激磁建立階段, 2: 低速平穩起轉過渡階段 (若目標>200rpm)
+            dutyPreExciteWaitSec = 0;
+
+            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, 0, "待測端初始零速等待激磁 (Sy52=0)");
+            KebWriteParamWithDll(spdCom, spdBaud, spdNode, 0x0F12, 1000); // 放行 100% 轉矩
+            SetHmiKebCommand(spdCom, spdBaud, spdNode, 4, "待測端預備正轉 (Sy50=4)");
+
+            // 啟轉後短暫等待並校驗變頻器真實故障碼 ru.43 (0x022B)，若硬體跳脫則中止
             Thread.Sleep(80);
             int? postRunFault = KebReadParamWithDll(spdCom, spdBaud, spdNode, 0x022B);
             if (postRunFault.HasValue && postRunFault.Value != 0)
             {
                 SetHmiKebCommand(spdCom, spdBaud, spdNode, 0, "啟轉故障停機");
+                SetHmiKebCommand(trqCom, trqBaud, trqNode, 0, "加載端同步停機");
                 WriteHmiLog("DUTY_ABORT", string.Format("【[!] 啟轉失敗】{0} 啟轉後突發變頻器硬體故障 (ru.43={1}: {2})，已強制停機並終止測試！",
                     spdDriveName, postRunFault.Value, DecodeKebFaultCode(postRunFault.Value)));
                 MessageBox.Show(
@@ -1586,12 +1596,6 @@ namespace DynamometerHMI
                 StopDutyTest();
                 return;
             }
-
-            //  方案 B：加載端初始保持 0 轉矩待命 (Sy50=0，不於零速激磁耗能發熱)
-            // 待測端轉速達到低速門檻 (>= 60 rpm) 時，再於背景自動上電激磁 (Sy50=4, CS18=0) 熱備妥
-            isLoadMotorPreEnergized = false;
-            KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0);
-            SetHmiKebCommand(trqCom, trqBaud, trqNode, 0, "加載端待命 (Sy50=0, CS18=0)");
 
             if (!isRunning) BtnStart_Click(null, null);
 
@@ -1711,6 +1715,8 @@ namespace DynamometerHMI
             int trqDrive = (spdDrive == 1) ? 2 : 1;
             int spdCom = GetHmiKebComIdx(spdDrive), spdBaud = GetHmiKebBaudIdx(spdDrive), spdNode = (spdDrive == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
             int trqCom = GetHmiKebComIdx(trqDrive), trqBaud = GetHmiKebBaudIdx(trqDrive), trqNode = (trqDrive == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
+            string spdDriveName = (spdDrive == 1) ? "A載台" : "B載台";
+            string trqDriveName = (trqDrive == 1) ? "A載台" : "B載台";
 
             int dutyModeIdx = (cmbDutyMiniMode != null && cmbDutyMiniMode.SelectedIndex >= 0)
                 ? cmbDutyMiniMode.SelectedIndex
@@ -1800,14 +1806,56 @@ namespace DynamometerHMI
 
             string currentPhaseName = "運轉中";
 
-            //  方案 B：加載端低速激磁預備 (Zero-Torque Hot-Standby)
-            // 當待測端轉速達到低速門檻 (>= 60 rpm) 且加載端尚未上電時，自動執行 Sy50=4 但保持 CS18=0 (無故障即可)
-            if (!isLoadMotorPreEnergized && actAbsSpd >= 60.0 && lastKebFaultCode1 == 0 && lastKebFaultCode2 == 0)
+            // 【加載端預先激磁與平穩起轉狀態機處理】
+            if (dutyPreExciteStage == 1)
             {
-                isLoadMotorPreEnergized = true;
-                KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // 強制 CS18 = 0
-                SetHmiKebCommand(trqCom, trqBaud, trqNode, 4, "加載端低速激磁預備 (Sy50=4, CS18=0)");
-                WriteHmiLog("DUTY_STAGE", string.Format("【低速激磁預備 (方案B)】待測端轉速已達 {0:F0} rpm，加載端預先上電激磁 (Sy50=4, CS18=0) 平滑跟隨，徹底消除高速反轉矩衝擊！", actAbsSpd));
+                // 階段 1：加載端在零速下建立磁場 (維持 1 秒讓轉子磁通飽和)
+                KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // cs.18 = 0%
+                dutyPreExciteWaitSec++;
+
+                if (dutyPreExciteWaitSec >= 1)
+                {
+                    dutyPreExciteWaitSec = 0;
+                    if (targetSpd > DUTY_LOW_SPEED_EXCITE_RPM)
+                    {
+                        // 目標轉速較高 (>200 rpm)，進入階段 2：先平穩起轉至低速區間 (200 rpm)
+                        dutyPreExciteStage = 2;
+                        KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)DUTY_LOW_SPEED_EXCITE_RPM, "DUTY平穩起轉至低速區間 (Sy52)");
+                        WriteHmiLog("DUTY_STAGE", string.Format("【加載端激磁建立完成】加載端 {0} 磁場已飽和 (Sy50=4, cs18=0%)，待測端先平穩起轉至低速 {1:F0} rpm", trqDriveName, DUTY_LOW_SPEED_EXCITE_RPM));
+                    }
+                    else
+                    {
+                        // 目標轉速本身即為低速 (<=200 rpm)，直接提速至目標轉速
+                        dutyPreExciteStage = 0;
+                        KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)s6CurrentSpeedCmd, "DUTY激磁完成直接提速至目標轉速 (Sy52)");
+                        WriteHmiLog("DUTY_STAGE", string.Format("【加載端激磁建立完成】加載端 {0} 磁場已飽和 (Sy50=4, cs18=0%)，待測端正式起轉提速至目標 {1:F0} rpm", trqDriveName, s6CurrentSpeedCmd));
+                    }
+                }
+                lblDutyStatus.Text = string.Format("【預激磁】加載端零速建立磁場中 ({0}/1s)：待測端零速待命 | cs18=0%", dutyPreExciteWaitSec);
+                lblDutyPhaseAction.Text = string.Format("加載端 {0} 磁通建立中，待測端準備起轉至 {1:F0} rpm", trqDriveName, targetSpd);
+                if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
+                if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
+                return;
+            }
+            else if (dutyPreExciteStage == 2)
+            {
+                // 階段 2：待測端在低速 (200 rpm) 區間運轉，確認轉子在受控零力矩下順暢旋轉 (實測 >= 120 rpm 或等待 2 秒)
+                KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // 確保 cs.18 嚴格為 0%
+                dutyPreExciteWaitSec++;
+
+                if (actAbsSpd >= 120.0 || dutyPreExciteWaitSec >= 2)
+                {
+                    // 低速過渡完成！待測端正式提速至目標測試轉速
+                    dutyPreExciteStage = 0;
+                    dutyPreExciteWaitSec = 0;
+                    KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)s6CurrentSpeedCmd, "DUTY預激磁過渡完成提速至目標轉速 (Sy52)");
+                    WriteHmiLog("DUTY_STAGE", string.Format("【低速過渡完成】實測 {0:F0} rpm，加載端零負載運轉穩定，待測端正式提速至目標 {1:F0} rpm", actAbsSpd, s6CurrentSpeedCmd));
+                }
+                lblDutyStatus.Text = string.Format("【低速過渡】待測端低速運轉中 ({0}/2s)：實測 {1:F0} rpm | 加載端零負載跟隨", dutyPreExciteWaitSec, actAbsSpd);
+                lblDutyPhaseAction.Text = string.Format("待測端低速熱備妥確認，即將提速至目標 {0:F0} rpm...", targetSpd);
+                if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
+                if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
+                return;
             }
 
             // 【DUTY 基準電流採樣與全域過電流保護】
