@@ -494,7 +494,7 @@ namespace DynamometerHMI
             dgvNoLoad.Columns[5].Width = 115;
             dgvNoLoad.Columns[6].Width = 115;
             dgvNoLoad.Columns[7].Width = 180;
-            dgvNoLoad.ColumnWidthChanged += (s, e) => SaveLayoutConfig();
+            AttachDgvMemoryAndContextMenu(dgvNoLoad, "DgvNoLoad");
 
             // 頂部操作工具列 (雙標記點聚焦與匯出日誌)
             Panel pnlTableTop = new Panel()

@@ -398,6 +398,20 @@ namespace DynamometerHMI
         private double s6NmPerPointOnePct = 0.4; // 每 0.1% 對應之轉矩 (Nm / 0.1%)
         private int s6Stage2StableCounter = 0; // 進入 Stage 3 需連續 3 秒穩定
 
+        // 連續性自動化排程測試 (S1 -> S6 -> S2) 核心控制狀態與介面元件
+        public bool isBatchDutyActive = false;
+        private int batchDutyStage = 0; // 0: 閒置, 1: S1 測試中, 2: S1 冷卻至 50℃, 3: S6 測試中, 4: S6 冷卻至 25℃/AT, 5: S2 測試中, 6: 全排程完成
+        private int batchCoolingElapsedSec = 0;
+        private int batchCoolingStableSec = 0;
+        private double batchCoolingPrevTemp = 999.0;
+        private int batchCoolingCheckTimer = 0;
+        private CheckBox chkBatchDutyMode;
+        private ComboBox cmbBatchCoolingMode;
+        private Panel pnlBatchDutyProgress;
+        private Label lblBatchProgressTitle;
+        private Label lblBatchProgressDetail;
+        private ProgressBar prgBatchTotal;
+
         // 綜合監控右下角小視窗控制項 (與大分頁 100% 雙向即時連動)
         private ComboBox cmbTnRoleMini;
         private NumericUpDown numTnMiniStart, numTnMiniStep, numTnMiniEnd, numTnMiniTrq, numTnMiniDwell;
@@ -2021,6 +2035,8 @@ namespace DynamometerHMI
                 SaveDgvColWidths(sb, "DgvDuty", dgvDuty);
                 SaveDgvColWidths(sb, "DgvNoLoad", dgvNoLoad);
                 SaveDgvColWidths(sb, "DgvReports", dgvReports);
+                SaveDgvColWidths(sb, "DgvEffMap", dgvEffMap);
+                SaveDgvColWidths(sb, "DgvGbdAll", dgvGbdAll);
 
                 if (cmbTnMode != null)
                 {
@@ -2557,6 +2573,8 @@ namespace DynamometerHMI
                 LoadDgvColWidths(map, "DgvDuty", dgvDuty);
                 LoadDgvColWidths(map, "DgvNoLoad", dgvNoLoad);
                 LoadDgvColWidths(map, "DgvReports", dgvReports);
+                LoadDgvColWidths(map, "DgvEffMap", dgvEffMap);
+                LoadDgvColWidths(map, "DgvGbdAll", dgvGbdAll);
 
                 // 等效電路參數記憶還原
                 LoadEquivCircuitConfig(map);
@@ -2848,11 +2866,16 @@ namespace DynamometerHMI
             catch { }
         }
 
+        private bool isLoadingDgvConfig = false;
+
         private void SaveDgvColWidths(StringBuilder sb, string sectionName, DataGridView dgv)
         {
             if (dgv == null || dgv.Columns.Count == 0) return;
-            if (dgv.AutoSizeColumnsMode == DataGridViewAutoSizeColumnsMode.Fill) return; // Fill 模式下不儲存靜態絕對欄寬
             sb.AppendLine("[" + sectionName + "]");
+            string modeStr = "Custom";
+            if (dgv.AutoSizeColumnsMode == DataGridViewAutoSizeColumnsMode.Fill) modeStr = "Fill";
+            else if (dgv.AutoSizeColumnsMode == DataGridViewAutoSizeColumnsMode.AllCells) modeStr = "AllCells";
+            sb.AppendLine("Mode=" + modeStr);
             for (int i = 0; i < dgv.Columns.Count; i++)
             {
                 sb.AppendLine("Col" + i + "=" + dgv.Columns[i].Width);
@@ -2862,19 +2885,80 @@ namespace DynamometerHMI
         private void LoadDgvColWidths(Dictionary<string, string> map, string sectionName, DataGridView dgv)
         {
             if (dgv == null || dgv.Columns.Count == 0) return;
-            if (dgv.AutoSizeColumnsMode == DataGridViewAutoSizeColumnsMode.Fill) return; // Fill 模式下由視窗寬度自適應填滿
-            for (int i = 0; i < dgv.Columns.Count; i++)
+            isLoadingDgvConfig = true;
+            try
             {
-                string key = sectionName + ".Col" + i;
-                if (map.ContainsKey(key))
+                string modeKey = sectionName + ".Mode";
+                if (map.ContainsKey(modeKey))
                 {
-                    int w;
-                    if (int.TryParse(map[key], out w) && w >= 20 && w <= 1200)
+                    string m = map[modeKey];
+                    if (m == "Fill") { dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill; return; }
+                    else if (m == "AllCells") { dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells; return; }
+                }
+                bool hasCustomWidth = false;
+                for (int i = 0; i < dgv.Columns.Count; i++)
+                {
+                    string key = sectionName + ".Col" + i;
+                    if (map.ContainsKey(key))
                     {
-                        try { dgv.Columns[i].Width = w; } catch { }
+                        int w;
+                        if (int.TryParse(map[key], out w) && w >= 20 && w <= 1200)
+                        {
+                            if (!hasCustomWidth)
+                            {
+                                dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+                                hasCustomWidth = true;
+                            }
+                            try { dgv.Columns[i].Width = w; } catch { }
+                        }
                     }
                 }
             }
+            finally
+            {
+                isLoadingDgvConfig = false;
+            }
+        }
+
+        public void AttachDgvMemoryAndContextMenu(DataGridView dgv, string sectionName)
+        {
+            if (dgv == null) return;
+            dgv.ColumnWidthChanged += (s, e) =>
+            {
+                if (!isLoadingDgvConfig && dgv.AutoSizeColumnsMode != DataGridViewAutoSizeColumnsMode.Fill && dgv.AutoSizeColumnsMode != DataGridViewAutoSizeColumnsMode.AllCells)
+                {
+                    SaveLayoutConfig();
+                }
+            };
+
+            ContextMenuStrip cms = dgv.ContextMenuStrip ?? new ContextMenuStrip();
+            if (cms.Items.Count > 0) cms.Items.Add(new ToolStripSeparator());
+
+            ToolStripMenuItem mnuAutoFit = new ToolStripMenuItem("自動適應內容寬度");
+            mnuAutoFit.Click += (s, e) =>
+            {
+                dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells;
+                SaveLayoutConfig();
+            };
+
+            ToolStripMenuItem mnuFill = new ToolStripMenuItem("填滿視窗寬度");
+            mnuFill.Click += (s, e) =>
+            {
+                dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+                SaveLayoutConfig();
+            };
+
+            ToolStripMenuItem mnuSaveCustom = new ToolStripMenuItem("鎖定記憶當前欄寬");
+            mnuSaveCustom.Click += (s, e) =>
+            {
+                dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+                SaveLayoutConfig();
+            };
+
+            cms.Items.Add(mnuAutoFit);
+            cms.Items.Add(mnuFill);
+            cms.Items.Add(mnuSaveCustom);
+            dgv.ContextMenuStrip = cms;
         }
 
         private List<KebMonitorItem> CreateDefaultKebMonitorList()
@@ -2992,7 +3076,7 @@ namespace DynamometerHMI
             dgv.Columns[0].Width = 135;
             dgv.Columns[1].Width = 145;
             dgv.ColumnHeadersHeight = 26;
-            dgv.ColumnWidthChanged += (s, e) => SaveLayoutConfig();
+            AttachDgvMemoryAndContextMenu(dgv, driveId == 1 ? "DgvKebRu1" : "DgvKebRu2");
 
             // 初始化預設項目清單
             if (driveId == 1)
@@ -4179,7 +4263,7 @@ namespace DynamometerHMI
             dgvTelemetry.Columns[3].Width = 100;
             dgvTelemetry.Columns[4].Width = 120;
             dgvTelemetry.Columns[5].Width = 100;
-            dgvTelemetry.ColumnWidthChanged += (s, e) => SaveLayoutConfig();
+            AttachDgvMemoryAndContextMenu(dgvTelemetry, "DgvTelemetry");
 
             dgvTelemetry.Rows.Add("電壓 (Voltage U)", "0.00 V", "0.00 V", "0.00 V", "0.00 V", "3P3W");
             dgvTelemetry.Rows.Add("電流 (Current I)", "0.00 A", "0.00 A", "0.00 A", "0.00 A", "--");
@@ -5503,6 +5587,7 @@ namespace DynamometerHMI
                 dgvGbdAll.Rows[rName].Cells[i].Value = (gl820ChannelNames != null && i < gl820ChannelNames.Length) ? gl820ChannelNames[i] : ("CH" + (i + 1));
                 dgvGbdAll.Rows[rVal].Cells[i].Value = "--.-";
             }
+            AttachDgvMemoryAndContextMenu(dgvGbdAll, "DgvGbdAll");
 
             // 限制輸入 CH 通道名稱時僅限英文輸入 (關閉中文輸入法並過濾按鍵)
             dgvGbdAll.EditingControlShowing += (s, e) => {

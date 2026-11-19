@@ -197,6 +197,7 @@ namespace DynamometerHMI
                 AllowUserToAddRows = false,
                 Font = new Font("微軟正黑體", 8.5f, FontStyle.Regular)
             };
+            AttachDgvMemoryAndContextMenu(dgvEffMap, "DgvEffMap");
             grpTable.Controls.Add(dgvEffMap);
             splitEff.Panel2.Controls.Add(grpTable);
 

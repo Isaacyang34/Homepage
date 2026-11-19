@@ -305,7 +305,7 @@ namespace DynamometerHMI
 
             dgvTnMultiPoints.Columns.Add("AvgEff", "30s均效率(%)");
             dgvTnMultiPoints.Columns["AvgEff"].ReadOnly = true;
-            dgvTnMultiPoints.ColumnWidthChanged += (s, e) => SaveLayoutConfig();
+            AttachDgvMemoryAndContextMenu(dgvTnMultiPoints, "DgvTnMultiPoints");
 
             // 預設兩組測試點 (1500 rpm / 10.0 Nm 與 3000 rpm / 15.0 Nm)
             dgvTnMultiPoints.Rows.Add("1", "1500", "10.0", "待命", "-", "-", "-", "-");
@@ -567,7 +567,7 @@ namespace DynamometerHMI
             dgvTnPoints.Columns.Add("Pwr", "功率(kW)");
             dgvTnPoints.Columns.Add("Eff", "效率(%)");
             dgvTnPoints.Columns.Add("Status", "狀態");
-            dgvTnPoints.ColumnWidthChanged += (s, e) => SaveLayoutConfig();
+            AttachDgvMemoryAndContextMenu(dgvTnPoints, "DgvTnPoints");
             splitTnRight.Panel2.Controls.Add(dgvTnPoints);
 
             splitTnBottom.Panel2.Controls.Add(splitTnRight);

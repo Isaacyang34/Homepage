@@ -601,7 +601,7 @@ namespace DynamometerHMI
             };
 
             dgvReports.Columns.AddRange(new DataGridViewColumn[] { colCheck, colName, colType, colSize, colDate, colPath });
-            dgvReports.ColumnWidthChanged += (s, e) => SaveLayoutConfig();
+            AttachDgvMemoryAndContextMenu(dgvReports, "DgvReports");
 
             // 儲存格點擊快速切換勾選
             dgvReports.CellContentClick += (s, e) => {

@@ -357,31 +357,59 @@ namespace DynamometerHMI
             lblDutyCurrentBaseline = new Label() { Text = "基準: 尚未確立 (採樣中)", Location = new Point(410, 338), AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold), ForeColor = Color.FromArgb(71, 85, 105) };
 
             // -------------------------------------------------------------
-            // 第九列 (Y = 380)：操作按鈕群與進度條
+            // 第九列 (Y = 376)：連續性自動排程選項 (S1 -> S6 -> S2) 與冷卻模式
             // -------------------------------------------------------------
-            btnStartDuty = new Button() { Text = "▶ 開始工作制測試", Location = new Point(12, 376), Size = new Size(175, 40), BackColor = Color.FromArgb(0, 180, 216), ForeColor = Color.White, Font = new Font("微軟正黑體", 13.5f, FontStyle.Bold) };
-            btnStopDuty = new Button() { Text = "⏹ 停止", Location = new Point(195, 376), Size = new Size(95, 40), Enabled = false, Font = new Font("微軟正黑體", 13.5f, FontStyle.Bold) };
-            btnExportDuty = new Button() { Text = "[儲存] 匯出報表", Location = new Point(298, 376), Size = new Size(125, 40), BackColor = Color.FromArgb(16, 185, 129), ForeColor = Color.White, Font = new Font("微軟正黑體", 13.5f, FontStyle.Bold) };
-            prgDuty = new ProgressBar() { Location = new Point(435, 383), Size = new Size(280, 26) };
+            chkBatchDutyMode = new CheckBox() { Text = "連續性自動排程 (S1 -> S6 -> S2)", Location = new Point(12, 376), AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold), ForeColor = Color.FromArgb(30, 64, 175) };
+            chkBatchDutyMode.CheckedChanged += (s, e) => {
+                bool batchOn = chkBatchDutyMode.Checked;
+                cmbBatchCoolingMode.Enabled = batchOn;
+                btnStartDuty.Text = batchOn ? "[排程] 開始連續測試" : "[>] 開始工作制測試";
+                if (batchOn)
+                {
+                    lblDutyStatus.Text = "狀態: 連續排程已就緒 (將依序執行 S1 -> S6 -> S2)";
+                    if (lblBatchProgressDetail != null) lblBatchProgressDetail.Text = "【連續排程待命】點擊「[排程] 開始連續測試」將自動由 S1 開始測試，無人值守自動冷卻切換。";
+                }
+                else
+                {
+                    lblDutyStatus.Text = "狀態: 待命準備中";
+                    if (lblBatchProgressDetail != null) lblBatchProgressDetail.Text = "【單一測試模式】各階段完成將彈窗提示，請手動匯出或切換。";
+                }
+            };
+
+            cmbBatchCoolingMode = new ComboBox() { Location = new Point(310, 374), Width = 390, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("微軟正黑體", 10.5f), Enabled = false };
+            cmbBatchCoolingMode.Items.AddRange(new object[] {
+                "冷卻判定: 自動辨識 (含W-IN/OUT為水冷25℃，否則氣冷AT)",
+                "冷卻判定: 強制水冷電機 (冰水機循環降至 <= 25.0℃)",
+                "冷卻判定: 強制氣冷電機 (降至 <= AT+1.5℃ 且 15分無下降)"
+            });
+            cmbBatchCoolingMode.SelectedIndex = 0;
+
+            // -------------------------------------------------------------
+            // 第十列 (Y = 414)：操作按鈕群與進度條
+            // -------------------------------------------------------------
+            btnStartDuty = new Button() { Text = "[>] 開始工作制測試", Location = new Point(12, 414), Size = new Size(175, 40), BackColor = Color.FromArgb(0, 180, 216), ForeColor = Color.White, Font = new Font("微軟正黑體", 13.5f, FontStyle.Bold) };
+            btnStopDuty = new Button() { Text = "[■] 停止", Location = new Point(195, 414), Size = new Size(95, 40), Enabled = false, Font = new Font("微軟正黑體", 13.5f, FontStyle.Bold) };
+            btnExportDuty = new Button() { Text = "[儲存] 匯出報表", Location = new Point(298, 414), Size = new Size(125, 40), BackColor = Color.FromArgb(16, 185, 129), ForeColor = Color.White, Font = new Font("微軟正黑體", 13.5f, FontStyle.Bold) };
+            prgDuty = new ProgressBar() { Location = new Point(435, 421), Size = new Size(280, 26) };
 
             btnStartDuty.Click += BtnStartDuty_Click;
             btnStopDuty.Click += (s, e) => { StopDutyTest(); };
             btnExportDuty.Click += BtnExportDuty_Click;
 
             // -------------------------------------------------------------
-            // 第十列 (Y = 430)：已運轉狀態行 (獨立一行不擠壓)
+            // 第十一列 (Y = 464)：已運轉狀態行 (獨立一行不擠壓)
             // -------------------------------------------------------------
-            lblDutyStatus = new Label() { Text = "狀態: 待命準備中", Location = new Point(12, 430), AutoSize = true, Font = new Font("微軟正黑體", 13f, FontStyle.Bold), ForeColor = Color.FromArgb(15, 23, 42) };
+            lblDutyStatus = new Label() { Text = "狀態: 待命準備中", Location = new Point(12, 464), AutoSize = true, Font = new Font("微軟正黑體", 13f, FontStyle.Bold), ForeColor = Color.FromArgb(15, 23, 42) };
 
             // -------------------------------------------------------------
-            // 第十一列 (Y = 462)：動作說明行 (獨立一行)
+            // 第十二列 (Y = 496)：動作說明行 (獨立一行)
             // -------------------------------------------------------------
-            lblDutyPhaseAction = new Label() { Text = "動作: --", Location = new Point(12, 462), AutoSize = true, ForeColor = Color.FromArgb(2, 132, 199), Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
+            lblDutyPhaseAction = new Label() { Text = "動作: --", Location = new Point(12, 496), AutoSize = true, ForeColor = Color.FromArgb(2, 132, 199), Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
 
             // -------------------------------------------------------------
-            // 第十二列 (Y = 494)：熱平衡判定行 (獨立一行醒目顯示)
+            // 第十三列 (Y = 528)：熱平衡判定行 (獨立一行醒目顯示)
             // -------------------------------------------------------------
-            lblThermalStatus = new Label() { Text = "熱平衡: 未達平衡", Location = new Point(12, 494), AutoSize = true, ForeColor = Color.DarkOrange, Font = new Font("微軟正黑體", 12.5f, FontStyle.Bold) };
+            lblThermalStatus = new Label() { Text = "熱平衡: 未達平衡", Location = new Point(12, 528), AutoSize = true, ForeColor = Color.DarkOrange, Font = new Font("微軟正黑體", 12.5f, FontStyle.Bold) };
 
             grp.Controls.AddRange(new Control[] {
                 lblKebAutoModeHint,
@@ -394,6 +422,7 @@ namespace DynamometerHMI
                 lblS6TempCh, cmbS6TempCh, lblS6TempChHint,
                 lblS6NoLoadTitle, numS6AnchorNoLoadSpd, btnS6AnchorNoLoad, lblS6LoadedTitle, numS6AnchorLoadedSpd, lblS6Cs18Title, numS6AnchorLoadedCs18, btnS6AnchorLoaded, btnS6ResetAnchor, lblS6AnchorStatus,
                 lblDutyOcTitle, lblDutyOcPct, numDutyOverCurrentPct, lblDutyOcPctUnit, lblDutyOcDelay, numDutyOverCurrentDelay, lblDutyOcDelayUnit, lblDutyCurrentBaseline,
+                chkBatchDutyMode, cmbBatchCoolingMode,
                 btnStartDuty, btnStopDuty, btnExportDuty, prgDuty,
                 lblDutyStatus, lblDutyPhaseAction, lblThermalStatus
             });
@@ -471,7 +500,7 @@ namespace DynamometerHMI
             };
             Label lblDutyTimeTitle = new Label()
             {
-                Text = "⏱ 時間軸範圍:",
+                Text = "[時間] 範圍:",
                 Location = new Point(4, 8),
                 AutoSize = true,
                 Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold),
@@ -638,38 +667,78 @@ namespace DynamometerHMI
                     MessageBox.Show("匯出失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             };
-            cmsDuty.Items.Add(mnuAutoFit);
-            cmsDuty.Items.Add(mnuFillWidth);
-            cmsDuty.Items.Add(new ToolStripSeparator());
-            cmsDuty.Items.Add(mnuExportCsv);
-            dgvDuty.ContextMenuStrip = cmsDuty;
+            AttachDgvMemoryAndContextMenu(dgvDuty, "DgvDuty");
+            if (dgvDuty.ContextMenuStrip != null)
+            {
+                dgvDuty.ContextMenuStrip.Items.Add(new ToolStripSeparator());
+                dgvDuty.ContextMenuStrip.Items.Add(mnuExportCsv);
+            }
 
             TableLayoutPanel tableDutyBottom = new TableLayoutPanel()
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 2,
+                RowCount = 3,
                 BackColor = Color.White,
                 Margin = new Padding(0),
                 Padding = new Padding(0)
             };
             tableDutyBottom.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            tableDutyBottom.RowStyles.Add(new RowStyle(SizeType.Absolute, 32f));
-            tableDutyBottom.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            tableDutyBottom.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f)); // Row 0: 連續排程工作進度橫幅
+            tableDutyBottom.RowStyles.Add(new RowStyle(SizeType.Absolute, 30f)); // Row 1: 即時電氣監控
+            tableDutyBottom.RowStyles.Add(new RowStyle(SizeType.Percent, 100f)); // Row 2: 歷史記錄表格
 
+            // ── Row 0: 連續性排程工作進度提示橫幅 ──
+            pnlBatchDutyProgress = new Panel()
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(238, 242, 255),
+                Margin = new Padding(0),
+                Padding = new Padding(6, 4, 6, 4)
+            };
+            TableLayoutPanel tblBatchProgInner = new TableLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount = 1,
+                Margin = new Padding(0),
+                Padding = new Padding(0),
+                BackColor = Color.Transparent
+            };
+            tblBatchProgInner.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150f));
+            tblBatchProgInner.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            tblBatchProgInner.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+
+            prgBatchTotal = new ProgressBar() { Dock = DockStyle.Fill, Minimum = 0, Maximum = 5, Value = 0, Margin = new Padding(2, 3, 4, 3) };
+            lblBatchProgressDetail = new Label()
+            {
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Text = "【連續排程待命】勾選上方「連續性自動排程」即可啟用 S1 -> 冷卻50℃ -> S6 -> 冷卻25℃/室溫 -> S2 全自動測試。",
+                Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(49, 46, 129),
+                Margin = new Padding(4, 0, 0, 0)
+            };
+            tblBatchProgInner.Controls.Add(prgBatchTotal, 0, 0);
+            tblBatchProgInner.Controls.Add(lblBatchProgressDetail, 1, 0);
+            pnlBatchDutyProgress.Controls.Add(tblBatchProgInner);
+
+            // ── Row 1: 即時電氣監控橫幅 ──
             lblDutyRealtimeElec = new Label()
             {
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleLeft,
                 Text = "【即時電氣監控】平均電壓: --.- V | 平均電流: --.-- A | 輸入功率: --.-- kW | 功因: -.--- | 輸出功率: --.-- kW | 效率: --.- %",
-                Font = new Font("微軟正黑體", 11f, FontStyle.Bold),
+                Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(30, 64, 175),
                 BackColor = Color.FromArgb(241, 245, 249),
                 Padding = new Padding(8, 0, 0, 0),
                 Margin = new Padding(0)
             };
-            tableDutyBottom.Controls.Add(lblDutyRealtimeElec, 0, 0);
-            tableDutyBottom.Controls.Add(dgvDuty, 0, 1);
+
+            tableDutyBottom.Controls.Add(pnlBatchDutyProgress, 0, 0);
+            tableDutyBottom.Controls.Add(lblDutyRealtimeElec, 0, 1);
+            tableDutyBottom.Controls.Add(dgvDuty, 0, 2);
 
             splitDuty.Panel2.Controls.Add(tableDutyBottom);
             tab.Controls.Add(splitDuty);
@@ -1354,6 +1423,16 @@ namespace DynamometerHMI
             {
                 StopManualRecording(showPrompt: false);
             }
+            if (isBatchDutyActive)
+            {
+                isBatchDutyActive = false;
+                batchDutyStage = 0;
+                WriteHmiLog("BATCH_STOP", "使用者手動中止連續性自動排程！");
+                if (lblBatchProgressDetail != null)
+                {
+                    lblBatchProgressDetail.Text = "【排程手動停止】使用者已手動中止連續排程，雙載台已安全卸載。";
+                }
+            }
             isS2Calibrating = false;
             isLoadMotorPreEnergized = false;
             dutyMinuteVoltSum = 0.0;
@@ -1407,6 +1486,24 @@ namespace DynamometerHMI
         }
 
         private void BtnStartDuty_Click(object sender, EventArgs e)
+        {
+            bool isFromMini = (sender == btnDutyMiniStart);
+            if (chkBatchDutyMode != null && chkBatchDutyMode.Checked && !isBatchDutyActive)
+            {
+                isBatchDutyActive = true;
+                batchDutyStage = 1; // 步驟 1: S1 測試
+                if (prgBatchTotal != null) prgBatchTotal.Value = 1;
+                cmbDutyMode.SelectedIndex = 0; // 強制從 S1 開始
+                WriteHmiLog("BATCH_START", "【連續排程啟動】即將執行 S1 -> S6 -> S2 全自動連續工作制測試！");
+                if (lblBatchProgressDetail != null)
+                {
+                    lblBatchProgressDetail.Text = "【連續排程 1/5】S1 連續工作制運轉中 (熱平衡 30m 溫差 < 1.0℃ 判定中)...";
+                }
+            }
+            StartDutyTestInternal(isFromMini, false);
+        }
+
+        private void StartDutyTestInternal(bool fromMini = false, bool isBatchTrigger = false)
         {
             // 安全檢查：全自動控制要求雙機 100% 同時連線
             if (!isHmiKebOpen1 || !isHmiKebOpen2)
@@ -1475,7 +1572,7 @@ namespace DynamometerHMI
             if (lblDutyRealtimeElec != null)
                 lblDutyRealtimeElec.Text = "【即時電氣監控】平均電壓: --.- V | 平均電流: --.-- A | 輸入功率: --.-- kW | 功因: -.--- | 輸出功率: --.-- kW | 效率: --.- %";
 
-            bool isFromMini = (sender == btnDutyMiniStart);
+            bool isFromMini = fromMini;
             SyncAllDutyControls(fromMiniToMain: isFromMini);
 
             int dutyRole = (cmbDutyRole != null && cmbDutyRole.SelectedIndex >= 0) ? cmbDutyRole.SelectedIndex : 1;
@@ -1849,6 +1946,12 @@ namespace DynamometerHMI
 
         private void DutyTimer_Tick(object sender, EventArgs e)
         {
+            if (isBatchDutyActive && (batchDutyStage == 2 || batchDutyStage == 4))
+            {
+                ProcessBatchDutyCooling();
+                return;
+            }
+
             int dutyRole = (cmbDutyMiniRole != null && cmbDutyMiniRole.SelectedIndex >= 0)
                 ? cmbDutyMiniRole.SelectedIndex
                 : ((cmbDutyRole != null && cmbDutyRole.SelectedIndex >= 0) ? cmbDutyRole.SelectedIndex : 1);
@@ -2684,7 +2787,7 @@ namespace DynamometerHMI
                         {
                             if (s6IsVerifyingConfirmationCycle)
                             {
-                                lblS6ThermalStatus.Text = string.Format("⏳ [第 {0} 週期] 追加確認覆核中！最高: {1:F1}℃ | 冷卻最後: {2} (需溫差 <= 1.0℃)",
+                                lblS6ThermalStatus.Text = string.Format("[覆核] [第 {0} 週期] 追加確認覆核中！最高: {1:F1}℃ | 冷卻最後: {2} (需溫差 <= 1.0℃)",
                                     s6FormalCycleIndex, curPeak, troughDisp);
                                 lblS6ThermalStatus.ForeColor = Color.DarkCyan;
                             }
@@ -2791,13 +2894,35 @@ namespace DynamometerHMI
                                     if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
                                     if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
 
+                                    string s6ReportPath = SaveDutyTestReportCsv("S6", showDialog: false);
+
                                     lblDutyStatus.Text = string.Format("[成功] S6 熱平衡達標且通過追加確認 (第{0}週期，溫差 {1:F2}℃<=1.0℃)！", s6FormalCycleIndex, confirmDiff);
-                                    lblDutyPhaseAction.Text = "S6 熱平衡已確認達標，已自動平緩卸載並停機，請點擊「匯出報表」儲存數據。";
+                                    lblDutyPhaseAction.Text = "S6 熱平衡已確認達標，已自動平緩卸載並停機，報表已自動儲存。";
                                     if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
                                     if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
 
-                                    MessageBox.Show(string.Format("S6 週期工作制熱平衡已圓滿達標！\n\n已運轉週期: 第 {0} 週期 (含追加確認週期)\n確認週期最高溫: {1:F2}℃ (前一週期: {2:F2}℃, 溫差: {3:F2}℃ <= 1.0℃)\n冷卻最後低溫: {4:F2}℃\n\n系統已自動安全平滑卸載並停機，請點擊「匯出報表」儲存測試結果。",
-                                        s6FormalCycleIndex, confirmPeak, prevPeak, confirmDiff, finalCoolingTrough), "S6 熱平衡達標·試驗完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                    if (isBatchDutyActive)
+                                    {
+                                        batchDutyStage = 4;
+                                        batchCoolingElapsedSec = 0;
+                                        batchCoolingStableSec = 0;
+                                        batchCoolingPrevTemp = 999.0;
+                                        batchCoolingCheckTimer = 0;
+                                        if (prgBatchTotal != null) prgBatchTotal.Value = 4;
+                                        btnStopDuty.Enabled = true; // 連續排程中維持停止按鈕可用
+                                        if (lblBatchProgressDetail != null)
+                                        {
+                                            lblBatchProgressDetail.Text = string.Format("【連續排程 4/5】S6 完成已自動存檔！冷卻等待中 (最高溫: {0:F1}℃ -> 目標待定，已冷卻 00:00)", dutyMonitoredTemp);
+                                        }
+                                        dutyResults.Clear();
+                                        dutyMinuteSampleCount = 0;
+                                        if (dutyTimer != null && !dutyTimer.Enabled) dutyTimer.Start();
+                                    }
+                                    else
+                                    {
+                                        MessageBox.Show(string.Format("S6 週期工作制熱平衡已圓滿達標！\n\n已運轉週期: 第 {0} 週期 (含追加確認週期)\n確認週期最高溫: {1:F2}℃ (前一週期: {2:F2}℃, 溫差: {3:F2}℃ <= 1.0℃)\n冷卻最後低溫: {4:F2}℃\n\n系統已自動安全平滑卸載並停機，報表已自動儲存至:\n{5}",
+                                            s6FormalCycleIndex, confirmPeak, prevPeak, confirmDiff, finalCoolingTrough, s6ReportPath ?? "預設目錄"), "S6 熱平衡達標·試驗完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                    }
                                 });
                                 return;
                             }
@@ -2851,7 +2976,7 @@ namespace DynamometerHMI
 
                                     if (lblS6ThermalStatus != null)
                                     {
-                                        lblS6ThermalStatus.Text = string.Format("⏳ 30分已初步穩定！追加第 {0} 週期進行覆核確認 (溫差需 <= 1.0℃)", s6ConfirmationCycleIndex);
+                                        lblS6ThermalStatus.Text = string.Format("[覆核] 30分已初步穩定！追加第 {0} 週期進行覆核確認 (溫差需 <= 1.0℃)", s6ConfirmationCycleIndex);
                                         lblS6ThermalStatus.ForeColor = Color.DarkCyan;
                                     }
                                 }
@@ -2892,13 +3017,36 @@ namespace DynamometerHMI
                                 if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
                                 if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
 
+                                string s6ReportPath = SaveDutyTestReportCsv("S6", showDialog: false);
+
                                 lblDutyStatus.Text = "[成功] S6 週期負載試驗全部完成！";
-                                lblDutyPhaseAction.Text = "全週期試驗完畢，已平緩降載降速停機，請點擊「匯出報表」儲存數據。";
+                                lblDutyPhaseAction.Text = "全週期試驗完畢，已平緩降載降速停機，報表已自動儲存。";
                                 if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
                                 if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
 
                                 WriteHmiLog("DUTY_COMPLETE", string.Format("【S6 測試圓滿完成】共完成 {0} 個完整週期！", totalFormalCycles));
-                                MessageBox.Show(string.Format("S6 週期負載試驗（共 {0} 週期）已順利完成！\n已先降負載再降速平滑停機，請點擊「匯出報表」儲存測試數據。", totalFormalCycles), "試驗完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                                if (isBatchDutyActive)
+                                {
+                                    batchDutyStage = 4;
+                                    batchCoolingElapsedSec = 0;
+                                    batchCoolingStableSec = 0;
+                                    batchCoolingPrevTemp = 999.0;
+                                    batchCoolingCheckTimer = 0;
+                                    if (prgBatchTotal != null) prgBatchTotal.Value = 4;
+                                    btnStopDuty.Enabled = true;
+                                    if (lblBatchProgressDetail != null)
+                                    {
+                                        lblBatchProgressDetail.Text = string.Format("【連續排程 4/5】S6 完成已自動存檔！冷卻等待中 (最高溫: {0:F1}℃ -> 目標待定，已冷卻 00:00)", dutyMonitoredTemp);
+                                    }
+                                    dutyResults.Clear();
+                                    dutyMinuteSampleCount = 0;
+                                    if (dutyTimer != null && !dutyTimer.Enabled) dutyTimer.Start();
+                                }
+                                else
+                                {
+                                    MessageBox.Show(string.Format("S6 週期負載試驗（共 {0} 週期）已順利完成！\n已先降負載再降速平滑停機，報表已自動儲存至:\n{1}", totalFormalCycles, s6ReportPath ?? "預設目錄"), "試驗完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                }
                             });
                             return;
                         }
@@ -3134,13 +3282,33 @@ namespace DynamometerHMI
                                 if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
                                 if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
 
+                                string s1ReportPath = SaveDutyTestReportCsv("S1", showDialog: false);
+
                                 lblDutyStatus.Text = string.Format("[成功] S1 熱平衡達標！最高溫 CH{0} 近30分溫差 {1:F2}℃ (< 1.0℃)，試驗自動完成！", maxChIdx + 1, diffMax);
                                 lblDutyPhaseAction.Text = string.Format("最高溫通道 (CH{0}: {1:F1}℃) 30 分鐘溫差僅 {2:F2}℃，已達穩定熱平衡，平穩停機完成。", maxChIdx + 1, tNowMax, diffMax);
                                 if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
                                 if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
 
                                 WriteHmiLog("DUTY_S1_BALANCE", string.Format("【S1 熱平衡達標自動停機】耗時 {0} 分鐘，最高溫 CH{1} ({2:F1}℃) 30 分鐘溫差僅 {3:F2}℃ (< 1.0℃)，正式宣告熱平衡！", elapsedMins, maxChIdx + 1, tNowMax, diffMax));
-                                MessageBox.Show(string.Format("S1 連續工作制熱平衡已達標！\n\n已運轉時間: {0} 分鐘\n最高溫監控通道: CH{1} (實測: {2:F1}℃)\n近 30 分鐘溫差: {3:F2}℃ (< 1.0℃)\n\n最高溫已達穩定熱平衡，系統已自動平滑降載停機，請點擊「匯出報表」儲存數據。", elapsedMins, maxChIdx + 1, tNowMax, diffMax), "S1 熱平衡達標·試驗完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                                if (isBatchDutyActive)
+                                {
+                                    batchDutyStage = 2;
+                                    batchCoolingElapsedSec = 0;
+                                    if (prgBatchTotal != null) prgBatchTotal.Value = 2;
+                                    btnStopDuty.Enabled = true;
+                                    if (lblBatchProgressDetail != null)
+                                    {
+                                        lblBatchProgressDetail.Text = string.Format("【連續排程 2/5】S1 完成已自動存檔！冷卻等待中 (最高溫: {0:F1}℃ -> 目標 <=50.0℃，已冷卻 00:00)", dutyMonitoredTemp);
+                                    }
+                                    dutyResults.Clear();
+                                    dutyMinuteSampleCount = 0;
+                                    if (dutyTimer != null && !dutyTimer.Enabled) dutyTimer.Start();
+                                }
+                                else
+                                {
+                                    MessageBox.Show(string.Format("S1 連續工作制熱平衡已達標！\n\n已運轉時間: {0} 分鐘\n最高溫監控通道: CH{1} (實測: {2:F1}℃)\n近 30 分鐘溫差: {3:F2}℃ (< 1.0℃)\n\n最高溫已達穩定熱平衡，報表已自動儲存至:\n{4}", elapsedMins, maxChIdx + 1, tNowMax, diffMax, s1ReportPath ?? "預設目錄"), "S1 熱平衡達標·試驗完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                }
                             });
                             return;
                         }
@@ -3417,7 +3585,15 @@ namespace DynamometerHMI
                                 if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
 
                                 WriteHmiLog("DUTY_S2_OVERTEMP", string.Format("【S2 溫度超限停機】CH{0} 實測 {1:F1} ℃ 超過設定閥值 {2:F1} ℃，已平滑停機，錨點數據已歸零！", chIdx + 1, currentChTemp, threshold));
-                                MessageBox.Show(string.Format("S2 短時工作制測試觸發溫度保護停機！\n\n監控通道: CH{0}\n實測溫度: {1:F1} ℃\n設定閥值: {2:F1} ℃\n\n已自動平緩降載降速並停止運轉，S2 錨點數據已自動歸零。", chIdx + 1, currentChTemp, threshold), "溫度保護停機", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+                                if (isBatchDutyActive)
+                                {
+                                    AbortBatchDuty(string.Format("S2 測試期間觸發超溫保護停機 (CH{0}: {1:F1}℃ >= {2:F1}℃)！連續排程已中止保護。", chIdx + 1, currentChTemp, threshold));
+                                }
+                                else
+                                {
+                                    MessageBox.Show(string.Format("S2 短時工作制測試觸發溫度保護停機！\n\n監控通道: CH{0}\n實測溫度: {1:F1} ℃\n設定閥值: {2:F1} ℃\n\n已自動平緩降載降速並停止運轉，S2 錨點數據已自動歸零。", chIdx + 1, currentChTemp, threshold), "溫度保護停機", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                                }
                             });
                             return;
                         }
@@ -3437,6 +3613,8 @@ namespace DynamometerHMI
                             if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
                             if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
 
+                            string s2ReportPath = SaveDutyTestReportCsv("S2", showDialog: false);
+
                             //  依要求：S2 完成一個執行流程後自動歸零錨點
                             s2AnchorSy52 = 0;
                             s2AnchorCs18 = 0;
@@ -3444,12 +3622,27 @@ namespace DynamometerHMI
                             if (numS2AnchorCs18 != null) numS2AnchorCs18.Value = 0;
 
                             lblDutyStatus.Text = "[成功] S2 短時工作制試驗時間到期，圓滿完成！";
-                            lblDutyPhaseAction.Text = "已達到設定之短時運轉時間，已平緩降載降速停機，錨點已自動歸零。";
+                            lblDutyPhaseAction.Text = "已達到設定之短時運轉時間，已平緩降載降速停機，錨點已自動歸零，報表已自動儲存。";
                             if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
                             if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
 
                             WriteHmiLog("DUTY_S2_COMPLETE", string.Format("【S2 試驗完成】已達設定測試時間 {0} 分鐘，正常平緩結束停機，錨點數據已歸零！", dutyTotalSec / 60));
-                            MessageBox.Show(string.Format("S2 短時工作制試驗（共 {0} 分鐘）已順利完成！\n已平緩煞車停機，S2 錨點數據已自動歸零。\n請點擊「匯出報表」儲存數據。", dutyTotalSec / 60), "試驗完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                            if (isBatchDutyActive)
+                            {
+                                isBatchDutyActive = false;
+                                batchDutyStage = 6;
+                                if (prgBatchTotal != null) prgBatchTotal.Value = 5;
+                                if (lblBatchProgressDetail != null)
+                                {
+                                    lblBatchProgressDetail.Text = "【連續排程圓滿結束】S1、S6、S2 三大工作制實驗全部測試完成！報表已全數自動存檔，可點擊「匯出報表」查看。";
+                                }
+                                WriteHmiLog("BATCH_COMPLETE", "【連續排程全勝】S1 -> S6 -> S2 連續性全自動工作制測試全數完成！");
+                            }
+                            else
+                            {
+                                MessageBox.Show(string.Format("S2 短時工作制試驗（共 {0} 分鐘）已順利完成！\n已平緩煞車停機，S2 錨點數據已自動歸零。\n報表已自動儲存至:\n{1}", dutyTotalSec / 60, s2ReportPath ?? "預設目錄"), "試驗完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            }
                         });
                         return;
                     }
@@ -3620,13 +3813,15 @@ namespace DynamometerHMI
             }
         }
 
-        private void BtnExportDuty_Click(object sender, EventArgs e)
+        public string SaveDutyTestReportCsv(string dutyPrefix, bool showDialog = false)
         {
             try
             {
-                string logDir = GetMotorDedicatedLogDirectory(motorModelName);
+                string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
+                string logDir = GetMotorDedicatedLogDirectory(mName);
                 if (!Directory.Exists(logDir)) Directory.CreateDirectory(logDir);
-                string path = Path.Combine(logDir, string.Format("Report_Duty_Cycle_{0}.csv", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
+                string fileName = string.Format("Report_Duty_{0}_{1}.csv", dutyPrefix, DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+                string path = Path.Combine(logDir, fileName);
                 using (StreamWriter sw = new StreamWriter(path, false, Encoding.UTF8))
                 {
                     sw.WriteLine("TimeSec,Phase,Speed_rpm,Frequency_Hz,Freq_U1_Hz,Freq_I1_Hz,Torque_Nm,MechPower_kW,Efficiency_pct,Temp_C,Voltage_Sigma_V,Current_Sigma_A,ElecPower_kW,PowerFactor");
@@ -3636,11 +3831,227 @@ namespace DynamometerHMI
                     }
                 }
                 PurgeLocalLogs(false);
-                MessageBox.Show("工作制報表已匯出至:\n" + path, "匯出成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                WriteHmiLog("DUTY_EXPORT", string.Format("【{0} 報表自動存檔成功】已儲存至: {1} (共 {2} 筆記錄)", dutyPrefix, path, dutyResults.Count));
+                if (showDialog)
+                {
+                    MessageBox.Show(string.Format("{0} 工作制報表已匯出至:\n{1}", dutyPrefix, path), "匯出成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                return path;
             }
             catch (Exception ex)
             {
-                MessageBox.Show("匯出失敗: " + ex.Message, "錯誤");
+                WriteHmiLog("DUTY_ERROR", string.Format("【{0} 自動存檔失敗】: {1}", dutyPrefix, ex.Message));
+                if (showDialog)
+                {
+                    MessageBox.Show("匯出失敗: " + ex.Message, "錯誤");
+                }
+                return null;
+            }
+        }
+
+        private void BtnExportDuty_Click(object sender, EventArgs e)
+        {
+            int modeIdx = (cmbDutyMode != null && cmbDutyMode.SelectedIndex >= 0) ? cmbDutyMode.SelectedIndex : 0;
+            string prefix = (modeIdx == 0) ? "S1" : ((modeIdx == 1) ? "S2" : "S6");
+            SaveDutyTestReportCsv(prefix, showDialog: true);
+        }
+
+        private bool HasWaterCoolingChannels()
+        {
+            if (gl820ChannelNames == null) return false;
+            for (int i = 0; i < gl820ChannelNames.Length && i < 20; i++)
+            {
+                string name = gl820ChannelNames[i];
+                if (string.IsNullOrEmpty(name)) continue;
+                string clean = name.ToUpper().Replace("-", "").Replace("_", "").Replace(" ", "");
+                if (clean.Contains("WIN") || clean.Contains("WOUT")) return true;
+            }
+            return false;
+        }
+
+        private int FindAmbientTempChannelIndex()
+        {
+            if (gl820ChannelNames == null) return -1;
+            for (int i = 0; i < gl820ChannelNames.Length && i < 20; i++)
+            {
+                string name = gl820ChannelNames[i];
+                if (string.IsNullOrEmpty(name)) continue;
+                string clean = name.ToUpper().Trim();
+                if (clean == "AT" || clean.StartsWith("AT") || clean.Contains("AMBIENT") || clean.Contains("室溫"))
+                {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        private void AbortBatchDuty(string reason)
+        {
+            isBatchDutyActive = false;
+            batchDutyStage = 0;
+            if (dutyTimer != null) dutyTimer.Stop();
+            btnStartDuty.Enabled = true;
+            btnStopDuty.Enabled = false;
+            lblDutyStatus.Text = "狀態: 連續排程已中止";
+            lblDutyPhaseAction.Text = "動作: " + reason;
+            if (lblBatchProgressDetail != null)
+            {
+                lblBatchProgressDetail.Text = "【連續排程已中止】" + reason;
+            }
+            WriteHmiLog("BATCH_ABORT", "【連續排程中止警告】" + reason);
+            int dutyRole = (cmbDutyRole != null && cmbDutyRole.SelectedIndex >= 0) ? cmbDutyRole.SelectedIndex : 1;
+            int spdDrive = (dutyRole == 1) ? 2 : 1;
+            int trqDrive = (spdDrive == 1) ? 2 : 1;
+            StartGradualAutoStop(spdDrive, trqDrive, "連續排程中止: " + reason, null);
+            MessageBox.Show(reason, "連續排程中止", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
+        private void ProcessBatchDutyCooling()
+        {
+            batchCoolingElapsedSec++;
+            int m = batchCoolingElapsedSec / 60;
+            int s = batchCoolingElapsedSec % 60;
+            string timeStr = string.Format("{0:D2}:{1:D2}", m, s);
+
+            // 1. 取得當前實測最高溫 (優先取被監控通道，若未配置則取全通道最大有效溫度)
+            double curMaxTemp = -999.0;
+            int maxCh = -1;
+            if (s1MonitoredChannels != null)
+            {
+                for (int i = 0; i < s1MonitoredChannels.Length && i < 20; i++)
+                {
+                    if (s1MonitoredChannels[i] && gbdChTemps != null && i < gbdChTemps.Length)
+                    {
+                        double t = gbdChTemps[i];
+                        if (t > -40.0 && t < 400.0 && Math.Abs(t) > 0.01)
+                        {
+                            if (t > curMaxTemp) { curMaxTemp = t; maxCh = i; }
+                        }
+                    }
+                }
+            }
+            if (curMaxTemp < -100.0 && gbdChTemps != null)
+            {
+                for (int i = 0; i < gbdChTemps.Length && i < 20; i++)
+                {
+                    double t = gbdChTemps[i];
+                    if (t > -40.0 && t < 400.0 && Math.Abs(t) > 0.01)
+                    {
+                        if (t > curMaxTemp) { curMaxTemp = t; maxCh = i; }
+                    }
+                }
+            }
+            if (curMaxTemp < -100.0) curMaxTemp = 25.0; // 兜底
+
+            // ── 階段 2：S1 完成後，等待冷卻至 <= 50.0℃ ──
+            if (batchDutyStage == 2)
+            {
+                lblDutyStatus.Text = string.Format("[排程 2/5] S1 完成！等待降溫至 <= 50.0℃ (已冷卻 {0})", timeStr);
+                lblDutyPhaseAction.Text = string.Format("目前最高溫 CH{0}: {1:F1}℃ -> 目標 <= 50.0℃", maxCh + 1, curMaxTemp);
+                if (lblBatchProgressDetail != null)
+                {
+                    lblBatchProgressDetail.Text = string.Format("【連續排程 2/5】S1 完成已自動存檔！冷卻等待中 (最高溫 CH{0}: {1:F1}℃ -> 目標 <=50.0℃，已冷卻 {2})", maxCh + 1, curMaxTemp, timeStr);
+                }
+
+                if (curMaxTemp <= 50.0)
+                {
+                    WriteHmiLog("BATCH_DUTY", string.Format("【連續排程 S1 冷卻達標】最高溫 CH{0} 已降至 {1:F1}℃ (<= 50.0℃，耗時 {2})，自動啟動 S6 週期測試！", maxCh + 1, curMaxTemp, timeStr));
+                    batchDutyStage = 3;
+                    if (prgBatchTotal != null) prgBatchTotal.Value = 3;
+                    cmbDutyMode.SelectedIndex = 2; // 自動切換至 S6
+                    StartDutyTestInternal(fromMini: false, isBatchTrigger: true);
+                }
+            }
+            // ── 階段 4：S6 完成後，冷卻至 25.0℃ 或 室溫 (AT) ──
+            else if (batchDutyStage == 4)
+            {
+                bool isWaterCooled = false;
+                if (cmbBatchCoolingMode != null && cmbBatchCoolingMode.SelectedIndex == 1) isWaterCooled = true;
+                else if (cmbBatchCoolingMode != null && cmbBatchCoolingMode.SelectedIndex == 2) isWaterCooled = false;
+                else isWaterCooled = HasWaterCoolingChannels();
+
+                if (isWaterCooled)
+                {
+                    lblDutyStatus.Text = string.Format("[排程 4/5] S6 完成！水冷冰水機降溫中 (已冷卻 {0})", timeStr);
+                    lblDutyPhaseAction.Text = string.Format("水冷最高溫 CH{0}: {1:F1}℃ -> 目標 <= 25.0℃", maxCh + 1, curMaxTemp);
+                    if (lblBatchProgressDetail != null)
+                    {
+                        lblBatchProgressDetail.Text = string.Format("【連續排程 4/5 (水冷)】S6 完成已自動存檔！冰水機冷卻中 (最高溫: {0:F1}℃ -> 目標 <=25.0℃，已冷卻 {1})", curMaxTemp, timeStr);
+                    }
+
+                    if (curMaxTemp <= 25.0)
+                    {
+                        WriteHmiLog("BATCH_DUTY", string.Format("【連續排程 S6 水冷冷卻達標】最高溫已降至 {0:F1}℃ (<= 25.0℃，耗時 {1})，自動啟動 S2 短時測試！", curMaxTemp, timeStr));
+                        batchDutyStage = 5;
+                        if (prgBatchTotal != null) prgBatchTotal.Value = 5;
+                        cmbDutyMode.SelectedIndex = 1; // 自動切換至 S2
+                        StartDutyTestInternal(fromMini: false, isBatchTrigger: true);
+                    }
+                }
+                else
+                {
+                    int atIdx = FindAmbientTempChannelIndex();
+                    double atTemp = (atIdx >= 0 && gbdChTemps != null && atIdx < gbdChTemps.Length) ? gbdChTemps[atIdx] : -999.0;
+
+                    // 依使用者指示：室溫斷線時終止實驗！
+                    if (atIdx < 0 || atTemp <= 0.0 || atTemp >= 80.0)
+                    {
+                        AbortBatchDuty(string.Format("氣冷室溫通道 (AT) 斷線或未檢測到有效數值 (實測: {0:F1}℃)，依安全規則終止連續實驗！", atTemp));
+                        return;
+                    }
+
+                    double targetThresh = atTemp + 1.5;
+
+                    batchCoolingCheckTimer++;
+                    if (batchCoolingCheckTimer >= 60)
+                    {
+                        batchCoolingCheckTimer = 0;
+                        if (batchCoolingPrevTemp < 900.0 && (batchCoolingPrevTemp - curMaxTemp) >= 0.2)
+                        {
+                            batchCoolingStableSec = 0;
+                        }
+                        batchCoolingPrevTemp = curMaxTemp;
+                    }
+
+                    string statusDetail = "";
+                    if (curMaxTemp <= atTemp)
+                    {
+                        WriteHmiLog("BATCH_DUTY", string.Format("【連續排程 S6 氣冷冷卻達標】最高溫 {0:F1}℃ 已完全降至室溫 AT ({1:F1}℃)，耗時 {2}，自動啟動 S2 短時測試！", curMaxTemp, atTemp, timeStr));
+                        batchDutyStage = 5;
+                        if (prgBatchTotal != null) prgBatchTotal.Value = 5;
+                        cmbDutyMode.SelectedIndex = 1; // 自動切換至 S2
+                        StartDutyTestInternal(fromMini: false, isBatchTrigger: true);
+                        return;
+                    }
+                    else if (curMaxTemp <= targetThresh)
+                    {
+                        batchCoolingStableSec++;
+                        int remainStableSec = Math.Max(0, 900 - batchCoolingStableSec);
+                        statusDetail = string.Format("接近室溫 (溫差 {0:F2}℃ <= 1.5℃)，穩定維持中 (剩餘 {1}分{2}秒)", curMaxTemp - atTemp, remainStableSec / 60, remainStableSec % 60);
+
+                        if (batchCoolingStableSec >= 900)
+                        {
+                            WriteHmiLog("BATCH_DUTY", string.Format("【連續排程 S6 氣冷冷卻放行】最高溫 {0:F1}℃ 已接近室溫 AT ({1:F1}℃，溫差 {2:F2}℃ <= 1.5℃) 且持續 15 分鐘無持續下降，依規則放行！自動啟動 S2 短時測試！", curMaxTemp, atTemp, curMaxTemp - atTemp));
+                            batchDutyStage = 5;
+                            if (prgBatchTotal != null) prgBatchTotal.Value = 5;
+                            cmbDutyMode.SelectedIndex = 1; // 自動切換至 S2
+                            StartDutyTestInternal(fromMini: false, isBatchTrigger: true);
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        batchCoolingStableSec = 0;
+                        statusDetail = string.Format("自然/風扇降溫中 (溫差 {0:F1}℃，目標 <= {1:F1}℃)", curMaxTemp - atTemp, targetThresh);
+                    }
+
+                    lblDutyStatus.Text = string.Format("[排程 4/5] S6 完成！氣冷降溫中 (已冷卻 {0})", timeStr);
+                    lblDutyPhaseAction.Text = string.Format("最高溫: {0:F1}℃ | 室溫 AT: {1:F1}℃ | {2}", curMaxTemp, atTemp, statusDetail);
+                    if (lblBatchProgressDetail != null)
+                    {
+                        lblBatchProgressDetail.Text = string.Format("【連續排程 4/5 (氣冷)】最高溫: {0:F1}℃ | AT室溫: {1:F1}℃ | {2} | 已冷卻 {3}", curMaxTemp, atTemp, statusDetail, timeStr);
+                    }
+                }
             }
         }
     }
