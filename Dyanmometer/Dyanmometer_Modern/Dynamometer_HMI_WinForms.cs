@@ -308,7 +308,7 @@ namespace DynamometerHMI
         private GroupBox grpS6Diagram;
         private Panel pnlS6Diagram; // S6 T=T1+T2 動態週期與溫升圖示面板
         private ProgressBar prgDuty;
-        private Label lblDutyStatus, lblThermalStatus;
+        private Label lblDutyStatus, lblThermalStatus, lblDutyRealtimeElec;
         private System.Windows.Forms.Timer dutyTimer;
         private int dutyElapsedSec = 0, dutyTotalSec = 0;
         private List<string[]> dutyResults = new List<string[]>();
@@ -362,6 +362,13 @@ namespace DynamometerHMI
         private double[] dutyRampSpeeds = new double[4];
         private const double DUTY_EXCITE_BASE_RPM = 300.0; // 低速激磁基準轉速 (300 rpm)
         private CheckBox chkDutySlipComp = null; // S1 補轉差/不補轉差勾選框 (預設勾選: 自動補轉差; 取消勾選: 不補轉差自然轉差)
+        private double dutyMinuteVoltSum = 0.0;
+        private double dutyMinuteCurrSum = 0.0;
+        private double dutyMinutePelecSum = 0.0;
+        private double dutyMinutePfSum = 0.0;
+        private double dutyMinuteSpdSum = 0.0;
+        private double dutyMinuteTrqSum = 0.0;
+        private int dutyMinuteSampleCount = 0;
 
         // S6 V/F 自適應試運轉定錨與正式週期狀態機變數 (含明確錨點數值輸入與重置)
         private NumericUpDown numS6AnchorNoLoadSpd, numS6AnchorLoadedSpd, numS6AnchorLoadedCs18;

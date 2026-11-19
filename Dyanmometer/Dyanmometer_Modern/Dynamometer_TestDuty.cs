@@ -565,25 +565,33 @@ namespace DynamometerHMI
                 RowTemplate = { Height = 32 },
                 ColumnHeadersHeight = 38
             };
-            dgvDuty.ColumnHeadersDefaultCellStyle.Font = new Font("微軟正黑體", 12f, FontStyle.Bold);
-            dgvDuty.DefaultCellStyle.Font = new Font("微軟正黑體", 11.5f);
+            dgvDuty.ColumnHeadersDefaultCellStyle.Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold);
+            dgvDuty.DefaultCellStyle.Font = new Font("微軟正黑體", 11f);
             dgvDuty.Columns.Add("Time", "時間 (分:秒)");
             dgvDuty.Columns.Add("Phase", "階段");
             dgvDuty.Columns.Add("Speed", "轉速 (rpm)");
             dgvDuty.Columns.Add("Torque", "轉矩 (Nm)");
-            dgvDuty.Columns.Add("Power", "功率 (kW)");
+            dgvDuty.Columns.Add("Power", "輸出功率 (kW)");
+            dgvDuty.Columns.Add("Volt", "平均電壓 (V)");
+            dgvDuty.Columns.Add("Curr", "平均電流 (A)");
+            dgvDuty.Columns.Add("Pelec", "輸入功率 (kW)");
+            dgvDuty.Columns.Add("Pf", "功因");
             dgvDuty.Columns.Add("Eff", "效率 (%)");
             dgvDuty.Columns.Add("Temp", "馬達溫度 (°C)");
             dgvDuty.Columns.Add("Thermal", "熱平衡判定");
 
-            dgvDuty.Columns[0].MinimumWidth = 95;  dgvDuty.Columns[0].FillWeight = 10;
-            dgvDuty.Columns[1].MinimumWidth = 80;  dgvDuty.Columns[1].FillWeight = 9;
-            dgvDuty.Columns[2].MinimumWidth = 95;  dgvDuty.Columns[2].FillWeight = 10;
-            dgvDuty.Columns[3].MinimumWidth = 95;  dgvDuty.Columns[3].FillWeight = 10;
-            dgvDuty.Columns[4].MinimumWidth = 95;  dgvDuty.Columns[4].FillWeight = 10;
-            dgvDuty.Columns[5].MinimumWidth = 80;  dgvDuty.Columns[5].FillWeight = 8;
-            dgvDuty.Columns[6].MinimumWidth = 110; dgvDuty.Columns[6].FillWeight = 12;
-            dgvDuty.Columns[7].MinimumWidth = 220; dgvDuty.Columns[7].FillWeight = 31;
+            dgvDuty.Columns[0].MinimumWidth = 85;  dgvDuty.Columns[0].FillWeight = 7;
+            dgvDuty.Columns[1].MinimumWidth = 70;  dgvDuty.Columns[1].FillWeight = 6;
+            dgvDuty.Columns[2].MinimumWidth = 80;  dgvDuty.Columns[2].FillWeight = 7;
+            dgvDuty.Columns[3].MinimumWidth = 80;  dgvDuty.Columns[3].FillWeight = 7;
+            dgvDuty.Columns[4].MinimumWidth = 90;  dgvDuty.Columns[4].FillWeight = 8;
+            dgvDuty.Columns[5].MinimumWidth = 85;  dgvDuty.Columns[5].FillWeight = 8;
+            dgvDuty.Columns[6].MinimumWidth = 85;  dgvDuty.Columns[6].FillWeight = 8;
+            dgvDuty.Columns[7].MinimumWidth = 90;  dgvDuty.Columns[7].FillWeight = 8;
+            dgvDuty.Columns[8].MinimumWidth = 65;  dgvDuty.Columns[8].FillWeight = 6;
+            dgvDuty.Columns[9].MinimumWidth = 70;  dgvDuty.Columns[9].FillWeight = 6;
+            dgvDuty.Columns[10].MinimumWidth = 100; dgvDuty.Columns[10].FillWeight = 9;
+            dgvDuty.Columns[11].MinimumWidth = 180; dgvDuty.Columns[11].FillWeight = 20;
 
             ContextMenuStrip cmsDuty = new ContextMenuStrip();
             ToolStripMenuItem mnuAutoFit = new ToolStripMenuItem("自動適應內容寬度");
@@ -594,11 +602,76 @@ namespace DynamometerHMI
             mnuFillWidth.Click += (s, e) => {
                 dgvDuty.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             };
+            ToolStripMenuItem mnuExportCsv = new ToolStripMenuItem("匯出表格紀錄 (CSV)");
+            mnuExportCsv.Click += (s, e) => {
+                try
+                {
+                    if (dgvDuty.Rows.Count == 0)
+                    {
+                        MessageBox.Show("目前表格尚無記錄可匯出！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+                    string logDir = GetMotorDedicatedLogDirectory(motorModelName);
+                    if (!Directory.Exists(logDir)) Directory.CreateDirectory(logDir);
+                    string path = Path.Combine(logDir, string.Format("Duty_Table_History_{0}.csv", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
+                    using (StreamWriter sw = new StreamWriter(path, false, Encoding.UTF8))
+                    {
+                        var headers = new List<string>();
+                        for (int c = 0; c < dgvDuty.Columns.Count; c++) headers.Add(dgvDuty.Columns[c].HeaderText);
+                        sw.WriteLine(string.Join(",", headers));
+                        for (int r = 0; r < dgvDuty.Rows.Count; r++)
+                        {
+                            var vals = new List<string>();
+                            for (int c = 0; c < dgvDuty.Columns.Count; c++)
+                            {
+                                object o = dgvDuty.Rows[r].Cells[c].Value;
+                                string cellVal = (o != null) ? o.ToString().Replace(",", " ") : "";
+                                vals.Add(cellVal);
+                            }
+                            sw.WriteLine(string.Join(",", vals));
+                        }
+                    }
+                    MessageBox.Show("工作制表格紀錄已成功匯出至:\n" + path, "匯出成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("匯出失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
             cmsDuty.Items.Add(mnuAutoFit);
             cmsDuty.Items.Add(mnuFillWidth);
+            cmsDuty.Items.Add(new ToolStripSeparator());
+            cmsDuty.Items.Add(mnuExportCsv);
             dgvDuty.ContextMenuStrip = cmsDuty;
 
-            splitDuty.Panel2.Controls.Add(dgvDuty);
+            TableLayoutPanel tableDutyBottom = new TableLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                BackColor = Color.White,
+                Margin = new Padding(0),
+                Padding = new Padding(0)
+            };
+            tableDutyBottom.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            tableDutyBottom.RowStyles.Add(new RowStyle(SizeType.Absolute, 32f));
+            tableDutyBottom.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+
+            lblDutyRealtimeElec = new Label()
+            {
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Text = "【即時電氣監控】平均電壓: --.- V | 平均電流: --.-- A | 輸入功率: --.-- kW | 功因: -.--- | 輸出功率: --.-- kW | 效率: --.- %",
+                Font = new Font("微軟正黑體", 11f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(30, 64, 175),
+                BackColor = Color.FromArgb(241, 245, 249),
+                Padding = new Padding(8, 0, 0, 0),
+                Margin = new Padding(0)
+            };
+            tableDutyBottom.Controls.Add(lblDutyRealtimeElec, 0, 0);
+            tableDutyBottom.Controls.Add(dgvDuty, 0, 1);
+
+            splitDuty.Panel2.Controls.Add(tableDutyBottom);
             tab.Controls.Add(splitDuty);
 
             dutyTimer = new System.Windows.Forms.Timer();
@@ -1283,6 +1356,15 @@ namespace DynamometerHMI
             }
             isS2Calibrating = false;
             isLoadMotorPreEnergized = false;
+            dutyMinuteVoltSum = 0.0;
+            dutyMinuteCurrSum = 0.0;
+            dutyMinutePelecSum = 0.0;
+            dutyMinutePfSum = 0.0;
+            dutyMinuteSpdSum = 0.0;
+            dutyMinuteTrqSum = 0.0;
+            dutyMinuteSampleCount = 0;
+            if (lblDutyRealtimeElec != null)
+                lblDutyRealtimeElec.Text = "【即時電氣監控】已停止測試 | 待命準備中";
             dutyExciteStage = 0;
             dutyExciteWaitSec = 0;
             dutyRampStep = 0;
@@ -1382,7 +1464,16 @@ namespace DynamometerHMI
             dutyDriveCurrentSamples.Clear();
             if (lblDutyCurrentBaseline != null) lblDutyCurrentBaseline.Text = "基準: 尚未確立 (採樣中)";
             dutyLastMinuteLogged = -1;
+            dutyMinuteVoltSum = 0.0;
+            dutyMinuteCurrSum = 0.0;
+            dutyMinutePelecSum = 0.0;
+            dutyMinutePfSum = 0.0;
+            dutyMinuteSpdSum = 0.0;
+            dutyMinuteTrqSum = 0.0;
+            dutyMinuteSampleCount = 0;
             if (dgvDuty != null) dgvDuty.Rows.Clear();
+            if (lblDutyRealtimeElec != null)
+                lblDutyRealtimeElec.Text = "【即時電氣監控】平均電壓: --.- V | 平均電流: --.-- A | 輸入功率: --.-- kW | 功因: -.--- | 輸出功率: --.-- kW | 效率: --.- %";
 
             bool isFromMini = (sender == btnDutyMiniStart);
             SyncAllDutyControls(fromMiniToMain: isFromMini);
@@ -1782,6 +1873,33 @@ namespace DynamometerHMI
 
             double actAbsSpd = Math.Abs(actSpeed);
             double actAbsTrq = Math.Abs(actTorque);
+
+            // 累加一分鐘滑動均值採樣 (平均電壓、平均電流、輸入電功率、功因、轉速、轉矩)
+            dutyMinuteSpdSum += actAbsSpd;
+            dutyMinuteTrqSum += actAbsTrq;
+            if (actVoltageSigma > 1.0)
+            {
+                dutyMinuteVoltSum += actVoltageSigma;
+                dutyMinuteCurrSum += actCurrentSigma;
+                dutyMinutePelecSum += actElecPower;
+                dutyMinutePfSum += actPf;
+                dutyMinuteSampleCount++;
+            }
+
+            // 更新下方即時電氣監控橫幅
+            if (lblDutyRealtimeElec != null)
+            {
+                double curPmech = (actAbsSpd * actAbsTrq) / 9549.0;
+                string vTxt = actVoltageSigma > 0.1 ? string.Format("{0:F1} V", actVoltageSigma) : "--.- V";
+                string iTxt = actCurrentSigma > 0.05 ? string.Format("{0:F2} A", actCurrentSigma) : "--.-- A";
+                string pInTxt = Math.Abs(actElecPower) > 0.01 ? string.Format("{0:F2} kW", actElecPower) : "--.-- kW";
+                string pfTxt = Math.Abs(actPf) > 0.001 ? string.Format("{0:F3}", actPf) : "-.---";
+                string pOutTxt = string.Format("{0:F2} kW", curPmech);
+                string effTxt = (actEfficiency > 0.0 && actEfficiency <= 100.0) ? string.Format("{0:F1} %", actEfficiency) : "--.- %";
+
+                lblDutyRealtimeElec.Text = string.Format("【即時電氣監控】平均電壓: {0} | 平均電流: {1} | 輸入功率: {2} | 功因: {3} | 輸出功率: {4} | 效率: {5}",
+                    vTxt, iTxt, pInTxt, pfTxt, pOutTxt, effTxt);
+            }
 
             // 【DUTY 變頻器硬體故障保護守護】：檢測任一載台是否處於真實硬體故障 (ru.43 != 0)
             if (lastKebFaultCode1 != 0 || lastKebFaultCode2 != 0)
@@ -3362,10 +3480,11 @@ namespace DynamometerHMI
             if (dutyElapsedSec % 5 == 0)
             {
                 dutyResults.Add(new string[] {
-                        dutyElapsedSec.ToString(), currentPhaseName, actSpeed.ToString("F1"),
-                        actFrequency.ToString("F2"), wtFreqU.ToString("F2"), wtFreqI.ToString("F2"),
-                        actTorque.ToString("F2"),
-                    actMechPower.ToString("F2"), actEfficiency.ToString("F1"), actTemp.ToString("F1")
+                    dutyElapsedSec.ToString(), currentPhaseName, actSpeed.ToString("F1"),
+                    actFrequency.ToString("F2"), wtFreqU.ToString("F2"), wtFreqI.ToString("F2"),
+                    actTorque.ToString("F2"),
+                    actMechPower.ToString("F2"), actEfficiency.ToString("F1"), actTemp.ToString("F1"),
+                    actVoltageSigma.ToString("F1"), actCurrentSigma.ToString("F2"), actElecPower.ToString("F2"), actPf.ToString("F3")
                 });
             }
 
@@ -3375,8 +3494,29 @@ namespace DynamometerHMI
             {
                 dutyLastMinuteLogged = dutyCurrentMinute;
                 string timeStr = string.Format("{0:D2}:{1:D2}", dutyCurrentMinute, dutyElapsedSec % 60);
-                double pMech = (actAbsSpd * actAbsTrq) / 9549.0;
+
+                // 計算過去一分鐘之均值 (若為第 1 秒則採用瞬時值)
+                double avgSpd = dutyMinuteSampleCount > 0 ? (dutyMinuteSpdSum / dutyMinuteSampleCount) : actAbsSpd;
+                double avgTrq = dutyMinuteSampleCount > 0 ? (dutyMinuteTrqSum / dutyMinuteSampleCount) : actAbsTrq;
+                double pMech = (avgSpd * avgTrq) / 9549.0;
+
+                double avgV = dutyMinuteSampleCount > 0 ? (dutyMinuteVoltSum / dutyMinuteSampleCount) : actVoltageSigma;
+                double avgI = dutyMinuteSampleCount > 0 ? (dutyMinuteCurrSum / dutyMinuteSampleCount) : actCurrentSigma;
+                double avgPelec = dutyMinuteSampleCount > 0 ? (dutyMinutePelecSum / dutyMinuteSampleCount) : actElecPower;
+                double avgPf = dutyMinuteSampleCount > 0 ? (dutyMinutePfSum / dutyMinuteSampleCount) : actPf;
+
                 string effStr = (actEfficiency > 0 && actEfficiency <= 100) ? actEfficiency.ToString("F1") : "--";
+                if (avgPelec > 0.05 && pMech > 0.05)
+                {
+                    double calcEff = (pMech / avgPelec) * 100.0;
+                    if (calcEff > 0 && calcEff <= 100.0) effStr = calcEff.ToString("F1");
+                }
+
+                string vStr = avgV > 0.1 ? avgV.ToString("F1") : "--";
+                string iStr = avgI > 0.05 ? avgI.ToString("F2") : "--";
+                string pElecStr = Math.Abs(avgPelec) > 0.01 ? avgPelec.ToString("F2") : "--";
+                string pfStr = Math.Abs(avgPf) > 0.001 ? avgPf.ToString("F3") : "--";
+
                 string tempStr = string.Format("{0:F1} (CH{1})", dutyMonitoredTemp, maxChIdx + 1);
                 string thStr = "--";
                 if (dutyModeIdx == 0)
@@ -3389,7 +3529,29 @@ namespace DynamometerHMI
                     thStr = (lblS6ThermalStatus != null ? lblS6ThermalStatus.Text : "--");
                 }
 
-                dgvDuty.Rows.Add(timeStr, currentPhaseName, actAbsSpd.ToString("F0"), actAbsTrq.ToString("F1"), pMech.ToString("F2"), effStr, tempStr, thStr);
+                // 重設一分鐘累加器
+                dutyMinuteVoltSum = 0.0;
+                dutyMinuteCurrSum = 0.0;
+                dutyMinutePelecSum = 0.0;
+                dutyMinutePfSum = 0.0;
+                dutyMinuteSpdSum = 0.0;
+                dutyMinuteTrqSum = 0.0;
+                dutyMinuteSampleCount = 0;
+
+                dgvDuty.Rows.Add(
+                    timeStr,
+                    currentPhaseName,
+                    avgSpd.ToString("F0"),
+                    avgTrq.ToString("F1"),
+                    pMech.ToString("F2"),
+                    vStr,
+                    iStr,
+                    pElecStr,
+                    pfStr,
+                    effStr,
+                    tempStr,
+                    thStr
+                );
 
                 if (dgvDuty.RowCount > 0)
                 {
@@ -3487,7 +3649,7 @@ namespace DynamometerHMI
                 string path = Path.Combine(logDir, string.Format("Report_Duty_Cycle_{0}.csv", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
                 using (StreamWriter sw = new StreamWriter(path, false, Encoding.UTF8))
                 {
-                    sw.WriteLine("TimeSec,Phase,Speed_rpm,Frequency_Hz,Freq_U1_Hz,Freq_I1_Hz,Torque_Nm,MechPower_kW,Efficiency_pct,Temp_C");
+                    sw.WriteLine("TimeSec,Phase,Speed_rpm,Frequency_Hz,Freq_U1_Hz,Freq_I1_Hz,Torque_Nm,MechPower_kW,Efficiency_pct,Temp_C,Voltage_Sigma_V,Current_Sigma_A,ElecPower_kW,PowerFactor");
                     foreach (var row in dutyResults)
                     {
                         sw.WriteLine(string.Join(",", row));
