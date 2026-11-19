@@ -1264,8 +1264,9 @@ namespace DynamometerHMI
             }
             isS2Calibrating = false;
             isLoadMotorPreEnergized = false;
-            dutyPreExciteStage = 0;
-            dutyPreExciteWaitSec = 0;
+            dutyExciteStage = 0;
+            dutyExciteWaitSec = 0;
+            dutyRampStep = 0;
             s6SpeedReached = false;
             s6DutyPhase = 0;
             s6TrialStage = 0;
@@ -1564,18 +1565,46 @@ namespace DynamometerHMI
                 if (numHmiKebTorque2 != null) numHmiKebTorque2.Value = 0;
             }
 
-            // 1. 【加載端零速預激磁】：在待測端起轉前，加載端先行上電激磁 (Sy50=4, cs18=0%)，徹底消滅高速突加激磁之反轉扭矩！
-            KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // 轉矩嚴格為 0%
-            SetHmiKebCommand(trqCom, trqBaud, trqNode, 4, string.Format("{0}加載端零速預激磁 (Sy50=4, cs18=0%)", trqDriveName));
-            isLoadMotorPreEnergized = true;
+            // 【使用者現場測試黃金規範】：
+            // 若設定額定轉速 <= 300 rpm，直接加速不慢慢加速；
+            // 若 > 300 rpm，待測端先停在 300 rpm，讓加載端激磁不給轉矩量 (Sy50=4, cs18=0)，等待 3 秒，隨後分 4 段梯度加速至需求轉速！
+            bool needSlowExciteDuty = (targetSpd > DUTY_EXCITE_BASE_RPM);
+            if (needSlowExciteDuty)
+            {
+                dutyExciteStage = 1; // 1: 待測端升至 300 rpm, 2: 300 rpm 加載端激磁等待 3 秒, 3: 4 段梯度加速
+                dutyExciteWaitSec = 0;
+                dutyRampStep = 0;
+                dutyRampSpeeds[0] = Math.Max(300.0, targetSpd * 0.25);
+                dutyRampSpeeds[1] = Math.Max(dutyRampSpeeds[0], targetSpd * 0.50);
+                dutyRampSpeeds[2] = Math.Max(dutyRampSpeeds[1], targetSpd * 0.75);
+                dutyRampSpeeds[3] = targetSpd;
 
-            // 2. 待測端初始維持零速等待加載端磁通飽和
-            dutyPreExciteStage = 1; // 1: 加載端零速激磁建立階段, 2: 低速平穩起轉過渡階段 (若目標>200rpm)
-            dutyPreExciteWaitSec = 0;
+                // 加載端預備：轉矩強制為 0，尚未到達 300 rpm 前保持停機待命 (Sy50=0)
+                KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0);
+                SetHmiKebCommand(trqCom, trqBaud, trqNode, 0, string.Format("{0}待命待測端起轉至 300 rpm (Sy50=0, cs18=0%)", trqDriveName));
 
-            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, 0, "待測端初始零速等待激磁 (Sy52=0)");
-            KebWriteParamWithDll(spdCom, spdBaud, spdNode, 0x0F12, 1000); // 放行 100% 轉矩
-            SetHmiKebCommand(spdCom, spdBaud, spdNode, 4, "待測端預備正轉 (Sy50=4)");
+                // 待測端起步：目標先給 300 rpm！
+                KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)DUTY_EXCITE_BASE_RPM, "待測端起轉停在 300 rpm (Sy52=300)");
+                KebWriteParamWithDll(spdCom, spdBaud, spdNode, 0x0F12, 1000); // 放行 100% 轉矩
+                SetHmiKebCommand(spdCom, spdBaud, spdNode, 4, "待測端正轉至 300 rpm (Sy50=4)");
+
+                lblDutyStatus.Text = string.Format("【低速起轉】待測端起轉至 300 rpm 中 (目標 {0:F0} rpm)...", targetSpd);
+                lblDutyPhaseAction.Text = "待測端起步至 300 rpm，準備加載端激磁等待 3 秒...";
+            }
+            else
+            {
+                // 額定轉速 <= 300 rpm：直接加速，加載端同步激磁
+                dutyExciteStage = 0;
+                dutyExciteWaitSec = 0;
+                dutyRampStep = 0;
+
+                KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0);
+                SetHmiKebCommand(trqCom, trqBaud, trqNode, 4, string.Format("{0}加載端激磁 (Sy50=4, cs18=0%)", trqDriveName));
+
+                KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)s6CurrentSpeedCmd, "待測端直接提速 (Sy52)");
+                KebWriteParamWithDll(spdCom, spdBaud, spdNode, 0x0F12, 1000);
+                SetHmiKebCommand(spdCom, spdBaud, spdNode, 4, "待測端正轉 (Sy50=4)");
+            }
 
             // 啟轉後短暫等待並校驗變頻器真實故障碼 ru.43 (0x022B)，若硬體跳脫則中止
             Thread.Sleep(80);
@@ -1806,55 +1835,85 @@ namespace DynamometerHMI
 
             string currentPhaseName = "運轉中";
 
-            // 【加載端預先激磁與平穩起轉狀態機處理】
-            if (dutyPreExciteStage == 1)
+            // 【使用者現場測試黃金規範狀態機】：
+            // 階段 1：待測端起步停在 300 rpm，到達後讓加載端激磁不給轉矩量 (Sy50=4, cs18=0)
+            if (dutyExciteStage == 1)
             {
-                // 階段 1：加載端在零速下建立磁場 (維持 1 秒讓轉子磁通飽和)
-                KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // cs.18 = 0%
-                dutyPreExciteWaitSec++;
+                KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // cs.18 嚴格為 0%
+                dutyExciteWaitSec++;
 
-                if (dutyPreExciteWaitSec >= 1)
+                bool reached300 = (actAbsSpd >= 260.0 && actAbsSpd <= 350.0) || (dutyExciteWaitSec >= 5 && actAbsSpd >= 200.0);
+                if (reached300)
                 {
-                    dutyPreExciteWaitSec = 0;
-                    if (targetSpd > DUTY_LOW_SPEED_EXCITE_RPM)
-                    {
-                        // 目標轉速較高 (>200 rpm)，進入階段 2：先平穩起轉至低速區間 (200 rpm)
-                        dutyPreExciteStage = 2;
-                        KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)DUTY_LOW_SPEED_EXCITE_RPM, "DUTY平穩起轉至低速區間 (Sy52)");
-                        WriteHmiLog("DUTY_STAGE", string.Format("【加載端激磁建立完成】加載端 {0} 磁場已飽和 (Sy50=4, cs18=0%)，待測端先平穩起轉至低速 {1:F0} rpm", trqDriveName, DUTY_LOW_SPEED_EXCITE_RPM));
-                    }
-                    else
-                    {
-                        // 目標轉速本身即為低速 (<=200 rpm)，直接提速至目標轉速
-                        dutyPreExciteStage = 0;
-                        KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)s6CurrentSpeedCmd, "DUTY激磁完成直接提速至目標轉速 (Sy52)");
-                        WriteHmiLog("DUTY_STAGE", string.Format("【加載端激磁建立完成】加載端 {0} 磁場已飽和 (Sy50=4, cs18=0%)，待測端正式起轉提速至目標 {1:F0} rpm", trqDriveName, s6CurrentSpeedCmd));
-                    }
+                    // 到達 300 rpm！立即讓加載端激磁不給轉矩量 (Sy50=4, cs18=0%)
+                    SetHmiKebCommand(trqCom, trqBaud, trqNode, 4, string.Format("{0}300rpm激磁導通 (Sy50=4, cs18=0%)", trqDriveName));
+                    isLoadMotorPreEnergized = true;
+                    dutyExciteStage = 2;
+                    dutyExciteWaitSec = 0;
+                    WriteHmiLog("DUTY_EXCITE", string.Format("【300 rpm 激磁啟動】待測端已停在 300 rpm (實測 {0:F0} rpm)，加載端 {1} 激磁導通 (Sy50=4, cs18=0%)，開始等待 3 秒建立穩定磁通...", actAbsSpd, trqDriveName));
                 }
-                lblDutyStatus.Text = string.Format("【預激磁】加載端零速建立磁場中 ({0}/1s)：待測端零速待命 | cs18=0%", dutyPreExciteWaitSec);
-                lblDutyPhaseAction.Text = string.Format("加載端 {0} 磁通建立中，待測端準備起轉至 {1:F0} rpm", trqDriveName, targetSpd);
+                lblDutyStatus.Text = string.Format("【低速起轉】待測端起轉至 300 rpm 中 (實測 {0:F0} rpm)...", actAbsSpd);
+                lblDutyPhaseAction.Text = "待測端升速停在 300 rpm 中，加載端待命準備激磁...";
                 if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
                 if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
                 return;
             }
-            else if (dutyPreExciteStage == 2)
+            // 階段 2：在 300 rpm 下讓加載端激磁不給轉矩量，精確等待 3 秒
+            else if (dutyExciteStage == 2)
             {
-                // 階段 2：待測端在低速 (200 rpm) 區間運轉，確認轉子在受控零力矩下順暢旋轉 (實測 >= 120 rpm 或等待 2 秒)
-                KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // 確保 cs.18 嚴格為 0%
-                dutyPreExciteWaitSec++;
+                KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // cs.18 嚴格保持 0%
+                dutyExciteWaitSec++;
 
-                if (actAbsSpd >= 120.0 || dutyPreExciteWaitSec >= 2)
-                {
-                    // 低速過渡完成！待測端正式提速至目標測試轉速
-                    dutyPreExciteStage = 0;
-                    dutyPreExciteWaitSec = 0;
-                    KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)s6CurrentSpeedCmd, "DUTY預激磁過渡完成提速至目標轉速 (Sy52)");
-                    WriteHmiLog("DUTY_STAGE", string.Format("【低速過渡完成】實測 {0:F0} rpm，加載端零負載運轉穩定，待測端正式提速至目標 {1:F0} rpm", actAbsSpd, s6CurrentSpeedCmd));
-                }
-                lblDutyStatus.Text = string.Format("【低速過渡】待測端低速運轉中 ({0}/2s)：實測 {1:F0} rpm | 加載端零負載跟隨", dutyPreExciteWaitSec, actAbsSpd);
-                lblDutyPhaseAction.Text = string.Format("待測端低速熱備妥確認，即將提速至目標 {0:F0} rpm...", targetSpd);
+                lblDutyStatus.Text = string.Format("【加載端激磁】停在 300 rpm 激磁等待中 ({0}/3s) | 實測 {1:F0} rpm, 轉矩 0%", dutyExciteWaitSec, actAbsSpd);
+                lblDutyPhaseAction.Text = string.Format("加載端 {0} 300 rpm 磁場建立等待 3 秒 (轉矩 0.0%)，杜絕轉矩方向改變...", trqDriveName);
                 if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
                 if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
+
+                if (dutyExciteWaitSec >= 3)
+                {
+                    // 3 秒等待完成！啟動 4 段梯度加速
+                    dutyExciteStage = 3;
+                    dutyRampStep = 0;
+                    dutyExciteWaitSec = 0;
+                    WriteHmiLog("DUTY_EXCITE", string.Format("【300 rpm 激磁完成】加載端 {0} 磁場已在 300 rpm 穩定建立滿 3 秒，正式啟動 4 段梯度加速至目標 {1:F0} rpm", trqDriveName, targetSpd));
+                }
+                return;
+            }
+            // 階段 3：加速採用梯度上升，用設定的額定轉速分成 4 段加速，加載端全程保持 0 轉矩熱備妥跟隨
+            else if (dutyExciteStage == 3)
+            {
+                KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, 0); // 加速全程加載端維持 0 轉矩
+                dutyExciteWaitSec++;
+
+                int curStepIdx = Math.Min(3, Math.Max(0, dutyRampStep));
+                double rampTarget = dutyRampSpeeds[curStepIdx];
+
+                if (dutyExciteWaitSec == 1)
+                {
+                    // 剛進入該段梯度：下達該段目標轉速
+                    KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)rampTarget, string.Format("DUTY梯度加速第 {0}/4 段 (Sy52={1:F0})", curStepIdx + 1, rampTarget));
+                    WriteHmiLog("DUTY_EXCITE", string.Format("【4段梯度加速 {0}/4】下達轉速命令 {1:F0} rpm (加載端保持 cs18=0%)", curStepIdx + 1, rampTarget));
+                }
+
+                lblDutyStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：目標 {1:F0} rpm (實測 {2:F0} rpm) | 加載端零力矩跟隨", curStepIdx + 1, rampTarget, actAbsSpd);
+                lblDutyPhaseAction.Text = string.Format("梯度升速 {0}/4 段中，避免加速中轉矩方向改變...", curStepIdx + 1);
+                if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
+                if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
+
+                // 每段維持 2 秒或轉速到達該段目標 92%
+                bool stepReached = (actAbsSpd >= rampTarget * 0.90) || (dutyExciteWaitSec >= 2);
+                if (stepReached)
+                {
+                    dutyRampStep++;
+                    dutyExciteWaitSec = 0;
+                    if (dutyRampStep >= 4)
+                    {
+                        // 4 段全部完成！正式提速至需求轉速，進入正常加載測試
+                        dutyExciteStage = 0;
+                        KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)s6CurrentSpeedCmd, "DUTY 4段梯度完成提速至需求轉速 (Sy52)");
+                        WriteHmiLog("DUTY_EXCITE", string.Format("【4段梯度加速全部完成】已順暢平滑到達需求轉速 {0:F0} rpm，加載端零力矩無反轉，正式進入工作制測試！", targetSpd));
+                    }
+                }
                 return;
             }
 
