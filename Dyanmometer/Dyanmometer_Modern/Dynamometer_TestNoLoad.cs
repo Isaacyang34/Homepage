@@ -26,6 +26,8 @@ namespace DynamometerHMI
         private ComboBox cmbNoLoadRole;
         public CheckBox chkNoLoadRatedTest;           // 勾選: 額定轉速溫升測試
         private NumericUpDown numNoLoadRatedSpd;      // 額定轉速 (rpm)
+        public CheckBox chkNoLoadMidSpdTest;          // 勾選: 中間轉速溫升測試
+        private NumericUpDown numNoLoadMidSpd;        // 中間轉速 (rpm)
         public CheckBox chkNoLoadMaxSpdTest;          // 勾選: 最高轉速階梯測試
         private NumericUpDown numNoLoadMaxSpd;        // 最高轉速 (rpm)
         private NumericUpDown numNoLoadStepSpd;       // 升速梯度 (rpm)
@@ -38,6 +40,29 @@ namespace DynamometerHMI
         private Label lblNoLoadSelectedChHint;
         private Button btnStartNoLoad;
         private Button btnStopNoLoad;
+        private Button btnJumpMidSpdStable;           // 聚焦中間速達標點
+
+        // 穩定溫度紀錄結構
+        public class NoLoadStablePoint
+        {
+            public int StageIndex;
+            public string StageName;        // "額定轉速", "中間轉速", "最高轉速"
+            public double TargetSpd;
+            public double ActSpd;
+            public double StableTemp;       // 軸承最高溫 (℃)
+            public int StableCh;            // 通道索引 (0-indexed)
+            public double MaxDeltaT;        // 30min 最大溫差 (℃)
+            public DateTime AchievedTime;   // 達標時間
+            public int ElapsedSec;          // 測試經過秒數
+            public double VoltageSigma;     // 平均電壓 (V)
+            public double CurrentSigma;     // 平均電流 (A)
+            public double ElecPower;        // 輸入電功率 (kW)
+            public double Freq;             // 頻率 (Hz)
+        }
+
+        public List<NoLoadStablePoint> noLoadStablePoints = new List<NoLoadStablePoint>();
+        private List<Tuple<string, double>> noLoadActiveTargets = new List<Tuple<string, double>>();
+        private int noLoadTargetIdx = 0;
 
         // 即時狀態顯示標籤
         private Label lblNoLoadStateBadge;
@@ -154,7 +179,7 @@ namespace DynamometerHMI
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 4,
-                RowCount = 6,
+                RowCount = 7,
                 AutoScroll = true
             };
             tblParamsInner.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130f));
@@ -162,8 +187,8 @@ namespace DynamometerHMI
             tblParamsInner.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130f));
             tblParamsInner.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
 
-            for (int r = 0; r < 6; r++)
-                tblParamsInner.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
+            for (int r = 0; r < 7; r++)
+                tblParamsInner.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
 
             // 列 0: 待測端載台選擇 (空載測試無加載端)
             Label lblRole = new Label() { Text = "待測載台:", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold) };
@@ -175,7 +200,7 @@ namespace DynamometerHMI
             tblParamsInner.Controls.Add(cmbNoLoadRole, 1, 0);
             tblParamsInner.SetColumnSpan(cmbNoLoadRole, 3);
 
-            // 列 1: 額定轉速 & 最高轉速 (可勾選只做其中一項或兩者都做，預設皆勾選)
+            // 列 1: 額定轉速 & 中間轉速 (可任意勾選組合)
             chkNoLoadRatedTest = new CheckBox()
             {
                 Text = "額定轉速 (rpm):",
@@ -194,6 +219,37 @@ namespace DynamometerHMI
                 SaveLayoutConfig();
             };
 
+            chkNoLoadMidSpdTest = new CheckBox()
+            {
+                Text = "中間轉速 (rpm):",
+                Checked = false,
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleRight,
+                CheckAlign = ContentAlignment.MiddleLeft,
+                Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(30, 41, 59),
+                Cursor = Cursors.Hand
+            };
+            numNoLoadMidSpd = new NumericUpDown() { Dock = DockStyle.Fill, Minimum = 100, Maximum = 12000, Value = 2500, Increment = 100, Enabled = false, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
+            numNoLoadMidSpd.ValueChanged += (s, e) => SaveLayoutConfig();
+            chkNoLoadMidSpdTest.CheckedChanged += (s, e) => {
+                numNoLoadMidSpd.Enabled = chkNoLoadMidSpdTest.Checked;
+                SaveLayoutConfig();
+            };
+
+            var ttRated = new ToolTip();
+            ttRated.SetToolTip(chkNoLoadRatedTest, "【額定轉速溫升測試】\n勾選以進行額定轉速持續運轉與 30 分鐘熱平衡判定。");
+            var ttMidSpd = new ToolTip();
+            ttMidSpd.SetToolTip(chkNoLoadMidSpdTest, "【中間轉速溫升測試】\n勾選以進行中間轉速運轉與 30 分鐘熱平衡判定。");
+            var ttMaxSpd = new ToolTip();
+            ttMaxSpd.SetToolTip(chkNoLoadMaxSpdTest, "【最高轉速階梯測試】\n勾選以進行最高轉速運轉與 30 分鐘熱平衡判定。");
+
+            tblParamsInner.Controls.Add(chkNoLoadRatedTest, 0, 1);
+            tblParamsInner.Controls.Add(numNoLoadRatedSpd, 1, 1);
+            tblParamsInner.Controls.Add(chkNoLoadMidSpdTest, 2, 1);
+            tblParamsInner.Controls.Add(numNoLoadMidSpd, 3, 1);
+
+            // 列 2: 最高轉速 & 升速梯度
             chkNoLoadMaxSpdTest = new CheckBox()
             {
                 Text = "最高轉速 (rpm):",
@@ -212,47 +268,47 @@ namespace DynamometerHMI
                 SaveLayoutConfig();
             };
 
-            var ttRated = new ToolTip();
-            ttRated.SetToolTip(chkNoLoadRatedTest, "【額定轉速溫升測試 (Phase 1)】\n勾選以進行額定轉速持續運轉與 30 分鐘熱平衡判定。\n若取消勾選，將直接以設定轉速作為起始轉速進入階梯提速，跳過 Phase 1 熱平衡等待。");
-            var ttMaxSpd = new ToolTip();
-            ttMaxSpd.SetToolTip(chkNoLoadMaxSpdTest, "【最高轉速階梯測試 (Phase 2 & 3)】\n勾選以在額定溫升後依梯度加速至最高轉速並比對熱平衡。\n若取消勾選，則在額定轉速熱平衡達標後直接安全停機結案。");
-
-            tblParamsInner.Controls.Add(chkNoLoadRatedTest, 0, 1);
-            tblParamsInner.Controls.Add(numNoLoadRatedSpd, 1, 1);
-            tblParamsInner.Controls.Add(chkNoLoadMaxSpdTest, 2, 1);
-            tblParamsInner.Controls.Add(numNoLoadMaxSpd, 3, 1);
-
-            // 列 2: 升速梯度 & 階梯停留時間 (階梯評估)
             Label lblStep = new Label() { Text = "升速梯度 (rpm):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold) };
             numNoLoadStepSpd = new NumericUpDown() { Dock = DockStyle.Fill, Minimum = 50, Maximum = 3000, Value = 500, Increment = 50, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
             numNoLoadStepSpd.ValueChanged += (s, e) => SaveLayoutConfig();
+
+            tblParamsInner.Controls.Add(chkNoLoadMaxSpdTest, 0, 2);
+            tblParamsInner.Controls.Add(numNoLoadMaxSpd, 1, 2);
+            tblParamsInner.Controls.Add(lblStep, 2, 2);
+            tblParamsInner.Controls.Add(numNoLoadStepSpd, 3, 2);
+
+            // 列 3: 階梯停留時間 (階梯評估) & 溫度閥值
             Label lblDwell = new Label() { Text = "階梯評估 (秒):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold) };
             numNoLoadStepDwellSec = new NumericUpDown() { Dock = DockStyle.Fill, Minimum = 10, Maximum = 1800, Value = 60, Increment = 10, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
             numNoLoadStepDwellSec.ValueChanged += (s, e) => SaveLayoutConfig();
             var ttDwell = new ToolTip();
-            ttDwell.SetToolTip(lblDwell, "【階梯評估時間 (秒)】\n額定轉速熱平衡後，每按梯度升速一個階梯時，在該轉速下『持溫停留評估穩定度』的秒數。\n在此期間若未超溫且運轉穩定，即判定評估通過，繼續提速至下一階梯。");
-            ttDwell.SetToolTip(numNoLoadStepDwellSec, "【階梯評估時間 (秒)】\n額定轉速熱平衡後，每按梯度升速一個階梯時，在該轉速下『持溫停留評估穩定度』的秒數。\n在此期間若未超溫且運轉穩定，即判定評估通過，繼續提速至下一階梯。");
-            tblParamsInner.Controls.Add(lblStep, 0, 2);
-            tblParamsInner.Controls.Add(numNoLoadStepSpd, 1, 2);
-            tblParamsInner.Controls.Add(lblDwell, 2, 2);
-            tblParamsInner.Controls.Add(numNoLoadStepDwellSec, 3, 2);
+            ttDwell.SetToolTip(lblDwell, "【階梯評估時間 (秒)】\n按梯度升速一個階梯時，在該轉速下『持溫停留評估穩定度』的秒數。\n在此期間若未超溫且運轉穩定，即判定評估通過，繼續提速至下一階梯。");
+            ttDwell.SetToolTip(numNoLoadStepDwellSec, "【階梯評估時間 (秒)】\n按梯度升速一個階梯時，在該轉速下『持溫停留評估穩定度』的秒數。\n在此期間若未超溫且運轉穩定，即判定評估通過，繼續提速至下一階梯。");
 
-            // 列 3: 溫度閥值 & 超溫時間 Ts
             Label lblTempLim = new Label() { Text = "溫度閥值 (℃):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), ForeColor = Color.FromArgb(220, 38, 38) };
             numNoLoadTempLimit = new NumericUpDown() { Dock = DockStyle.Fill, Minimum = 20, Maximum = 180, DecimalPlaces = 1, Value = 75.0m, Increment = 1.0m, Font = new Font("微軟正黑體", 11f, FontStyle.Bold), ForeColor = Color.FromArgb(220, 38, 38) };
             numNoLoadTempLimit.ValueChanged += (s, e) => SaveLayoutConfig();
+
+            tblParamsInner.Controls.Add(lblDwell, 0, 3);
+            tblParamsInner.Controls.Add(numNoLoadStepDwellSec, 1, 3);
+            tblParamsInner.Controls.Add(lblTempLim, 2, 3);
+            tblParamsInner.Controls.Add(numNoLoadTempLimit, 3, 3);
+
+            // 列 4: 超溫時間 Ts & 降速冷卻時間 Tn
             Label lblTs = new Label() { Text = "超溫時間 Ts (s):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), ForeColor = Color.FromArgb(220, 38, 38) };
             numNoLoadTimeTs = new NumericUpDown() { Dock = DockStyle.Fill, Minimum = 5, Maximum = 600, Value = 30, Increment = 5, Font = new Font("微軟正黑體", 11f, FontStyle.Bold), ForeColor = Color.FromArgb(220, 38, 38) };
             numNoLoadTimeTs.ValueChanged += (s, e) => SaveLayoutConfig();
-            tblParamsInner.Controls.Add(lblTempLim, 0, 3);
-            tblParamsInner.Controls.Add(numNoLoadTempLimit, 1, 3);
-            tblParamsInner.Controls.Add(lblTs, 2, 3);
-            tblParamsInner.Controls.Add(numNoLoadTimeTs, 3, 3);
 
-            // 列 4: 冷卻等待時間 Tn & 通道選取
             Label lblTn = new Label() { Text = "降速冷卻 Tn (s):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), ForeColor = Color.FromArgb(139, 92, 246) };
             numNoLoadTimeTn = new NumericUpDown() { Dock = DockStyle.Fill, Minimum = 10, Maximum = 1800, Value = 60, Increment = 10, Font = new Font("微軟正黑體", 11f, FontStyle.Bold), ForeColor = Color.FromArgb(139, 92, 246) };
             numNoLoadTimeTn.ValueChanged += (s, e) => SaveLayoutConfig();
+
+            tblParamsInner.Controls.Add(lblTs, 0, 4);
+            tblParamsInner.Controls.Add(numNoLoadTimeTs, 1, 4);
+            tblParamsInner.Controls.Add(lblTn, 2, 4);
+            tblParamsInner.Controls.Add(numNoLoadTimeTn, 3, 4);
+
+            // 列 5: 選擇軸承監控通道
             btnNoLoadSelectChannels = new Button()
             {
                 Text = " 選擇軸承監控通道...",
@@ -262,12 +318,10 @@ namespace DynamometerHMI
                 Cursor = Cursors.Hand
             };
             btnNoLoadSelectChannels.Click += (s, e) => ShowNoLoadChannelSelectDialog();
-            tblParamsInner.Controls.Add(lblTn, 0, 4);
-            tblParamsInner.Controls.Add(numNoLoadTimeTn, 1, 4);
-            tblParamsInner.Controls.Add(btnNoLoadSelectChannels, 2, 4);
-            tblParamsInner.SetColumnSpan(btnNoLoadSelectChannels, 2);
+            tblParamsInner.Controls.Add(btnNoLoadSelectChannels, 0, 5);
+            tblParamsInner.SetColumnSpan(btnNoLoadSelectChannels, 4);
 
-            // 列 5: 通道提示與操作按鈕
+            // 列 6: 通道提示與操作按鈕
             lblNoLoadSelectedChHint = new Label()
             {
                 Text = "已選通道: CH1~CH4 (過溫超出 Ts 減速梯度一半，30min溫差<1℃完成)",
@@ -286,7 +340,7 @@ namespace DynamometerHMI
             };
             btnStopNoLoad = new Button()
             {
-                Text = "⏹ 終止測試",
+                Text = "[■] 終止測試",
                 Size = new Size(115, 36),
                 BackColor = Color.FromArgb(239, 68, 68),
                 ForeColor = Color.White,
@@ -298,7 +352,7 @@ namespace DynamometerHMI
 
             btnStartNoLoad = new Button()
             {
-                Text = "▶ 開始空載測試",
+                Text = "[>] 開始空載測試",
                 Size = new Size(135, 36),
                 BackColor = Color.FromArgb(16, 185, 129),
                 ForeColor = Color.White,
@@ -309,9 +363,9 @@ namespace DynamometerHMI
 
             flpBtns.Controls.AddRange(new Control[] { btnStopNoLoad, btnStartNoLoad });
 
-            tblParamsInner.Controls.Add(lblNoLoadSelectedChHint, 0, 5);
+            tblParamsInner.Controls.Add(lblNoLoadSelectedChHint, 0, 6);
             tblParamsInner.SetColumnSpan(lblNoLoadSelectedChHint, 2);
-            tblParamsInner.Controls.Add(flpBtns, 2, 5);
+            tblParamsInner.Controls.Add(flpBtns, 2, 6);
             tblParamsInner.SetColumnSpan(flpBtns, 2);
 
             grpParams.Controls.Add(tblParamsInner);
@@ -496,7 +550,7 @@ namespace DynamometerHMI
             dgvNoLoad.Columns[7].Width = 180;
             AttachDgvMemoryAndContextMenu(dgvNoLoad, "DgvNoLoad");
 
-            // 頂部操作工具列 (雙標記點聚焦與匯出日誌)
+            // 頂部操作工具列 (三標記點聚焦與匯出日誌)
             Panel pnlTableTop = new Panel()
             {
                 Dock = DockStyle.Top,
@@ -506,9 +560,9 @@ namespace DynamometerHMI
 
             Button btnJumpRatedStable = new Button()
             {
-                Text = "[校正] 聚焦額定達標點",
+                Text = "[校正] 額定達標點",
                 Dock = DockStyle.Right,
-                Width = 165,
+                Width = 145,
                 Height = 30,
                 Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
                 BackColor = Color.FromArgb(241, 245, 249),
@@ -530,11 +584,37 @@ namespace DynamometerHMI
                 MessageBox.Show("目前尚未達到【額定轉速】30 分鐘熱平衡穩定達標點！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };
 
+            btnJumpMidSpdStable = new Button()
+            {
+                Text = "[校正] 中間速達標點",
+                Dock = DockStyle.Right,
+                Width = 145,
+                Height = 30,
+                Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
+                BackColor = Color.FromArgb(241, 245, 249),
+                Cursor = Cursors.Hand
+            };
+            btnJumpMidSpdStable.Click += (s, e) => {
+                if (dgvNoLoad == null || dgvNoLoad.Rows.Count == 0) return;
+                for (int i = 0; i < dgvNoLoad.Rows.Count; i++)
+                {
+                    string ev = Convert.ToString(dgvNoLoad.Rows[i].Cells["Event"].Value ?? "");
+                    if (ev.Contains("中間轉速 30min 熱平衡達標核心點") || ev.Contains("中間達標") || ev.Contains("中間速達標"))
+                    {
+                        dgvNoLoad.ClearSelection();
+                        dgvNoLoad.Rows[i].Selected = true;
+                        dgvNoLoad.FirstDisplayedScrollingRowIndex = Math.Max(0, i - 4);
+                        return;
+                    }
+                }
+                MessageBox.Show("目前尚未達到【中間轉速】30 分鐘熱平衡穩定達標點！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            };
+
             Button btnJumpMaxSpdStable = new Button()
             {
-                Text = "[校正] 聚焦最高速達標點",
+                Text = "[校正] 最高速達標點",
                 Dock = DockStyle.Right,
-                Width = 175,
+                Width = 145,
                 Height = 30,
                 Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
                 BackColor = Color.FromArgb(241, 245, 249),
@@ -558,7 +638,7 @@ namespace DynamometerHMI
 
             Button btnExportCsv = new Button()
             {
-                Text = " 匯出空載日誌 (CSV)",
+                Text = "[匯出] 空載日誌 (CSV)",
                 Dock = DockStyle.Right,
                 Width = 165,
                 Height = 30,
@@ -570,6 +650,7 @@ namespace DynamometerHMI
 
             pnlTableTop.Controls.Add(btnExportCsv);
             pnlTableTop.Controls.Add(btnJumpMaxSpdStable);
+            pnlTableTop.Controls.Add(btnJumpMidSpdStable);
             pnlTableTop.Controls.Add(btnJumpRatedStable);
 
             grpTable.Controls.Add(dgvNoLoad);
@@ -758,19 +839,24 @@ namespace DynamometerHMI
             if (isNoLoadRunning) return;
 
             // 1. 勾選與參數檢查
-            if (!chkNoLoadRatedTest.Checked && !chkNoLoadMaxSpdTest.Checked)
+            if (!chkNoLoadRatedTest.Checked && !chkNoLoadMidSpdTest.Checked && !chkNoLoadMaxSpdTest.Checked)
             {
-                MessageBox.Show("【啟動攔截】請至少勾選『額定轉速』或『最高轉速』其中一項測試！", "參數檢查", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("【啟動攔截】請至少勾選『額定轉速』、『中間轉速』或『最高轉速』其中一項測試！", "參數檢查", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            decimal ratedVal = numNoLoadRatedSpd.Value;
-            decimal maxVal = numNoLoadMaxSpd.Value;
-            if (chkNoLoadRatedTest.Checked && chkNoLoadMaxSpdTest.Checked && maxVal < ratedVal)
-            {
-                MessageBox.Show("最高轉速不得低於額定轉速，請檢查轉速設定！", "參數錯誤", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
+            // 收集所有勾選之目標轉速，並依轉速由低至高排序
+            noLoadActiveTargets.Clear();
+            if (chkNoLoadRatedTest.Checked)
+                noLoadActiveTargets.Add(new Tuple<string, double>("額定轉速", (double)numNoLoadRatedSpd.Value));
+            if (chkNoLoadMidSpdTest.Checked)
+                noLoadActiveTargets.Add(new Tuple<string, double>("中間轉速", (double)numNoLoadMidSpd.Value));
+            if (chkNoLoadMaxSpdTest.Checked)
+                noLoadActiveTargets.Add(new Tuple<string, double>("最高轉速", (double)numNoLoadMaxSpd.Value));
+
+            noLoadActiveTargets.Sort((a, b) => a.Item2.CompareTo(b.Item2));
+            noLoadTargetIdx = 0;
+            noLoadStablePoints.Clear();
 
             // 2. 設備在線狀態防呆檢查 (使用者明確規範：空載測試僅需「待測端驅動器 + 功率表 + 溫度記錄器」3項在線即可運作)
             //    其餘儀器 (Kistler 扭力計、加載端驅動器) 連線與否及數據完全不阻擋啟動，亦不進行分析
@@ -827,8 +913,9 @@ namespace DynamometerHMI
             if (noLoadSpdDrive == 1) currentKebMode1 = 9; else currentKebMode2 = 9;
             UpdateHmiKebModeButtonsVisual();
 
-            // 待測端放行 100% 轉矩極限 (cs.18 = 1000)，設定初始目標轉速 (Sy52)，下發啟轉運轉 (Sy50 = 4)
-            noLoadCurrentTargetSpd = (double)ratedVal;
+            // 待測端放行 100% 轉矩極限 (cs.18 = 1000)，設定第 1 階段目標轉速 (Sy52)，下發啟轉運轉 (Sy50 = 4)
+            var firstTarget = noLoadActiveTargets[0];
+            noLoadCurrentTargetSpd = firstTarget.Item2;
             KebWriteParamWithDll(spdCom, spdBaud, spdNode, 0x0F12, 1000);
             KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)noLoadCurrentTargetSpd, spdName + " 空載轉速 (Sy52)");
             SetHmiKebCommand(spdCom, spdBaud, spdNode, 4, spdName + " 啟轉運轉 (Sy50=4)");
@@ -865,27 +952,11 @@ namespace DynamometerHMI
             if (dgvNoLoad != null) dgvNoLoad.Rows.Clear();
             if (noLoadTempTrend != null) noLoadTempTrend.ClearData();
 
-            // 判斷是否跳過額定轉速熱平衡 (若取消額定轉速，直接以設定轉速進入 Phase 2 階梯升速)
-            if (!chkNoLoadRatedTest.Checked)
-            {
-                noLoadState = (noLoadCurrentTargetSpd >= (double)maxVal) ? NoLoadState.MaxSpeedRun : NoLoadState.IntermediateRun;
-                string notice = string.Format("【跳過額定熱平衡】以起始轉速 {0:F0} rpm 直接進入提速階段！", noLoadCurrentTargetSpd);
-                AddNoLoadLog(DateTime.Now.ToString("HH:mm:ss"), "0", "略過額定", noLoadCurrentTargetSpd, 0, currentMaxBearing, 0, notice);
-                WriteHmiLog("NOLOAD_SKIP_RATED", notice);
-
-                webRemoteStatusText = string.Format("【空載-階梯提速】目標 {0:F0} rpm (跳過額定熱平衡)", noLoadCurrentTargetSpd);
-                webRemotePhaseText = "階梯提速中";
-                lblNoLoadStateBadge.Text = string.Format("【Phase 2: 階梯提速】目標: {0:F0} rpm", noLoadCurrentTargetSpd);
-                lblNoLoadStateBadge.ForeColor = Color.FromArgb(79, 70, 229);
-            }
-            else
-            {
-                noLoadState = NoLoadState.RatedWarmup;
-                webRemoteStatusText = string.Format("【空載-額定轉速】目標 {0:F0} rpm (比對 30min 溫差 < 1℃)", noLoadCurrentTargetSpd);
-                webRemotePhaseText = "額定轉速溫升中";
-                lblNoLoadStateBadge.Text = "【Phase 1: 額定轉速熱平衡】運轉中...";
-                lblNoLoadStateBadge.ForeColor = Color.FromArgb(2, 132, 199);
-            }
+            noLoadState = NoLoadState.RatedWarmup;
+            webRemoteStatusText = string.Format("【空載-{0}】目標 {1:F0} rpm (比對 30min 溫差 < 1℃)", firstTarget.Item1, noLoadCurrentTargetSpd);
+            webRemotePhaseText = firstTarget.Item1 + "溫升中";
+            lblNoLoadStateBadge.Text = string.Format("【階段 1/{0}: {1}熱平衡】目標: {2:F0} rpm", noLoadActiveTargets.Count, firstTarget.Item1, noLoadCurrentTargetSpd);
+            lblNoLoadStateBadge.ForeColor = Color.FromArgb(2, 132, 199);
 
             // 若尚未啟動硬體遙測輪詢，自動連鎖啟動
             if (!isRunning) BtnStart_Click(null, null);
@@ -898,9 +969,10 @@ namespace DynamometerHMI
 
             lblNoLoadTargetSpdDisp.Text = string.Format("{0:F0} rpm", noLoadCurrentTargetSpd);
 
-            AddNoLoadLog(DateTime.Now.ToString("HH:mm:ss"), "0", "啟動測試", noLoadCurrentTargetSpd, 0, currentMaxBearing, 0, "啟動空載測試成功！");
-            WriteHmiLog("NOLOAD_START", string.Format("【開始空載測試】待測={0}, 執行額定={1}, 執行最高速={2}, 額定轉速={3:F0} rpm, 最高轉速={4:F0} rpm, 梯度={5:F0} rpm, 閥值={6:F1}℃(Ts={7}s, Tn={8}s)",
-                spdName, chkNoLoadRatedTest.Checked, chkNoLoadMaxSpdTest.Checked, ratedVal, maxVal, numNoLoadStepSpd.Value, numNoLoadTempLimit.Value, numNoLoadTimeTs.Value, numNoLoadTimeTn.Value));
+            AddNoLoadLog(DateTime.Now.ToString("HH:mm:ss"), "0", "啟動測試", noLoadCurrentTargetSpd, 0, currentMaxBearing, 0,
+                string.Format("啟動空載測試成功！目標共 {0} 階段 ({1})", noLoadActiveTargets.Count, string.Join(" -> ", noLoadActiveTargets.Select(t => t.Item1 + ":" + t.Item2.ToString("F0") + "rpm"))));
+            WriteHmiLog("NOLOAD_START", string.Format("【開始空載測試】待測={0}, 共 {1} 階段, 梯度={2:F0} rpm, 閥值={3:F1}℃(Ts={4}s, Tn={5}s)",
+                spdName, noLoadActiveTargets.Count, numNoLoadStepSpd.Value, numNoLoadTempLimit.Value, numNoLoadTimeTs.Value, numNoLoadTimeTn.Value));
 
             if (noLoadTimer != null) noLoadTimer.Start();
         }
@@ -997,7 +1069,7 @@ namespace DynamometerHMI
                 string maxTempStr = (maxBearingTemp > -100.0) ? string.Format("{0:F1} ℃ (CH{1})", maxBearingTemp, maxBearingCh + 1) : "--.- ℃";
                 lblNoLoadMaxTempDisp.Text = maxTempStr;
 
-                // 餵入多通道趨勢圖 (各選定通道獨立彩色曲線、端點即時標記與圖例)
+                // 餵入多通道趨勢圖
                 if (noLoadTempTrend != null && chSnapshot != null)
                 {
                     noLoadTempTrend.AddSample(now, chSnapshot);
@@ -1011,7 +1083,7 @@ namespace DynamometerHMI
                     noLoadTempHistory.RemoveAll(x => x.Key < expireTime);
                 }
 
-                // 4. 計算 30 分鐘溫差 (熱平衡判定依據) - 原生非 LINQ 高效掃描，零 Heap 額外配置
+                // 4. 計算 30 分鐘溫差 (熱平衡判定依據)
                 DateTime thirtyMinAgo = now.AddMinutes(-30);
                 KeyValuePair<DateTime, double[]> baselineSample = default(KeyValuePair<DateTime, double[]>);
                 if (noLoadTempHistory != null && noLoadTempHistory.Count > 0)
@@ -1027,377 +1099,358 @@ namespace DynamometerHMI
                         }
                         else if (noLoadTempHistory[i].Key > thirtyMinAgo && diffSec > bestDiffSec)
                         {
-                            break; // 歷史佇列依時間遞增，偏離後即可提前結束
+                            break;
                         }
                     }
                 }
 
-            int stageMins = noLoadStageElapsedSec / 60;
-            int stageSecs = noLoadStageElapsedSec % 60;
-            bool isThermalBalanced = false;
-            double maxDeltaT = 0.0;
-            int maxDeltaCh = -1;
+                int stageMins = noLoadStageElapsedSec / 60;
+                int stageSecs = noLoadStageElapsedSec % 60;
+                bool isThermalBalanced = false;
+                double maxDeltaT = 0.0;
+                int maxDeltaCh = -1;
 
-            if (noLoadStageElapsedSec < 1800 || baselineSample.Value == null)
-            {
-                int warmupSec = Math.Min(1800, noLoadStageElapsedSec);
-                lblNoLoadDeltaTDisp.Text = string.Format("累積中 ({0:D2}:{1:D2}/30:00)", stageMins, stageSecs);
-                lblNoLoadDeltaTDisp.ForeColor = Color.FromArgb(139, 92, 246);
-                prgNoLoad.Maximum = 1800;
-                prgNoLoad.Value = warmupSec;
-            }
-            else
-            {
-                prgNoLoad.Value = 1800;
-                isThermalBalanced = true;
-                for (int ch = 0; ch < 20; ch++)
+                if (noLoadStageElapsedSec < 1800 || baselineSample.Value == null)
                 {
-                    if (noLoadMonitoredChannels != null && ch < noLoadMonitoredChannels.Length && noLoadMonitoredChannels[ch])
+                    int warmupSec = Math.Min(1800, noLoadStageElapsedSec);
+                    lblNoLoadDeltaTDisp.Text = string.Format("累積中 ({0:D2}:{1:D2}/30:00)", stageMins, stageSecs);
+                    lblNoLoadDeltaTDisp.ForeColor = Color.FromArgb(139, 92, 246);
+                    prgNoLoad.Maximum = 1800;
+                    prgNoLoad.Value = warmupSec;
+                }
+                else
+                {
+                    prgNoLoad.Value = 1800;
+                    isThermalBalanced = true;
+                    for (int ch = 0; ch < 20; ch++)
                     {
-                        double tNow = chSnapshot[ch];
-                        double tOld = baselineSample.Value[ch];
-                        double diff = Math.Abs(tNow - tOld);
-                        if (diff > maxDeltaT)
+                        if (noLoadMonitoredChannels != null && ch < noLoadMonitoredChannels.Length && noLoadMonitoredChannels[ch])
                         {
-                            maxDeltaT = diff;
-                            maxDeltaCh = ch;
-                        }
-                        if (diff >= 1.0)
-                        {
-                            isThermalBalanced = false;
+                            double tNow = chSnapshot[ch];
+                            double tOld = baselineSample.Value[ch];
+                            double diff = Math.Abs(tNow - tOld);
+                            if (diff > maxDeltaT)
+                            {
+                                maxDeltaT = diff;
+                                maxDeltaCh = ch;
+                            }
+                            if (diff >= 1.0)
+                            {
+                                isThermalBalanced = false;
+                            }
                         }
                     }
+
+                    lblNoLoadDeltaTDisp.Text = string.Format("最大ΔT: {0:F2}℃ (CH{1}) {2}", maxDeltaT, maxDeltaCh + 1, isThermalBalanced ? "達標" : "比對中");
+                    lblNoLoadDeltaTDisp.ForeColor = isThermalBalanced ? Color.FromArgb(16, 185, 129) : Color.FromArgb(234, 88, 12);
                 }
 
-                lblNoLoadDeltaTDisp.Text = string.Format("最大ΔT: {0:F2}℃ (CH{1}) {2}", maxDeltaT, maxDeltaCh + 1, isThermalBalanced ? "達標" : "比對中");
-                lblNoLoadDeltaTDisp.ForeColor = isThermalBalanced ? Color.FromArgb(16, 185, 129) : Color.FromArgb(234, 88, 12);
-            }
+                // 5. 取得使用者設定閥值與硬體通訊節點
+                double tempLimit = (double)numNoLoadTempLimit.Value;
+                int limitTs = (int)numNoLoadTimeTs.Value;
+                int limitTn = (int)numNoLoadTimeTn.Value;
+                double stepSpd = (double)numNoLoadStepSpd.Value;
 
-            // 5. 取得使用者設定閥值
-            double tempLimit = (double)numNoLoadTempLimit.Value;
-            int limitTs = (int)numNoLoadTimeTs.Value;
-            int limitTn = (int)numNoLoadTimeTn.Value;
-            double stepSpd = (double)numNoLoadStepSpd.Value;
-            double ratedSpd = (double)numNoLoadRatedSpd.Value;
-            double maxSpd = (double)numNoLoadMaxSpd.Value;
+                int spdCom = GetHmiKebComIdx(noLoadSpdDrive), spdBaud = GetHmiKebBaudIdx(noLoadSpdDrive);
+                int spdNode = (noLoadSpdDrive == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
 
-            int spdCom = GetHmiKebComIdx(noLoadSpdDrive), spdBaud = GetHmiKebBaudIdx(noLoadSpdDrive);
-            int spdNode = (noLoadSpdDrive == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
+                var curTarget = (noLoadActiveTargets != null && noLoadTargetIdx >= 0 && noLoadTargetIdx < noLoadActiveTargets.Count)
+                    ? noLoadActiveTargets[noLoadTargetIdx]
+                    : new Tuple<string, double>("運轉", noLoadCurrentTargetSpd);
 
-            // =========================================================
-            // 核心狀態機邏輯處理
-            // =========================================================
-            switch (noLoadState)
-            {
-                // -----------------------------------------------------
-                // Phase 1: 額定轉速運轉與熱平衡比對
-                // -----------------------------------------------------
-                case NoLoadState.RatedWarmup:
-                    lblNoLoadStateBadge.Text = string.Format("【Phase 1: 額定轉速熱平衡】目標: {0:F0} rpm", noLoadCurrentTargetSpd);
-                    lblNoLoadStateBadge.ForeColor = Color.FromArgb(2, 132, 199);
+                // =========================================================
+                // 核心狀態機邏輯處理
+                // =========================================================
+                switch (noLoadState)
+                {
+                    // -----------------------------------------------------
+                    // 目標轉速運轉與 30 分鐘熱平衡比對階段 (支援多轉速依序流轉)
+                    // -----------------------------------------------------
+                    case NoLoadState.RatedWarmup:
+                        lblNoLoadStateBadge.Text = string.Format("【階段 {0}/{1}: {2}熱平衡】目標: {3:F0} rpm",
+                            noLoadTargetIdx + 1, noLoadActiveTargets != null ? noLoadActiveTargets.Count : 1, curTarget.Item1, noLoadCurrentTargetSpd);
+                        lblNoLoadStateBadge.ForeColor = Color.FromArgb(2, 132, 199);
 
-                    // 檢查是否超出溫度閥值
-                    if (maxBearingTemp >= tempLimit)
-                    {
-                        noLoadOverTempDurationSec++;
-                        lblNoLoadCountdownDisp.Text = string.Format("[!] 溫度超溫警戒 ({0:F1}℃ >= {1:F1}℃)！持續時間: {2}s / {3}s",
-                            maxBearingTemp, tempLimit, noLoadOverTempDurationSec, limitTs);
-                        lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(220, 38, 38);
-
-                        // 連續超過 Ts 時間  觸發過溫降速 (依梯度之一半減速)
-                        if (noLoadOverTempDurationSec >= limitTs)
+                        // 檢查超溫閥值
+                        if (maxBearingTemp >= tempLimit)
                         {
-                            double decelStep = Math.Max(50.0, stepSpd / 2.0);
-                            noLoadCurrentTargetSpd = Math.Max(100.0, noLoadCurrentTargetSpd - decelStep);
-                            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)noLoadCurrentTargetSpd, "額定轉速超溫降速(梯度一半)");
-                            lblNoLoadTargetSpdDisp.Text = string.Format("{0:F0} rpm", noLoadCurrentTargetSpd);
+                            noLoadOverTempDurationSec++;
+                            lblNoLoadCountdownDisp.Text = string.Format("[!] 溫度超溫警戒 ({0:F1}℃ >= {1:F1}℃)！持續時間: {2}s / {3}s",
+                                maxBearingTemp, tempLimit, noLoadOverTempDurationSec, limitTs);
+                            lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(220, 38, 38);
 
-                            noLoadCoolingRetryCount++;
-                            noLoadState = NoLoadState.CoolingWait;
-                            noLoadCoolingTimerSec = limitTn;
-                            noLoadOverTempDurationSec = 0;
-
-                            string ev = string.Format("額定轉速超溫達 {0}s (第 {1} 次降速重試)，依梯度一半降速 -{2:F0} rpm  {3:F0} rpm，等待 Tn={4}s 冷卻評估",
-                                limitTs, noLoadCoolingRetryCount, decelStep, noLoadCurrentTargetSpd, limitTn);
-                            AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "過溫降速", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, ev);
-                            WriteHmiLog("NOLOAD_OVERTEMP", "【額定轉速過溫降速】" + ev);
-                            return;
-                        }
-                    }
-                    else
-                    {
-                        noLoadOverTempDurationSec = 0;
-                        lblNoLoadCountdownDisp.Text = string.Format("溫度正常 ({0:F1}℃ < {1:F1}℃) | 階段累積: {2:D2}:{3:D2} / 30:00",
-                            maxBearingTemp, tempLimit, stageMins, stageSecs);
-                        lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(16, 185, 129);
-                    }
-
-                    // 熱平衡判定：滿 30 分鐘且各通道溫差 < 1.0℃  額定轉速達成！(標記點 1)
-                    if (isThermalBalanced)
-                    {
-                        MarkNoLoadPreStableRows("額定");
-                        string ev = string.Format(" 額定轉速熱平衡達標！30min最大溫差={0:F2}℃ (<1.0℃)", maxDeltaT);
-                        AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "額定達標", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, "[校正]【 額定轉速 30min 熱平衡達標核心點 】" + ev);
-                        WriteHmiLog("NOLOAD_RATED_PASS", ev);
-                        WriteNoLoadCsvMilestoneMarker(now, "【標記點1】額定轉速熱平衡達標", maxDeltaT);
-                        noLoadPostStableStage = "額定";
-                        noLoadPostStableCounter = 1;
-
-                        // 檢查是否只執行額定轉速測試
-                        if (!chkNoLoadMaxSpdTest.Checked)
-                        {
-                            noLoadState = NoLoadState.Completed;
-                            AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "測試完成", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, " 僅執行額定轉速溫升測試，已順利完成熱平衡，安全停機結案！");
-                            WriteHmiLog("NOLOAD_COMPLETE", "【空載測試完成】額定轉速熱平衡達標，依設定結案停機。");
-                            StopNoLoadTest("額定轉速溫升測試順利完成！");
-                            return;
-                        }
-
-                        // 提速進入 Phase 2 (加速至最高轉速)
-                        double nextSpd = Math.Min(maxSpd, noLoadCurrentTargetSpd + stepSpd);
-                        noLoadCurrentTargetSpd = nextSpd;
-                        KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)noLoadCurrentTargetSpd, "梯度加速");
-                        lblNoLoadTargetSpdDisp.Text = string.Format("{0:F0} rpm", noLoadCurrentTargetSpd);
-
-                        noLoadStageElapsedSec = 0;
-                        noLoadDwellTimerSec = 0;
-
-                        if (noLoadCurrentTargetSpd >= maxSpd)
-                        {
-                            noLoadState = NoLoadState.MaxSpeedRun;
-                            AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "最高轉速", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, 0, "達到最高轉速，開始最終熱平衡監控！");
-                        }
-                        else
-                        {
-                            noLoadState = NoLoadState.IntermediateRun;
-                            AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "階梯升速", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, 0, string.Format("提速至階梯 {0:F0} rpm", noLoadCurrentTargetSpd));
-                        }
-                    }
-                    break;
-
-                // -----------------------------------------------------
-                // 中間階梯轉速監控與過渡
-                // -----------------------------------------------------
-                case NoLoadState.IntermediateRun:
-                    lblNoLoadStateBadge.Text = string.Format("【Phase 2: 階梯轉速運轉】目標: {0:F0} rpm", noLoadCurrentTargetSpd);
-                    lblNoLoadStateBadge.ForeColor = Color.FromArgb(79, 70, 229);
-
-                    // 檢查超溫
-                    if (maxBearingTemp >= tempLimit)
-                    {
-                        noLoadOverTempDurationSec++;
-                        lblNoLoadCountdownDisp.Text = string.Format("[!] 階梯超溫警戒 ({0:F1}℃ >= {1:F1}℃)！持續時間: {2}s / {3}s",
-                            maxBearingTemp, tempLimit, noLoadOverTempDurationSec, limitTs);
-                        lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(220, 38, 38);
-
-                        if (noLoadOverTempDurationSec >= limitTs)
-                        {
-                            double decelStep = Math.Max(50.0, stepSpd / 2.0);
-                            noLoadCurrentTargetSpd = Math.Max(ratedSpd, noLoadCurrentTargetSpd - decelStep);
-                            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)noLoadCurrentTargetSpd, "階梯超溫降速(梯度一半)");
-                            lblNoLoadTargetSpdDisp.Text = string.Format("{0:F0} rpm", noLoadCurrentTargetSpd);
-
-                            noLoadCoolingRetryCount++;
-                            noLoadState = NoLoadState.CoolingWait;
-                            noLoadCoolingTimerSec = limitTn;
-                            noLoadOverTempDurationSec = 0;
-
-                            string ev = string.Format("階梯轉速超溫達 {0}s (第 {1} 次降速重試)，依梯度一半降速 -{2:F0} rpm  {3:F0} rpm，等待 Tn={4}s 冷卻評估",
-                                limitTs, noLoadCoolingRetryCount, decelStep, noLoadCurrentTargetSpd, limitTn);
-                            AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "階梯降速", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, ev);
-                            WriteHmiLog("NOLOAD_OVERTEMP", "【階梯超溫降速】" + ev);
-                            return;
-                        }
-                    }
-                    else
-                    {
-                        noLoadOverTempDurationSec = 0;
-                    }
-
-                    // 停留觀察時間倒數
-                    noLoadDwellTimerSec++;
-                    lblNoLoadCountdownDisp.Text = string.Format("階梯停留觀察中: {0}s / {1}s", noLoadDwellTimerSec, noLoadIntermediateDwellSec);
-                    lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(79, 70, 229);
-
-                    if (noLoadDwellTimerSec >= noLoadIntermediateDwellSec)
-                    {
-                        noLoadDwellTimerSec = 0;
-                        double nextSpd = Math.Min(maxSpd, noLoadCurrentTargetSpd + stepSpd);
-                        noLoadCurrentTargetSpd = nextSpd;
-                        KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)noLoadCurrentTargetSpd, "階梯推進加速");
-                        lblNoLoadTargetSpdDisp.Text = string.Format("{0:F0} rpm", noLoadCurrentTargetSpd);
-
-                        if (noLoadCurrentTargetSpd >= maxSpd)
-                        {
-                            noLoadState = NoLoadState.MaxSpeedRun;
-                            noLoadStageElapsedSec = 0;
-                            AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "最高轉速", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, 0, "達到最高轉速，開始最終熱平衡監控！");
-                        }
-                        else
-                        {
-                            AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "階梯升速", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, 0, string.Format("提速至階梯 {0:F0} rpm", noLoadCurrentTargetSpd));
-                        }
-                    }
-                    break;
-
-                // -----------------------------------------------------
-                // 超溫冷卻等待 (TN 倒數，支援隨時修改上限即時生效)
-                // -----------------------------------------------------
-                case NoLoadState.CoolingWait:
-                    lblNoLoadStateBadge.Text = string.Format("【降速冷卻中】第 {0} 次超溫重試 | 等待 Tn={1}s", noLoadCoolingRetryCount, noLoadCoolingTimerSec);
-                    lblNoLoadStateBadge.ForeColor = Color.FromArgb(234, 88, 12);
-
-                    noLoadCoolingTimerSec--;
-                    lblNoLoadCountdownDisp.Text = string.Format(" 降速冷卻倒數 {0}s (目前: {1:F1}℃ / 閥值: {2:F1}℃，第 {3} 次重試，可隨時調整溫度上限即時生效)",
-                        noLoadCoolingTimerSec, maxBearingTemp, tempLimit, noLoadCoolingRetryCount);
-                    lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(234, 88, 12);
-
-                    // 若使用者即時將溫度上限調高 (目前溫度已低於新閥值 - 1.0℃) 且已冷卻至少 5 秒，允許提前結束冷卻恢復升速
-                    bool userRaisedLimit = (maxBearingTemp <= tempLimit - 1.0) && (limitTn - noLoadCoolingTimerSec >= 5);
-
-                    if (noLoadCoolingTimerSec <= 0 || userRaisedLimit)
-                    {
-                        string resumeMsg = userRaisedLimit
-                            ? string.Format("檢測到溫度上限已調高即時生效 (目前 {0:F1}℃ < 閥值 {1:F1}℃)，提前結束冷卻，恢復運轉！", maxBearingTemp, tempLimit)
-                            : "冷卻等待時間結束，恢復運轉！";
-
-                        lblNoLoadCountdownDisp.Text = resumeMsg;
-                        lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(16, 185, 129);
-
-                        if (noLoadCurrentTargetSpd >= maxSpd)
-                            noLoadState = NoLoadState.MaxSpeedRun;
-                        else if (noLoadCurrentTargetSpd <= ratedSpd && chkNoLoadRatedTest.Checked)
-                            noLoadState = NoLoadState.RatedWarmup;
-                        else
-                            noLoadState = NoLoadState.IntermediateRun;
-
-                        AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "冷卻結束", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, resumeMsg);
-                    }
-                    break;
-
-                // -----------------------------------------------------
-                // Phase 3: 最高轉速運轉與最終熱平衡比對
-                // -----------------------------------------------------
-                case NoLoadState.MaxSpeedRun:
-                    lblNoLoadStateBadge.Text = string.Format("【Phase 3: 最高轉速熱平衡】目標: {0:F0} rpm", noLoadCurrentTargetSpd);
-                    lblNoLoadStateBadge.ForeColor = Color.FromArgb(16, 185, 129);
-
-                    // 檢查最高轉速下的超溫保護
-                    if (maxBearingTemp >= tempLimit)
-                    {
-                        noLoadOverTempDurationSec++;
-                        lblNoLoadCountdownDisp.Text = string.Format("[!] 最高轉速超溫警戒 ({0:F1}℃ >= {1:F1}℃)！持續時間: {2}s / {3}s",
-                            maxBearingTemp, tempLimit, noLoadOverTempDurationSec, limitTs);
-                        lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(220, 38, 38);
-
-                        if (noLoadOverTempDurationSec >= limitTs)
-                        {
-                            double decelStep = Math.Max(50.0, stepSpd / 2.0);
-                            noLoadCurrentTargetSpd = Math.Max(ratedSpd, noLoadCurrentTargetSpd - decelStep);
-                            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)noLoadCurrentTargetSpd, "最高轉速超溫降速(梯度一半)");
-                            lblNoLoadTargetSpdDisp.Text = string.Format("{0:F0} rpm", noLoadCurrentTargetSpd);
-
-                            noLoadCoolingRetryCount++;
-                            noLoadState = NoLoadState.CoolingWait;
-                            noLoadCoolingTimerSec = limitTn;
-                            noLoadOverTempDurationSec = 0;
-
-                            string ev = string.Format("最高轉速超溫達 {0}s (第 {1} 次降速重試)，依梯度一半降速 -{2:F0} rpm  {3:F0} rpm，等待 Tn={4}s 冷卻評估",
-                                limitTs, noLoadCoolingRetryCount, decelStep, noLoadCurrentTargetSpd, limitTn);
-                            AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "最高速過溫降速", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, ev);
-                            WriteHmiLog("NOLOAD_OVERTEMP", "【最高轉速過溫降速】" + ev);
-                            return;
-                        }
-                    }
-                    else
-                    {
-                        noLoadOverTempDurationSec = 0;
-                        lblNoLoadCountdownDisp.Text = string.Format("最高轉速熱平衡監控中 | 階段累積: {0:D2}:{1:D2} / 30:00 (ΔT < 1.0℃ 結案)", stageMins, stageSecs);
-                        lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(16, 185, 129);
-                    }
-
-                    // 最終熱平衡判定：最高轉速滿 30 分鐘且各通道溫差 < 1.0℃  標記點 2 達成！
-                    if (isThermalBalanced)
-                    {
-                        MarkNoLoadPreStableRows("最高速");
-                        string ev = string.Format(" 最高轉速熱平衡達標！30min最大溫差={0:F2}℃ (<1.0℃)，保持運轉採樣穩定後 5 筆驗證數據！", maxDeltaT);
-                        AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "最高速達標", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, "[校正]【 最高轉速 30min 熱平衡達標核心點 】" + ev);
-                        WriteHmiLog("NOLOAD_MAXSPD_PASS", ev);
-                        WriteNoLoadCsvMilestoneMarker(now, "【標記點2】最高轉速熱平衡達標", maxDeltaT);
-                        noLoadPostStableStage = "最高速";
-                        noLoadPostStableCounter = 1;
-
-                        noLoadState = NoLoadState.MaxSpeedPostHold;
-                        noLoadDwellTimerSec = 0;
-                        lblNoLoadStateBadge.Text = "【標記點2: 最高速達標】採樣後續 5 筆確認數據中...";
-                        lblNoLoadStateBadge.ForeColor = Color.FromArgb(16, 185, 129);
-                    }
-                    break;
-
-                // -----------------------------------------------------
-                // Phase 3 達標後續 5 筆採樣驗證階段
-                // -----------------------------------------------------
-                case NoLoadState.MaxSpeedPostHold:
-                    lblNoLoadStateBadge.Text = string.Format("【最高速達標驗證】採樣後續數據 ({0}/5 筆)", Math.Max(0, noLoadPostStableCounter - 1));
-                    lblNoLoadStateBadge.ForeColor = Color.FromArgb(16, 185, 129);
-                    lblNoLoadCountdownDisp.Text = string.Format("最高轉速達標確認採樣中: 第 {0} / 5 筆 (目前溫差: {1:F2}℃)", Math.Min(5, noLoadPostStableCounter), maxDeltaT);
-                    lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(16, 185, 129);
-
-                    noLoadDwellTimerSec++;
-                    // 每 5 秒採樣 1 筆後續穩定樣本
-                    if (noLoadDwellTimerSec >= 5)
-                    {
-                        noLoadDwellTimerSec = 0;
-                        AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "最高速溫升", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, "最高速熱平衡達標後續驗證樣本");
-
-                        // 滿 5 筆採樣後結案
-                        if (noLoadPostStableCounter > 5)
-                        {
-                            noLoadState = NoLoadState.Completed;
-                            noLoadTimer.Stop();
-
-                            string completeMsg = string.Format(" 空載溫升測試全流程圓滿完成！\r\n額定轉速與最高轉速 ({0:F0} rpm) 雙標記點皆達成 30 分鐘熱平衡 (實測最大ΔT = {1:F2}℃)，前後各 5 筆驗證數據已完整留存！",
-                                maxSpd, maxDeltaT);
-                            AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "測試完成", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, "雙標記點達成，空載測試圓滿完成！");
-                            WriteHmiLog("NOLOAD_COMPLETE", completeMsg);
-
-                            lblNoLoadStateBadge.Text = "【測試圓滿完成】雙標記點熱平衡達標！";
-                            lblNoLoadStateBadge.ForeColor = Color.FromArgb(16, 185, 129);
-
-                            if (isManualRecording)
+                            // 連續超過 Ts 時間 -> 觸發過溫降速 (依梯度之一半減速)
+                            if (noLoadOverTempDurationSec >= limitTs)
                             {
-                                StopManualRecording(showPrompt: false);
+                                double decelStep = Math.Max(50.0, stepSpd / 2.0);
+                                noLoadCurrentTargetSpd = Math.Max(100.0, noLoadCurrentTargetSpd - decelStep);
+                                KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)noLoadCurrentTargetSpd, "超溫降速(梯度一半)");
+                                lblNoLoadTargetSpdDisp.Text = string.Format("{0:F0} rpm", noLoadCurrentTargetSpd);
+
+                                noLoadCoolingRetryCount++;
+                                noLoadState = NoLoadState.CoolingWait;
+                                noLoadCoolingTimerSec = limitTn;
+                                noLoadOverTempDurationSec = 0;
+
+                                string ev = string.Format("{0}超溫達 {1}s (第 {2} 次降速重試)，依梯度一半降速 -{3:F0} rpm -> {4:F0} rpm，等待 Tn={5}s 冷卻評估",
+                                    curTarget.Item1, limitTs, noLoadCoolingRetryCount, decelStep, noLoadCurrentTargetSpd, limitTn);
+                                AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "過溫降速", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, ev);
+                                WriteHmiLog("NOLOAD_OVERTEMP", "【過溫降速】" + ev);
+                                return;
                             }
-
-                            StartGradualAutoStop(noLoadSpdDrive, noLoadTrqDrive, "空載測試雙標記點達標完成", () => {
-                                btnStartNoLoad.Enabled = true;
-                                btnStopNoLoad.Enabled = false;
-                                lblNoLoadTargetSpdDisp.Text = "0 rpm";
-                                MessageBox.Show(completeMsg, "空載測試完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                            });
                         }
-                    }
-                    break;
-            }
+                        else
+                        {
+                            noLoadOverTempDurationSec = 0;
+                            lblNoLoadCountdownDisp.Text = string.Format("溫度正常 ({0:F1}℃ < {1:F1}℃) | 階段累積: {2:D2}:{3:D2} / 30:00",
+                                maxBearingTemp, tempLimit, stageMins, stageSecs);
+                            lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(16, 185, 129);
+                        }
 
-            // 定期記錄行至表格 (每 30 秒記錄一次定期樣本，非後續採樣驗證時)
-            if (noLoadState != NoLoadState.MaxSpeedPostHold && noLoadElapsedSec % 30 == 0)
-            {
-                string pName = (noLoadState == NoLoadState.RatedWarmup) ? "額定溫升" :
-                               ((noLoadState == NoLoadState.IntermediateRun) ? "階梯運轉" :
-                               ((noLoadState == NoLoadState.CoolingWait) ? "降速冷卻" :
-                               ((noLoadState == NoLoadState.MaxSpeedRun) ? "最高速溫升" : "運轉中")));
-                AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), pName, noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, "定期週期採樣");
-            }
+                        // 熱平衡判定：滿 30 分鐘且各通道溫差 < 1.0℃ -> 當前轉速達標！
+                        if (isThermalBalanced)
+                        {
+                            // 記錄穩定點結構資訊
+                            NoLoadStablePoint sp = new NoLoadStablePoint()
+                            {
+                                StageIndex = noLoadTargetIdx + 1,
+                                StageName = curTarget.Item1,
+                                TargetSpd = curTarget.Item2,
+                                ActSpd = (actSpd > 0.0 ? actSpd : curTarget.Item2),
+                                StableTemp = maxBearingTemp,
+                                StableCh = maxBearingCh,
+                                MaxDeltaT = maxDeltaT,
+                                AchievedTime = now,
+                                ElapsedSec = noLoadElapsedSec,
+                                VoltageSigma = actVoltageSigma,
+                                CurrentSigma = actCurrentSigma,
+                                ElecPower = actElecPower,
+                                Freq = actFrequency
+                            };
+                            noLoadStablePoints.Add(sp);
 
-            // 同步遠端 Web Server
-            string actSpdStr = (actSpd > 0.0) ? string.Format("{0:F0} rpm", actSpd) : "無回授";
-            webRemoteStatusText = string.Format("【空載-{0}】目標 {1:F0} rpm (實測: {2}, 最高溫 {3:F1}℃)",
-                (noLoadState == NoLoadState.RatedWarmup) ? "額定" : ((noLoadState == NoLoadState.MaxSpeedRun) ? "最高速" : "階梯"),
-                noLoadCurrentTargetSpd, actSpdStr, maxBearingTemp);
-            webRemotePhaseText = string.Format("{0} | ΔT={1:F2}℃",
-                (noLoadState == NoLoadState.RatedWarmup) ? "額定熱平衡比對" : ((noLoadState == NoLoadState.CoolingWait) ? "超溫冷卻等待" : "最高速熱平衡比對"),
-                maxDeltaT);
+                            MarkNoLoadPreStableRows(curTarget.Item1);
+                            string ev = string.Format("【標記點{0}】{1}熱平衡達標！30min最大溫差={2:F2}℃ (<1.0℃)，採樣後續 5 筆驗證數據！",
+                                noLoadTargetIdx + 1, curTarget.Item1, maxDeltaT);
+                            AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), curTarget.Item1 + "達標", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, "[校正]【 " + curTarget.Item1 + " 30min 熱平衡達標核心點 】" + ev);
+                            WriteHmiLog("NOLOAD_STABLE_PASS", ev);
+                            WriteNoLoadCsvMilestoneMarker(now, string.Format("【標記點{0}】{1}熱平衡達標", noLoadTargetIdx + 1, curTarget.Item1), maxDeltaT);
+
+                            noLoadPostStableStage = curTarget.Item1;
+                            noLoadPostStableCounter = 1;
+                            noLoadState = NoLoadState.MaxSpeedPostHold;
+                            noLoadDwellTimerSec = 0;
+                            lblNoLoadStateBadge.Text = string.Format("【標記點{0}: {1}達標】採樣後續 5 筆確認數據中...", noLoadTargetIdx + 1, curTarget.Item1);
+                            lblNoLoadStateBadge.ForeColor = Color.FromArgb(16, 185, 129);
+                        }
+                        break;
+
+                    // -----------------------------------------------------
+                    // 中間階梯轉速監控與過渡升速
+                    // -----------------------------------------------------
+                    case NoLoadState.IntermediateRun:
+                        lblNoLoadStateBadge.Text = string.Format("【階梯過渡運轉】目標: {0:F0} rpm (朝向 {1}: {2:F0} rpm)",
+                            noLoadCurrentTargetSpd, curTarget.Item1, curTarget.Item2);
+                        lblNoLoadStateBadge.ForeColor = Color.FromArgb(79, 70, 229);
+
+                        // 檢查超溫
+                        if (maxBearingTemp >= tempLimit)
+                        {
+                            noLoadOverTempDurationSec++;
+                            lblNoLoadCountdownDisp.Text = string.Format("[!] 階梯超溫警戒 ({0:F1}℃ >= {1:F1}℃)！持續時間: {2}s / {3}s",
+                                maxBearingTemp, tempLimit, noLoadOverTempDurationSec, limitTs);
+                            lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(220, 38, 38);
+
+                            if (noLoadOverTempDurationSec >= limitTs)
+                            {
+                                double decelStep = Math.Max(50.0, stepSpd / 2.0);
+                                noLoadCurrentTargetSpd = Math.Max(100.0, noLoadCurrentTargetSpd - decelStep);
+                                KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)noLoadCurrentTargetSpd, "階梯超溫降速(梯度一半)");
+                                lblNoLoadTargetSpdDisp.Text = string.Format("{0:F0} rpm", noLoadCurrentTargetSpd);
+
+                                noLoadCoolingRetryCount++;
+                                noLoadState = NoLoadState.CoolingWait;
+                                noLoadCoolingTimerSec = limitTn;
+                                noLoadOverTempDurationSec = 0;
+
+                                string ev = string.Format("階梯轉速超溫達 {0}s (第 {1} 次降速重試)，依梯度一半降速 -{2:F0} rpm -> {3:F0} rpm，等待 Tn={4}s 冷卻評估",
+                                    limitTs, noLoadCoolingRetryCount, decelStep, noLoadCurrentTargetSpd, limitTn);
+                                AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "階梯降速", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, ev);
+                                WriteHmiLog("NOLOAD_OVERTEMP", "【階梯超溫降速】" + ev);
+                                return;
+                            }
+                        }
+                        else
+                        {
+                            noLoadOverTempDurationSec = 0;
+                        }
+
+                        // 停留觀察時間倒數
+                        noLoadDwellTimerSec++;
+                        lblNoLoadCountdownDisp.Text = string.Format("階梯停留觀察中: {0}s / {1}s", noLoadDwellTimerSec, noLoadIntermediateDwellSec);
+                        lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(79, 70, 229);
+
+                        if (noLoadDwellTimerSec >= noLoadIntermediateDwellSec)
+                        {
+                            noLoadDwellTimerSec = 0;
+                            double nextSpd = Math.Min(curTarget.Item2, noLoadCurrentTargetSpd + stepSpd);
+                            noLoadCurrentTargetSpd = nextSpd;
+                            KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)noLoadCurrentTargetSpd, "階梯推進加速");
+                            lblNoLoadTargetSpdDisp.Text = string.Format("{0:F0} rpm", noLoadCurrentTargetSpd);
+
+                            if (noLoadCurrentTargetSpd >= curTarget.Item2)
+                            {
+                                noLoadState = NoLoadState.RatedWarmup;
+                                noLoadStageElapsedSec = 0;
+                                AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), curTarget.Item1, noLoadCurrentTargetSpd, actSpd, maxBearingTemp, 0,
+                                    string.Format("已達第 {0} 階段目標轉速 {1:F0} rpm，開始 30 分鐘熱平衡監控！", noLoadTargetIdx + 1, noLoadCurrentTargetSpd));
+                            }
+                            else
+                            {
+                                AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "階梯升速", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, 0,
+                                    string.Format("提速至階梯 {0:F0} rpm (朝向 {1}: {2:F0} rpm)", noLoadCurrentTargetSpd, curTarget.Item1, curTarget.Item2));
+                            }
+                        }
+                        break;
+
+                    // -----------------------------------------------------
+                    // 超溫冷卻等待 (TN 倒數，支援隨時修改上限即時生效)
+                    // -----------------------------------------------------
+                    case NoLoadState.CoolingWait:
+                        lblNoLoadStateBadge.Text = string.Format("【降速冷卻中】第 {0} 次超溫重試 | 等待 Tn={1}s", noLoadCoolingRetryCount, noLoadCoolingTimerSec);
+                        lblNoLoadStateBadge.ForeColor = Color.FromArgb(234, 88, 12);
+
+                        noLoadCoolingTimerSec--;
+                        lblNoLoadCountdownDisp.Text = string.Format("降速冷卻倒數 {0}s (目前: {1:F1}℃ / 閥值: {2:F1}℃，第 {3} 次重試，可隨時調整溫度上限即時生效)",
+                            noLoadCoolingTimerSec, maxBearingTemp, tempLimit, noLoadCoolingRetryCount);
+                        lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(234, 88, 12);
+
+                        bool userRaisedLimit = (maxBearingTemp <= tempLimit - 1.0) && (limitTn - noLoadCoolingTimerSec >= 5);
+
+                        if (noLoadCoolingTimerSec <= 0 || userRaisedLimit)
+                        {
+                            string resumeMsg = userRaisedLimit
+                                ? string.Format("檢測到溫度上限已調高即時生效 (目前 {0:F1}℃ < 閥值 {1:F1}℃)，提前結束冷卻，恢復運轉！", maxBearingTemp, tempLimit)
+                                : "冷卻等待時間結束，恢復運轉！";
+
+                            lblNoLoadCountdownDisp.Text = resumeMsg;
+                            lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(16, 185, 129);
+
+                            if (noLoadCurrentTargetSpd >= curTarget.Item2)
+                                noLoadState = NoLoadState.RatedWarmup;
+                            else
+                                noLoadState = NoLoadState.IntermediateRun;
+
+                            AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "冷卻結束", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, resumeMsg);
+                        }
+                        break;
+
+                    // -----------------------------------------------------
+                    // 達標後續 5 筆採樣驗證階段
+                    // -----------------------------------------------------
+                    case NoLoadState.MaxSpeedPostHold:
+                        lblNoLoadStateBadge.Text = string.Format("【{0}達標驗證】採樣後續數據 ({1}/5 筆)", curTarget.Item1, Math.Max(0, noLoadPostStableCounter - 1));
+                        lblNoLoadStateBadge.ForeColor = Color.FromArgb(16, 185, 129);
+                        lblNoLoadCountdownDisp.Text = string.Format("{0}達標確認採樣中: 第 {1} / 5 筆 (目前溫差: {2:F2}℃)", curTarget.Item1, Math.Min(5, noLoadPostStableCounter), maxDeltaT);
+                        lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(16, 185, 129);
+
+                        noLoadDwellTimerSec++;
+                        // 每 5 秒採樣 1 筆後續穩定樣本
+                        if (noLoadDwellTimerSec >= 5)
+                        {
+                            noLoadDwellTimerSec = 0;
+                            AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), curTarget.Item1 + "溫升", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, curTarget.Item1 + "熱平衡達標後續驗證樣本");
+
+                            // 滿 5 筆採樣後推進
+                            if (noLoadPostStableCounter > 5)
+                            {
+                                noLoadTargetIdx++;
+
+                                // 檢查是否還有下一階段轉速
+                                if (noLoadActiveTargets != null && noLoadTargetIdx < noLoadActiveTargets.Count)
+                                {
+                                    var nextTarget = noLoadActiveTargets[noLoadTargetIdx];
+                                    double nextSpd = Math.Min(nextTarget.Item2, noLoadCurrentTargetSpd + stepSpd);
+                                    noLoadCurrentTargetSpd = nextSpd;
+                                    KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)noLoadCurrentTargetSpd, "階梯加速");
+                                    lblNoLoadTargetSpdDisp.Text = string.Format("{0:F0} rpm", noLoadCurrentTargetSpd);
+
+                                    noLoadStageElapsedSec = 0;
+                                    noLoadDwellTimerSec = 0;
+
+                                    if (noLoadCurrentTargetSpd >= nextTarget.Item2)
+                                    {
+                                        noLoadState = NoLoadState.RatedWarmup;
+                                        AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), nextTarget.Item1, noLoadCurrentTargetSpd, actSpd, maxBearingTemp, 0,
+                                            string.Format("達到第 {0} 階段目標轉速 {1:F0} rpm，開始 30 分鐘熱平衡監控！", noLoadTargetIdx + 1, noLoadCurrentTargetSpd));
+                                    }
+                                    else
+                                    {
+                                        noLoadState = NoLoadState.IntermediateRun;
+                                        AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "階梯升速", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, 0,
+                                            string.Format("提速至階梯 {0:F0} rpm (朝向第 {1} 階段 {2}: {3:F0} rpm)", noLoadCurrentTargetSpd, noLoadTargetIdx + 1, nextTarget.Item1, nextTarget.Item2));
+                                    }
+                                }
+                                else
+                                {
+                                    // 所有階段轉速全數圓滿完成！
+                                    noLoadState = NoLoadState.Completed;
+                                    noLoadTimer.Stop();
+
+                                    // 自動儲存專屬報表 (包含三個/所選穩定溫度的完整 Metadata 摘要)
+                                    SaveNoLoadReportCsv(false);
+
+                                    StringBuilder sbSummary = new StringBuilder();
+                                    sbSummary.AppendLine(string.Format("空載溫升測試全流程圓滿完成！共達成 {0} 個轉速熱平衡穩定點：\r\n", noLoadStablePoints.Count));
+                                    for (int i = 0; i < noLoadStablePoints.Count; i++)
+                                    {
+                                        var p = noLoadStablePoints[i];
+                                        sbSummary.AppendLine(string.Format("  第 {0} 點 ({1}): 目標={2:F0} rpm, 實測={3:F0} rpm, 穩定最高溫={4:F1}℃ (CH{5}), 30min最大ΔT={6:F2}℃",
+                                            i + 1, p.StageName, p.TargetSpd, p.ActSpd, p.StableTemp, p.StableCh + 1, p.MaxDeltaT));
+                                    }
+                                    sbSummary.AppendLine("\r\n前後各 5 筆驗證數據與專屬報告已完整存檔！");
+                                    string completeMsg = sbSummary.ToString();
+
+                                    AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "測試完成", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT,
+                                        string.Format("達成 {0} 個轉速熱平衡，空載溫升測試圓滿完成！", noLoadStablePoints.Count));
+                                    WriteHmiLog("NOLOAD_COMPLETE", completeMsg);
+
+                                    lblNoLoadStateBadge.Text = string.Format("【測試圓滿完成】共 {0} 標記點熱平衡達標！", noLoadStablePoints.Count);
+                                    lblNoLoadStateBadge.ForeColor = Color.FromArgb(16, 185, 129);
+
+                                    if (isManualRecording)
+                                    {
+                                        StopManualRecording(showPrompt: false);
+                                    }
+
+                                    StartGradualAutoStop(noLoadSpdDrive, noLoadTrqDrive, "空載測試多轉速達標完成", () => {
+                                        btnStartNoLoad.Enabled = true;
+                                        btnStopNoLoad.Enabled = false;
+                                        lblNoLoadTargetSpdDisp.Text = "0 rpm";
+                                        MessageBox.Show(completeMsg, "空載溫升測試完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                    });
+                                }
+                            }
+                        }
+                        break;
+                }
+
+                // 定期記錄行至表格 (每 30 秒記錄一次定期樣本，非後續採樣驗證時)
+                if (noLoadState != NoLoadState.MaxSpeedPostHold && noLoadElapsedSec % 30 == 0)
+                {
+                    string pName = (noLoadState == NoLoadState.RatedWarmup) ? curTarget.Item1 :
+                                   ((noLoadState == NoLoadState.IntermediateRun) ? "階梯運轉" :
+                                   ((noLoadState == NoLoadState.CoolingWait) ? "降速冷卻" : "運轉中"));
+                    AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), pName, noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, "定期週期採樣");
+                }
+
+                // 同步遠端 Web Server
+                string actSpdStr = (actSpd > 0.0) ? string.Format("{0:F0} rpm", actSpd) : "無回授";
+                webRemoteStatusText = string.Format("【空載-{0}】目標 {1:F0} rpm (實測: {2}, 最高溫 {3:F1}℃)",
+                    curTarget.Item1, noLoadCurrentTargetSpd, actSpdStr, maxBearingTemp);
+                webRemotePhaseText = string.Format("{0} | ΔT={1:F2}℃",
+                    (noLoadState == NoLoadState.RatedWarmup) ? (curTarget.Item1 + "熱平衡比對") : ((noLoadState == NoLoadState.CoolingWait) ? "超溫冷卻等待" : "階梯過渡"),
+                    maxDeltaT);
             }
             catch (Exception ex)
             {
@@ -1423,7 +1476,7 @@ namespace DynamometerHMI
                 {
                     DataGridViewRow row = dgvNoLoad.Rows[i];
                     string ev = Convert.ToString(row.Cells["Event"].Value ?? "");
-                    if (ev.Contains("達標核心點") || ev.Contains("額定達標") || ev.Contains("最高速達標"))
+                    if (ev.Contains("達標核心點") || ev.Contains("額定達標") || ev.Contains("中間達標") || ev.Contains("最高速達標"))
                         continue;
 
                     markedCount++;
@@ -1459,71 +1512,130 @@ namespace DynamometerHMI
             catch { }
         }
 
-        private void ExportNoLoadGridToCsv()
+        /// <summary>
+        /// 儲存空載溫升專屬報告 (CSV)，包含多轉速穩定溫度摘要 (# STABLE_TEMPERATURE_SUMMARY) 與完整數據
+        /// </summary>
+        public void SaveNoLoadReportCsv(bool showDialog = false)
         {
-            if (dgvNoLoad == null || dgvNoLoad.Rows.Count == 0)
-            {
-                MessageBox.Show("目前無任何空載測試數據可供匯出！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
+            if (dgvNoLoad == null || dgvNoLoad.Rows.Count == 0) return;
             try
             {
                 string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
-                using (SaveFileDialog sfd = new SaveFileDialog())
+                string baseDir = GetMotorDedicatedLogDirectory(mName);
+                if (!Directory.Exists(baseDir)) Directory.CreateDirectory(baseDir);
+
+                string timeStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                string fileName = string.Format("{0}_NoLoad_MultiSpeed_COMPLETED_{1}.csv", mName, timeStamp);
+                string fullPath = Path.Combine(baseDir, fileName);
+
+                if (showDialog)
                 {
-                    sfd.Filter = "CSV 日誌檔案 (*.csv)|*.csv|所有檔案 (*.*)|*.*";
-                    // 統一名稱契約：[MotorModel]_[TestType]_[DutyOrCondition]_[Status]_[yyyyMMdd_HHmmss].csv
-                    sfd.FileName = string.Format("{0}_NoLoad_RatedFreq_COMPLETED_{1}.csv", mName, DateTime.Now.ToString("yyyyMMdd_HHmmss"));
-                    sfd.InitialDirectory = GetMotorDedicatedLogDirectory(mName);
-                    sfd.Title = "匯出空載溫升測試紀錄";
-
-                    if (sfd.ShowDialog() == DialogResult.OK)
+                    using (SaveFileDialog sfd = new SaveFileDialog())
                     {
-                        using (StreamWriter sw = new StreamWriter(sfd.FileName, false, Encoding.UTF8))
+                        sfd.Filter = "CSV 日誌檔案 (*.csv)|*.csv|所有檔案 (*.*)|*.*";
+                        sfd.FileName = fileName;
+                        sfd.InitialDirectory = baseDir;
+                        sfd.Title = "匯出空載溫升多轉速測試報告";
+                        if (sfd.ShowDialog() == DialogResult.OK)
                         {
-                            // 自描述 Metadata 標頭
-                            sw.WriteLine("# ========================================================================================");
-                            sw.WriteLine("# Dynamometer HMI Test Telemetry Log (IEEE Std 112 / IEC 60034)");
-                            sw.WriteLine(string.Format("# MotorModel: {0}", mName));
-                            sw.WriteLine("# TestCategory: NoLoad (RatedFrequency)");
-                            sw.WriteLine("# TestStatus: COMPLETED");
-                            sw.WriteLine(string.Format("# GeneratedTime: {0:yyyy-MM-dd HH:mm:ss}", DateTime.Now));
-                            sw.WriteLine("# ========================================================================================");
-
-                            // 欄位標題
-                            StringBuilder headerSb = new StringBuilder();
-                            for (int i = 0; i < dgvNoLoad.Columns.Count; i++)
-                            {
-                                headerSb.Append("\"" + dgvNoLoad.Columns[i].HeaderText.Replace("\"", "\"\"") + "\"");
-                                if (i < dgvNoLoad.Columns.Count - 1) headerSb.Append(",");
-                            }
-                            sw.WriteLine(headerSb.ToString());
-
-                            // 逐行寫入
-                            for (int r = 0; r < dgvNoLoad.Rows.Count; r++)
-                            {
-                                DataGridViewRow row = dgvNoLoad.Rows[r];
-                                if (row.IsNewRow) continue;
-
-                                StringBuilder rowSb = new StringBuilder();
-                                for (int c = 0; c < dgvNoLoad.Columns.Count; c++)
-                                {
-                                    string val = Convert.ToString(row.Cells[c].Value ?? "");
-                                    rowSb.Append("\"" + val.Replace("\"", "\"\"") + "\"");
-                                    if (c < dgvNoLoad.Columns.Count - 1) rowSb.Append(",");
-                                }
-                                sw.WriteLine(rowSb.ToString());
-                            }
+                            fullPath = sfd.FileName;
                         }
-                        MessageBox.Show("空載測試日誌已成功匯出至：\r\n" + sfd.FileName, "匯出成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        else
+                        {
+                            return;
+                        }
                     }
+                }
+
+                using (StreamWriter sw = new StreamWriter(fullPath, false, Encoding.UTF8))
+                {
+                    // 結構化自描述 Metadata 標頭
+                    sw.WriteLine("# ========================================================================================");
+                    sw.WriteLine("# Dynamometer HMI Test Telemetry Log (IEEE Std 112 / IEC 60034)");
+                    sw.WriteLine(string.Format("# MotorModel: {0}", mName));
+                    sw.WriteLine("# TestCategory: NoLoad Multi-Speed Thermal Rise Test");
+                    sw.WriteLine("# TestStatus: COMPLETED");
+                    sw.WriteLine(string.Format("# GeneratedTime: {0:yyyy-MM-dd HH:mm:ss}", DateTime.Now));
+                    sw.WriteLine(string.Format("# TotalDuration: {0:D2}:{1:D2}:{2:D2} ({3} sec)", noLoadElapsedSec / 3600, (noLoadElapsedSec % 3600) / 60, noLoadElapsedSec % 60, noLoadElapsedSec));
+                    sw.WriteLine(string.Format("# TemperatureThreshold: {0:F1} degC (Ts={1}s, Tn={2}s)", numNoLoadTempLimit != null ? (double)numNoLoadTempLimit.Value : 75.0, numNoLoadTimeTs != null ? (int)numNoLoadTimeTs.Value : 30, numNoLoadTimeTn != null ? (int)numNoLoadTimeTn.Value : 60));
+                    sw.WriteLine("# ThermalBalanceCriteria: 30min DeltaT < 1.0 degC");
+
+                    // 輸出三個 (或所選) 穩定溫度報告摘要
+                    sw.WriteLine("# ----------------------------------------------------------------------------------------");
+                    sw.WriteLine("# [STABLE_TEMPERATURE_SUMMARY]");
+                    sw.WriteLine("# StageIndex,StageName,TargetSpeed_rpm,ActualSpeed_rpm,StableTemp_degC,StableChannel,DeltaT_30min_degC,AchievedTime,Duration_sec,Voltage_V,Current_A,Power_kW,Freq_Hz");
+                    if (noLoadStablePoints != null && noLoadStablePoints.Count > 0)
+                    {
+                        for (int i = 0; i < noLoadStablePoints.Count; i++)
+                        {
+                            var p = noLoadStablePoints[i];
+                            sw.WriteLine(string.Format("# {0},{1},{2:F0},{3:F0},{4:F2},CH{5},{6:F2},{7:yyyy-MM-dd HH:mm:ss},{8},{9:F1},{10:F2},{11:F3},{12:F2}",
+                                p.StageIndex, p.StageName, p.TargetSpd, p.ActSpd, p.StableTemp, p.StableCh + 1, p.MaxDeltaT, p.AchievedTime, p.ElapsedSec,
+                                p.VoltageSigma, p.CurrentSigma, p.ElecPower, p.Freq));
+                        }
+                    }
+                    else
+                    {
+                        sw.WriteLine("# (未擷取到熱平衡達標點)");
+                    }
+                    sw.WriteLine("# ========================================================================================");
+
+                    // 欄位標題
+                    StringBuilder headerSb = new StringBuilder();
+                    for (int i = 0; i < dgvNoLoad.Columns.Count; i++)
+                    {
+                        headerSb.Append("\"" + dgvNoLoad.Columns[i].HeaderText.Replace("\"", "\"\"") + "\"");
+                        if (i < dgvNoLoad.Columns.Count - 1) headerSb.Append(",");
+                    }
+                    sw.WriteLine(headerSb.ToString());
+
+                    // 逐行寫入
+                    for (int r = 0; r < dgvNoLoad.Rows.Count; r++)
+                    {
+                        DataGridViewRow row = dgvNoLoad.Rows[r];
+                        if (row.IsNewRow) continue;
+
+                        StringBuilder rowSb = new StringBuilder();
+                        for (int c = 0; c < dgvNoLoad.Columns.Count; c++)
+                        {
+                            string val = Convert.ToString(row.Cells[c].Value ?? "");
+                            rowSb.Append("\"" + val.Replace("\"", "\"\"") + "\"");
+                            if (c < dgvNoLoad.Columns.Count - 1) rowSb.Append(",");
+                        }
+                        sw.WriteLine(rowSb.ToString());
+                    }
+                }
+
+                // 同步複製為 Latest 報表與向下相容檔案
+                try
+                {
+                    string latestPath = Path.Combine(baseDir, string.Format("{0}_NoLoad_MultiSpeed_Latest.csv", mName));
+                    File.Copy(fullPath, latestPath, true);
+
+                    string compatPath = Path.Combine(baseDir, string.Format("{0}_NoLoad_RatedFreq_COMPLETED_{1}.csv", mName, timeStamp));
+                    File.Copy(fullPath, compatPath, true);
+                }
+                catch { }
+
+                WriteHmiLog("NOLOAD_REPORT_SAVED", "【空載測試報告已儲存】" + fullPath);
+                if (showDialog)
+                {
+                    MessageBox.Show("空載測試報告已成功匯出至：\r\n" + fullPath, "匯出成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("匯出 CSV 失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                WriteHmiLog("NOLOAD_REPORT_ERR", "儲存空載報告失敗: " + ex.Message);
+                if (showDialog)
+                {
+                    MessageBox.Show("匯出 CSV 失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
             }
+        }
+
+        private void ExportNoLoadGridToCsv()
+        {
+            SaveNoLoadReportCsv(true);
         }
 
         private void AddNoLoadLog(string timeStr, string elapsedStr, string phaseStr, double targetSpd, double actSpd, double maxTemp, double deltaT, string eventStr)

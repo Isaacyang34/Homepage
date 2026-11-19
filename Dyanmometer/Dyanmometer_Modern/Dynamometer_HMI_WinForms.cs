@@ -2155,6 +2155,8 @@ namespace DynamometerHMI
                 sb.AppendLine("DriveRole=" + (cmbNoLoadRole != null ? cmbNoLoadRole.SelectedIndex : 1));
                 sb.AppendLine("DoRated=" + (chkNoLoadRatedTest != null && chkNoLoadRatedTest.Checked ? "1" : "0"));
                 sb.AppendLine("RatedSpd=" + (numNoLoadRatedSpd != null ? (int)numNoLoadRatedSpd.Value : 1500));
+                sb.AppendLine("DoMidSpd=" + (chkNoLoadMidSpdTest != null && chkNoLoadMidSpdTest.Checked ? "1" : "0"));
+                sb.AppendLine("MidSpd=" + (numNoLoadMidSpd != null ? (int)numNoLoadMidSpd.Value : 2500));
                 sb.AppendLine("DoMaxSpd=" + (chkNoLoadMaxSpdTest != null && chkNoLoadMaxSpdTest.Checked ? "1" : "0"));
                 sb.AppendLine("MaxSpd=" + (numNoLoadMaxSpd != null ? (int)numNoLoadMaxSpd.Value : 3600));
                 sb.AppendLine("StepSpd=" + (numNoLoadStepSpd != null ? (int)numNoLoadStepSpd.Value : 500));
@@ -2505,6 +2507,17 @@ namespace DynamometerHMI
                     decimal v;
                     if (decimal.TryParse(map["NoLoadTest.RatedSpd"], out v) && v >= numNoLoadRatedSpd.Minimum && v <= numNoLoadRatedSpd.Maximum)
                         numNoLoadRatedSpd.Value = v;
+                }
+                if (map.ContainsKey("NoLoadTest.DoMidSpd") && chkNoLoadMidSpdTest != null)
+                {
+                    chkNoLoadMidSpdTest.Checked = (map["NoLoadTest.DoMidSpd"] == "1");
+                    if (numNoLoadMidSpd != null) numNoLoadMidSpd.Enabled = chkNoLoadMidSpdTest.Checked;
+                }
+                if (map.ContainsKey("NoLoadTest.MidSpd") && numNoLoadMidSpd != null)
+                {
+                    decimal v;
+                    if (decimal.TryParse(map["NoLoadTest.MidSpd"], out v) && v >= numNoLoadMidSpd.Minimum && v <= numNoLoadMidSpd.Maximum)
+                        numNoLoadMidSpd.Value = v;
                 }
                 if (map.ContainsKey("NoLoadTest.DoMaxSpd") && chkNoLoadMaxSpdTest != null)
                 {
