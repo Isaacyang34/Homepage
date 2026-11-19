@@ -5907,7 +5907,15 @@ namespace DynamometerHMI
                                         double.TryParse(mSpd.Groups[1].Value, out actSpeed);
                                         lastTorquePacketTime = DateTime.Now;
                                     }
-                                    if (mPwr.Success) double.TryParse(mPwr.Groups[1].Value, out actMechPower);
+                                    if (mPwr.Success)
+                                    {
+                                        double p;
+                                        if (double.TryParse(mPwr.Groups[1].Value, out p)) actMechPower = Math.Abs(p);
+                                    }
+                                    else if (Math.Abs(actSpeed) > 1.0 && Math.Abs(actTorque) > 0.05)
+                                    {
+                                        actMechPower = Math.Abs(actSpeed * actTorque * Math.PI / 30000.0);
+                                    }
                                 }
                             }
                             catch { }

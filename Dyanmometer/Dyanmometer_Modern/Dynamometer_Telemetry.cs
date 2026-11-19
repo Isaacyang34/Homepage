@@ -1325,6 +1325,18 @@ namespace DynamometerHMI
                 mName = mName.Trim();
                 if (string.IsNullOrEmpty(mName)) mName = "DUT";
 
+                // 防目錄語意污染：若 mName 結尾帶有 _NoLoad、_noload、_S1、_S2、_S6、_TN、_Duty 等測項後綴，自動去除以維護純淨馬達主目錄
+                string cleanMName = mName;
+                string[] testSuffixes = new string[] { "_NoLoad", "_noload", "_S1", "_s1", "_S2", "_s2", "_S6", "_s6", "_TN", "_tn", "_Duty", "_duty" };
+                foreach (string suf in testSuffixes)
+                {
+                    if (cleanMName.EndsWith(suf, StringComparison.OrdinalIgnoreCase))
+                    {
+                        cleanMName = cleanMName.Substring(0, cleanMName.Length - suf.Length).Trim();
+                    }
+                }
+                if (!string.IsNullOrEmpty(cleanMName)) mName = cleanMName;
+
                 string baseDir = !string.IsNullOrEmpty(rawDataSaveDirectory) && Directory.Exists(rawDataSaveDirectory)
                     ? rawDataSaveDirectory
                     : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");

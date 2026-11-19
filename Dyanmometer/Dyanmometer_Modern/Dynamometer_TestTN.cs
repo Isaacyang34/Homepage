@@ -2339,15 +2339,27 @@ namespace DynamometerHMI
         {
             try
             {
-                string logDir = GetMotorDedicatedLogDirectory(motorModelName);
+                string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
+                string logDir = GetMotorDedicatedLogDirectory(mName);
                 if (!Directory.Exists(logDir)) Directory.CreateDirectory(logDir);
+                string timeStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
 
                 if (cmbTnMode != null && cmbTnMode.SelectedIndex == 1)
                 {
-                    // 匯出多點自訂測試彙總與每秒明細報表
-                    string multiPath = Path.Combine(logDir, string.Format("Report_TN_MultiPoints_{0}.csv", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
+                    // 匯出多點自訂測試彙總與每秒明細報表 (統一名稱契約：[MotorModel]_[TestType]_[DutyOrCondition]_[Status]_[yyyyMMdd_HHmmss].csv)
+                    string multiPath = Path.Combine(logDir, string.Format("{0}_TN_MultiPoints_COMPLETED_{1}.csv", mName, timeStamp));
+                    string legacyMultiPath = Path.Combine(logDir, string.Format("Report_TN_MultiPoints_{1}.csv", mName, timeStamp));
                     using (StreamWriter sw = new StreamWriter(multiPath, false, Encoding.UTF8))
                     {
+                        // 自描述 Metadata 標頭
+                        sw.WriteLine("# ========================================================================================");
+                        sw.WriteLine("# Dynamometer HMI Test Telemetry Log (IEEE Std 112 / IEC 60034)");
+                        sw.WriteLine(string.Format("# MotorModel: {0}", mName));
+                        sw.WriteLine("# TestCategory: TN_MultiPoints");
+                        sw.WriteLine("# TestStatus: COMPLETED");
+                        sw.WriteLine(string.Format("# TotalPoints: {0}", tnCustomPoints.Count));
+                        sw.WriteLine(string.Format("# GeneratedTime: {0:yyyy-MM-dd HH:mm:ss}", DateTime.Now));
+                        sw.WriteLine("# ========================================================================================");
                         sw.WriteLine("=== T-N 多點自訂測試彙總報表 ===");
                         sw.WriteLine("Point,TargetSpeed_rpm,TargetTorque_Nm,AvgSpeed_rpm,AvgFrequency_Hz,AvgFreq_U1_Hz,AvgFreq_I1_Hz,AvgTorque_Nm,AvgVoltage_U1_V,AvgVoltage_U2_V,AvgVoltage_U3_V,AvgCurrent_I1_A,AvgCurrent_I2_A,AvgCurrent_I3_A,AvgElecPower_kW,AvgMechPower_kW,AvgPF,AvgEfficiency_pct,AvgKt_NmA,AvgVoltSigma_V,AvgCurrSigma_A,AvgMotorTemp_C,Status");
                         for (int i = 0; i < tnCustomPoints.Count; i++)
@@ -2379,7 +2391,7 @@ namespace DynamometerHMI
                                 ptSpd, ptFreq, ptFreqU, ptFreqI, ptTrq,
                                 ptU1, ptU2, ptU3,
                                 ptI1, ptI2, ptI3,
-                                ptElecPwr, ptMechPwr, ptPf, ptEff,
+                                ptElecPwr, Math.Abs(ptMechPwr), ptPf, Math.Abs(ptEff),
                                 ptKt, ptVoltSigma, ptCurrSigma, ptTemp,
                                 pt.Status));
                         }
@@ -2400,26 +2412,37 @@ namespace DynamometerHMI
                                     row[0], row[1], sFU, sFI, row[2],
                                     row[3], row[4], row[5],
                                     row[6], row[7], row[8],
-                                    row[9], row[10], row[11], row[12],
+                                    row[9], Math.Abs(row[10]), row[11], Math.Abs(row[12]),
                                     row[13], row[14], row[15], row[16]));
                             }
                             sw.WriteLine();
                         }
                     }
+                    try { File.Copy(multiPath, legacyMultiPath, true); } catch { }
                     PurgeLocalLogs(false);
                     MessageBox.Show("T-N 多點自訂測試完整報表 (含30秒秒級明細) 已成功匯出至:\n" + multiPath, "匯出成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
 
-                string path = Path.Combine(logDir, string.Format("Report_TN_Curve_{0}.csv", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
+                string path = Path.Combine(logDir, string.Format("{0}_TN_StepSweep_COMPLETED_{1}.csv", mName, timeStamp));
+                string legacyPath = Path.Combine(logDir, string.Format("Report_TN_Curve_{0}.csv", timeStamp));
                 using (StreamWriter sw = new StreamWriter(path, false, Encoding.UTF8))
                 {
+                    // 自描述 Metadata 標頭
+                    sw.WriteLine("# ========================================================================================");
+                    sw.WriteLine("# Dynamometer HMI Test Telemetry Log (IEEE Std 112 / IEC 60034)");
+                    sw.WriteLine(string.Format("# MotorModel: {0}", mName));
+                    sw.WriteLine("# TestCategory: TN_StepSweep");
+                    sw.WriteLine("# TestStatus: COMPLETED");
+                    sw.WriteLine(string.Format("# GeneratedTime: {0:yyyy-MM-dd HH:mm:ss}", DateTime.Now));
+                    sw.WriteLine("# ========================================================================================");
                     sw.WriteLine("Step,TargetRpm,ActualSpeed_rpm,ActualFrequency_Hz,Freq_U1_Hz,Freq_I1_Hz,ActualTorque_Nm,MechPower_kW,Efficiency_pct,Kt_NmA,Status");
                     for (int i = 0; i < tnResults.Count; i++)
                     {
                         sw.WriteLine(string.Format("{0},{1}", i + 1, string.Join(",", tnResults[i])));
                     }
                 }
+                try { File.Copy(path, legacyPath, true); } catch { }
                 PurgeLocalLogs(false);
                 MessageBox.Show("T-N 測試報表已成功匯出至:\n" + path, "匯出成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }

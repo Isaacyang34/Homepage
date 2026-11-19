@@ -1433,6 +1433,18 @@ namespace DynamometerHMI
                     lblBatchProgressDetail.Text = "【排程手動停止】使用者已手動中止連續排程，雙載台已安全卸載。";
                 }
             }
+
+            // 幽靈日誌防禦：若已有足夠採樣數據 (超過10筆/50秒) 但中途被手動停止，標記為 ABORTED 存檔，避免混淆正式合格數據
+            try
+            {
+                if (dutyResults != null && dutyResults.Count > 10)
+                {
+                    int mIdx = (cmbDutyMode != null && cmbDutyMode.SelectedIndex >= 0) ? cmbDutyMode.SelectedIndex : 0;
+                    string pfx = (mIdx == 0) ? "S1" : ((mIdx == 1) ? "S2" : "S6");
+                    SaveDutyTestReportCsv(pfx, showDialog: false, statusTag: "ABORTED");
+                }
+            }
+            catch { }
             isS2Calibrating = false;
             isLoadMotorPreEnergized = false;
             dutyMinuteVoltSum = 0.0;
@@ -3656,7 +3668,7 @@ namespace DynamometerHMI
                     dutyElapsedSec.ToString(), currentPhaseName, actSpeed.ToString("F1"),
                     actFrequency.ToString("F2"), wtFreqU.ToString("F2"), wtFreqI.ToString("F2"),
                     actTorque.ToString("F2"),
-                    actMechPower.ToString("F2"), actEfficiency.ToString("F1"), actTemp.ToString("F1"),
+                    Math.Abs(actMechPower).ToString("F2"), Math.Abs(actEfficiency).ToString("F1"), actTemp.ToString("F1"),
                     actVoltageSigma.ToString("F1"), actCurrentSigma.ToString("F2"), actElecPower.ToString("F2"), actPf.ToString("F3")
                 });
             }
@@ -3769,14 +3781,19 @@ namespace DynamometerHMI
                 string logDir = GetMotorDedicatedLogDirectory(mName);
 
                 string timeStr = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                string fileHist = Path.Combine(logDir, string.Format("S1_Rated_NoSlip_40pts_{0}.csv", timeStr));
-                string fileLatest = Path.Combine(logDir, "S1_Rated_NoSlip_Latest.csv");
+                // 統一名稱契約：[MotorModel]_[TestType]_[DutyOrCondition]_[Status]_[yyyyMMdd_HHmmss].csv
+                string fileHist = Path.Combine(logDir, string.Format("{0}_Equiv_Rated_COMPLETED_{1}.csv", mName, timeStr));
+                string fileLatest = Path.Combine(logDir, string.Format("{0}_Equiv_Rated_Latest.csv", mName));
+                string fileLegacyLatest = Path.Combine(logDir, "S1_Rated_NoSlip_Latest.csv");
+                string fileLegacyHist = Path.Combine(logDir, string.Format("S1_Rated_NoSlip_40pts_{0}.csv", timeStr));
 
                 StringBuilder sb = new StringBuilder();
-                sb.AppendLine("# MotorName: " + mName);
-                sb.AppendLine("# TestMode: S1_Rated_NoSlip_40Pts");
-                sb.AppendLine("# TotalSamples: 40");
-                sb.AppendLine("# TrimmedSamples: 30 (Removed first 5 and last 5)");
+                sb.AppendLine("# ========================================================================================");
+                sb.AppendLine("# Dynamometer HMI Test Telemetry Log (IEEE Std 112 / IEC 60034-2-1)");
+                sb.AppendLine(string.Format("# MotorModel: {0}", mName));
+                sb.AppendLine("# TestCategory: EquivalentCircuit_Rated");
+                sb.AppendLine("# TestStatus: COMPLETED");
+                sb.AppendLine(string.Format("# TotalSamples: {0} | TrimmedSamples: 30 (Removed first 5 and last 5)", s1NoSlipBuffer.Count));
                 sb.AppendLine(string.Format("# AverageSpeed_rpm: {0:F2}", avgSpd));
                 sb.AppendLine(string.Format("# AverageTorque_Nm: {0:F3}", avgTrq));
                 sb.AppendLine(string.Format("# AverageVoltage_V: {0:F2}", avgV));
@@ -3790,6 +3807,7 @@ namespace DynamometerHMI
                 sb.AppendLine("# TargetSpeed_rpm: " + targetSpd.ToString("F0"));
                 sb.AppendLine("# TargetTorque_Nm: " + targetTrq.ToString("F1"));
                 sb.AppendLine("# GeneratedTime: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                sb.AppendLine("# ========================================================================================");
                 sb.AppendLine("Index,Timestamp,Speed_rpm,Torque_Nm,Voltage_V,Current_A,Power_kW,PowerFactor,Freq_Hz,Included_In_Average");
 
                 for (int i = 0; i < s1NoSlipBuffer.Count; i++)
@@ -3803,8 +3821,10 @@ namespace DynamometerHMI
                 string content = sb.ToString();
                 File.WriteAllText(fileHist, content, Encoding.UTF8);
                 File.WriteAllText(fileLatest, content, Encoding.UTF8);
+                File.WriteAllText(fileLegacyLatest, content, Encoding.UTF8);
+                File.WriteAllText(fileLegacyHist, content, Encoding.UTF8);
 
-                WriteHmiLog("S1_NOSLIP", string.Format("【S1 不補轉差40筆紀錄完成】去前後5筆(取中間30筆平均)：NN={0:F1}rpm, TN={1:F2}Nm, VN={2:F1}V, IN={3:F2}A, PN={4:F3}kW, sN={5:F2}%。已存入: {6}",
+                WriteHmiLog("S1_NOSLIP", string.Format("【S1 不補轉差採樣完成】已保存標準等效額定檔：NN={0:F1}rpm, TN={1:F2}Nm, VN={2:F1}V, IN={3:F2}A, PN={4:F3}kW, sN={5:F2}% -> {6}",
                     avgSpd, avgTrq, avgV, avgI, avgP, slip, Path.GetFileName(fileLatest)));
             }
             catch (Exception ex)
@@ -3813,25 +3833,47 @@ namespace DynamometerHMI
             }
         }
 
-        public string SaveDutyTestReportCsv(string dutyPrefix, bool showDialog = false)
+        public string SaveDutyTestReportCsv(string dutyPrefix, bool showDialog = false, string statusTag = "COMPLETED")
         {
             try
             {
                 string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
                 string logDir = GetMotorDedicatedLogDirectory(mName);
                 if (!Directory.Exists(logDir)) Directory.CreateDirectory(logDir);
-                string fileName = string.Format("Report_Duty_{0}_{1}.csv", dutyPrefix, DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+
+                string timeStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                // 統一名稱契約：[MotorModel]_[TestType]_[DutyOrCondition]_[Status]_[yyyyMMdd_HHmmss].csv
+                string formalDutyTag = dutyPrefix;
+                if (dutyPrefix == "S1") formalDutyTag = "S1-Rated";
+                else if (dutyPrefix == "S2") formalDutyTag = "S2-30min";
+                else if (dutyPrefix == "S6") formalDutyTag = "S6-Cycle";
+
+                string fileName = string.Format("{0}_Duty_{1}_{2}_{3}.csv", mName, formalDutyTag, statusTag, timeStamp);
                 string path = Path.Combine(logDir, fileName);
+                string legacyName = string.Format("Report_Duty_{0}_{1}.csv", dutyPrefix, timeStamp);
+                string legacyPath = Path.Combine(logDir, legacyName);
+
                 using (StreamWriter sw = new StreamWriter(path, false, Encoding.UTF8))
                 {
+                    // 自描述 Metadata 標頭
+                    sw.WriteLine("# ========================================================================================");
+                    sw.WriteLine("# Dynamometer HMI Test Telemetry Log (IEEE Std 112 / IEC 60034)");
+                    sw.WriteLine(string.Format("# MotorModel: {0}", mName));
+                    sw.WriteLine(string.Format("# TestCategory: DutyCycle ({0})", formalDutyTag));
+                    sw.WriteLine(string.Format("# CoolingType: {0}", (HasWaterCoolingChannels() ? "Water" : "Air")));
+                    sw.WriteLine(string.Format("# TestDuration_sec: {0}", dutyResults.Count * 5));
+                    sw.WriteLine(string.Format("# TestStatus: {0}", statusTag));
+                    sw.WriteLine(string.Format("# GeneratedTime: {0:yyyy-MM-dd HH:mm:ss}", DateTime.Now));
+                    sw.WriteLine("# ========================================================================================");
                     sw.WriteLine("TimeSec,Phase,Speed_rpm,Frequency_Hz,Freq_U1_Hz,Freq_I1_Hz,Torque_Nm,MechPower_kW,Efficiency_pct,Temp_C,Voltage_Sigma_V,Current_Sigma_A,ElecPower_kW,PowerFactor");
                     foreach (var row in dutyResults)
                     {
                         sw.WriteLine(string.Join(",", row));
                     }
                 }
+                try { File.Copy(path, legacyPath, true); } catch { }
                 PurgeLocalLogs(false);
-                WriteHmiLog("DUTY_EXPORT", string.Format("【{0} 報表自動存檔成功】已儲存至: {1} (共 {2} 筆記錄)", dutyPrefix, path, dutyResults.Count));
+                WriteHmiLog("DUTY_EXPORT", string.Format("【{0} 報表自動存檔成功】已儲存至: {1} (狀態: {2} | 共 {3} 筆記錄)", dutyPrefix, path, statusTag, dutyResults.Count));
                 if (showDialog)
                 {
                     MessageBox.Show(string.Format("{0} 工作制報表已匯出至:\n{1}", dutyPrefix, path), "匯出成功", MessageBoxButtons.OK, MessageBoxIcon.Information);

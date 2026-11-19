@@ -1469,17 +1469,28 @@ namespace DynamometerHMI
 
             try
             {
+                string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
                 using (SaveFileDialog sfd = new SaveFileDialog())
                 {
                     sfd.Filter = "CSV 日誌檔案 (*.csv)|*.csv|所有檔案 (*.*)|*.*";
-                    sfd.FileName = string.Format("NoLoad_Test_Log_{0}.csv", DateTime.Now.ToString("yyyyMMdd_HHmmss"));
-                    sfd.InitialDirectory = GetMotorDedicatedLogDirectory(motorModelName);
+                    // 統一名稱契約：[MotorModel]_[TestType]_[DutyOrCondition]_[Status]_[yyyyMMdd_HHmmss].csv
+                    sfd.FileName = string.Format("{0}_NoLoad_RatedFreq_COMPLETED_{1}.csv", mName, DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+                    sfd.InitialDirectory = GetMotorDedicatedLogDirectory(mName);
                     sfd.Title = "匯出空載溫升測試紀錄";
 
                     if (sfd.ShowDialog() == DialogResult.OK)
                     {
                         using (StreamWriter sw = new StreamWriter(sfd.FileName, false, Encoding.UTF8))
                         {
+                            // 自描述 Metadata 標頭
+                            sw.WriteLine("# ========================================================================================");
+                            sw.WriteLine("# Dynamometer HMI Test Telemetry Log (IEEE Std 112 / IEC 60034)");
+                            sw.WriteLine(string.Format("# MotorModel: {0}", mName));
+                            sw.WriteLine("# TestCategory: NoLoad (RatedFrequency)");
+                            sw.WriteLine("# TestStatus: COMPLETED");
+                            sw.WriteLine(string.Format("# GeneratedTime: {0:yyyy-MM-dd HH:mm:ss}", DateTime.Now));
+                            sw.WriteLine("# ========================================================================================");
+
                             // 欄位標題
                             StringBuilder headerSb = new StringBuilder();
                             for (int i = 0; i < dgvNoLoad.Columns.Count; i++)

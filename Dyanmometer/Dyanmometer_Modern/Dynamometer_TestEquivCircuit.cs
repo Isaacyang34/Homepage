@@ -1447,7 +1447,7 @@ namespace DynamometerHMI
             return valid.Count > 0 ? valid.Average() : list.Average();
         }
 
-        // 1. 從馬達專屬資料夾載入空載紀錄檔 (NoLoad_Electrical_Rated_Latest.csv)
+        // 1. 從馬達專屬資料夾載入空載紀錄檔 ({mName}_Equiv_NoLoad_Latest.csv 或歷史檔)
         private bool LoadNoLoadDataFromTestTab(bool showPrompt)
         {
             try
@@ -1457,11 +1457,14 @@ namespace DynamometerHMI
 
                 if (Directory.Exists(motorDir))
                 {
-                    // 優先搜尋專屬空載電氣量日誌 (NoLoad_Electrical_Rated_Latest.csv)
-                    string latestFile = Path.Combine(motorDir, "NoLoad_Electrical_Rated_Latest.csv");
+                    // 優先搜尋新版標準命名 ({mName}_Equiv_NoLoad_Latest.csv 或 *_Equiv_NoLoad_*.csv)，向下相容 NoLoad_Electrical_Rated_*.csv
+                    string latestFile = Path.Combine(motorDir, string.Format("{0}_Equiv_NoLoad_Latest.csv", mName));
+                    if (!File.Exists(latestFile)) latestFile = Path.Combine(motorDir, "NoLoad_Electrical_Rated_Latest.csv");
                     if (!File.Exists(latestFile))
                     {
-                        var files = Directory.GetFiles(motorDir, "NoLoad_Electrical_Rated_*.csv")
+                        var files = Directory.GetFiles(motorDir, "*_Equiv_NoLoad_*.csv")
+                            .Concat(Directory.GetFiles(motorDir, "NoLoad_Electrical_Rated_*.csv"))
+                            .Where(f => !f.Contains("ABORTED"))
                             .OrderByDescending(f => File.GetLastWriteTime(f))
                             .ToList();
                         if (files.Count > 0) latestFile = files[0];
@@ -1673,8 +1676,10 @@ namespace DynamometerHMI
                 if (!Directory.Exists(motorDir)) Directory.CreateDirectory(motorDir);
 
                 string timeStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                string fileHist = Path.Combine(motorDir, string.Format("NoLoad_Electrical_Rated_{0}.csv", timeStamp));
-                string fileLatest = Path.Combine(motorDir, "NoLoad_Electrical_Rated_Latest.csv");
+                // 統一名稱契約：[MotorModel]_[TestType]_[DutyOrCondition]_[Status]_[yyyyMMdd_HHmmss].csv
+                string fileHist = Path.Combine(motorDir, string.Format("{0}_Equiv_NoLoad_COMPLETED_{1}.csv", mName, timeStamp));
+                string fileLatest = Path.Combine(motorDir, string.Format("{0}_Equiv_NoLoad_Latest.csv", mName));
+                string fileLegacyLatest = Path.Combine(motorDir, "NoLoad_Electrical_Rated_Latest.csv");
 
                 int totalCount = noLoadSampleBuffer.Count;
                 int trimSide = (int)Math.Floor(totalCount * 0.15);
@@ -1682,9 +1687,11 @@ namespace DynamometerHMI
 
                 StringBuilder sb = new StringBuilder();
                 sb.AppendLine("# ========================================================================================");
-                sb.AppendLine("# 動力計系統 - 馬達空載特性電氣數據 (IEEE Std 112 / IEC 60034-2-1)");
-                sb.AppendLine(string.Format("# 待測馬達: 【{0}】 | 採樣方式: 30秒去極值連續採樣 (Trimmed Mean 15%)", mName));
-                sb.AppendLine(string.Format("# 總採樣筆數: {0} 筆 | 有效均值筆數: {1} 筆", totalCount, validCount));
+                sb.AppendLine("# Dynamometer HMI Test Telemetry Log (IEEE Std 112 / IEC 60034-2-1)");
+                sb.AppendLine(string.Format("# MotorModel: {0}", mName));
+                sb.AppendLine("# TestCategory: EquivalentCircuit_NoLoad");
+                sb.AppendLine("# TestStatus: COMPLETED");
+                sb.AppendLine(string.Format("# TotalSamples: {0} | ValidSamples: {1} (Trimmed Mean 15%)", totalCount, validCount));
                 sb.AppendLine(string.Format("# AverageVoltage_V: {0:F2}", avgV));
                 sb.AppendLine(string.Format("# AverageCurrent_A: {0:F3}", avgI));
                 sb.AppendLine(string.Format("# AveragePower_W: {0:F1}", avgP_W));
@@ -1711,6 +1718,7 @@ namespace DynamometerHMI
                 string content = sb.ToString();
                 File.WriteAllText(fileHist, content, Encoding.UTF8);
                 File.WriteAllText(fileLatest, content, Encoding.UTF8);
+                File.WriteAllText(fileLegacyLatest, content, Encoding.UTF8);
 
                 btnEquivCaptureLiveNoLoad.Text = "[寫入] 30秒空載採樣";
                 btnEquivCaptureLiveNoLoad.BackColor = Color.FromArgb(240, 253, 244);
@@ -1746,10 +1754,42 @@ namespace DynamometerHMI
         {
             if (tmrNoLoadSampler != null) tmrNoLoadSampler.Stop();
             isNoLoadSampling = false;
+
+            // 幽靈日誌防禦：若已有採樣樣本但中途被取消，明確標註為 ABORTED 留存
+            try
+            {
+                if (noLoadSampleBuffer != null && noLoadSampleBuffer.Count >= 3)
+                {
+                    string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
+                    string motorDir = GetMotorDedicatedLogDirectory(mName);
+                    string timeStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                    string abortFile = Path.Combine(motorDir, string.Format("{0}_Equiv_NoLoad_ABORTED_{1}.csv", mName, timeStamp));
+                    StringBuilder sb = new StringBuilder();
+                    sb.AppendLine("# ========================================================================================");
+                    sb.AppendLine("# Dynamometer HMI Test Telemetry Log (IEEE Std 112 / IEC 60034-2-1)");
+                    sb.AppendLine(string.Format("# MotorModel: {0}", mName));
+                    sb.AppendLine("# TestCategory: EquivalentCircuit_NoLoad");
+                    sb.AppendLine("# TestStatus: ABORTED");
+                    sb.AppendLine(string.Format("# TotalSamples: {0} (Interrupted before 30s completion)", noLoadSampleBuffer.Count));
+                    sb.AppendLine("# GeneratedTime: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                    sb.AppendLine("# ========================================================================================");
+                    sb.AppendLine("Index,Timestamp,Speed_rpm,Voltage_Sigma_V,Current_Sigma_A,ElecPower_kW,Power_W,PF,Frequency_Hz,Included_In_Average");
+                    for (int i = 0; i < noLoadSampleBuffer.Count; i++)
+                    {
+                        var p = noLoadSampleBuffer[i];
+                        sb.AppendLine(string.Format("{0},{1},{2:F2},{3:F2},{4:F3},{5:F4},{6:F1},{7:F4},{8:F2},No",
+                            i + 1, p.Time.ToString("HH:mm:ss.fff"), p.Speed, p.Voltage, p.Current, p.PowerKw, p.PowerW, p.PowerFactor, p.Frequency));
+                    }
+                    File.WriteAllText(abortFile, sb.ToString(), Encoding.UTF8);
+                    WriteHmiLog("EQUIV", string.Format("【等效電路】空載採樣中斷，已保存中斷紀錄: {0}", Path.GetFileName(abortFile)));
+                }
+            }
+            catch { }
+
             btnEquivCaptureLiveNoLoad.Text = "[寫入] 30秒空載採樣";
             btnEquivCaptureLiveNoLoad.BackColor = Color.FromArgb(240, 253, 244);
             btnEquivCaptureLiveNoLoad.ForeColor = Color.FromArgb(22, 163, 74);
-            lblNoLoadItemStatus.Text = "[--] 已取消採樣";
+            lblNoLoadItemStatus.Text = "[--] 已取消採樣 (未達 30 秒)";
             lblNoLoadItemStatus.ForeColor = Color.FromArgb(100, 116, 139);
         }
 
@@ -1758,7 +1798,7 @@ namespace DynamometerHMI
             ToggleNoLoadSampling();
         }
 
-        // 2. 從「S1 不補轉差紀錄檔」載入額定點 (S1_Rated_NoSlip_Latest.csv)
+        // 2. 從「S1 不補轉差紀錄檔」載入額定點 ({mName}_Equiv_Rated_Latest.csv 或歷史檔)
         private bool LoadRatedDataFromTnTab(bool showPrompt)
         {
             try
@@ -1768,10 +1808,14 @@ namespace DynamometerHMI
 
                 if (Directory.Exists(motorDir))
                 {
-                    string latestS1File = Path.Combine(motorDir, "S1_Rated_NoSlip_Latest.csv");
+                    // 優先搜尋新版標準命名 ({mName}_Equiv_Rated_Latest.csv 或 *_Equiv_Rated_*.csv)，向下相容 S1_Rated_NoSlip_*.csv
+                    string latestS1File = Path.Combine(motorDir, string.Format("{0}_Equiv_Rated_Latest.csv", mName));
+                    if (!File.Exists(latestS1File)) latestS1File = Path.Combine(motorDir, "S1_Rated_NoSlip_Latest.csv");
                     if (!File.Exists(latestS1File))
                     {
-                        var files = Directory.GetFiles(motorDir, "S1_Rated_NoSlip_*.csv")
+                        var files = Directory.GetFiles(motorDir, "*_Equiv_Rated_*.csv")
+                            .Concat(Directory.GetFiles(motorDir, "S1_Rated_NoSlip_*.csv"))
+                            .Where(f => !f.Contains("ABORTED"))
                             .OrderByDescending(f => File.GetLastWriteTime(f))
                             .ToList();
                         if (files.Count > 0) latestS1File = files[0];
@@ -1808,7 +1852,7 @@ namespace DynamometerHMI
                             if (slip <= 0.0)
                             {
                                 int driveId = (cmbEquivKebDrive != null && cmbEquivKebDrive.SelectedIndex == 1) ? 1 : 2;
-                int poles = (driveId == 1) ? (kebMotorPoles1 > 0 ? kebMotorPoles1 : 4) : (kebMotorPoles2 > 0 ? kebMotorPoles2 : 4);
+                                int poles = (driveId == 1) ? (kebMotorPoles1 > 0 ? kebMotorPoles1 : 4) : (kebMotorPoles2 > 0 ? kebMotorPoles2 : 4);
                                 double effectiveF = (avgFreq > 1.0) ? avgFreq : (numEquivF0.Value > 1.0m ? (double)numEquivF0.Value : 50.0);
                                 double syncSpd = (120.0 * effectiveF) / poles;
                                 if (syncSpd <= avgSpd)
@@ -1821,14 +1865,14 @@ namespace DynamometerHMI
                             if (slip > 0) numEquivSlip.Value = (decimal)Math.Round(slip, 2);
 
                             isRatedDataReady = true;
-                            lblRatedItemStatus.Text = string.Format("[O] 已自 S1 不補轉差檔讀取 ({0:HH:mm:ss})", DateTime.Now);
+                            lblRatedItemStatus.Text = string.Format("[O] 已自額定(不補轉差)檔讀取 ({0:HH:mm:ss})", DateTime.Now);
                             lblRatedItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
-                            WriteHmiLog("EQUIV", string.Format("【等效電路】成功自 S1 紀錄檔提取額定數據: TN={0:F2}Nm, NN={1:F0}rpm (不補轉差), VN={2:F1}V, IN={3:F2}A, sN={4:F2}% ({5})",
+                            WriteHmiLog("EQUIV", string.Format("【等效電路】成功自額定紀錄檔提取額定數據: TN={0:F2}Nm, NN={1:F0}rpm (不補轉差), VN={2:F1}V, IN={3:F2}A, sN={4:F2}% ({5})",
                                 avgTrq, avgSpd, avgV, avgI, slip, Path.GetFileName(latestS1File)));
 
                             if (showPrompt)
                             {
-                                MessageBox.Show(string.Format("已成功自 S1 紀錄檔提取額定數據：\r\n\r\n• 檔案：{0}\r\n• 額定轉矩 TN = {1:F2} Nm\r\n• 額定轉速 NN = {2:F0} rpm\r\n• 額定電壓 VN = {3:F1} V\r\n• 額定電流 IN = {4:F2} A\r\n• 輸入電功率 PN = {5:F3} kW\r\n• 轉差率 sN = {6:F2} %",
+                                MessageBox.Show(string.Format("已成功自額定紀錄檔提取額定數據：\r\n\r\n• 檔案：{0}\r\n• 額定轉矩 TN = {1:F2} Nm\r\n• 額定轉速 NN = {2:F0} rpm\r\n• 額定電壓 VN = {3:F1} V\r\n• 額定電流 IN = {4:F2} A\r\n• 輸入電功率 PN = {5:F3} kW\r\n• 轉差率 sN = {6:F2} %",
                                     Path.GetFileName(latestS1File), avgTrq, avgSpd, avgV, avgI, avgP, slip), "載入成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             }
                             return true;
@@ -1838,7 +1882,7 @@ namespace DynamometerHMI
 
                 if (showPrompt)
                 {
-                    MessageBox.Show(string.Format("於馬達專屬資料夾中未找到 S1 不補轉差紀錄檔 (S1_Rated_NoSlip_Latest.csv)！\r\n\r\n" +
+                    MessageBox.Show(string.Format("於馬達專屬資料夾中未找到額定不補轉差紀錄檔！\r\n\r\n" +
                         "請在額定加載運轉時點擊【[寫入] 30秒額定採樣】按鈕，\r\n" +
                         "系統將自動連續採集 30 秒數據做去極值平均，填入表格並自動保存檔案供未來隨時載入。", mName), "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
@@ -2016,8 +2060,10 @@ namespace DynamometerHMI
                 if (!Directory.Exists(motorDir)) Directory.CreateDirectory(motorDir);
 
                 string timeStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                string fileHist = Path.Combine(motorDir, string.Format("S1_Rated_NoSlip_40pts_{0}.csv", timeStamp));
-                string fileLatest = Path.Combine(motorDir, "S1_Rated_NoSlip_Latest.csv");
+                // 統一名稱契約：[MotorModel]_[TestType]_[DutyOrCondition]_[Status]_[yyyyMMdd_HHmmss].csv (徹底剔除 40pts 錯誤命名)
+                string fileHist = Path.Combine(motorDir, string.Format("{0}_Equiv_Rated_COMPLETED_{1}.csv", mName, timeStamp));
+                string fileLatest = Path.Combine(motorDir, string.Format("{0}_Equiv_Rated_Latest.csv", mName));
+                string fileLegacyLatest = Path.Combine(motorDir, "S1_Rated_NoSlip_Latest.csv");
 
                 int totalCount = ratedSampleBuffer.Count;
                 int trimSide = (int)Math.Floor(totalCount * 0.15);
@@ -2025,9 +2071,11 @@ namespace DynamometerHMI
 
                 StringBuilder sb = new StringBuilder();
                 sb.AppendLine("# ========================================================================================");
-                sb.AppendLine("# 動力計系統 - S1 額定運轉數據 (不補轉差 IEEE Std 112)");
-                sb.AppendLine(string.Format("# 待測馬達: 【{0}】 | 採樣方式: 30秒去極值連續採樣 (Trimmed Mean 15%)", mName));
-                sb.AppendLine(string.Format("# 總採樣筆數: {0} 筆 | 有效均值筆數: {1} 筆", totalCount, validCount));
+                sb.AppendLine("# Dynamometer HMI Test Telemetry Log (IEEE Std 112 / IEC 60034-2-1)");
+                sb.AppendLine(string.Format("# MotorModel: {0}", mName));
+                sb.AppendLine("# TestCategory: EquivalentCircuit_Rated");
+                sb.AppendLine("# TestStatus: COMPLETED");
+                sb.AppendLine(string.Format("# TotalSamples: {0} | ValidSamples: {1} (Trimmed Mean 15%)", totalCount, validCount));
                 sb.AppendLine(string.Format("# AverageSpeed_rpm: {0:F2}", avgSpd));
                 sb.AppendLine(string.Format("# AverageTorque_Nm: {0:F3}", avgTrq));
                 sb.AppendLine(string.Format("# AverageVoltage_V: {0:F2}", avgV));
@@ -2057,6 +2105,7 @@ namespace DynamometerHMI
                 string content = sb.ToString();
                 File.WriteAllText(fileHist, content, Encoding.UTF8);
                 File.WriteAllText(fileLatest, content, Encoding.UTF8);
+                File.WriteAllText(fileLegacyLatest, content, Encoding.UTF8);
 
                 btnEquivCaptureLiveRated.Text = "[寫入] 30秒額定採樣";
                 btnEquivCaptureLiveRated.BackColor = Color.FromArgb(240, 253, 244);
@@ -2078,7 +2127,7 @@ namespace DynamometerHMI
                     "• 輸入電功率 PN = {7:F3} kW\r\n" +
                     "• 功率因數 PFN = {8:F3}\r\n" +
                     "• 轉差率 sN = {9:F2} %\r\n\r\n" +
-                    "已保存至：\r\n{10}\r\n(未來點擊【[檔案] 載入 S1 不補轉差檔】即可直接載入此檔案)",
+                    "已保存至：\r\n{10}\r\n(未來點擊【[檔案] 載入額定紀錄檔】即可直接載入此檔案)",
                     mName, totalCount, validCount, avgTrq, avgSpd, avgV, avgI, avgP_kW, avgPf, slip, fileLatest),
                     "額定採樣與存檔成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
@@ -2093,10 +2142,42 @@ namespace DynamometerHMI
         {
             if (tmrRatedSampler != null) tmrRatedSampler.Stop();
             isRatedSampling = false;
+
+            // 幽靈日誌防禦：若已有採樣樣本但中途被取消，明確標註為 ABORTED 留存
+            try
+            {
+                if (ratedSampleBuffer != null && ratedSampleBuffer.Count >= 3)
+                {
+                    string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
+                    string motorDir = GetMotorDedicatedLogDirectory(mName);
+                    string timeStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                    string abortFile = Path.Combine(motorDir, string.Format("{0}_Equiv_Rated_ABORTED_{1}.csv", mName, timeStamp));
+                    StringBuilder sb = new StringBuilder();
+                    sb.AppendLine("# ========================================================================================");
+                    sb.AppendLine("# Dynamometer HMI Test Telemetry Log (IEEE Std 112 / IEC 60034-2-1)");
+                    sb.AppendLine(string.Format("# MotorModel: {0}", mName));
+                    sb.AppendLine("# TestCategory: EquivalentCircuit_Rated");
+                    sb.AppendLine("# TestStatus: ABORTED");
+                    sb.AppendLine(string.Format("# TotalSamples: {0} (Interrupted before 30s completion)", ratedSampleBuffer.Count));
+                    sb.AppendLine("# GeneratedTime: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                    sb.AppendLine("# ========================================================================================");
+                    sb.AppendLine("Index,Timestamp,Speed_rpm,Torque_Nm,Voltage_V,Current_A,Power_kW,PowerFactor,Freq_Hz,Included_In_Average");
+                    for (int i = 0; i < ratedSampleBuffer.Count; i++)
+                    {
+                        var p = ratedSampleBuffer[i];
+                        sb.AppendLine(string.Format("{0},{1},{2:F2},{3:F3},{4:F2},{5:F3},{6:F4},{7:F4},{8:F2},No",
+                            i + 1, p.Time.ToString("HH:mm:ss.fff"), p.Speed, p.Torque, p.Voltage, p.Current, p.PowerKw, p.PowerFactor, p.Frequency));
+                    }
+                    File.WriteAllText(abortFile, sb.ToString(), Encoding.UTF8);
+                    WriteHmiLog("EQUIV", string.Format("【等效電路】額定採樣中斷，已保存中斷紀錄: {0}", Path.GetFileName(abortFile)));
+                }
+            }
+            catch { }
+
             btnEquivCaptureLiveRated.Text = "[寫入] 30秒額定採樣";
             btnEquivCaptureLiveRated.BackColor = Color.FromArgb(240, 253, 244);
             btnEquivCaptureLiveRated.ForeColor = Color.FromArgb(22, 163, 74);
-            lblRatedItemStatus.Text = "[--] 已取消採樣";
+            lblRatedItemStatus.Text = "[--] 已取消採樣 (未達 30 秒)";
             lblRatedItemStatus.ForeColor = Color.FromArgb(100, 116, 139);
         }
 
@@ -2105,37 +2186,45 @@ namespace DynamometerHMI
             ToggleRatedSampling();
         }
 
-        // 檢查馬達專屬資料夾中是否存在實體空載日誌
+        // 檢查馬達專屬資料夾中是否存在實體空載日誌 (支援新舊命名)
         public bool CheckMotorHasNoLoadLog(string mName)
         {
             try
             {
                 string dir = GetMotorDedicatedLogDirectory(mName);
                 if (!Directory.Exists(dir)) return false;
-                string latest = Path.Combine(dir, "NoLoad_Electrical_Rated_Latest.csv");
-                if (File.Exists(latest)) return true;
-                var files = Directory.GetFiles(dir, "NoLoad_Electrical_Rated_*.csv");
-                return files != null && files.Length > 0;
+                string newLatest = Path.Combine(dir, string.Format("{0}_Equiv_NoLoad_Latest.csv", mName));
+                if (File.Exists(newLatest)) return true;
+                string legacyLatest = Path.Combine(dir, "NoLoad_Electrical_Rated_Latest.csv");
+                if (File.Exists(legacyLatest)) return true;
+                var files = Directory.GetFiles(dir, "*_Equiv_NoLoad_*.csv")
+                    .Concat(Directory.GetFiles(dir, "NoLoad_Electrical_Rated_*.csv"))
+                    .Where(f => !f.Contains("ABORTED"));
+                return files != null && files.Any();
             }
             catch { return false; }
         }
 
-        // 檢查馬達專屬資料夾中是否存在實體 S1 額定日誌
+        // 檢查馬達專屬資料夾中是否存在實體 S1 額定日誌 (支援新舊命名)
         public bool CheckMotorHasRatedLog(string mName)
         {
             try
             {
                 string dir = GetMotorDedicatedLogDirectory(mName);
                 if (!Directory.Exists(dir)) return false;
-                string latest = Path.Combine(dir, "S1_Rated_NoSlip_Latest.csv");
-                if (File.Exists(latest)) return true;
-                var files = Directory.GetFiles(dir, "S1_Rated_NoSlip_*.csv");
-                return files != null && files.Length > 0;
+                string newLatest = Path.Combine(dir, string.Format("{0}_Equiv_Rated_Latest.csv", mName));
+                if (File.Exists(newLatest)) return true;
+                string legacyLatest = Path.Combine(dir, "S1_Rated_NoSlip_Latest.csv");
+                if (File.Exists(legacyLatest)) return true;
+                var files = Directory.GetFiles(dir, "*_Equiv_Rated_*.csv")
+                    .Concat(Directory.GetFiles(dir, "S1_Rated_NoSlip_*.csv"))
+                    .Where(f => !f.Contains("ABORTED"));
+                return files != null && files.Any();
             }
             catch { return false; }
         }
 
-        // 檢查馬達專屬資料夾中是否存在實體堵轉紀錄檔
+        // 檢查馬達專屬資料夾中是否存在實體堵轉紀錄檔 (支援新舊命名)
         public bool CheckMotorHasLockedLog(string mName)
         {
             try
@@ -2145,8 +2234,10 @@ namespace DynamometerHMI
                 var files = Directory.GetFiles(dir, "*.csv")
                     .Where(f => {
                         string name = Path.GetFileName(f);
-                        return name.IndexOf("Locked", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                               name.IndexOf("EquivCircuit_Test_Log", StringComparison.OrdinalIgnoreCase) >= 0;
+                        return (name.IndexOf("Locked", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                               name.IndexOf("EquivCircuit_Test_Log", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                               name.IndexOf("Equiv", StringComparison.OrdinalIgnoreCase) >= 0) &&
+                               !name.Contains("ABORTED");
                     })
                     .ToList();
                 return files.Count > 0;
@@ -3645,22 +3736,33 @@ namespace DynamometerHMI
         {
             try
             {
+                string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
+                string motorDir = GetMotorDedicatedLogDirectory(mName);
+                if (!Directory.Exists(motorDir)) Directory.CreateDirectory(motorDir);
+
+                string timeStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                // 統一名稱契約：[MotorModel]_[TestType]_[DutyOrCondition]_[Status]_[yyyyMMdd_HHmmss].csv
+                string defaultFileName = string.Format("{0}_Equiv_Locked_8Freq_Summary_COMPLETED_{1}.csv", mName, timeStamp);
+
                 SaveFileDialog sfd = new SaveFileDialog()
                 {
                     Filter = "CSV 檔案 (*.csv)|*.csv",
-                    FileName = string.Format("LockedRotor_8Freq_Sweep_{0}_{1:yyyyMMdd_HHmmss}.csv",
-                        !string.IsNullOrEmpty(motorModelName) ? motorModelName : "Motor", DateTime.Now)
+                    InitialDirectory = motorDir,
+                    FileName = defaultFileName
                 };
                 if (sfd.ShowDialog() == DialogResult.OK)
                 {
                     StringBuilder sb = new StringBuilder();
-                    sb.AppendLine("三相感應馬達 8 頻率堵轉測試紀錄報表");
-                    sb.AppendLine(string.Format("馬達型號,{0}", motorModelName));
-                    sb.AppendLine(string.Format("額定電流 IN (A),{0}", numEquivIn.Value));
-                    sb.AppendLine(string.Format("基準電壓 (V),{0}", originalUf09Val));
-                    sb.AppendLine(string.Format("匯出時間,{0:yyyy-MM-dd HH:mm:ss}", DateTime.Now));
-                    sb.AppendLine("採樣說明,達到額定電流後採樣30筆電氣量 剔除電流最高5筆與最低5筆 取中間20筆算術平均");
-                    sb.AppendLine();
+                    sb.AppendLine("# ========================================================================================");
+                    sb.AppendLine("# Dynamometer HMI Test Telemetry Log (IEEE Std 112 / IEC 60034-2-1)");
+                    sb.AppendLine(string.Format("# MotorModel: {0}", mName));
+                    sb.AppendLine("# TestCategory: EquivalentCircuit_Locked_8Freq_Summary");
+                    sb.AppendLine("# TestStatus: COMPLETED");
+                    sb.AppendLine(string.Format("# RatedCurrent_IN_A: {0}", numEquivIn.Value));
+                    sb.AppendLine(string.Format("# BaseVoltage_V: {0}", originalUf09Val));
+                    sb.AppendLine(string.Format("# GeneratedTime: {0:yyyy-MM-dd HH:mm:ss}", DateTime.Now));
+                    sb.AppendLine("# SamplingNote: 達到額定電流後採樣30筆電氣量 剔除電流最高5筆與最低5筆 取中間20筆算術平均");
+                    sb.AppendLine("# ========================================================================================");
                     sb.AppendLine("項次,試驗頻率項目,頻率比,試驗頻率(Hz),起始電壓(V),估測目標電壓(V),收斂uf09(V),平均電壓Vk(V),平均電流Ik(A),平均功率Pk(W),平均功率因數PFk,實測漏抗Xk_meas(Ω),折算額定漏抗Xk_ref(Ω),換算漏電感Lk(mH),測試時間,狀態");
 
                     foreach (var it in lockedSweepItems)
@@ -3684,7 +3786,13 @@ namespace DynamometerHMI
                             it.IsCompleted ? "已完成" : "未完成"));
                     }
 
-                    File.WriteAllText(sfd.FileName, sb.ToString(), Encoding.UTF8);
+                    string outContent = sb.ToString();
+                    File.WriteAllText(sfd.FileName, outContent, Encoding.UTF8);
+
+                    // 自動在馬達目錄備份最新檔供一鍵讀取
+                    string autoLatest = Path.Combine(motorDir, string.Format("{0}_Equiv_Locked_8Freq_Summary_Latest.csv", mName));
+                    try { File.WriteAllText(autoLatest, outContent, Encoding.UTF8); } catch { }
+
                     MessageBox.Show("8 頻率堵轉測試報表已成功匯出至：\r\n" + sfd.FileName, "匯出成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             }
@@ -4101,18 +4209,30 @@ namespace DynamometerHMI
                 WriteHmiLog("EQUIV_CALC", string.Format("【等效電路計算成功】R1={0:F4}Ω, X1={1:F4}Ω({6:F2}mH), Xm={2:F2}Ω({7:F1}mH), R2'={3:F4}Ω, X2'={4:F4}Ω({8:F2}mH), Tmax={5:F1}Nm",
                     res.R1, res.X1, res.Xm, res.R2_prime, res.X2_prime, res.T_max, res.L1_mH, res.Lm_mH, res.L2_prime_mH));
 
-                //  自動將等效電路參數成果儲存至馬達專屬目錄 (無溫度報表)
+                //  自動將等效電路參數成果儲存至馬達專屬目錄 (無溫度報表，含完整自描述標頭與量測基準)
                 try
                 {
                     string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
                     string motorDir = GetMotorDedicatedLogDirectory(mName);
                     if (!Directory.Exists(motorDir)) Directory.CreateDirectory(motorDir);
-                    string autoParamFile = Path.Combine(motorDir, string.Format("Report_EquivCircuit_Params_{0}_{1}.csv", mName, DateTime.Now.ToString("yyyyMMdd_HHmmss")));
+                    string timeStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                    // 統一名稱契約：[MotorModel]_[TestType]_[DutyOrCondition]_[Status]_[yyyyMMdd_HHmmss].csv
+                    string autoParamFile = Path.Combine(motorDir, string.Format("{0}_Equiv_Params_COMPLETED_{1}.csv", mName, timeStamp));
+                    string latestParamFile = Path.Combine(motorDir, string.Format("{0}_Equiv_Params_Latest.csv", mName));
+                    string legacyParamFile = Path.Combine(motorDir, string.Format("Report_EquivCircuit_Params_{0}_{1}.csv", mName, timeStamp));
+
                     StringBuilder sbAuto = new StringBuilder();
                     sbAuto.AppendLine("# ========================================================================================");
-                    sbAuto.AppendLine("# 動力計系統 - 馬達單相等效電路參數計算成果報表 (IEEE Std 112)");
-                    sbAuto.AppendLine(string.Format("# 待測馬達: 【{0}】 | 計算時間: {1:yyyy-MM-dd HH:mm:ss}", mName, DateTime.Now));
-                    sbAuto.AppendLine("# 特性說明: 短時間純電氣阻抗參數估算，無溫度感測記錄 (No Temperature Channels)");
+                    sbAuto.AppendLine("# Dynamometer HMI Test Telemetry Log (IEEE Std 112 / IEC 60034-2-1)");
+                    sbAuto.AppendLine(string.Format("# MotorModel: {0}", mName));
+                    sbAuto.AppendLine("# TestCategory: EquivalentCircuit_Parameters");
+                    sbAuto.AppendLine("# TestStatus: COMPLETED");
+                    sbAuto.AppendLine(string.Format("# GeneratedTime: {0:yyyy-MM-dd HH:mm:ss}", DateTime.Now));
+                    sbAuto.AppendLine("# --- 輸入量測基準條件 (Input Test Operating Conditions) ---");
+                    sbAuto.AppendLine(string.Format("# NoLoad: V0={0:F1} V, I0={1:F2} A, P0={2:F1} W, PF0={3:F3}, N0={4:F0} rpm, F0={5:F2} Hz", numEquivV0.Value, numEquivI0.Value, numEquivP0.Value, numEquivPf0.Value, numEquivN0.Value, numEquivF0.Value));
+                    sbAuto.AppendLine(string.Format("# Rated:  VN={0:F1} V, IN={1:F2} A, PN={2:F3} kW, TN={3:F2} Nm, NN={4:F0} rpm, sN={5:F2} %, PFN={6:F3}", numEquivVn.Value, numEquivIn.Value, numEquivPn.Value, numEquivTn.Value, numEquivNn.Value, numEquivSlip.Value, numEquivPfn.Value));
+                    sbAuto.AppendLine(string.Format("# Locked: Vk={0:F1} V, Ik={1:F2} A, Pk={2:F1} W, PFk={3:F3}", numEquivVk.Value, numEquivIk.Value, numEquivPk.Value, numEquivPfk.Value));
+                    sbAuto.AppendLine(string.Format("# Stator: R1={0:F4} Ω", numEquivStatorR1 != null ? numEquivStatorR1.Value : 0.125m));
                     sbAuto.AppendLine("# ========================================================================================");
                     sbAuto.AppendLine("項目,符號,數值,單位,換算電感(mH),工程物理意義");
                     if (dgvEquivResults != null)
@@ -4123,7 +4243,10 @@ namespace DynamometerHMI
                                 row.Cells["Param"].Value, row.Cells["Symbol"].Value, row.Cells["Value"].Value, row.Cells["Unit"].Value, row.Cells["Inductance"].Value, row.Cells["Desc"].Value));
                         }
                     }
-                    File.WriteAllText(autoParamFile, sbAuto.ToString(), Encoding.UTF8);
+                    string outParamText = sbAuto.ToString();
+                    File.WriteAllText(autoParamFile, outParamText, Encoding.UTF8);
+                    File.WriteAllText(latestParamFile, outParamText, Encoding.UTF8);
+                    File.WriteAllText(legacyParamFile, outParamText, Encoding.UTF8);
                     WriteHmiLog("EQUIV_REPORT", "【等效電路參數已自動存檔】" + Path.GetFileName(autoParamFile));
                 }
                 catch { }
@@ -4607,15 +4730,28 @@ namespace DynamometerHMI
         {
             try
             {
+                string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
                 using (SaveFileDialog sfd = new SaveFileDialog())
                 {
                     sfd.Filter = "CSV 檔案 (*.csv)|*.csv";
-                    sfd.FileName = string.Format("EquivCircuit_{0}_{1}.csv", motorModelName.Replace(" ", "_"), DateTime.Now.ToString("yyyyMMdd_HHmmss"));
-                    sfd.InitialDirectory = GetMotorDedicatedLogDirectory(motorModelName);
+                    sfd.FileName = string.Format("{0}_Equiv_Params_COMPLETED_{1}.csv", mName.Replace(" ", "_"), DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+                    sfd.InitialDirectory = GetMotorDedicatedLogDirectory(mName);
                     if (sfd.ShowDialog() == DialogResult.OK)
                     {
                         StringBuilder sb = new StringBuilder();
-                        sb.AppendLine("項目,符號,數值,單位,換算電感(mH),說明");
+                        sb.AppendLine("# ========================================================================================");
+                        sb.AppendLine("# Dynamometer HMI Test Telemetry Log (IEEE Std 112 / IEC 60034-2-1)");
+                        sb.AppendLine(string.Format("# MotorModel: {0}", mName));
+                        sb.AppendLine("# TestCategory: EquivalentCircuit_Parameters");
+                        sb.AppendLine("# TestStatus: COMPLETED");
+                        sb.AppendLine(string.Format("# GeneratedTime: {0:yyyy-MM-dd HH:mm:ss}", DateTime.Now));
+                        sb.AppendLine("# --- 輸入量測基準條件 (Input Test Operating Conditions) ---");
+                        sb.AppendLine(string.Format("# NoLoad: V0={0:F1} V, I0={1:F2} A, P0={2:F1} W, PF0={3:F3}, N0={4:F0} rpm, F0={5:F2} Hz", numEquivV0.Value, numEquivI0.Value, numEquivP0.Value, numEquivPf0.Value, numEquivN0.Value, numEquivF0.Value));
+                        sb.AppendLine(string.Format("# Rated:  VN={0:F1} V, IN={1:F2} A, PN={2:F3} kW, TN={3:F2} Nm, NN={4:F0} rpm, sN={5:F2} %, PFN={6:F3}", numEquivVn.Value, numEquivIn.Value, numEquivPn.Value, numEquivTn.Value, numEquivNn.Value, numEquivSlip.Value, numEquivPfn.Value));
+                        sb.AppendLine(string.Format("# Locked: Vk={0:F1} V, Ik={1:F2} A, Pk={2:F1} W, PFk={3:F3}", numEquivVk.Value, numEquivIk.Value, numEquivPk.Value, numEquivPfk.Value));
+                        sb.AppendLine(string.Format("# Stator: R1={0:F4} Ω", numEquivStatorR1 != null ? numEquivStatorR1.Value : 0.125m));
+                        sb.AppendLine("# ========================================================================================");
+                        sb.AppendLine("項目,符號,數值,單位,換算電感(mH),工程物理意義");
                         if (dgvEquivResults != null)
                         {
                             foreach (DataGridViewRow r in dgvEquivResults.Rows)
@@ -4822,17 +4958,21 @@ namespace DynamometerHMI
 
                     string timeStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
                     string safeTag = string.IsNullOrEmpty(testTag) ? "EquivTest" : testTag.Trim().Replace(" ", "_");
-                    string fName = string.Format("EquivCircuit_Test_Log_{0}_{1}_{2}.csv", mName, timeStamp, safeTag);
+                    // 統一名稱契約：[MotorModel]_[TestType]_[DutyOrCondition]_[Status]_[yyyyMMdd_HHmmss].csv (採樣中先掛 RECORDING 標記)
+                    string fName = string.Format("{0}_Equiv_{1}_RECORDING_{2}.csv", mName, safeTag, timeStamp);
                     equivRecordFilePath = Path.Combine(motorDir, fName);
 
                     equivRecordWriter = new StreamWriter(equivRecordFilePath, false, Encoding.UTF8);
 
                     // 寫入註解與標頭 (純電氣量與機械量，嚴格排除溫度)
                     equivRecordWriter.WriteLine("# ========================================================================================");
-                    equivRecordWriter.WriteLine("# 動力計系統 - 馬達單相等效電路測試連續紀錄 (IEEE Std 112)");
-                    equivRecordWriter.WriteLine(string.Format("# 待測馬達: 【{0}】 | 基準電壓: {1} V | 額定電流 IN: {2:F2} A", mName, originalUf09Val, numEquivIn != null ? numEquivIn.Value : 0m));
-                    equivRecordWriter.WriteLine(string.Format("# 測試啟動時間: {0:yyyy-MM-dd HH:mm:ss} | 測試模式: {1}", DateTime.Now, safeTag));
-                    equivRecordWriter.WriteLine("# 欄位特性: 純電機電氣與機械量連續紀錄 (不含任何溫度通道)");
+                    equivRecordWriter.WriteLine("# Dynamometer HMI Test Telemetry Log (IEEE Std 112 / IEC 60034-2-1)");
+                    equivRecordWriter.WriteLine(string.Format("# MotorModel: {0}", mName));
+                    equivRecordWriter.WriteLine(string.Format("# TestCategory: EquivalentCircuit_{0}", safeTag));
+                    equivRecordWriter.WriteLine("# TestStatus: RECORDING");
+                    equivRecordWriter.WriteLine(string.Format("# BaseVoltage_V: {0} | RatedCurrent_IN_A: {1:F2}", originalUf09Val, numEquivIn != null ? numEquivIn.Value : 0m));
+                    equivRecordWriter.WriteLine(string.Format("# StartTime: {0:yyyy-MM-dd HH:mm:ss}", DateTime.Now));
+                    equivRecordWriter.WriteLine("# ColumnFeature: Pure Electrical & Mechanical Telemetry (Zero Temperature Channels)");
                     equivRecordWriter.WriteLine("# ========================================================================================");
                     equivRecordWriter.WriteLine("Timestamp,Elapsed_sec,Stage,FreqName,TargetFreq_Hz,Frequency_Hz,Freq_U1_Hz,Freq_I1_Hz,Uf09_V,Speed_rpm,Torque_Nm,Voltage_U1_V,Voltage_U2_V,Voltage_U3_V,Voltage_Sigma_V,Current_I1_A,Current_I2_A,Current_I3_A,Current_Sigma_A,Power_P1_kW,Power_P2_kW,Power_P3_kW,ElecPower_kW,MechPower_kW,PF,Status");
                     equivRecordWriter.Flush();
@@ -4958,6 +5098,37 @@ namespace DynamometerHMI
                 }
                 catch { }
 
+                // 統一名稱契約：[MotorModel]_[TestType]_[DutyOrCondition]_[Status]_[yyyyMMdd_HHmmss].csv
+                // 若正常完成且有實質數據標註 COMPLETED；若手動中止或異常標註 ABORTED
+                string statusTag = "ABORTED";
+                try
+                {
+                    if (!string.IsNullOrEmpty(savedFile) && File.Exists(savedFile))
+                    {
+                        bool isSuccess = (reason.Contains("正常") || reason.Contains("完成") || reason.Contains("成功")) && totalCount >= 5;
+                        statusTag = isSuccess ? "COMPLETED" : "ABORTED";
+                        string dir = Path.GetDirectoryName(savedFile);
+                        string fileName = Path.GetFileName(savedFile);
+                        if (fileName.Contains("_RECORDING_"))
+                        {
+                            string finalName = fileName.Replace("_RECORDING_", "_" + statusTag + "_");
+                            string finalPath = Path.Combine(dir, finalName);
+                            if (File.Exists(finalPath)) File.Delete(finalPath);
+                            File.Move(savedFile, finalPath);
+                            savedFile = finalPath;
+
+                            // 若為堵轉測試且成功完成，同步備份 _Latest.csv
+                            if (isSuccess && fileName.Contains("Locked"))
+                            {
+                                string mName = !string.IsNullOrEmpty(motorModelName) ? motorModelName : "SVM100S";
+                                string latestPath = Path.Combine(dir, string.Format("{0}_Equiv_Locked_Latest.csv", mName));
+                                try { File.Copy(finalPath, latestPath, true); } catch { }
+                            }
+                        }
+                    }
+                }
+                catch { }
+
                 if (btnEquivManualRecord != null && !btnEquivManualRecord.IsDisposed)
                 {
                     btnEquivManualRecord.Text = "[記錄] 開始記錄";
@@ -4965,12 +5136,12 @@ namespace DynamometerHMI
                     btnEquivManualRecord.ForeColor = Color.FromArgb(30, 41, 59);
                 }
 
-                WriteHmiLog("EQUIV_REC", string.Format("【等效電路記錄已儲存】檔案: {0} ({1:F1}s / {2}筆) | 原因: {3}", Path.GetFileName(savedFile), totalSec, totalCount, reason));
+                WriteHmiLog("EQUIV_REC", string.Format("【等效電路記錄已儲存】檔案: {0} ({1:F1}s / {2}筆) | 狀態: {3} | 原因: {4}", Path.GetFileName(savedFile), totalSec, totalCount, statusTag, reason));
 
                 if (showPrompt && !string.IsNullOrEmpty(savedFile) && File.Exists(savedFile))
                 {
-                    MessageBox.Show(string.Format("等效電路測試紀錄已成功儲存至馬達專屬目錄：\r\n\r\n{0}\r\n\r\n(歷時: {1:F1} 秒，共 {2} 筆純電氣量數據，無溫度通道)",
-                        savedFile, totalSec, totalCount), "紀錄已保存", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(string.Format("等效電路測試紀錄已成功儲存至馬達專屬目錄：\r\n\r\n{0}\r\n\r\n(狀態: {1} | 歷時: {2:F1} 秒，共 {3} 筆純電氣量數據，無溫度通道)",
+                        savedFile, statusTag, totalSec, totalCount), "紀錄已保存", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             }
         }
