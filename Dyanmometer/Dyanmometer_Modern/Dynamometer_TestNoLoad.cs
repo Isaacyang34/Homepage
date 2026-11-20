@@ -36,7 +36,9 @@ namespace DynamometerHMI
         private NumericUpDown numNoLoadTimeTn;        // 降速冷卻等待時間 Tn (秒)
         private NumericUpDown numNoLoadStepDwellSec;  // 中間階梯過渡時間 (秒)
 
-        private Button btnNoLoadSelectChannels;
+        public ComboBox cmbNoLoadBearingCh;           // 專屬軸承最高溫監控通道 (獨立單選 CH1~CH20)
+        private Label lblNoLoadBearingTemp;           // 軸承即時溫度數值標籤
+        private Button btnNoLoadSelectChannels;       // 趨勢圖監控通道選擇按鈕
         private Label lblNoLoadSelectedChHint;
         private Button btnStartNoLoad;
         private Button btnStopNoLoad;
@@ -308,18 +310,36 @@ namespace DynamometerHMI
             tblParamsInner.Controls.Add(lblTn, 2, 4);
             tblParamsInner.Controls.Add(numNoLoadTimeTn, 3, 4);
 
-            // 列 5: 選擇軸承監控通道
+            // 列 5: 軸承最高溫監控通道 (單獨選擇) & 趨勢圖監控通道 (多選) 解耦
+            Label lblBearingChTitle = new Label() { Text = "軸承最高溫CH:", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), ForeColor = Color.FromArgb(220, 38, 38) };
+            FlowLayoutPanel flpBearingCh = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoSize = true, Margin = new Padding(0) };
+            cmbNoLoadBearingCh = new ComboBox() { Width = 110, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold) };
+            for (int i = 0; i < 20; i++)
+            {
+                string cName = (gl820ChannelNames != null && i < gl820ChannelNames.Length && !string.IsNullOrEmpty(gl820ChannelNames[i])) ? gl820ChannelNames[i] : ("CH" + (i + 1));
+                cmbNoLoadBearingCh.Items.Add(string.Format("CH{0} ({1})", i + 1, cName));
+            }
+            if (cmbNoLoadBearingCh.Items.Count > 0) cmbNoLoadBearingCh.SelectedIndex = 0;
+            cmbNoLoadBearingCh.SelectedIndexChanged += (s, e) => {
+                SaveLayoutConfig();
+            };
+            lblNoLoadBearingTemp = new Label() { Text = "--.- ℃", AutoSize = true, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), ForeColor = Color.FromArgb(220, 38, 38), Margin = new Padding(4, 5, 0, 0) };
+            flpBearingCh.Controls.AddRange(new Control[] { cmbNoLoadBearingCh, lblNoLoadBearingTemp });
+
             btnNoLoadSelectChannels = new Button()
             {
-                Text = " 選擇軸承監控通道...",
+                Text = " 選擇趨勢圖監控通道...",
                 Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(241, 245, 249),
-                Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold),
+                Font = new Font("微軟正黑體", 10f, FontStyle.Bold),
                 Cursor = Cursors.Hand
             };
             btnNoLoadSelectChannels.Click += (s, e) => ShowNoLoadChannelSelectDialog();
-            tblParamsInner.Controls.Add(btnNoLoadSelectChannels, 0, 5);
-            tblParamsInner.SetColumnSpan(btnNoLoadSelectChannels, 4);
+
+            tblParamsInner.Controls.Add(lblBearingChTitle, 0, 5);
+            tblParamsInner.Controls.Add(flpBearingCh, 1, 5);
+            tblParamsInner.Controls.Add(btnNoLoadSelectChannels, 2, 5);
+            tblParamsInner.SetColumnSpan(btnNoLoadSelectChannels, 2);
 
             // 列 6: 通道提示與操作按鈕
             lblNoLoadSelectedChHint = new Label()
@@ -712,7 +732,7 @@ namespace DynamometerHMI
         {
             Form dlg = new Form()
             {
-                Text = "空載測試軸承溫度監控通道選取 (全選取通道 30min 溫差皆 < 1.0°C 才視為達標)",
+                Text = "空載測試溫度趨勢圖監控通道選取 (與 DUTY 同規格，多通道自由自選)",
                 Width = 440,
                 Height = 500,
                 StartPosition = FormStartPosition.CenterParent,
@@ -725,7 +745,7 @@ namespace DynamometerHMI
 
             Label lHint = new Label()
             {
-                Text = "請勾選參與空載測試軸承溫升與熱平衡判定之通道：\r\n(若設備已連線，可點擊「[電] 依實測選取」自動偵測真正有訊號的通道)",
+                Text = "請勾選空載測試即時溫度趨勢圖欲呈現與監控之通道：\r\n(若設備已連線，可點擊「[電] 依實測選取」自動偵測真正有訊號的通道)",
                 Dock = DockStyle.Top,
                 Height = 46,
                 Padding = new Padding(8),
@@ -883,18 +903,12 @@ namespace DynamometerHMI
                 return;
             }
 
-            // 檢查溫度數值防呆 (熱電偶必須有有效數據)
+            // 檢查溫度數值防呆 (軸承最高溫專屬通道必須有有效數據)
+            int bearingChIdx = (cmbNoLoadBearingCh != null && cmbNoLoadBearingCh.SelectedIndex >= 0) ? cmbNoLoadBearingCh.SelectedIndex : 0;
             double currentMaxBearing = -999.0;
-            if (gbdChTemps != null && gbdChTemps.Length > 0)
+            if (gbdChTemps != null && gbdChTemps.Length > bearingChIdx)
             {
-                for (int ch = 0; ch < Math.Min(20, gbdChTemps.Length); ch++)
-                {
-                    if (noLoadMonitoredChannels == null || (ch < noLoadMonitoredChannels.Length && noLoadMonitoredChannels[ch]))
-                    {
-                        if (gbdChTemps[ch] > currentMaxBearing && gbdChTemps[ch] < 999.0)
-                            currentMaxBearing = gbdChTemps[ch];
-                    }
-                }
+                currentMaxBearing = gbdChTemps[bearingChIdx];
             }
 
             if (currentMaxBearing <= 0.0)
@@ -1043,31 +1057,14 @@ namespace DynamometerHMI
                 if (gbdChTemps != null && gbdChTemps.Length >= 20)
                     Array.Copy(gbdChTemps, chSnapshot, 20);
 
-                // 3. 計算已監控軸承通道之最高溫度
-                double maxBearingTemp = -999.0;
-                int maxBearingCh = -1;
-                bool hasAnyChChecked = false;
-                for (int ch = 0; ch < 20; ch++)
-                {
-                    if (noLoadMonitoredChannels != null && ch < noLoadMonitoredChannels.Length && noLoadMonitoredChannels[ch])
-                    {
-                        hasAnyChChecked = true;
-                        double t = chSnapshot[ch];
-                        if (t > maxBearingTemp && t < 999.0)
-                        {
-                            maxBearingTemp = t;
-                            maxBearingCh = ch;
-                        }
-                    }
-                }
-                if (!hasAnyChChecked)
-                {
-                    maxBearingTemp = chSnapshot[0];
-                    maxBearingCh = 0;
-                }
+                // 3. 獨立讀取軸承最高溫監控通道 (解耦獨立，專用於超溫保護)
+                int bearingCh = (cmbNoLoadBearingCh != null && cmbNoLoadBearingCh.SelectedIndex >= 0) ? cmbNoLoadBearingCh.SelectedIndex : 0;
+                double maxBearingTemp = (bearingCh >= 0 && bearingCh < chSnapshot.Length) ? chSnapshot[bearingCh] : chSnapshot[0];
+                int maxBearingCh = bearingCh;
 
                 string maxTempStr = (maxBearingTemp > -100.0) ? string.Format("{0:F1} ℃ (CH{1})", maxBearingTemp, maxBearingCh + 1) : "--.- ℃";
                 lblNoLoadMaxTempDisp.Text = maxTempStr;
+                if (lblNoLoadBearingTemp != null) lblNoLoadBearingTemp.Text = string.Format("{0:F1} ℃", maxBearingTemp);
 
                 // 餵入多通道趨勢圖
                 if (noLoadTempTrend != null && chSnapshot != null)

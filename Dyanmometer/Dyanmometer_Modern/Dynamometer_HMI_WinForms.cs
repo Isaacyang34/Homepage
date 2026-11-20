@@ -313,6 +313,38 @@ namespace DynamometerHMI
         private int dutyElapsedSec = 0, dutyTotalSec = 0;
         private List<string[]> dutyResults = new List<string[]>();
 
+        // 4 分頁獨立配置架構 (主控排程、S1設定、S2設定、S6設定) 與各工作制獨立控制項
+        private TabControl tabDutyControl;
+        private TabPage tabDutyMain, tabDutyS1, tabDutyS2, tabDutyS6;
+        private ComboBox cmbDutyMainMode; // 測試模式：單一測試 vs 連續自動排程
+        private NumericUpDown numS1Speed, numS1Torque;
+        private NumericUpDown numS2Speed, numS2Torque;
+        private NumericUpDown numS6Speed, numS6Torque;
+        private TextBox txtDutyPreflightSummary; // 待命狀態之排程設定總確認清單
+        private Panel pnlDutyLiveMonitor; // 運轉中即時階段監控儀表板
+        private Label lblDutyLiveStage, lblDutyLiveCountdown, lblDutyLiveTargetActual, lblDutyLiveSlope, lblDutyLiveCooling;
+        public bool isDutyRunning { get { return dutyTimer != null && dutyTimer.Enabled; } }
+
+        // 全域自動測試狀態聚合屬性 (支援 Duty / T-N / 空載 / 效率地圖 / 等效電路)
+        public bool isAnyTestRunning
+        {
+            get
+            {
+                return (dutyTimer != null && dutyTimer.Enabled)
+                    || isBatchDutyActive
+                    || (tnTimer != null && tnTimer.Enabled)
+                    || isNoLoadRunning
+                    || (noLoadTimer != null && noLoadTimer.Enabled)
+                    || (effMapTimer != null && effMapTimer.Enabled)
+                    || isLockedSweepRunning
+                    || isAutoTuningUf09
+                    || isLockedRotorActive
+                    || isNoLoadSampling
+                    || isRatedSampling
+                    || isEquivRecording;
+            }
+        }
+
         // S1 / S2 專屬控制項與溫度判定欄位
         private CheckBox chkS1ThermalStop;
         private Button btnS1SelectChannels;
@@ -412,6 +444,25 @@ namespace DynamometerHMI
         private Label lblBatchProgressTitle;
         private Label lblBatchProgressDetail;
         private ProgressBar prgBatchTotal;
+
+        // S2 / S6 極限能力回推 (Capability Extrapolation) 數據與介面
+        public double lastS2Torque = 0.0;
+        public double lastS2DurationMin = 30.0;
+        public double lastS2FinalTemp = 0.0;
+        public double lastS2AmbientTemp = 25.0;
+        public double lastS2Speed = 0.0;
+        public bool hasS2TestResult = false;
+
+        public double lastS6Torque = 0.0;
+        public double lastS6CycleMin = 10.0;
+        public double lastS6EdPct = 40.0;
+        public double lastS6PeakTemp = 0.0;
+        public double lastS6AmbientTemp = 25.0;
+        public double lastS6Speed = 0.0;
+        public bool hasS6TestResult = false;
+
+        private Button btnDutyExtrapolate;
+        private Label lblExtrapolationSummary;
 
         // 綜合監控右下角小視窗控制項 (與大分頁 100% 雙向即時連動)
         private ComboBox cmbTnRoleMini;
@@ -826,10 +877,15 @@ namespace DynamometerHMI
                 {
                     dgvTelemetry.Font = new Font("微軟正黑體", fontTelemetryGridPt, FontStyle.Regular);
                     dgvTelemetry.ColumnHeadersDefaultCellStyle.Font = new Font("微軟正黑體", fontTelemetryGridPt, FontStyle.Bold);
-                    dgvTelemetry.RowTemplate.Height = (int)(fontTelemetryGridPt * 2.2) + 8;
-                    foreach (DataGridViewRow r in dgvTelemetry.Rows)
+                    // 僅在尚未載入自訂行高時設置預設行高，避免覆蓋使用者的調整
+                    int calculatedH = (int)(fontTelemetryGridPt * 2.2) + 8;
+                    if (dgvTelemetry.RowTemplate.Height <= 20)
                     {
-                        r.Height = (int)(fontTelemetryGridPt * 2.2) + 8;
+                        dgvTelemetry.RowTemplate.Height = calculatedH;
+                        foreach (DataGridViewRow r in dgvTelemetry.Rows)
+                        {
+                            r.Height = calculatedH;
+                        }
                     }
                 }
                 if (dgvKebRu1 != null) { dgvKebRu1.Font = new Font("Consolas", fontKebRuGridPt, FontStyle.Regular); dgvKebRu1.ColumnHeadersDefaultCellStyle.Font = new Font("微軟正黑體", fontKebRuGridPt, FontStyle.Bold); }
@@ -1463,6 +1519,7 @@ namespace DynamometerHMI
 
             // 雙向全息即時同步：切換分頁時，刷新圖解面板與模式排版，並依需求將共用溫度趨勢圖動態停泊 (Dynamic Re-Parenting)
             tabControl.SelectedIndexChanged += (s, e) => {
+                UpdateSafetyInterlock();
                 if (tabControl.SelectedIndex == 1) // 切換至 T-N 曲線測試分頁
                 {
                     AttachSharedTempTrendTo(grpTnTemp, tnMonitoredChannels);
@@ -1979,7 +2036,7 @@ namespace DynamometerHMI
                         "Window", "Splitters", "Workbench", "DgvKebRu1", "DgvKebRu2", "DgvTelemetry",
                         "DgvTnMultiPoints", "DgvTnPoints", "DgvDuty", "DgvNoLoad", "DgvReports",
                         "Polling", "Gl820Names", "KebMonitors1", "KebMonitors2", "NoLoadTest", "Logging",
-                        "TnTest", "DutyTest", "UI", "Safety", "Tracking", "Devices", "Fonts", "RawData", "EquivCircuit"
+                        "TnTest", "DutyTest", "DutyParams", "UI", "Safety", "Tracking", "Devices", "Fonts", "RawData", "EquivCircuit"
                     };
                     string curSec = null;
                     foreach (var rawLine in File.ReadAllLines(currentIniPath, Encoding.UTF8))
@@ -2047,6 +2104,21 @@ namespace DynamometerHMI
                     if (cmbTnTimeSpan != null) sb.AppendLine("TimeSpan=" + cmbTnTimeSpan.SelectedIndex);
                 }
 
+                                if (numS1Speed != null)
+                {
+                    sb.AppendLine("[DutyParams]");
+                    sb.AppendLine("S1_Speed=" + (int)numS1Speed.Value);
+                    sb.AppendLine("S1_Torque=" + numS1Torque.Value.ToString("F1", System.Globalization.CultureInfo.InvariantCulture));
+                    sb.AppendLine("S2_Speed=" + (int)numS2Speed.Value);
+                    sb.AppendLine("S2_Torque=" + numS2Torque.Value.ToString("F1", System.Globalization.CultureInfo.InvariantCulture));
+                    sb.AppendLine("S2_Duration=" + (int)numS2DurationMin.Value);
+                    sb.AppendLine("S2_Threshold=" + numS2TempThreshold.Value.ToString("F1", System.Globalization.CultureInfo.InvariantCulture));
+                    sb.AppendLine("S6_Speed=" + (int)numS6Speed.Value);
+                    sb.AppendLine("S6_Torque=" + numS6Torque.Value.ToString("F1", System.Globalization.CultureInfo.InvariantCulture));
+                    sb.AppendLine("S6_CycleMin=" + numS6CycleMin.Value.ToString("F1", System.Globalization.CultureInfo.InvariantCulture));
+                    sb.AppendLine("S6_Ed=" + (int)numS6Ed.Value);
+                    sb.AppendLine("S6_Cycles=" + (int)numS6Cycles.Value);
+                }
                 if (cmbDutyMode != null)
                 {
                     sb.AppendLine("[DutyTest]");
@@ -2154,6 +2226,7 @@ namespace DynamometerHMI
                 // 空載測試參數記憶
                 sb.AppendLine("[NoLoadTest]");
                 sb.AppendLine("DriveRole=" + (cmbNoLoadRole != null ? cmbNoLoadRole.SelectedIndex : 1));
+                sb.AppendLine("BearingCh=" + (cmbNoLoadBearingCh != null ? cmbNoLoadBearingCh.SelectedIndex : 0));
                 sb.AppendLine("DoRated=" + (chkNoLoadRatedTest != null && chkNoLoadRatedTest.Checked ? "1" : "0"));
                 sb.AppendLine("RatedSpd=" + (numNoLoadRatedSpd != null ? (int)numNoLoadRatedSpd.Value : 1500));
                 sb.AppendLine("DoMidSpd=" + (chkNoLoadMidSpdTest != null && chkNoLoadMidSpdTest.Checked ? "1" : "0"));
@@ -2465,6 +2538,22 @@ namespace DynamometerHMI
                     }
                 }
 
+                                if (numS1Speed != null)
+                {
+                    decimal v;
+                    if (map.ContainsKey("DutyParams.S1_Speed") && decimal.TryParse(map["DutyParams.S1_Speed"], out v)) numS1Speed.Value = Math.Max(numS1Speed.Minimum, Math.Min(numS1Speed.Maximum, v));
+                    if (map.ContainsKey("DutyParams.S1_Torque") && decimal.TryParse(map["DutyParams.S1_Torque"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out v)) numS1Torque.Value = Math.Max(numS1Torque.Minimum, Math.Min(numS1Torque.Maximum, v));
+                    if (map.ContainsKey("DutyParams.S2_Speed") && decimal.TryParse(map["DutyParams.S2_Speed"], out v)) numS2Speed.Value = Math.Max(numS2Speed.Minimum, Math.Min(numS2Speed.Maximum, v));
+                    if (map.ContainsKey("DutyParams.S2_Torque") && decimal.TryParse(map["DutyParams.S2_Torque"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out v)) numS2Torque.Value = Math.Max(numS2Torque.Minimum, Math.Min(numS2Torque.Maximum, v));
+                    if (map.ContainsKey("DutyParams.S2_Duration") && decimal.TryParse(map["DutyParams.S2_Duration"], out v)) numS2DurationMin.Value = Math.Max(numS2DurationMin.Minimum, Math.Min(numS2DurationMin.Maximum, v));
+                    if (map.ContainsKey("DutyParams.S2_Threshold") && decimal.TryParse(map["DutyParams.S2_Threshold"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out v)) numS2TempThreshold.Value = Math.Max(numS2TempThreshold.Minimum, Math.Min(numS2TempThreshold.Maximum, v));
+                    if (map.ContainsKey("DutyParams.S6_Speed") && decimal.TryParse(map["DutyParams.S6_Speed"], out v)) numS6Speed.Value = Math.Max(numS6Speed.Minimum, Math.Min(numS6Speed.Maximum, v));
+                    if (map.ContainsKey("DutyParams.S6_Torque") && decimal.TryParse(map["DutyParams.S6_Torque"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out v)) numS6Torque.Value = Math.Max(numS6Torque.Minimum, Math.Min(numS6Torque.Maximum, v));
+                    if (map.ContainsKey("DutyParams.S6_CycleMin") && decimal.TryParse(map["DutyParams.S6_CycleMin"], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out v)) numS6CycleMin.Value = Math.Max(numS6CycleMin.Minimum, Math.Min(numS6CycleMin.Maximum, v));
+                    if (map.ContainsKey("DutyParams.S6_Ed") && decimal.TryParse(map["DutyParams.S6_Ed"], out v)) numS6Ed.Value = Math.Max(numS6Ed.Minimum, Math.Min(numS6Ed.Maximum, v));
+                    if (map.ContainsKey("DutyParams.S6_Cycles") && decimal.TryParse(map["DutyParams.S6_Cycles"], out v)) numS6Cycles.Value = Math.Max(numS6Cycles.Minimum, Math.Min(numS6Cycles.Maximum, v));
+                    UpdateDutyPreflightSummary();
+                }
                 // Duty 工作制測試排版與選項還原 (DutyTest)
                 if (map.ContainsKey("DutyTest.Mode") && cmbDutyMode != null)
                 {
@@ -2497,6 +2586,12 @@ namespace DynamometerHMI
                     int r;
                     if (int.TryParse(map["NoLoadTest.DriveRole"], out r) && r >= 0 && r < cmbNoLoadRole.Items.Count)
                         cmbNoLoadRole.SelectedIndex = r;
+                }
+                if (map.ContainsKey("NoLoadTest.BearingCh") && cmbNoLoadBearingCh != null)
+                {
+                    int bCh;
+                    if (int.TryParse(map["NoLoadTest.BearingCh"], out bCh) && bCh >= 0 && bCh < cmbNoLoadBearingCh.Items.Count)
+                        cmbNoLoadBearingCh.SelectedIndex = bCh;
                 }
                 if (map.ContainsKey("NoLoadTest.DoRated") && chkNoLoadRatedTest != null)
                 {
@@ -2894,6 +2989,15 @@ namespace DynamometerHMI
             {
                 sb.AppendLine("Col" + i + "=" + dgv.Columns[i].Width);
             }
+            // 記憶行高 (RowTemplate 與各列行高)
+            if (dgv.RowTemplate != null && dgv.RowTemplate.Height > 0)
+            {
+                sb.AppendLine("RowTemplateHeight=" + dgv.RowTemplate.Height);
+            }
+            for (int r = 0; r < dgv.Rows.Count; r++)
+            {
+                sb.AppendLine("Row" + r + "=" + dgv.Rows[r].Height);
+            }
         }
 
         private void LoadDgvColWidths(Dictionary<string, string> map, string sectionName, DataGridView dgv)
@@ -2906,8 +3010,8 @@ namespace DynamometerHMI
                 if (map.ContainsKey(modeKey))
                 {
                     string m = map[modeKey];
-                    if (m == "Fill") { dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill; return; }
-                    else if (m == "AllCells") { dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells; return; }
+                    if (m == "Fill") { dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill; }
+                    else if (m == "AllCells") { dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells; }
                 }
                 bool hasCustomWidth = false;
                 for (int i = 0; i < dgv.Columns.Count; i++)
@@ -2918,12 +3022,35 @@ namespace DynamometerHMI
                         int w;
                         if (int.TryParse(map[key], out w) && w >= 20 && w <= 1200)
                         {
-                            if (!hasCustomWidth)
+                            if (!hasCustomWidth && dgv.AutoSizeColumnsMode == DataGridViewAutoSizeColumnsMode.None)
                             {
                                 dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
                                 hasCustomWidth = true;
                             }
                             try { dgv.Columns[i].Width = w; } catch { }
+                        }
+                    }
+                }
+
+                // 還原自訂行高
+                string tmplKey = sectionName + ".RowTemplateHeight";
+                if (map.ContainsKey(tmplKey))
+                {
+                    int th;
+                    if (int.TryParse(map[tmplKey], out th) && th >= 16 && th <= 150)
+                    {
+                        try { dgv.RowTemplate.Height = th; } catch { }
+                    }
+                }
+                for (int r = 0; r < dgv.Rows.Count; r++)
+                {
+                    string rKey = sectionName + ".Row" + r;
+                    if (map.ContainsKey(rKey))
+                    {
+                        int rh;
+                        if (int.TryParse(map[rKey], out rh) && rh >= 16 && rh <= 150)
+                        {
+                            try { dgv.Rows[r].Height = rh; } catch { }
                         }
                     }
                 }
@@ -2937,6 +3064,9 @@ namespace DynamometerHMI
         public void AttachDgvMemoryAndContextMenu(DataGridView dgv, string sectionName)
         {
             if (dgv == null) return;
+            dgv.AllowUserToResizeRows = true;
+            dgv.AllowUserToResizeColumns = true;
+
             dgv.ColumnWidthChanged += (s, e) =>
             {
                 if (!isLoadingDgvConfig && dgv.AutoSizeColumnsMode != DataGridViewAutoSizeColumnsMode.Fill && dgv.AutoSizeColumnsMode != DataGridViewAutoSizeColumnsMode.AllCells)
@@ -2945,8 +3075,34 @@ namespace DynamometerHMI
                 }
             };
 
+            dgv.RowHeightChanged += (s, e) =>
+            {
+                if (!isLoadingDgvConfig)
+                {
+                    SaveLayoutConfig();
+                }
+            };
+
             ContextMenuStrip cms = dgv.ContextMenuStrip ?? new ContextMenuStrip();
             if (cms.Items.Count > 0) cms.Items.Add(new ToolStripSeparator());
+
+            ToolStripMenuItem mnuRowInc = new ToolStripMenuItem("[+] 增加行高 (+2px)");
+            mnuRowInc.Click += (s, e) =>
+            {
+                int newH = Math.Min(120, dgv.RowTemplate.Height + 2);
+                dgv.RowTemplate.Height = newH;
+                foreach (DataGridViewRow r in dgv.Rows) r.Height = newH;
+                SaveLayoutConfig();
+            };
+
+            ToolStripMenuItem mnuRowDec = new ToolStripMenuItem("[-] 縮小行高 (-2px)");
+            mnuRowDec.Click += (s, e) =>
+            {
+                int newH = Math.Max(18, dgv.RowTemplate.Height - 2);
+                dgv.RowTemplate.Height = newH;
+                foreach (DataGridViewRow r in dgv.Rows) r.Height = newH;
+                SaveLayoutConfig();
+            };
 
             ToolStripMenuItem mnuAutoFit = new ToolStripMenuItem("自動適應內容寬度");
             mnuAutoFit.Click += (s, e) =>
@@ -2962,13 +3118,16 @@ namespace DynamometerHMI
                 SaveLayoutConfig();
             };
 
-            ToolStripMenuItem mnuSaveCustom = new ToolStripMenuItem("鎖定記憶當前欄寬");
+            ToolStripMenuItem mnuSaveCustom = new ToolStripMenuItem("鎖定記憶當前欄寬與行高");
             mnuSaveCustom.Click += (s, e) =>
             {
                 dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
                 SaveLayoutConfig();
             };
 
+            cms.Items.Add(mnuRowInc);
+            cms.Items.Add(mnuRowDec);
+            cms.Items.Add(new ToolStripSeparator());
             cms.Items.Add(mnuAutoFit);
             cms.Items.Add(mnuFill);
             cms.Items.Add(mnuSaveCustom);
@@ -4258,7 +4417,8 @@ namespace DynamometerHMI
                 Dock = DockStyle.Fill,
                 BackgroundColor = Color.White,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
-                RowHeadersVisible = false,
+                RowHeadersVisible = true,
+                RowHeadersWidth = 24,
                 AllowUserToAddRows = false,
                 AllowUserToResizeRows = true,       // 允許自由拉伸行高
                 AllowUserToResizeColumns = true,    // 允許自由拉伸欄寬
@@ -6277,30 +6437,108 @@ namespace DynamometerHMI
             }
         }
 
+        private void UpdateSafetyInterlock()
+        {
+            bool tOnline = (spTorque != null && spTorque.IsOpen);
+            bool pOnline = (tcpPower != null && tcpPower.Connected) || ykDeviceId >= 0;
+            UpdateSafetyInterlock(tOnline, pOnline);
+        }
+
         private void UpdateSafetyInterlock(bool isTorqueOnline, bool isPowerOnline)
         {
             bool canOperate = isTorqueOnline && isPowerOnline;
+            bool anyRunning = this.isAnyTestRunning;
 
             foreach (Control c in listKebSafetyLockControls)
             {
-                if (c != null && !c.IsDisposed && c.Enabled != canOperate)
+                if (c != null && !c.IsDisposed)
                 {
-                    c.Enabled = canOperate;
+                    bool targetState = canOperate && !anyRunning;
+                    if (c.Enabled != targetState) c.Enabled = targetState;
                 }
             }
 
-            if (btnStartTn != null && !btnStartTn.IsDisposed && btnStartTn.Enabled != canOperate)
+            // 判斷各測項是否正在獨立運轉中
+            bool isTnCurRunning = (tnTimer != null && tnTimer.Enabled);
+            bool isDutyCurRunning = (dutyTimer != null && dutyTimer.Enabled) || isBatchDutyActive;
+            bool isNoLoadCurRunning = isNoLoadRunning || (noLoadTimer != null && noLoadTimer.Enabled);
+            bool isEffMapCurRunning = (effMapTimer != null && effMapTimer.Enabled);
+            bool isEquivCurRunning = isLockedSweepRunning || isAutoTuningUf09 || isLockedRotorActive || isNoLoadSampling || isRatedSampling || isEquivRecording;
+
+            // 1. T-N 曲線測試開始按鈕
+            if (btnStartTn != null && !btnStartTn.IsDisposed)
             {
-                btnStartTn.Enabled = canOperate;
+                bool target = canOperate && !anyRunning && !isTnCurRunning;
+                if (btnStartTn.Enabled != target) btnStartTn.Enabled = target;
             }
-            if (btnStartDuty != null && !btnStartDuty.IsDisposed && btnStartDuty.Enabled != canOperate)
+            if (btnTnMiniStart != null && !btnTnMiniStart.IsDisposed)
             {
-                btnStartDuty.Enabled = canOperate;
+                bool target = canOperate && !anyRunning && !isTnCurRunning;
+                if (btnTnMiniStart.Enabled != target) btnTnMiniStart.Enabled = target;
+            }
+
+            // 2. Duty 工作制測試開始按鈕
+            if (btnStartDuty != null && !btnStartDuty.IsDisposed)
+            {
+                bool target = canOperate && !anyRunning && !isDutyCurRunning;
+                if (btnStartDuty.Enabled != target) btnStartDuty.Enabled = target;
+            }
+            if (btnDutyMiniStart != null && !btnDutyMiniStart.IsDisposed)
+            {
+                bool target = canOperate && !anyRunning && !isDutyCurRunning;
+                if (btnDutyMiniStart.Enabled != target) btnDutyMiniStart.Enabled = target;
+            }
+
+            // 3. 空載溫升測試開始按鈕
+            if (btnStartNoLoad != null && !btnStartNoLoad.IsDisposed)
+            {
+                bool target = !anyRunning && !isNoLoadCurRunning;
+                if (btnStartNoLoad.Enabled != target) btnStartNoLoad.Enabled = target;
+            }
+
+            // 4. 效率地圖測試開始按鈕
+            if (btnStartEffMap != null && !btnStartEffMap.IsDisposed)
+            {
+                bool target = canOperate && !anyRunning && !isEffMapCurRunning;
+                if (btnStartEffMap.Enabled != target) btnStartEffMap.Enabled = target;
+            }
+
+            // 5. 等效電路測試操作按鈕
+            if (btnEquivSweepAllFreq != null && !btnEquivSweepAllFreq.IsDisposed)
+            {
+                bool target = canOperate && !anyRunning && !isEquivCurRunning;
+                if (btnEquivSweepAllFreq.Enabled != target) btnEquivSweepAllFreq.Enabled = target;
+            }
+            if (btnEquivAutoTuneUf09 != null && !btnEquivAutoTuneUf09.IsDisposed)
+            {
+                bool target = canOperate && !anyRunning && !isEquivCurRunning;
+                if (btnEquivAutoTuneUf09.Enabled != target) btnEquivAutoTuneUf09.Enabled = target;
+            }
+            if (btnEquivManualRecord != null && !btnEquivManualRecord.IsDisposed)
+            {
+                bool target = !anyRunning && !isEquivCurRunning;
+                if (btnEquivManualRecord.Enabled != target) btnEquivManualRecord.Enabled = target;
+            }
+            if (btnEquivCaptureLiveNoLoad != null && !btnEquivCaptureLiveNoLoad.IsDisposed)
+            {
+                bool target = !anyRunning && !isEquivCurRunning;
+                if (btnEquivCaptureLiveNoLoad.Enabled != target) btnEquivCaptureLiveNoLoad.Enabled = target;
+            }
+            if (btnEquivCaptureLiveRated != null && !btnEquivCaptureLiveRated.IsDisposed)
+            {
+                bool target = !anyRunning && !isEquivCurRunning;
+                if (btnEquivCaptureLiveRated.Enabled != target) btnEquivCaptureLiveRated.Enabled = target;
             }
 
             if (lblSafetyStatus != null && !lblSafetyStatus.IsDisposed)
             {
-                if (canOperate)
+                if (anyRunning)
+                {
+                    string runningName = isDutyCurRunning ? "Duty工作制測試" : (isTnCurRunning ? "T-N曲線測試" : (isNoLoadCurRunning ? "空載溫升測試" : (isEffMapCurRunning ? "效率地圖測試" : "等效電路測試")));
+                    lblSafetyStatus.Text = string.Format("[運轉互鎖] {0}進行中 - 其他測項開始按鈕已強制安全鎖定", runningName);
+                    lblSafetyStatus.ForeColor = Color.FromArgb(234, 88, 12);
+                }
+                else if (canOperate)
                 {
                     lblSafetyStatus.Text = "[安全就緒] 載台允許操作";
                     lblSafetyStatus.ForeColor = Color.FromArgb(74, 222, 128);

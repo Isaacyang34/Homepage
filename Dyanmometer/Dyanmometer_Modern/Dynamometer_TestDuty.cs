@@ -45,50 +45,81 @@ namespace DynamometerHMI
             SafeSetupSplitContainer(splitDutyTop, "DutyTop", 905, 250, 150);
 
             // -------------------------------------------------------------
-            // 左側：控制參數、KEB全自動模式連鎖與 V/F 雙重定錨/S2錨點設定群組
+            // 左側：4 分頁獨立配置 (主控排程、S1設定、S2設定、S6設定) + 底部操作與安全防護列
             // -------------------------------------------------------------
             GroupBox grp = new GroupBox()
             {
-                Text = "IEC 60034-1 工作制測試設定 (含 KEB 全自動連鎖與 S2/S6 錨點控制)",
+                Text = "IEC 60034-1 工作制測試 (4 分頁排程與自適應在線微調)",
                 Dock = DockStyle.Fill,
-                Font = new Font("微軟正黑體", 14f, FontStyle.Bold),
+                Font = new Font("微軟正黑體", 12f, FontStyle.Bold),
                 BackColor = Color.FromArgb(248, 250, 252)
             };
 
-            // 頂部全自動模式提醒條
-            lblKebAutoModeHint = new Label()
+            TableLayoutPanel tlpLeft = new TableLayoutPanel()
             {
-                Text = "[電] 注意：DUTY 需在 KEB 全自動模式運作 (待測: Mode 9 速度 / 加載: Mode 10 轉矩)。點擊【開始】系統將自動切換！",
-                Location = new Point(12, 30),
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                BackColor = Color.FromArgb(248, 250, 252)
+            };
+            tlpLeft.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            tlpLeft.RowStyles.Add(new RowStyle(SizeType.Percent, 100f)); // TabControl
+            tlpLeft.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 底部操作與狀態面板
+
+            // =============================================================
+            // 4 分頁核心容器 (TabControl)
+            // =============================================================
+            tabDutyControl = new TabControl()
+            {
+                Dock = DockStyle.Fill,
+                Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold)
+            };
+
+            tabDutyMain = new TabPage("【主控排程 / 運轉總覽】") { BackColor = Color.FromArgb(248, 250, 252), Padding = new Padding(6) };
+            tabDutyS1 = new TabPage("【S1 額定連續設定】") { BackColor = Color.FromArgb(248, 250, 252), Padding = new Padding(8), AutoScroll = true };
+            tabDutyS2 = new TabPage("【S2 短時過載設定】") { BackColor = Color.FromArgb(248, 250, 252), Padding = new Padding(8), AutoScroll = true };
+            tabDutyS6 = new TabPage("【S6 週期負載設定】") { BackColor = Color.FromArgb(248, 250, 252), Padding = new Padding(8), AutoScroll = true };
+
+            tabDutyControl.TabPages.Add(tabDutyMain);
+            tabDutyControl.TabPages.Add(tabDutyS1);
+            tabDutyControl.TabPages.Add(tabDutyS2);
+            tabDutyControl.TabPages.Add(tabDutyS6);
+
+            // -------------------------------------------------------------
+            // 分頁 1: 【主控排程 / 運轉總覽】
+            // -------------------------------------------------------------
+            TableLayoutPanel tlpMain = new TableLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                BackColor = Color.FromArgb(248, 250, 252)
+            };
+            tlpMain.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            tlpMain.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            tlpMain.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+
+            TableLayoutPanel tlpMainCfg = new TableLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 4,
+                RowCount = 3,
                 AutoSize = true,
-                Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(194, 65, 12),
-                BackColor = Color.FromArgb(254, 242, 242),
-                BorderStyle = BorderStyle.FixedSingle,
-                Padding = new Padding(4)
+                BackColor = Color.FromArgb(248, 250, 252),
+                Padding = new Padding(2)
             };
+            tlpMainCfg.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90f));
+            tlpMainCfg.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+            tlpMainCfg.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90f));
+            tlpMainCfg.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+            tlpMainCfg.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
+            tlpMainCfg.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
+            tlpMainCfg.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
 
-            // 第一列 (Y = 66)：工作制、載台角色
-            Label lMode = new Label() { Text = "工作制:", Location = new Point(12, 70), AutoSize = true, Font = new Font("微軟正黑體", 13f, FontStyle.Bold) };
-            cmbDutyMode = new ComboBox() { Location = new Point(85, 66), Width = 260, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("微軟正黑體", 12f) };
-            cmbDutyMode.Items.AddRange(new object[] { "S1 連續工作制 (30分熱平衡判定)", "S2 短時工作制 (錨點測試/超溫停機)", "S6 週期工作制 (Periodic ED%)" });
-            cmbDutyMode.SelectedIndex = 2; // 預設 S6
-            cmbDutyMode.SelectedIndexChanged += (s, e) => {
-                if (!isSyncingDutyControls && cmbDutyMiniMode != null && cmbDutyMiniMode.SelectedIndex != cmbDutyMode.SelectedIndex)
-                {
-                    isSyncingDutyControls = true;
-                    cmbDutyMiniMode.SelectedIndex = cmbDutyMode.SelectedIndex;
-                    isSyncingDutyControls = false;
-                }
-                UpdateDutyModeVisibility(cmbDutyMode.SelectedIndex);
-                if (pnlS6Diagram != null) pnlS6Diagram.Invalidate();
-                if (pnlS6MiniDiagram != null) pnlS6MiniDiagram.Invalidate();
-            };
-
-            Label lRole = new Label() { Text = "待測端:", Location = new Point(360, 70), AutoSize = true, Font = new Font("微軟正黑體", 13f, FontStyle.Bold) };
-            cmbDutyRole = new ComboBox() { Location = new Point(430, 66), Width = 240, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("微軟正黑體", 12f) };
+            Label lRole = new Label() { Text = "待測端:", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold) };
+            cmbDutyRole = new ComboBox() { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("微軟正黑體", 11f) };
             cmbDutyRole.Items.AddRange(new object[] { "A載台待測(速度) / B加載", "B載台待測(速度) / A加載" });
-            cmbDutyRole.SelectedIndex = 1; // 預設：B載台待測(速度) / A加載
+            cmbDutyRole.SelectedIndex = 1;
             cmbDutyRole.SelectedIndexChanged += (s, e) => {
                 if (!isSyncingDutyControls && cmbDutyMiniRole != null && cmbDutyMiniRole.SelectedIndex != cmbDutyRole.SelectedIndex)
                 {
@@ -96,93 +127,347 @@ namespace DynamometerHMI
                     cmbDutyMiniRole.SelectedIndex = cmbDutyRole.SelectedIndex;
                     isSyncingDutyControls = false;
                 }
+                UpdateDutyPreflightSummary();
             };
 
-            // 第二列 (Y = 106)：目標轉速、加載轉矩 + 模式專屬參數 (斷行到第二行，寬度充裕)
-            Label lSpd = new Label() { Text = "轉速(rpm):", Location = new Point(12, 110), AutoSize = true, Font = new Font("微軟正黑體", 13f, FontStyle.Bold) };
-            numDutySpeed = CreateNumericUpDown(new Point(110, 106), 105, 0, 4000, 1000);
-            numDutySpeed.Font = new Font("微軟正黑體", 13f, FontStyle.Bold);
-            numDutySpeed.ValueChanged += (s, e) => {
-                if (!isSyncingDutyControls)
-                {
-                    isSyncingDutyControls = true;
-                    if (numDutyMiniSpd != null && numDutyMiniSpd.Value != numDutySpeed.Value)
-                        numDutyMiniSpd.Value = numDutySpeed.Value;
-                    if (numCardTargetSpeed != null && numCardTargetSpeed.Value != numDutySpeed.Value)
-                        numCardTargetSpeed.Value = Math.Min(numCardTargetSpeed.Maximum, Math.Max(numCardTargetSpeed.Minimum, numDutySpeed.Value));
-                    if (numS6AnchorNoLoadSpd != null && !s6HasNoLoadAnchor)
-                    {
-                        numS6AnchorNoLoadSpd.Value = numDutySpeed.Value;
-                        s6AnchorNoLoadSpeed = (double)numDutySpeed.Value;
-                    }
-                    isSyncingDutyControls = false;
-                }
+            Label lMainMode = new Label() { Text = "測試模式:", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold) };
+            cmbDutyMainMode = new ComboBox() { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
+            cmbDutyMainMode.Items.AddRange(new object[] {
+                "連續自動排程 (依排程方案依序執行)",
+                "單項測試：S1 額定連續",
+                "單項測試：S2 短時過載",
+                "單項測試：S6 週期負載"
+            });
+            cmbDutyMainMode.SelectedIndex = 0;
+
+            tlpMainCfg.Controls.Add(lRole, 0, 0);
+            tlpMainCfg.Controls.Add(cmbDutyRole, 1, 0);
+            tlpMainCfg.Controls.Add(lMainMode, 2, 0);
+            tlpMainCfg.Controls.Add(cmbDutyMainMode, 3, 0);
+
+            Label lPlan = new Label() { Text = "排程方案:", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold) };
+            cmbBatchDutyPlan = new ComboBox() { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Enabled = true };
+            cmbBatchDutyPlan.Items.AddRange(new object[] {
+                "1. S1 -> S6 -> S2 (三項全測)",
+                "2. S1 -> S6 (額定 + 週期)",
+                "3. S1 -> S2 (額定 + 短時)",
+                "4. S6 -> S2 (週期 + 短時)"
+            });
+            cmbBatchDutyPlan.SelectedIndex = 0;
+            cmbBatchDutyPlan.SelectedIndexChanged += (s, e) => UpdateDutyPreflightSummary();
+
+            Label lCool = new Label() { Text = "冷卻策略:", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold) };
+            cmbBatchCoolingMode = new ComboBox() { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("微軟正黑體", 10f), Enabled = true };
+            cmbBatchCoolingMode.Items.AddRange(new object[] {
+                "冷卻: 自動辨識 (W-IN/OUT為水冷25℃，否則氣冷AT)",
+                "冷卻: 強制水冷電機 (冰水機循環降至 <= 25.0℃)",
+                "冷卻: 強制氣冷電機 (降至 <= AT+1.5℃ 且 15分無下降)"
+            });
+            cmbBatchCoolingMode.SelectedIndex = 0;
+            cmbBatchCoolingMode.SelectedIndexChanged += (s, e) => UpdateDutyPreflightSummary();
+
+            tlpMainCfg.Controls.Add(lPlan, 0, 1);
+            tlpMainCfg.Controls.Add(cmbBatchDutyPlan, 1, 1);
+            tlpMainCfg.Controls.Add(lCool, 2, 1);
+            tlpMainCfg.Controls.Add(cmbBatchCoolingMode, 3, 1);
+
+            FlowLayoutPanel flpOc = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoSize = true, Margin = new Padding(0) };
+            Label lblDutyOcTitle = new Label() { Text = "[電]過電流保護:", AutoSize = true, Font = new Font("微軟正黑體", 11f, FontStyle.Bold), ForeColor = Color.FromArgb(194, 65, 12), Margin = new Padding(0, 4, 2, 0) };
+            Label lblDutyOcPct = new Label() { Text = "門檻:+", AutoSize = true, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Margin = new Padding(4, 4, 0, 0) };
+            numDutyOverCurrentPct = CreateNumericUpDown(Point.Empty, 60, 5, 100, dutyOverCurrentPercent, 0, 5);
+            numDutyOverCurrentPct.Font = new Font("微軟正黑體", 10.5f);
+            numDutyOverCurrentPct.ValueChanged += (s, e) => { dutyOverCurrentPercent = numDutyOverCurrentPct.Value; UpdateDutyPreflightSummary(); };
+            Label lblDutyOcPctUnit = new Label() { Text = "%", AutoSize = true, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Margin = new Padding(0, 4, 8, 0) };
+
+            Label lblDutyOcDelay = new Label() { Text = "持續:", AutoSize = true, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Margin = new Padding(4, 4, 0, 0) };
+            numDutyOverCurrentDelay = CreateNumericUpDown(Point.Empty, 55, 1, 60, dutyOverCurrentDelaySec, 0, 1);
+            numDutyOverCurrentDelay.Font = new Font("微軟正黑體", 10.5f);
+            numDutyOverCurrentDelay.ValueChanged += (s, e) => { dutyOverCurrentDelaySec = numDutyOverCurrentDelay.Value; UpdateDutyPreflightSummary(); };
+            Label lblDutyOcDelayUnit = new Label() { Text = "s", AutoSize = true, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Margin = new Padding(0, 4, 8, 0) };
+
+            lblDutyCurrentBaseline = new Label() { Text = "基準: 尚未確立 (採樣中)", AutoSize = true, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), ForeColor = Color.FromArgb(71, 85, 105), Margin = new Padding(4, 4, 0, 0) };
+
+            flpOc.Controls.AddRange(new Control[] { lblDutyOcTitle, lblDutyOcPct, numDutyOverCurrentPct, lblDutyOcPctUnit, lblDutyOcDelay, numDutyOverCurrentDelay, lblDutyOcDelayUnit, lblDutyCurrentBaseline });
+            tlpMainCfg.SetColumnSpan(flpOc, 4);
+            tlpMainCfg.Controls.Add(flpOc, 0, 2);
+
+            tlpMain.Controls.Add(tlpMainCfg, 0, 0);
+
+            // 中央容器：待命時呈現預檢確認清單，運轉時切換為即時階段儀表
+            Panel pnlMainCenter = new Panel() { Dock = DockStyle.Fill, Margin = new Padding(0, 6, 0, 0) };
+
+            txtDutyPreflightSummary = new TextBox()
+            {
+                Dock = DockStyle.Fill,
+                Multiline = true,
+                ReadOnly = true,
+                ScrollBars = ScrollBars.Vertical,
+                Font = new Font("Consolas", 11.5f),
+                BackColor = Color.FromArgb(248, 250, 252),
+                ForeColor = Color.FromArgb(15, 23, 42),
+                BorderStyle = BorderStyle.FixedSingle
             };
 
-            Label lTrq = new Label() { Text = "轉矩(Nm):", Location = new Point(230, 110), AutoSize = true, Font = new Font("微軟正黑體", 13f, FontStyle.Bold) };
-            numDutyTorque = CreateNumericUpDown(new Point(325, 106), 95, 0, 500, 15, 1); // 預設 15.0 Nm
-            numDutyTorque.Font = new Font("微軟正黑體", 13f, FontStyle.Bold);
-            numDutyTorque.ValueChanged += (s, e) => {
-                if (!isSyncingDutyControls)
-                {
-                    isSyncingDutyControls = true;
-                    if (numDutyMiniTrq != null && numDutyMiniTrq.Value != numDutyTorque.Value)
-                        numDutyMiniTrq.Value = numDutyTorque.Value;
-                    if (numCardTargetTorque != null && numCardTargetTorque.Value != numDutyTorque.Value)
-                        numCardTargetTorque.Value = Math.Min(numCardTargetTorque.Maximum, Math.Max(numCardTargetTorque.Minimum, numDutyTorque.Value));
-                    isSyncingDutyControls = false;
-                }
-                if (pnlS6Diagram != null) pnlS6Diagram.Invalidate();
-                if (pnlS6MiniDiagram != null) pnlS6MiniDiagram.Invalidate();
+            pnlDutyLiveMonitor = new Panel()
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(238, 242, 255),
+                BorderStyle = BorderStyle.FixedSingle,
+                Visible = false,
+                Padding = new Padding(12)
             };
+            TableLayoutPanel tlpLive = new TableLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 5,
+                BackColor = Color.Transparent
+            };
+            tlpLive.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            for (int r = 0; r < 5; r++) tlpLive.RowStyles.Add(new RowStyle(SizeType.Percent, 20f));
 
-            // S1 第二列右側：啟用熱平衡勾選
-            chkS1ThermalStop = new CheckBox() { Text = "啟用 30分溫差 < 1.0°C 熱平衡自動停機", Location = new Point(445, 108), AutoSize = true, Font = new Font("微軟正黑體", 12.5f, FontStyle.Bold), Checked = true };
-            chkS1ThermalStop.CheckedChanged += (s, e) => { btnS1SelectChannels.Enabled = chkS1ThermalStop.Checked; };
+            lblDutyLiveStage = new Label() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("微軟正黑體", 14f, FontStyle.Bold), ForeColor = Color.FromArgb(30, 64, 175), Text = "【階段】待命中" };
+            lblDutyLiveCountdown = new Label() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("微軟正黑體", 13f, FontStyle.Bold), ForeColor = Color.FromArgb(15, 23, 42), Text = "運轉時間: 00分00秒" };
+            lblDutyLiveTargetActual = new Label() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("微軟正黑體", 13f, FontStyle.Bold), ForeColor = Color.FromArgb(3, 105, 161), Text = "轉速: -- rpm | 轉矩: -- Nm" };
+            lblDutyLiveSlope = new Label() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("微軟正黑體", 12f, FontStyle.Bold), ForeColor = Color.FromArgb(71, 85, 105), Text = "即時運轉指標: 輸出功率 -- kW | 馬達最高溫: --" };
+            lblDutyLiveCooling = new Label() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("微軟正黑體", 12f, FontStyle.Bold), ForeColor = Color.FromArgb(5, 150, 105), Text = "冷卻狀態: 正常運轉 (無待冷卻)" };
 
-            // S2 第二列右側：時長與超溫停機勾選 (通道與閥值斷行至第三列)
-            lblS2Duration = new Label() { Text = "S2 時長(分):", Location = new Point(445, 110), AutoSize = true, Font = new Font("微軟正黑體", 12.5f, FontStyle.Bold) };
-            numS2DurationMin = CreateNumericUpDown(new Point(555, 106), 80, 1, 300, 30);
-            numS2DurationMin.Font = new Font("微軟正黑體", 12f, FontStyle.Bold);
+            tlpLive.Controls.Add(lblDutyLiveStage, 0, 0);
+            tlpLive.Controls.Add(lblDutyLiveCountdown, 0, 1);
+            tlpLive.Controls.Add(lblDutyLiveTargetActual, 0, 2);
+            tlpLive.Controls.Add(lblDutyLiveSlope, 0, 3);
+            tlpLive.Controls.Add(lblDutyLiveCooling, 0, 4);
+            pnlDutyLiveMonitor.Controls.Add(tlpLive);
 
-            chkS2TempStop = new CheckBox() { Text = "超溫停機", Location = new Point(650, 108), AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold), Checked = true };
+            pnlMainCenter.Controls.Add(txtDutyPreflightSummary);
+            pnlMainCenter.Controls.Add(pnlDutyLiveMonitor);
+            tlpMain.Controls.Add(pnlMainCenter, 0, 1);
+            tabDutyMain.Controls.Add(tlpMain);
 
             // -------------------------------------------------------------
-            // 第三列 (Y = 146)：S1 選擇通道 / S2 [通道:...] (斷行獨立一行) / S6 [週期T(分)] (斷行獨立一行)
+            // 分頁 2: 【S1 額定連續設定】
             // -------------------------------------------------------------
-            // S1 第三列：通道選擇按鈕與文字
-            btnS1SelectChannels = new Button() { Text = " 選擇監測通道...", Location = new Point(12, 142), Size = new Size(165, 34), BackColor = Color.FromArgb(241, 245, 249), Font = new Font("微軟正黑體", 11.5f) };
-            btnS1SelectChannels.Click += (s, e) => { ShowS1ChannelSelectDialog(); };
-            lblS1SelectedChHint = new Label() { Text = "(已選 CH1~4，共 4 通道)", Location = new Point(185, 148), AutoSize = true, ForeColor = Color.FromArgb(70, 80, 95), Font = new Font("微軟正黑體", 11.5f) };
+            TableLayoutPanel tlpS1 = new TableLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount = 6,
+                AutoScroll = true,
+                Padding = new Padding(12),
+                BackColor = Color.FromArgb(248, 250, 252)
+            };
+            tlpS1.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160f));
+            tlpS1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            for (int r = 0; r < 5; r++) tlpS1.RowStyles.Add(new RowStyle(SizeType.Absolute, 45f));
+            tlpS1.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
 
-            chkDutySlipComp = new CheckBox() { Text = "自動補轉差 (維持額定轉速)", Location = new Point(410, 146), AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold), Checked = true };
+            Label lS1Spd = new Label() { Text = "額定轉速(rpm):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
+            numS1Speed = CreateNumericUpDown(Point.Empty, 140, 0, 6000, 1500, 0, 1);
+            numS1Speed.Font = new Font("微軟正黑體", 13f, FontStyle.Bold);
+            numS1Speed.ValueChanged += (s, e) => OnDutySpeedNudge(numS1Speed, numS1Speed.Value);
+
+            Label lS1Trq = new Label() { Text = "額定轉矩(Nm):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
+            numS1Torque = CreateNumericUpDown(Point.Empty, 140, 0, 1000, 15, 1, 0.1m);
+            numS1Torque.Font = new Font("微軟正黑體", 13f, FontStyle.Bold);
+            numS1Torque.ValueChanged += (s, e) => OnDutyTorqueNudge(numS1Torque, numS1Torque.Value);
+
+            chkDutySlipComp = new CheckBox() { Text = "自動補轉差 (維持額定轉速)", Dock = DockStyle.Fill, AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold), Checked = true };
             chkDutySlipComp.CheckedChanged += (s, e) => {
                 chkDutySlipComp.Text = chkDutySlipComp.Checked ? "自動補轉差 (維持額定轉速)" : "不補轉差 (固定頻率自然轉差)";
+                UpdateDutyPreflightSummary();
             };
 
-            // S2 第三列：[通道:...] 斷行獨立一行排版
-            lblS2TempCh = new Label() { Text = "通道:", Location = new Point(12, 148), AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
-            cmbS2TempCh = new ComboBox() { Location = new Point(65, 144), Width = 110, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("微軟正黑體", 11f) };
+            chkS1ThermalStop = new CheckBox() { Text = "啟用 30分溫差 < 1.0°C 熱平衡自動停機", Dock = DockStyle.Fill, AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold), Checked = true };
+            chkS1ThermalStop.CheckedChanged += (s, e) => {
+                if (btnS1SelectChannels != null) btnS1SelectChannels.Enabled = chkS1ThermalStop.Checked;
+                UpdateDutyPreflightSummary();
+            };
+
+            Label lS1Ch = new Label() { Text = "監測通道:", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
+            FlowLayoutPanel flpS1Ch = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoSize = true, Margin = new Padding(0) };
+            btnS1SelectChannels = new Button() { Text = " 選擇監測通道...", Size = new Size(160, 34), BackColor = Color.FromArgb(241, 245, 249), Font = new Font("微軟正黑體", 11.5f) };
+            btnS1SelectChannels.Click += (s, e) => { ShowS1ChannelSelectDialog(); };
+            lblS1SelectedChHint = new Label() { Text = "(已選 CH1~4，共 4 通道)", AutoSize = true, ForeColor = Color.FromArgb(70, 80, 95), Font = new Font("微軟正黑體", 11.5f), Margin = new Padding(8, 7, 0, 0) };
+            flpS1Ch.Controls.AddRange(new Control[] { btnS1SelectChannels, lblS1SelectedChHint });
+
+            Label lS1Desc = new Label()
+            {
+                Text = "【S1 額定連續運轉說明】\n" +
+                       "• 未啟動時：可直接於鍵盤打字輸入任意轉速與轉矩。\n" +
+                       "• 啟動運轉中：輸入方塊自動鎖定禁止打字，防止操作失誤；但允許使用上下方向鍵或上下按鈕以最小量 (轉速 1 rpm / 轉矩 0.1 Nm) 即時在線微調！\n" +
+                       "• 系統將自動維持轉速並監控 30 分鐘溫差，達到平衡後自動停機或進入下階段冷卻。",
+                Dock = DockStyle.Fill,
+                Font = new Font("微軟正黑體", 11f),
+                ForeColor = Color.FromArgb(71, 85, 105),
+                BorderStyle = BorderStyle.FixedSingle,
+                Padding = new Padding(8),
+                BackColor = Color.FromArgb(241, 245, 249)
+            };
+
+            tlpS1.Controls.Add(lS1Spd, 0, 0);
+            tlpS1.Controls.Add(numS1Speed, 1, 0);
+            tlpS1.Controls.Add(lS1Trq, 0, 1);
+            tlpS1.Controls.Add(numS1Torque, 1, 1);
+            tlpS1.Controls.Add(new Label(), 0, 2);
+            tlpS1.Controls.Add(chkDutySlipComp, 1, 2);
+            tlpS1.Controls.Add(new Label(), 0, 3);
+            tlpS1.Controls.Add(chkS1ThermalStop, 1, 3);
+            tlpS1.Controls.Add(lS1Ch, 0, 4);
+            tlpS1.Controls.Add(flpS1Ch, 1, 4);
+            tlpS1.SetColumnSpan(lS1Desc, 2);
+            tlpS1.Controls.Add(lS1Desc, 0, 5);
+            tabDutyS1.Controls.Add(tlpS1);
+
+            // -------------------------------------------------------------
+            // 分頁 3: 【S2 短時過載設定】
+            // -------------------------------------------------------------
+            TableLayoutPanel tlpS2 = new TableLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount = 6,
+                AutoScroll = true,
+                Padding = new Padding(12),
+                BackColor = Color.FromArgb(248, 250, 252)
+            };
+            tlpS2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160f));
+            tlpS2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            for (int r = 0; r < 5; r++) tlpS2.RowStyles.Add(new RowStyle(SizeType.Absolute, 45f));
+            tlpS2.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+
+            Label lS2Spd = new Label() { Text = "目標轉速(rpm):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
+            numS2Speed = CreateNumericUpDown(Point.Empty, 140, 0, 6000, 1500, 0, 1);
+            numS2Speed.Font = new Font("微軟正黑體", 13f, FontStyle.Bold);
+            numS2Speed.ValueChanged += (s, e) => OnDutySpeedNudge(numS2Speed, numS2Speed.Value);
+
+            Label lS2Trq = new Label() { Text = "極限轉矩(Nm):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
+            numS2Torque = CreateNumericUpDown(Point.Empty, 140, 0, 1000, 15, 1, 0.1m);
+            numS2Torque.Font = new Font("微軟正黑體", 13f, FontStyle.Bold);
+            numS2Torque.ValueChanged += (s, e) => OnDutyTorqueNudge(numS2Torque, numS2Torque.Value);
+
+            Label lS2Dur = new Label() { Text = "時長(分鐘):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
+            numS2DurationMin = CreateNumericUpDown(Point.Empty, 140, 1, 300, 30, 0, 1);
+            numS2DurationMin.Font = new Font("微軟正黑體", 12.5f, FontStyle.Bold);
+            numS2DurationMin.ValueChanged += (s, e) => UpdateDutyPreflightSummary();
+
+            Label lS2Protect = new Label() { Text = "溫度防護:", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
+            FlowLayoutPanel flpS2Protect = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoSize = true, Margin = new Padding(0) };
+            chkS2TempStop = new CheckBox() { Text = "超溫停機", AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold), Checked = true, Margin = new Padding(0, 4, 8, 0) };
+            Label lS2Ch = new Label() { Text = "通道:", AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold), Margin = new Padding(0, 5, 2, 0) };
+            cmbS2TempCh = new ComboBox() { Width = 110, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("微軟正黑體", 11f) };
             for (int i = 0; i < 20; i++)
             {
                 string cName = (gl820ChannelNames != null && i < gl820ChannelNames.Length && !string.IsNullOrEmpty(gl820ChannelNames[i])) ? gl820ChannelNames[i] : ("CH" + (i + 1));
                 cmbS2TempCh.Items.Add(string.Format("CH{0} ({1})", i + 1, cName));
             }
             if (cmbS2TempCh.Items.Count > 0) cmbS2TempCh.SelectedIndex = 0;
+            Label lS2Thresh = new Label() { Text = "閥值(°C):", AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold), Margin = new Padding(8, 5, 2, 0) };
+            numS2TempThreshold = CreateNumericUpDown(Point.Empty, 75, 20, 150, 80, 1, 0.5m);
+            numS2TempThreshold.Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold);
+            numS2TempThreshold.ValueChanged += (s, e) => UpdateDutyPreflightSummary();
+            lblS2TempRealtime = new Label() { Text = "實測: --.- ℃", AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold), ForeColor = Color.FromArgb(30, 64, 175), Margin = new Padding(8, 5, 0, 0) };
 
-            lblS2TempThresh = new Label() { Text = "閥值(°C):", Location = new Point(190, 148), AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
-            numS2TempThreshold = CreateNumericUpDown(new Point(270, 144), 75, 20, 150, 80, 1, 0.5m);
-            numS2TempThreshold.Font = new Font("微軟正黑體", 12f, FontStyle.Bold);
-            lblS2TempRealtime = new Label() { Text = "實測: --.- ℃", Location = new Point(355, 148), AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold), ForeColor = Color.FromArgb(30, 64, 175) };
             chkS2TempStop.CheckedChanged += (s, e) => {
                 cmbS2TempCh.Enabled = chkS2TempStop.Checked;
                 numS2TempThreshold.Enabled = chkS2TempStop.Checked;
+                UpdateDutyPreflightSummary();
+            };
+            flpS2Protect.Controls.AddRange(new Control[] { chkS2TempStop, lS2Ch, cmbS2TempCh, lS2Thresh, numS2TempThreshold, lblS2TempRealtime });
+
+            Label lS2Anchor = new Label() { Text = "S2 錨點參數:", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 12f, FontStyle.Bold), ForeColor = Color.FromArgb(30, 64, 175) };
+            FlowLayoutPanel flpS2Anchor = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoSize = true, Margin = new Padding(0) };
+            lblS2AnchorSy52 = new Label() { Text = "SY52:", AutoSize = true, Font = new Font("微軟正黑體", 11f, FontStyle.Bold), Margin = new Padding(0, 5, 2, 0) };
+            numS2AnchorSy52 = CreateNumericUpDown(Point.Empty, 85, 0, 6000, s2AnchorSy52, 0, 1);
+            numS2AnchorSy52.Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold);
+            numS2AnchorSy52.ValueChanged += (s, e) => {
+                s2AnchorSy52 = (int)numS2AnchorSy52.Value;
+                if (isDutyRunning)
+                {
+                    int dutyRole = (cmbDutyRole != null && cmbDutyRole.SelectedIndex >= 0) ? cmbDutyRole.SelectedIndex : 1;
+                    int spdDrive = (dutyRole == 1) ? 2 : 1;
+                    int spdCom = GetHmiKebComIdx(spdDrive), spdBaud = GetHmiKebBaudIdx(spdDrive), spdNode = (spdDrive == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
+                    KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, s2AnchorSy52, "S2在線微調SY52");
+                }
+                UpdateDutyPreflightSummary();
             };
 
-            // S6 第三列：[週期T(分)] 斷行獨立一行排版 (含 ED%、循環數與 T1/T2 預估)
-            lblS6CycleLabel = new Label() { Text = "週期T(分):", Location = new Point(12, 148), AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
-            numS6CycleMin = CreateNumericUpDown(new Point(105, 144), 75, 1, 60, 10, 1, 0.5m);
-            numS6CycleMin.Font = new Font("微軟正黑體", 12f, FontStyle.Bold);
+            lblS2AnchorCs18 = new Label() { Text = "CS18(‰):", AutoSize = true, Font = new Font("微軟正黑體", 11f, FontStyle.Bold), Margin = new Padding(8, 5, 2, 0) };
+            numS2AnchorCs18 = CreateNumericUpDown(Point.Empty, 80, 0, 1000, s2AnchorCs18, 0, 1);
+            numS2AnchorCs18.Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold);
+            numS2AnchorCs18.ValueChanged += (s, e) => {
+                s2AnchorCs18 = (int)numS2AnchorCs18.Value;
+                if (isDutyRunning) OnDutyCs18Nudge(s2AnchorCs18);
+                UpdateDutyPreflightSummary();
+            };
+
+            btnS2RecordAnchor = new Button() { Text = " 記錄為錨點", Size = new Size(115, 32), BackColor = Color.FromArgb(16, 185, 129), ForeColor = Color.White, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Margin = new Padding(8, 2, 0, 0) };
+            btnS2RecordAnchor.Click += (s, e) => { CaptureCurrentAnchorToS2(); UpdateDutyPreflightSummary(); };
+
+            btnS2ResetAnchor = new Button() { Text = "↺ 歸零", Size = new Size(70, 32), BackColor = Color.FromArgb(239, 68, 68), ForeColor = Color.White, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Margin = new Padding(6, 2, 0, 0) };
+            btnS2ResetAnchor.Click += (s, e) => { ResetS2Anchor(); UpdateDutyPreflightSummary(); };
+
+            flpS2Anchor.Controls.AddRange(new Control[] { lblS2AnchorSy52, numS2AnchorSy52, lblS2AnchorCs18, numS2AnchorCs18, btnS2RecordAnchor, btnS2ResetAnchor });
+
+            Label lS2Desc = new Label()
+            {
+                Text = "【S2 短時過載測試說明】\n" +
+                       "• 未啟動時：可直接於鍵盤打字輸入任意目標轉速、極限轉矩與時長。\n" +
+                       "• 啟動運轉中：輸入方塊自動鎖死打字，僅允許使用上下鍵以最小量 (轉速 1 rpm / 轉矩 0.1 Nm / CS18 0.1%) 即時在線微調！\n" +
+                       "• 若定錨 SY52/CS18 為 0，系統將自動啟動自適應定錨偵測；若已有數值則直接套用錨點運轉，時長到達或超溫即自動停機。",
+                Dock = DockStyle.Fill,
+                Font = new Font("微軟正黑體", 11f),
+                ForeColor = Color.FromArgb(71, 85, 105),
+                BorderStyle = BorderStyle.FixedSingle,
+                Padding = new Padding(8),
+                BackColor = Color.FromArgb(241, 245, 249)
+            };
+
+            tlpS2.Controls.Add(lS2Spd, 0, 0);
+            tlpS2.Controls.Add(numS2Speed, 1, 0);
+            tlpS2.Controls.Add(lS2Trq, 0, 1);
+            tlpS2.Controls.Add(numS2Torque, 1, 1);
+            tlpS2.Controls.Add(lS2Dur, 0, 2);
+            tlpS2.Controls.Add(numS2DurationMin, 1, 2);
+            tlpS2.Controls.Add(lS2Protect, 0, 3);
+            tlpS2.Controls.Add(flpS2Protect, 1, 3);
+            tlpS2.Controls.Add(lS2Anchor, 0, 4);
+            tlpS2.Controls.Add(flpS2Anchor, 1, 4);
+            tlpS2.SetColumnSpan(lS2Desc, 2);
+            tlpS2.Controls.Add(lS2Desc, 0, 5);
+            tabDutyS2.Controls.Add(tlpS2);
+
+            // -------------------------------------------------------------
+            // 分頁 4: 【S6 週期負載設定】
+            // -------------------------------------------------------------
+            TableLayoutPanel tlpS6 = new TableLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount = 7,
+                AutoScroll = true,
+                Padding = new Padding(12),
+                BackColor = Color.FromArgb(248, 250, 252)
+            };
+            tlpS6.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160f));
+            tlpS6.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            for (int r = 0; r < 6; r++) tlpS6.RowStyles.Add(new RowStyle(SizeType.Absolute, 45f));
+            tlpS6.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+
+            Label lS6Spd = new Label() { Text = "運轉轉速(rpm):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
+            numS6Speed = CreateNumericUpDown(Point.Empty, 140, 0, 6000, 1500, 0, 1);
+            numS6Speed.Font = new Font("微軟正黑體", 13f, FontStyle.Bold);
+            numS6Speed.ValueChanged += (s, e) => OnDutySpeedNudge(numS6Speed, numS6Speed.Value);
+
+            Label lS6Trq = new Label() { Text = "加載轉矩(Nm):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
+            numS6Torque = CreateNumericUpDown(Point.Empty, 140, 0, 1000, 15, 1, 0.1m);
+            numS6Torque.Font = new Font("微軟正黑體", 13f, FontStyle.Bold);
+            numS6Torque.ValueChanged += (s, e) => OnDutyTorqueNudge(numS6Torque, numS6Torque.Value);
+
+            Label lS6Cyc = new Label() { Text = "週期與ED%:", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
+            FlowLayoutPanel flpS6Cyc = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoSize = true, Margin = new Padding(0) };
+            lblS6CycleLabel = new Label() { Text = "週期T(分):", AutoSize = true, Font = new Font("微軟正黑體", 11f, FontStyle.Bold), Margin = new Padding(0, 5, 2, 0) };
+            numS6CycleMin = CreateNumericUpDown(Point.Empty, 75, 1, 60, 10, 1, 0.5m);
+            numS6CycleMin.Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold);
             numS6CycleMin.ValueChanged += (s, e) => {
                 if (!isSyncingDutyControls && numDutyMiniCycleMin != null && numDutyMiniCycleMin.Value != numS6CycleMin.Value)
                 {
@@ -191,13 +476,12 @@ namespace DynamometerHMI
                     isSyncingDutyControls = false;
                 }
                 UpdateS6CalcInfo();
-                if (pnlS6Diagram != null) pnlS6Diagram.Invalidate();
-                if (pnlS6MiniDiagram != null) pnlS6MiniDiagram.Invalidate();
+                UpdateDutyPreflightSummary();
             };
 
-            lblS6EdLabel = new Label() { Text = "ED%:", Location = new Point(190, 148), AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
-            numS6Ed = CreateNumericUpDown(new Point(240, 144), 70, 1, 100, 40);
-            numS6Ed.Font = new Font("微軟正黑體", 12f, FontStyle.Bold);
+            lblS6EdLabel = new Label() { Text = "ED%:", AutoSize = true, Font = new Font("微軟正黑體", 11f, FontStyle.Bold), Margin = new Padding(8, 5, 2, 0) };
+            numS6Ed = CreateNumericUpDown(Point.Empty, 65, 1, 100, 40, 0, 1);
+            numS6Ed.Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold);
             numS6Ed.ValueChanged += (s, e) => {
                 if (!isSyncingDutyControls && numDutyMiniEd != null && numDutyMiniEd.Value != numS6Ed.Value)
                 {
@@ -206,13 +490,12 @@ namespace DynamometerHMI
                     isSyncingDutyControls = false;
                 }
                 UpdateS6CalcInfo();
-                if (pnlS6Diagram != null) pnlS6Diagram.Invalidate();
-                if (pnlS6MiniDiagram != null) pnlS6MiniDiagram.Invalidate();
+                UpdateDutyPreflightSummary();
             };
 
-            lblS6CyclesLabel = new Label() { Text = "循環:", Location = new Point(320, 148), AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
-            numS6Cycles = CreateNumericUpDown(new Point(370, 144), 65, 1, 50, 3);
-            numS6Cycles.Font = new Font("微軟正黑體", 12f, FontStyle.Bold);
+            lblS6CyclesLabel = new Label() { Text = "循環:", AutoSize = true, Font = new Font("微軟正黑體", 11f, FontStyle.Bold), Margin = new Padding(8, 5, 2, 0) };
+            numS6Cycles = CreateNumericUpDown(Point.Empty, 60, 1, 50, 3, 0, 1);
+            numS6Cycles.Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold);
             numS6Cycles.ValueChanged += (s, e) => {
                 if (!isSyncingDutyControls && numDutyMiniCycles != null && numDutyMiniCycles.Value != numS6Cycles.Value)
                 {
@@ -220,235 +503,196 @@ namespace DynamometerHMI
                     numDutyMiniCycles.Value = numS6Cycles.Value;
                     isSyncingDutyControls = false;
                 }
+                UpdateDutyPreflightSummary();
             };
 
-            lblS6CalcInfo = new Label() { Text = "T1=4.0m, T2=6.0m", Location = new Point(450, 148), AutoSize = true, ForeColor = Color.FromArgb(3, 105, 161), Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold) };
+            lblS6CalcInfo = new Label() { Text = "T1=4.0m, T2=6.0m", AutoSize = true, ForeColor = Color.FromArgb(3, 105, 161), Font = new Font("微軟正黑體", 11f, FontStyle.Bold), Margin = new Padding(8, 5, 0, 0) };
+            flpS6Cyc.Controls.AddRange(new Control[] { lblS6CycleLabel, numS6CycleMin, lblS6EdLabel, numS6Ed, lblS6CyclesLabel, numS6Cycles, lblS6CalcInfo });
 
-            // -------------------------------------------------------------
-            // 第四列 (Y = 186)：S2 錨點控制項 / S6 [通道:...] (斷行獨立一行)
-            // -------------------------------------------------------------
-            // S2 錨點控制項
-            lblS2AnchorTitle = new Label() { Text = " S2 錨點：", Location = new Point(12, 188), AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold), ForeColor = Color.FromArgb(30, 64, 175) };
-            lblS2AnchorSy52 = new Label() { Text = "SY52(rpm):", Location = new Point(110, 188), AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold) };
-            numS2AnchorSy52 = CreateNumericUpDown(new Point(195, 184), 85, 0, 6000, s2AnchorSy52, 0, 50);
-            numS2AnchorSy52.Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold);
-            numS2AnchorSy52.ValueChanged += (s, e) => {
-                s2AnchorSy52 = (int)numS2AnchorSy52.Value;
-                if (!isSyncingDutyControls && numDutyMiniS2Sy52 != null && numDutyMiniS2Sy52.Value != numS2AnchorSy52.Value)
-                {
-                    isSyncingDutyControls = true;
-                    numDutyMiniS2Sy52.Value = numS2AnchorSy52.Value;
-                    isSyncingDutyControls = false;
-                }
-            };
-
-            lblS2AnchorCs18 = new Label() { Text = "CS18(‰):", Location = new Point(290, 188), AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold) };
-            numS2AnchorCs18 = CreateNumericUpDown(new Point(360, 184), 80, 0, 1000, s2AnchorCs18, 0, 10);
-            numS2AnchorCs18.Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold);
-            numS2AnchorCs18.ValueChanged += (s, e) => {
-                s2AnchorCs18 = (int)numS2AnchorCs18.Value;
-                if (!isSyncingDutyControls && numDutyMiniS2Cs18 != null && numDutyMiniS2Cs18.Value != numS2AnchorCs18.Value)
-                {
-                    isSyncingDutyControls = true;
-                    numDutyMiniS2Cs18.Value = numS2AnchorCs18.Value;
-                    isSyncingDutyControls = false;
-                }
-            };
-
-            btnS2RecordAnchor = new Button() { Text = " 記錄為錨點", Location = new Point(455, 182), Size = new Size(130, 34), BackColor = Color.FromArgb(16, 185, 129), ForeColor = Color.White, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
-            btnS2RecordAnchor.Click += (s, e) => { CaptureCurrentAnchorToS2(); };
-
-            btnS2ResetAnchor = new Button() { Text = "↺ 歸零", Location = new Point(595, 182), Size = new Size(80, 34), BackColor = Color.FromArgb(239, 68, 68), ForeColor = Color.White, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
-            btnS2ResetAnchor.Click += (s, e) => { ResetS2Anchor(); };
-
-            // S6 第四列：[通道:...] 斷行獨立一行排版
-            lblS6TempCh = new Label() { Text = "通道:", Location = new Point(12, 188), AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
-            cmbS6TempCh = new ComboBox() { Location = new Point(65, 184), Width = 85, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("微軟正黑體", 11f) };
+            Label lS6Ch = new Label() { Text = "最高溫通道:", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
+            FlowLayoutPanel flpS6Ch = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoSize = true, Margin = new Padding(0) };
+            cmbS6TempCh = new ComboBox() { Width = 85, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("微軟正黑體", 11f) };
             for (int i = 1; i <= 20; i++) cmbS6TempCh.Items.Add("CH " + i);
             cmbS6TempCh.SelectedIndex = 0;
             cmbS6TempCh.SelectedIndexChanged += (s, e) => {
-                if (cmbDutyMode != null && cmbDutyMode.SelectedIndex == 2 && lblDutyTempTrendTitle != null)
+                if (lblDutyTempTrendTitle != null)
                     lblDutyTempTrendTitle.Text = string.Format("目前監測通道: S6 通道 {0} (每10分鐘最高溫熱平衡分析)", cmbS6TempCh.SelectedIndex + 1);
             };
-            lblS6TempChHint = new Label() { Text = "(S6 每10分鐘最高溫熱平衡監測通道)", Location = new Point(160, 188), AutoSize = true, ForeColor = Color.FromArgb(70, 80, 95), Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
+            lblS6TempChHint = new Label() { Text = "(S6 每10分鐘最高溫熱平衡監測通道)", AutoSize = true, ForeColor = Color.FromArgb(70, 80, 95), Font = new Font("微軟正黑體", 11f, FontStyle.Bold), Margin = new Padding(8, 5, 0, 0) };
+            flpS6Ch.Controls.AddRange(new Control[] { cmbS6TempCh, lblS6TempChHint });
 
-            // -------------------------------------------------------------
-            // 第五列 (Y = 226)：S6 定錨按鈕與數值設定列 (空載SY52 / 加載SY52 / CS18)
-            // -------------------------------------------------------------
-            lblS6NoLoadTitle = new Label() { Text = "空載SY52:", Location = new Point(12, 228), AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold) };
-            numS6AnchorNoLoadSpd = CreateNumericUpDown(new Point(98, 224), 80, 0, 6000, 0, 0, 50);
-            numS6AnchorNoLoadSpd.Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold);
+            Label lS6Anchor = new Label() { Text = "S6 雙重定錨:", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Font = new Font("微軟正黑體", 12f, FontStyle.Bold), ForeColor = Color.FromArgb(30, 64, 175) };
+            FlowLayoutPanel flpS6Anchor = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoSize = true, Margin = new Padding(0) };
+            lblS6NoLoadTitle = new Label() { Text = "空載SY52:", AutoSize = true, Font = new Font("微軟正黑體", 11f, FontStyle.Bold), Margin = new Padding(0, 5, 2, 0) };
+            numS6AnchorNoLoadSpd = CreateNumericUpDown(Point.Empty, 80, 0, 6000, 0, 0, 1);
+            numS6AnchorNoLoadSpd.Font = new Font("微軟正黑體", 11f, FontStyle.Bold);
             numS6AnchorNoLoadSpd.ValueChanged += (s, e) => {
                 s6AnchorNoLoadSpeed = (double)numS6AnchorNoLoadSpd.Value;
                 s6HasNoLoadAnchor = (s6AnchorNoLoadSpeed > 0);
-                if (!isSyncingDutyControls && numDutyMiniS6NoLoadSpd != null && numDutyMiniS6NoLoadSpd.Value != numS6AnchorNoLoadSpd.Value)
-                {
-                    isSyncingDutyControls = true;
-                    numDutyMiniS6NoLoadSpd.Value = numS6AnchorNoLoadSpd.Value;
-                    isSyncingDutyControls = false;
-                }
                 UpdateS6AnchorStatusText();
+                UpdateDutyPreflightSummary();
             };
-            btnS6AnchorNoLoad = new Button() { Text = " 記空載 (V)", Location = new Point(185, 222), Size = new Size(110, 34), BackColor = Color.FromArgb(14, 165, 233), ForeColor = Color.White, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
-            btnS6AnchorNoLoad.Click += (s, e) => { CaptureCurrentAnchorToS6NoLoad(); };
+            btnS6AnchorNoLoad = new Button() { Text = " 記空載 (V)", Size = new Size(100, 32), BackColor = Color.FromArgb(14, 165, 233), ForeColor = Color.White, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Margin = new Padding(4, 2, 8, 0) };
+            btnS6AnchorNoLoad.Click += (s, e) => { CaptureCurrentAnchorToS6NoLoad(); UpdateDutyPreflightSummary(); };
 
-            lblS6LoadedTitle = new Label() { Text = "加載SY52:", Location = new Point(305, 228), AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold) };
-            numS6AnchorLoadedSpd = CreateNumericUpDown(new Point(390, 224), 80, 0, 6000, 0, 0, 50);
-            numS6AnchorLoadedSpd.Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold);
+            lblS6LoadedTitle = new Label() { Text = "加載SY52:", AutoSize = true, Font = new Font("微軟正黑體", 11f, FontStyle.Bold), Margin = new Padding(0, 5, 2, 0) };
+            numS6AnchorLoadedSpd = CreateNumericUpDown(Point.Empty, 80, 0, 6000, 0, 0, 1);
+            numS6AnchorLoadedSpd.Font = new Font("微軟正黑體", 11f, FontStyle.Bold);
             numS6AnchorLoadedSpd.ValueChanged += (s, e) => {
                 s6AnchorLoadedSpeed = (double)numS6AnchorLoadedSpd.Value;
                 s6HasLoadedAnchor = (s6AnchorLoadedSpeed > 0 && s6AnchorLoadedTorquePct > 0);
-                if (!isSyncingDutyControls && numDutyMiniS6LoadedSpd != null && numDutyMiniS6LoadedSpd.Value != numS6AnchorLoadedSpd.Value)
+                if (isDutyRunning)
                 {
-                    isSyncingDutyControls = true;
-                    numDutyMiniS6LoadedSpd.Value = numS6AnchorLoadedSpd.Value;
-                    isSyncingDutyControls = false;
+                    int dutyRole = (cmbDutyRole != null && cmbDutyRole.SelectedIndex >= 0) ? cmbDutyRole.SelectedIndex : 1;
+                    int spdDrive = (dutyRole == 1) ? 2 : 1;
+                    int spdCom = GetHmiKebComIdx(spdDrive), spdBaud = GetHmiKebBaudIdx(spdDrive), spdNode = (spdDrive == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
+                    KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)s6AnchorLoadedSpeed, "S6在線微調加載SY52");
                 }
                 UpdateS6AnchorStatusText();
+                UpdateDutyPreflightSummary();
             };
 
-            lblS6Cs18Title = new Label() { Text = "CS18(‰):", Location = new Point(480, 228), AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold) };
-            numS6AnchorLoadedCs18 = CreateNumericUpDown(new Point(555, 224), 75, 0, 1000, 0, 0, 10);
-            numS6AnchorLoadedCs18.Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold);
+            lblS6Cs18Title = new Label() { Text = "CS18(‰):", AutoSize = true, Font = new Font("微軟正黑體", 11f, FontStyle.Bold), Margin = new Padding(8, 5, 2, 0) };
+            numS6AnchorLoadedCs18 = CreateNumericUpDown(Point.Empty, 75, 0, 1000, 0, 0, 1);
+            numS6AnchorLoadedCs18.Font = new Font("微軟正黑體", 11f, FontStyle.Bold);
             numS6AnchorLoadedCs18.ValueChanged += (s, e) => {
                 s6AnchorLoadedTorquePct = (double)numS6AnchorLoadedCs18.Value / 10.0;
                 s6HasLoadedAnchor = (s6AnchorLoadedSpeed > 0 && s6AnchorLoadedTorquePct > 0);
-                if (!isSyncingDutyControls && numDutyMiniS6LoadedCs18 != null && numDutyMiniS6LoadedCs18.Value != numS6AnchorLoadedCs18.Value)
-                {
-                    isSyncingDutyControls = true;
-                    numDutyMiniS6LoadedCs18.Value = numS6AnchorLoadedCs18.Value;
-                    isSyncingDutyControls = false;
-                }
+                if (isDutyRunning) OnDutyCs18Nudge((int)numS6AnchorLoadedCs18.Value);
                 UpdateS6AnchorStatusText();
+                UpdateDutyPreflightSummary();
             };
 
-            btnS6AnchorLoaded = new Button() { Text = " 記加載 (N)", Location = new Point(640, 222), Size = new Size(110, 34), BackColor = Color.FromArgb(139, 92, 246), ForeColor = Color.White, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
-            btnS6AnchorLoaded.Click += (s, e) => { CaptureCurrentAnchorToS6Loaded(); };
+            btnS6AnchorLoaded = new Button() { Text = " 記加載 (N)", Size = new Size(100, 32), BackColor = Color.FromArgb(139, 92, 246), ForeColor = Color.White, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Margin = new Padding(4, 2, 4, 0) };
+            btnS6AnchorLoaded.Click += (s, e) => { CaptureCurrentAnchorToS6Loaded(); UpdateDutyPreflightSummary(); };
 
-            btnS6ResetAnchor = new Button() { Text = "↺ 歸零", Location = new Point(760, 222), Size = new Size(80, 34), BackColor = Color.FromArgb(239, 68, 68), ForeColor = Color.White, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
-            btnS6ResetAnchor.Click += (s, e) => { ResetS6Anchors(); };
+            btnS6ResetAnchor = new Button() { Text = "↺ 歸零", Size = new Size(70, 32), BackColor = Color.FromArgb(239, 68, 68), ForeColor = Color.White, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Margin = new Padding(4, 2, 0, 0) };
+            btnS6ResetAnchor.Click += (s, e) => { ResetS6Anchors(); UpdateDutyPreflightSummary(); };
 
-            // -------------------------------------------------------------
-            // 第六列 (Y = 266)：定錨狀態 (橘色文字斷行獨立一行，醒目大氣)
-            // -------------------------------------------------------------
-            lblS6AnchorStatus = new Label() { Text = "定錨狀態: 空載=未定錨 | 加載=未定錨", Location = new Point(12, 266), AutoSize = true, ForeColor = Color.DarkOrange, Font = new Font("微軟正黑體", 12.5f, FontStyle.Bold) };
+            flpS6Anchor.Controls.AddRange(new Control[] { lblS6NoLoadTitle, numS6AnchorNoLoadSpd, btnS6AnchorNoLoad, lblS6LoadedTitle, numS6AnchorLoadedSpd, lblS6Cs18Title, numS6AnchorLoadedCs18, btnS6AnchorLoaded, btnS6ResetAnchor });
 
-            // -------------------------------------------------------------
-            // 第七列 (Y = 302)：【AB載台現況】獨立一行排版 (全模式可見)
-            // -------------------------------------------------------------
-            lblDutyAbStatus = new Label() { Text = "【AB載台現況】待命準備中", Location = new Point(12, 302), AutoSize = true, ForeColor = Color.FromArgb(3, 105, 161), Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
+            lblS6AnchorStatus = new Label() { Text = "定錨狀態: 空載=未定錨 | 加載=未定錨", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.DarkOrange, Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
 
-            // -------------------------------------------------------------
-            // 第八列 (Y = 338)：DUTY 基準過電流跳脫保護控制項 (S1/S2/S6 通用)
-            // -------------------------------------------------------------
-            Label lblDutyOcTitle = new Label() { Text = "[電]過電流保護:", Location = new Point(12, 338), AutoSize = true, Font = new Font("微軟正黑體", 12f, FontStyle.Bold), ForeColor = Color.FromArgb(194, 65, 12) };
-            Label lblDutyOcPct = new Label() { Text = "門檻:", Location = new Point(135, 340), AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold) };
-            numDutyOverCurrentPct = CreateNumericUpDown(new Point(180, 336), 60, 5, 100, dutyOverCurrentPercent, 0, 5);
-            numDutyOverCurrentPct.Font = new Font("微軟正黑體", 11.5f);
-            numDutyOverCurrentPct.ValueChanged += (s, e) => { dutyOverCurrentPercent = numDutyOverCurrentPct.Value; };
-            Label lblDutyOcPctUnit = new Label() { Text = "%", Location = new Point(245, 340), AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold) };
-
-            Label lblDutyOcDelay = new Label() { Text = "持續:", Location = new Point(270, 340), AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold) };
-            numDutyOverCurrentDelay = CreateNumericUpDown(new Point(315, 336), 60, 1, 60, dutyOverCurrentDelaySec, 0, 1);
-            numDutyOverCurrentDelay.Font = new Font("微軟正黑體", 11.5f);
-            numDutyOverCurrentDelay.ValueChanged += (s, e) => { dutyOverCurrentDelaySec = numDutyOverCurrentDelay.Value; };
-            Label lblDutyOcDelayUnit = new Label() { Text = "s", Location = new Point(380, 340), AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold) };
-
-            lblDutyCurrentBaseline = new Label() { Text = "基準: 尚未確立 (採樣中)", Location = new Point(410, 338), AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold), ForeColor = Color.FromArgb(71, 85, 105) };
-
-            // -------------------------------------------------------------
-            // 第九列 (Y = 376)：連續性自動排程選項 (S1 -> S6 -> S2) 與冷卻模式
-            // -------------------------------------------------------------
-            chkBatchDutyMode = new CheckBox() { Text = "連續性自動排程", Location = new Point(12, 376), AutoSize = true, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold), ForeColor = Color.FromArgb(30, 64, 175) };
-
-            cmbBatchDutyPlan = new ComboBox() { Location = new Point(152, 374), Width = 210, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Enabled = false };
-            cmbBatchDutyPlan.Items.AddRange(new object[] {
-                "1. S1 -> S6 -> S2 (三項全測)",
-                "2. S1 -> S6 (額定 + 週期)",
-                "3. S1 -> S2 (額定 + 短時)",
-                "4. S6 -> S2 (週期 + 短時)"
-            });
-            cmbBatchDutyPlan.SelectedIndex = 0;
-
-            cmbBatchCoolingMode = new ComboBox() { Location = new Point(368, 374), Width = 346, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("微軟正黑體", 10f), Enabled = false };
-            cmbBatchCoolingMode.Items.AddRange(new object[] {
-                "冷卻: 自動辨識 (W-IN/OUT為水冷25℃，否則氣冷AT)",
-                "冷卻: 強制水冷電機 (冰水機循環降至 <= 25.0℃)",
-                "冷卻: 強制氣冷電機 (降至 <= AT+1.5℃ 且 15分無下降)"
-            });
-            cmbBatchCoolingMode.SelectedIndex = 0;
-
-            Action updateBatchPlanHint = () => {
-                bool batchOn = (chkBatchDutyMode != null && chkBatchDutyMode.Checked);
-                if (cmbBatchDutyPlan != null) cmbBatchDutyPlan.Enabled = batchOn;
-                if (cmbBatchCoolingMode != null) cmbBatchCoolingMode.Enabled = batchOn;
-                if (btnStartDuty != null) btnStartDuty.Text = batchOn ? "[排程] 開始連續測試" : "[>] 開始工作制測試";
-                if (batchOn)
-                {
-                    int p = (cmbBatchDutyPlan != null && cmbBatchDutyPlan.SelectedIndex >= 0) ? cmbBatchDutyPlan.SelectedIndex : 0;
-                    string planDesc = (p == 0) ? "S1 -> S6 -> S2 (三項全測)" : ((p == 1) ? "S1 -> S6 (額定 + 週期)" : ((p == 2) ? "S1 -> S2 (額定 + 短時)" : "S6 -> S2 (週期 + 短時)"));
-                    lblDutyStatus.Text = string.Format("狀態: 連續排程已就緒 (將依序執行 {0})", planDesc);
-                    if (lblBatchProgressDetail != null)
-                    {
-                        if (p == 0) lblBatchProgressDetail.Text = "【連續排程待命】S1 (熱平衡) -> 冷卻50℃ -> S6 (熱平衡) -> 冷卻25℃/室溫 -> S2 全流程自動測試。";
-                        else if (p == 1) lblBatchProgressDetail.Text = "【連續排程待命】S1 (熱平衡) -> 冷卻50℃ -> S6 (週期熱平衡) 兩項自動測試。";
-                        else if (p == 2) lblBatchProgressDetail.Text = "【連續排程待命】S1 (熱平衡) -> 冷卻25℃/室溫 -> S2 (短時30分) 兩項自動測試。";
-                        else if (p == 3) lblBatchProgressDetail.Text = "【連續排程待命】S6 (週期熱平衡) -> 冷卻25℃/室溫 -> S2 (短時30分) 兩項自動測試。";
-                    }
-                }
-                else
-                {
-                    lblDutyStatus.Text = "狀態: 待命準備中";
-                    if (lblBatchProgressDetail != null) lblBatchProgressDetail.Text = "【單一測試模式】各階段完成將彈窗提示，請手動匯出或切換。";
-                }
+            Label lS6Desc = new Label()
+            {
+                Text = "【S6 週期負載測試說明】\n" +
+                       "• 未啟動時：可直接於鍵盤打字輸入運轉轉速、加載轉矩、週期分、ED% 與循環數。\n" +
+                       "• 啟動運轉中：輸入方塊自動鎖死打字，僅允許使用上下鍵以最小量 (轉速 1 rpm / 轉矩 0.1 Nm / CS18 0.1%) 即時在線微調！\n" +
+                       "• 支援空載與加載雙重錨點；若未設定則第一循環自動自適應定錨，後續循環直接快速切換。",
+                Dock = DockStyle.Fill,
+                Font = new Font("微軟正黑體", 11f),
+                ForeColor = Color.FromArgb(71, 85, 105),
+                BorderStyle = BorderStyle.FixedSingle,
+                Padding = new Padding(8),
+                BackColor = Color.FromArgb(241, 245, 249)
             };
 
-            chkBatchDutyMode.CheckedChanged += (s, e) => updateBatchPlanHint();
-            cmbBatchDutyPlan.SelectedIndexChanged += (s, e) => updateBatchPlanHint();
+            tlpS6.Controls.Add(lS6Spd, 0, 0);
+            tlpS6.Controls.Add(numS6Speed, 1, 0);
+            tlpS6.Controls.Add(lS6Trq, 0, 1);
+            tlpS6.Controls.Add(numS6Torque, 1, 1);
+            tlpS6.Controls.Add(lS6Cyc, 0, 2);
+            tlpS6.Controls.Add(flpS6Cyc, 1, 2);
+            tlpS6.Controls.Add(lS6Ch, 0, 3);
+            tlpS6.Controls.Add(flpS6Ch, 1, 3);
+            tlpS6.Controls.Add(lS6Anchor, 0, 4);
+            tlpS6.Controls.Add(flpS6Anchor, 1, 4);
+            tlpS6.Controls.Add(new Label(), 0, 5);
+            tlpS6.Controls.Add(lblS6AnchorStatus, 1, 5);
+            tlpS6.SetColumnSpan(lS6Desc, 2);
+            tlpS6.Controls.Add(lS6Desc, 0, 6);
+            tabDutyS6.Controls.Add(tlpS6);
 
             // -------------------------------------------------------------
-            // 第十列 (Y = 414)：操作按鈕群與進度條
+            // 底部操作列與狀態行 (永遠置底可見，單一入口防呆)
             // -------------------------------------------------------------
-            btnStartDuty = new Button() { Text = "[>] 開始工作制測試", Location = new Point(12, 414), Size = new Size(175, 40), BackColor = Color.FromArgb(0, 180, 216), ForeColor = Color.White, Font = new Font("微軟正黑體", 13.5f, FontStyle.Bold) };
-            btnStopDuty = new Button() { Text = "[■] 停止", Location = new Point(195, 414), Size = new Size(95, 40), Enabled = false, Font = new Font("微軟正黑體", 13.5f, FontStyle.Bold) };
-            btnExportDuty = new Button() { Text = "[儲存] 匯出報表", Location = new Point(298, 414), Size = new Size(125, 40), BackColor = Color.FromArgb(16, 185, 129), ForeColor = Color.White, Font = new Font("微軟正黑體", 13.5f, FontStyle.Bold) };
-            prgDuty = new ProgressBar() { Location = new Point(435, 421), Size = new Size(280, 26) };
+            TableLayoutPanel pnlBottomBar = new TableLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 5,
+                AutoSize = true,
+                BackColor = Color.FromArgb(248, 250, 252),
+                Padding = new Padding(4)
+            };
+            pnlBottomBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+
+            FlowLayoutPanel flpBtns = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoSize = true, Margin = new Padding(0) };
+            btnStartDuty = new Button() { Text = "[排程] 開始連續測試", Size = new Size(165, 40), BackColor = Color.FromArgb(0, 180, 216), ForeColor = Color.White, Font = new Font("微軟正黑體", 12.5f, FontStyle.Bold) };
+            btnStopDuty = new Button() { Text = "[■] 停止", Size = new Size(90, 40), Enabled = false, Font = new Font("微軟正黑體", 12.5f, FontStyle.Bold), ForeColor = Color.Red };
+            btnExportDuty = new Button() { Text = "[儲存] 匯出報表", Size = new Size(120, 40), BackColor = Color.FromArgb(16, 185, 129), ForeColor = Color.White, Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
+            btnDutyExtrapolate = new Button() { Text = "[推估] 極限能力回推", Size = new Size(150, 40), BackColor = Color.FromArgb(79, 70, 229), ForeColor = Color.White, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold) };
+            prgDuty = new ProgressBar() { Size = new Size(160, 26), Margin = new Padding(8, 7, 0, 0) };
 
             btnStartDuty.Click += BtnStartDuty_Click;
             btnStopDuty.Click += (s, e) => { StopDutyTest(); };
             btnExportDuty.Click += BtnExportDuty_Click;
+            btnDutyExtrapolate.Click += (s, e) => { ShowDutyExtrapolationDialog(); };
 
-            // -------------------------------------------------------------
-            // 第十一列 (Y = 464)：已運轉狀態行 (獨立一行不擠壓)
-            // -------------------------------------------------------------
-            lblDutyStatus = new Label() { Text = "狀態: 待命準備中", Location = new Point(12, 464), AutoSize = true, Font = new Font("微軟正黑體", 13f, FontStyle.Bold), ForeColor = Color.FromArgb(15, 23, 42) };
+            flpBtns.Controls.AddRange(new Control[] { btnStartDuty, btnStopDuty, btnExportDuty, btnDutyExtrapolate, prgDuty });
+            pnlBottomBar.Controls.Add(flpBtns, 0, 0);
 
-            // -------------------------------------------------------------
-            // 第十二列 (Y = 496)：動作說明行 (獨立一行)
-            // -------------------------------------------------------------
-            lblDutyPhaseAction = new Label() { Text = "動作: --", Location = new Point(12, 496), AutoSize = true, ForeColor = Color.FromArgb(2, 132, 199), Font = new Font("微軟正黑體", 12f, FontStyle.Bold) };
+            lblDutyStatus = new Label() { Text = "狀態: 待命準備中", Dock = DockStyle.Fill, AutoSize = true, Font = new Font("微軟正黑體", 12.5f, FontStyle.Bold), ForeColor = Color.FromArgb(15, 23, 42), Margin = new Padding(4, 2, 4, 1) };
+            lblDutyPhaseAction = new Label() { Text = "動作: --", Dock = DockStyle.Fill, AutoSize = true, ForeColor = Color.FromArgb(2, 132, 199), Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold), Margin = new Padding(4, 1, 4, 1) };
+            lblThermalStatus = new Label() { Text = "熱平衡: 未達平衡", Dock = DockStyle.Fill, AutoSize = true, ForeColor = Color.DarkOrange, Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold), Margin = new Padding(4, 1, 4, 1) };
+            lblExtrapolationSummary = new Label() { Text = "極限推估: 待命 (S2/S6 測試完成後自動依溫升回推 105℃ 極限扭矩與 DUTY 佔比)", Dock = DockStyle.Fill, AutoSize = true, ForeColor = Color.FromArgb(67, 56, 202), Font = new Font("微軟正黑體", 11f, FontStyle.Bold), Margin = new Padding(4, 1, 4, 1) };
+            lblDutyAbStatus = new Label() { Text = "【AB載台現況】待命準備中", Dock = DockStyle.Fill, AutoSize = true, ForeColor = Color.FromArgb(3, 105, 161), Font = new Font("微軟正黑體", 11f, FontStyle.Bold), Margin = new Padding(4, 1, 4, 1) };
 
-            // -------------------------------------------------------------
-            // 第十三列 (Y = 528)：熱平衡判定行 (獨立一行醒目顯示)
-            // -------------------------------------------------------------
-            lblThermalStatus = new Label() { Text = "熱平衡: 未達平衡", Location = new Point(12, 528), AutoSize = true, ForeColor = Color.DarkOrange, Font = new Font("微軟正黑體", 12.5f, FontStyle.Bold) };
+            pnlBottomBar.Controls.Add(lblDutyStatus, 0, 1);
+            pnlBottomBar.Controls.Add(lblDutyPhaseAction, 0, 2);
+            // pnlBottomBar.Controls.Add(lblThermalStatus, 0, 3); // 移除重複顯示之熱平衡標籤，權威狀態唯一保留於右側 grpDutyTemp 頂部
+            pnlBottomBar.Controls.Add(lblExtrapolationSummary, 0, 4);
 
-            grp.Controls.AddRange(new Control[] {
-                lblKebAutoModeHint,
-                lMode, cmbDutyMode, lRole, cmbDutyRole,
-                lSpd, numDutySpeed, lTrq, numDutyTorque,
-                chkS1ThermalStop, btnS1SelectChannels, lblS1SelectedChHint, chkDutySlipComp, lblDutyAbStatus,
-                lblS2Duration, numS2DurationMin, chkS2TempStop, lblS2TempCh, cmbS2TempCh, lblS2TempThresh, numS2TempThreshold, lblS2TempRealtime,
-                lblS2AnchorTitle, lblS2AnchorSy52, numS2AnchorSy52, lblS2AnchorCs18, numS2AnchorCs18, btnS2RecordAnchor, btnS2ResetAnchor,
-                lblS6CycleLabel, numS6CycleMin, lblS6EdLabel, numS6Ed, lblS6CyclesLabel, numS6Cycles, lblS6CalcInfo,
-                lblS6TempCh, cmbS6TempCh, lblS6TempChHint,
-                lblS6NoLoadTitle, numS6AnchorNoLoadSpd, btnS6AnchorNoLoad, lblS6LoadedTitle, numS6AnchorLoadedSpd, lblS6Cs18Title, numS6AnchorLoadedCs18, btnS6AnchorLoaded, btnS6ResetAnchor, lblS6AnchorStatus,
-                lblDutyOcTitle, lblDutyOcPct, numDutyOverCurrentPct, lblDutyOcPctUnit, lblDutyOcDelay, numDutyOverCurrentDelay, lblDutyOcDelayUnit, lblDutyCurrentBaseline,
-                chkBatchDutyMode, cmbBatchDutyPlan, cmbBatchCoolingMode,
-                btnStartDuty, btnStopDuty, btnExportDuty, prgDuty,
-                lblDutyStatus, lblDutyPhaseAction, lblThermalStatus
-            });
+            tlpLeft.Controls.Add(tabDutyControl, 0, 0);
+            tlpLeft.Controls.Add(pnlBottomBar, 0, 1);
+            grp.Controls.Add(tlpLeft);
             splitDutyTop.Panel1.Controls.Add(grp);
+
+            // 保持背景相容變數之初始化
+            numDutySpeed = CreateNumericUpDown(Point.Empty, 105, 0, 4000, 1000, 0, 1);
+            numDutyTorque = CreateNumericUpDown(Point.Empty, 95, 0, 500, 15, 1, 0.1m);
+            cmbDutyMode = new ComboBox();
+            cmbDutyMode.Items.AddRange(new object[] { "S1 連續工作制 (30分熱平衡判定)", "S2 短時工作制 (錨點測試/超溫停機)", "S6 週期工作制 (Periodic ED%)" });
+            cmbDutyMode.SelectedIndex = 2;
+            chkBatchDutyMode = new CheckBox() { Checked = true };
+
+            cmbDutyMainMode.SelectedIndexChanged += (s, e) => {
+                int sel = cmbDutyMainMode.SelectedIndex;
+                if (sel == 0)
+                {
+                    chkBatchDutyMode.Checked = true;
+                    cmbBatchDutyPlan.Enabled = true;
+                    cmbBatchCoolingMode.Enabled = true;
+                    btnStartDuty.Text = "[排程] 開始連續測試";
+                }
+                else
+                {
+                    chkBatchDutyMode.Checked = false;
+                    cmbBatchDutyPlan.Enabled = false;
+                    cmbBatchCoolingMode.Enabled = false;
+                    btnStartDuty.Text = "[>] 開始工作制測試";
+                    if (sel == 1) cmbDutyMode.SelectedIndex = 0;
+                    else if (sel == 2) cmbDutyMode.SelectedIndex = 1;
+                    else if (sel == 3) cmbDutyMode.SelectedIndex = 2;
+                }
+                UpdateDutyPreflightSummary();
+            };
+
+            tabDutyControl.SelectedIndexChanged += (s, e) => {
+                if (!isDutyRunning && cmbDutyMainMode.SelectedIndex != 0)
+                {
+                    if (tabDutyControl.SelectedTab == tabDutyS1) cmbDutyMainMode.SelectedIndex = 1;
+                    else if (tabDutyControl.SelectedTab == tabDutyS2) cmbDutyMainMode.SelectedIndex = 2;
+                    else if (tabDutyControl.SelectedTab == tabDutyS6) cmbDutyMainMode.SelectedIndex = 3;
+                }
+                if (tabDutyControl.SelectedTab == tabDutyMain)
+                {
+                    UpdateDutyPreflightSummary();
+                }
+            };
+
+            UpdateDutyPreflightSummary();
+
 
             // -------------------------------------------------------------
             // 右側：專屬溫度監控與即時動態波形 (S1/S2/S6 模式自適應，含 S6 熱平衡與兩段超溫監控)
@@ -874,62 +1118,275 @@ namespace DynamometerHMI
             }
         }
 
+        
+        // =========================================================================
+        // 4 分頁架構專屬排程確認、即時儀表與在線微調 (Online Live Nudge) 方法
+        // =========================================================================
+        private double batchCoolingCurrentTemp = 0.0;
+        private double batchCoolingTargetTemp = 0.0;
+
+        public void UpdateDutyPreflightSummary()
+        {
+            if (txtDutyPreflightSummary == null) return;
+            try
+            {
+                StringBuilder sb = new StringBuilder();
+                int mainMode = (cmbDutyMainMode != null && cmbDutyMainMode.SelectedIndex >= 0) ? cmbDutyMainMode.SelectedIndex : 0;
+                string modeStr = (mainMode == 0) ? "連續自動排程 (依排程方案依序執行)" :
+                                 ((mainMode == 1) ? "單項測試：S1 額定連續" :
+                                 ((mainMode == 2) ? "單項測試：S2 短時過載" : "單項測試：S6 週期負載"));
+
+                int role = (cmbDutyRole != null && cmbDutyRole.SelectedIndex >= 0) ? cmbDutyRole.SelectedIndex : 1;
+                string roleStr = (role == 0) ? "A載台待測(速度) / B加載" : "B載台待測(速度) / A加載";
+
+                int plan = (cmbBatchDutyPlan != null && cmbBatchDutyPlan.SelectedIndex >= 0) ? cmbBatchDutyPlan.SelectedIndex : 0;
+                string planStr = (plan == 0) ? "1. S1 -> S6 -> S2 (三項全測)" :
+                                 ((plan == 1) ? "2. S1 -> S6 (額定 + 週期)" :
+                                 ((plan == 2) ? "3. S1 -> S2 (額定 + 短時)" : "4. S6 -> S2 (週期 + 短時)"));
+
+                int cool = (cmbBatchCoolingMode != null && cmbBatchCoolingMode.SelectedIndex >= 0) ? cmbBatchCoolingMode.SelectedIndex : 0;
+                string coolStr = (cool == 0) ? "自動辨識 (水冷25℃ / 氣冷AT)" :
+                                 ((cool == 1) ? "強制水冷 (冰水機循環 <= 25.0℃)" : "強制氣冷 (<= AT+1.5℃ 且 15分無下降)");
+
+                decimal ocPct = (numDutyOverCurrentPct != null) ? numDutyOverCurrentPct.Value : 20;
+                decimal ocDelay = (numDutyOverCurrentDelay != null) ? numDutyOverCurrentDelay.Value : 5;
+
+                sb.AppendLine("【IEC 60034-1 工作制測試排程預檢確認清單】");
+                sb.AppendLine("==========================================================================");
+                sb.AppendLine(string.Format("● 測試模式：{0}", modeStr));
+                if (mainMode == 0)
+                {
+                    sb.AppendLine(string.Format("● 排程方案：{0}", planStr));
+                    sb.AppendLine(string.Format("● 冷卻策略：{0}", coolStr));
+                }
+                sb.AppendLine(string.Format("● 載台角色：{0}", roleStr));
+                sb.AppendLine(string.Format("● 過電流保護：基準 +{0}%，持續 {1} 秒跳脫保護", ocPct, ocDelay));
+                sb.AppendLine("--------------------------------------------------------------------------");
+
+                decimal s1Spd = (numS1Speed != null) ? numS1Speed.Value : 1500;
+                decimal s1Trq = (numS1Torque != null) ? numS1Torque.Value : 15.0m;
+                bool s1Therm = (chkS1ThermalStop != null && chkS1ThermalStop.Checked);
+                bool s1Slip = (chkDutySlipComp != null && chkDutySlipComp.Checked);
+                sb.AppendLine(string.Format("【S1 額定連續】轉速: {0:F0} rpm | 轉矩: {1:F1} Nm | {2} | {3}",
+                    s1Spd, s1Trq,
+                    s1Therm ? "30分溫差<1.0°C 自動停機" : "手動停機",
+                    s1Slip ? "自動補轉差" : "自然轉差"));
+
+                decimal s2Spd = (numS2Speed != null) ? numS2Speed.Value : 1500;
+                decimal s2Trq = (numS2Torque != null) ? numS2Torque.Value : 15.0m;
+                decimal s2Dur = (numS2DurationMin != null) ? numS2DurationMin.Value : 30;
+                bool s2Stop = (chkS2TempStop != null && chkS2TempStop.Checked);
+                decimal s2Thresh = (numS2TempThreshold != null) ? numS2TempThreshold.Value : 80;
+                int s2Sy = (numS2AnchorSy52 != null) ? (int)numS2AnchorSy52.Value : s2AnchorSy52;
+                int s2Cs = (numS2AnchorCs18 != null) ? (int)numS2AnchorCs18.Value : s2AnchorCs18;
+                string s2AnchorStr = (s2Sy > 0 && s2Cs > 0) ? string.Format("定錨已設定 (SY52={0}, CS18={1}‰)", s2Sy, s2Cs) : "未定錨 (自動偵測)";
+                sb.AppendLine(string.Format("【S2 短時過載】轉速: {0:F0} rpm | 轉矩: {1:F1} Nm | 時長: {2:F0} 分鐘 | {3} | {4}",
+                    s2Spd, s2Trq, s2Dur,
+                    s2Stop ? string.Format("超溫閥值 {0:F1}°C 停機", s2Thresh) : "不限溫",
+                    s2AnchorStr));
+
+                decimal s6Spd = (numS6Speed != null) ? numS6Speed.Value : 1500;
+                decimal s6Trq = (numS6Torque != null) ? numS6Torque.Value : 15.0m;
+                decimal s6Cyc = (numS6CycleMin != null) ? numS6CycleMin.Value : 10;
+                decimal s6EdVal = (numS6Ed != null) ? numS6Ed.Value : 40;
+                decimal s6Loops = (numS6Cycles != null) ? numS6Cycles.Value : 3;
+                double t1 = (double)s6Cyc * (double)s6EdVal / 100.0;
+                double t2 = (double)s6Cyc - t1;
+                int s6NoSpd = (numS6AnchorNoLoadSpd != null) ? (int)numS6AnchorNoLoadSpd.Value : (int)s6AnchorNoLoadSpeed;
+                int s6LdSpd = (numS6AnchorLoadedSpd != null) ? (int)numS6AnchorLoadedSpd.Value : (int)s6AnchorLoadedSpeed;
+                int s6LdCs = (numS6AnchorLoadedCs18 != null) ? (int)numS6AnchorLoadedCs18.Value : (int)Math.Round(s6AnchorLoadedTorquePct * 10);
+                string s6AnchorStr = (s6NoSpd > 0 && s6LdSpd > 0) ? string.Format("定錨已設定 (空載={0}, 加載={1}, CS18={2}‰)", s6NoSpd, s6LdSpd, s6LdCs) : "未定錨 (自適應探測)";
+                sb.AppendLine(string.Format("【S6 週期負載】轉速: {0:F0} rpm | 轉矩: {1:F1} Nm | 週期: {2:F1}m (T1={3:F1}m, T2={4:F1}m) | ED: {5:F0}% | 循環: {6:F0} 次 | {7}",
+                    s6Spd, s6Trq, s6Cyc, t1, t2, s6EdVal, s6Loops, s6AnchorStr));
+                sb.AppendLine("==========================================================================");
+                sb.AppendLine("【操作引導】各分頁已獨立配置。待命狀態可自由鍵盤輸入；運轉中自動鎖定打字，僅允許上下鍵微調 (轉速 1 rpm / 轉矩 0.1 Nm / 0.1%)。");
+
+                txtDutyPreflightSummary.Text = sb.ToString();
+            }
+            catch { }
+        }
+
+        private void SetDutyControlsReadOnly(bool isRunning)
+        {
+            if (numS1Speed != null) numS1Speed.ReadOnly = isRunning;
+            if (numS1Torque != null) numS1Torque.ReadOnly = isRunning;
+            if (numS2Speed != null) numS2Speed.ReadOnly = isRunning;
+            if (numS2Torque != null) numS2Torque.ReadOnly = isRunning;
+            if (numS2DurationMin != null) numS2DurationMin.ReadOnly = isRunning;
+            if (numS2TempThreshold != null) numS2TempThreshold.ReadOnly = isRunning;
+            if (numS2AnchorSy52 != null) numS2AnchorSy52.ReadOnly = isRunning;
+            if (numS2AnchorCs18 != null) numS2AnchorCs18.ReadOnly = isRunning;
+            if (numS6Speed != null) numS6Speed.ReadOnly = isRunning;
+            if (numS6Torque != null) numS6Torque.ReadOnly = isRunning;
+            if (numS6CycleMin != null) numS6CycleMin.ReadOnly = isRunning;
+            if (numS6Ed != null) numS6Ed.ReadOnly = isRunning;
+            if (numS6Cycles != null) numS6Cycles.ReadOnly = isRunning;
+            if (numS6AnchorNoLoadSpd != null) numS6AnchorNoLoadSpd.ReadOnly = isRunning;
+            if (numS6AnchorLoadedSpd != null) numS6AnchorLoadedSpd.ReadOnly = isRunning;
+            if (numS6AnchorLoadedCs18 != null) numS6AnchorLoadedCs18.ReadOnly = isRunning;
+            if (numDutySpeed != null) numDutySpeed.ReadOnly = isRunning;
+            if (numDutyTorque != null) numDutyTorque.ReadOnly = isRunning;
+
+            if (cmbDutyMainMode != null) cmbDutyMainMode.Enabled = !isRunning;
+            if (cmbDutyRole != null) cmbDutyRole.Enabled = !isRunning;
+            if (cmbBatchDutyPlan != null) cmbBatchDutyPlan.Enabled = !isRunning && (cmbDutyMainMode != null && cmbDutyMainMode.SelectedIndex == 0);
+            if (cmbBatchCoolingMode != null) cmbBatchCoolingMode.Enabled = !isRunning && (cmbDutyMainMode != null && cmbDutyMainMode.SelectedIndex == 0);
+            if (chkDutySlipComp != null) chkDutySlipComp.Enabled = !isRunning;
+            if (chkS1ThermalStop != null) chkS1ThermalStop.Enabled = !isRunning;
+            if (btnS1SelectChannels != null) btnS1SelectChannels.Enabled = !isRunning && (chkS1ThermalStop == null || chkS1ThermalStop.Checked);
+            if (chkS2TempStop != null) chkS2TempStop.Enabled = !isRunning;
+            if (cmbS2TempCh != null) cmbS2TempCh.Enabled = !isRunning && (chkS2TempStop == null || chkS2TempStop.Checked);
+            if (cmbS6TempCh != null) cmbS6TempCh.Enabled = !isRunning;
+            if (btnS2RecordAnchor != null) btnS2RecordAnchor.Enabled = !isRunning;
+            if (btnS2ResetAnchor != null) btnS2ResetAnchor.Enabled = !isRunning;
+            if (btnS6AnchorNoLoad != null) btnS6AnchorNoLoad.Enabled = !isRunning;
+            if (btnS6AnchorLoaded != null) btnS6AnchorLoaded.Enabled = !isRunning;
+            if (btnS6ResetAnchor != null) btnS6ResetAnchor.Enabled = !isRunning;
+        }
+
+        private void OnDutySpeedNudge(NumericUpDown senderNum, decimal newVal)
+        {
+            if (isDutyRunning && !isSyncingDutyControls)
+            {
+                isSyncingDutyControls = true;
+                try
+                {
+                    double newSpeed = (double)newVal;
+                    if (numDutySpeed != null) numDutySpeed.Value = Math.Min(numDutySpeed.Maximum, Math.Max(numDutySpeed.Minimum, newVal));
+                    s6CurrentSpeedCmd = newSpeed;
+
+                    int dutyRole = (cmbDutyRole != null && cmbDutyRole.SelectedIndex >= 0) ? cmbDutyRole.SelectedIndex : 1;
+                    int spdDrive = (dutyRole == 1) ? 2 : 1;
+                    int spdCom = GetHmiKebComIdx(spdDrive), spdBaud = GetHmiKebBaudIdx(spdDrive), spdNode = (spdDrive == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
+                    KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)Math.Round(newSpeed), string.Format("DUTY在線微調轉速 -> {0:F0} rpm (Sy52)", newSpeed));
+                    WriteHmiLog("DUTY_NUDGE", string.Format("【DUTY在線微調轉速】設定轉速即時調整為 {0:F0} rpm (Sy.52)", newSpeed));
+                }
+                catch (Exception ex)
+                {
+                    WriteHmiLog("DUTY_NUDGE_ERR", "在線轉速微調異常: " + ex.Message);
+                }
+                finally
+                {
+                    isSyncingDutyControls = false;
+                }
+            }
+            UpdateDutyPreflightSummary();
+        }
+
+        private void OnDutyTorqueNudge(NumericUpDown senderNum, decimal newVal)
+        {
+            if (isDutyRunning && !isSyncingDutyControls)
+            {
+                isSyncingDutyControls = true;
+                try
+                {
+                    double newTorque = (double)newVal;
+                    if (numDutyTorque != null) numDutyTorque.Value = Math.Min(numDutyTorque.Maximum, Math.Max(numDutyTorque.Minimum, newVal));
+                    // 負載跟蹤引擎將於下一 Tick 自動採用新轉矩數值
+                    WriteHmiLog("DUTY_NUDGE", string.Format("【DUTY在線微調轉矩】設定轉矩即時調整為 {0:F1} Nm", newTorque));
+                }
+                catch (Exception ex)
+                {
+                    WriteHmiLog("DUTY_NUDGE_ERR", "在線轉矩微調異常: " + ex.Message);
+                }
+                finally
+                {
+                    isSyncingDutyControls = false;
+                }
+            }
+            UpdateDutyPreflightSummary();
+        }
+
+        private void OnDutyCs18Nudge(int newCs18)
+        {
+            if (isDutyRunning && !isSyncingDutyControls)
+            {
+                isSyncingDutyControls = true;
+                try
+                {
+                    int dutyRole = (cmbDutyRole != null && cmbDutyRole.SelectedIndex >= 0) ? cmbDutyRole.SelectedIndex : 1;
+                    int trqDrive = (dutyRole == 1) ? 1 : 2;
+                    int trqCom = GetHmiKebComIdx(trqDrive), trqBaud = GetHmiKebBaudIdx(trqDrive), trqNode = (trqDrive == 1) ? (int)numHmiKebNode1.Value : (int)numHmiKebNode2.Value;
+                    KebWriteParamWithDll(trqCom, trqBaud, trqNode, 0x0F12, newCs18);
+                    WriteHmiLog("DUTY_NUDGE", string.Format("【DUTY在線微調轉矩】cs.18 即時調整為 {0} ‰ ({1:F1}%)", newCs18, newCs18 / 10.0));
+                }
+                catch (Exception ex)
+                {
+                    WriteHmiLog("DUTY_NUDGE_ERR", "在線 CS18 微調異常: " + ex.Message);
+                }
+                finally
+                {
+                    isSyncingDutyControls = false;
+                }
+            }
+            UpdateDutyPreflightSummary();
+        }
+
+        private void UpdateDutyLiveDashboard()
+        {
+            if (pnlDutyLiveMonitor == null || !pnlDutyLiveMonitor.Visible) return;
+            try
+            {
+                string stageStr;
+                if (isBatchDutyActive)
+                {
+                    string sName = (batchDutyStage == 1) ? "S1 額定連續負載運轉" :
+                                   ((batchDutyStage == 2) ? "S1 完成後冷卻降溫" :
+                                   ((batchDutyStage == 3) ? "S6 週期負載運轉" :
+                                   ((batchDutyStage == 4) ? "S6 完成後冷卻降溫" :
+                                   ((batchDutyStage == 5) ? "S2 短時過載負載運轉" : "排程結束"))));
+                    stageStr = string.Format("【連續排程 階段 {0}】{1}", batchDutyStage, sName);
+                }
+                else
+                {
+                    int curMode = (cmbDutyMode != null && cmbDutyMode.SelectedIndex >= 0) ? cmbDutyMode.SelectedIndex : 0;
+                    string mName = (curMode == 0) ? "S1 額定連續負載" : ((curMode == 1) ? "S2 短時過載" : "S6 週期負載");
+                    stageStr = string.Format("【單項測試】{0} 運轉中", mName);
+                }
+                lblDutyLiveStage.Text = stageStr;
+
+                int elMin = dutyElapsedSec / 60;
+                int elSec = dutyElapsedSec % 60;
+                if (dutyTotalSec > 0 && dutyTotalSec > dutyElapsedSec)
+                {
+                    int remSec = dutyTotalSec - dutyElapsedSec;
+                    lblDutyLiveCountdown.Text = string.Format("運轉時間: {0:D2}分{1:D2}秒 | 倒數剩餘: {2:D2}分{3:D2}秒 (總計 {4}分)", elMin, elSec, remSec / 60, remSec % 60, dutyTotalSec / 60);
+                }
+                else
+                {
+                    lblDutyLiveCountdown.Text = string.Format("運轉時間: {0:D2}分{1:D2}秒", elMin, elSec);
+                }
+
+                double targetSpd = (numDutySpeed != null) ? (double)numDutySpeed.Value : 1500.0;
+                double targetTrq = (numDutyTorque != null) ? (double)numDutyTorque.Value : 15.0;
+                lblDutyLiveTargetActual.Text = string.Format("轉速: 目標 {0:F0} rpm / 實測 {1:F1} rpm | 轉矩: 目標 {2:F1} Nm / 實測 {3:F1} Nm",
+                    targetSpd, Math.Abs(actSpeed), targetTrq, Math.Abs(actTorque));
+
+                double curPmechKw = (Math.Abs(actSpeed) * Math.Abs(actTorque)) / 9549.0;
+                string tempHighestStr = (lblDutyTempRealtimeVal != null && !string.IsNullOrEmpty(lblDutyTempRealtimeVal.Text))
+                    ? lblDutyTempRealtimeVal.Text
+                    : string.Format("實測 {0:F1} ℃", actTemp);
+                lblDutyLiveSlope.Text = string.Format("即時運轉指標: 輸出功率 {0:F2} kW | {1}", curPmechKw, tempHighestStr);
+
+                if (isBatchDutyActive && (batchDutyStage == 2 || batchDutyStage == 4))
+                {
+                    lblDutyLiveCooling.Text = string.Format("冷卻降溫中: 實測 {0:F1} °C -> 目標 <= {1:F1} °C", batchCoolingCurrentTemp, batchCoolingTargetTemp);
+                    lblDutyLiveCooling.ForeColor = Color.FromArgb(2, 132, 199);
+                }
+                else
+                {
+                    lblDutyLiveCooling.Text = "冷卻狀態: 正常運轉 (無待冷卻)";
+                    lblDutyLiveCooling.ForeColor = Color.FromArgb(5, 150, 105);
+                }
+            }
+            catch { }
+        }
+
         private void UpdateDutyModeVisibility(int modeIdx)
         {
             bool isS1 = (modeIdx == 0);
             bool isS2 = (modeIdx == 1);
             bool isS6 = (modeIdx == 2);
-
-            // 1. S1 專屬元件顯隱
-            if (chkS1ThermalStop != null) chkS1ThermalStop.Visible = isS1;
-            if (btnS1SelectChannels != null) btnS1SelectChannels.Visible = isS1;
-            if (lblS1SelectedChHint != null) lblS1SelectedChHint.Visible = isS1;
-            if (chkDutySlipComp != null) chkDutySlipComp.Visible = isS1;
-            if (lblS1ThermalStatus != null) lblS1ThermalStatus.Visible = isS1;
-            if (lblDutyAbStatus != null) lblDutyAbStatus.Visible = (isS1 || isS2 || isS6);
-            if (lblDutyAllChTempsDisp != null) lblDutyAllChTempsDisp.Visible = isS1;
-
-            // 2. S2 專屬元件顯隱 (含 S2 錨點測試控制項)
-            if (lblS2Duration != null) lblS2Duration.Visible = isS2;
-            if (numS2DurationMin != null) numS2DurationMin.Visible = isS2;
-            if (chkS2TempStop != null) chkS2TempStop.Visible = isS2;
-            if (lblS2TempCh != null) lblS2TempCh.Visible = isS2;
-            if (cmbS2TempCh != null) cmbS2TempCh.Visible = isS2;
-            if (lblS2TempThresh != null) lblS2TempThresh.Visible = isS2;
-            if (numS2TempThreshold != null) numS2TempThreshold.Visible = isS2;
-            if (lblS2TempRealtime != null) lblS2TempRealtime.Visible = isS2;
-
-            if (lblS2AnchorTitle != null) lblS2AnchorTitle.Visible = isS2;
-            if (lblS2AnchorSy52 != null) lblS2AnchorSy52.Visible = isS2;
-            if (numS2AnchorSy52 != null) numS2AnchorSy52.Visible = isS2;
-            if (lblS2AnchorCs18 != null) lblS2AnchorCs18.Visible = isS2;
-            if (numS2AnchorCs18 != null) numS2AnchorCs18.Visible = isS2;
-            if (btnS2RecordAnchor != null) btnS2RecordAnchor.Visible = isS2;
-            if (btnS2ResetAnchor != null) btnS2ResetAnchor.Visible = isS2;
-            if (lblS2AnchorHint != null) lblS2AnchorHint.Visible = isS2;
-
-            // 3. S6 專屬元件顯隱
-            if (lblS6CycleLabel != null) lblS6CycleLabel.Visible = isS6;
-            if (numS6CycleMin != null) numS6CycleMin.Visible = isS6;
-            if (lblS6EdLabel != null) lblS6EdLabel.Visible = isS6;
-            if (numS6Ed != null) numS6Ed.Visible = isS6;
-            if (lblS6CyclesLabel != null) lblS6CyclesLabel.Visible = isS6;
-            if (numS6Cycles != null) numS6Cycles.Visible = isS6;
-            if (lblS6TempCh != null) lblS6TempCh.Visible = isS6;
-            if (cmbS6TempCh != null) cmbS6TempCh.Visible = isS6;
-            if (lblS6TempChHint != null) lblS6TempChHint.Visible = isS6;
-            if (lblS6CalcInfo != null) lblS6CalcInfo.Visible = isS6;
-
-            if (lblS6NoLoadTitle != null) lblS6NoLoadTitle.Visible = isS6;
-            if (numS6AnchorNoLoadSpd != null) numS6AnchorNoLoadSpd.Visible = isS6;
-            if (btnS6AnchorNoLoad != null) btnS6AnchorNoLoad.Visible = isS6;
-            if (lblS6LoadedTitle != null) lblS6LoadedTitle.Visible = isS6;
-            if (numS6AnchorLoadedSpd != null) numS6AnchorLoadedSpd.Visible = isS6;
-            if (lblS6Cs18Title != null) lblS6Cs18Title.Visible = isS6;
-            if (numS6AnchorLoadedCs18 != null) numS6AnchorLoadedCs18.Visible = isS6;
-            if (btnS6AnchorLoaded != null) btnS6AnchorLoaded.Visible = isS6;
-            if (btnS6ResetAnchor != null) btnS6ResetAnchor.Visible = isS6;
-            if (lblS6AnchorStatus != null) lblS6AnchorStatus.Visible = isS6;
 
             // 右側溫度波形指示與 S1/S2/S6 專屬超溫/熱平衡面板顯隱
             if (lblS1ThermalStatus != null) lblS1ThermalStatus.Visible = isS1;
@@ -1443,6 +1900,10 @@ namespace DynamometerHMI
         private void StopDutyTest()
         {
             if (dutyTimer != null) dutyTimer.Stop();
+            SetDutyControlsReadOnly(false);
+            if (pnlDutyLiveMonitor != null) pnlDutyLiveMonitor.Visible = false;
+            if (txtDutyPreflightSummary != null) { txtDutyPreflightSummary.Visible = true; txtDutyPreflightSummary.BringToFront(); }
+            UpdateDutyPreflightSummary();
             if (isManualRecording)
             {
                 StopManualRecording(showPrompt: false);
@@ -1627,6 +2088,27 @@ namespace DynamometerHMI
 
             bool isFromMini = fromMini;
             SyncAllDutyControls(fromMiniToMain: isFromMini);
+
+            int dutyModeIdxCheck = (cmbDutyMode != null && cmbDutyMode.SelectedIndex >= 0) ? cmbDutyMode.SelectedIndex : 2;
+            if (dutyModeIdxCheck == 0)
+            {
+                if (numS1Speed != null) numDutySpeed.Value = numS1Speed.Value;
+                if (numS1Torque != null) numDutyTorque.Value = numS1Torque.Value;
+            }
+            else if (dutyModeIdxCheck == 1)
+            {
+                if (numS2Speed != null) numDutySpeed.Value = numS2Speed.Value;
+                if (numS2Torque != null) numDutyTorque.Value = numS2Torque.Value;
+            }
+            else if (dutyModeIdxCheck == 2)
+            {
+                if (numS6Speed != null) numDutySpeed.Value = numS6Speed.Value;
+                if (numS6Torque != null) numDutyTorque.Value = numS6Torque.Value;
+            }
+            SetDutyControlsReadOnly(true);
+            if (txtDutyPreflightSummary != null) txtDutyPreflightSummary.Visible = false;
+            if (pnlDutyLiveMonitor != null) { pnlDutyLiveMonitor.Visible = true; pnlDutyLiveMonitor.BringToFront(); }
+            UpdateDutyLiveDashboard();
 
             int dutyRole = (cmbDutyRole != null && cmbDutyRole.SelectedIndex >= 0) ? cmbDutyRole.SelectedIndex : 1;
             int spdDrive = (dutyRole == 1) ? 2 : 1;
@@ -2056,6 +2538,7 @@ namespace DynamometerHMI
                 lblDutyRealtimeElec.Text = string.Format("【即時電氣監控】平均電壓: {0} | 平均電流: {1} | 輸入功率: {2} | 功因: {3} | 輸出功率: {4} | 效率: {5}",
                     vTxt, iTxt, pInTxt, pfTxt, pOutTxt, effTxt);
             }
+            UpdateDutyLiveDashboard();
 
             // 【DUTY 變頻器硬體故障保護守護】：檢測任一載台是否處於真實硬體故障 (ru.43 != 0)
             if (lastKebFaultCode1 != 0 || lastKebFaultCode2 != 0)
@@ -2947,6 +3430,7 @@ namespace DynamometerHMI
                                     if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
                                     if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
 
+                                    RecordAndExtrapolateS6(confirmPeak);
                                     string s6ReportPath = SaveDutyTestReportCsv("S6", showDialog: false);
 
                                     lblDutyStatus.Text = string.Format("[成功] S6 熱平衡達標且通過追加確認 (第{0}週期，溫差 {1:F2}℃<=1.0℃)！", s6FormalCycleIndex, confirmDiff);
@@ -3057,6 +3541,7 @@ namespace DynamometerHMI
                                 if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
                                 if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
 
+                                RecordAndExtrapolateS6(s6CurrentCyclePeakTemp);
                                 string s6ReportPath = SaveDutyTestReportCsv("S6", showDialog: false);
 
                                 lblDutyStatus.Text = "[成功] S6 週期負載試驗全部完成！";
@@ -3630,6 +4115,7 @@ namespace DynamometerHMI
                             if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
                             if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
 
+                            RecordAndExtrapolateS2();
                             string s2ReportPath = SaveDutyTestReportCsv("S2", showDialog: false);
 
                             //  依要求：S2 完成一個執行流程後自動歸零錨點
@@ -3883,6 +4369,47 @@ namespace DynamometerHMI
                     sw.WriteLine(string.Format("# TestDuration_sec: {0}", dutyResults.Count * 5));
                     sw.WriteLine(string.Format("# TestStatus: {0}", statusTag));
                     sw.WriteLine(string.Format("# GeneratedTime: {0:yyyy-MM-dd HH:mm:ss}", DateTime.Now));
+
+                    // 注入能力極限回推摘要 (依實測溫升回推 105℃ 極限扭矩或 DUTY 佔比)
+                    if (dutyPrefix == "S2" && (hasS2TestResult || lastS2Torque > 0.1))
+                    {
+                        double bTrq = (lastS2Torque > 0.1) ? lastS2Torque : (double)numDutyTorque.Value;
+                        double bDur = (lastS2DurationMin > 0.1) ? lastS2DurationMin : 30.0;
+                        double bTemp = (lastS2FinalTemp > 0.1) ? lastS2FinalTemp : 90.0;
+                        double bAmb = (lastS2AmbientTemp > 0.1) ? lastS2AmbientTemp : 25.0;
+                        double bSpd = (lastS2Speed > 0.1) ? lastS2Speed : (double)numDutySpeed.Value;
+                        var ext = CalcExtrapolatedS2Torque(bTrq, bDur, bTemp, bAmb, 105.0, bSpd);
+                        sw.WriteLine("# ----------------------------------------------------------------------------------------");
+                        sw.WriteLine("# [CAPABILITY_EXTRAPOLATION_S2]");
+                        sw.WriteLine(string.Format("# BaseTorque_Nm: {0:F1}", ext.BaseTorque));
+                        sw.WriteLine(string.Format("# Duration_min: {0:F1}", ext.DurationMin));
+                        sw.WriteLine(string.Format("# FinalTemp_degC: {0:F1}", ext.FinalTemp));
+                        sw.WriteLine(string.Format("# AmbientTemp_degC: {0:F1}", ext.AmbientTemp));
+                        sw.WriteLine(string.Format("# TempRiseSlope_K_min: {0:F2}", ext.TempRiseSlope));
+                        sw.WriteLine(string.Format("# TargetLimitTemp_degC: {0:F1}", ext.TargetTemp));
+                        sw.WriteLine(string.Format("# ExtrapolatedMaxTorque_Nm: {0:F1} (Margin: +{1:F1}%)", ext.ExtrapolatedTorque, ext.TorqueIncreasePct));
+                        sw.WriteLine(string.Format("# EstimatedMechPower_kW: {0:F2} (at {1:F0} rpm)", ext.ExtrapolatedMechPowerKw, ext.RatedSpeed));
+                    }
+                    else if (dutyPrefix == "S6" && (hasS6TestResult || lastS6Torque > 0.1))
+                    {
+                        double bTrq = (lastS6Torque > 0.1) ? lastS6Torque : (double)numDutyTorque.Value;
+                        double bCyc = (lastS6CycleMin > 0.1) ? lastS6CycleMin : 10.0;
+                        double bEd = (lastS6EdPct > 0.1) ? lastS6EdPct : 40.0;
+                        double bTemp = (lastS6PeakTemp > 0.1) ? lastS6PeakTemp : 85.0;
+                        double bAmb = (lastS6AmbientTemp > 0.1) ? lastS6AmbientTemp : 25.0;
+                        var ext = CalcExtrapolatedS6Ed(bTrq, bCyc, bEd, bTemp, bAmb, 105.0);
+                        sw.WriteLine("# ----------------------------------------------------------------------------------------");
+                        sw.WriteLine("# [CAPABILITY_EXTRAPOLATION_S6]");
+                        sw.WriteLine(string.Format("# BaseTorque_Nm: {0:F1}", ext.BaseTorque));
+                        sw.WriteLine(string.Format("# CycleDuration_min: {0:F1}", ext.CycleMin));
+                        sw.WriteLine(string.Format("# BaseED_pct: {0:F1}", ext.CurrentEdPct));
+                        sw.WriteLine(string.Format("# PeakTemp_degC: {0:F1}", ext.PeakTemp));
+                        sw.WriteLine(string.Format("# AmbientTemp_degC: {0:F1}", ext.AmbientTemp));
+                        sw.WriteLine(string.Format("# TargetLimitTemp_degC: {0:F1}", ext.TargetTemp));
+                        sw.WriteLine(string.Format("# ExtrapolatedMaxED_pct: {0:F1} (Margin: +{1:F1}%)", ext.ExtrapolatedEdPct, ext.EdIncreasePct));
+                        sw.WriteLine(string.Format("# ExtrapolatedT1_Loaded_min: {0:F2}", ext.ExtrapolatedT1Min));
+                        sw.WriteLine(string.Format("# ExtrapolatedT2_NoLoad_min: {0:F2}", ext.ExtrapolatedT2Min));
+                    }
                     sw.WriteLine("# ========================================================================================");
                     sw.WriteLine("StandardTime,ElapsedSec,Phase,Speed_rpm,Frequency_Hz,Freq_U1_Hz,Freq_I1_Hz,Torque_Nm,MechPower_kW,Efficiency_pct,Temp_C,Voltage_Sigma_V,Current_Sigma_A,ElecPower_kW,PowerFactor");
                     foreach (var row in dutyResults)
@@ -4219,5 +4746,477 @@ namespace DynamometerHMI
                 }
             }
         }
+
+        // =========================================================================
+        // S2 短時工作制極限轉矩 / S6 週期工作制極限 DUTY 回推估算核心邏輯
+        // (依據 IEEE Std 112 / IEC 60034 熱力學與發熱損耗模型)
+        // =========================================================================
+
+        private void RecordAndExtrapolateS2()
+        {
+            lastS2Torque = (numDutyTorque != null && numDutyTorque.Value > 0) ? (double)numDutyTorque.Value : (Math.Abs(actTorque) > 0.1 ? Math.Abs(actTorque) : 120.0);
+            lastS2DurationMin = (numS2DurationMin != null) ? (double)numS2DurationMin.Value : 30.0;
+            lastS2FinalTemp = GetCurrentPeakTemp();
+            int atIdx = FindAmbientTempChannelIndex();
+            lastS2AmbientTemp = (atIdx >= 0 && gbdChTemps != null && atIdx < gbdChTemps.Length && gbdChTemps[atIdx] > 0) ? gbdChTemps[atIdx] : 25.0;
+            lastS2Speed = (Math.Abs(actSpeed) > 10.0) ? Math.Abs(actSpeed) : (numDutySpeed != null ? (double)numDutySpeed.Value : 1500.0);
+            hasS2TestResult = true;
+
+            var s2Ext = CalcExtrapolatedS2Torque(lastS2Torque, lastS2DurationMin, lastS2FinalTemp, lastS2AmbientTemp, 105.0, lastS2Speed);
+            string s2ExtSummary = string.Format("【S2能力推估】實測 {0:F1}Nm (30m, {1:F1}℃) -> 目標 105℃ 極限扭矩可達 {2:F1} Nm (+{3:F1}%)，輸出功率 {4:F2} kW (溫升斜率 {5:F2} K/min)",
+                lastS2Torque, lastS2FinalTemp, s2Ext.ExtrapolatedTorque, s2Ext.TorqueIncreasePct, s2Ext.ExtrapolatedMechPowerKw, s2Ext.TempRiseSlope);
+            if (lblExtrapolationSummary != null) lblExtrapolationSummary.Text = s2ExtSummary;
+            WriteHmiLog("S2_EXTRAPOLATE", s2ExtSummary);
+        }
+
+        private void RecordAndExtrapolateS6(double peakTemp)
+        {
+            lastS6Torque = (numDutyTorque != null && numDutyTorque.Value > 0) ? (double)numDutyTorque.Value : (Math.Abs(actTorque) > 0.1 ? Math.Abs(actTorque) : 120.0);
+            lastS6CycleMin = (numS6CycleMin != null) ? (double)numS6CycleMin.Value : 10.0;
+            lastS6EdPct = (numS6Ed != null) ? (double)numS6Ed.Value : 40.0;
+            lastS6PeakTemp = (peakTemp > -100.0) ? peakTemp : GetCurrentPeakTemp();
+            int atIdx = FindAmbientTempChannelIndex();
+            lastS6AmbientTemp = (atIdx >= 0 && gbdChTemps != null && atIdx < gbdChTemps.Length && gbdChTemps[atIdx] > 0) ? gbdChTemps[atIdx] : 25.0;
+            lastS6Speed = (Math.Abs(actSpeed) > 10.0) ? Math.Abs(actSpeed) : (numDutySpeed != null ? (double)numDutySpeed.Value : 1500.0);
+            hasS6TestResult = true;
+
+            var s6Ext = CalcExtrapolatedS6Ed(lastS6Torque, lastS6CycleMin, lastS6EdPct, lastS6PeakTemp, lastS6AmbientTemp, 105.0);
+            string s6ExtSummary = string.Format("【S6能力推估】實測 ED {0:F0}% ({1:F1}℃) -> 目標 105℃ 容許最高 DUTY 可達 {2:F1}% (有載T1={3:F1}m, 空載T2={4:F1}m, 提升+{5:F1}%)",
+                lastS6EdPct, lastS6PeakTemp, s6Ext.ExtrapolatedEdPct, s6Ext.ExtrapolatedT1Min, s6Ext.ExtrapolatedT2Min, s6Ext.EdIncreasePct);
+            if (lblExtrapolationSummary != null) lblExtrapolationSummary.Text = s6ExtSummary;
+            WriteHmiLog("S6_EXTRAPOLATE", s6ExtSummary);
+        }
+
+        public static S2ExtrapolationResult CalcExtrapolatedS2Torque(double baseTrq, double durationMin, double finalTemp, double ambientTemp, double targetTemp, double ratedSpeedRpm)
+        {
+            S2ExtrapolationResult res = new S2ExtrapolationResult();
+            res.BaseTorque = baseTrq;
+            res.DurationMin = durationMin;
+            res.FinalTemp = finalTemp;
+            res.AmbientTemp = ambientTemp;
+            res.TargetTemp = targetTemp;
+            res.RatedSpeed = ratedSpeedRpm;
+
+            double deltaT_base = Math.Max(1.0, finalTemp - ambientTemp);
+            double deltaT_target = Math.Max(1.0, targetTemp - ambientTemp);
+
+            res.TempRiseSlope = (durationMin > 0) ? (deltaT_base / durationMin) : 0.0;
+            double trqRatio = Math.Sqrt(deltaT_target / deltaT_base);
+            res.ExtrapolatedTorque = Math.Round(baseTrq * trqRatio, 1);
+            res.TorqueIncreasePct = Math.Round((trqRatio - 1.0) * 100.0, 1);
+            res.ExtrapolatedMechPowerKw = Math.Round((ratedSpeedRpm * res.ExtrapolatedTorque) / 9549.0, 2);
+
+            return res;
+        }
+
+        public static S6ExtrapolationResult CalcExtrapolatedS6Ed(double baseTrq, double cycleMin, double currentEdPct, double peakTemp, double ambientTemp, double targetTemp)
+        {
+            S6ExtrapolationResult res = new S6ExtrapolationResult();
+            res.BaseTorque = baseTrq;
+            res.CycleMin = cycleMin;
+            res.CurrentEdPct = currentEdPct;
+            res.PeakTemp = peakTemp;
+            res.AmbientTemp = ambientTemp;
+            res.TargetTemp = targetTemp;
+
+            double deltaT_base = Math.Max(1.0, peakTemp - ambientTemp);
+            double deltaT_target = Math.Max(1.0, targetTemp - ambientTemp);
+
+            double edRatio = deltaT_target / deltaT_base;
+            double rawEd = currentEdPct * edRatio;
+            res.ExtrapolatedEdPct = Math.Round(Math.Min(100.0, rawEd), 1);
+            res.EdIncreasePct = Math.Round(res.ExtrapolatedEdPct - currentEdPct, 1);
+            res.ExtrapolatedT1Min = Math.Round(cycleMin * (res.ExtrapolatedEdPct / 100.0), 2);
+            res.ExtrapolatedT2Min = Math.Round(cycleMin - res.ExtrapolatedT1Min, 2);
+
+            return res;
+        }
+
+        private void ShowDutyExtrapolationDialog()
+        {
+            try
+            {
+                Form dlg = new Form()
+                {
+                    Text = "馬達工作制極限能力回推估算器 (S2極限轉矩 / S6極限DUTY) - IEEE Std 112 / IEC 60034",
+                    Size = new Size(820, 680),
+                    StartPosition = FormStartPosition.CenterParent,
+                    FormBorderStyle = FormBorderStyle.FixedDialog,
+                    MaximizeBox = false,
+                    MinimizeBox = false,
+                    BackColor = Color.FromArgb(248, 250, 252),
+                    Font = new Font("微軟正黑體", 10f)
+                };
+
+                TabControl tabs = new TabControl() { Dock = DockStyle.Fill, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
+                TabPage tpS2 = new TabPage(" [S2] 30min 極限轉矩回推 (105℃/自訂) ");
+                TabPage tpS6 = new TabPage(" [S6] 週期 DUTY 佔比回推 (105℃/自訂) ");
+                tpS2.BackColor = Color.White;
+                tpS6.BackColor = Color.White;
+
+                BuildS2ExtrapolationTab(tpS2);
+                BuildS6ExtrapolationTab(tpS6);
+
+                tabs.TabPages.Add(tpS2);
+                tabs.TabPages.Add(tpS6);
+                dlg.Controls.Add(tabs);
+                dlg.ShowDialog(this);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("開啟能力回推估算器失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void BuildS2ExtrapolationTab(TabPage tp)
+        {
+            TableLayoutPanel root = new TableLayoutPanel() { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, Padding = new Padding(10) };
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 68f));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+
+            Panel pnlHeader = new Panel() { Dock = DockStyle.Fill, BackColor = Color.FromArgb(238, 242, 255), Padding = new Padding(8) };
+            Label lHeadTitle = new Label() { Text = "[S2 短時工作制極限輸出轉矩回推估算] (IEEE Std 112 / IEC 60034)", Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold), ForeColor = Color.FromArgb(49, 46, 129), Dock = DockStyle.Top, Height = 26 };
+            Label lHeadDesc = new Label() { Text = "短時溫升與銅損平方律成正比 (ΔT ∝ T^2)。利用已測轉矩、運轉時長與實測溫升斜率，快速推算目標極限溫度 (如 105℃) 下可承受之最高極限輸出轉矩。", Font = new Font("微軟正黑體", 9.5f), ForeColor = Color.FromArgb(71, 85, 105), Dock = DockStyle.Fill };
+            pnlHeader.Controls.Add(lHeadDesc);
+            pnlHeader.Controls.Add(lHeadTitle);
+            root.Controls.Add(pnlHeader, 0, 0);
+
+            TableLayoutPanel body = new TableLayoutPanel() { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = new Padding(0, 8, 0, 0) };
+            body.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 370f));
+            body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+
+            Panel pnlLeft = new Panel() { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(0, 0, 8, 0) };
+            GroupBox grpBase = new GroupBox() { Text = "基準實測數據 (可手動輸入或一鍵載入)", Dock = DockStyle.Top, Height = 250, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold) };
+            TableLayoutPanel tblIn = new TableLayoutPanel() { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 6, Padding = new Padding(6) };
+            tblIn.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160f));
+            tblIn.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+
+            NumericUpDown numS2BaseTrq = new NumericUpDown() { Minimum = 0, Maximum = 10000, DecimalPlaces = 1, Value = (decimal)(lastS2Torque > 0.1 ? lastS2Torque : 120.0), Dock = DockStyle.Fill };
+            NumericUpDown numS2Dur = new NumericUpDown() { Minimum = 1, Maximum = 600, DecimalPlaces = 0, Value = (decimal)(lastS2DurationMin > 0.1 ? lastS2DurationMin : 30.0), Dock = DockStyle.Fill };
+            NumericUpDown numS2Temp = new NumericUpDown() { Minimum = 0, Maximum = 350, DecimalPlaces = 1, Value = (decimal)(lastS2FinalTemp > 0.1 ? lastS2FinalTemp : 90.0), Dock = DockStyle.Fill };
+            NumericUpDown numS2Amb = new NumericUpDown() { Minimum = -20, Maximum = 100, DecimalPlaces = 1, Value = (decimal)(lastS2AmbientTemp > 0.1 ? lastS2AmbientTemp : 25.0), Dock = DockStyle.Fill };
+            NumericUpDown numS2Spd = new NumericUpDown() { Minimum = 1, Maximum = 30000, DecimalPlaces = 0, Value = (decimal)(lastS2Speed > 0.1 ? lastS2Speed : 1500.0), Dock = DockStyle.Fill };
+            Button btnLoadRecent = new Button() { Text = "[載入最近實測值]", Dock = DockStyle.Fill, BackColor = Color.FromArgb(224, 231, 255), Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold) };
+
+            tblIn.Controls.Add(new Label() { Text = "基準加載轉矩 (Nm):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
+            tblIn.Controls.Add(numS2BaseTrq, 1, 0);
+            tblIn.Controls.Add(new Label() { Text = "基準運轉時間 (min):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 1);
+            tblIn.Controls.Add(numS2Dur, 1, 1);
+            tblIn.Controls.Add(new Label() { Text = "實測最高溫度 (℃):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 2);
+            tblIn.Controls.Add(numS2Temp, 1, 2);
+            tblIn.Controls.Add(new Label() { Text = "實測環境室溫 (℃):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 3);
+            tblIn.Controls.Add(numS2Amb, 1, 3);
+            tblIn.Controls.Add(new Label() { Text = "額定運轉轉速 (rpm):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 4);
+            tblIn.Controls.Add(numS2Spd, 1, 4);
+            tblIn.Controls.Add(btnLoadRecent, 1, 5);
+            grpBase.Controls.Add(tblIn);
+
+            GroupBox grpTarget = new GroupBox() { Text = "目標極限溫度設定 (℃)", Dock = DockStyle.Top, Height = 140, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Margin = new Padding(0, 10, 0, 0) };
+            TableLayoutPanel tblTgt = new TableLayoutPanel() { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 2, Padding = new Padding(6) };
+            NumericUpDown numS2TgtTemp = new NumericUpDown() { Minimum = 40, Maximum = 300, DecimalPlaces = 1, Value = 105.0m, Dock = DockStyle.Fill };
+            Button b105 = new Button() { Text = "105℃", Dock = DockStyle.Fill, BackColor = Color.FromArgb(241, 245, 249) };
+            Button b120 = new Button() { Text = "120℃", Dock = DockStyle.Fill, BackColor = Color.FromArgb(241, 245, 249) };
+            Button b130 = new Button() { Text = "130℃", Dock = DockStyle.Fill, BackColor = Color.FromArgb(241, 245, 249) };
+            Button b155 = new Button() { Text = "155℃", Dock = DockStyle.Fill, BackColor = Color.FromArgb(241, 245, 249) };
+            b105.Click += (s, e) => { numS2TgtTemp.Value = 105.0m; };
+            b120.Click += (s, e) => { numS2TgtTemp.Value = 120.0m; };
+            b130.Click += (s, e) => { numS2TgtTemp.Value = 130.0m; };
+            b155.Click += (s, e) => { numS2TgtTemp.Value = 155.0m; };
+
+            tblTgt.Controls.Add(new Label() { Text = "自訂目標溫度 (℃):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
+            tblTgt.SetColumnSpan(tblTgt.Controls[tblTgt.Controls.Count - 1], 2);
+            tblTgt.Controls.Add(numS2TgtTemp, 2, 0);
+            tblTgt.SetColumnSpan(numS2TgtTemp, 2);
+            tblTgt.Controls.Add(b105, 0, 1);
+            tblTgt.Controls.Add(b120, 1, 1);
+            tblTgt.Controls.Add(b130, 2, 1);
+            tblTgt.Controls.Add(b155, 3, 1);
+            grpTarget.Controls.Add(tblTgt);
+
+            pnlLeft.Controls.Add(grpTarget);
+            pnlLeft.Controls.Add(grpBase);
+            body.Controls.Add(pnlLeft, 0, 0);
+
+            GroupBox grpRes = new GroupBox() { Text = "極限能力回推結果 (即時動態計算)", Dock = DockStyle.Fill, Font = new Font("微軟正黑體", 11f, FontStyle.Bold), Padding = new Padding(12) };
+            TableLayoutPanel tblRes = new TableLayoutPanel() { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 6 };
+            tblRes.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
+            tblRes.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
+            tblRes.RowStyles.Add(new RowStyle(SizeType.Absolute, 70f));
+            tblRes.RowStyles.Add(new RowStyle(SizeType.Absolute, 55f));
+            tblRes.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            tblRes.RowStyles.Add(new RowStyle(SizeType.Absolute, 45f));
+
+            Label lblSlope = new Label() { Text = "--", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), ForeColor = Color.FromArgb(71, 85, 105) };
+            Label lblTargetDelta = new Label() { Text = "--", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), ForeColor = Color.FromArgb(71, 85, 105) };
+
+            Panel pnlTrqCard = new Panel() { Dock = DockStyle.Fill, BackColor = Color.FromArgb(240, 253, 244), Padding = new Padding(6), BorderStyle = BorderStyle.FixedSingle };
+            Label lblTrqResult = new Label() { Text = "推估極限轉矩: -- Nm", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("微軟正黑體", 16f, FontStyle.Bold), ForeColor = Color.FromArgb(22, 101, 52) };
+            pnlTrqCard.Controls.Add(lblTrqResult);
+
+            Panel pnlPwrCard = new Panel() { Dock = DockStyle.Fill, BackColor = Color.FromArgb(240, 249, 255), Padding = new Padding(6), BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(0, 4, 0, 4) };
+            Label lblPwrResult = new Label() { Text = "估計機械輸出功率: -- kW", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("微軟正黑體", 13f, FontStyle.Bold), ForeColor = Color.FromArgb(3, 105, 161) };
+            pnlPwrCard.Controls.Add(lblPwrResult);
+
+            TextBox txtFormula = new TextBox() { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, BackColor = Color.FromArgb(248, 250, 252), Font = new Font("Consolas", 9.5f), ScrollBars = ScrollBars.Vertical };
+            Button btnCopy = new Button() { Text = "[複製 S2 推估報告文字]", Dock = DockStyle.Fill, BackColor = Color.FromArgb(79, 70, 229), ForeColor = Color.White, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
+
+            tblRes.Controls.Add(lblSlope, 0, 0);
+            tblRes.Controls.Add(lblTargetDelta, 0, 1);
+            tblRes.Controls.Add(pnlTrqCard, 0, 2);
+            tblRes.Controls.Add(pnlPwrCard, 0, 3);
+            tblRes.Controls.Add(txtFormula, 0, 4);
+            tblRes.Controls.Add(btnCopy, 0, 5);
+            grpRes.Controls.Add(tblRes);
+            body.Controls.Add(grpRes, 1, 0);
+            root.Controls.Add(body, 0, 1);
+            tp.Controls.Add(root);
+
+            Action updateS2Calc = () => {
+                double bTrq = (double)numS2BaseTrq.Value;
+                double bDur = (double)numS2Dur.Value;
+                double bTemp = (double)numS2Temp.Value;
+                double bAmb = (double)numS2Amb.Value;
+                double bSpd = (double)numS2Spd.Value;
+                double tTgt = (double)numS2TgtTemp.Value;
+
+                var res = CalcExtrapolatedS2Torque(bTrq, bDur, bTemp, bAmb, tTgt, bSpd);
+                double dtBase = Math.Max(0.1, bTemp - bAmb);
+                double dtTgt = Math.Max(0.1, tTgt - bAmb);
+
+                lblSlope.Text = string.Format("實測溫升: ΔT = {0:F1} K | 平均溫升斜率: {1:F2} K/min (30m累積溫升)", dtBase, res.TempRiseSlope);
+                lblTargetDelta.Text = string.Format("目標允許溫升: ΔT_limit = {0:F1} K (目標 {1:F1}℃ - 室溫 {2:F1}℃)", dtTgt, tTgt, bAmb);
+
+                lblTrqResult.Text = string.Format("推估極限轉矩: {0:F1} Nm (+{1:F1}%)", res.ExtrapolatedTorque, res.TorqueIncreasePct);
+                lblPwrResult.Text = string.Format("估計機械輸出功率: {0:F2} kW (於 {1:F0} rpm)", res.ExtrapolatedMechPowerKw, bSpd);
+
+                StringBuilder sbF = new StringBuilder();
+                sbF.AppendLine("【S2 短時工作制極限轉矩計算公式與依據】");
+                sbF.AppendLine("1. 依據標準: IEEE Std 112 / IEC 60034-1 短時發熱模型");
+                sbF.AppendLine("2. 物理原理: 短時溫升主要由銅損產生 (P_loss ≈ k * T^2)，溫升與轉矩平方律成正比");
+                sbF.AppendLine(string.Format("3. 轉矩換算比: sqrt(ΔT_target / ΔT_base) = sqrt({0:F1} / {1:F1}) = {2:F4}", dtTgt, dtBase, Math.Sqrt(dtTgt / dtBase)));
+                sbF.AppendLine(string.Format("4. 極限轉矩: {0:F1} Nm * {1:F4} = {2:F1} Nm", bTrq, Math.Sqrt(dtTgt / dtBase), res.ExtrapolatedTorque));
+                sbF.AppendLine(string.Format("5. 轉矩提升裕度: +{0:F1}%, 估計輸出功率: {1:F2} kW", res.TorqueIncreasePct, res.ExtrapolatedMechPowerKw));
+                txtFormula.Text = sbF.ToString();
+            };
+
+            numS2BaseTrq.ValueChanged += (s, e) => updateS2Calc();
+            numS2Dur.ValueChanged += (s, e) => updateS2Calc();
+            numS2Temp.ValueChanged += (s, e) => updateS2Calc();
+            numS2Amb.ValueChanged += (s, e) => updateS2Calc();
+            numS2Spd.ValueChanged += (s, e) => updateS2Calc();
+            numS2TgtTemp.ValueChanged += (s, e) => updateS2Calc();
+
+            btnLoadRecent.Click += (s, e) => {
+                if (lastS2Torque > 0.1) numS2BaseTrq.Value = (decimal)lastS2Torque;
+                if (lastS2DurationMin > 0.1) numS2Dur.Value = (decimal)lastS2DurationMin;
+                if (lastS2FinalTemp > 0.1) numS2Temp.Value = (decimal)lastS2FinalTemp;
+                if (lastS2AmbientTemp > 0.1) numS2Amb.Value = (decimal)lastS2AmbientTemp;
+                if (lastS2Speed > 0.1) numS2Spd.Value = (decimal)lastS2Speed;
+                updateS2Calc();
+            };
+
+            btnCopy.Click += (s, e) => {
+                try
+                {
+                    Clipboard.SetText(txtFormula.Text);
+                    MessageBox.Show("S2 極限能力回推報告已成功複製至剪貼簿！", "複製成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch { }
+            };
+
+            updateS2Calc();
+        }
+
+        private void BuildS6ExtrapolationTab(TabPage tp)
+        {
+            TableLayoutPanel root = new TableLayoutPanel() { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, Padding = new Padding(10) };
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 68f));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+
+            Panel pnlHeader = new Panel() { Dock = DockStyle.Fill, BackColor = Color.FromArgb(245, 243, 255), Padding = new Padding(8) };
+            Label lHeadTitle = new Label() { Text = "[S6 週期工作制 DUTY (ED%) 負載時間佔比回推估算] (IEC 60034)", Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold), ForeColor = Color.FromArgb(76, 29, 149), Dock = DockStyle.Top, Height = 26 };
+            Label lHeadDesc = new Label() { Text = "週期工作制熱平衡溫升與平均發熱損耗成正比 (ΔT_ss ∝ P_avg ∝ ED%)。利用已測週期負載與平衡最高溫，推算目標極限溫度 (如 105℃) 下可再增加之最大 DUTY 時間佔比。", Font = new Font("微軟正黑體", 9.5f), ForeColor = Color.FromArgb(71, 85, 105), Dock = DockStyle.Fill };
+            pnlHeader.Controls.Add(lHeadDesc);
+            pnlHeader.Controls.Add(lHeadTitle);
+            root.Controls.Add(pnlHeader, 0, 0);
+
+            TableLayoutPanel body = new TableLayoutPanel() { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = new Padding(0, 8, 0, 0) };
+            body.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 370f));
+            body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+
+            Panel pnlLeft = new Panel() { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(0, 0, 8, 0) };
+            GroupBox grpBase = new GroupBox() { Text = "基準實測數據 (可手動輸入或一鍵載入)", Dock = DockStyle.Top, Height = 250, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold) };
+            TableLayoutPanel tblIn = new TableLayoutPanel() { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 6, Padding = new Padding(6) };
+            tblIn.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160f));
+            tblIn.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+
+            NumericUpDown numS6BaseTrq = new NumericUpDown() { Minimum = 0, Maximum = 10000, DecimalPlaces = 1, Value = (decimal)(lastS6Torque > 0.1 ? lastS6Torque : 120.0), Dock = DockStyle.Fill };
+            NumericUpDown numS6Cycle = new NumericUpDown() { Minimum = 1, Maximum = 120, DecimalPlaces = 1, Value = (decimal)(lastS6CycleMin > 0.1 ? lastS6CycleMin : 10.0), Dock = DockStyle.Fill };
+            NumericUpDown numS6BaseEd = new NumericUpDown() { Minimum = 1, Maximum = 99, DecimalPlaces = 1, Value = (decimal)(lastS6EdPct > 0.1 ? lastS6EdPct : 40.0), Dock = DockStyle.Fill };
+            NumericUpDown numS6Temp = new NumericUpDown() { Minimum = 0, Maximum = 350, DecimalPlaces = 1, Value = (decimal)(lastS6PeakTemp > 0.1 ? lastS6PeakTemp : 85.0), Dock = DockStyle.Fill };
+            NumericUpDown numS6Amb = new NumericUpDown() { Minimum = -20, Maximum = 100, DecimalPlaces = 1, Value = (decimal)(lastS6AmbientTemp > 0.1 ? lastS6AmbientTemp : 25.0), Dock = DockStyle.Fill };
+            Button btnLoadRecent = new Button() { Text = "[載入最近實測值]", Dock = DockStyle.Fill, BackColor = Color.FromArgb(237, 233, 254), Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold) };
+
+            tblIn.Controls.Add(new Label() { Text = "週期加載轉矩 (Nm):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
+            tblIn.Controls.Add(numS6BaseTrq, 1, 0);
+            tblIn.Controls.Add(new Label() { Text = "週期總時長 (min):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 1);
+            tblIn.Controls.Add(numS6Cycle, 1, 1);
+            tblIn.Controls.Add(new Label() { Text = "原負載佔比 ED (%):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 2);
+            tblIn.Controls.Add(numS6BaseEd, 1, 2);
+            tblIn.Controls.Add(new Label() { Text = "實測平衡最高溫 (℃):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 3);
+            tblIn.Controls.Add(numS6Temp, 1, 3);
+            tblIn.Controls.Add(new Label() { Text = "實測環境室溫 (℃):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 4);
+            tblIn.Controls.Add(numS6Amb, 1, 4);
+            tblIn.Controls.Add(btnLoadRecent, 1, 5);
+            grpBase.Controls.Add(tblIn);
+
+            GroupBox grpTarget = new GroupBox() { Text = "目標極限溫度設定 (℃)", Dock = DockStyle.Top, Height = 140, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Margin = new Padding(0, 10, 0, 0) };
+            TableLayoutPanel tblTgt = new TableLayoutPanel() { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 2, Padding = new Padding(6) };
+            NumericUpDown numS6TgtTemp = new NumericUpDown() { Minimum = 40, Maximum = 300, DecimalPlaces = 1, Value = 105.0m, Dock = DockStyle.Fill };
+            Button b105 = new Button() { Text = "105℃", Dock = DockStyle.Fill, BackColor = Color.FromArgb(241, 245, 249) };
+            Button b120 = new Button() { Text = "120℃", Dock = DockStyle.Fill, BackColor = Color.FromArgb(241, 245, 249) };
+            Button b130 = new Button() { Text = "130℃", Dock = DockStyle.Fill, BackColor = Color.FromArgb(241, 245, 249) };
+            Button b155 = new Button() { Text = "155℃", Dock = DockStyle.Fill, BackColor = Color.FromArgb(241, 245, 249) };
+            b105.Click += (s, e) => { numS6TgtTemp.Value = 105.0m; };
+            b120.Click += (s, e) => { numS6TgtTemp.Value = 120.0m; };
+            b130.Click += (s, e) => { numS6TgtTemp.Value = 130.0m; };
+            b155.Click += (s, e) => { numS6TgtTemp.Value = 155.0m; };
+
+            tblTgt.Controls.Add(new Label() { Text = "自訂目標溫度 (℃):", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
+            tblTgt.SetColumnSpan(tblTgt.Controls[tblTgt.Controls.Count - 1], 2);
+            tblTgt.Controls.Add(numS6TgtTemp, 2, 0);
+            tblTgt.SetColumnSpan(numS6TgtTemp, 2);
+            tblTgt.Controls.Add(b105, 0, 1);
+            tblTgt.Controls.Add(b120, 1, 1);
+            tblTgt.Controls.Add(b130, 2, 1);
+            tblTgt.Controls.Add(b155, 3, 1);
+            grpTarget.Controls.Add(tblTgt);
+
+            pnlLeft.Controls.Add(grpTarget);
+            pnlLeft.Controls.Add(grpBase);
+            body.Controls.Add(pnlLeft, 0, 0);
+
+            GroupBox grpRes = new GroupBox() { Text = "極限能力回推結果 (即時動態計算)", Dock = DockStyle.Fill, Font = new Font("微軟正黑體", 11f, FontStyle.Bold), Padding = new Padding(12) };
+            TableLayoutPanel tblRes = new TableLayoutPanel() { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 6 };
+            tblRes.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
+            tblRes.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
+            tblRes.RowStyles.Add(new RowStyle(SizeType.Absolute, 70f));
+            tblRes.RowStyles.Add(new RowStyle(SizeType.Absolute, 55f));
+            tblRes.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            tblRes.RowStyles.Add(new RowStyle(SizeType.Absolute, 45f));
+
+            Label lblDeltaT = new Label() { Text = "--", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), ForeColor = Color.FromArgb(71, 85, 105) };
+            Label lblTargetDelta = new Label() { Text = "--", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), ForeColor = Color.FromArgb(71, 85, 105) };
+
+            Panel pnlEdCard = new Panel() { Dock = DockStyle.Fill, BackColor = Color.FromArgb(240, 253, 244), Padding = new Padding(6), BorderStyle = BorderStyle.FixedSingle };
+            Label lblEdResult = new Label() { Text = "推估容許最高 DUTY (ED%): -- %", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("微軟正黑體", 16f, FontStyle.Bold), ForeColor = Color.FromArgb(22, 101, 52) };
+            pnlEdCard.Controls.Add(lblEdResult);
+
+            Panel pnlTimeCard = new Panel() { Dock = DockStyle.Fill, BackColor = Color.FromArgb(245, 243, 255), Padding = new Padding(6), BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(0, 4, 0, 4) };
+            Label lblTimeResult = new Label() { Text = "週期時間重配: T1=--m, T2=--m", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("微軟正黑體", 12.5f, FontStyle.Bold), ForeColor = Color.FromArgb(109, 40, 217) };
+            pnlTimeCard.Controls.Add(lblTimeResult);
+
+            TextBox txtFormula = new TextBox() { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, BackColor = Color.FromArgb(248, 250, 252), Font = new Font("Consolas", 9.5f), ScrollBars = ScrollBars.Vertical };
+            Button btnCopy = new Button() { Text = "[複製 S6 推估報告文字]", Dock = DockStyle.Fill, BackColor = Color.FromArgb(124, 58, 237), ForeColor = Color.White, Font = new Font("微軟正黑體", 11f, FontStyle.Bold) };
+
+            tblRes.Controls.Add(lblDeltaT, 0, 0);
+            tblRes.Controls.Add(lblTargetDelta, 0, 1);
+            tblRes.Controls.Add(pnlEdCard, 0, 2);
+            tblRes.Controls.Add(pnlTimeCard, 0, 3);
+            tblRes.Controls.Add(txtFormula, 0, 4);
+            tblRes.Controls.Add(btnCopy, 0, 5);
+            grpRes.Controls.Add(tblRes);
+            body.Controls.Add(grpRes, 1, 0);
+            root.Controls.Add(body, 0, 1);
+            tp.Controls.Add(root);
+
+            Action updateS6Calc = () => {
+                double bTrq = (double)numS6BaseTrq.Value;
+                double bCyc = (double)numS6Cycle.Value;
+                double bEd = (double)numS6BaseEd.Value;
+                double bTemp = (double)numS6Temp.Value;
+                double bAmb = (double)numS6Amb.Value;
+                double tTgt = (double)numS6TgtTemp.Value;
+
+                var res = CalcExtrapolatedS6Ed(bTrq, bCyc, bEd, bTemp, bAmb, tTgt);
+                double dtBase = Math.Max(0.1, bTemp - bAmb);
+                double dtTgt = Math.Max(0.1, tTgt - bAmb);
+
+                lblDeltaT.Text = string.Format("基準熱平衡溫升: ΔT = {0:F1} K (實測 {1:F1}℃ - 室溫 {2:F1}℃)", dtBase, bTemp, bAmb);
+                lblTargetDelta.Text = string.Format("目標允許溫升: ΔT_limit = {0:F1} K (裕度比: {1:F3})", dtTgt, dtTgt / dtBase);
+
+                lblEdResult.Text = string.Format("推估容許最高 DUTY (ED%): {0:F1}% (+{1:F1}%)", res.ExtrapolatedEdPct, res.EdIncreasePct);
+                lblTimeResult.Text = string.Format("在 {0:F1} 分鐘週期下: 有載 T1={1:F2}分 ({2}分{3:D2}秒), 空載自冷 T2={4:F2}分 ({5}分{6:D2}秒)",
+                    bCyc, res.ExtrapolatedT1Min, (int)res.ExtrapolatedT1Min, (int)((res.ExtrapolatedT1Min - (int)res.ExtrapolatedT1Min) * 60),
+                    res.ExtrapolatedT2Min, (int)res.ExtrapolatedT2Min, (int)((res.ExtrapolatedT2Min - (int)res.ExtrapolatedT2Min) * 60));
+
+                StringBuilder sbF = new StringBuilder();
+                sbF.AppendLine("【S6 週期工作制 DUTY 佔比回推計算公式與依據】");
+                sbF.AppendLine("1. 依據標準: IEC 60034 週期負載平均等效發熱模型");
+                sbF.AppendLine("2. 物理原理: 穩態熱平衡溫升與平均發熱損耗成正比 (ΔT_ss ∝ P_avg ∝ ED%)");
+                sbF.AppendLine(string.Format("3. 容許熱量裕度比: ΔT_target / ΔT_base = {0:F1} / {1:F1} = {2:F4}", dtTgt, dtBase, dtTgt / dtBase));
+                sbF.AppendLine(string.Format("4. 推估最高容許 ED: {0:F1}% * {1:F4} = {2:F1}%", bEd, dtTgt / dtBase, res.ExtrapolatedEdPct));
+                sbF.AppendLine(string.Format("5. DUTY 提升幅度: +{0:F1}%", res.EdIncreasePct));
+                sbF.AppendLine(string.Format("6. 週期時間分配: 有載 T1={0:F2} min, 空載自冷 T2={1:F2} min (總週期 {2:F1} min)", res.ExtrapolatedT1Min, res.ExtrapolatedT2Min, bCyc));
+                txtFormula.Text = sbF.ToString();
+            };
+
+            numS6BaseTrq.ValueChanged += (s, e) => updateS6Calc();
+            numS6Cycle.ValueChanged += (s, e) => updateS6Calc();
+            numS6BaseEd.ValueChanged += (s, e) => updateS6Calc();
+            numS6Temp.ValueChanged += (s, e) => updateS6Calc();
+            numS6Amb.ValueChanged += (s, e) => updateS6Calc();
+            numS6TgtTemp.ValueChanged += (s, e) => updateS6Calc();
+
+            btnLoadRecent.Click += (s, e) => {
+                if (lastS6Torque > 0.1) numS6BaseTrq.Value = (decimal)lastS6Torque;
+                if (lastS6CycleMin > 0.1) numS6Cycle.Value = (decimal)lastS6CycleMin;
+                if (lastS6EdPct > 0.1) numS6BaseEd.Value = (decimal)lastS6EdPct;
+                if (lastS6PeakTemp > 0.1) numS6Temp.Value = (decimal)lastS6PeakTemp;
+                if (lastS6AmbientTemp > 0.1) numS6Amb.Value = (decimal)lastS6AmbientTemp;
+                updateS6Calc();
+            };
+
+            btnCopy.Click += (s, e) => {
+                try
+                {
+                    Clipboard.SetText(txtFormula.Text);
+                    MessageBox.Show("S6 極限能力回推報告已成功複製至剪貼簿！", "複製成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch { }
+            };
+
+            updateS6Calc();
+        }
+
     }
+
+    public class S2ExtrapolationResult
+    {
+        public double BaseTorque;
+        public double DurationMin;
+        public double FinalTemp;
+        public double AmbientTemp;
+        public double TargetTemp;
+        public double RatedSpeed;
+        public double TempRiseSlope;
+        public double ExtrapolatedTorque;
+        public double TorqueIncreasePct;
+        public double ExtrapolatedMechPowerKw;
+    }
+
+    public class S6ExtrapolationResult
+    {
+        public double BaseTorque;
+        public double CycleMin;
+        public double CurrentEdPct;
+        public double PeakTemp;
+        public double AmbientTemp;
+        public double TargetTemp;
+        public double ExtrapolatedEdPct;
+        public double EdIncreasePct;
+        public double ExtrapolatedT1Min;
+        public double ExtrapolatedT2Min;
+    }
+
 }
