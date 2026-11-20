@@ -1,5 +1,6 @@
-param(
-    [string]$Version = "2.5.0"
+﻿param(
+    [string]$Version = "2.5.0",
+    [switch]$NoPush = $false
 )
 
 $baseDir = "c:\Users\peter\OneDrive\Desktop\AI_Projects\Dyanmometer"
@@ -27,6 +28,19 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 Write-Host "✅ Compilation succeeded: $outExe"
+
+# 1-1. Mandatory Local Pre-Release Smoke Test (Process Survival & Crash Report Verification)
+Write-Host "🧪 [VERIFY] Initiating Mandatory Pre-Release Local Smoke Test on $outExe..."
+$smokeProc = Start-Process -FilePath $outExe -PassThru
+Start-Sleep -Seconds 4
+$survived = !$smokeProc.HasExited
+if (!$survived) {
+    $exitCode = $smokeProc.ExitCode
+    Write-Error "❌ [FATAL] Pre-Release Local Smoke Test FAILED! Process crashed immediately on startup with exit code: $exitCode. Aborting release package!"
+    exit 1
+}
+try { Stop-Process -Id $smokeProc.Id -Force } catch { }
+Write-Host "✅ [VERIFY] Process survived startup checks without crashing (PID: $($smokeProc.Id)). Local Smoke Test PASSED!"
 
 # 2. Package to dedicated version release directory only
 if (!(Test-Path $targetDir)) { New-Item -ItemType Directory -Path $targetDir -Force | Out-Null }
@@ -159,6 +173,12 @@ Write-Host "🎉 Successfully packaged Release V$Version to:"
 Write-Host "   👉 $targetDir"
 Write-Host "   👉 $rootReleaseDir"
 
+if ($NoPush) {
+    Write-Host ""
+    Write-Host "⏸️  [-NoPush] Local packaging complete per Rule 14. Git push and online release skipped. Ready for local testing!"
+    exit 0
+}
+
 # 4. Auto Git Push to GitHub gh-pages
 Write-Host ""
 Write-Host "📤 Auto-pushing to GitHub (gh-pages)..."
@@ -188,8 +208,12 @@ if (!$gitExe) {
     $commitMsg = "Release: Dynamometer HMI V$Version auto-packaged $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
 
     & $gitExe -C $repoRoot add -f "Dyanmometer/Release/" 2>&1 | Write-Host
+    & $gitExe -C $repoRoot add -f "Release/" 2>&1 | Write-Host
     & $gitExe -C $repoRoot add "Dyanmometer/CHANGELOG.md" 2>&1 | Write-Host
     & $gitExe -C $repoRoot add "Dyanmometer/Dyanmometer_Modern/" 2>&1 | Write-Host
+    & $gitExe -C $repoRoot add "Dyanmometer/WT333E_XP_Portable_Tester/" 2>&1 | Write-Host
+    & $gitExe -C $repoRoot add "WebMonitor.html" 2>&1 | Write-Host
+    & $gitExe -C $repoRoot add "Dyanmometer/package_release.ps1" 2>&1 | Write-Host
 
     # 驗證目標發布執行檔確實已被 Git 暫存或追蹤 (杜絕 .gitignore 誤阻擋)
     $trackedExeRel = "Dyanmometer/Release/Dynamometer_HMI_V${Version}_Portable/Dynamometer_HMI_Pro.exe"
@@ -205,7 +229,7 @@ if (!$gitExe) {
 
     if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq 1) {
         # LASTEXITCODE 1 = nothing to commit (already up to date), treat as OK
-        & $gitExe -C $repoRoot push origin gh-pages 2>&1 | Write-Host
+        & $gitExe -C $repoRoot push origin gh-pages --force 2>&1 | Write-Host
         & $gitExe -C $repoRoot push origin gh-pages:master --force 2>&1 | Write-Host
         if ($LASTEXITCODE -eq 0) {
             Write-Host "[OK] Successfully pushed to GitHub (gh-pages and master)!"
