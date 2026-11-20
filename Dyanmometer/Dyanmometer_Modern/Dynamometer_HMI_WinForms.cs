@@ -406,6 +406,7 @@ namespace DynamometerHMI
         private double batchCoolingPrevTemp = 999.0;
         private int batchCoolingCheckTimer = 0;
         private CheckBox chkBatchDutyMode;
+        private ComboBox cmbBatchDutyPlan;
         private ComboBox cmbBatchCoolingMode;
         private Panel pnlBatchDutyProgress;
         private Label lblBatchProgressTitle;
