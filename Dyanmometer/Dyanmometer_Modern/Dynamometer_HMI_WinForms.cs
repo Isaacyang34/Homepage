@@ -392,6 +392,9 @@ namespace DynamometerHMI
         private DateTime dutyRampReachedTime = DateTime.MinValue; // 回饋速度達到後的穩定維持計時基準 (需維持滿 2 秒)
         private int dutyRampStep = 0; // 0..3 (第 1..4 段)
         private double[] dutyRampSpeeds = new double[4];
+        public decimal reverseTorqueTimeoutSec = 10m; // 反轉矩超時門檻時間 (秒，預設 10s，可調 1~60s)
+        public NumericUpDown numDutyRevTrqTimeout;
+        public NumericUpDown numTnRevTrqTimeout;
         private const double DUTY_EXCITE_BASE_RPM = 300.0; // 低速激磁基準轉速 (300 rpm)
         private CheckBox chkDutySlipComp = null; // S1 補轉差/不補轉差勾選框 (預設勾選: 自動補轉差; 取消勾選: 不補轉差自然轉差)
         private double dutyMinuteVoltSum = 0.0;
@@ -2156,6 +2159,7 @@ namespace DynamometerHMI
                 sb.AppendLine("ProtImbalanceDelay=" + protImbalanceDelaySec.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 sb.AppendLine("ProtKebFault=" + (enableProtKebFault ? "1" : "0"));
                 sb.AppendLine("AutoStopBrakeThresholdRpm=" + autoStopBrakeThresholdRpm.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("ReverseTorqueTimeout=" + reverseTorqueTimeoutSec.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
                 sb.AppendLine("[Tracking]");
                 sb.AppendLine("MaxDelta=" + trackingMaxDelta.ToString("F1", System.Globalization.CultureInfo.InvariantCulture));
@@ -2430,6 +2434,14 @@ namespace DynamometerHMI
                 if (map.ContainsKey("Safety.ProtImbalanceDelay")) { decimal v; if (decimal.TryParse(map["Safety.ProtImbalanceDelay"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) protImbalanceDelaySec = v; }
                 if (map.ContainsKey("Safety.ProtKebFault")) enableProtKebFault = map["Safety.ProtKebFault"] == "1";
                 if (map.ContainsKey("Safety.AutoStopBrakeThresholdRpm")) { decimal v; if (decimal.TryParse(map["Safety.AutoStopBrakeThresholdRpm"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) autoStopBrakeThresholdRpm = v; }
+                if (map.ContainsKey("Safety.ReverseTorqueTimeout")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.ReverseTorqueTimeout"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        reverseTorqueTimeoutSec = v;
+                        if (numDutyRevTrqTimeout != null) numDutyRevTrqTimeout.Value = v;
+                        if (numTnRevTrqTimeout != null) numTnRevTrqTimeout.Value = v;
+                    }
+                }
 
                 // Closed Loop Tracking Config
                 if (map.ContainsKey("Tracking.MaxDelta")) { decimal v; if (decimal.TryParse(map["Tracking.MaxDelta"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) trackingMaxDelta = v; }

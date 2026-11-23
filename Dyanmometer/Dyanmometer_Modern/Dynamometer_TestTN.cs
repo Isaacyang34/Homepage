@@ -1277,8 +1277,8 @@ namespace DynamometerHMI
                     }
                     tnExciteWaitSec++;
 
-                    // 判定實測回饋轉速是否到達該段目標 (回饋轉速 >= 95% 或 誤差 <= 15 rpm，或超時 15 秒安全放行)
-                    bool isAtStepSpeed = (actAbsSpd >= rampTarget * 0.95) || (Math.Abs(actAbsSpd - rampTarget) <= 15.0) || (tnExciteWaitSec >= 15);
+                    // 判定實測回饋轉速是否到達該段目標
+                    bool isAtStepSpeed = (actAbsSpd >= rampTarget * 0.95);
 
                     if (!isAtStepSpeed && tnRampReachedTime == DateTime.MinValue)
                     {
@@ -1287,19 +1287,37 @@ namespace DynamometerHMI
                     }
                     else
                     {
-                        // 回饋速度已達標：自達標時刻起精確穩定維持滿 2 秒再加速！
                         if (tnRampReachedTime == DateTime.MinValue)
                         {
                             tnRampReachedTime = DateTime.Now;
                         }
                         double elapsedSec = (DateTime.Now - tnRampReachedTime).TotalSeconds;
 
-                        lblTnStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：回饋已達 {1:F0} rpm，穩定維持中 ({2:F1}/2.0秒) | 加載端零力矩跟隨", curStepIdx + 1, actAbsSpd, Math.Min(2.0, elapsedSec));
-                        lblTnCountdown.Text = string.Format("維持 ({0}/4) {1:F1}s", curStepIdx + 1, Math.Min(2.0, elapsedSec));
+                        // 核心物理判據 (反轉矩與超速拖曳檢測)：
+                        // 特徵 1: 實測轉矩小於 0 (actTorque < 0)
+                        // 特徵 2: 轉速被加載端反向拖曳超速 (actAbsSpd > rampTarget + 15 rpm)
+                        bool isReverseTorque = (actTorque < 0.0) || (actAbsSpd > rampTarget + 15.0);
 
-                        if (elapsedSec >= 2.0)
+                        if (isReverseTorque)
                         {
-                            WriteHmiLog("TN_EXCITE", string.Format("【4段梯度加速 {0}/4 穩定完成】實測回饋已在 {1:F0} rpm 穩定維持滿 2 秒，推進至下一階段", curStepIdx + 1, actAbsSpd));
+                            if (elapsedSec >= (double)reverseTorqueTimeoutSec)
+                            {
+                                string abortMsg = string.Format("【[!] 反轉矩超時保護停機】T-N 多點第 {0}/4 段加速異常：實測轉矩持續為負 ({1:F2} Nm) 或轉速被拖曳超速 ({2:F0} rpm / 目標 {3:F0} rpm) 超過 {4} 秒！",
+                                    curStepIdx + 1, actTorque, actAbsSpd, rampTarget, reverseTorqueTimeoutSec);
+                                WriteHmiLog("TN_ABORT", abortMsg);
+                                StopTnTest(abortMsg);
+                                MessageBox.Show(abortMsg, "反轉矩異常保護", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                                return;
+                            }
+
+                            lblTnStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：反轉矩拖曳中 (轉矩 {1:F2} Nm, 轉速 {2:F0} rpm)，等待轉正 ({3:F1}/{4}s)...",
+                                curStepIdx + 1, actTorque, actAbsSpd, elapsedSec, reverseTorqueTimeoutSec);
+                            lblTnCountdown.Text = string.Format("反轉矩 {0:F1}s", elapsedSec);
+                        }
+                        else
+                        {
+                            WriteHmiLog("TN_EXCITE", string.Format("【4段梯度加速 {0}/4 轉正放行】實測轉矩已回正 ({1:F2} Nm, 轉速 {2:F0} rpm)，耗時 {3:F1}s，推進至下一階！",
+                                curStepIdx + 1, actTorque, actAbsSpd, elapsedSec));
                             tnRampStep++;
                             tnExciteWaitSec = 0;
                             tnRampReachedTime = DateTime.MinValue;
@@ -1309,7 +1327,7 @@ namespace DynamometerHMI
                                 tnExciteStage = 0;
                                 tnCurrentSpeedCmd = targetSpd;
                                 KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)targetSpd, "T-N 4段梯度完成提速至需求轉速 (Sy52)");
-                                WriteHmiLog("TN_EXCITE", string.Format("【4段梯度加速全部完成】各段皆在實測回饋到位後平穩維持滿 2 秒到達需求轉速 {0:F0} rpm，加載端零力矩無反轉，正式進入T-N測試！", targetSpd));
+                                WriteHmiLog("TN_EXCITE", string.Format("【4段梯度加速全部完成】各段皆在實測轉矩轉正後即刻推進到達需求轉速 {0:F0} rpm，加載端零力矩無反轉，正式進入T-N測試！", targetSpd));
                             }
                         }
                     }
@@ -1983,8 +2001,8 @@ namespace DynamometerHMI
                         }
                         tnExciteWaitSec++;
 
-                        // 判定實測回饋轉速是否到達該段目標 (回饋轉速 >= 95% 或 誤差 <= 15 rpm，或超時 15 秒安全放行)
-                        bool isAtStepSpeed = (actAbsSpd >= rampTarget * 0.95) || (Math.Abs(actAbsSpd - rampTarget) <= 15.0) || (tnExciteWaitSec >= 15);
+                        // 判定實測回饋轉速是否到達該段目標
+                        bool isAtStepSpeed = (actAbsSpd >= rampTarget * 0.95);
 
                         if (!isAtStepSpeed && tnRampReachedTime == DateTime.MinValue)
                         {
@@ -1993,19 +2011,37 @@ namespace DynamometerHMI
                         }
                         else
                         {
-                            // 回饋速度已達標：自達標時刻起精確穩定維持滿 2 秒再加速！
                             if (tnRampReachedTime == DateTime.MinValue)
                             {
                                 tnRampReachedTime = DateTime.Now;
                             }
                             double elapsedSec = (DateTime.Now - tnRampReachedTime).TotalSeconds;
 
-                            lblTnStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：回饋已達 {1:F0} rpm，穩定維持中 ({2:F1}/2.0秒) | 加載端零力矩跟隨", curStepIdx + 1, actAbsSpd, Math.Min(2.0, elapsedSec));
-                            lblTnCountdown.Text = string.Format("維持 ({0}/4) {1:F1}s", curStepIdx + 1, Math.Min(2.0, elapsedSec));
+                            // 核心物理判據 (反轉矩與超速拖曳檢測)：
+                            // 特徵 1: 實測轉矩小於 0 (actTorque < 0)
+                            // 特徵 2: 轉速被加載端反向拖曳超速 (actAbsSpd > rampTarget + 15 rpm)
+                            bool isReverseTorque = (actTorque < 0.0) || (actAbsSpd > rampTarget + 15.0);
 
-                            if (elapsedSec >= 2.0)
+                            if (isReverseTorque)
                             {
-                                WriteHmiLog("TN_EXCITE", string.Format("【4段梯度加速 {0}/4 穩定完成】實測回饋已在 {1:F0} rpm 穩定維持滿 2 秒，推進至下一階段", curStepIdx + 1, actAbsSpd));
+                                if (elapsedSec >= (double)reverseTorqueTimeoutSec)
+                                {
+                                    string abortMsg = string.Format("【[!] 反轉矩超時保護停機】T-N 階梯第 {0}/4 段加速異常：實測轉矩持續為負 ({1:F2} Nm) 或轉速被拖曳超速 ({2:F0} rpm / 目標 {3:F0} rpm) 超過 {4} 秒！",
+                                        curStepIdx + 1, actTorque, actAbsSpd, rampTarget, reverseTorqueTimeoutSec);
+                                    WriteHmiLog("TN_ABORT", abortMsg);
+                                    StopTnTest(abortMsg);
+                                    MessageBox.Show(abortMsg, "反轉矩異常保護", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                                    return;
+                                }
+
+                                lblTnStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：反轉矩拖曳中 (轉矩 {1:F2} Nm, 轉速 {2:F0} rpm)，等待轉正 ({3:F1}/{4}s)...",
+                                    curStepIdx + 1, actTorque, actAbsSpd, elapsedSec, reverseTorqueTimeoutSec);
+                                lblTnCountdown.Text = string.Format("反轉矩 {0:F1}s", elapsedSec);
+                            }
+                            else
+                            {
+                                WriteHmiLog("TN_EXCITE", string.Format("【4段梯度加速 {0}/4 轉正放行】實測轉矩已回正 ({1:F2} Nm, 轉速 {2:F0} rpm)，耗時 {3:F1}s，推進至下一階！",
+                                    curStepIdx + 1, actTorque, actAbsSpd, elapsedSec));
                                 tnRampStep++;
                                 tnExciteWaitSec = 0;
                                 tnRampReachedTime = DateTime.MinValue;
@@ -2015,7 +2051,7 @@ namespace DynamometerHMI
                                     tnExciteStage = 0;
                                     tnCurrentSpeedCmd = targetSpd;
                                     KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)targetSpd, "T-N 4段梯度完成提速至需求轉速 (Sy52)");
-                                    WriteHmiLog("TN_EXCITE", string.Format("【4段梯度加速全部完成】各段皆在實測回饋到位後平穩維持滿 2 秒到達需求轉速 {0:F0} rpm，加載端零力矩無反轉，正式進入T-N測試！", targetSpd));
+                                    WriteHmiLog("TN_EXCITE", string.Format("【4段梯度加速全部完成】各段皆在實測轉矩轉正後即刻推進到達需求轉速 {0:F0} rpm，加載端零力矩無反轉，正式進入T-N測試！", targetSpd));
                                 }
                             }
                         }
