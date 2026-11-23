@@ -2,7 +2,7 @@
 *.iso
 *.exe
 !Dyanmometer/Release/**/*.exe
-!Release/**/*.exe
+!TOOL_Browser_Automation_Suite/Release/**/*.exe
 !TOOL_Stock_Portfolio_Tracker/**/*.exe
 TOOL_Stock_Portfolio_Tracker/*_old.exe
 TOOL_Stock_Portfolio_Tracker/build/
@@ -12,7 +12,6 @@ dist/
 **/build/
 **/dist/
 *.zip
-!Release/**/*.zip
 !TOOL_Stock_Portfolio_Tracker/dist_patches/**/*.zip
 !TOOL_Stock_Portfolio_Tracker/dist_releases/**/*.zip
 *.rar
@@ -60,7 +59,5 @@ ios2pixel/build/
 ios2pixel/dist/
 ios2pixel/Release/
 **/_internal/
-Release/Any2Pixel_V1.0.0_Portable/
-!Release/Any2Pixel_V1.0.0_Portable.zip
 
 

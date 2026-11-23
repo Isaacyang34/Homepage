@@ -124,6 +124,12 @@ namespace DynamometerHMI
         private int noLoadPostStableCounter = 0;
         private string noLoadPostStableStage = "";
 
+        // 溫升斜率與熱平衡穩態預估變數
+        private double noLoadStageInitTemp = 0.0;     // 當前階段起始溫度 (℃)
+        private double noLoadCurrentSlope = 0.0;      // 即時軸承溫升斜率 (℃/min, 近120秒線性回歸)
+        private double noLoadEstFinalTemp = 0.0;      // 預估穩態終溫 T_inf (℃)
+        private int noLoadEstRemainMin = 0;           // 預估達標剩餘時間 (分鐘)
+
         // 快取靜態字體 (避免動態 new Font 引發 GDI HFONT 洩漏與長時記憶體累積)
         private static readonly Font fontNoLoadMilestone = new Font("微軟正黑體", 10.5f, FontStyle.Bold);
         private static readonly Font fontNoLoadPostStable = new Font("微軟正黑體", 9.5f, FontStyle.Bold);
@@ -854,6 +860,53 @@ namespace DynamometerHMI
 
         #region 測試啟動與停止 (StartNoLoadTest / StopNoLoadTest)
 
+        /// <summary>
+        /// 依據最近 windowSec 秒的溫度歷史，以最小平方法線性回歸計算溫升斜率 (℃/min)
+        /// </summary>
+        private double CalculateNoLoadThermalSlopePerMin(int targetCh, int windowSec = 120)
+        {
+            if (noLoadTempHistory == null || noLoadTempHistory.Count < 5) return 0.0;
+
+            DateTime now = DateTime.Now;
+            DateTime windowStart = now.AddSeconds(-windowSec);
+
+            List<KeyValuePair<double, double>> pts = new List<KeyValuePair<double, double>>();
+            for (int i = noLoadTempHistory.Count - 1; i >= 0; i--)
+            {
+                var item = noLoadTempHistory[i];
+                if (item.Key < windowStart) break;
+                if (item.Value != null && targetCh >= 0 && targetCh < item.Value.Length)
+                {
+                    double tSec = (item.Key - windowStart).TotalSeconds;
+                    double tVal = item.Value[targetCh];
+                    if (tVal > -50.0 && tVal < 250.0) // 排除異常斷線數值
+                    {
+                        pts.Add(new KeyValuePair<double, double>(tSec, tVal));
+                    }
+                }
+            }
+
+            if (pts.Count < 5) return 0.0;
+
+            double sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+            int n = pts.Count;
+            for (int i = 0; i < n; i++)
+            {
+                double x = pts[i].Key;
+                double y = pts[i].Value;
+                sumX += x;
+                sumY += y;
+                sumXY += x * y;
+                sumX2 += x * x;
+            }
+
+            double denom = (n * sumX2 - sumX * sumX);
+            if (Math.Abs(denom) < 1e-6) return 0.0;
+
+            double slopePerSec = (n * sumXY - sumX * sumY) / denom;
+            return slopePerSec * 60.0; // 轉換為 ℃/min
+        }
+
         private void StartNoLoadTest()
         {
             if (isNoLoadRunning) return;
@@ -929,7 +982,24 @@ namespace DynamometerHMI
 
             // 待測端放行 100% 轉矩極限 (cs.18 = 1000)，設定第 1 階段目標轉速 (Sy52)，下發啟轉運轉 (Sy50 = 4)
             var firstTarget = noLoadActiveTargets[0];
-            noLoadCurrentTargetSpd = firstTarget.Item2;
+            double ratedSpd = (numNoLoadRatedSpd != null && numNoLoadRatedSpd.Value > 0) ? (double)numNoLoadRatedSpd.Value : 1500.0;
+            double stepSpdVal = (numNoLoadStepSpd != null && numNoLoadStepSpd.Value > 0) ? (double)numNoLoadStepSpd.Value : 200.0;
+            int stepDwell = (numNoLoadStepDwellSec != null && numNoLoadStepDwellSec.Value > 0) ? (int)numNoLoadStepDwellSec.Value : 60;
+
+            // 判斷是否需要由額定轉速起步做階梯式升速 (使用者未勾選額定轉速溫升測試，但第一目標轉速高於額定轉速)
+            bool startsFromRatedLadder = (!chkNoLoadRatedTest.Checked && firstTarget.Item2 > ratedSpd);
+
+            if (startsFromRatedLadder)
+            {
+                noLoadCurrentTargetSpd = ratedSpd;
+                noLoadState = NoLoadState.IntermediateRun;
+            }
+            else
+            {
+                noLoadCurrentTargetSpd = firstTarget.Item2;
+                noLoadState = NoLoadState.RatedWarmup;
+            }
+
             KebWriteParamWithDll(spdCom, spdBaud, spdNode, 0x0F12, 1000);
             KebWriteParam32(spdCom, spdBaud, spdNode, 0x0034, (int)noLoadCurrentTargetSpd, spdName + " 空載轉速 (Sy52)");
             SetHmiKebCommand(spdCom, spdBaud, spdNode, 4, spdName + " 啟轉運轉 (Sy50=4)");
@@ -954,9 +1024,13 @@ namespace DynamometerHMI
             noLoadOverTempDurationSec = 0;
             noLoadCoolingTimerSec = 0;
             noLoadDwellTimerSec = 0;
-            noLoadIntermediateDwellSec = (int)numNoLoadStepDwellSec.Value;
+            noLoadIntermediateDwellSec = stepDwell;
             noLoadPostStableCounter = 0;
             noLoadPostStableStage = "";
+            noLoadStageInitTemp = currentMaxBearing;
+            noLoadCurrentSlope = 0.0;
+            noLoadEstFinalTemp = currentMaxBearing;
+            noLoadEstRemainMin = 0;
 
             if (noLoadTempHistory != null)
             {
@@ -966,11 +1040,22 @@ namespace DynamometerHMI
             if (dgvNoLoad != null) dgvNoLoad.Rows.Clear();
             if (noLoadTempTrend != null) noLoadTempTrend.ClearData();
 
-            noLoadState = NoLoadState.RatedWarmup;
-            webRemoteStatusText = string.Format("【空載-{0}】目標 {1:F0} rpm (比對 30min 溫差 < 1℃)", firstTarget.Item1, noLoadCurrentTargetSpd);
-            webRemotePhaseText = firstTarget.Item1 + "溫升中";
-            lblNoLoadStateBadge.Text = string.Format("【階段 1/{0}: {1}熱平衡】目標: {2:F0} rpm", noLoadActiveTargets.Count, firstTarget.Item1, noLoadCurrentTargetSpd);
-            lblNoLoadStateBadge.ForeColor = Color.FromArgb(2, 132, 199);
+            if (startsFromRatedLadder)
+            {
+                webRemoteStatusText = string.Format("【空載-額定起步階梯】目前 {0:F0} rpm -> 目標 {1} {2:F0} rpm (每階+{3:F0} rpm)",
+                    noLoadCurrentTargetSpd, firstTarget.Item1, firstTarget.Item2, stepSpdVal);
+                webRemotePhaseText = "額定起步階梯加速中";
+                lblNoLoadStateBadge.Text = string.Format("【額定起步階梯推進】目前: {0:F0} rpm (朝向第 1 階段 {1}: {2:F0} rpm)",
+                    noLoadCurrentTargetSpd, firstTarget.Item1, firstTarget.Item2);
+                lblNoLoadStateBadge.ForeColor = Color.FromArgb(79, 70, 229);
+            }
+            else
+            {
+                webRemoteStatusText = string.Format("【空載-{0}】目標 {1:F0} rpm (比對 30min 溫差 < 1℃)", firstTarget.Item1, noLoadCurrentTargetSpd);
+                webRemotePhaseText = firstTarget.Item1 + "溫升中";
+                lblNoLoadStateBadge.Text = string.Format("【階段 1/{0}: {1}熱平衡】目標: {2:F0} rpm", noLoadActiveTargets.Count, firstTarget.Item1, noLoadCurrentTargetSpd);
+                lblNoLoadStateBadge.ForeColor = Color.FromArgb(2, 132, 199);
+            }
 
             // 若尚未啟動硬體遙測輪詢，自動連鎖啟動
             if (!isRunning) BtnStart_Click(null, null);
@@ -983,8 +1068,17 @@ namespace DynamometerHMI
 
             lblNoLoadTargetSpdDisp.Text = string.Format("{0:F0} rpm", noLoadCurrentTargetSpd);
 
-            AddNoLoadLog(DateTime.Now.ToString("HH:mm:ss"), "0", "啟動測試", noLoadCurrentTargetSpd, 0, currentMaxBearing, 0,
-                string.Format("啟動空載測試成功！目標共 {0} 階段 ({1})", noLoadActiveTargets.Count, string.Join(" -> ", noLoadActiveTargets.Select(t => t.Item1 + ":" + t.Item2.ToString("F0") + "rpm"))));
+            if (startsFromRatedLadder)
+            {
+                AddNoLoadLog(DateTime.Now.ToString("HH:mm:ss"), "0", "額定起步階梯", noLoadCurrentTargetSpd, 0, currentMaxBearing, 0,
+                    string.Format("依規範由額定轉速 {0:F0} rpm 啟步，每階 +{1:F0} rpm 停留 {2}s，階梯升速至 {3} {4:F0} rpm",
+                        ratedSpd, stepSpdVal, stepDwell, firstTarget.Item1, firstTarget.Item2));
+            }
+            else
+            {
+                AddNoLoadLog(DateTime.Now.ToString("HH:mm:ss"), "0", "啟動測試", noLoadCurrentTargetSpd, 0, currentMaxBearing, 0,
+                    string.Format("啟動空載測試成功！目標共 {0} 階段 ({1})", noLoadActiveTargets.Count, string.Join(" -> ", noLoadActiveTargets.Select(t => t.Item1 + ":" + t.Item2.ToString("F0") + "rpm"))));
+            }
             WriteHmiLog("NOLOAD_START", string.Format("【開始空載測試】待測={0}, 共 {1} 階段, 梯度={2:F0} rpm, 閥值={3:F1}℃(Ts={4}s, Tn={5}s)",
                 spdName, noLoadActiveTargets.Count, numNoLoadStepSpd.Value, numNoLoadTempLimit.Value, numNoLoadTimeTs.Value, numNoLoadTimeTn.Value));
 
@@ -1107,10 +1201,34 @@ namespace DynamometerHMI
                 double maxDeltaT = 0.0;
                 int maxDeltaCh = -1;
 
+                // 計算即時軸承溫升斜率 (近 120 秒線性回歸) 與穩態終溫估測 (一階熱時間常數 tau = 25 分鐘)
+                const double TAU_MIN = 25.0;
+                noLoadCurrentSlope = CalculateNoLoadThermalSlopePerMin(maxBearingCh, 120);
+
+                if (noLoadCurrentSlope > 0.005)
+                {
+                    noLoadEstFinalTemp = maxBearingTemp + TAU_MIN * noLoadCurrentSlope;
+                    if (noLoadCurrentSlope > 0.0333)
+                    {
+                        double tEst = TAU_MIN * Math.Log(noLoadCurrentSlope / 0.0333);
+                        noLoadEstRemainMin = (int)Math.Max(1.0, Math.Min(120.0, Math.Round(tEst)));
+                    }
+                    else
+                    {
+                        noLoadEstRemainMin = 0; // 當前斜率已小於等於 0.0333 ℃/min，已接近平衡！
+                    }
+                }
+                else
+                {
+                    noLoadEstFinalTemp = maxBearingTemp;
+                    noLoadEstRemainMin = 0;
+                }
+
+                double currentStageRise = (noLoadStageInitTemp > 0) ? Math.Max(0.0, maxBearingTemp - noLoadStageInitTemp) : 0.0;
                 if (noLoadStageElapsedSec < 1800 || baselineSample.Value == null)
                 {
                     int warmupSec = Math.Min(1800, noLoadStageElapsedSec);
-                    lblNoLoadDeltaTDisp.Text = string.Format("累積中 ({0:D2}:{1:D2}/30:00)", stageMins, stageSecs);
+                    lblNoLoadDeltaTDisp.Text = string.Format("累積中 (+{0:F1}℃ | 斜率:{1:+0.00;-0.00}℃/分)", currentStageRise, noLoadCurrentSlope);
                     lblNoLoadDeltaTDisp.ForeColor = Color.FromArgb(139, 92, 246);
                     prgNoLoad.Maximum = 1800;
                     prgNoLoad.Value = warmupSec;
@@ -1138,7 +1256,8 @@ namespace DynamometerHMI
                         }
                     }
 
-                    lblNoLoadDeltaTDisp.Text = string.Format("最大ΔT: {0:F2}℃ (CH{1}) {2}", maxDeltaT, maxDeltaCh + 1, isThermalBalanced ? "達標" : "比對中");
+                    lblNoLoadDeltaTDisp.Text = string.Format("30min最大ΔT:{0:F2}℃(CH{1}) {2} | 斜率:{3:+0.00;-0.00}℃/分",
+                        maxDeltaT, maxDeltaCh + 1, isThermalBalanced ? "達標" : "比對中", noLoadCurrentSlope);
                     lblNoLoadDeltaTDisp.ForeColor = isThermalBalanced ? Color.FromArgb(16, 185, 129) : Color.FromArgb(234, 88, 12);
                 }
 
@@ -1154,6 +1273,13 @@ namespace DynamometerHMI
                 var curTarget = (noLoadActiveTargets != null && noLoadTargetIdx >= 0 && noLoadTargetIdx < noLoadActiveTargets.Count)
                     ? noLoadActiveTargets[noLoadTargetIdx]
                     : new Tuple<string, double>("運轉", noLoadCurrentTargetSpd);
+
+                if (lblNoLoadStatusText != null)
+                {
+                    lblNoLoadStatusText.Text = string.Format("【空載即時運轉評估】當前轉速: {0:F0} rpm | 軸承溫升斜率: {1:+0.00;-0.00} ℃/min | 預估穩態終溫: {2:F1} ℃ | 閥值: {3:F1} ℃\r\n" +
+                        "說明: 30 分鐘溫差 < 1.0 ℃（或斜率 <= 0.033 ℃/min）判定熱平衡達標。若超溫持續 Ts 則降速一半，等待 Tn 冷卻。",
+                        noLoadCurrentTargetSpd, noLoadCurrentSlope, noLoadEstFinalTemp, tempLimit);
+                }
 
                 // =========================================================
                 // 核心狀態機邏輯處理
@@ -1199,9 +1325,32 @@ namespace DynamometerHMI
                         else
                         {
                             noLoadOverTempDurationSec = 0;
-                            lblNoLoadCountdownDisp.Text = string.Format("溫度正常 ({0:F1}℃ < {1:F1}℃) | 階段累積: {2:D2}:{3:D2} / 30:00",
-                                maxBearingTemp, tempLimit, stageMins, stageSecs);
-                            lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(16, 185, 129);
+                            string estStr;
+                            if (noLoadStageElapsedSec >= 45 && noLoadCurrentSlope > 0.01)
+                            {
+                                if (noLoadEstRemainMin <= 0)
+                                {
+                                    estStr = string.Format("預估已趨穩態 (終溫 ~{0:F1}℃)", noLoadEstFinalTemp);
+                                }
+                                else
+                                {
+                                    DateTime estStableTime = now.AddMinutes(noLoadEstRemainMin);
+                                    estStr = string.Format("預估終溫: ~{0:F1}℃ | 預計約 {1} 分鐘後達標 ({2:HH:mm})",
+                                        noLoadEstFinalTemp, noLoadEstRemainMin, estStableTime);
+                                }
+                            }
+                            else if (noLoadStageElapsedSec >= 45)
+                            {
+                                estStr = string.Format("溫升平緩 (終溫 ~{0:F1}℃)", maxBearingTemp);
+                            }
+                            else
+                            {
+                                estStr = "溫升估測分析中 (採樣累積中...)";
+                            }
+
+                            lblNoLoadCountdownDisp.Text = string.Format("【穩態估測】斜率: {0:+0.00;-0.00}℃/分 | {1} | 階段: {2:D2}:{3:D2}/30:00",
+                                noLoadCurrentSlope, estStr, stageMins, stageSecs);
+                            lblNoLoadCountdownDisp.ForeColor = (noLoadEstFinalTemp >= tempLimit) ? Color.FromArgb(234, 88, 12) : Color.FromArgb(16, 185, 129);
                         }
 
                         // 熱平衡判定：滿 30 分鐘且各通道溫差 < 1.0℃ -> 當前轉速達標！
@@ -1284,7 +1433,8 @@ namespace DynamometerHMI
 
                         // 停留觀察時間倒數
                         noLoadDwellTimerSec++;
-                        lblNoLoadCountdownDisp.Text = string.Format("階梯停留觀察中: {0}s / {1}s", noLoadDwellTimerSec, noLoadIntermediateDwellSec);
+                        lblNoLoadCountdownDisp.Text = string.Format("階梯停留觀察中: {0}s / {1}s | 斜率: {2:+0.00;-0.00}℃/分 | 軸承: {3:F1}℃",
+                            noLoadDwellTimerSec, noLoadIntermediateDwellSec, noLoadCurrentSlope, maxBearingTemp);
                         lblNoLoadCountdownDisp.ForeColor = Color.FromArgb(79, 70, 229);
 
                         if (noLoadDwellTimerSec >= noLoadIntermediateDwellSec)
@@ -1299,8 +1449,9 @@ namespace DynamometerHMI
                             {
                                 noLoadState = NoLoadState.RatedWarmup;
                                 noLoadStageElapsedSec = 0;
+                                noLoadStageInitTemp = maxBearingTemp;
                                 AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), curTarget.Item1, noLoadCurrentTargetSpd, actSpd, maxBearingTemp, 0,
-                                    string.Format("已達第 {0} 階段目標轉速 {1:F0} rpm，開始 30 分鐘熱平衡監控！", noLoadTargetIdx + 1, noLoadCurrentTargetSpd));
+                                    string.Format("已達第 {0} 階段目標轉速 {1:F0} rpm，開始 30 分鐘熱平衡監控！(目前溫度: {2:F1}℃)", noLoadTargetIdx + 1, noLoadCurrentTargetSpd, maxBearingTemp));
                             }
                             else
                             {
@@ -1438,16 +1589,17 @@ namespace DynamometerHMI
                     string pName = (noLoadState == NoLoadState.RatedWarmup) ? curTarget.Item1 :
                                    ((noLoadState == NoLoadState.IntermediateRun) ? "階梯運轉" :
                                    ((noLoadState == NoLoadState.CoolingWait) ? "降速冷卻" : "運轉中"));
-                    AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), pName, noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, "定期週期採樣");
+                    string detailLog = string.Format("週期採樣 | 斜率:{0:+0.00;-0.00}℃/分, 預估終溫:{1:F1}℃", noLoadCurrentSlope, noLoadEstFinalTemp);
+                    AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), pName, noLoadCurrentTargetSpd, actSpd, maxBearingTemp, maxDeltaT, detailLog);
                 }
 
                 // 同步遠端 Web Server
                 string actSpdStr = (actSpd > 0.0) ? string.Format("{0:F0} rpm", actSpd) : "無回授";
-                webRemoteStatusText = string.Format("【空載-{0}】目標 {1:F0} rpm (實測: {2}, 最高溫 {3:F1}℃)",
-                    curTarget.Item1, noLoadCurrentTargetSpd, actSpdStr, maxBearingTemp);
-                webRemotePhaseText = string.Format("{0} | ΔT={1:F2}℃",
+                webRemoteStatusText = string.Format("【空載-{0}】目標 {1:F0} rpm (實測: {2}, 最高溫 {3:F1}℃, 斜率: {4:+0.00;-0.00}℃/分)",
+                    curTarget.Item1, noLoadCurrentTargetSpd, actSpdStr, maxBearingTemp, noLoadCurrentSlope);
+                webRemotePhaseText = string.Format("{0} | ΔT={1:F2}℃ | 斜率:{2:+0.00;-0.00}℃/分 | 估終溫:{3:F1}℃",
                     (noLoadState == NoLoadState.RatedWarmup) ? (curTarget.Item1 + "熱平衡比對") : ((noLoadState == NoLoadState.CoolingWait) ? "超溫冷卻等待" : "階梯過渡"),
-                    maxDeltaT);
+                    maxDeltaT, noLoadCurrentSlope, noLoadEstFinalTemp);
             }
             catch (Exception ex)
             {

@@ -163,15 +163,8 @@ if (Test-Path $srcIni) {
 # Unblock all files
 Get-ChildItem $targetDir -Recurse | ForEach-Object { Unblock-File $_.FullName }
 
-# Synchronize to workspace root Release folder (確保無論從 Dyanmometer/Release 還是 Release/ 執行皆能獲取最新驅動與主程式)
-$rootReleaseDir = "c:\Users\peter\OneDrive\Desktop\AI_Projects\Release\Dynamometer_HMI_V${Version}_Portable"
-if (!(Test-Path $rootReleaseDir)) { New-Item -ItemType Directory -Path $rootReleaseDir -Force | Out-Null }
-
-Copy-Item (Join-Path $targetDir "*") $rootReleaseDir -Recurse -Force
-
 Write-Host "🎉 Successfully packaged Release V$Version to:"
 Write-Host "   👉 $targetDir"
-Write-Host "   👉 $rootReleaseDir"
 
 if ($NoPush) {
     Write-Host ""
@@ -202,21 +195,29 @@ $gitExe = $null
 }
 
 if (!$gitExe) {
-    Write-Warning "⚠️  Git not found. Skipping auto-push. Please run push_to_github.bat manually."
+    Write-Warning "⚠️  Git not found. Skipping auto-push. Please run TOOL_Dev_Scripts\push_to_github.bat manually."
 } else {
     $repoRoot = "c:\Users\peter\OneDrive\Desktop\AI_Projects"
     $commitMsg = "Release: Dynamometer HMI V$Version auto-packaged $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
 
     & $gitExe -C $repoRoot add -f "Dyanmometer/Release/" 2>&1 | Write-Host
-    & $gitExe -C $repoRoot add -f "Release/" 2>&1 | Write-Host
     & $gitExe -C $repoRoot add "Dyanmometer/CHANGELOG.md" 2>&1 | Write-Host
     & $gitExe -C $repoRoot add "Dyanmometer/Dyanmometer_Modern/" 2>&1 | Write-Host
     & $gitExe -C $repoRoot add "Dyanmometer/WT333E_XP_Portable_Tester/" 2>&1 | Write-Host
     & $gitExe -C $repoRoot add "WebMonitor.html" 2>&1 | Write-Host
     & $gitExe -C $repoRoot add "Dyanmometer/package_release.ps1" 2>&1 | Write-Host
     & $gitExe -C $repoRoot add "Dyanmometer/Dyanmometer_Report_Engine_Fix_Spec.md" 2>&1 | Write-Host
-    & $gitExe -C $repoRoot add "tools/Auto_Report_Engine.py" 2>&1 | Write-Host
-    & $gitExe -C $repoRoot add "測試報告整合/" 2>&1 | Write-Host
+    if (Test-Path (Join-Path $repoRoot "Dyanmometer\tools\Auto_Report_Engine.py")) {
+        & $gitExe -C $repoRoot add "Dyanmometer/tools/Auto_Report_Engine.py" 2>&1 | Write-Host
+    }
+    if (Test-Path (Join-Path $repoRoot "Dyanmometer\tools\Auto_Report_Generator_GUI.py")) {
+        & $gitExe -C $repoRoot add "Dyanmometer/tools/Auto_Report_Generator_GUI.py" 2>&1 | Write-Host
+    }
+    if (Test-Path (Join-Path $repoRoot "Dyanmometer\測試報告整合")) {
+        & $gitExe -C $repoRoot add "Dyanmometer/測試報告整合/" 2>&1 | Write-Host
+    } elseif (Test-Path (Join-Path $repoRoot "測試報告整合")) {
+        & $gitExe -C $repoRoot add "測試報告整合/" 2>&1 | Write-Host
+    }
 
     # 驗證目標發布執行檔確實已被 Git 暫存或追蹤 (杜絕 .gitignore 誤阻擋)
     $trackedExeRel = "Dyanmometer/Release/Dynamometer_HMI_V${Version}_Portable/Dynamometer_HMI_Pro.exe"
@@ -536,7 +537,7 @@ if (!$gitExe) {
                 Write-Warning "⚠️  GitHub Release creation/upload warning: $_"
             }
         } else {
-            Write-Warning "⚠️  Push failed. Please check GitHub authorization and run push_to_github.bat manually."
+            Write-Warning "⚠️  Push failed. Please check GitHub authorization and run TOOL_Dev_Scripts\push_to_github.bat manually."
         }
     } else {
         Write-Warning "⚠️  Git commit failed. Please check git status manually."

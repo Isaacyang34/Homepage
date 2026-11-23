@@ -59,3 +59,4 @@ if sys.stderr is not None and hasattr(sys.stderr, "reconfigure"):
 # sys.stdout.reconfigure(encoding="utf-8")  <-- 致命！
 # hasattr(sys.stdout, "reconfigure")        <-- 若未判斷 NoneType 亦具隱患
 ```
+

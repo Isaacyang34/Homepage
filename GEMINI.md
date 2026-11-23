@@ -14,10 +14,10 @@
 * **零垃圾日誌原則**：禁止每毫秒無意義刷屏，只留狀態變更、HEX 電文與異常報錯。
 
 ## 2. Dynamometer Project Iteration Rules
-* **Source**: `Dyanmometer/Dyanmometer_Modern/Dynamometer_HMI_WinForms.cs` & `tools/Dynamometer_Device_Tester_GUI.cs`
+* **Source**: `Dyanmometer/Dyanmometer_Modern/Dynamometer_HMI_WinForms.cs` & `Dyanmometer/Dyanmometer_Modern/tools/Dynamometer_Device_Tester_GUI.cs`
 * **Build**: Always compile with `csc.exe` linking both files into `Dynamometer_HMI_Pro.exe`.
-* **Release**: Execute `package_release.ps1 -Version <TargetVersion>` to package the active target release (e.g. `Release/Dynamometer_HMI_V2.5.0_Portable/`). Do NOT overwrite historical archive releases.
-* **Testing Target**: User tests via `Release/Dynamometer_HMI_V2.5.0_Portable/Dynamometer_HMI_Pro.exe` directly (Native winexe, no .vbs needed).
+* **Release**: Execute `package_release.ps1 -Version <TargetVersion>` to package the active target release (e.g. `Dyanmometer/Release/Dynamometer_HMI_V2.5.0_Portable/`). Do NOT overwrite historical archive releases.
+* **Testing Target**: User tests via `Dyanmometer/Release/Dynamometer_HMI_V2.5.0_Portable/Dynamometer_HMI_Pro.exe` directly (Native winexe, no .vbs needed).
 
 ## 3. 通用自動化測試腳本生成規範 (Universal Test Script Generation - 全案子適用)
 * 當收到**「生成自動測試腳本」**或自動化測試指令時，必須強制遵守 **AI 邏輯控制腳本建立原則**：
@@ -45,7 +45,7 @@
 
 ## 5. 變更歷程即時記錄鐵律 (Mandatory Real-Time Changelog Documentation - 全案最高強制規範)
 * **唯一存放路徑 (Single Source of Truth)**：**全案變更紀錄唯一存放於專案源碼根目錄 `Dyanmometer/CHANGELOG.md`**，嚴禁分散存於其他路徑。
-* **發布目錄防污染鐵律 (Clean Release Policy)**：**`Release/` 目錄僅供原生便攜執行（只允許存在 `.exe` 與 `DLL/` 驅動函式庫），嚴禁放置 `CHANGELOG.md` 或任何開發文檔！**
+* **發布目錄防污染鐵律 (Clean Release Policy)**：**`Dyanmometer/Release/`（及各專案內部 `Release/`）目錄僅供原生便攜執行（只允許存在 `.exe` 與 `DLL/` 驅動函式庫），嚴禁放置 `CHANGELOG.md` 或任何開發文檔！**
 * **Changelog-Atomic 鐵律 (同動更新)**：**凡是有任何程式碼、功能、參數或錯誤修復之改動，必須在同一個 Turn 內「原子化同步更新 `Dyanmometer/CHANGELOG.md`」，嚴禁拖延、事後補記或讓使用者提醒！**
 * **未記 Log 視同未完成**：若未在 `Dyanmometer/CHANGELOG.md` 中詳細記錄修改內容、實測日誌依據、根本原因 (Root Cause) 與修復細節，該次修改視同未完成，**嚴禁執行打包發布或向使用者回報結論**！
 * **記錄三要素 (嚴格遵循)**：每次記錄必須精確包含：
@@ -78,7 +78,7 @@
   * **嚴禁明文 Token 上傳**：Git 追蹤之 `dynamometer_layout.ini` 中的 `Token=` 必須永久為空，程式碼內部一律採用 XOR 編碼混淆（`GetEmbeddedToken()`），嚴格杜絕觸發 GitHub Secret Scanning Push Protection 阻擋提交。
   * **設定檔防覆寫保護**：WinForms 在執行 `SaveLayoutConfig()` 儲存視窗版面時，必須完整保留並回寫所有非 UI 區段（如 `[GitHub]`、`[ReportManager]`、`[GoogleDrive]`），嚴禁截斷或清空使用者的 PAT 與外部配置。
 * **發布執行檔 Git 追蹤與 .gitignore 永久白名單 (Binary Tracking & Whitelist Integrity - 杜絕 404)**：
-  * **根目錄白名單保證**：根目錄 `.gitignore` 必須永久設置 `!Dyanmometer/Release/**/*.exe` 與 `!Release/**/*.exe` 白名單，嚴禁被 `*.exe` 全域忽略規則吞沒。
+  * **根目錄白名單保證**：根目錄 `.gitignore` 必須永久設置 `!Dyanmometer/Release/**/*.exe` 白名單，嚴禁被 `*.exe` 全域忽略規則吞沒。
   * **暫存強制驗證防呆**：`package_release.ps1` 暫存指令一律使用 `git add -f "Dyanmometer/Release/"`；且在 `commit` 前必須主動執行 `git ls-files --stage` 驗證目標版號之 `Dynamometer_HMI_Pro.exe` 確實已被 Git 暫存追蹤，若未追蹤直接拋出致命錯誤中斷，嚴禁盲目推送空目錄或幽靈發布！
 * **線上發布 200 OK 實測探測閉鎖 (Post-Release 200-OK Probe Lockout - 嚴禁無效 URL)**：
   * **實測探測鐵律**：凡更新 Firebase RTDB `/update/version.json` 之 `download_url`，**必須在更新前/後立即對該 Raw 下載網址發起 HTTP HEAD 實測探測**！
@@ -355,3 +355,28 @@
      - **物理斷言**：實體內部反向解析之版本，**必須與目標發布版號 (`target_version` / `version.json`) 100% 絕對完全一致**！若不符直接拋出致命錯誤熔斷，拒絕產出與發布幽靈版本！
   4. **發布端 200 OK 實測探測閉鎖 (Post-Release Probe Lockout)**：發布後對遠端 Raw 下載網址發起 HTTP HEAD 實測探測，驗證 `HTTP 200 OK` 且大小符合。
 * **詳細規範**：參考 `.agents/rules/universal_binary_integrity_and_build_gate_rule.md`。
+
+
+## 28. 前端 JavaScript/HTML 零崩潰、例外隔離與交付前靜態審查鐵律 (Frontend JS/HTML Zero-Crash, Exception Isolation & Pre-Flight Verification Gate Rule - 全案最高強制規範)
+* **核心宗旨與零濫報原則 (Zero False-Alarm Disconnect)**：
+  * **嚴格禁止將 DOM 渲染例外與網路斷線混為一談**！前端儀表板的 `fetch()` 網路通訊與 `render()` DOM 畫面操作必須**強制採用二階段物理隔離 Try-Catch 架構**。
+  * 僅當 HTTP 4xx/5xx 或 Socket 真正中斷時才允許標記「連線中斷」；任何 UI 元件渲染異常一律僅記錄於 `console.error`，**絕對嚴禁彈出全機中斷紅框恐嚇使用者**！
+* **ES6 TDZ 順序鐵律與開關焦點防呆 (Anti-TDZ & Boolean Control Integrity)**：
+  * **先宣告後使用**：使用 `const/let` 宣告之變數，其位置必須物理置於任何字串模板（`${var}`）或分支邏輯之上，徹底封死 `ReferenceError: Cannot access before initialization`。
+  * **嚴禁開關焦點鎖死**：`document.activeElement !== target` 僅適用於文字輸入框（防止打字被打斷），**嚴禁套用於 Checkbox/Switch 開關**，確保開關狀態永遠與後端真實數據同步。
+  * **按鈕語意強制生效**：彈窗中凡標有「立即套用」、「儲存並生效」之按鈕，送出之 Payload 強制直接宣告 `enabled: true`，杜絕依賴未同步之開關殘留狀態。
+* **交付前強制靜態預檢閉環 (Pre-Flight Verification Gate - 嚴禁跳步)**：
+  * 凡修改任何前端 `.js` 或 `.html`，向使用者回報前必須主動執行 AST / 語法掃描器，確認無未轉義換行（Unterminated string）、無 TDZ 作用域錯誤。
+  * 每次修改前端腳本，必須同動遞增引用處之防快取版本號（如 `app.js?v=XX.0`），確保使用者重新整理 100% 載入最新修復檔。
+* **詳細規範**：參考 `.agents/rules/frontend_exception_isolation_and_preflight_rule.md`。
+
+
+## 29. 背景殭屍任務即時防呆與用畢即殺最高鐵律 (Zero-Zombie Background Task & Mandatory Clean-Kill Rule - 全案最高強制規範)
+* **核心致命痛點 (The Zombie Task Dilemma)**：
+  * 在 Antigravity 環境中調用 `run_command` 時，若短指令超時或拋錯未完全退出，會被系統自動轉入背景任務 (Background Task)。
+  * **「占著茅坑不拉屎」現象**：該任務實質已無作用或已報錯，卻永久常駐於背景，導致 UI 頂部持續顯示 `1 task running: >_ ...`，且背景進程可能鎖定 `.exe` 或目錄，造成後續編譯或移動失敗！
+* **全案通用三大物理閉鎖防線 (Mandatory 3-Layer Clean-Kill Gate)**：
+  1. **短命令充足超時 (Mandatory Synchronous for Transient Commands)**：凡檔案移動 (`Move-Item`)、複製 (`Copy-Item`)、刪除 (`Remove-Item`)、目錄掃描等瞬態指令，`WaitMsBeforeAsync` **一律強制設置 10000ms (10秒)**，嚴禁盲目設置 500ms 讓短指令跌入背景！
+  2. **回報前強制無聲巡檢與秒殺 (Turn-End Task Audit & Instant Clean-Kill)**：向使用者回報任何結論前，**若有非守護型背景任務殘留，第一動作必須立即主動調用 `manage_task(Action='kill')` 徹底斬殺**！保證向使用者輸出結論時，背景任務清單永遠為 0，絕不讓使用者截圖提醒！
+  3. **建置與進程生命週期閉鎖 (Process Lockout Teardown)**：編譯或測試結束後，必須主動排查作業系統進程鎖（如 `Stop-Process -Force`），杜絕懸空進程鎖死執行檔與二進位產物。
+* **詳細規範**：參考 `.agents/rules/zero_zombie_background_task_rule.md`。

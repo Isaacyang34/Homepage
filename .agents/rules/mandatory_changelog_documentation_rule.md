@@ -5,8 +5,8 @@
    * 全案變更紀錄**唯一存放於專案源碼根目錄：`Dyanmometer/CHANGELOG.md`**。
    * 嚴禁分散在子目錄或任意建立複本。
 2. **發布目錄防污染鐵律 (Clean Release Policy)**：
-   * `Release/`（如 `Release/Dynamometer_HMI_V2.5.0_Portable/`）為便攜測試與使用者直接執行之專屬目錄。
-   * **`Release/` 目錄下嚴禁放置 `CHANGELOG.md` 或任何非執行必備的開發文件**！
+   * `Dyanmometer/Release/`（如 `Dyanmometer/Release/Dynamometer_HMI_V2.5.0_Portable/`）為便攜測試與使用者直接執行之專屬目錄。
+   * **`Dyanmometer/Release/` 目錄下嚴禁放置 `CHANGELOG.md` 或任何非執行必備的開發文件**！
    * 僅允許存在原生可執行檔 `Dynamometer_HMI_Pro.exe` 以及原廠驅動庫 `DLL/`，保持發布目錄 100% 純淨。
 
 ## 核心鐵律

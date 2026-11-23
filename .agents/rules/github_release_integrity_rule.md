@@ -15,7 +15,7 @@
      git push origin gh-pages
      git push origin gh-pages:master --force
      ```
-  3. 全案通用推送腳本（如 `push_to_github.bat` 與 `Dyanmometer/package_release.ps1`）必須強制包含雙分支推送指令，確保網頁端預設檢視（`master`）與 Pages（`gh-pages`）完全 100% 鏡像同步。
+  3. 全案通用推送腳本（如 `TOOL_Dev_Scripts/push_to_github.bat` 與 `Dyanmometer/package_release.ps1`）必須強制包含雙分支推送指令，確保網頁端預設檢視（`master`）與 Pages（`gh-pages`）完全 100% 鏡像同步。
 
 ---
 
@@ -55,7 +55,6 @@
      ```gitignore
      *.exe
      !Dyanmometer/Release/**/*.exe
-     !Release/**/*.exe
      ```
   2. **打包腳本強制暫存與預檢**：
      `package_release.ps1` 執行暫存必須帶有 `-f` 參數：

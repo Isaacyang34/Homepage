@@ -367,30 +367,91 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 8px;
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
         .chart-legend {
             display: flex;
-            gap: 14px;
+            gap: 8px;
             font-size: 12px;
+            flex-wrap: wrap;
+            align-items: center;
         }
 
         .legend-item {
             display: flex;
             align-items: center;
             gap: 6px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: var(--text-primary);
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .legend-item:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.25);
+            transform: translateY(-1px);
+        }
+
+        .legend-item.active {
+            background: rgba(255, 255, 255, 0.09);
+            border-color: rgba(255, 255, 255, 0.25);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+        }
+
+        .legend-item.inactive {
+            opacity: 0.38;
+            background: transparent;
+            border-color: rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
+            text-decoration: line-through;
         }
 
         .legend-dot {
             width: 8px;
             height: 8px;
             border-radius: 50%;
+            transition: all 0.2s ease;
+        }
+
+        .legend-item.active .legend-dot {
+            box-shadow: 0 0 6px currentColor;
+        }
+
+        .legend-item.inactive .legend-dot {
+            background: #64748b !important;
+            box-shadow: none !important;
         }
 
         #chartCanvas {
             width: 100%;
             height: 180px;
             display: block;
+        }
+
+        .btn-tool {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: var(--text-secondary);
+            border-radius: 12px;
+            padding: 3px 10px;
+            font-size: 11px;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s ease;
+        }
+
+        .btn-tool:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: var(--text-primary);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
         }
 
         /* GL820 20 通道溫度矩陣 */
@@ -865,10 +926,22 @@
     <div class="chart-container">
         <div class="chart-header">
             <div class="section-header" style="margin-bottom: 0;">📈 即時動力滾動趨勢 (Live 60s Trend)</div>
-            <div class="chart-legend">
-                <div class="legend-item"><span class="legend-dot" style="background: var(--cyan);"></span> 轉速 (RPM)</div>
-                <div class="legend-item"><span class="legend-dot" style="background: var(--amber);"></span> 扭力 (N·m)</div>
-                <div class="legend-item"><span class="legend-dot" style="background: var(--purple);"></span> 功率 (kW)</div>
+            <div class="chart-legend" id="chartLegend">
+                <div class="legend-item active" id="legend_speed" onclick="toggleChartSeries('speed')" title="點擊切換顯示/隱藏 轉速曲線">
+                    <span class="legend-dot" style="background: var(--cyan); color: var(--cyan);"></span> 轉速 (RPM)
+                </div>
+                <div class="legend-item active" id="legend_torque" onclick="toggleChartSeries('torque')" title="點擊切換顯示/隱藏 扭力曲線">
+                    <span class="legend-dot" style="background: var(--amber); color: var(--amber);"></span> 扭力 (N·m)
+                </div>
+                <div class="legend-item active" id="legend_power" onclick="toggleChartSeries('power')" title="點擊切換顯示/隱藏 功率曲線">
+                    <span class="legend-dot" style="background: var(--purple); color: var(--purple);"></span> 功率 (kW)
+                </div>
+                <div class="legend-item inactive" id="legend_temp" onclick="toggleChartSeries('temp')" title="點擊切換顯示/隱藏 軸承溫度曲線">
+                    <span class="legend-dot" style="background: var(--rose); color: var(--rose);"></span> 溫度 (°C)
+                </div>
+                <div class="legend-item inactive" id="legend_current" onclick="toggleChartSeries('current')" title="點擊切換顯示/隱藏 電流曲線">
+                    <span class="legend-dot" style="background: var(--emerald); color: var(--emerald);"></span> 電流 (A)
+                </div>
             </div>
         </div>
         <canvas id="chartCanvas"></canvas>
@@ -883,6 +956,24 @@
         <div class="temp-grid" id="tempGridContainer">
             <!-- 由 JS 動態生成 CH1 ~ CH20 -->
         </div>
+
+        <!-- GL820 溫度多通道即時滾動走勢圖 -->
+        <div class="chart-container" style="margin-top: 16px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.05); padding: 14px 16px; border-radius: 12px;">
+            <div class="chart-header">
+                <div class="section-header" style="margin-bottom: 0; font-size: 14px;">📈 GL820 溫度多通道即時滾動趨勢 (Live 60s Temperature Trend)</div>
+                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                    <button type="button" class="btn-tool" onclick="setAllTempChannels(true)">全選</button>
+                    <button type="button" class="btn-tool" onclick="setAllTempChannels(false)">全清</button>
+                    <button type="button" class="btn-tool" onclick="setDefaultTempChannels()">預設 (CH1~4)</button>
+                </div>
+            </div>
+            <div class="chart-legend" id="tempChartLegend" style="margin-bottom: 10px; max-height: 80px; overflow-y: auto; padding: 2px 0;">
+                <!-- JS 動態生成「最高溫」與 CH1 ~ CH20 膠囊開關 -->
+            </div>
+            <canvas id="tempChartCanvas" style="width: 100%; height: 180px; display: block;"></canvas>
+        </div>
+    </div>
+
     <!-- 雲端測試報告與壓縮包下載專區 -->
     <div class="section-card" id="cardReportDownload" style="display:none; margin-bottom: 24px; border: 1px solid rgba(16, 185, 129, 0.4); background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(15, 23, 42, 0.9) 100%);">
         <div class="section-header">
@@ -900,7 +991,6 @@
                 ⬇️ 一鍵下載報告 ZIP
             </button>
         </div>
-    </div>
     </div>
 
     <footer>
@@ -925,8 +1015,189 @@
         const historyPoints = {
             speed: [],
             torque: [],
-            power: []
+            power: [],
+            temp: [],
+            current: []
         };
+
+        // 趨勢圖曲線自訂顯示狀態與 localStorage 持久化記憶
+        const chartVisibility = {
+            speed: true,
+            torque: true,
+            power: true,
+            temp: false,
+            current: false
+        };
+
+        try {
+            const savedVisible = localStorage.getItem("webmonitor_chart_visible");
+            if (savedVisible) {
+                const parsed = JSON.parse(savedVisible);
+                Object.assign(chartVisibility, parsed);
+            }
+        } catch (e) { }
+
+        function updateLegendUI() {
+            for (const key in chartVisibility) {
+                const el = document.getElementById("legend_" + key);
+                if (el) {
+                    if (chartVisibility[key]) {
+                        el.classList.remove("inactive");
+                        el.classList.add("active");
+                    } else {
+                        el.classList.remove("active");
+                        el.classList.add("inactive");
+                    }
+                }
+            }
+        }
+
+        function toggleChartSeries(key) {
+            if (chartVisibility.hasOwnProperty(key)) {
+                chartVisibility[key] = !chartVisibility[key];
+                try {
+                    localStorage.setItem("webmonitor_chart_visible", JSON.stringify(chartVisibility));
+                } catch (e) { }
+                updateLegendUI();
+                drawChart();
+            }
+        }
+
+        // 頁面初始化刷新圖例狀態
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", updateLegendUI);
+        } else {
+            updateLegendUI();
+        }
+
+        // ────────────────────────────────────────────
+        // 溫度多通道走勢圖設定與資料快取
+        // ────────────────────────────────────────────
+        const TEMP_CHANNEL_COLORS = {
+            max: "#ef4444",
+            ch1: "#38bdf8",
+            ch2: "#f59e0b",
+            ch3: "#10b981",
+            ch4: "#a855f7",
+            ch5: "#ec4899",
+            ch6: "#3b82f6",
+            ch7: "#84cc16",
+            ch8: "#f97316",
+            ch9: "#06b6d4",
+            ch10: "#8b5cf6",
+            ch11: "#14b8a6",
+            ch12: "#eab308",
+            ch13: "#d946ef",
+            ch14: "#6366f1",
+            ch15: "#22c55e",
+            ch16: "#f43f5e",
+            ch17: "#0ea5e9",
+            ch18: "#a3e635",
+            ch19: "#fb923c",
+            ch20: "#c084fc"
+        };
+
+        const tempHistoryPoints = {
+            max: []
+        };
+        for (let i = 1; i <= 20; i++) {
+            tempHistoryPoints[`ch${i}`] = [];
+        }
+
+        const tempChannelVisibility = {
+            max: true,
+            ch1: true,
+            ch2: true,
+            ch3: true,
+            ch4: true
+        };
+        for (let i = 5; i <= 20; i++) {
+            tempChannelVisibility[`ch${i}`] = false;
+        }
+
+        try {
+            const savedTempVis = localStorage.getItem("webmonitor_temp_chart_visible");
+            if (savedTempVis) {
+                const parsed = JSON.parse(savedTempVis);
+                Object.assign(tempChannelVisibility, parsed);
+            }
+        } catch (e) { }
+
+        function initTempChartLegend() {
+            const container = document.getElementById("tempChartLegend");
+            if (!container) return;
+            container.innerHTML = "";
+
+            // 1. 最高溫膠囊
+            const maxPill = document.createElement("div");
+            maxPill.className = `legend-item ${tempChannelVisibility.max ? "active" : "inactive"}`;
+            maxPill.id = "legend_temp_max";
+            maxPill.title = "點擊切換顯示/隱藏 軸承最高溫曲線";
+            maxPill.onclick = () => toggleTempChannel("max");
+            maxPill.innerHTML = `<span class="legend-dot" style="background: ${TEMP_CHANNEL_COLORS.max}; color: ${TEMP_CHANNEL_COLORS.max};"></span> 最高溫 (Max)`;
+            container.appendChild(maxPill);
+
+            // 2. CH1 ~ CH20 膠囊
+            for (let i = 1; i <= 20; i++) {
+                const key = `ch${i}`;
+                const pill = document.createElement("div");
+                pill.className = `legend-item ${tempChannelVisibility[key] ? "active" : "inactive"}`;
+                pill.id = `legend_temp_${key}`;
+                pill.title = `點擊切換顯示/隱藏 CH${i} 溫度曲線`;
+                pill.onclick = () => toggleTempChannel(key);
+                pill.innerHTML = `<span class="legend-dot" style="background: ${TEMP_CHANNEL_COLORS[key]}; color: ${TEMP_CHANNEL_COLORS[key]};"></span> CH${i}`;
+                container.appendChild(pill);
+            }
+        }
+
+        function toggleTempChannel(key) {
+            if (tempChannelVisibility.hasOwnProperty(key)) {
+                tempChannelVisibility[key] = !tempChannelVisibility[key];
+                try {
+                    localStorage.setItem("webmonitor_temp_chart_visible", JSON.stringify(tempChannelVisibility));
+                } catch (e) { }
+                updateTempLegendUI();
+                drawTempChart();
+            }
+        }
+
+        function updateTempLegendUI() {
+            for (const key in tempChannelVisibility) {
+                const el = document.getElementById(`legend_temp_${key}`);
+                if (el) {
+                    if (tempChannelVisibility[key]) {
+                        el.classList.remove("inactive");
+                        el.classList.add("active");
+                    } else {
+                        el.classList.remove("active");
+                        el.classList.add("inactive");
+                    }
+                }
+            }
+        }
+
+        function setAllTempChannels(enable) {
+            for (const key in tempChannelVisibility) {
+                tempChannelVisibility[key] = enable;
+            }
+            try {
+                localStorage.setItem("webmonitor_temp_chart_visible", JSON.stringify(tempChannelVisibility));
+            } catch (e) { }
+            updateTempLegendUI();
+            drawTempChart();
+        }
+
+        function setDefaultTempChannels() {
+            tempChannelVisibility.max = true;
+            for (let i = 1; i <= 20; i++) {
+                tempChannelVisibility[`ch${i}`] = (i <= 4);
+            }
+            try {
+                localStorage.setItem("webmonitor_temp_chart_visible", JSON.stringify(tempChannelVisibility));
+            } catch (e) { }
+            updateTempLegendUI();
+            drawTempChart();
+        }
 
         // ================================================================
         //  雲端連線設定 (智慧自適應雙模連線: 本地極速 SSE + 雲端 Firebase RTDB)
@@ -1484,11 +1755,15 @@
         // 初始化溫度格子
         function initTempGrid() {
             const container = document.getElementById("tempGridContainer");
+            if (!container) return;
             container.innerHTML = "";
             for (let i = 1; i <= 20; i++) {
                 const cell = document.createElement("div");
                 cell.className = "temp-cell";
                 cell.id = `tempCell_${i}`;
+                cell.style.cursor = "pointer";
+                cell.title = `點擊切換 CH${i} 在下方趨勢圖之顯示`;
+                cell.onclick = () => toggleTempChannel(`ch${i}`);
                 cell.innerHTML = `
                     <div class="temp-ch-name">CH${i}</div>
                     <div class="temp-val" id="tempVal_${i}">--</div>
@@ -1611,19 +1886,26 @@
                 });
             }
 
-            // 推入歷史圖表 (負數測定值轉為絕對值顯示)
-            pushChartData(absSpeed, absTorque, absMechPower);
+            // 推入歷史圖表 (負數測定值轉為絕對值顯示，同步納入溫度與電流)
+            const curTemp = (data.temp_max != null) ? Number(data.temp_max) : 0.0;
+            const curAmp = (data.current_sigma != null) ? Number(data.current_sigma) : 0.0;
+            pushChartData(absSpeed, absTorque, absMechPower, curTemp, curAmp);
+            pushTempData(curTemp, data.temp_ch);
         }
 
         // 推入圖表數據 (確保負數轉為絕對值)
-        function pushChartData(spd, trq, pwr) {
-            historyPoints.speed.push(Math.abs(spd));
-            historyPoints.torque.push(Math.abs(trq));
-            historyPoints.power.push(Math.abs(pwr));
+        function pushChartData(spd, trq, pwr, tmp, cur) {
+            historyPoints.speed.push(Math.abs(spd || 0));
+            historyPoints.torque.push(Math.abs(trq || 0));
+            historyPoints.power.push(Math.abs(pwr || 0));
+            historyPoints.temp.push(Math.max(0, tmp || 0));
+            historyPoints.current.push(Math.abs(cur || 0));
 
             if (historyPoints.speed.length > MAX_POINTS) historyPoints.speed.shift();
             if (historyPoints.torque.length > MAX_POINTS) historyPoints.torque.shift();
             if (historyPoints.power.length > MAX_POINTS) historyPoints.power.shift();
+            if (historyPoints.temp.length > MAX_POINTS) historyPoints.temp.shift();
+            if (historyPoints.current.length > MAX_POINTS) historyPoints.current.shift();
 
             drawChart();
         }
@@ -1661,10 +1943,12 @@
             const len = historyPoints.speed.length;
             if (len < 2) return;
 
-            // 計算最大縮放範圍
+            // 計算各曲線最大縮放範圍
             const maxSpd = Math.max(3000, ...historyPoints.speed);
             const maxTrq = Math.max(50, ...historyPoints.torque);
             const maxPwr = Math.max(10, ...historyPoints.power);
+            const maxTmp = Math.max(100, ...historyPoints.temp);
+            const maxCur = Math.max(30, ...historyPoints.current);
 
             // 繪製單條曲線函數
             function plotLine(data, maxVal, color) {
@@ -1681,9 +1965,144 @@
                 ctx.stroke();
             }
 
-            plotLine(historyPoints.speed, maxSpd, "#38bdf8"); // 轉速 (Cyan)
-            plotLine(historyPoints.torque, maxTrq, "#f59e0b"); // 扭力 (Amber)
-            plotLine(historyPoints.power, maxPwr, "#a855f7");  // 功率 (Purple)
+            let visibleCount = 0;
+            if (chartVisibility.speed) { plotLine(historyPoints.speed, maxSpd, "#38bdf8"); visibleCount++; }
+            if (chartVisibility.torque) { plotLine(historyPoints.torque, maxTrq, "#f59e0b"); visibleCount++; }
+            if (chartVisibility.power) { plotLine(historyPoints.power, maxPwr, "#a855f7"); visibleCount++; }
+            if (chartVisibility.temp) { plotLine(historyPoints.temp, maxTmp, "#f43f5e"); visibleCount++; }
+            if (chartVisibility.current) { plotLine(historyPoints.current, maxCur, "#10b981"); visibleCount++; }
+
+            if (visibleCount === 0) {
+                ctx.fillStyle = "rgba(148, 163, 184, 0.6)";
+                ctx.font = "13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("請點擊上方圖例選取欲顯示的即時曲線", w / 2, h / 2);
+            }
+        }
+
+        // 推入溫度多通道數據
+        function pushTempData(maxT, chTemps) {
+            const validMax = (maxT != null && !isNaN(maxT) && maxT > -50 && maxT < 999) ? Number(maxT) : 0;
+            tempHistoryPoints.max.push(validMax);
+            if (tempHistoryPoints.max.length > MAX_POINTS) tempHistoryPoints.max.shift();
+
+            for (let i = 1; i <= 20; i++) {
+                const key = `ch${i}`;
+                let v = 0;
+                if (chTemps && chTemps.length >= i) {
+                    const raw = Number(chTemps[i - 1]);
+                    if (!isNaN(raw) && raw > -50 && raw < 999) v = raw;
+                }
+                tempHistoryPoints[key].push(v);
+                if (tempHistoryPoints[key].length > MAX_POINTS) tempHistoryPoints[key].shift();
+            }
+
+            drawTempChart();
+        }
+
+        // 繪製 GL820 溫度多通道即時走勢圖
+        function drawTempChart() {
+            const canvas = document.getElementById("tempChartCanvas");
+            if (!canvas) return;
+            const ctx = canvas.getContext("2d");
+
+            const rect = canvas.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+
+            const w = rect.width;
+            const h = rect.height;
+
+            ctx.clearRect(0, 0, w, h);
+
+            // 背景網格線
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
+            ctx.lineWidth = 1;
+            const gridLines = 4;
+            for (let i = 0; i <= gridLines; i++) {
+                const y = (h / gridLines) * i;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+                ctx.stroke();
+            }
+
+            const len = tempHistoryPoints.max.length;
+            if (len < 2) return;
+
+            // 計算當前可見通道的最小與最大溫度
+            let minT = 999;
+            let maxT = -999;
+            let visibleCount = 0;
+
+            const activeKeys = [];
+            for (const key in tempChannelVisibility) {
+                if (tempChannelVisibility[key]) {
+                    activeKeys.push(key);
+                    visibleCount++;
+                    const arr = tempHistoryPoints[key];
+                    if (arr && arr.length > 0) {
+                        for (let i = 0; i < arr.length; i++) {
+                            const val = arr[i];
+                            if (val > 0) {
+                                if (val < minT) minT = val;
+                                if (val > maxT) maxT = val;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (visibleCount === 0) {
+                ctx.fillStyle = "rgba(148, 163, 184, 0.6)";
+                ctx.font = "13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("請點擊上方通道標籤選取欲顯示的溫度曲線", w / 2, h / 2);
+                return;
+            }
+
+            if (minT === 999) minT = 20;
+            if (maxT === -999) maxT = 60;
+
+            // 自動縮放刻度範圍 (邊界緩衝 +3℃，最小跨度 15℃)
+            let scaleMin = Math.max(0, Math.floor(minT - 3));
+            let scaleMax = Math.ceil(maxT + 3);
+            if (scaleMax - scaleMin < 15) {
+                scaleMax = scaleMin + 15;
+            }
+
+            // 繪製 Y 軸參考標籤 (刻度文字)
+            ctx.fillStyle = "rgba(148, 163, 184, 0.4)";
+            ctx.font = "10px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+            ctx.textAlign = "left";
+            for (let i = 0; i <= gridLines; i++) {
+                const y = (h / gridLines) * i;
+                const tempVal = scaleMax - (i / gridLines) * (scaleMax - scaleMin);
+                ctx.fillText(`${tempVal.toFixed(0)}°C`, 6, Math.min(h - 4, Math.max(12, y - 3)));
+            }
+
+            // 繪製單條溫度曲線
+            function plotTempLine(data, color) {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                for (let i = 0; i < len; i++) {
+                    const x = (w / (MAX_POINTS - 1)) * (MAX_POINTS - len + i);
+                    const val = data[i] || scaleMin;
+                    const norm = Math.min(1, Math.max(0, (val - scaleMin) / (scaleMax - scaleMin)));
+                    const y = h - (norm * (h - 20)) - 10;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+
+            for (const key of activeKeys) {
+                const color = TEMP_CHANNEL_COLORS[key] || "#38bdf8";
+                plotTempLine(tempHistoryPoints[key], color);
+            }
         }
 
         // 連接 SSE 串流 (優先本地 HMI 原生 SSE，免經過外網)
@@ -1856,6 +2275,7 @@
             checkWhitelistStatus();
         });
         initTempGrid();
+        initTempChartLegend();
         connectFirebaseSSE();
         pollTimer = setInterval(fetchPollingFallback, 800);
         initVisitorAudit();

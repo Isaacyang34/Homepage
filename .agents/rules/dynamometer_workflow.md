@@ -17,9 +17,9 @@
    * 產出無外部相依的可執行檔 `Dynamometer_HMI_Pro.exe`。
 3. **封裝發布至 Release**：
    * 執行 `package_release.ps1`。
-   * 自動同步至 `Release\Dynamometer_HMI_V2.3.0_Portable\` 與 `Release\Dynamometer_HMI_V2.4.0_Portable\`。
+   * 自動同步至 `Dyanmometer\Release\Dynamometer_HMI_V2.3.0_Portable\` 與 `Dyanmometer\Release\Dynamometer_HMI_V2.4.0_Portable\`。
    * 確保所有驅動 DLL (`tmctl.dll`, `USBTMCAPI.dll` 等)、設定檔 (`dynamometer_layout.ini`) 與無黑框啟動器 (`啟動系統.vbs`) 均就緒。
 4. **自動化驗證 (Verification)**：
    * 執行 `generate_snapshot.ps1` 產生實際渲染截圖，確認 UI 排版正常、繁體中文無亂碼、按鈕元件無衝突。
 5. **回報與測試指示**：
-   * 向使用者清楚報告修改內容，並提示直接由 `Release\Dynamometer_HMI_V2.3.0_Portable\啟動系統.vbs` 進行實機測試。
+   * 向使用者清楚報告修改內容，並提示直接由 `Dyanmometer\Release\Dynamometer_HMI_V2.3.0_Portable\啟動系統.vbs` 進行實機測試。

@@ -80,3 +80,4 @@ if ($realVersion -ne $targetVersion) {
     throw "實體二進位版號 ($realVersion) 與發布版號 ($targetVersion) 不一致！熔斷發布！"
 }
 ```
+
