@@ -4223,22 +4223,44 @@ namespace DynamometerHMI
             // 定期採樣記錄 (每 5 秒，以標準時間戳與經過秒數雙軌儲存)
             if (dutyElapsedSec % 5 == 0)
             {
+                double validSpeed = Math.Abs(actSpeed);
+                double validTorque = Math.Abs(actTorque);
+                double validMechPower = Math.Abs(actMechPower);
+                double validEfficiency = Math.Abs(actEfficiency);
+
+                int atIdx = FindAmbientTempChannelIndex();
+                double tAmbient = (atIdx >= 0 && gbdChTemps != null && atIdx < gbdChTemps.Length && gbdChTemps[atIdx] > 0) ? gbdChTemps[atIdx] : GetNamedTempChannel("AT", -1, 25.0);
+                double tCoil = GetCurrentPeakTemp();
+                double tBearingF = GetNamedTempChannel("BEARINGF", -1, GetNamedTempChannel("FB", -1, 0.0));
+                double tBearingR = GetNamedTempChannel("BEARINGR", -1, GetNamedTempChannel("BB", -1, 0.0));
+                double tEncoder = GetNamedTempChannel("ENC", -1, 0.0);
+                double tWaterIn = GetNamedTempChannel("WIN", -1, 0.0);
+                double tWaterOut = GetNamedTempChannel("WOUT", -1, 0.0);
+
                 dutyResults.Add(new string[] {
                     now.ToString("yyyy-MM-dd HH:mm:ss"),
                     dutyElapsedSec.ToString(),
                     currentPhaseName,
-                    actSpeed.ToString("F1"),
+                    validSpeed.ToString("F1"),
                     actFrequency.ToString("F2"),
-                    wtFreqU.ToString("F2"),
-                    wtFreqI.ToString("F2"),
-                    actTorque.ToString("F2"),
-                    Math.Abs(actMechPower).ToString("F2"),
-                    Math.Abs(actEfficiency).ToString("F1"),
-                    actTemp.ToString("F1"),
-                    actVoltageSigma.ToString("F1"),
-                    actCurrentSigma.ToString("F2"),
+                    validTorque.ToString("F2"),
+                    validMechPower.ToString("F2"),
+                    validEfficiency.ToString("F1"),
+                    (wtU1 > 0 ? wtU1 : (float)actVoltageSigma).ToString("F1"),
+                    (wtU2 > 0 ? wtU2 : (float)actVoltageSigma).ToString("F1"),
+                    (wtU3 > 0 ? wtU3 : (float)actVoltageSigma).ToString("F1"),
+                    (wtI1 > 0 ? wtI1 : (float)actCurrentSigma).ToString("F2"),
+                    (wtI2 > 0 ? wtI2 : (float)actCurrentSigma).ToString("F2"),
+                    (wtI3 > 0 ? wtI3 : (float)actCurrentSigma).ToString("F2"),
                     actElecPower.ToString("F2"),
-                    actPf.ToString("F3")
+                    actPf.ToString("F3"),
+                    tAmbient.ToString("F1"),
+                    tCoil.ToString("F1"),
+                    tBearingF.ToString("F1"),
+                    tBearingR.ToString("F1"),
+                    tEncoder.ToString("F1"),
+                    tWaterIn.ToString("F1"),
+                    tWaterOut.ToString("F1")
                 });
             }
 
@@ -4420,8 +4442,6 @@ namespace DynamometerHMI
 
                 string fileName = string.Format("{0}_Duty_{1}_{2}_{3}.csv", mName, formalDutyTag, statusTag, timeStamp);
                 string path = Path.Combine(logDir, fileName);
-                string legacyName = string.Format("Report_Duty_{0}_{1}.csv", dutyPrefix, timeStamp);
-                string legacyPath = Path.Combine(logDir, legacyName);
 
                 using (StreamWriter sw = new StreamWriter(path, false, Encoding.UTF8))
                 {
@@ -4476,13 +4496,12 @@ namespace DynamometerHMI
                         sw.WriteLine(string.Format("# ExtrapolatedT2_NoLoad_min: {0:F2}", ext.ExtrapolatedT2Min));
                     }
                     sw.WriteLine("# ========================================================================================");
-                    sw.WriteLine("StandardTime,ElapsedSec,Phase,Speed_rpm,Frequency_Hz,Freq_U1_Hz,Freq_I1_Hz,Torque_Nm,MechPower_kW,Efficiency_pct,Temp_C,Voltage_Sigma_V,Current_Sigma_A,ElecPower_kW,PowerFactor");
+                    sw.WriteLine("StandardTime,ElapsedSec,Phase,Speed_rpm,Frequency_Hz,Torque_Nm,MechPower_kW,Efficiency_pct,Voltage_U1_V,Voltage_U2_V,Voltage_U3_V,Current_I1_A,Current_I2_A,Current_I3_A,ElecPower_kW,PowerFactor,T_Ambient_C,T_Coil_C,T_BearingF_C,T_BearingR_C,T_Encoder_C,T_WaterIn_C,T_WaterOut_C");
                     foreach (var row in dutyResults)
                     {
                         sw.WriteLine(string.Join(",", row));
                     }
                 }
-                try { File.Copy(path, legacyPath, true); } catch { }
                 PurgeLocalLogs(false);
                 WriteHmiLog("DUTY_EXPORT", string.Format("【{0} 報表自動存檔成功】已儲存至: {1} (狀態: {2} | 共 {3} 筆記錄)", dutyPrefix, path, statusTag, dutyResults.Count));
                 if (showDialog)
@@ -4507,6 +4526,30 @@ namespace DynamometerHMI
             int modeIdx = (cmbDutyMode != null && cmbDutyMode.SelectedIndex >= 0) ? cmbDutyMode.SelectedIndex : 0;
             string prefix = (modeIdx == 0) ? "S1" : ((modeIdx == 1) ? "S2" : "S6");
             SaveDutyTestReportCsv(prefix, showDialog: true);
+        }
+
+        private double GetNamedTempChannel(string keyword, int fallbackChannelIndex, double defaultVal = 0.0)
+        {
+            if (gl820ChannelNames != null && gbdChTemps != null)
+            {
+                for (int i = 0; i < gl820ChannelNames.Length && i < gbdChTemps.Length && i < 20; i++)
+                {
+                    string name = gl820ChannelNames[i];
+                    if (string.IsNullOrEmpty(name)) continue;
+                    string clean = name.ToUpper().Trim().Replace("-", "").Replace("_", "").Replace(" ", "");
+                    if (clean.Contains(keyword.ToUpper()))
+                    {
+                        double t = gbdChTemps[i];
+                        if (t > -40.0 && t < 400.0 && Math.Abs(t) > 0.01) return t;
+                    }
+                }
+            }
+            if (gbdChTemps != null && fallbackChannelIndex >= 0 && fallbackChannelIndex < gbdChTemps.Length)
+            {
+                double t = gbdChTemps[fallbackChannelIndex];
+                if (t > -40.0 && t < 400.0 && Math.Abs(t) > 0.01) return t;
+            }
+            return defaultVal;
         }
 
         private bool HasWaterCoolingChannels()

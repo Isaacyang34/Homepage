@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Version = "2.5.0",
     [switch]$NoPush = $false
 )
@@ -214,6 +214,9 @@ if (!$gitExe) {
     & $gitExe -C $repoRoot add "Dyanmometer/WT333E_XP_Portable_Tester/" 2>&1 | Write-Host
     & $gitExe -C $repoRoot add "WebMonitor.html" 2>&1 | Write-Host
     & $gitExe -C $repoRoot add "Dyanmometer/package_release.ps1" 2>&1 | Write-Host
+    & $gitExe -C $repoRoot add "Dyanmometer/Dyanmometer_Report_Engine_Fix_Spec.md" 2>&1 | Write-Host
+    & $gitExe -C $repoRoot add "tools/Auto_Report_Engine.py" 2>&1 | Write-Host
+    & $gitExe -C $repoRoot add "測試報告整合/" 2>&1 | Write-Host
 
     # 驗證目標發布執行檔確實已被 Git 暫存或追蹤 (杜絕 .gitignore 誤阻擋)
     $trackedExeRel = "Dyanmometer/Release/Dynamometer_HMI_V${Version}_Portable/Dynamometer_HMI_Pro.exe"
