@@ -1234,8 +1234,27 @@ namespace DynamometerHMI
             if (numS6AnchorNoLoadSpd != null) numS6AnchorNoLoadSpd.ReadOnly = isRunning;
             if (numS6AnchorLoadedSpd != null) numS6AnchorLoadedSpd.ReadOnly = isRunning;
             if (numS6AnchorLoadedCs18 != null) numS6AnchorLoadedCs18.ReadOnly = isRunning;
+            if (numS6WarnTemp != null) numS6WarnTemp.ReadOnly = isRunning;
+            if (numS6TripTemp != null) numS6TripTemp.ReadOnly = isRunning;
+            if (cmbS6OvertempAction != null) cmbS6OvertempAction.Enabled = !isRunning;
             if (numDutySpeed != null) numDutySpeed.ReadOnly = isRunning;
             if (numDutyTorque != null) numDutyTorque.ReadOnly = isRunning;
+            if (numDutyOverCurrentPct != null) numDutyOverCurrentPct.ReadOnly = isRunning;
+            if (numDutyOverCurrentDelay != null) numDutyOverCurrentDelay.ReadOnly = isRunning;
+            if (numDutyRevTrqTimeout != null) numDutyRevTrqTimeout.ReadOnly = isRunning;
+
+            if (numDutyMiniSpd != null) numDutyMiniSpd.ReadOnly = isRunning;
+            if (numDutyMiniTrq != null) numDutyMiniTrq.ReadOnly = isRunning;
+            if (numDutyMiniCycleMin != null) numDutyMiniCycleMin.ReadOnly = isRunning;
+            if (numDutyMiniEd != null) numDutyMiniEd.ReadOnly = isRunning;
+            if (numDutyMiniCycles != null) numDutyMiniCycles.ReadOnly = isRunning;
+            if (numDutyMiniS2Sy52 != null) numDutyMiniS2Sy52.ReadOnly = isRunning;
+            if (numDutyMiniS2Cs18 != null) numDutyMiniS2Cs18.ReadOnly = isRunning;
+            if (numDutyMiniS6NoLoadSpd != null) numDutyMiniS6NoLoadSpd.ReadOnly = isRunning;
+            if (numDutyMiniS6LoadedSpd != null) numDutyMiniS6LoadedSpd.ReadOnly = isRunning;
+            if (numDutyMiniS6LoadedCs18 != null) numDutyMiniS6LoadedCs18.ReadOnly = isRunning;
+            if (cmbDutyMiniMode != null) cmbDutyMiniMode.Enabled = !isRunning;
+            if (cmbDutyMiniRole != null) cmbDutyMiniRole.Enabled = !isRunning;
 
             if (cmbDutyMainMode != null) cmbDutyMainMode.Enabled = !isRunning;
             if (cmbDutyRole != null) cmbDutyRole.Enabled = !isRunning;
@@ -1252,6 +1271,29 @@ namespace DynamometerHMI
             if (btnS6AnchorNoLoad != null) btnS6AnchorNoLoad.Enabled = !isRunning;
             if (btnS6AnchorLoaded != null) btnS6AnchorLoaded.Enabled = !isRunning;
             if (btnS6ResetAnchor != null) btnS6ResetAnchor.Enabled = !isRunning;
+        }
+
+        public void ResetDutyTestToStandby()
+        {
+            if (this.InvokeRequired)
+            {
+                this.BeginInvoke((MethodInvoker)ResetDutyTestToStandby);
+                return;
+            }
+            if (dutyTimer != null) dutyTimer.Stop();
+            SetDutyControlsReadOnly(false);
+            if (pnlDutyLiveMonitor != null) pnlDutyLiveMonitor.Visible = false;
+            if (txtDutyPreflightSummary != null)
+            {
+                txtDutyPreflightSummary.Visible = true;
+                txtDutyPreflightSummary.BringToFront();
+            }
+            if (btnStartDuty != null) btnStartDuty.Enabled = true;
+            if (btnStopDuty != null) btnStopDuty.Enabled = false;
+            if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
+            if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
+            UpdateDutyPreflightSummary();
+            UpdateSafetyInterlock();
         }
 
         private void OnDutySpeedNudge(NumericUpDown senderNum, decimal newVal)
@@ -1909,11 +1951,7 @@ namespace DynamometerHMI
         // =========================================================================
         private void StopDutyTest()
         {
-            if (dutyTimer != null) dutyTimer.Stop();
-            SetDutyControlsReadOnly(false);
-            if (pnlDutyLiveMonitor != null) pnlDutyLiveMonitor.Visible = false;
-            if (txtDutyPreflightSummary != null) { txtDutyPreflightSummary.Visible = true; txtDutyPreflightSummary.BringToFront(); }
-            UpdateDutyPreflightSummary();
+            ResetDutyTestToStandby();
             if (isManualRecording)
             {
                 StopManualRecording(showPrompt: false);
@@ -1987,10 +2025,7 @@ namespace DynamometerHMI
             int trqDrive = (spdDrive == 1) ? 2 : 1;
 
             StartGradualAutoStop(spdDrive, trqDrive, "手動終止工作制測試", () => {
-                if (btnStartDuty != null) btnStartDuty.Enabled = true;
-                if (btnStopDuty != null) btnStopDuty.Enabled = false;
-                if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
-                if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
+                ResetDutyTestToStandby();
                 if (lblDutyStatus != null) lblDutyStatus.Text = "狀態: 已手動停止";
                 if (lblDutyPhaseAction != null) lblDutyPhaseAction.Text = "動作: 試驗已中斷，加載與轉速已平穩停機";
                 if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = "狀態: 已停止";
@@ -2148,12 +2183,14 @@ namespace DynamometerHMI
 
             if (curRuSpd.HasValue && curRuSpd.Value == 0)
             {
+                ResetDutyTestToStandby();
                 MessageBox.Show(string.Format("【[!] 硬體ST端子未閉合】\n\n{0} 目前處於 0: nOP (Control Release 斷開)！\n請先閉合機櫃實體 ST 端子開關以放行功率級。", spdDriveName),
                     "硬體安全端子未閉合", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             if (curRuTrq.HasValue && curRuTrq.Value == 0)
             {
+                ResetDutyTestToStandby();
                 MessageBox.Show(string.Format("【[!] 硬體ST端子未閉合】\n\n{0} 目前處於 0: nOP (Control Release 斷開)！\n請先閉合機櫃實體 ST 端子開關以放行功率級。", trqDriveName),
                     "硬體安全端子未閉合", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -2181,6 +2218,7 @@ namespace DynamometerHMI
 
             if ((curFaultSpd.HasValue && curFaultSpd.Value != 0) || (curFaultTrq.HasValue && curFaultTrq.Value != 0))
             {
+                ResetDutyTestToStandby();
                 string faultMsg = (curFaultSpd.HasValue && curFaultSpd.Value != 0)
                     ? string.Format("{0} 故障未除 (ru.43={1}: {2})", spdDriveName, curFaultSpd.Value, DecodeKebFaultCode(curFaultSpd.Value))
                     : string.Format("{0} 故障未除 (ru.43={1}: {2})", trqDriveName, curFaultTrq.Value, DecodeKebFaultCode(curFaultTrq.Value));
@@ -2855,10 +2893,7 @@ namespace DynamometerHMI
                         WriteHmiLog("OVER_CURRENT_TRIP", tripMsg);
 
                         StartGradualAutoStop(spdDrive, trqDrive, "DUTY 過電流保護跳脫", () => {
-                            btnStartDuty.Enabled = true;
-                            btnStopDuty.Enabled = false;
-                            if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
-                            if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
+                            ResetDutyTestToStandby();
                             lblDutyStatus.Text = "【[!] 過電流保護跳脫】已安全停機！";
                             lblDutyPhaseAction.Text = tripDetail;
                             if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
@@ -3252,10 +3287,7 @@ namespace DynamometerHMI
                         }
                         WriteHmiLog("S6_OVERTEMP", string.Format("【[停機] S6 嚴重超溫保護】監控溫度達 {0:F1} ℃ >= 停機門檻 {1:F1} ℃，啟動安全停機！", dutyMonitoredTemp, tripThresh));
                         StartGradualAutoStop(spdDrive, trqDrive, "S6 嚴重超溫停機保護", () => {
-                            btnStartDuty.Enabled = true;
-                            btnStopDuty.Enabled = false;
-                            if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
-                            if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
+                            ResetDutyTestToStandby();
                             lblDutyStatus.Text = string.Format("【[停機] 嚴重超溫停機】實測 {0:F1} ℃ >= 停機門檻 {1:F1} ℃！", dutyMonitoredTemp, tripThresh);
                             lblDutyPhaseAction.Text = "超溫停機保護已生效，雙機已降載停機。";
                             MessageBox.Show(string.Format("【S6 超溫安全停機保護】\r\n\r\n監控通道實測溫度已達 {0:F1} ℃，超過設定之停機門檻 {1:F1} ℃！\r\n系統已自動執行安全降載停機保護。", dutyMonitoredTemp, tripThresh), "S6 超溫安全停機", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -3472,10 +3504,7 @@ namespace DynamometerHMI
                                     StopManualRecording(showPrompt: false);
                                 }
                                 StartGradualAutoStop(spdDrive, trqDrive, "S6熱平衡達標(含追加確認週期溫差<=1.0℃)", () => {
-                                    btnStartDuty.Enabled = true;
-                                    btnStopDuty.Enabled = false;
-                                    if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
-                                    if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
+                                    ResetDutyTestToStandby();
 
                                     RecordAndExtrapolateS6(confirmPeak);
                                     string s6ReportPath = SaveDutyTestReportCsv("S6", showDialog: false);
@@ -3583,10 +3612,7 @@ namespace DynamometerHMI
                                 StopManualRecording(showPrompt: false);
                             }
                             StartGradualAutoStop(spdDrive, trqDrive, "S6週期試驗全部完成", () => {
-                                btnStartDuty.Enabled = true;
-                                btnStopDuty.Enabled = false;
-                                if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
-                                if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
+                                ResetDutyTestToStandby();
 
                                 RecordAndExtrapolateS6(s6CurrentCyclePeakTemp);
                                 string s6ReportPath = SaveDutyTestReportCsv("S6", showDialog: false);
@@ -3841,10 +3867,7 @@ namespace DynamometerHMI
                                 StopManualRecording(showPrompt: false);
                             }
                             StartGradualAutoStop(spdDrive, trqDrive, "S1熱平衡達標(最高溫30min溫差<1.0℃)", () => {
-                                btnStartDuty.Enabled = true;
-                                btnStopDuty.Enabled = false;
-                                if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
-                                if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
+                                ResetDutyTestToStandby();
 
                                 string s1ReportPath = SaveDutyTestReportCsv("S1", showDialog: false);
 
@@ -3883,10 +3906,7 @@ namespace DynamometerHMI
                         StopManualRecording(showPrompt: false);
                     }
                     StartGradualAutoStop(spdDrive, trqDrive, "S1達到最大運轉時間停機", () => {
-                        btnStartDuty.Enabled = true;
-                        btnStopDuty.Enabled = false;
-                        if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
-                        if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
+                        ResetDutyTestToStandby();
 
                         lblDutyStatus.Text = "[完成] S1 連續工作制已達設定運轉上限！";
                         lblDutyPhaseAction.Text = "已達保護時限，已平緩降載降速停機。";
@@ -4000,10 +4020,7 @@ namespace DynamometerHMI
                                 s2AnchorSy52, s2AnchorCs18, s2AnchorCs18 / 10.0));
 
                             StartGradualAutoStop(spdDrive, trqDrive, "S2錨點偵測成功停機", () => {
-                                btnStartDuty.Enabled = true;
-                                btnStopDuty.Enabled = false;
-                                if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
-                                if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
+                                ResetDutyTestToStandby();
 
                                 lblDutyStatus.Text = string.Format("[錨點已記錄] SY52={0} rpm, CS18={1} ‰", s2AnchorSy52, s2AnchorCs18);
                                 lblDutyPhaseAction.Text = "錨點偵測成功並已停機！下次按下「開始」將直接套用此錨點運轉。";
@@ -4123,10 +4140,7 @@ namespace DynamometerHMI
                                 StopManualRecording(showPrompt: false);
                             }
                             StartGradualAutoStop(spdDrive, trqDrive, string.Format("S2溫度超限保護 (CH{0}={1:F1}℃ >= {2:F1}℃)", chIdx + 1, currentChTemp, threshold), () => {
-                                btnStartDuty.Enabled = true;
-                                btnStopDuty.Enabled = false;
-                                if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
-                                if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
+                                ResetDutyTestToStandby();
 
                                 //  依要求：S2 完成一個執行流程後自動歸零錨點
                                 s2AnchorSy52 = 0;
@@ -4164,10 +4178,7 @@ namespace DynamometerHMI
                             StopManualRecording(showPrompt: false);
                         }
                         StartGradualAutoStop(spdDrive, trqDrive, "S2短時工作制時間截止", () => {
-                            btnStartDuty.Enabled = true;
-                            btnStopDuty.Enabled = false;
-                            if (btnDutyMiniStart != null) btnDutyMiniStart.Enabled = true;
-                            if (btnDutyMiniStop != null) btnDutyMiniStop.Enabled = false;
+                            ResetDutyTestToStandby();
 
                             RecordAndExtrapolateS2();
                             string s2ReportPath = SaveDutyTestReportCsv("S2", showDialog: false);
@@ -4593,8 +4604,7 @@ namespace DynamometerHMI
                 isBatchDutyActive = false;
                 batchDutyStage = 6;
                 if (prgBatchTotal != null) prgBatchTotal.Value = 3;
-                btnStartDuty.Enabled = true;
-                btnStopDuty.Enabled = false;
+                ResetDutyTestToStandby();
                 if (lblBatchProgressDetail != null)
                 {
                     lblBatchProgressDetail.Text = "【連續排程圓滿結束】S1、S6 兩項工作制實驗全部測試完成！報表已全數自動存檔，可點擊「匯出報表」查看。";
@@ -4626,9 +4636,7 @@ namespace DynamometerHMI
         {
             isBatchDutyActive = false;
             batchDutyStage = 0;
-            if (dutyTimer != null) dutyTimer.Stop();
-            btnStartDuty.Enabled = true;
-            btnStopDuty.Enabled = false;
+            ResetDutyTestToStandby();
             lblDutyStatus.Text = "狀態: 連續排程已中止";
             lblDutyPhaseAction.Text = "動作: " + reason;
             if (lblBatchProgressDetail != null)
