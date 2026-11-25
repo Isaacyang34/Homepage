@@ -390,8 +390,12 @@ namespace DynamometerHMI
         private int dutyRampStep = 0; // 0..3 (第 1..4 段)
         private double[] dutyRampSpeeds = new double[4];
         public decimal reverseTorqueTimeoutSec = 10m; // 反轉矩超時門檻時間 (秒，預設 10s，可調 1~60s)
+        public decimal reverseTorqueThresholdNm = -10.0m; // 反轉矩判定門檻標準 (Nm，預設 -10 Nm，大於等於此值即放行)
+        public const double REVERSE_TORQUE_THRESHOLD_NM = -10.0; // 預設放行門檻 (-10 Nm)
         public NumericUpDown numDutyRevTrqTimeout;
         public NumericUpDown numTnRevTrqTimeout;
+        public NumericUpDown numDutyRevTrqThresh;
+        public NumericUpDown numTnRevTrqThresh;
         private const double DUTY_EXCITE_BASE_RPM = 300.0; // 低速激磁基準轉速 (300 rpm)
         private CheckBox chkDutySlipComp = null; // S1 補轉差/不補轉差勾選框 (預設勾選: 自動補轉差; 取消勾選: 不補轉差自然轉差)
         private double dutyMinuteVoltSum = 0.0;
@@ -2157,6 +2161,7 @@ namespace DynamometerHMI
                 sb.AppendLine("ProtKebFault=" + (enableProtKebFault ? "1" : "0"));
                 sb.AppendLine("AutoStopBrakeThresholdRpm=" + autoStopBrakeThresholdRpm.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 sb.AppendLine("ReverseTorqueTimeout=" + reverseTorqueTimeoutSec.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("ReverseTorqueThreshold=" + reverseTorqueThresholdNm.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
                 sb.AppendLine("[Tracking]");
                 sb.AppendLine("MaxDelta=" + trackingMaxDelta.ToString("F1", System.Globalization.CultureInfo.InvariantCulture));
@@ -2437,6 +2442,14 @@ namespace DynamometerHMI
                         reverseTorqueTimeoutSec = v;
                         if (numDutyRevTrqTimeout != null) numDutyRevTrqTimeout.Value = v;
                         if (numTnRevTrqTimeout != null) numTnRevTrqTimeout.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.ReverseTorqueThreshold")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.ReverseTorqueThreshold"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        reverseTorqueThresholdNm = v;
+                        if (numDutyRevTrqThresh != null) numDutyRevTrqThresh.Value = v;
+                        if (numTnRevTrqThresh != null) numTnRevTrqThresh.Value = v;
                     }
                 }
 

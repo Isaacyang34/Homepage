@@ -1294,30 +1294,31 @@ namespace DynamometerHMI
                         double elapsedSec = (DateTime.Now - tnRampReachedTime).TotalSeconds;
 
                         // 核心物理判據 (反轉矩與超速拖曳檢測)：
-                        // 特徵 1: 實測轉矩小於 0 (actTorque < 0)
+                        // 特徵 1: 實測轉矩小於門檻 (actTorque < revThresh，大於等於門檻即放行，預設 -10 Nm)
                         // 特徵 2: 轉速被加載端反向拖曳超速 (actAbsSpd > rampTarget + 15 rpm)
-                        bool isReverseTorque = (actTorque < 0.0) || (actAbsSpd > rampTarget + 15.0);
+                        double revThresh = (numDutyRevTrqThresh != null) ? (double)numDutyRevTrqThresh.Value : (double)reverseTorqueThresholdNm;
+                        bool isReverseTorque = (actTorque < revThresh) || (actAbsSpd > rampTarget + 15.0);
 
                         if (isReverseTorque)
                         {
                             if (elapsedSec >= (double)reverseTorqueTimeoutSec)
                             {
-                                string abortMsg = string.Format("【[!] 反轉矩超時保護停機】T-N 多點第 {0}/4 段加速異常：實測轉矩持續為負 ({1:F2} Nm) 或轉速被拖曳超速 ({2:F0} rpm / 目標 {3:F0} rpm) 超過 {4} 秒！",
-                                    curStepIdx + 1, actTorque, actAbsSpd, rampTarget, reverseTorqueTimeoutSec);
+                                string abortMsg = string.Format("【[!] 反轉矩超時保護停機】T-N 多點第 {0}/4 段加速異常：實測轉矩持續小於門檻 {1:F1} Nm ({2:F2} Nm) 或轉速被拖曳超速 ({3:F0} rpm / 目標 {4:F0} rpm) 超過 {5} 秒！",
+                                    curStepIdx + 1, revThresh, actTorque, actAbsSpd, rampTarget, reverseTorqueTimeoutSec);
                                 WriteHmiLog("TN_ABORT", abortMsg);
                                 StopTnTest(abortMsg);
                                 MessageBox.Show(abortMsg, "反轉矩異常保護", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                                 return;
                             }
 
-                            lblTnStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：反轉矩拖曳中 (轉矩 {1:F2} Nm, 轉速 {2:F0} rpm)，等待轉正 ({3:F1}/{4}s)...",
-                                curStepIdx + 1, actTorque, actAbsSpd, elapsedSec, reverseTorqueTimeoutSec);
+                            lblTnStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：反轉矩拖曳中 (轉矩 {1:F2} Nm, 轉速 {2:F0} rpm)，等待達標 >= {3:F1} Nm ({4:F1}/{5}s)...",
+                                curStepIdx + 1, actTorque, actAbsSpd, revThresh, elapsedSec, reverseTorqueTimeoutSec);
                             lblTnCountdown.Text = string.Format("反轉矩 {0:F1}s", elapsedSec);
                         }
                         else
                         {
-                            WriteHmiLog("TN_EXCITE", string.Format("【4段梯度加速 {0}/4 轉正放行】實測轉矩已回正 ({1:F2} Nm, 轉速 {2:F0} rpm)，耗時 {3:F1}s，推進至下一階！",
-                                curStepIdx + 1, actTorque, actAbsSpd, elapsedSec));
+                            WriteHmiLog("TN_EXCITE", string.Format("【4段梯度加速 {0}/4 放行】實測轉矩已達放行門檻 ({1:F2} Nm >= {2:F1} Nm, 轉速 {3:F0} rpm)，耗時 {4:F1}s，推進至下一階！",
+                                curStepIdx + 1, actTorque, revThresh, actAbsSpd, elapsedSec));
                             tnRampStep++;
                             tnExciteWaitSec = 0;
                             tnRampReachedTime = DateTime.MinValue;
@@ -2018,30 +2019,31 @@ namespace DynamometerHMI
                             double elapsedSec = (DateTime.Now - tnRampReachedTime).TotalSeconds;
 
                             // 核心物理判據 (反轉矩與超速拖曳檢測)：
-                            // 特徵 1: 實測轉矩小於 0 (actTorque < 0)
+                            // 特徵 1: 實測轉矩小於門檻 (actTorque < revThresh，大於等於門檻即放行，預設 -10 Nm)
                             // 特徵 2: 轉速被加載端反向拖曳超速 (actAbsSpd > rampTarget + 15 rpm)
-                            bool isReverseTorque = (actTorque < 0.0) || (actAbsSpd > rampTarget + 15.0);
+                            double revThresh = (numDutyRevTrqThresh != null) ? (double)numDutyRevTrqThresh.Value : (double)reverseTorqueThresholdNm;
+                            bool isReverseTorque = (actTorque < revThresh) || (actAbsSpd > rampTarget + 15.0);
 
                             if (isReverseTorque)
                             {
                                 if (elapsedSec >= (double)reverseTorqueTimeoutSec)
                                 {
-                                    string abortMsg = string.Format("【[!] 反轉矩超時保護停機】T-N 階梯第 {0}/4 段加速異常：實測轉矩持續為負 ({1:F2} Nm) 或轉速被拖曳超速 ({2:F0} rpm / 目標 {3:F0} rpm) 超過 {4} 秒！",
-                                        curStepIdx + 1, actTorque, actAbsSpd, rampTarget, reverseTorqueTimeoutSec);
+                                    string abortMsg = string.Format("【[!] 反轉矩超時保護停機】T-N 階梯第 {0}/4 段加速異常：實測轉矩持續小於門檻 {1:F1} Nm ({2:F2} Nm) 或轉速被拖曳超速 ({3:F0} rpm / 目標 {4:F0} rpm) 超過 {5} 秒！",
+                                        curStepIdx + 1, revThresh, actTorque, actAbsSpd, rampTarget, reverseTorqueTimeoutSec);
                                     WriteHmiLog("TN_ABORT", abortMsg);
                                     StopTnTest(abortMsg);
                                     MessageBox.Show(abortMsg, "反轉矩異常保護", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                                     return;
                                 }
 
-                                lblTnStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：反轉矩拖曳中 (轉矩 {1:F2} Nm, 轉速 {2:F0} rpm)，等待轉正 ({3:F1}/{4}s)...",
-                                    curStepIdx + 1, actTorque, actAbsSpd, elapsedSec, reverseTorqueTimeoutSec);
+                                lblTnStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：反轉矩拖曳中 (轉矩 {1:F2} Nm, 轉速 {2:F0} rpm)，等待達標 >= {3:F1} Nm ({4:F1}/{5}s)...",
+                                    curStepIdx + 1, actTorque, actAbsSpd, revThresh, elapsedSec, reverseTorqueTimeoutSec);
                                 lblTnCountdown.Text = string.Format("反轉矩 {0:F1}s", elapsedSec);
                             }
                             else
                             {
-                                WriteHmiLog("TN_EXCITE", string.Format("【4段梯度加速 {0}/4 轉正放行】實測轉矩已回正 ({1:F2} Nm, 轉速 {2:F0} rpm)，耗時 {3:F1}s，推進至下一階！",
-                                    curStepIdx + 1, actTorque, actAbsSpd, elapsedSec));
+                                WriteHmiLog("TN_EXCITE", string.Format("【4段梯度加速 {0}/4 放行】實測轉矩已達放行門檻 ({1:F2} Nm >= {2:F1} Nm, 轉速 {3:F0} rpm)，耗時 {4:F1}s，推進至下一階！",
+                                    curStepIdx + 1, actTorque, revThresh, actAbsSpd, elapsedSec));
                                 tnRampStep++;
                                 tnExciteWaitSec = 0;
                                 tnRampReachedTime = DateTime.MinValue;

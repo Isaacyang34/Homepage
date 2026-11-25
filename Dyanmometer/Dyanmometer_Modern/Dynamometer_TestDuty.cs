@@ -197,9 +197,21 @@ namespace DynamometerHMI
                 SaveLayoutConfig();
                 UpdateDutyPreflightSummary();
             };
-            Label lblRevTrqUnit = new Label() { Text = "s", AutoSize = true, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Margin = new Padding(0, 4, 8, 0) };
+            Label lblRevTrqUnit = new Label() { Text = "s", AutoSize = true, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Margin = new Padding(0, 4, 4, 0) };
 
-            flpOc.Controls.AddRange(new Control[] { lblDutyOcTitle, lblDutyOcPct, numDutyOverCurrentPct, lblDutyOcPctUnit, lblDutyOcDelay, numDutyOverCurrentDelay, lblDutyOcDelayUnit, lblRevTrqTitle, numDutyRevTrqTimeout, lblRevTrqUnit, lblDutyCurrentBaseline });
+            Label lblRevTrqThreshTitle = new Label() { Text = "[反轉矩標準]:", AutoSize = true, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), ForeColor = Color.FromArgb(185, 28, 28), Margin = new Padding(6, 4, 2, 0) };
+            numDutyRevTrqThresh = CreateNumericUpDown(Point.Empty, 65, -500, 100, reverseTorqueThresholdNm, 1, 1);
+            numDutyRevTrqThresh.Font = new Font("微軟正黑體", 10.5f);
+            numDutyRevTrqThresh.ValueChanged += (s, e) => {
+                reverseTorqueThresholdNm = numDutyRevTrqThresh.Value;
+                if (numTnRevTrqThresh != null && numTnRevTrqThresh.Value != numDutyRevTrqThresh.Value)
+                    numTnRevTrqThresh.Value = numDutyRevTrqThresh.Value;
+                SaveLayoutConfig();
+                UpdateDutyPreflightSummary();
+            };
+            Label lblRevTrqThreshUnit = new Label() { Text = "Nm", AutoSize = true, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Margin = new Padding(0, 4, 8, 0) };
+
+            flpOc.Controls.AddRange(new Control[] { lblDutyOcTitle, lblDutyOcPct, numDutyOverCurrentPct, lblDutyOcPctUnit, lblDutyOcDelay, numDutyOverCurrentDelay, lblDutyOcDelayUnit, lblRevTrqTitle, numDutyRevTrqTimeout, lblRevTrqUnit, lblRevTrqThreshTitle, numDutyRevTrqThresh, lblRevTrqThreshUnit, lblDutyCurrentBaseline });
             tlpMainCfg.SetColumnSpan(flpOc, 4);
             tlpMainCfg.Controls.Add(flpOc, 0, 2);
 
@@ -1170,7 +1182,8 @@ namespace DynamometerHMI
                 sb.AppendLine(string.Format("● 載台角色：{0}", roleStr));
                 sb.AppendLine(string.Format("● 過電流保護：基準 +{0}%，持續 {1} 秒跳脫保護", ocPct, ocDelay));
                 decimal revTimeout = (numDutyRevTrqTimeout != null) ? numDutyRevTrqTimeout.Value : reverseTorqueTimeoutSec;
-                sb.AppendLine(string.Format("● 反轉矩超時保護：轉矩負數/超速拖曳持續 {0} 秒強制安全停機", revTimeout));
+                decimal revThreshDisp = (numDutyRevTrqThresh != null) ? numDutyRevTrqThresh.Value : reverseTorqueThresholdNm;
+                sb.AppendLine(string.Format("● 反轉矩保護：門檻 >= {0:F1} Nm 放行 / 超時 {1} 秒強制安全停機", revThreshDisp, revTimeout));
                 sb.AppendLine("--------------------------------------------------------------------------");
 
                 decimal s1Spd = (numS1Speed != null) ? numS1Speed.Value : 1500;
@@ -1242,6 +1255,7 @@ namespace DynamometerHMI
             if (numDutyOverCurrentPct != null) numDutyOverCurrentPct.ReadOnly = isRunning;
             if (numDutyOverCurrentDelay != null) numDutyOverCurrentDelay.ReadOnly = isRunning;
             if (numDutyRevTrqTimeout != null) numDutyRevTrqTimeout.ReadOnly = isRunning;
+            if (numDutyRevTrqThresh != null) numDutyRevTrqThresh.ReadOnly = isRunning;
 
             if (numDutyMiniSpd != null) numDutyMiniSpd.ReadOnly = isRunning;
             if (numDutyMiniTrq != null) numDutyMiniTrq.ReadOnly = isRunning;
@@ -2749,33 +2763,34 @@ namespace DynamometerHMI
                     double elapsedSec = (DateTime.Now - dutyRampReachedTime).TotalSeconds;
 
                     // 核心物理判據 (反轉矩與超速拖曳檢測)：
-                    // 特徵 1: 實測轉矩小於 0 (actTorque < 0)
+                    // 特徵 1: 實測轉矩小於使用者設定門檻 (actTorque < revThresh，大於等於門檻即放行，預設 -10 Nm)
                     // 特徵 2: 轉速被加載端反向拖曳超速 (actAbsSpd > rampTarget + 15 rpm)
-                    bool isReverseTorque = (actTorque < 0.0) || (actAbsSpd > rampTarget + 15.0);
+                    double revThresh = (numDutyRevTrqThresh != null) ? (double)numDutyRevTrqThresh.Value : (double)reverseTorqueThresholdNm;
+                    bool isReverseTorque = (actTorque < revThresh) || (actAbsSpd > rampTarget + 15.0);
 
                     if (isReverseTorque)
                     {
-                        // 處於反轉矩異常狀態：釘住當前轉速，等待轉矩變回正數且轉速收斂
+                        // 處於反轉矩異常狀態：釘住當前轉速，等待轉矩回升至 >= revThresh 且轉速收斂
                         if (elapsedSec >= (double)reverseTorqueTimeoutSec)
                         {
-                            string abortMsg = string.Format("【[!] 反轉矩超時保護停機】第 {0}/4 段加速異常：實測轉矩持續為負 ({1:F2} Nm) 或轉速被拖曳超速 ({2:F0} rpm / 目標 {3:F0} rpm) 超過 {4} 秒！",
-                                curStepIdx + 1, actTorque, actAbsSpd, rampTarget, reverseTorqueTimeoutSec);
+                            string abortMsg = string.Format("【[!] 反轉矩超時保護停機】第 {0}/4 段加速異常：實測轉矩持續小於門檻 {1:F1} Nm ({2:F2} Nm) 或轉速被拖曳超速 ({3:F0} rpm / 目標 {4:F0} rpm) 超過 {5} 秒！",
+                                curStepIdx + 1, revThresh, actTorque, actAbsSpd, rampTarget, reverseTorqueTimeoutSec);
                             WriteHmiLog("DUTY_ABORT", abortMsg);
                             StopDutyTest();
                             MessageBox.Show(abortMsg, "反轉矩異常保護", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                             return;
                         }
 
-                        lblDutyStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：反轉矩拖曳中 (轉矩 {1:F2} Nm, 轉速 {2:F0} rpm)，等待轉正 ({3:F1}/{4}s)...",
-                            curStepIdx + 1, actTorque, actAbsSpd, elapsedSec, reverseTorqueTimeoutSec);
-                        lblDutyPhaseAction.Text = string.Format("檢測到反轉矩 ({0:F2} Nm)，等待加載端磁場平衡轉正 ({1:F1}/{2}s)...",
-                            actTorque, elapsedSec, reverseTorqueTimeoutSec);
+                        lblDutyStatus.Text = string.Format("【4段梯度加速】第 {0}/4 段：反轉矩拖曳中 (轉矩 {1:F2} Nm, 轉速 {2:F0} rpm)，等待達標 >= {3:F1} Nm ({4:F1}/{5}s)...",
+                            curStepIdx + 1, actTorque, actAbsSpd, revThresh, elapsedSec, reverseTorqueTimeoutSec);
+                        lblDutyPhaseAction.Text = string.Format("檢測到反轉矩 ({0:F2} Nm < {1:F1} Nm)，等待加載端磁場平衡 ({2:F1}/{3}s)...",
+                            actTorque, revThresh, elapsedSec, reverseTorqueTimeoutSec);
                     }
                     else
                     {
-                        // 轉矩已為正數 (actTorque >= 0) 且轉速未被超速拖曳：立刻推進至下一段加速！
-                        WriteHmiLog("DUTY_EXCITE", string.Format("【4段梯度加速 {0}/4 轉正放行】實測轉矩已回正 ({1:F2} Nm, 轉速 {2:F0} rpm)，耗時 {3:F1}s，推進至下一階！",
-                            curStepIdx + 1, actTorque, actAbsSpd, elapsedSec));
+                        // 轉矩已達放行門檻 (actTorque >= revThresh) 且轉速未被超速拖曳：立刻推進至下一段加速！
+                        WriteHmiLog("DUTY_EXCITE", string.Format("【4段梯度加速 {0}/4 放行】實測轉矩已達放行門檻 ({1:F2} Nm >= {2:F1} Nm, 轉速 {3:F0} rpm)，耗時 {4:F1}s，推進至下一階！",
+                            curStepIdx + 1, actTorque, revThresh, actAbsSpd, elapsedSec));
                         dutyRampStep++;
                         dutyExciteWaitSec = 0;
                         dutyRampReachedTime = DateTime.MinValue;
