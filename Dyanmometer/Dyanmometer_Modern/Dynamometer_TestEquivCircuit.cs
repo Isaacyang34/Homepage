@@ -105,6 +105,7 @@ namespace DynamometerHMI
         private System.Windows.Forms.Timer tmrNoLoadSampler = null;
         private System.Windows.Forms.Timer tmrRatedSampler = null;
         private bool isNoLoadSampling = false;
+        private bool isNoLoadAutoSampling = false;
         private bool isRatedSampling = false;
         private int noLoadSamplingRemainingHalfSec = 60; // 30 秒 (每 500ms 一次，共 60 筆)
         private int ratedSamplingRemainingHalfSec = 60;
@@ -1542,7 +1543,7 @@ namespace DynamometerHMI
             {
                 if (noLoadSampleBuffer.Count >= 6)
                 {
-                    FinishNoLoadSampling(earlyFinish: true);
+                    FinishNoLoadSampling(earlyFinish: true, isAuto: isNoLoadAutoSampling);
                 }
                 else
                 {
@@ -1551,20 +1552,21 @@ namespace DynamometerHMI
             }
             else
             {
-                StartNoLoadSampling();
+                StartNoLoadSampling(isAuto: false);
             }
         }
 
-        private void StartNoLoadSampling()
+        private void StartNoLoadSampling(bool isAuto = false)
         {
             try
             {
                 if (isRatedSampling)
                 {
-                    MessageBox.Show("目前正在執行額定 30 秒採樣，請稍候完成後再啟動空載採樣！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    if (!isAuto) MessageBox.Show("目前正在執行額定 30 秒採樣，請稍候完成後再啟動空載採樣！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
 
+                isNoLoadAutoSampling = isAuto;
                 if (noLoadSampleBuffer == null) noLoadSampleBuffer = new List<EquivSamplingPoint>();
                 noLoadSampleBuffer.Clear();
                 noLoadSamplingRemainingHalfSec = 60; // 30 秒 (500ms 一次)
@@ -1577,19 +1579,27 @@ namespace DynamometerHMI
                     tmrNoLoadSampler.Tick += (s, e) => OnNoLoadSamplingTick();
                 }
 
-                btnEquivCaptureLiveNoLoad.Text = "[採集中] 30s (0/60)";
-                btnEquivCaptureLiveNoLoad.BackColor = Color.FromArgb(254, 240, 138);
-                btnEquivCaptureLiveNoLoad.ForeColor = Color.FromArgb(161, 98, 7);
+                if (btnEquivCaptureLiveNoLoad != null)
+                {
+                    btnEquivCaptureLiveNoLoad.Text = isAuto ? "[自動採集中] 30s (0/60)" : "[採集中] 30s (0/60)";
+                    btnEquivCaptureLiveNoLoad.BackColor = Color.FromArgb(254, 240, 138);
+                    btnEquivCaptureLiveNoLoad.ForeColor = Color.FromArgb(161, 98, 7);
+                }
 
-                lblNoLoadItemStatus.Text = "[採集中] 30秒空載電氣量去極值採樣中 (剩餘 30s)... (再次點擊可提前結算)";
-                lblNoLoadItemStatus.ForeColor = Color.FromArgb(217, 119, 6);
+                string modeDesc = isAuto ? "【空載自動採集】" : "【等效電路手動採集】";
+                if (lblNoLoadItemStatus != null)
+                {
+                    lblNoLoadItemStatus.Text = string.Format("{0} 30秒空載電氣量採樣中 (剩餘 30s)...", modeDesc);
+                    lblNoLoadItemStatus.ForeColor = Color.FromArgb(217, 119, 6);
+                }
 
-                WriteHmiLog("EQUIV", "【等效電路】啟動 30 秒空載電氣量連續採樣 (去極值後平均)... (再次點擊可提前結算)");
+                WriteHmiLog("EQUIV", string.Format("{0} 啟動 30 秒空載電氣量連續採樣 (去極值後平均)...", modeDesc));
                 tmrNoLoadSampler.Start();
             }
             catch (Exception ex)
             {
-                MessageBox.Show("啟動空載採樣失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                if (!isAuto) MessageBox.Show("啟動空載採樣失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                else WriteHmiLog("EQUIV_ERR", "空載自動採樣啟動失敗: " + ex.Message);
             }
         }
 
@@ -1627,12 +1637,19 @@ namespace DynamometerHMI
                 });
 
                 int count = noLoadSampleBuffer.Count;
-                btnEquivCaptureLiveNoLoad.Text = string.Format("[採集中] {0}s ({1}/60)", totalSecLeft, count);
-                lblNoLoadItemStatus.Text = string.Format("[採集中] 剩餘 {0}s ({1}/60筆) | V0={2:F1}V, I0={3:F2}A, N0={4:F0}rpm", totalSecLeft, count, vSig, iSig, spd);
+                if (btnEquivCaptureLiveNoLoad != null)
+                {
+                    btnEquivCaptureLiveNoLoad.Text = string.Format(isNoLoadAutoSampling ? "[自動採集中] {0}s ({1}/60)" : "[採集中] {0}s ({1}/60)", totalSecLeft, count);
+                }
+                if (lblNoLoadItemStatus != null)
+                {
+                    string modeTag = isNoLoadAutoSampling ? "[自動採集中]" : "[採集中]";
+                    lblNoLoadItemStatus.Text = string.Format("{0} 剩餘 {1}s ({2}/60筆) | V0={3:F1}V, I0={4:F2}A, N0={5:F0}rpm", modeTag, totalSecLeft, count, vSig, iSig, spd);
+                }
 
                 if (noLoadSamplingRemainingHalfSec <= 0 || count >= 60)
                 {
-                    FinishNoLoadSampling(earlyFinish: false);
+                    FinishNoLoadSampling(earlyFinish: false, isAuto: isNoLoadAutoSampling);
                 }
             }
             catch (Exception ex)
@@ -1642,7 +1659,7 @@ namespace DynamometerHMI
             }
         }
 
-        private void FinishNoLoadSampling(bool earlyFinish)
+        private void FinishNoLoadSampling(bool earlyFinish, bool isAuto = false)
         {
             if (tmrNoLoadSampler != null) tmrNoLoadSampler.Stop();
             isNoLoadSampling = false;
@@ -1662,12 +1679,12 @@ namespace DynamometerHMI
                 double avgSpd = CalculateTrimmedMean(noLoadSampleBuffer.Select(x => x.Speed), 0.15);
                 double avgFreq = CalculateTrimmedMean(noLoadSampleBuffer.Select(x => x.Frequency), 0.15);
 
-                if (avgV > 0) numEquivV0.Value = (decimal)Math.Round(avgV, 1);
-                if (avgI > 0) numEquivI0.Value = (decimal)Math.Round(avgI, 2);
-                if (avgP_W > 0) numEquivP0.Value = (decimal)Math.Round(avgP_W, 1);
-                if (avgPf > 0) numEquivPf0.Value = (decimal)Math.Round(avgPf, 3);
-                if (avgSpd > 0) numEquivN0.Value = (decimal)Math.Round(avgSpd);
-                if (avgFreq > 0) numEquivF0.Value = (decimal)Math.Round(avgFreq, 2);
+                if (avgV > 0 && numEquivV0 != null) numEquivV0.Value = (decimal)Math.Round(avgV, 1);
+                if (avgI > 0 && numEquivI0 != null) numEquivI0.Value = (decimal)Math.Round(avgI, 2);
+                if (avgP_W > 0 && numEquivP0 != null) numEquivP0.Value = (decimal)Math.Round(avgP_W, 1);
+                if (avgPf > 0 && numEquivPf0 != null) numEquivPf0.Value = (decimal)Math.Round(avgPf, 3);
+                if (avgSpd > 0 && numEquivN0 != null) numEquivN0.Value = (decimal)Math.Round(avgSpd);
+                if (avgFreq > 0 && numEquivF0 != null) numEquivF0.Value = (decimal)Math.Round(avgFreq, 2);
 
                 isNoLoadDataReady = (avgV > 10.0 && avgI > 0.05);
 
@@ -1720,33 +1737,55 @@ namespace DynamometerHMI
                 File.WriteAllText(fileLatest, content, Encoding.UTF8);
                 File.WriteAllText(fileLegacyLatest, content, Encoding.UTF8);
 
-                btnEquivCaptureLiveNoLoad.Text = "[寫入] 30秒空載採樣";
-                btnEquivCaptureLiveNoLoad.BackColor = Color.FromArgb(240, 253, 244);
-                btnEquivCaptureLiveNoLoad.ForeColor = Color.FromArgb(22, 163, 74);
+                if (btnEquivCaptureLiveNoLoad != null)
+                {
+                    btnEquivCaptureLiveNoLoad.Text = "[寫入] 30秒空載採樣";
+                    btnEquivCaptureLiveNoLoad.BackColor = Color.FromArgb(240, 253, 244);
+                    btnEquivCaptureLiveNoLoad.ForeColor = Color.FromArgb(22, 163, 74);
+                }
 
-                lblNoLoadItemStatus.Text = string.Format("[O] 30秒採樣已儲存 ({0:HH:mm:ss})", DateTime.Now);
-                lblNoLoadItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
+                if (lblNoLoadItemStatus != null)
+                {
+                    string statusDesc = isAuto ? "[O] 空載採樣已自動寫入" : "[O] 30秒採樣已儲存";
+                    lblNoLoadItemStatus.Text = string.Format("{0} ({1:HH:mm:ss})", statusDesc, DateTime.Now);
+                    lblNoLoadItemStatus.ForeColor = Color.FromArgb(16, 185, 129);
+                }
 
-                WriteHmiLog("EQUIV", string.Format("【等效電路】空載 30 秒去極值採樣完成 ({0}筆) 並已保存：V0={1:F1}V, I0={2:F2}A, P0={3:F1}W, N0={4:F0}rpm -> {5}",
-                    totalCount, avgV, avgI, avgP_W, avgSpd, Path.GetFileName(fileLatest)));
+                string logHeader = isAuto ? "【空載自動擷取完成】" : "【等效電路】空載 30 秒去極值採樣完成";
+                WriteHmiLog("EQUIV", string.Format("{0} ({1}筆) 並已保存：V0={2:F1}V, I0={3:F2}A, P0={4:F1}W, N0={5:F0}rpm -> {6}",
+                    logHeader, totalCount, avgV, avgI, avgP_W, avgSpd, Path.GetFileName(fileLatest)));
 
-                MessageBox.Show(string.Format("已成功完成 30 秒空載電氣量連續採樣 (去極值平均) 並已儲存檔案！\r\n\r\n" +
-                    "• 待測馬達：{0}\r\n" +
-                    "• 採樣筆數：共 {1} 筆 (有效均值筆數: {2} 筆)\r\n" +
-                    "• 空載電壓 V0 = {3:F1} V\r\n" +
-                    "• 空載電流 I0 = {4:F2} A\r\n" +
-                    "• 空載功率 P0 = {5:F1} W\r\n" +
-                    "• 空載功率因數 PF0 = {6:F3}\r\n" +
-                    "• 空載轉速 N0 = {7:F0} rpm\r\n" +
-                    "• 空載頻率 F0 = {8:F2} Hz\r\n\r\n" +
-                    "已保存至：\r\n{9}\r\n(未來點擊【[檔案] 載入空載紀錄檔】即可直接載入此檔案)",
-                    mName, totalCount, validCount, avgV, avgI, avgP_W, avgPf, avgSpd, avgFreq, fileLatest),
-                    "空載採樣與存檔成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                // 空載測試若正在執行，同步將自動擷取成功事件寫入空載表格與日誌
+                if (isAuto)
+                {
+                    AddNoLoadLog(DateTime.Now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "等效電路自動寫入", noLoadCurrentTargetSpd, Math.Abs(actSpeed), 0, 0,
+                        string.Format("【等效電路自動擷取成功】V0={0:F1}V, I0={1:F2}A, P0={2:F1}W, N0={3:F0}rpm，參數已寫入！", avgV, avgI, avgP_W, avgSpd));
+                }
+                else
+                {
+                    MessageBox.Show(string.Format("已成功完成 30 秒空載電氣量連續採樣 (去極值平均) 並已儲存檔案！\r\n\r\n" +
+                        "• 待測馬達：{0}\r\n" +
+                        "• 採樣筆數：共 {1} 筆 (有效均值筆數: {2} 筆)\r\n" +
+                        "• 空載電壓 V0 = {3:F1} V\r\n" +
+                        "• 空載電流 I0 = {4:F2} A\r\n" +
+                        "• 空載功率 P0 = {5:F1} W\r\n" +
+                        "• 空載功率因數 PF0 = {6:F3}\r\n" +
+                        "• 空載轉速 N0 = {7:F0} rpm\r\n" +
+                        "• 空載頻率 F0 = {8:F2} Hz\r\n\r\n" +
+                        "已保存至：\r\n{9}\r\n(未來點擊【[檔案] 載入空載紀錄檔】即可直接載入此檔案)",
+                        mName, totalCount, validCount, avgV, avgI, avgP_W, avgPf, avgSpd, avgFreq, fileLatest),
+                        "空載採樣與存檔成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
             }
             catch (Exception ex)
             {
                 CancelNoLoadSampling();
-                MessageBox.Show("空載採樣計算或儲存失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                if (!isAuto) MessageBox.Show("空載採樣計算或儲存失敗: " + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                else WriteHmiLog("EQUIV_ERR", "空載自動採樣計算或儲存失敗: " + ex.Message);
+            }
+            finally
+            {
+                isNoLoadAutoSampling = false;
             }
         }
 
@@ -1754,6 +1793,7 @@ namespace DynamometerHMI
         {
             if (tmrNoLoadSampler != null) tmrNoLoadSampler.Stop();
             isNoLoadSampling = false;
+            isNoLoadAutoSampling = false;
 
             // 幽靈日誌防禦：若已有採樣樣本但中途被取消，明確標註為 ABORTED 留存
             try

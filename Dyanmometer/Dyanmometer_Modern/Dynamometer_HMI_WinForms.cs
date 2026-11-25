@@ -338,10 +338,7 @@ namespace DynamometerHMI
                     || (effMapTimer != null && effMapTimer.Enabled)
                     || isLockedSweepRunning
                     || isAutoTuningUf09
-                    || isLockedRotorActive
-                    || isNoLoadSampling
-                    || isRatedSampling
-                    || isEquivRecording;
+                    || isLockedRotorActive;
             }
         }
 
@@ -6475,7 +6472,7 @@ namespace DynamometerHMI
             bool isDutyCurRunning = (dutyTimer != null && dutyTimer.Enabled) || isBatchDutyActive;
             bool isNoLoadCurRunning = isNoLoadRunning || (noLoadTimer != null && noLoadTimer.Enabled);
             bool isEffMapCurRunning = (effMapTimer != null && effMapTimer.Enabled);
-            bool isEquivCurRunning = isLockedSweepRunning || isAutoTuningUf09 || isLockedRotorActive || isNoLoadSampling || isRatedSampling || isEquivRecording;
+            bool isEquivCurRunning = isLockedSweepRunning || isAutoTuningUf09 || isLockedRotorActive;
 
             // 1. T-N 曲線測試開始按鈕
             if (btnStartTn != null && !btnStartTn.IsDisposed)
@@ -6515,7 +6512,7 @@ namespace DynamometerHMI
                 if (btnStartEffMap.Enabled != target) btnStartEffMap.Enabled = target;
             }
 
-            // 5. 等效電路測試操作按鈕
+            // 5. 等效電路測試操作按鈕 (僅主動加載/掃描按鈕互鎖，純數據讀取/擷取按鈕永久放行)
             if (btnEquivSweepAllFreq != null && !btnEquivSweepAllFreq.IsDisposed)
             {
                 bool target = canOperate && !anyRunning && !isEquivCurRunning;
@@ -6528,18 +6525,18 @@ namespace DynamometerHMI
             }
             if (btnEquivManualRecord != null && !btnEquivManualRecord.IsDisposed)
             {
-                bool target = !anyRunning && !isEquivCurRunning;
+                bool target = !isEquivCurRunning;
                 if (btnEquivManualRecord.Enabled != target) btnEquivManualRecord.Enabled = target;
             }
             if (btnEquivCaptureLiveNoLoad != null && !btnEquivCaptureLiveNoLoad.IsDisposed)
             {
-                bool target = !anyRunning && !isEquivCurRunning;
-                if (btnEquivCaptureLiveNoLoad.Enabled != target) btnEquivCaptureLiveNoLoad.Enabled = target;
+                // 等效電路空載擷取純粹被動讀取電表，不下動態控制命令，即使其他測試進行中亦允許自由擷取
+                if (btnEquivCaptureLiveNoLoad.Enabled != true) btnEquivCaptureLiveNoLoad.Enabled = true;
             }
             if (btnEquivCaptureLiveRated != null && !btnEquivCaptureLiveRated.IsDisposed)
             {
-                bool target = !anyRunning && !isEquivCurRunning;
-                if (btnEquivCaptureLiveRated.Enabled != target) btnEquivCaptureLiveRated.Enabled = target;
+                // 等效電路額定擷取純粹被動讀取電表，不下動態控制命令，即使其他測試進行中亦允許自由擷取
+                if (btnEquivCaptureLiveRated.Enabled != true) btnEquivCaptureLiveRated.Enabled = true;
             }
 
             if (lblSafetyStatus != null && !lblSafetyStatus.IsDisposed)

@@ -42,22 +42,16 @@
 ### 鐵律三：文字防裁切與寬度保護保證 (Anti-Text-Clipping Rule)
 * **CheckBox 與 Label**：
   * 若文字包含繁體中文字元超過 8 個字（例如 `[v] 標籤顯示 dBm 數值`），**嚴格禁止**與其他元件在同一列水平擠壓！
-  * 必須配置為獨立單列 (Row) 或給予至少 `250px` 以上充足寬度，杜絕字尾被吃掉（如變成 `[v] 標籤顯示`）。
-* **DataGridView 表格智能自適應欄寬鐵律 (Universal DataGridView Auto-Fitting Architecture)**：
-  * **常態 Fill 與常態 AllCells 兩大物理盲點**：
-    * **常態 `Fill` 陷阱**：強制將所有欄位壓進視窗可視寬度內；若視窗縮小或欄位文字較長，WinForms 會強制縮水，長說明文字與欄位標題直接被截斷打上 `...`！
-    * **常態 `AllCells` 陷阱**：若永久設為 `AutoSizeColumnsMode = AllCells`，WinForms 在每次單元格數據刷新（如馬達高頻遙測 20Hz~50Hz）時皆會重新調用 GDI 測量字型，引發嚴重視窗卡頓、CPU 浪費與數值長度變動時欄位左右抖動（Jittering）。
-  * **全案通用標準架構 (AutoFitColumns - 一次性適應 + 邊距保護 + 零效能損耗)**：
-    * 嚴格採用**一次性智能自適應模式 (`AutoFitColumns`)**：
-      1. 在表格資料載入完成或 `Form.Shown` / `TabControl.SelectedIndexChanged` 時調用。
-      2. 設 `AutoSizeColumnsMode = None`，逐欄以 `col.GetPreferredWidth(AllCells, true) + extraPadding`（預設 16px 呼吸空間）精準計算「標題與全列內容」最舒適寬度。
-      3. 將計算值賦予 `col.MinimumWidth` 與 `col.Width`，並保持 `col.Resizable = true`（允許使用者後續手動自由拖曳）。
-      4. 若所有欄位總寬小於可視範圍，自動將剩餘寬度分配給主要內容說明欄（如 `Description` 欄），消除右側多餘空白；若總寬超出，自然啟用橫向捲動條，**保證 100% 絕不出現 `...` 截斷，且通訊更新期 GDI 效能損耗為 0%**！
-      5. 綁定雙擊事件：雙擊左上角標頭單元格 (`TopLeftHeaderCell`) 或欄位分隔線可隨時重設並最適化所有欄寬。
-
-### 鐵律四：雙保險滾動機制 (Mandatory AutoScroll Safety)
-* 任何可能包含多個控制項的 Panel 或 Form，必須明確設定 `AutoScroll = true`。
-* 確保在低解析度螢幕或 125%~175% 高 DPI 縮放環境下，元件永遠可透過滾動完整看見，絕不遺失。
+  * 必須配置為獨立單列 (Row) 或給予至少 `250px` 以上充足寬度，杜絕字尾被吃掉（如變成 `[v] 標籤顯示`）。
+### 鐵律四：DataGridView 表格 100% 自由手動拖曳調整與佈局持久化記憶鐵律 (User-First Manual Resizing & INI Layout Persistence)
+* **全面廢除粗暴的代碼覆寫**：
+  * **嚴禁自作主張鎖死**：代碼中禁止使用會鎖死欄寬或每次切換頁面就抹除使用者拖曳成果的粗暴 AutoFit。
+* **100% 自由手動拖曳**：
+  * 所有 DataGridView 必須明確設置 AllowUserToResizeColumns = true，且所有 Column 皆設為 Resizable = DataGridViewTriState.True。
+  * 使用者可以隨時用滑鼠按住任何一欄的右邊界，想拉大就拉大、想縮小就縮小，完全不受任何約束。
+* **佈局自動持久化記憶 (layout.ini)**：
+  * 監聽 ColumnWidthChanged 與 SplitterMoved 事件，並在 FormClosing 時自動將所有欄位寬度與面板分割位置寫入 layout.ini。
+  * 程式啟動 (InitializeComponent / OnShown) 時自動載入使用者上次調整好的數據，確保使用者拉好的排版永久生效！
 
 ### 鐵律五：同畫面零冗餘控制項與單一職責入口鐵律 (Zero Redundant Buttons & Single Entry Point)
 * **嚴格禁止重複入口**：在同一個可視畫面或同一個視窗層級中，**嚴禁針對同一功能、同一視圖切換或同一對話框提供多個重複按鈕**！

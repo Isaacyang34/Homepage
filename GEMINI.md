@@ -35,8 +35,13 @@
   * **嚴禁**任何手動累加靜態座標（如 `y += 105; Location = new Point(10, y)`）。
   * 所有 GroupBox 與 Panel 內部一律強制使用 `TableLayoutPanel`（一個蘿蔔一個坑）或垂直 `FlowLayoutPanel`，元件空間物理互斥，嚴禁重疊。
 * **文字與表格防裁切保證**：
-  * CheckBox 與 Label 若文字較長，必須給予獨立單列 (Row) 或充足寬度（>250px），嚴禁多欄擠壓導致文字截斷（如「標籤顯示」被吃掉）。
-  * DataGridView 必須為欄位明確設置 `FillWeight` 與 `MinimumWidth`，防止欄位標題受擠壓縮水。
+  * CheckBox 與 Label 若文字較長，必須給予獨立單列 (Row) 或充足寬度（>250px），嚴禁多欄擠壓導致文字截斷（如「標籤顯示」被吃掉）。
+  * **DataGridView 表格 100% 自由手動拖曳調整與佈局持久化記憶鐵律 (User-First Manual Resizing & INI Layout Persistence - 全案最高強制規範)**：
+    * **全面廢除粗暴的代碼強制死板鎖定**：嚴格禁止在代碼中強制覆寫使用者的欄寬調整意圖！
+    * **100% 自由拖曳 (AllowUserToResizeColumns = true & Resizable = True)**：所有表格欄位一律允許使用者直接按住標題分隔線任意拉寬、拉窄至自己最舒服的寬度。
+    * **佈局原子化持久記憶 (layout.ini)**：
+      1. 凡表格欄寬變更 (ColumnWidthChanged) 或面板分割線拖曳 (SplitterMoved)，以及視窗關閉時 (FormClosing)，一律自動回寫至本機 layout.ini。
+      2. 程式啟動與分頁切換時，精確還原使用者上次手動拉好的寬度，絕不自作主張重設或覆蓋使用者的排版習慣！
 * **雙保險滾動機制**：所有容器面板一律預設啟用 `AutoScroll = true`，防止 DPI 縮放破版。
 * **同畫面零冗餘控制項與單一職責入口鐵律 (Zero Redundant Buttons & Single Entry Point)**：
   * **嚴格禁止重複入口**：在同一個可視畫面或視窗層級中，**嚴禁對同一功能或同一視圖切換提供多個重複按鈕**（例如已有頂部/區域分頁標籤，**嚴格禁止在底部工具列或快捷列再額外放置一模一樣的功能按鈕**）！

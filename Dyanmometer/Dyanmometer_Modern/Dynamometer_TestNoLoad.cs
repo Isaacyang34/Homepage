@@ -65,6 +65,7 @@ namespace DynamometerHMI
         public List<NoLoadStablePoint> noLoadStablePoints = new List<NoLoadStablePoint>();
         private List<Tuple<string, double>> noLoadActiveTargets = new List<Tuple<string, double>>();
         private int noLoadTargetIdx = 0;
+        private bool noLoadHasAutoCapturedEquiv = false; // 等效電路空載數據自動擷取標記
 
         // 即時狀態顯示標籤
         private Label lblNoLoadStateBadge;
@@ -1018,6 +1019,7 @@ namespace DynamometerHMI
 
             // 初始化狀態與計時
             isNoLoadRunning = true;
+            noLoadHasAutoCapturedEquiv = false;
             noLoadCoolingRetryCount = 0;
             noLoadElapsedSec = 0;
             noLoadStageElapsedSec = 0;
@@ -1099,6 +1101,19 @@ namespace DynamometerHMI
                 StopManualRecording(showPrompt: false);
             }
 
+            // 若有正在執行的空載自動等效電路採樣，安全結算或取消
+            if (isNoLoadSampling && isNoLoadAutoSampling)
+            {
+                if (noLoadSampleBuffer != null && noLoadSampleBuffer.Count >= 6)
+                {
+                    FinishNoLoadSampling(earlyFinish: true, isAuto: true);
+                }
+                else
+                {
+                    CancelNoLoadSampling();
+                }
+            }
+
             string stopReason = string.IsNullOrEmpty(reason) ? "空載測試終止" : reason;
             lblNoLoadStateBadge.Text = "【測試停止】" + stopReason;
             lblNoLoadStateBadge.ForeColor = Color.FromArgb(239, 68, 68);
@@ -1172,6 +1187,22 @@ namespace DynamometerHMI
                     noLoadTempHistory.Add(new KeyValuePair<DateTime, double[]>(now, chSnapshot));
                     DateTime expireTime = now.AddMinutes(-45);
                     noLoadTempHistory.RemoveAll(x => x.Key < expireTime);
+                }
+
+                // 3-1. 自動等效電路空載數據擷取 (IEEE Std 112 / IEC 60034-2-1)
+                // 當馬達運轉穩定於目標轉速 (>= 200 rpm 且轉速穩定持續 >= 15 秒且有電壓)，自動啟動 30 秒去極值採集寫入等效電路
+                if (!noLoadHasAutoCapturedEquiv && !isNoLoadSampling &&
+                    (noLoadState == NoLoadState.RatedWarmup || noLoadState == NoLoadState.IntermediateRun) &&
+                    noLoadStageElapsedSec >= 15 &&
+                    noLoadCurrentTargetSpd >= 200 &&
+                    (actSpd > 0.0 ? Math.Abs(actSpd - noLoadCurrentTargetSpd) <= 120 : true) &&
+                    (actVoltageSigma > 10.0 || (wtU1 + wtU2 + wtU3) > 10.0))
+                {
+                    noLoadHasAutoCapturedEquiv = true;
+                    StartNoLoadSampling(isAuto: true);
+                    AddNoLoadLog(now.ToString("HH:mm:ss"), noLoadElapsedSec.ToString(), "等效電路自動採樣", noLoadCurrentTargetSpd, actSpd, maxBearingTemp, 0,
+                        string.Format("馬達轉速穩定於 {0:F0} rpm，自動啟動 30 秒等效電路電氣量去極值採樣...", noLoadCurrentTargetSpd));
+                    WriteHmiLog("NOLOAD_AUTO_EQUIV", string.Format("【空載自動擷取】馬達平穩運轉於 {0:F0} rpm (實測: {1:F0} rpm)，已自動啟動 30 秒等效電路電氣採樣並將自動寫入參數表與檔案。", noLoadCurrentTargetSpd, actSpd));
                 }
 
                 // 4. 計算 30 分鐘溫差 (熱平衡判定依據)
