@@ -79,11 +79,13 @@ namespace DynamometerHMI
             tabDutyS1 = new TabPage("【S1 額定連續設定】") { BackColor = Color.FromArgb(248, 250, 252), Padding = new Padding(8), AutoScroll = true };
             tabDutyS2 = new TabPage("【S2 短時過載設定】") { BackColor = Color.FromArgb(248, 250, 252), Padding = new Padding(8), AutoScroll = true };
             tabDutyS6 = new TabPage("【S6 週期負載設定】") { BackColor = Color.FromArgb(248, 250, 252), Padding = new Padding(8), AutoScroll = true };
+            tabDutySafety = new TabPage("【安全保護標準設定】") { BackColor = Color.FromArgb(248, 250, 252), Padding = new Padding(8), AutoScroll = true };
 
             tabDutyControl.TabPages.Add(tabDutyMain);
             tabDutyControl.TabPages.Add(tabDutyS1);
             tabDutyControl.TabPages.Add(tabDutyS2);
             tabDutyControl.TabPages.Add(tabDutyS6);
+            tabDutyControl.TabPages.Add(tabDutySafety);
 
             // -------------------------------------------------------------
             // 分頁 1: 【主控排程 / 運轉總覽】
@@ -181,13 +183,33 @@ namespace DynamometerHMI
             Label lblDutyOcPct = new Label() { Text = "門檻:+", AutoSize = true, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Margin = new Padding(4, 4, 0, 0) };
             numDutyOverCurrentPct = CreateNumericUpDown(Point.Empty, 60, 5, 100, dutyOverCurrentPercent, 0, 5);
             numDutyOverCurrentPct.Font = new Font("微軟正黑體", 10.5f);
-            numDutyOverCurrentPct.ValueChanged += (s, e) => { dutyOverCurrentPercent = numDutyOverCurrentPct.Value; UpdateDutyPreflightSummary(); };
+            numDutyOverCurrentPct.ValueChanged += (s, e) => {
+                if (!isSyncingSafetyControls) {
+                    isSyncingSafetyControls = true;
+                    dutyOverCurrentPercent = numDutyOverCurrentPct.Value;
+                    if (numDutyOverCurrentPctSafety != null && numDutyOverCurrentPctSafety.Value != numDutyOverCurrentPct.Value)
+                        numDutyOverCurrentPctSafety.Value = numDutyOverCurrentPct.Value;
+                    SaveLayoutConfig();
+                    UpdateDutyPreflightSummary();
+                    isSyncingSafetyControls = false;
+                }
+            };
             Label lblDutyOcPctUnit = new Label() { Text = "%", AutoSize = true, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Margin = new Padding(0, 4, 8, 0) };
 
             Label lblDutyOcDelay = new Label() { Text = "持續:", AutoSize = true, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Margin = new Padding(4, 4, 0, 0) };
             numDutyOverCurrentDelay = CreateNumericUpDown(Point.Empty, 55, 1, 60, dutyOverCurrentDelaySec, 0, 1);
             numDutyOverCurrentDelay.Font = new Font("微軟正黑體", 10.5f);
-            numDutyOverCurrentDelay.ValueChanged += (s, e) => { dutyOverCurrentDelaySec = numDutyOverCurrentDelay.Value; UpdateDutyPreflightSummary(); };
+            numDutyOverCurrentDelay.ValueChanged += (s, e) => {
+                if (!isSyncingSafetyControls) {
+                    isSyncingSafetyControls = true;
+                    dutyOverCurrentDelaySec = numDutyOverCurrentDelay.Value;
+                    if (numDutyOverCurrentDelaySafety != null && numDutyOverCurrentDelaySafety.Value != numDutyOverCurrentDelay.Value)
+                        numDutyOverCurrentDelaySafety.Value = numDutyOverCurrentDelay.Value;
+                    SaveLayoutConfig();
+                    UpdateDutyPreflightSummary();
+                    isSyncingSafetyControls = false;
+                }
+            };
             Label lblDutyOcDelayUnit = new Label() { Text = "s", AutoSize = true, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Margin = new Padding(0, 4, 8, 0) };
 
             lblDutyCurrentBaseline = new Label() { Text = "基準: 尚未確立 (採樣中)", AutoSize = true, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), ForeColor = Color.FromArgb(71, 85, 105), Margin = new Padding(4, 4, 0, 0) };
@@ -216,7 +238,53 @@ namespace DynamometerHMI
             };
             Label lblRevTrqThreshUnit = new Label() { Text = "Nm", AutoSize = true, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Margin = new Padding(0, 4, 8, 0) };
 
-            flpOc.Controls.AddRange(new Control[] { lblDutyOcTitle, lblDutyOcPct, numDutyOverCurrentPct, lblDutyOcPctUnit, lblDutyOcDelay, numDutyOverCurrentDelay, lblDutyOcDelayUnit, lblRevTrqTitle, numDutyRevTrqTimeout, lblRevTrqUnit, lblRevTrqThreshTitle, numDutyRevTrqThresh, lblRevTrqThreshUnit, lblDutyCurrentBaseline });
+            Label lblDutyBrgTitle = new Label() { Text = "[軸承保護]:", AutoSize = true, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), ForeColor = Color.FromArgb(194, 65, 12), Margin = new Padding(8, 4, 2, 0) };
+            numDutyBearingTripTemp = CreateNumericUpDown(Point.Empty, 65, 40, 180, dutyBearingTripTemp, 1, 1);
+            numDutyBearingTripTemp.Font = new Font("微軟正黑體", 10.5f);
+            numDutyBearingTripTemp.ValueChanged += (s, e) => {
+                if (!isSyncingSafetyControls) {
+                    isSyncingSafetyControls = true;
+                    dutyBearingTripTemp = numDutyBearingTripTemp.Value;
+                    if (numDutyBearingTripTempSafety != null && numDutyBearingTripTempSafety.Value != numDutyBearingTripTemp.Value)
+                        numDutyBearingTripTempSafety.Value = numDutyBearingTripTemp.Value;
+                    SaveLayoutConfig();
+                    UpdateDutyPreflightSummary();
+                    isSyncingSafetyControls = false;
+                }
+            };
+            Label lblDutyBrgUnit = new Label() { Text = "℃", AutoSize = true, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Margin = new Padding(0, 4, 8, 0) };
+
+            Label lblDutyStallTitle = new Label() { Text = "[失步跌落]:", AutoSize = true, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), ForeColor = Color.FromArgb(185, 28, 28), Margin = new Padding(6, 4, 2, 0) };
+            numDutyStallDropSpd = CreateNumericUpDown(Point.Empty, 55, 10, 300, dutyStallDropSpd, 0, 5);
+            numDutyStallDropSpd.Font = new Font("微軟正黑體", 10.5f);
+            numDutyStallDropSpd.ValueChanged += (s, e) => {
+                if (!isSyncingSafetyControls) {
+                    isSyncingSafetyControls = true;
+                    dutyStallDropSpd = numDutyStallDropSpd.Value;
+                    if (numDutyStallDropSpdSafety != null && numDutyStallDropSpdSafety.Value != numDutyStallDropSpd.Value)
+                        numDutyStallDropSpdSafety.Value = numDutyStallDropSpd.Value;
+                    SaveLayoutConfig();
+                    UpdateDutyPreflightSummary();
+                    isSyncingSafetyControls = false;
+                }
+            };
+            Label lblDutyStallUnit = new Label() { Text = "rpm", AutoSize = true, Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold), Margin = new Padding(0, 4, 8, 0) };
+
+            Button btnOpenSafetyConfig = new Button()
+            {
+                Text = "[*] 安全保護標準設定 (1~4項)",
+                Size = new Size(185, 28),
+                Font = new Font("微軟正黑體", 10f, FontStyle.Bold),
+                BackColor = Color.FromArgb(194, 65, 12),
+                ForeColor = Color.White,
+                Margin = new Padding(8, 2, 8, 0)
+            };
+            btnOpenSafetyConfig.Click += (s, e) => {
+                if (tabDutyControl != null && tabDutySafety != null)
+                    tabDutyControl.SelectedTab = tabDutySafety;
+            };
+
+            flpOc.Controls.AddRange(new Control[] { lblDutyOcTitle, lblDutyOcPct, numDutyOverCurrentPct, lblDutyOcPctUnit, lblDutyOcDelay, numDutyOverCurrentDelay, lblDutyOcDelayUnit, lblRevTrqTitle, numDutyRevTrqTimeout, lblRevTrqUnit, lblRevTrqThreshTitle, numDutyRevTrqThresh, lblRevTrqThreshUnit, lblDutyBrgTitle, numDutyBearingTripTemp, lblDutyBrgUnit, lblDutyStallTitle, numDutyStallDropSpd, lblDutyStallUnit, btnOpenSafetyConfig, lblDutyCurrentBaseline });
             tlpMainCfg.SetColumnSpan(flpOc, 4);
             tlpMainCfg.Controls.Add(flpOc, 0, 2);
 
@@ -936,6 +1004,7 @@ namespace DynamometerHMI
             tlpS6.Controls.Add(lblS6AnchorStatus, 0, 3);
             tlpS6.Controls.Add(tlpS6Desc, 0, 4);
             tabDutyS6.Controls.Add(tlpS6);
+            BuildDutySafetyTab();
 
             // -------------------------------------------------------------
             // 底部操作列與狀態行 (永遠置底可見，單一入口防呆)
@@ -1517,7 +1586,25 @@ namespace DynamometerHMI
                     }
                 }
                 sb.AppendLine(string.Format("● 載台角色：{0}", roleStr));
-                sb.AppendLine(string.Format("● 過電流保護：基準 +{0}%，持續 {1} 秒跳脫保護", ocPct, ocDelay));
+                string ocStatus = (dutyOverCurrentEnabled || dutySurgeCurrentEnabled)
+                    ? string.Format("雙階啟用 (階1: +{0}%/{1:F0}s | 階2: {2:F0}%/{3:F1}s)", dutyOverCurrentPercent, dutyOverCurrentDelaySec, dutySurgeCurrentPct, dutySurgeCurrentDelaySec)
+                    : "已關閉";
+                sb.AppendLine(string.Format("● 過電流保護：{0}", ocStatus));
+
+                string brgStatus = dutyBearingTripEnabled
+                    ? string.Format("已啟用 (門檻 >= {0:F1}℃ 持續 {1:F1}s)", dutyBearingTripTemp, dutyBearingTripDelaySec)
+                    : "已關閉";
+                sb.AppendLine(string.Format("● 軸承絕對超溫：{0}", brgStatus));
+
+                string invStatus = dutyInversionEnabled
+                    ? string.Format("已啟用 (線圈>={0:F0}℃時 軸承>線圈+{1:F1}℃ 持續 {2:F0}s 防咬死)", dutyInversionArmTemp, dutyInversionDiffTemp, dutyInversionDelaySec)
+                    : "已關閉";
+                sb.AppendLine(string.Format("● 軸承熱源逆轉：{0}", invStatus));
+
+                string stallStatus = dutyStallDropEnabled
+                    ? string.Format("已啟用 (穩態跌破目標 -{0:F0} rpm 持續 {1:F1}s，前段0%誤判)", dutyStallDropSpd, dutyStallDropDelaySec)
+                    : "已關閉";
+                sb.AppendLine(string.Format("● 穩態失步防咬死：{0}", stallStatus));
                 decimal revTimeout = (numDutyRevTrqTimeout != null) ? numDutyRevTrqTimeout.Value : reverseTorqueTimeoutSec;
                 decimal revThreshDisp = (numDutyRevTrqThresh != null) ? numDutyRevTrqThresh.Value : reverseTorqueThresholdNm;
                 sb.AppendLine(string.Format("● 反轉矩保護：門檻 >= {0:F1} Nm 放行 / 超時 {1} 秒強制安全停機", revThreshDisp, revTimeout));
@@ -1603,7 +1690,29 @@ namespace DynamometerHMI
             if (numDutySpeed != null) numDutySpeed.ReadOnly = isRunning;
             if (numDutyTorque != null) numDutyTorque.ReadOnly = isRunning;
             if (numDutyOverCurrentPct != null) numDutyOverCurrentPct.ReadOnly = isRunning;
+            if (numDutyOverCurrentPctSafety != null) numDutyOverCurrentPctSafety.ReadOnly = isRunning;
             if (numDutyOverCurrentDelay != null) numDutyOverCurrentDelay.ReadOnly = isRunning;
+            if (numDutyOverCurrentDelaySafety != null) numDutyOverCurrentDelaySafety.ReadOnly = isRunning;
+            if (chkDutyOverCurrentEnable != null) chkDutyOverCurrentEnable.Enabled = !isRunning;
+            if (numDutySurgeCurrentPct != null) numDutySurgeCurrentPct.ReadOnly = isRunning;
+            if (numDutySurgeCurrentDelay != null) numDutySurgeCurrentDelay.ReadOnly = isRunning;
+            if (chkDutySurgeCurrentEnable != null) chkDutySurgeCurrentEnable.Enabled = !isRunning;
+
+            if (numDutyBearingTripTemp != null) numDutyBearingTripTemp.ReadOnly = isRunning;
+            if (numDutyBearingTripTempSafety != null) numDutyBearingTripTempSafety.ReadOnly = isRunning;
+            if (numDutyBearingTripDelay != null) numDutyBearingTripDelay.ReadOnly = isRunning;
+            if (chkDutyBearingTripEnable != null) chkDutyBearingTripEnable.Enabled = !isRunning;
+
+            if (numDutyInversionDiffTemp != null) numDutyInversionDiffTemp.ReadOnly = isRunning;
+            if (numDutyInversionDelay != null) numDutyInversionDelay.ReadOnly = isRunning;
+            if (numDutyInversionArmTemp != null) numDutyInversionArmTemp.ReadOnly = isRunning;
+            if (chkDutyInversionEnable != null) chkDutyInversionEnable.Enabled = !isRunning;
+
+            if (numDutyStallDropSpd != null) numDutyStallDropSpd.ReadOnly = isRunning;
+            if (numDutyStallDropSpdSafety != null) numDutyStallDropSpdSafety.ReadOnly = isRunning;
+            if (numDutyStallDropDelay != null) numDutyStallDropDelay.ReadOnly = isRunning;
+            if (chkDutyStallDropEnable != null) chkDutyStallDropEnable.Enabled = !isRunning;
+
             if (numDutyRevTrqTimeout != null) numDutyRevTrqTimeout.ReadOnly = isRunning;
             if (numDutyRevTrqThresh != null) numDutyRevTrqThresh.ReadOnly = isRunning;
 
@@ -1637,6 +1746,519 @@ namespace DynamometerHMI
             if (btnS6ResetAnchor != null) btnS6ResetAnchor.Enabled = !isRunning;
         }
 
+        private void BuildDutySafetyTab()
+        {
+            if (tabDutySafety == null) return;
+            tabDutySafety.Controls.Clear();
+            tabDutySafety.AutoScroll = true;
+            tabDutySafety.BackColor = Color.FromArgb(248, 250, 252);
+
+            TableLayoutPanel tlpRoot = new TableLayoutPanel()
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                ColumnCount = 1,
+                RowCount = 6,
+                Padding = new Padding(12),
+                BackColor = Color.Transparent
+            };
+            tlpRoot.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+
+            // Banner / Title
+            Panel pnlHeader = new Panel()
+            {
+                Dock = DockStyle.Fill,
+                AutoSize = true,
+                BackColor = Color.FromArgb(30, 41, 59),
+                Padding = new Padding(12, 10, 12, 10),
+                Margin = new Padding(0, 0, 0, 10)
+            };
+            Label lblHeaderTitle = new Label()
+            {
+                Text = "【DUTY 測試安全保護標準全域設定 (1~4項)】",
+                Font = new Font("微軟正黑體", 12f, FontStyle.Bold),
+                ForeColor = Color.White,
+                Dock = DockStyle.Top,
+                AutoSize = true
+            };
+            Label lblHeaderSub = new Label()
+            {
+                Text = "包含軸承絕對超溫、軸承熱源逆轉(早期微咬死乾磨)、穩態失步卡死與雙階動態過電流。所有參數皆可微調並自動保存。",
+                Font = new Font("微軟正黑體", 9.5f),
+                ForeColor = Color.FromArgb(203, 213, 225),
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                Margin = new Padding(0, 4, 0, 0)
+            };
+            pnlHeader.Controls.Add(lblHeaderSub);
+            pnlHeader.Controls.Add(lblHeaderTitle);
+            tlpRoot.Controls.Add(pnlHeader, 0, 0);
+
+            // GroupBox 1: 軸承絕對超溫保護
+            GroupBox gb1 = new GroupBox()
+            {
+                Text = "【標準 1】待測端/負載端 軸承絕對超溫安全保護 (Bearing Absolute Over-Temp Protection)",
+                Dock = DockStyle.Fill,
+                AutoSize = true,
+                Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(194, 65, 12),
+                Padding = new Padding(10),
+                Margin = new Padding(0, 0, 0, 10)
+            };
+            FlowLayoutPanel flp1 = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+
+            chkDutyBearingTripEnable = new CheckBox()
+            {
+                Text = "[啟用] 軸承絕對超溫安全停機保護",
+                Checked = dutyBearingTripEnabled,
+                AutoSize = true,
+                Font = new Font("微軟正黑體", 10f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(194, 65, 12),
+                Margin = new Padding(4, 4, 4, 6)
+            };
+            chkDutyBearingTripEnable.CheckedChanged += (s, e) => {
+                dutyBearingTripEnabled = chkDutyBearingTripEnable.Checked;
+                SaveLayoutConfig();
+                UpdateDutyPreflightSummary();
+            };
+
+            FlowLayoutPanel flp1Params = new FlowLayoutPanel() { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Margin = new Padding(0, 2, 0, 4) };
+            Label lblBrgTempTitle = new Label() { Text = "門檻溫度 (建議 105.0℃):", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(4, 6, 2, 0) };
+            numDutyBearingTripTempSafety = CreateNumericUpDown(Point.Empty, 75, 40, 180, dutyBearingTripTemp, 1, 1);
+            numDutyBearingTripTempSafety.Font = new Font("微軟正黑體", 10f);
+            numDutyBearingTripTempSafety.ValueChanged += (s, e) => {
+                if (!isSyncingSafetyControls) {
+                    isSyncingSafetyControls = true;
+                    dutyBearingTripTemp = numDutyBearingTripTempSafety.Value;
+                    if (numDutyBearingTripTemp != null && numDutyBearingTripTemp.Value != numDutyBearingTripTempSafety.Value)
+                        numDutyBearingTripTemp.Value = numDutyBearingTripTempSafety.Value;
+                    SaveLayoutConfig();
+                    UpdateDutyPreflightSummary();
+                    isSyncingSafetyControls = false;
+                }
+            };
+            Label lblBrgTempUnit = new Label() { Text = "℃", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(0, 6, 16, 0) };
+
+            Label lblBrgDelayTitle = new Label() { Text = "判定持續時間 (建議 2.0s):", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(4, 6, 2, 0) };
+            numDutyBearingTripDelay = CreateNumericUpDown(Point.Empty, 70, (decimal)0.5, 30, dutyBearingTripDelaySec, 1, (decimal)0.5);
+            numDutyBearingTripDelay.Font = new Font("微軟正黑體", 10f);
+            numDutyBearingTripDelay.ValueChanged += (s, e) => {
+                dutyBearingTripDelaySec = numDutyBearingTripDelay.Value;
+                SaveLayoutConfig();
+                UpdateDutyPreflightSummary();
+            };
+            Label lblBrgDelayUnit = new Label() { Text = "s", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(0, 6, 4, 0) };
+
+            flp1Params.Controls.Add(lblBrgTempTitle);
+            flp1Params.Controls.Add(numDutyBearingTripTempSafety);
+            flp1Params.Controls.Add(lblBrgTempUnit);
+            flp1Params.Controls.Add(lblBrgDelayTitle);
+            flp1Params.Controls.Add(numDutyBearingTripDelay);
+            flp1Params.Controls.Add(lblBrgDelayUnit);
+
+            Label lblBrgDesc = new Label()
+            {
+                Text = "說明：軸承潤滑油脂一般於 110℃ 開始加速碳化失效。當實測軸承溫度超過設定門檻並持續達指定秒數，系統判定軸承面臨高溫燒結風險，自動執行平滑安全停機。",
+                Font = new Font("微軟正黑體", 9f),
+                ForeColor = Color.FromArgb(71, 85, 105),
+                AutoSize = true,
+                Margin = new Padding(4, 2, 4, 4)
+            };
+
+            flp1.Controls.Add(chkDutyBearingTripEnable);
+            flp1.Controls.Add(flp1Params);
+            flp1.Controls.Add(lblBrgDesc);
+            gb1.Controls.Add(flp1);
+            tlpRoot.Controls.Add(gb1, 0, 1);
+
+            // GroupBox 2: 軸承熱源逆轉異常保護
+            GroupBox gb2 = new GroupBox()
+            {
+                Text = "【標準 2】待測端 軸承熱源逆轉異常保護 (Bearing Thermal Inversion Protection)",
+                Dock = DockStyle.Fill,
+                AutoSize = true,
+                Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(185, 28, 28),
+                Padding = new Padding(10),
+                Margin = new Padding(0, 0, 0, 10)
+            };
+            FlowLayoutPanel flp2 = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+
+            chkDutyInversionEnable = new CheckBox()
+            {
+                Text = "[啟用] 軸承熱源逆轉異常保護 (早期微咬死乾磨預警)",
+                Checked = dutyInversionEnabled,
+                AutoSize = true,
+                Font = new Font("微軟正黑體", 10f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(185, 28, 28),
+                Margin = new Padding(4, 4, 4, 6)
+            };
+            chkDutyInversionEnable.CheckedChanged += (s, e) => {
+                dutyInversionEnabled = chkDutyInversionEnable.Checked;
+                SaveLayoutConfig();
+                UpdateDutyPreflightSummary();
+            };
+
+            FlowLayoutPanel flp2Params = new FlowLayoutPanel() { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Margin = new Padding(0, 2, 0, 4) };
+            Label lblInvArmTitle = new Label() { Text = "熱機起算溫度 (建議 50.0℃):", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(4, 6, 2, 0) };
+            numDutyInversionArmTemp = CreateNumericUpDown(Point.Empty, 70, 30, 90, dutyInversionArmTemp, 1, 1);
+            numDutyInversionArmTemp.Font = new Font("微軟正黑體", 10f);
+            numDutyInversionArmTemp.ValueChanged += (s, e) => {
+                dutyInversionArmTemp = numDutyInversionArmTemp.Value;
+                SaveLayoutConfig();
+                UpdateDutyPreflightSummary();
+            };
+            Label lblInvArmUnit = new Label() { Text = "℃", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(0, 6, 12, 0) };
+
+            Label lblInvDiffTitle = new Label() { Text = "反超溫差門檻 (建議 +3.0℃):", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(4, 6, 2, 0) };
+            numDutyInversionDiffTemp = CreateNumericUpDown(Point.Empty, 70, (decimal)1.0, 20, dutyInversionDiffTemp, 1, (decimal)0.5);
+            numDutyInversionDiffTemp.Font = new Font("微軟正黑體", 10f);
+            numDutyInversionDiffTemp.ValueChanged += (s, e) => {
+                dutyInversionDiffTemp = numDutyInversionDiffTemp.Value;
+                SaveLayoutConfig();
+                UpdateDutyPreflightSummary();
+            };
+            Label lblInvDiffUnit = new Label() { Text = "℃", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(0, 6, 12, 0) };
+
+            Label lblInvDelayTitle = new Label() { Text = "判定持續時間 (建議 15.0s):", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(4, 6, 2, 0) };
+            numDutyInversionDelay = CreateNumericUpDown(Point.Empty, 70, 3, 60, dutyInversionDelaySec, 1, 1);
+            numDutyInversionDelay.Font = new Font("微軟正黑體", 10f);
+            numDutyInversionDelay.ValueChanged += (s, e) => {
+                dutyInversionDelaySec = numDutyInversionDelay.Value;
+                SaveLayoutConfig();
+                UpdateDutyPreflightSummary();
+            };
+            Label lblInvDelayUnit = new Label() { Text = "s", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(0, 6, 4, 0) };
+
+            flp2Params.Controls.Add(lblInvArmTitle);
+            flp2Params.Controls.Add(numDutyInversionArmTemp);
+            flp2Params.Controls.Add(lblInvArmUnit);
+            flp2Params.Controls.Add(lblInvDiffTitle);
+            flp2Params.Controls.Add(numDutyInversionDiffTemp);
+            flp2Params.Controls.Add(lblInvDiffUnit);
+            flp2Params.Controls.Add(lblInvDelayTitle);
+            flp2Params.Controls.Add(numDutyInversionDelay);
+            flp2Params.Controls.Add(lblInvDelayUnit);
+
+            Label lblInvDesc = new Label()
+            {
+                Text = "說明：正常馬達線圈為主要熱源 (T_線圈 > T_軸承)。當馬達溫升達起算溫度後，若軸承溫度異常反超線圈達指定溫差並持續設定秒數，判定軸承潤滑失效、乾磨或微咬死，提前停機防抱死。",
+                Font = new Font("微軟正黑體", 9f),
+                ForeColor = Color.FromArgb(71, 85, 105),
+                AutoSize = true,
+                Margin = new Padding(4, 2, 4, 4)
+            };
+
+            flp2.Controls.Add(chkDutyInversionEnable);
+            flp2.Controls.Add(flp2Params);
+            flp2.Controls.Add(lblInvDesc);
+            gb2.Controls.Add(flp2);
+            tlpRoot.Controls.Add(gb2, 0, 2);
+
+            // GroupBox 3: 穩態失步卡死速度跌落保護
+            GroupBox gb3 = new GroupBox()
+            {
+                Text = "【標準 3】穩態失步 / 機構卡死轉速跌落保護 (Steady-State Speed Droop / Stall Protection)",
+                Dock = DockStyle.Fill,
+                AutoSize = true,
+                Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(185, 28, 28),
+                Padding = new Padding(10),
+                Margin = new Padding(0, 0, 0, 10)
+            };
+            FlowLayoutPanel flp3 = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+
+            chkDutyStallDropEnable = new CheckBox()
+            {
+                Text = "[啟用] 穩態轉速失步卡死保護 (基準確立後生效，前段0%誤判)",
+                Checked = dutyStallDropEnabled,
+                AutoSize = true,
+                Font = new Font("微軟正黑體", 10f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(185, 28, 28),
+                Margin = new Padding(4, 4, 4, 6)
+            };
+            chkDutyStallDropEnable.CheckedChanged += (s, e) => {
+                dutyStallDropEnabled = chkDutyStallDropEnable.Checked;
+                SaveLayoutConfig();
+                UpdateDutyPreflightSummary();
+            };
+
+            FlowLayoutPanel flp3Params = new FlowLayoutPanel() { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Margin = new Padding(0, 2, 0, 4) };
+            Label lblStallSpdTitle = new Label() { Text = "跌落轉速門檻 (建議 40 rpm):", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(4, 6, 2, 0) };
+            numDutyStallDropSpdSafety = CreateNumericUpDown(Point.Empty, 70, 10, 300, dutyStallDropSpd, 0, 5);
+            numDutyStallDropSpdSafety.Font = new Font("微軟正黑體", 10f);
+            numDutyStallDropSpdSafety.ValueChanged += (s, e) => {
+                if (!isSyncingSafetyControls) {
+                    isSyncingSafetyControls = true;
+                    dutyStallDropSpd = numDutyStallDropSpdSafety.Value;
+                    if (numDutyStallDropSpd != null && numDutyStallDropSpd.Value != numDutyStallDropSpdSafety.Value)
+                        numDutyStallDropSpd.Value = numDutyStallDropSpdSafety.Value;
+                    SaveLayoutConfig();
+                    UpdateDutyPreflightSummary();
+                    isSyncingSafetyControls = false;
+                }
+            };
+            Label lblStallSpdUnit = new Label() { Text = "rpm", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(0, 6, 16, 0) };
+
+            Label lblStallDelayTitle = new Label() { Text = "判定持續時間 (建議 1.5s):", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(4, 6, 2, 0) };
+            numDutyStallDropDelay = CreateNumericUpDown(Point.Empty, 70, (decimal)0.5, 10, dutyStallDropDelaySec, 1, (decimal)0.5);
+            numDutyStallDropDelay.Font = new Font("微軟正黑體", 10f);
+            numDutyStallDropDelay.ValueChanged += (s, e) => {
+                dutyStallDropDelaySec = numDutyStallDropDelay.Value;
+                SaveLayoutConfig();
+                UpdateDutyPreflightSummary();
+            };
+            Label lblStallDelayUnit = new Label() { Text = "s", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(0, 6, 4, 0) };
+
+            flp3Params.Controls.Add(lblStallSpdTitle);
+            flp3Params.Controls.Add(numDutyStallDropSpdSafety);
+            flp3Params.Controls.Add(lblStallSpdUnit);
+            flp3Params.Controls.Add(lblStallDelayTitle);
+            flp3Params.Controls.Add(numDutyStallDropDelay);
+            flp3Params.Controls.Add(lblStallDelayUnit);
+
+            Label lblStallDesc = new Label()
+            {
+                Text = "說明：鎖定僅在負載運轉穩態基準確立後生效（升速過渡與切載震盪期 100% 免疫零誤判）。當負載指令不變但實測轉速急遽跌落超過門檻持續設定秒數，判定轉子卡死或機構咬死，立即安全卸載停機。",
+                Font = new Font("微軟正黑體", 9f),
+                ForeColor = Color.FromArgb(71, 85, 105),
+                AutoSize = true,
+                Margin = new Padding(4, 2, 4, 4)
+            };
+
+            flp3.Controls.Add(chkDutyStallDropEnable);
+            flp3.Controls.Add(flp3Params);
+            flp3.Controls.Add(lblStallDesc);
+            gb3.Controls.Add(flp3);
+            tlpRoot.Controls.Add(gb3, 0, 3);
+
+            // GroupBox 4: 雙階動態過電流保護
+            GroupBox gb4 = new GroupBox()
+            {
+                Text = "【標準 4】雙階動態過電流保護 (Two-Tier Over-Current & Inrush Stall Protection)",
+                Dock = DockStyle.Fill,
+                AutoSize = true,
+                Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(29, 78, 216),
+                Padding = new Padding(10),
+                Margin = new Padding(0, 0, 0, 10)
+            };
+            FlowLayoutPanel flp4 = new FlowLayoutPanel() { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
+
+            // 階 1
+            chkDutyOverCurrentEnable = new CheckBox()
+            {
+                Text = "[啟用] 階1: 負載過載保護 (基準 +% 防抖持續設定秒數)",
+                Checked = dutyOverCurrentEnabled,
+                AutoSize = true,
+                Font = new Font("微軟正黑體", 10f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(29, 78, 216),
+                Margin = new Padding(4, 4, 4, 4)
+            };
+            chkDutyOverCurrentEnable.CheckedChanged += (s, e) => {
+                dutyOverCurrentEnabled = chkDutyOverCurrentEnable.Checked;
+                SaveLayoutConfig();
+                UpdateDutyPreflightSummary();
+            };
+
+            FlowLayoutPanel flp4Tier1 = new FlowLayoutPanel() { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Margin = new Padding(0, 0, 0, 6) };
+            Label lblOcPctTitle = new Label() { Text = "過載比例 (建議 +25%):", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(4, 6, 2, 0) };
+            numDutyOverCurrentPctSafety = CreateNumericUpDown(Point.Empty, 70, 5, 100, dutyOverCurrentPercent, 0, 5);
+            numDutyOverCurrentPctSafety.Font = new Font("微軟正黑體", 10f);
+            numDutyOverCurrentPctSafety.ValueChanged += (s, e) => {
+                if (!isSyncingSafetyControls) {
+                    isSyncingSafetyControls = true;
+                    dutyOverCurrentPercent = numDutyOverCurrentPctSafety.Value;
+                    if (numDutyOverCurrentPct != null && numDutyOverCurrentPct.Value != numDutyOverCurrentPctSafety.Value)
+                        numDutyOverCurrentPct.Value = numDutyOverCurrentPctSafety.Value;
+                    SaveLayoutConfig();
+                    UpdateDutyPreflightSummary();
+                    isSyncingSafetyControls = false;
+                }
+            };
+            Label lblOcPctUnit = new Label() { Text = "%", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(0, 6, 16, 0) };
+
+            Label lblOcDelayTitle = new Label() { Text = "防抖持續時間 (建議 10.0s):", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(4, 6, 2, 0) };
+            numDutyOverCurrentDelaySafety = CreateNumericUpDown(Point.Empty, 70, 1, 60, dutyOverCurrentDelaySec, 1, 1);
+            numDutyOverCurrentDelaySafety.Font = new Font("微軟正黑體", 10f);
+            numDutyOverCurrentDelaySafety.ValueChanged += (s, e) => {
+                if (!isSyncingSafetyControls) {
+                    isSyncingSafetyControls = true;
+                    dutyOverCurrentDelaySec = numDutyOverCurrentDelaySafety.Value;
+                    if (numDutyOverCurrentDelay != null && numDutyOverCurrentDelay.Value != numDutyOverCurrentDelaySafety.Value)
+                        numDutyOverCurrentDelay.Value = numDutyOverCurrentDelaySafety.Value;
+                    SaveLayoutConfig();
+                    UpdateDutyPreflightSummary();
+                    isSyncingSafetyControls = false;
+                }
+            };
+            Label lblOcDelayUnit = new Label() { Text = "s", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(0, 6, 4, 0) };
+
+            flp4Tier1.Controls.Add(lblOcPctTitle);
+            flp4Tier1.Controls.Add(numDutyOverCurrentPctSafety);
+            flp4Tier1.Controls.Add(lblOcPctUnit);
+            flp4Tier1.Controls.Add(lblOcDelayTitle);
+            flp4Tier1.Controls.Add(numDutyOverCurrentDelaySafety);
+            flp4Tier1.Controls.Add(lblOcDelayUnit);
+
+            // 階 2
+            chkDutySurgeCurrentEnable = new CheckBox()
+            {
+                Text = "[啟用] 階2: 突波急停保護 (基準倍率 突發卡死 1.0s 急停)",
+                Checked = dutySurgeCurrentEnabled,
+                AutoSize = true,
+                Font = new Font("微軟正黑體", 10f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(185, 28, 28),
+                Margin = new Padding(4, 6, 4, 4)
+            };
+            chkDutySurgeCurrentEnable.CheckedChanged += (s, e) => {
+                dutySurgeCurrentEnabled = chkDutySurgeCurrentEnable.Checked;
+                SaveLayoutConfig();
+                UpdateDutyPreflightSummary();
+            };
+
+            FlowLayoutPanel flp4Tier2 = new FlowLayoutPanel() { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Margin = new Padding(0, 0, 0, 4) };
+            Label lblSurgePctTitle = new Label() { Text = "突波倍率門檻 (建議 150% 基準):", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(4, 6, 2, 0) };
+            numDutySurgeCurrentPct = CreateNumericUpDown(Point.Empty, 70, 120, 300, dutySurgeCurrentPct, 0, 5);
+            numDutySurgeCurrentPct.Font = new Font("微軟正黑體", 10f);
+            numDutySurgeCurrentPct.ValueChanged += (s, e) => {
+                dutySurgeCurrentPct = numDutySurgeCurrentPct.Value;
+                SaveLayoutConfig();
+                UpdateDutyPreflightSummary();
+            };
+            Label lblSurgePctUnit = new Label() { Text = "%", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(0, 6, 16, 0) };
+
+            Label lblSurgeDelayTitle = new Label() { Text = "急停判定時間 (建議 1.0s):", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(4, 6, 2, 0) };
+            numDutySurgeCurrentDelay = CreateNumericUpDown(Point.Empty, 70, (decimal)0.2, 5, dutySurgeCurrentDelaySec, 1, (decimal)0.1);
+            numDutySurgeCurrentDelay.Font = new Font("微軟正黑體", 10f);
+            numDutySurgeCurrentDelay.ValueChanged += (s, e) => {
+                dutySurgeCurrentDelaySec = numDutySurgeCurrentDelay.Value;
+                SaveLayoutConfig();
+                UpdateDutyPreflightSummary();
+            };
+            Label lblSurgeDelayUnit = new Label() { Text = "s", AutoSize = true, Font = new Font("微軟正黑體", 10f), ForeColor = Color.Black, Margin = new Padding(0, 6, 4, 0) };
+
+            flp4Tier2.Controls.Add(lblSurgePctTitle);
+            flp4Tier2.Controls.Add(numDutySurgeCurrentPct);
+            flp4Tier2.Controls.Add(lblSurgePctUnit);
+            flp4Tier2.Controls.Add(lblSurgeDelayTitle);
+            flp4Tier2.Controls.Add(numDutySurgeCurrentDelay);
+            flp4Tier2.Controls.Add(lblSurgeDelayUnit);
+
+            Label lblOcDesc = new Label()
+            {
+                Text = "說明：以負載穩態自動採樣電流為 100% 基準。階1防範負載過載造成溫升燒毀；階2防範轉子突發卡死造成電流劇烈攀升，秒級快速急停。",
+                Font = new Font("微軟正黑體", 9f),
+                ForeColor = Color.FromArgb(71, 85, 105),
+                AutoSize = true,
+                Margin = new Padding(4, 2, 4, 4)
+            };
+
+            flp4.Controls.Add(chkDutyOverCurrentEnable);
+            flp4.Controls.Add(flp4Tier1);
+            flp4.Controls.Add(chkDutySurgeCurrentEnable);
+            flp4.Controls.Add(flp4Tier2);
+            flp4.Controls.Add(lblOcDesc);
+            gb4.Controls.Add(flp4);
+            tlpRoot.Controls.Add(gb4, 0, 4);
+
+            // Bottom Actions (恢復建議值 & 保存並返回)
+            FlowLayoutPanel flpActions = new FlowLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                AutoSize = true,
+                FlowDirection = FlowDirection.LeftToRight,
+                Padding = new Padding(0, 10, 0, 16),
+                BackColor = Color.Transparent
+            };
+
+            Button btnResetDefaults = new Button()
+            {
+                Text = "【[!] 恢復原廠建議值】",
+                Size = new Size(200, 36),
+                Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold),
+                BackColor = Color.FromArgb(100, 116, 139),
+                ForeColor = Color.White,
+                Margin = new Padding(0, 0, 16, 0)
+            };
+            btnResetDefaults.Click += (s, e) => {
+                isSyncingSafetyControls = true;
+                dutyBearingTripTemp = 105.0m;
+                dutyBearingTripDelaySec = 2.0m;
+                dutyBearingTripEnabled = true;
+
+                dutyInversionArmTemp = 50.0m;
+                dutyInversionDiffTemp = 3.0m;
+                dutyInversionDelaySec = 15.0m;
+                dutyInversionEnabled = true;
+
+                dutyStallDropSpd = 40m;
+                dutyStallDropDelaySec = 1.5m;
+                dutyStallDropEnabled = true;
+
+                dutyOverCurrentPercent = 25m;
+                dutyOverCurrentDelaySec = 10.0m;
+                dutyOverCurrentEnabled = true;
+
+                dutySurgeCurrentPct = 150m;
+                dutySurgeCurrentDelaySec = 1.0m;
+                dutySurgeCurrentEnabled = true;
+
+                if (numDutyBearingTripTemp != null) numDutyBearingTripTemp.Value = dutyBearingTripTemp;
+                if (numDutyBearingTripTempSafety != null) numDutyBearingTripTempSafety.Value = dutyBearingTripTemp;
+                if (numDutyBearingTripDelay != null) numDutyBearingTripDelay.Value = dutyBearingTripDelaySec;
+                if (chkDutyBearingTripEnable != null) chkDutyBearingTripEnable.Checked = dutyBearingTripEnabled;
+
+                if (numDutyInversionArmTemp != null) numDutyInversionArmTemp.Value = dutyInversionArmTemp;
+                if (numDutyInversionDiffTemp != null) numDutyInversionDiffTemp.Value = dutyInversionDiffTemp;
+                if (numDutyInversionDelay != null) numDutyInversionDelay.Value = dutyInversionDelaySec;
+                if (chkDutyInversionEnable != null) chkDutyInversionEnable.Checked = dutyInversionEnabled;
+
+                if (numDutyStallDropSpd != null) numDutyStallDropSpd.Value = dutyStallDropSpd;
+                if (numDutyStallDropSpdSafety != null) numDutyStallDropSpdSafety.Value = dutyStallDropSpd;
+                if (numDutyStallDropDelay != null) numDutyStallDropDelay.Value = dutyStallDropDelaySec;
+                if (chkDutyStallDropEnable != null) chkDutyStallDropEnable.Checked = dutyStallDropEnabled;
+
+                if (numDutyOverCurrentPct != null) numDutyOverCurrentPct.Value = dutyOverCurrentPercent;
+                if (numDutyOverCurrentPctSafety != null) numDutyOverCurrentPctSafety.Value = dutyOverCurrentPercent;
+                if (numDutyOverCurrentDelay != null) numDutyOverCurrentDelay.Value = dutyOverCurrentDelaySec;
+                if (numDutyOverCurrentDelaySafety != null) numDutyOverCurrentDelaySafety.Value = dutyOverCurrentDelaySec;
+                if (chkDutyOverCurrentEnable != null) chkDutyOverCurrentEnable.Checked = dutyOverCurrentEnabled;
+
+                if (numDutySurgeCurrentPct != null) numDutySurgeCurrentPct.Value = dutySurgeCurrentPct;
+                if (numDutySurgeCurrentDelay != null) numDutySurgeCurrentDelay.Value = dutySurgeCurrentDelaySec;
+                if (chkDutySurgeCurrentEnable != null) chkDutySurgeCurrentEnable.Checked = dutySurgeCurrentEnabled;
+
+                isSyncingSafetyControls = false;
+                SaveLayoutConfig();
+                UpdateDutyPreflightSummary();
+                MessageBox.Show("已成功恢復全套安全保護原廠建議值！", "安全保護設定", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            };
+
+            Button btnApplyAndReturn = new Button()
+            {
+                Text = "【[OK] 保存並返回主控排程】",
+                Size = new Size(220, 36),
+                Font = new Font("微軟正黑體", 10.5f, FontStyle.Bold),
+                BackColor = Color.FromArgb(16, 185, 129),
+                ForeColor = Color.White,
+                Margin = new Padding(0, 0, 0, 0)
+            };
+            btnApplyAndReturn.Click += (s, e) => {
+                SaveLayoutConfig();
+                UpdateDutyPreflightSummary();
+                if (tabDutyControl != null && tabDutyMain != null)
+                    tabDutyControl.SelectedTab = tabDutyMain;
+            };
+
+            flpActions.Controls.Add(btnResetDefaults);
+            flpActions.Controls.Add(btnApplyAndReturn);
+            tlpRoot.Controls.Add(flpActions, 0, 5);
+
+            tabDutySafety.Controls.Add(tlpRoot);
+        }
+
         public void ResetDutyTestToStandby()
         {
             if (this.InvokeRequired)
@@ -1645,6 +2267,11 @@ namespace DynamometerHMI
                 return;
             }
             if (dutyTimer != null) dutyTimer.Stop();
+            dutyOverCurrentStartTime = DateTime.MinValue;
+            dutySurgeTripStartTime = DateTime.MinValue;
+            dutyStallStartTime = DateTime.MinValue;
+            dutyBearingTripStartTime = DateTime.MinValue;
+            dutyThermalInversionStartTime = DateTime.MinValue;
             SetDutyControlsReadOnly(false);
             if (pnlDutyLiveMonitor != null) pnlDutyLiveMonitor.Visible = false;
             if (txtDutyPreflightSummary != null)
@@ -2503,6 +3130,10 @@ namespace DynamometerHMI
             dutyBaselineCurrentSigma = 0.0;
             dutyBaselineCurrentDrive = 0.0;
             dutyOverCurrentStartTime = DateTime.MinValue;
+            dutySurgeTripStartTime = DateTime.MinValue;
+            dutyStallStartTime = DateTime.MinValue;
+            dutyBearingTripStartTime = DateTime.MinValue;
+            dutyThermalInversionStartTime = DateTime.MinValue;
             dutySigmaCurrentSamples.Clear();
             dutyDriveCurrentSamples.Clear();
             if (lblDutyCurrentBaseline != null) lblDutyCurrentBaseline.Text = "基準: 尚未確立 (採樣中)";
@@ -3232,60 +3863,298 @@ namespace DynamometerHMI
                 }
             }
 
-            // 2. 過電流判定保護 (超出基準負載比例連續達設定秒數)
+            // 2. 雙階過電流保護 (階1: 負載過載防抖跳脫; 階2: 突波急遽過電流快速跳脫)
             if (isDutyBaselineEstablished && (dutyBaselineCurrentSigma > 0.05 || dutyBaselineCurrentDrive > 0.05))
             {
-                double pctMult = 1.0 + ((double)dutyOverCurrentPercent / 100.0);
-                double sigLimit = dutyBaselineCurrentSigma * pctMult;
-                double drvLimit = dutyBaselineCurrentDrive * pctMult;
-
-                bool isSigOver = (dutyBaselineCurrentSigma > 0.05) && (curSig > sigLimit);
-                bool isDrvOver = (dutyBaselineCurrentDrive > 0.05) && (curDrv > drvLimit);
-
-                if (isSigOver || isDrvOver)
+                // 階2: 突波門檻 (基準電流倍率，防突發卡死)
+                if (dutySurgeCurrentEnabled)
                 {
-                    if (dutyOverCurrentStartTime == DateTime.MinValue)
+                    double surgePctMult = (double)dutySurgeCurrentPct / 100.0;
+                    double sigSurgeLimit = dutyBaselineCurrentSigma * surgePctMult;
+                    double drvSurgeLimit = dutyBaselineCurrentDrive * surgePctMult;
+
+                    bool isSigSurge = (dutyBaselineCurrentSigma > 0.05) && (curSig > sigSurgeLimit);
+                    bool isDrvSurge = (dutyBaselineCurrentDrive > 0.05) && (curDrv > drvSurgeLimit);
+
+                    if (isSigSurge || isDrvSurge)
                     {
-                        dutyOverCurrentStartTime = now;
+                        if (dutySurgeTripStartTime == DateTime.MinValue) dutySurgeTripStartTime = now;
+                        double surgeSec = (now - dutySurgeTripStartTime).TotalSeconds;
+                        double reqSurgeDelay = (double)dutySurgeCurrentDelaySec;
+                        string surgeDetail = isSigSurge
+                            ? string.Format("PowerMeter Sigma: {0:F2}A > 突波門檻 {1:F2}A (基準 {2:F2}A x{3:F0}%)", curSig, sigSurgeLimit, dutyBaselineCurrentSigma, (double)dutySurgeCurrentPct)
+                            : string.Format("驅動器輸出: {0:F2}A > 突波門檻 {1:F2}A (基準 {2:F2}A x{3:F0}%)", curDrv, drvSurgeLimit, dutyBaselineCurrentDrive, (double)dutySurgeCurrentPct);
+
+                        lblDutyPhaseAction.Text = string.Format("[!]【突波過電流警示】{0} ({1:F1}/{2:F1}s)", surgeDetail, surgeSec, reqSurgeDelay);
+                        if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
+
+                        if (surgeSec >= reqSurgeDelay)
+                        {
+                            dutyTimer.Stop();
+                            if (isManualRecording) StopManualRecording(showPrompt: false);
+
+                            string tripMsg = string.Format(
+                                "【[!] DUTY 突波過電流急停保護】\n\n" +
+                                "實測電流超過基準電流 {0:F0}% 持續達 {1:F1} 秒！\n" +
+                                "觸發詳情：{2}\n\n" +
+                                "檢測到嚴重過載或機構卡死，系統已立即啟動緊急安全停機保護！",
+                                (double)dutySurgeCurrentPct, reqSurgeDelay, surgeDetail);
+                            WriteHmiLog("OVER_CURRENT_SURGE_TRIP", tripMsg);
+
+                            StartGradualAutoStop(spdDrive, trqDrive, "DUTY 突波過電流急停保護", () => {
+                                ResetDutyTestToStandby();
+                                lblDutyStatus.Text = "【[!] 突波過電流跳脫】已安全停機！";
+                                lblDutyPhaseAction.Text = surgeDetail;
+                                if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
+                                if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
+                                MessageBox.Show(tripMsg, "DUTY 突波過電流急停保護", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            });
+                            return;
+                        }
                     }
-                    double overSec = (now - dutyOverCurrentStartTime).TotalSeconds;
-                    double reqDelay = (double)dutyOverCurrentDelaySec;
-
-                    string tripDetail = isSigOver
-                        ? string.Format("PowerMeter Σ: {0:F2}A > 門檻 {1:F2}A (基準 {2:F2}A +{3}%)", curSig, sigLimit, dutyBaselineCurrentSigma, (int)dutyOverCurrentPercent)
-                        : string.Format("驅動器輸出: {0:F2}A > 門檻 {1:F2}A (基準 {2:F2}A +{3}%)", curDrv, drvLimit, dutyBaselineCurrentDrive, (int)dutyOverCurrentPercent);
-
-                    lblDutyPhaseAction.Text = string.Format("[!]【電流過載警示】{0} (超限 {1:F0}/{2:F0}s)", tripDetail, overSec, reqDelay);
-                    if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
-
-                    if (overSec >= reqDelay)
+                    else
                     {
-                        dutyTimer.Stop();
-                        if (isManualRecording) StopManualRecording(showPrompt: false);
+                        dutySurgeTripStartTime = DateTime.MinValue;
+                    }
+                }
+                else
+                {
+                    dutySurgeTripStartTime = DateTime.MinValue;
+                }
 
-                        string tripMsg = string.Format(
-                            "【[!] DUTY 過電流跳脫保護】\n\n" +
-                            "實測電流超出基準負載 {0}% 連續達 {1:F0} 秒！\n" +
-                            "觸發詳情：{2}\n\n" +
-                            "系統已立即啟動平滑降載停機程序保護待測設備！",
-                            (int)dutyOverCurrentPercent, reqDelay, tripDetail);
-                        WriteHmiLog("OVER_CURRENT_TRIP", tripMsg);
+                // 階1: 一般負載過載保護 (基準 +% 持續設定秒數)
+                if (dutyOverCurrentEnabled)
+                {
+                    double pctMult = 1.0 + ((double)dutyOverCurrentPercent / 100.0);
+                    double sigLimit = dutyBaselineCurrentSigma * pctMult;
+                    double drvLimit = dutyBaselineCurrentDrive * pctMult;
 
-                        StartGradualAutoStop(spdDrive, trqDrive, "DUTY 過電流保護跳脫", () => {
-                            ResetDutyTestToStandby();
-                            lblDutyStatus.Text = "【[!] 過電流保護跳脫】已安全停機！";
-                            lblDutyPhaseAction.Text = tripDetail;
-                            if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
-                            if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
-                            MessageBox.Show(tripMsg, "DUTY 過電流保護跳脫", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        });
-                        return;
+                    bool isSigOver = (dutyBaselineCurrentSigma > 0.05) && (curSig > sigLimit);
+                    bool isDrvOver = (dutyBaselineCurrentDrive > 0.05) && (curDrv > drvLimit);
+
+                    if (isSigOver || isDrvOver)
+                    {
+                        if (dutyOverCurrentStartTime == DateTime.MinValue)
+                        {
+                            dutyOverCurrentStartTime = now;
+                        }
+                        double overSec = (now - dutyOverCurrentStartTime).TotalSeconds;
+                        double reqDelay = (double)dutyOverCurrentDelaySec;
+
+                        string tripDetail = isSigOver
+                            ? string.Format("PowerMeter Sigma: {0:F2}A > 門檻 {1:F2}A (基準 {2:F2}A +{3}%)", curSig, sigLimit, dutyBaselineCurrentSigma, (int)dutyOverCurrentPercent)
+                            : string.Format("驅動器輸出: {0:F2}A > 門檻 {1:F2}A (基準 {2:F2}A +{3}%)", curDrv, drvLimit, dutyBaselineCurrentDrive, (int)dutyOverCurrentPercent);
+
+                        lblDutyPhaseAction.Text = string.Format("[!]【電流過載警示】{0} (超限 {1:F0}/{2:F0}s)", tripDetail, overSec, reqDelay);
+                        if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
+
+                        if (overSec >= reqDelay)
+                        {
+                            dutyTimer.Stop();
+                            if (isManualRecording) StopManualRecording(showPrompt: false);
+
+                            string tripMsg = string.Format(
+                                "【[!] DUTY 過電流跳脫保護】\n\n" +
+                                "實測電流超出基準負載 {0}% 連續達 {1:F0} 秒！\n" +
+                                "觸發詳情：{2}\n\n" +
+                                "系統已立即啟動平滑降載停機程序保護待測設備！",
+                                (int)dutyOverCurrentPercent, reqDelay, tripDetail);
+                            WriteHmiLog("OVER_CURRENT_TRIP", tripMsg);
+
+                            StartGradualAutoStop(spdDrive, trqDrive, "DUTY 過電流保護跳脫", () => {
+                                ResetDutyTestToStandby();
+                                lblDutyStatus.Text = "【[!] 過電流保護跳脫】已安全停機！";
+                                lblDutyPhaseAction.Text = tripDetail;
+                                if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
+                                if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
+                                MessageBox.Show(tripMsg, "DUTY 過電流保護跳脫", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            });
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        dutyOverCurrentStartTime = DateTime.MinValue;
                     }
                 }
                 else
                 {
                     dutyOverCurrentStartTime = DateTime.MinValue;
                 }
+            }
+
+            // 3. 軸承即時溫度防護 (3A: 軸承絕對超溫保護 / 3B: 軸承熱源逆轉異常保護)
+            double maxBearingTemp = -999.0;
+            string maxBearingChName = "";
+            List<int> brgChList = new List<int>();
+            for (int ci = 0; ci < 20; ci++)
+            {
+                string cn = (gl820ChannelNames != null && ci < gl820ChannelNames.Length && !string.IsNullOrEmpty(gl820ChannelNames[ci])) ? gl820ChannelNames[ci].ToUpper() : "";
+                if (cn.Contains("FB") || cn.Contains("BB") || cn.Contains("BEARING") || cn.Contains("軸承") || cn.Contains("前軸") || cn.Contains("後軸"))
+                {
+                    brgChList.Add(ci);
+                }
+            }
+            if (brgChList.Count == 0)
+            {
+                brgChList.Add(1); // 預設 CH2 FB
+                brgChList.Add(2); // 預設 CH3 BB
+            }
+            foreach (int bIdx in brgChList)
+            {
+                if (bIdx >= 0 && bIdx < chSnapshot.Length && chSnapshot[bIdx] > -100.0)
+                {
+                    if (chSnapshot[bIdx] > maxBearingTemp)
+                    {
+                        maxBearingTemp = chSnapshot[bIdx];
+                        maxBearingChName = (gl820ChannelNames != null && bIdx < gl820ChannelNames.Length && !string.IsNullOrEmpty(gl820ChannelNames[bIdx]))
+                            ? gl820ChannelNames[bIdx]
+                            : ("CH" + (bIdx + 1));
+                    }
+                }
+            }
+
+            // 3A. 軸承絕對超溫保護
+            if (dutyBearingTripEnabled)
+            {
+                double limitBrgTemp = (double)dutyBearingTripTemp;
+                if (maxBearingTemp >= limitBrgTemp)
+                {
+                    if (dutyBearingTripStartTime == DateTime.MinValue) dutyBearingTripStartTime = now;
+                    double bOverSec = (now - dutyBearingTripStartTime).TotalSeconds;
+                    double bReqDelay = (double)dutyBearingTripDelaySec;
+                    lblDutyPhaseAction.Text = string.Format("[!]【軸承超溫警示】{0}: {1:F1}℃ >= 門檻 {2:F1}℃ ({3:F1}/{4:F1}s)", maxBearingChName, maxBearingTemp, limitBrgTemp, bOverSec, bReqDelay);
+                    if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
+
+                    if (bOverSec >= bReqDelay)
+                    {
+                        dutyTimer.Stop();
+                        if (isManualRecording) StopManualRecording(showPrompt: false);
+
+                        string tripMsg = string.Format(
+                            "【[!] 軸承超溫安全停機保護】\n\n" +
+                            "監控軸承通道 {0} 實測溫度達 {1:F1} ℃，已超過軸承安全極限門檻 {2:F1} ℃ 連續達 {3:F1} 秒！\n\n" +
+                            "為防止軸承滾珠咬死與機構損毀，系統已自動執行平滑安全停機。",
+                            maxBearingChName, maxBearingTemp, limitBrgTemp, bReqDelay);
+                        WriteHmiLog("BEARING_OVERTEMP_TRIP", tripMsg);
+
+                        StartGradualAutoStop(spdDrive, trqDrive, "軸承超溫安全停機", () => {
+                            ResetDutyTestToStandby();
+                            lblDutyStatus.Text = string.Format("【[!] 軸承超溫停機】{0}: {1:F1}℃ >= {2:F1}℃！", maxBearingChName, maxBearingTemp, limitBrgTemp);
+                            lblDutyPhaseAction.Text = "軸承超溫已安全停機";
+                            if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
+                            if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
+                            MessageBox.Show(tripMsg, "軸承超溫安全停機", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        });
+                        return;
+                    }
+                }
+                else
+                {
+                    dutyBearingTripStartTime = DateTime.MinValue;
+                }
+            }
+            else
+            {
+                dutyBearingTripStartTime = DateTime.MinValue;
+            }
+
+            // 3B. 軸承熱源逆轉異常保護 (熱機 >= armTemp 時軸承溫度反超線圈 +diffTemp 持續 delaySec)
+            // 正常馬達線圈為熱源 (T_Coil > T_Bearing)。若 T_Bearing > T_Coil + diffTemp 代表軸承乾磨劇烈生熱！
+            if (dutyInversionEnabled)
+            {
+                double armTemp = (double)dutyInversionArmTemp;
+                double diffTemp = (double)dutyInversionDiffTemp;
+                double invDelay = (double)dutyInversionDelaySec;
+
+                if (dutyMonitoredTemp >= armTemp && maxBearingTemp > -100.0 && maxBearingTemp >= (dutyMonitoredTemp + diffTemp))
+                {
+                    if (dutyThermalInversionStartTime == DateTime.MinValue) dutyThermalInversionStartTime = now;
+                    double invSec = (now - dutyThermalInversionStartTime).TotalSeconds;
+                    lblDutyPhaseAction.Text = string.Format("[!]【軸承異常生熱警示】{0} ({1:F1}℃) > 線圈 ({2:F1}℃)+{3:F1}℃ ({4:F0}/{5:F0}s)",
+                        maxBearingChName, maxBearingTemp, dutyMonitoredTemp, diffTemp, invSec, invDelay);
+                    if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
+
+                    if (invSec >= invDelay)
+                    {
+                        dutyTimer.Stop();
+                        if (isManualRecording) StopManualRecording(showPrompt: false);
+
+                        string tripMsg = string.Format(
+                            "【[!] 軸承熱源逆轉異常停機保護】\n\n" +
+                            "檢測到待測機軸承 {0} ({1:F1} ℃) 顯著高於馬達線圈監控溫度 ({2:F1} ℃) 達 {3:F1} ℃ 以上，且已持續 {4:F0} 秒！\n\n" +
+                            "【診斷原因】正常運轉下線圈為主要熱源；軸承溫度逆轉反超線圈代表軸承內部潤滑失效、微咬死乾磨或嚴重摩擦生熱！\n" +
+                            "為避免軸承完全抱死燒毀，系統已提前啟動安全停機保護待測設備！",
+                            maxBearingChName, maxBearingTemp, dutyMonitoredTemp, diffTemp, invDelay);
+                        WriteHmiLog("BEARING_THERMAL_INVERSION_TRIP", tripMsg);
+
+                        StartGradualAutoStop(spdDrive, trqDrive, "軸承熱源逆轉防咬死停機", () => {
+                            ResetDutyTestToStandby();
+                            lblDutyStatus.Text = string.Format("【[!] 軸承異常生熱停機】{0} ({1:F1}℃) > 線圈 ({2:F1}℃)！", maxBearingChName, maxBearingTemp, dutyMonitoredTemp);
+                            lblDutyPhaseAction.Text = "軸承潤滑失效乾磨，已提前停機防咬死";
+                            if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
+                            if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
+                            MessageBox.Show(tripMsg, "軸承熱源逆轉異常停機", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        });
+                        return;
+                    }
+                }
+                else
+                {
+                    dutyThermalInversionStartTime = DateTime.MinValue;
+                }
+            }
+            else
+            {
+                dutyThermalInversionStartTime = DateTime.MinValue;
+            }
+
+            // 4. 穩態失步/卡死速度跌落保護 (僅在穩態基準確立後生效，前段升速與過渡零誤判)
+            if (dutyStallDropEnabled && isDutyBaselineEstablished && targetSpd > 100.0)
+            {
+                double stallThreshold = (double)dutyStallDropSpd;
+                double stallReqDelay = (double)dutyStallDropDelaySec;
+
+                if (actAbsSpd < (targetSpd - stallThreshold))
+                {
+                    if (dutyStallStartTime == DateTime.MinValue) dutyStallStartTime = now;
+                    double stallSec = (now - dutyStallStartTime).TotalSeconds;
+                    lblDutyPhaseAction.Text = string.Format("[!]【轉速跌落失步警示】實測 {0:F0} rpm < 目標 {1:F0} - {2:F0} rpm ({3:F1}/{4:F1}s)",
+                        actAbsSpd, targetSpd, stallThreshold, stallSec, stallReqDelay);
+                    if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
+
+                    if (stallSec >= stallReqDelay)
+                    {
+                        dutyTimer.Stop();
+                        if (isManualRecording) StopManualRecording(showPrompt: false);
+
+                        string tripMsg = string.Format(
+                            "【[!] 穩態轉速失步卡死停機保護】\n\n" +
+                            "測試運轉於穩態時，實測轉速 ({0:F0} rpm) 跌落低於設定目標 ({1:F0} rpm) 達 {2:F0} rpm 以上，且已持續 {3:F1} 秒！\n\n" +
+                            "【診斷原因】負載未變更下轉速急遽跌落，判定機構已發生軸承咬死、轉子卡死或傳動失步！\n" +
+                            "系統在電流暴增至燒毀極限前已立即啟動緊急平滑卸載停機保護！",
+                            actAbsSpd, targetSpd, stallThreshold, stallReqDelay);
+                        WriteHmiLog("DUTY_STALL_SPEED_DROP_TRIP", tripMsg);
+
+                        StartGradualAutoStop(spdDrive, trqDrive, "穩態轉速失步卡死保護", () => {
+                            ResetDutyTestToStandby();
+                            lblDutyStatus.Text = string.Format("【[!] 穩態轉速失步卡死】實測 {0:F0} rpm < 目標 {1:F0} rpm！", actAbsSpd, targetSpd);
+                            lblDutyPhaseAction.Text = "轉速急遽跌落卡死，已緊急安全卸載";
+                            if (lblDutyMiniStatus != null) lblDutyMiniStatus.Text = lblDutyStatus.Text;
+                            if (lblDutyMiniPhaseAction != null) lblDutyMiniPhaseAction.Text = lblDutyPhaseAction.Text;
+                            MessageBox.Show(tripMsg, "穩態轉速失步卡死保護", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        });
+                        return;
+                    }
+                }
+                else
+                {
+                    dutyStallStartTime = DateTime.MinValue;
+                }
+            }
+            else
+            {
+                dutyStallStartTime = DateTime.MinValue;
             }
 
             if (dutyModeIdx == 2) // ================= S6 週期負載模式 =================

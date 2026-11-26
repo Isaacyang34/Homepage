@@ -342,9 +342,9 @@ namespace DynamometerHMI
         private int dutyElapsedSec = 0, dutyTotalSec = 0;
         private List<string[]> dutyResults = new List<string[]>();
 
-        // 4 分頁獨立配置架構 (主控排程、S1設定、S2設定、S6設定) 與各工作制獨立控制項
+        // 5 分頁獨立配置架構 (主控排程、S1設定、S2設定、S6設定、安全保護標準設定) 與各工作制獨立控制項
         private TabControl tabDutyControl;
-        private TabPage tabDutyMain, tabDutyS1, tabDutyS2, tabDutyS6;
+        private TabPage tabDutyMain, tabDutyS1, tabDutyS2, tabDutyS6, tabDutySafety;
         private ComboBox cmbDutyMainMode; // 測試模式：單一測試 vs 連續自動排程
         private NumericUpDown numS1Speed, numS1Torque;
         private NumericUpDown numS2Speed, numS2Torque;
@@ -425,6 +425,52 @@ namespace DynamometerHMI
         public NumericUpDown numTnRevTrqTimeout;
         public NumericUpDown numDutyRevTrqThresh;
         public NumericUpDown numTnRevTrqThresh;
+        // 4大安全保護標準 (含建議預設值與使用者自訂微調)
+        // 1. 軸承絕對超溫保護
+        public decimal dutyBearingTripTemp = 105.0m;        // 門檻 (℃，建議 105.0℃)
+        public decimal dutyBearingTripDelaySec = 2.0m;      // 持續 (s，建議 2.0s)
+        public bool dutyBearingTripEnabled = true;          // 啟用開關
+        public NumericUpDown numDutyBearingTripTemp;
+        public NumericUpDown numDutyBearingTripDelay;
+        public CheckBox chkDutyBearingTripEnable;
+
+        // 2. 軸承熱源逆轉異常保護
+        public decimal dutyInversionDiffTemp = 3.0m;        // 軸承高於線圈溫差門檻 (℃，建議 +3.0℃)
+        public decimal dutyInversionDelaySec = 15.0m;       // 持續 (s，建議 15.0s)
+        public decimal dutyInversionArmTemp = 50.0m;        // 熱機線圈起算溫度 (℃，建議 50.0℃)
+        public bool dutyInversionEnabled = true;            // 啟用開關
+        public NumericUpDown numDutyInversionDiffTemp;
+        public NumericUpDown numDutyInversionDelay;
+        public NumericUpDown numDutyInversionArmTemp;
+        public CheckBox chkDutyInversionEnable;
+
+        // 3. 穩態失步/卡死速度跌落保護
+        public decimal dutyStallDropSpd = 40m;              // 速度跌落門檻 (rpm，建議 40 rpm)
+        public decimal dutyStallDropDelaySec = 1.5m;        // 持續 (s，建議 1.5s)
+        public bool dutyStallDropEnabled = true;            // 啟用開關
+        public NumericUpDown numDutyStallDropSpd;
+        public NumericUpDown numDutyStallDropDelay;
+        public CheckBox chkDutyStallDropEnable;
+
+        // 4. 雙階過電流保護 (階1過載 + 階2突波)
+        public bool dutyOverCurrentEnabled = true;          // 階1過載啟用開關
+        public CheckBox chkDutyOverCurrentEnable;
+        public decimal dutySurgeCurrentPct = 150m;          // 階2突波門檻 (% of baseline，建議 150%)
+        public decimal dutySurgeCurrentDelaySec = 1.0m;     // 階2突波持續 (s，建議 1.0s)
+        public bool dutySurgeCurrentEnabled = true;         // 階2突波啟用開關
+        public NumericUpDown numDutySurgeCurrentPct;
+        public NumericUpDown numDutySurgeCurrentDelay;
+        public CheckBox chkDutySurgeCurrentEnable;
+        private bool isSyncingSafetyControls = false;
+        public NumericUpDown numDutyBearingTripTempSafety;
+        public NumericUpDown numDutyStallDropSpdSafety;
+        public NumericUpDown numDutyOverCurrentPctSafety;
+        public NumericUpDown numDutyOverCurrentDelaySafety;
+
+        public DateTime dutyStallStartTime = DateTime.MinValue; // 穩態失步計時器
+        public DateTime dutyBearingTripStartTime = DateTime.MinValue; // 軸承超溫計時器
+        public DateTime dutyThermalInversionStartTime = DateTime.MinValue; // 軸承熱源逆轉計時器
+        public DateTime dutySurgeTripStartTime = DateTime.MinValue; // 突波急遽過電流計時器
         private const double DUTY_EXCITE_BASE_RPM = 300.0; // 低速激磁基準轉速 (300 rpm)
         private CheckBox chkDutySlipComp = null; // S1 補轉差/不補轉差勾選框 (預設勾選: 自動補轉差; 取消勾選: 不補轉差自然轉差)
         private double dutyMinuteVoltSum = 0.0;
@@ -2219,6 +2265,22 @@ namespace DynamometerHMI
                 sb.AppendLine("AutoStopBrakeThresholdRpm=" + autoStopBrakeThresholdRpm.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 sb.AppendLine("ReverseTorqueTimeout=" + reverseTorqueTimeoutSec.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 sb.AppendLine("ReverseTorqueThreshold=" + reverseTorqueThresholdNm.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("BearingTripTemp=" + dutyBearingTripTemp.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("BearingTripDelay=" + dutyBearingTripDelaySec.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("BearingTripEnabled=" + (dutyBearingTripEnabled ? "1" : "0"));
+                sb.AppendLine("InversionDiffTemp=" + dutyInversionDiffTemp.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("InversionDelay=" + dutyInversionDelaySec.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("InversionArmTemp=" + dutyInversionArmTemp.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("InversionEnabled=" + (dutyInversionEnabled ? "1" : "0"));
+                sb.AppendLine("StallDropSpeed=" + dutyStallDropSpd.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("StallDropDelay=" + dutyStallDropDelaySec.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("StallDropEnabled=" + (dutyStallDropEnabled ? "1" : "0"));
+                sb.AppendLine("OverCurrentPercent=" + dutyOverCurrentPercent.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("OverCurrentDelay=" + dutyOverCurrentDelaySec.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("OverCurrentEnabled=" + (dutyOverCurrentEnabled ? "1" : "0"));
+                sb.AppendLine("SurgeCurrentPercent=" + dutySurgeCurrentPct.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("SurgeCurrentDelay=" + dutySurgeCurrentDelaySec.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("SurgeCurrentEnabled=" + (dutySurgeCurrentEnabled ? "1" : "0"));
 
                 sb.AppendLine("[Tracking]");
                 sb.AppendLine("MaxDelta=" + trackingMaxDelta.ToString("F1", System.Globalization.CultureInfo.InvariantCulture));
@@ -2508,6 +2570,107 @@ namespace DynamometerHMI
                         if (numDutyRevTrqThresh != null) numDutyRevTrqThresh.Value = v;
                         if (numTnRevTrqThresh != null) numTnRevTrqThresh.Value = v;
                     }
+                }
+                if (map.ContainsKey("Safety.BearingTripTemp")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.BearingTripTemp"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyBearingTripTemp = v;
+                        if (numDutyBearingTripTemp != null) numDutyBearingTripTemp.Value = v;
+                        if (numDutyBearingTripTempSafety != null) numDutyBearingTripTempSafety.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.BearingTripDelay")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.BearingTripDelay"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyBearingTripDelaySec = v;
+                        if (numDutyBearingTripDelay != null) numDutyBearingTripDelay.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.BearingTripEnabled")) {
+                    dutyBearingTripEnabled = map["Safety.BearingTripEnabled"] == "1" || string.Equals(map["Safety.BearingTripEnabled"], "true", StringComparison.OrdinalIgnoreCase);
+                    if (chkDutyBearingTripEnable != null) chkDutyBearingTripEnable.Checked = dutyBearingTripEnabled;
+                }
+                if (map.ContainsKey("Safety.InversionDiffTemp")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.InversionDiffTemp"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyInversionDiffTemp = v;
+                        if (numDutyInversionDiffTemp != null) numDutyInversionDiffTemp.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.InversionDelay")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.InversionDelay"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyInversionDelaySec = v;
+                        if (numDutyInversionDelay != null) numDutyInversionDelay.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.InversionArmTemp")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.InversionArmTemp"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyInversionArmTemp = v;
+                        if (numDutyInversionArmTemp != null) numDutyInversionArmTemp.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.InversionEnabled")) {
+                    dutyInversionEnabled = map["Safety.InversionEnabled"] == "1" || string.Equals(map["Safety.InversionEnabled"], "true", StringComparison.OrdinalIgnoreCase);
+                    if (chkDutyInversionEnable != null) chkDutyInversionEnable.Checked = dutyInversionEnabled;
+                }
+                if (map.ContainsKey("Safety.StallDropSpeed")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.StallDropSpeed"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyStallDropSpd = v;
+                        if (numDutyStallDropSpd != null) numDutyStallDropSpd.Value = v;
+                        if (numDutyStallDropSpdSafety != null) numDutyStallDropSpdSafety.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.StallDropDelay")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.StallDropDelay"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyStallDropDelaySec = v;
+                        if (numDutyStallDropDelay != null) numDutyStallDropDelay.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.StallDropEnabled")) {
+                    dutyStallDropEnabled = map["Safety.StallDropEnabled"] == "1" || string.Equals(map["Safety.StallDropEnabled"], "true", StringComparison.OrdinalIgnoreCase);
+                    if (chkDutyStallDropEnable != null) chkDutyStallDropEnable.Checked = dutyStallDropEnabled;
+                }
+                if (map.ContainsKey("Safety.OverCurrentPercent")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.OverCurrentPercent"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyOverCurrentPercent = v;
+                        if (numDutyOverCurrentPct != null) numDutyOverCurrentPct.Value = v;
+                        if (numDutyOverCurrentPctSafety != null) numDutyOverCurrentPctSafety.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.OverCurrentDelay")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.OverCurrentDelay"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyOverCurrentDelaySec = v;
+                        if (numDutyOverCurrentDelay != null) numDutyOverCurrentDelay.Value = v;
+                        if (numDutyOverCurrentDelaySafety != null) numDutyOverCurrentDelaySafety.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.OverCurrentEnabled")) {
+                    dutyOverCurrentEnabled = map["Safety.OverCurrentEnabled"] == "1" || string.Equals(map["Safety.OverCurrentEnabled"], "true", StringComparison.OrdinalIgnoreCase);
+                    if (chkDutyOverCurrentEnable != null) chkDutyOverCurrentEnable.Checked = dutyOverCurrentEnabled;
+                }
+                if (map.ContainsKey("Safety.SurgeCurrentPercent")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.SurgeCurrentPercent"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutySurgeCurrentPct = v;
+                        if (numDutySurgeCurrentPct != null) numDutySurgeCurrentPct.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.SurgeCurrentDelay")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.SurgeCurrentDelay"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutySurgeCurrentDelaySec = v;
+                        if (numDutySurgeCurrentDelay != null) numDutySurgeCurrentDelay.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.SurgeCurrentEnabled")) {
+                    dutySurgeCurrentEnabled = map["Safety.SurgeCurrentEnabled"] == "1" || string.Equals(map["Safety.SurgeCurrentEnabled"], "true", StringComparison.OrdinalIgnoreCase);
+                    if (chkDutySurgeCurrentEnable != null) chkDutySurgeCurrentEnable.Checked = dutySurgeCurrentEnabled;
                 }
 
                 // Closed Loop Tracking Config
