@@ -430,6 +430,7 @@ namespace DynamometerHMI
             numEquivV0 = AddCardField(tlp, 2, "線電壓 V0 (V):", 0.0m, 1, 0, 1000);
             numEquivI0 = AddCardField(tlp, 3, "線電流 I0 (A):", 0.0m, 2, 0, 500);
             numEquivP0 = AddCardField(tlp, 4, "輸入功率 P0 (W):", 0.0m, 1, 0, 100000);
+            numEquivP0.ValueChanged += (s, e) => { try { UpdateDutyThermodynamicEstimates(); } catch { } };
             numEquivPf0 = AddCardField(tlp, 5, "功率因數 PF0:", 0.0m, 3, 0, 1);
             numEquivN0 = AddCardField(tlp, 6, "實測轉速 N0 (rpm):", 0m, 0, 0, 15000);
             numEquivF0 = AddCardField(tlp, 7, "測試頻率 f0 (Hz):", 0.0m, 2, 0, 500);

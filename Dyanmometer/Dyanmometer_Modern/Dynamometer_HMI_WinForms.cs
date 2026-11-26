@@ -48,6 +48,35 @@ namespace DynamometerHMI
         public bool IsPass { get; set; }
     }
 
+    // 自定義工作制任務排程步驟資料結構 (DutyScheduleStep)
+    public class DutyScheduleStep
+    {
+        public string TestType { get; set; } // "S1", "S2", "S6"
+        public double Speed { get; set; } // rpm
+        public double Torque { get; set; } // Nm
+        public double DurationMin { get; set; } // 分鐘 (S2 時長或 S1 預設)
+        public double S6EdPercent { get; set; } // %
+        public int S6Cycles { get; set; } // 循環數
+        public double S6CycleMin { get; set; } // 週期長度(分)
+        public string StartCondition { get; set; } // 前置開始測試條件
+        public double CustomCoolTemp { get; set; } // 自訂降溫閥值(℃)
+        public string Status { get; set; } // "等待中", "冷卻中 (xx.x/xx℃)", "運轉中", "已完成 [已存檔]", "已跳過"
+
+        public DutyScheduleStep()
+        {
+            TestType = "S1";
+            Speed = 1500;
+            Torque = 15.0;
+            DurationMin = 30;
+            S6EdPercent = 40;
+            S6Cycles = 3;
+            S6CycleMin = 10;
+            StartCondition = "立即啟動 (利用餘溫 / 不冷卻)";
+            CustomCoolTemp = 25.0;
+            Status = "等待中";
+        }
+    }
+
     public partial class MainForm : Form
     {
         // Windows 核心 DLL 搜尋路徑擴展接口 (支援將廠商驅動 DLL 移入 DLL/ 子資料夾)
@@ -448,6 +477,19 @@ namespace DynamometerHMI
         private Label lblBatchProgressTitle;
         private Label lblBatchProgressDetail;
         private ProgressBar prgBatchTotal;
+
+        // 自定義任務排程 (Custom Duty Task Schedule) 核心狀態與資料結構
+        public List<DutyScheduleStep> dutyScheduleList = new List<DutyScheduleStep>();
+        public int dutyScheduleCurrentIndex = 0;
+        public bool isScheduleCooling = false;
+        public double scheduleCoolingTargetTemp = 25.0;
+        public bool scheduleCoolingIsAir = false;
+        private bool isUpdatingScheduleGrid = false;
+        public DataGridView dgvDutySchedule;
+        public SplitContainer splitDutyMainCenter;
+        public Label lblS1AiEstimate;
+        public Label lblS2AiEstimate;
+        public Label lblS6AiEstimate;
 
         // S2 / S6 極限能力回推 (Capability Extrapolation) 數據與介面
         public double lastS2Torque = 0.0;
@@ -2038,9 +2080,9 @@ namespace DynamometerHMI
                 {
                     var managedSecSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
                         "Window", "Splitters", "Workbench", "DgvKebRu1", "DgvKebRu2", "DgvTelemetry",
-                        "DgvTnMultiPoints", "DgvTnPoints", "DgvDuty", "DgvNoLoad", "DgvReports",
+                        "DgvTnMultiPoints", "DgvTnPoints", "DgvDuty", "DgvDutySchedule", "DgvNoLoad", "DgvReports",
                         "Polling", "Gl820Names", "KebMonitors1", "KebMonitors2", "NoLoadTest", "Logging",
-                        "TnTest", "DutyTest", "DutyParams", "UI", "Safety", "Tracking", "Devices", "Fonts", "RawData", "EquivCircuit"
+                        "TnTest", "DutyTest", "DutyParams", "DutySchedule", "UI", "Safety", "Tracking", "Devices", "Fonts", "RawData", "EquivCircuit"
                     };
                     string curSec = null;
                     foreach (var rawLine in File.ReadAllLines(currentIniPath, Encoding.UTF8))
@@ -2081,6 +2123,7 @@ namespace DynamometerHMI
                 sb.AppendLine("ActiveTab=" + (tabControl != null ? tabControl.SelectedIndex : (loadedActiveTab >= 0 ? loadedActiveTab : 1)));
 
                 sb.AppendLine("[Splitters]");
+                if (splitDutyMainCenter != null) layoutSplitters["splitDutyMainCenter"] = splitDutyMainCenter.SplitterDistance;
                 foreach (var kvp in layoutSplitters)
                 {
                     sb.AppendLine(kvp.Key + "=" + kvp.Value);
@@ -2095,6 +2138,7 @@ namespace DynamometerHMI
                 SaveDgvColWidths(sb, "DgvTnMultiPoints", dgvTnMultiPoints);
                 SaveDgvColWidths(sb, "DgvTnPoints", dgvTnPoints);
                 SaveDgvColWidths(sb, "DgvDuty", dgvDuty);
+                SaveDgvColWidths(sb, "DgvDutySchedule", dgvDutySchedule);
                 SaveDgvColWidths(sb, "DgvNoLoad", dgvNoLoad);
                 SaveDgvColWidths(sb, "DgvReports", dgvReports);
                 SaveDgvColWidths(sb, "DgvEffMap", dgvEffMap);
@@ -2129,6 +2173,19 @@ namespace DynamometerHMI
                     sb.AppendLine("Mode=" + cmbDutyMode.SelectedIndex);
                     if (cmbDutyRole != null) sb.AppendLine("Role=" + cmbDutyRole.SelectedIndex);
                     if (cmbDutyTimeSpan != null) sb.AppendLine("TimeSpan=" + cmbDutyTimeSpan.SelectedIndex);
+                }
+
+                if (dutyScheduleList != null)
+                {
+                    sb.AppendLine("[DutySchedule]");
+                    sb.AppendLine("Count=" + dutyScheduleList.Count);
+                    for (int i = 0; i < dutyScheduleList.Count; i++)
+                    {
+                        var st = dutyScheduleList[i];
+                        sb.AppendLine(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                            "Step_{0}={1}|{2:F0}|{3:F1}|{4:F0}|{5:F0}|{6}|{7:F1}|{8}|{9:F1}",
+                            i, st.TestType, st.Speed, st.Torque, st.DurationMin, st.S6EdPercent, st.S6Cycles, st.S6CycleMin, st.StartCondition ?? "", st.CustomCoolTemp));
+                    }
                 }
 
                 if (numUnifiedInterval != null)
@@ -2702,10 +2759,54 @@ namespace DynamometerHMI
                 LoadDgvColWidths(map, "DgvTnMultiPoints", dgvTnMultiPoints);
                 LoadDgvColWidths(map, "DgvTnPoints", dgvTnPoints);
                 LoadDgvColWidths(map, "DgvDuty", dgvDuty);
+                LoadDgvColWidths(map, "DgvDutySchedule", dgvDutySchedule);
                 LoadDgvColWidths(map, "DgvNoLoad", dgvNoLoad);
                 LoadDgvColWidths(map, "DgvReports", dgvReports);
                 LoadDgvColWidths(map, "DgvEffMap", dgvEffMap);
                 LoadDgvColWidths(map, "DgvGbdAll", dgvGbdAll);
+
+                // 自定義 Duty 排程載入還原 (DutySchedule)
+                if (map.ContainsKey("DutySchedule.Count"))
+                {
+                    int cnt;
+                    if (int.TryParse(map["DutySchedule.Count"], out cnt) && cnt > 0)
+                    {
+                        dutyScheduleList.Clear();
+                        for (int i = 0; i < cnt; i++)
+                        {
+                            string k = "DutySchedule.Step_" + i;
+                            if (map.ContainsKey(k))
+                            {
+                                string[] parts = map[k].Split('|');
+                                if (parts.Length >= 8)
+                                {
+                                    var st = new DutyScheduleStep();
+                                    st.TestType = parts[0];
+                                    double spd, trq, dur, ed, cMin, cCool;
+                                    int cyc;
+                                    if (double.TryParse(parts[1], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out spd)) st.Speed = spd;
+                                    if (double.TryParse(parts[2], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out trq)) st.Torque = trq;
+                                    if (double.TryParse(parts[3], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out dur)) st.DurationMin = dur;
+                                    if (double.TryParse(parts[4], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out ed)) st.S6EdPercent = ed;
+                                    if (int.TryParse(parts[5], out cyc)) st.S6Cycles = cyc;
+                                    if (double.TryParse(parts[6], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out cMin)) st.S6CycleMin = cMin;
+                                    st.StartCondition = parts[7];
+                                    if (parts.Length >= 9 && double.TryParse(parts[8], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out cCool)) st.CustomCoolTemp = cCool;
+                                    st.Status = "等待中";
+                                    dutyScheduleList.Add(st);
+                                }
+                            }
+                        }
+                    }
+                }
+                if (dutyScheduleList.Count == 0)
+                {
+                    LoadDutyScheduleTemplate(0);
+                }
+                else
+                {
+                    UpdateCustomScheduleGridUI();
+                }
 
                 // 等效電路參數記憶還原
                 LoadEquivCircuitConfig(map);
