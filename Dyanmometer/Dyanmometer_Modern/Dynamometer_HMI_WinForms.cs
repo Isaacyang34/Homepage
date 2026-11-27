@@ -71,7 +71,7 @@ namespace DynamometerHMI
             S6EdPercent = 40;
             S6Cycles = 3;
             S6CycleMin = 10;
-            StartCondition = "立即啟動 (利用餘溫 / 不冷卻)";
+            StartCondition = "立即啟動";
             CustomCoolTemp = 25.0;
             Status = "等待中";
         }
@@ -345,7 +345,6 @@ namespace DynamometerHMI
         // 5 分頁獨立配置架構 (主控排程、S1設定、S2設定、S6設定、安全保護標準設定) 與各工作制獨立控制項
         private TabControl tabDutyControl;
         private TabPage tabDutyMain, tabDutyS1, tabDutyS2, tabDutyS6, tabDutySafety;
-        private ComboBox cmbDutyMainMode; // 測試模式：單一測試 vs 連續自動排程
         private NumericUpDown numS1Speed, numS1Torque;
         private NumericUpDown numS2Speed, numS2Torque;
         private NumericUpDown numS6Speed, numS6Torque;
@@ -434,7 +433,51 @@ namespace DynamometerHMI
         public NumericUpDown numDutyBearingTripDelay;
         public CheckBox chkDutyBearingTripEnable;
 
-        // 2. 軸承熱源逆轉異常保護
+        // 2. 前後軸承動態溫差發散與突變保護
+        // 2A. 前後軸承溫差發散速率保護 (Divergence Rate: d(BB - FB)/dt)
+        public decimal dutyBrgDiffRateThreshold = 2.5m;     // 溫差發散速率門檻 (℃/min，建議 2.5℃/min)
+        public decimal dutyBrgDiffTripDelaySec = 3.0m;      // 持續 (s，建議 3.0s)
+        public bool dutyBrgDiffRateEnabled = true;          // 啟用開關
+        public NumericUpDown numDutyBrgDiffRateThreshold;
+        public NumericUpDown numDutyBrgDiffRateSafety;
+        public NumericUpDown numDutyBrgDiffDelay;
+        public CheckBox chkDutyBrgDiffRateEnable;
+        public DateTime dutyBrgDiffTripStartTime = DateTime.MinValue; // 溫差發散計時器
+
+        // 2B. 熱平衡基準溫差偏移保護 (Deviation from Thermal Baseline: |ΔT - ΔT0|)
+        public decimal dutyBrgDiffDevThreshold = 8.0m;      // 基準溫差偏移門檻 (℃，建議 8.0℃)
+        public decimal dutyBrgDiffDevDelaySec = 3.0m;       // 持續 (s，建議 3.0s)
+        public bool dutyBrgDiffDevEnabled = true;           // 啟用開關
+        public NumericUpDown numDutyBrgDiffDevThreshold;
+        public NumericUpDown numDutyBrgDiffDevDelay;
+        public CheckBox chkDutyBrgDiffDevEnable;
+        public DateTime dutyBrgDiffDevTripStartTime = DateTime.MinValue; // 基準溫差偏移計時器
+        public double dutyBaselineBrgDiff = 0.0;            // 建立基準時之 (BB - FB) 溫差
+        public bool isDutyBrgBaselineEstablished = false;   // 軸承基準溫差是否已定錨
+        public double dutyFilteredFbTemp = -999.0;          // EMA 濾波後前軸承溫度
+        public double dutyFilteredBbTemp = -999.0;          // EMA 濾波後後軸承溫度
+
+        public struct DutyBearingSample
+        {
+            public DateTime Timestamp;
+            public double FbTemp;
+            public double BbTemp;
+            public double Diff;
+        }
+        public Queue<DutyBearingSample> dutyBearingHistory = new Queue<DutyBearingSample>();
+
+        // 2C / 5B. 多物理量融合極速熔斷 (Fusion Fast-Trip: 溫差擴散 + Kt 衰退)
+        public bool dutyFusionTripEnabled = true;           // 啟用開關
+        public decimal dutyFusionKtDropPercent = 4.0m;      // Kt 衰退門檻 (% of baseline，建議 4.0%)
+        public decimal dutyFusionBrgRateThreshold = 1.5m;   // 溫差擴散速率門檻 (℃/min，建議 1.5℃/min)
+        public decimal dutyFusionTripDelaySec = 2.0m;       // 判定持續 (s，建議 2.0s)
+        public CheckBox chkDutyFusionTripEnable;
+        public NumericUpDown numDutyFusionKtDropPercent;
+        public NumericUpDown numDutyFusionBrgRateThreshold;
+        public NumericUpDown numDutyFusionTripDelay;
+        public DateTime dutyFusionTripStartTime = DateTime.MinValue; // 融合極速熔斷計時器
+
+        // 2D (原 2). 軸承熱源逆轉異常保護 (輔助線圈比對)
         public decimal dutyInversionDiffTemp = 3.0m;        // 軸承高於線圈溫差門檻 (℃，建議 +3.0℃)
         public decimal dutyInversionDelaySec = 15.0m;       // 持續 (s，建議 15.0s)
         public decimal dutyInversionArmTemp = 50.0m;        // 熱機線圈起算溫度 (℃，建議 50.0℃)
@@ -461,6 +504,21 @@ namespace DynamometerHMI
         public NumericUpDown numDutySurgeCurrentPct;
         public NumericUpDown numDutySurgeCurrentDelay;
         public CheckBox chkDutySurgeCurrentEnable;
+
+        // 5. Kt 轉矩常數異常衰退 / 機械摩擦阻力安全保護
+        public decimal dutyKtDropPercent = 8.0m;            // Kt 衰退門檻 (% of baseline，建議 8.0%)
+        public decimal dutyKtTripDelaySec = 3.0m;           // 判定持續 (s，建議 3.0s)
+        public decimal dutyKtTorqueStableBandPct = 8.0m;    // 加載端扭力穩定視窗 (±%，建議 8.0%)
+        public bool dutyKtTripEnabled = true;               // 啟用開關
+        public NumericUpDown numDutyKtDropPercent;
+        public NumericUpDown numDutyKtDropPercentSafety;
+        public NumericUpDown numDutyKtTripDelay;
+        public NumericUpDown numDutyKtTorqueStableBand;
+        public CheckBox chkDutyKtTripEnable;
+        public double dutyBaselineKt = 0.0;                 // 穩態建立時之基準 Kt (Nm/A)
+        public double dutyInitKt = 0.0;                     // 測試初期建立之冷態初始 Kt (Nm/A)
+        public DateTime dutyKtTripStartTime = DateTime.MinValue; // Kt 異常衰退計時器
+
         private bool isSyncingSafetyControls = false;
         public NumericUpDown numDutyBearingTripTempSafety;
         public NumericUpDown numDutyStallDropSpdSafety;
@@ -472,7 +530,40 @@ namespace DynamometerHMI
         public DateTime dutyThermalInversionStartTime = DateTime.MinValue; // 軸承熱源逆轉計時器
         public DateTime dutySurgeTripStartTime = DateTime.MinValue; // 突波急遽過電流計時器
         private const double DUTY_EXCITE_BASE_RPM = 300.0; // 低速激磁基準轉速 (300 rpm)
-        private CheckBox chkDutySlipComp = null; // S1 補轉差/不補轉差勾選框 (預設勾選: 自動補轉差; 取消勾選: 不補轉差自然轉差)
+        private CheckBox chkDutySlipComp = null; // S1 轉差控制項 (相容保留)
+        // 軸承與線圈實體/自訂通道指定 (-1: 自動探測, 0..19: CH1..CH20)
+        public int dutyFbChannel = -1;
+        public int dutyBbChannel = -1;
+        public int dutyCoilChannel = -1;
+        public ComboBox cmbDutyFbChannel;
+        public ComboBox cmbDutyBbChannel;
+        public ComboBox cmbDutyCoilChannel;
+        public Label lblDutyFbBbRealtime;
+
+        // 馬達線圈超溫保護標準 (水冷/風冷/自訂 容許溫升 105℃ - S1/S2/S6 統一標準)
+        public int dutyCoolingType = 0; // 0: 水冷 (冰水機設定溫+105℃), 1: 風冷 (即時環境室溫AT+105℃), 2: 自訂固定上限
+        public decimal dutyCoolingRefTemp = 25.0m; // 冰水機設定溫或基準環境溫 (預設 25.0℃)
+        public decimal dutyMaxTempRise = 105.0m; // 標準容許溫升限值 (預設 105.0℃, CNS/IEC F級)
+        public decimal dutyCoilCustomLimit = 130.0m; // 自訂絕對溫度上限 (預設 130.0℃)
+        public decimal dutyCoilTripDelaySec = 2.0m; // 線圈超溫判定持續秒數 (預設 2.0s)
+        public bool dutyCoilOverTempEnabled = true; // S1/S2/S6 統一線圈超溫保護啟用開關
+        public DateTime dutyCoilTripStartTime = DateTime.MinValue; // 線圈超溫判定計時器
+        public CheckBox chkDutyCoilTripEnable;
+        public ComboBox cmbDutyCoolingType;
+        public NumericUpDown numDutyCoolingRefTemp;
+        public NumericUpDown numDutyMaxTempRise;
+        public NumericUpDown numDutyCoilCustomLimit;
+        public NumericUpDown numDutyCoilTripDelay;
+        public Label lblDutyCoilLimitRealtime;
+        public CheckBox chkS1CoilOverTemp;
+        public Label lblS1CoilLimitHint;
+        public CheckBox chkS6TempStop;
+        public Label lblS6TempLimitDisp;
+        public Label lblS6TempRealtime;
+
+        // S1 雙階段全自動流程旗標 (前10分鐘自然轉差採樣 ➔ 滿10分鐘自動寫入等效電路並切換自動補轉差)
+        public bool isS1Phase1Completed = false;
+        public bool isS1AutoEquivWritten = false;
         private double dutyMinuteVoltSum = 0.0;
         private double dutyMinuteCurrSum = 0.0;
         private double dutyMinutePelecSum = 0.0;
@@ -517,8 +608,6 @@ namespace DynamometerHMI
         private double batchCoolingPrevTemp = 999.0;
         private int batchCoolingCheckTimer = 0;
         private CheckBox chkBatchDutyMode;
-        private ComboBox cmbBatchDutyPlan;
-        private ComboBox cmbBatchCoolingMode;
         private Panel pnlBatchDutyProgress;
         private Label lblBatchProgressTitle;
         private Label lblBatchProgressDetail;
@@ -2268,6 +2357,16 @@ namespace DynamometerHMI
                 sb.AppendLine("BearingTripTemp=" + dutyBearingTripTemp.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 sb.AppendLine("BearingTripDelay=" + dutyBearingTripDelaySec.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 sb.AppendLine("BearingTripEnabled=" + (dutyBearingTripEnabled ? "1" : "0"));
+                sb.AppendLine("BrgDiffRateThreshold=" + dutyBrgDiffRateThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("BrgDiffTripDelay=" + dutyBrgDiffTripDelaySec.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("BrgDiffRateEnabled=" + (dutyBrgDiffRateEnabled ? "1" : "0"));
+                sb.AppendLine("BrgDiffDevThreshold=" + dutyBrgDiffDevThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("BrgDiffDevDelay=" + dutyBrgDiffDevDelaySec.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("BrgDiffDevEnabled=" + (dutyBrgDiffDevEnabled ? "1" : "0"));
+                sb.AppendLine("FusionTripEnabled=" + (dutyFusionTripEnabled ? "1" : "0"));
+                sb.AppendLine("FusionKtDropPercent=" + dutyFusionKtDropPercent.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("FusionBrgRateThreshold=" + dutyFusionBrgRateThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("FusionTripDelay=" + dutyFusionTripDelaySec.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 sb.AppendLine("InversionDiffTemp=" + dutyInversionDiffTemp.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 sb.AppendLine("InversionDelay=" + dutyInversionDelaySec.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 sb.AppendLine("InversionArmTemp=" + dutyInversionArmTemp.ToString(System.Globalization.CultureInfo.InvariantCulture));
@@ -2281,6 +2380,19 @@ namespace DynamometerHMI
                 sb.AppendLine("SurgeCurrentPercent=" + dutySurgeCurrentPct.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 sb.AppendLine("SurgeCurrentDelay=" + dutySurgeCurrentDelaySec.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 sb.AppendLine("SurgeCurrentEnabled=" + (dutySurgeCurrentEnabled ? "1" : "0"));
+                sb.AppendLine("KtDropPercent=" + dutyKtDropPercent.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("KtTripDelay=" + dutyKtTripDelaySec.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("KtTorqueStableBand=" + dutyKtTorqueStableBandPct.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("KtTripEnabled=" + (dutyKtTripEnabled ? "1" : "0"));
+                sb.AppendLine("DutyFbChannel=" + dutyFbChannel.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("DutyBbChannel=" + dutyBbChannel.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("DutyCoilChannel=" + dutyCoilChannel.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("DutyCoolingType=" + dutyCoolingType.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("DutyCoolingRefTemp=" + dutyCoolingRefTemp.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("DutyMaxTempRise=" + dutyMaxTempRise.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("DutyCoilCustomLimit=" + dutyCoilCustomLimit.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("DutyCoilTripDelay=" + dutyCoilTripDelaySec.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("DutyCoilOverTempEnabled=" + (dutyCoilOverTempEnabled ? "1" : "0"));
 
                 sb.AppendLine("[Tracking]");
                 sb.AppendLine("MaxDelta=" + trackingMaxDelta.ToString("F1", System.Globalization.CultureInfo.InvariantCulture));
@@ -2590,6 +2702,68 @@ namespace DynamometerHMI
                     dutyBearingTripEnabled = map["Safety.BearingTripEnabled"] == "1" || string.Equals(map["Safety.BearingTripEnabled"], "true", StringComparison.OrdinalIgnoreCase);
                     if (chkDutyBearingTripEnable != null) chkDutyBearingTripEnable.Checked = dutyBearingTripEnabled;
                 }
+                if (map.ContainsKey("Safety.BrgDiffRateThreshold")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.BrgDiffRateThreshold"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyBrgDiffRateThreshold = v;
+                        if (numDutyBrgDiffRateThreshold != null) numDutyBrgDiffRateThreshold.Value = v;
+                        if (numDutyBrgDiffRateSafety != null) numDutyBrgDiffRateSafety.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.BrgDiffTripDelay")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.BrgDiffTripDelay"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyBrgDiffTripDelaySec = v;
+                        if (numDutyBrgDiffDelay != null) numDutyBrgDiffDelay.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.BrgDiffRateEnabled")) {
+                    dutyBrgDiffRateEnabled = map["Safety.BrgDiffRateEnabled"] == "1" || string.Equals(map["Safety.BrgDiffRateEnabled"], "true", StringComparison.OrdinalIgnoreCase);
+                    if (chkDutyBrgDiffRateEnable != null) chkDutyBrgDiffRateEnable.Checked = dutyBrgDiffRateEnabled;
+                }
+                if (map.ContainsKey("Safety.BrgDiffDevThreshold")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.BrgDiffDevThreshold"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyBrgDiffDevThreshold = v;
+                        if (numDutyBrgDiffDevThreshold != null) numDutyBrgDiffDevThreshold.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.BrgDiffDevDelay")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.BrgDiffDevDelay"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyBrgDiffDevDelaySec = v;
+                        if (numDutyBrgDiffDevDelay != null) numDutyBrgDiffDevDelay.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.BrgDiffDevEnabled")) {
+                    dutyBrgDiffDevEnabled = map["Safety.BrgDiffDevEnabled"] == "1" || string.Equals(map["Safety.BrgDiffDevEnabled"], "true", StringComparison.OrdinalIgnoreCase);
+                    if (chkDutyBrgDiffDevEnable != null) chkDutyBrgDiffDevEnable.Checked = dutyBrgDiffDevEnabled;
+                }
+                if (map.ContainsKey("Safety.FusionTripEnabled")) {
+                    dutyFusionTripEnabled = map["Safety.FusionTripEnabled"] == "1" || string.Equals(map["Safety.FusionTripEnabled"], "true", StringComparison.OrdinalIgnoreCase);
+                    if (chkDutyFusionTripEnable != null) chkDutyFusionTripEnable.Checked = dutyFusionTripEnabled;
+                }
+                if (map.ContainsKey("Safety.FusionKtDropPercent")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.FusionKtDropPercent"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyFusionKtDropPercent = v;
+                        if (numDutyFusionKtDropPercent != null) numDutyFusionKtDropPercent.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.FusionBrgRateThreshold")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.FusionBrgRateThreshold"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyFusionBrgRateThreshold = v;
+                        if (numDutyFusionBrgRateThreshold != null) numDutyFusionBrgRateThreshold.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.FusionTripDelay")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.FusionTripDelay"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyFusionTripDelaySec = v;
+                        if (numDutyFusionTripDelay != null) numDutyFusionTripDelay.Value = v;
+                    }
+                }
                 if (map.ContainsKey("Safety.InversionDiffTemp")) {
                     decimal v;
                     if (decimal.TryParse(map["Safety.InversionDiffTemp"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
@@ -2671,6 +2845,95 @@ namespace DynamometerHMI
                 if (map.ContainsKey("Safety.SurgeCurrentEnabled")) {
                     dutySurgeCurrentEnabled = map["Safety.SurgeCurrentEnabled"] == "1" || string.Equals(map["Safety.SurgeCurrentEnabled"], "true", StringComparison.OrdinalIgnoreCase);
                     if (chkDutySurgeCurrentEnable != null) chkDutySurgeCurrentEnable.Checked = dutySurgeCurrentEnabled;
+                }
+                if (map.ContainsKey("Safety.KtDropPercent")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.KtDropPercent"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyKtDropPercent = v;
+                        if (numDutyKtDropPercent != null) numDutyKtDropPercent.Value = v;
+                        if (numDutyKtDropPercentSafety != null) numDutyKtDropPercentSafety.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.KtTripDelay")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.KtTripDelay"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyKtTripDelaySec = v;
+                        if (numDutyKtTripDelay != null) numDutyKtTripDelay.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.KtTorqueStableBand")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.KtTorqueStableBand"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyKtTorqueStableBandPct = v;
+                        if (numDutyKtTorqueStableBand != null) numDutyKtTorqueStableBand.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.KtTripEnabled")) {
+                    dutyKtTripEnabled = map["Safety.KtTripEnabled"] == "1" || string.Equals(map["Safety.KtTripEnabled"], "true", StringComparison.OrdinalIgnoreCase);
+                    if (chkDutyKtTripEnable != null) chkDutyKtTripEnable.Checked = dutyKtTripEnabled;
+                }
+                if (map.ContainsKey("Safety.DutyFbChannel")) {
+                    int v;
+                    if (int.TryParse(map["Safety.DutyFbChannel"], out v)) {
+                        dutyFbChannel = v;
+                        if (cmbDutyFbChannel != null && v >= -1 && v < 20) cmbDutyFbChannel.SelectedIndex = v + 1;
+                    }
+                }
+                if (map.ContainsKey("Safety.DutyBbChannel")) {
+                    int v;
+                    if (int.TryParse(map["Safety.DutyBbChannel"], out v)) {
+                        dutyBbChannel = v;
+                        if (cmbDutyBbChannel != null && v >= -1 && v < 20) cmbDutyBbChannel.SelectedIndex = v + 1;
+                    }
+                }
+                if (map.ContainsKey("Safety.DutyCoilChannel")) {
+                    int v;
+                    if (int.TryParse(map["Safety.DutyCoilChannel"], out v)) {
+                        dutyCoilChannel = v;
+                        if (cmbDutyCoilChannel != null && v >= -1 && v < 20) cmbDutyCoilChannel.SelectedIndex = v + 1;
+                    }
+                }
+                if (map.ContainsKey("Safety.DutyCoolingType")) {
+                    int v;
+                    if (int.TryParse(map["Safety.DutyCoolingType"], out v)) {
+                        dutyCoolingType = v;
+                        if (cmbDutyCoolingType != null && v >= 0 && v <= 2) cmbDutyCoolingType.SelectedIndex = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.DutyCoolingRefTemp")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.DutyCoolingRefTemp"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyCoolingRefTemp = v;
+                        if (numDutyCoolingRefTemp != null) numDutyCoolingRefTemp.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.DutyMaxTempRise")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.DutyMaxTempRise"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyMaxTempRise = v;
+                        if (numDutyMaxTempRise != null) numDutyMaxTempRise.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.DutyCoilCustomLimit")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.DutyCoilCustomLimit"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyCoilCustomLimit = v;
+                        if (numDutyCoilCustomLimit != null) numDutyCoilCustomLimit.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.DutyCoilTripDelay")) {
+                    decimal v;
+                    if (decimal.TryParse(map["Safety.DutyCoilTripDelay"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) {
+                        dutyCoilTripDelaySec = v;
+                        if (numDutyCoilTripDelay != null) numDutyCoilTripDelay.Value = v;
+                    }
+                }
+                if (map.ContainsKey("Safety.DutyCoilOverTempEnabled")) {
+                    dutyCoilOverTempEnabled = map["Safety.DutyCoilOverTempEnabled"] == "1" || string.Equals(map["Safety.DutyCoilOverTempEnabled"], "true", StringComparison.OrdinalIgnoreCase);
+                    if (chkDutyCoilTripEnable != null) chkDutyCoilTripEnable.Checked = dutyCoilOverTempEnabled;
+                    if (chkS1CoilOverTemp != null) chkS1CoilOverTemp.Checked = dutyCoilOverTempEnabled;
+                    if (chkS2TempStop != null) chkS2TempStop.Checked = dutyCoilOverTempEnabled;
+                    if (chkS6TempStop != null) chkS6TempStop.Checked = dutyCoilOverTempEnabled;
                 }
 
                 // Closed Loop Tracking Config
@@ -2955,6 +3218,23 @@ namespace DynamometerHMI
                                     if (double.TryParse(parts[6], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out cMin)) st.S6CycleMin = cMin;
                                     st.StartCondition = parts[7];
                                     if (parts.Length >= 9 && double.TryParse(parts[8], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out cCool)) st.CustomCoolTemp = cCool;
+                                    if (!string.IsNullOrEmpty(st.StartCondition))
+                                    {
+                                        if (st.StartCondition.Contains("立即"))
+                                        {
+                                            st.StartCondition = "立即啟動";
+                                        }
+                                        else
+                                        {
+                                            st.StartCondition = "降溫啟動";
+                                            if (st.CustomCoolTemp <= 0)
+                                            {
+                                                var mc = System.Text.RegularExpressions.Regex.Match(parts[7], @"\d+(\.\d+)?");
+                                                if (mc.Success && double.TryParse(mc.Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out cCool)) st.CustomCoolTemp = cCool;
+                                                else st.CustomCoolTemp = 25.0;
+                                            }
+                                        }
+                                    }
                                     st.Status = "等待中";
                                     dutyScheduleList.Add(st);
                                 }

@@ -64,7 +64,7 @@ namespace DeviceProtocolSniffer
             Panel pnlTop = new Panel() { Dock = DockStyle.Top, Height = 55, BackColor = Color.FromArgb(26, 43, 76) };
             Label lblTitle = new Label()
             {
-                Text = "🕵️‍♂️ 動力測試通訊協定即時監聽與逆向反編譯工具箱 (Device Protocol Sniffer)",
+                Text = "[*] 動力測試通訊協定即時監聽與逆向反編譯工具箱 (Device Protocol Sniffer)",
                 ForeColor = Color.White,
                 Font = new Font("微軟正黑體", 11.5f, FontStyle.Bold),
                 Location = new Point(15, 15),
@@ -76,19 +76,19 @@ namespace DeviceProtocolSniffer
             tabs = new TabControl() { Dock = DockStyle.Fill, Font = new Font("微軟正黑體", 10f, FontStyle.Bold) };
 
             // Tab 1: 網路 TCP 代理監聽 (適用於 WT333E & GL820)
-            TabPage tabTcp = new TabPage("  🌐 1. 網路 TCP 通訊代理監聽 (WT333E / GL820)  ");
+            TabPage tabTcp = new TabPage("  [NET] 1. 網路 TCP 通訊代理監聽 (WT333E / GL820)  ");
             tabTcp.BackColor = Color.White;
             BuildTcpProxyTab(tabTcp);
             tabs.TabPages.Add(tabTcp);
 
             // Tab 2: 串列埠底層 HEX 監聽 (適用於 KISTLER 4700B)
-            TabPage tabSerial = new TabPage("  🔧 2. 串列埠底層 HEX 監聽 (KISTLER 4700B)  ");
+            TabPage tabSerial = new TabPage("  [COM] 2. 串列埠底層 HEX 監聽 (KISTLER 4700B)  ");
             tabSerial.BackColor = Color.White;
             BuildSerialSniffTab(tabSerial);
             tabs.TabPages.Add(tabSerial);
 
             // Tab 3: 原廠軟體輸出即時監視橋接 (WTViewer / GL-APS / SensorTool)
-            TabPage tabFile = new TabPage("  📁 3. 原廠軟體即時記錄監控橋接 (Zero-Driver)  ");
+            TabPage tabFile = new TabPage("  [FILE] 3. 原廠軟體即時記錄監控橋接 (Zero-Driver)  ");
             tabFile.BackColor = Color.White;
             BuildFileWatchTab(tabFile);
             tabs.TabPages.Add(tabFile);
@@ -130,7 +130,7 @@ namespace DeviceProtocolSniffer
 
             Label lDesc = new Label()
             {
-                Text = "💡 原廠軟體監聽教學：\n  1. 設定「目標實體儀表 IP/Port」（如 GL820: 192.168.0.3:8023 或 WT333E: 192.168.0.11:111），點擊「啟動代理監聽」。\n  2. 在原廠軟體中將連線 IP 改填為 127.0.0.1 (Port 填代理 Port)，原廠軟體送出的每個 Byte 與儀表回傳的每個 Byte 都將在此一覽無遺！",
+                Text = "[*] 原廠軟體監聽教學：\n  1. 設定「目標實體儀表 IP/Port」（如 GL820: 192.168.0.3:8023 或 WT333E: 192.168.0.11:111），點擊「啟動代理監聽」。\n  2. 在原廠軟體中將連線 IP 改填為 127.0.0.1 (Port 填代理 Port)，原廠軟體送出的每個 Byte 與儀表回傳的每個 Byte 都將在此一覽無遺！",
                 Location = new Point(15, 78),
                 AutoSize = true,
                 ForeColor = Color.FromArgb(70, 80, 95)
@@ -289,7 +289,7 @@ namespace DeviceProtocolSniffer
 
             Label lDesc = new Label()
             {
-                Text = "💡 串列通訊監聽說明：\n  本工具直接以 Binary Byte 串流監聽串列埠，會完整印出儀器輸出的「每一個十六進制 Byte (HEX)」與 ASCII 字元。\n  若 Kistler 4700B 處於主動傳輸狀態，此處將以毫秒級即時列出所有原始封包。",
+                Text = "[*] 串列通訊監聽說明：\n  本工具直接以 Binary Byte 串流監聽串列埠，會完整印出儀器輸出的「每一個十六進制 Byte (HEX)」與 ASCII 字元。\n  若 Kistler 4700B 處於主動傳輸狀態，此處將以毫秒級即時列出所有原始封包。",
                 Location = new Point(15, 65),
                 AutoSize = true,
                 ForeColor = Color.FromArgb(70, 80, 95)
@@ -423,7 +423,7 @@ namespace DeviceProtocolSniffer
 
             Label lDesc = new Label()
             {
-                Text = "💡 原理說明：\n  當您開啟 WTViewer、GL220-APS 或 SensorTool 並在原廠軟體中開啟「即時存檔/記錄」時，本橋接器會毫秒級即時捕捉最新寫入的數據行，\n  直接解析出轉速、轉矩、電壓、電流與溫度，無需任何額外驅動即可無縫驅動動力計 HMI！",
+                Text = "[*] 原理說明：\n  當您開啟 WTViewer、GL220-APS 或 SensorTool 並在原廠軟體中開啟「即時存檔/記錄」時，本橋接器會毫秒級即時捕捉最新寫入的數據行，\n  直接解析出轉速、轉矩、電壓、電流與溫度，無需任何額外驅動即可無縫驅動動力計 HMI！",
                 Location = new Point(15, 95),
                 AutoSize = true,
                 ForeColor = Color.FromArgb(70, 80, 95)

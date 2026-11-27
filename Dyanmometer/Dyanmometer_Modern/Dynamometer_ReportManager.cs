@@ -66,7 +66,7 @@ namespace DynamometerHMI
             public ushort DosDate;
         }
 
-        public static void CreateZipArchive(string zipPath, IEnumerable<string> filePaths, Action<int, int, string> onProgress = null)
+        public static void CreateZipArchive(string zipPath, IEnumerable<string> filePaths, string baseDirectory = null, Action<int, int, string> onProgress = null)
         {
             if (string.IsNullOrEmpty(zipPath)) throw new ArgumentNullException("zipPath");
             if (filePaths == null) throw new ArgumentNullException("filePaths");
@@ -94,6 +94,11 @@ namespace DynamometerHMI
                 {
                     string filePath = validFiles[i];
                     string entryName = Path.GetFileName(filePath);
+                    if (!string.IsNullOrEmpty(baseDirectory) && filePath.StartsWith(baseDirectory, StringComparison.OrdinalIgnoreCase))
+                    {
+                        string rel = filePath.Substring(baseDirectory.Length).TrimStart('\\', '/').Replace('\\', '/');
+                        if (!string.IsNullOrEmpty(rel)) entryName = rel;
+                    }
                     if (onProgress != null)
                     {
                         onProgress(i + 1, validFiles.Count, entryName);
@@ -241,7 +246,7 @@ namespace DynamometerHMI
         /// <summary>
         /// 嘗試調用本機 7-Zip CLI 進行高效標準 ZIP 壓縮 (相容 UTF-8 與清單檔案)
         /// </summary>
-        public static bool TryCompressWith7Zip(string zipPath, List<string> filePaths, out string errorMsg)
+        public static bool TryCompressWith7Zip(string zipPath, List<string> filePaths, string baseDirectory, out string errorMsg)
         {
             errorMsg = "";
             string sevenZipExe = Find7ZipExecutable();
@@ -256,8 +261,28 @@ namespace DynamometerHMI
 
             try
             {
+                List<string> entries = new List<string>();
+                if (!string.IsNullOrEmpty(baseDirectory) && Directory.Exists(baseDirectory))
+                {
+                    foreach (string fp in filePaths)
+                    {
+                        if (fp.StartsWith(baseDirectory, StringComparison.OrdinalIgnoreCase))
+                        {
+                            entries.Add(fp.Substring(baseDirectory.Length).TrimStart('\\', '/'));
+                        }
+                        else
+                        {
+                            entries.Add(fp);
+                        }
+                    }
+                }
+                else
+                {
+                    entries.AddRange(filePaths);
+                }
+
                 // 寫入清單檔案 (UTF-8)
-                File.WriteAllLines(listFile, filePaths.ToArray(), Encoding.UTF8);
+                File.WriteAllLines(listFile, entries.ToArray(), Encoding.UTF8);
 
                 if (File.Exists(zipPath)) File.Delete(zipPath);
 
@@ -270,6 +295,11 @@ namespace DynamometerHMI
                     RedirectStandardOutput = true,
                     RedirectStandardError = true
                 };
+
+                if (!string.IsNullOrEmpty(baseDirectory) && Directory.Exists(baseDirectory))
+                {
+                    psi.WorkingDirectory = baseDirectory;
+                }
 
                 using (Process proc = Process.Start(psi))
                 {
@@ -298,6 +328,11 @@ namespace DynamometerHMI
                 try { if (File.Exists(listFile)) File.Delete(listFile); } catch { }
             }
         }
+
+        public static bool TryCompressWith7Zip(string zipPath, List<string> filePaths, out string errorMsg)
+        {
+            return TryCompressWith7Zip(zipPath, filePaths, null, out errorMsg);
+        }
     }
 
     #endregion
@@ -313,34 +348,48 @@ namespace DynamometerHMI
         public string SizeFormatted { get; set; }
         public DateTime LastModified { get; set; }
         public string FullPath { get; set; }
+        public bool IsDirectory { get; set; }
 
-        public ReportFileItem(string path)
+        public ReportFileItem(string path, bool isDir = false, string customDisplay = null)
         {
             FullPath = path;
-            FileName = Path.GetFileName(path);
-            FileInfo fi = new FileInfo(path);
-            SizeBytes = fi.Exists ? fi.Length : 0;
-            LastModified = fi.Exists ? fi.LastWriteTime : DateTime.MinValue;
-
-            if (SizeBytes < 1024) SizeFormatted = SizeBytes + " B";
-            else if (SizeBytes < 1024 * 1024) SizeFormatted = (SizeBytes / 1024.0).ToString("F1") + " KB";
-            else SizeFormatted = (SizeBytes / (1024.0 * 1024.0)).ToString("F2") + " MB";
-
-            string ext = Path.GetExtension(path).ToLower();
-            string upperName = FileName.ToUpper();
-
-            if (upperName.Contains("RAW_TELEMETRY") || upperName.Contains("AUTO_RAW"))
-                FileType = "[圖表] 實測高頻遙測 (CSV)";
-            else if (ext == ".gbd")
-                FileType = " 溫度多通道記錄 (GBD)";
-            else if (ext == ".log")
-                FileType = " 系統運轉/除錯日誌 (LOG)";
-            else if (ext == ".csv")
-                FileType = " 試驗匯總數據 (CSV)";
-            else if (ext == ".zip")
-                FileType = " 報告壓縮封裝 (ZIP)";
+            IsDirectory = isDir;
+            if (isDir)
+            {
+                DirectoryInfo di = new DirectoryInfo(path);
+                FileName = !string.IsNullOrEmpty(customDisplay) ? customDisplay : ("[目錄] " + di.Name);
+                FileType = "[子資料夾] (雙擊進入)";
+                SizeBytes = 0;
+                SizeFormatted = "(資料夾)";
+                LastModified = di.Exists ? di.LastWriteTime : DateTime.MinValue;
+            }
             else
-                FileType = " 測試相關檔案 (" + ext + ")";
+            {
+                FileName = !string.IsNullOrEmpty(customDisplay) ? customDisplay : Path.GetFileName(path);
+                FileInfo fi = new FileInfo(path);
+                SizeBytes = fi.Exists ? fi.Length : 0;
+                LastModified = fi.Exists ? fi.LastWriteTime : DateTime.MinValue;
+
+                if (SizeBytes < 1024) SizeFormatted = SizeBytes + " B";
+                else if (SizeBytes < 1024 * 1024) SizeFormatted = (SizeBytes / 1024.0).ToString("F1") + " KB";
+                else SizeFormatted = (SizeBytes / (1024.0 * 1024.0)).ToString("F2") + " MB";
+
+                string ext = Path.GetExtension(path).ToLower();
+                string upperName = FileName.ToUpper();
+
+                if (upperName.Contains("RAW_TELEMETRY") || upperName.Contains("AUTO_RAW"))
+                    FileType = "[圖表] 實測高頻遙測 (CSV)";
+                else if (ext == ".gbd")
+                    FileType = "[溫] 溫度多通道記錄 (GBD)";
+                else if (ext == ".log")
+                    FileType = "[日誌] 系統運轉/除錯日誌 (LOG)";
+                else if (ext == ".csv")
+                    FileType = "[數據] 試驗匯總數據 (CSV)";
+                else if (ext == ".zip")
+                    FileType = "[壓縮] 報告壓縮封裝 (ZIP)";
+                else
+                    FileType = "[檔案] 測試相關檔案 (" + ext + ")";
+            }
         }
     }
 
@@ -354,6 +403,13 @@ namespace DynamometerHMI
         public TabPage tabReport;
         public DataGridView dgvReports;
         public List<ReportFileItem> reportFileList = new List<ReportFileItem>();
+
+        // 目錄導航與子資料夾控制項
+        public string currentReportDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+        public Button btnBrowseReportDir;
+        public Button btnGoUpReportDir;
+        public CheckBox chkIncludeSubDirs;
+        public Label lblCurrentReportDir;
 
         // 頂部過濾與快選控制項
         public Button btnOpenLogDir;
@@ -405,7 +461,7 @@ namespace DynamometerHMI
             tab.BackColor = Color.FromArgb(248, 250, 252);
             tab.Padding = new Padding(6);
 
-            // 主垂直 TableLayoutPanel (Top: 工具列 48px, Fill: 檔案清單, Bottom: 壓縮與上傳控制 250px)
+            // 主垂直 TableLayoutPanel (Top: 工具列 78px, Fill: 檔案清單, Bottom: 壓縮與上傳控制 270px)
             TableLayoutPanel mainTable = new TableLayoutPanel()
             {
                 Dock = DockStyle.Fill,
@@ -414,43 +470,137 @@ namespace DynamometerHMI
                 Margin = new Padding(0),
                 Padding = new Padding(0)
             };
-            mainTable.RowStyles.Add(new RowStyle(SizeType.Absolute, 50f)); // 頂部工具列
+            mainTable.RowStyles.Add(new RowStyle(SizeType.Absolute, 78f)); // 頂部雙行工具列 (第一行:目錄導航, 第二行:選取與篩選)
             mainTable.RowStyles.Add(new RowStyle(SizeType.Percent, 100f)); // 中央表格
             mainTable.RowStyles.Add(new RowStyle(SizeType.Absolute, 270f)); // 底部配置與上傳控制
 
             // ==========================================
-            // 1. 頂部工具列 (Top Toolbar)
+            // 1. 頂部雙行工具列 (Top Toolbar)
             // ==========================================
-            FlowLayoutPanel pnlTopBar = new FlowLayoutPanel()
+            TableLayoutPanel pnlTopBar = new TableLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                BackColor = Color.FromArgb(241, 245, 249),
+                Margin = new Padding(0),
+                Padding = new Padding(4, 2, 4, 2)
+            };
+            pnlTopBar.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f)); // 第一行：目錄切換與子資料夾導覽
+            pnlTopBar.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f)); // 第二行：批次選取與篩選
+
+            FlowLayoutPanel row1DirNav = new FlowLayoutPanel()
             {
                 Dock = DockStyle.Fill,
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = false,
                 AutoScroll = true,
-                BackColor = Color.FromArgb(241, 245, 249),
-                Padding = new Padding(6, 6, 6, 6)
+                Margin = new Padding(0),
+                Padding = new Padding(2)
             };
+
+            btnBrowseReportDir = new Button()
+            {
+                Text = "[目錄] 切換資料夾...",
+                Size = new Size(140, 30),
+                BackColor = Color.FromArgb(37, 99, 235),
+                ForeColor = Color.White,
+                Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                FlatStyle = FlatStyle.Flat
+            };
+            btnBrowseReportDir.FlatAppearance.BorderSize = 0;
+            btnBrowseReportDir.Click += (s, e) => {
+                using (FolderBrowserDialog fbd = new FolderBrowserDialog())
+                {
+                    fbd.Description = "選擇欲載入與上傳的測試報告資料夾 (支援子目錄與外部目錄)";
+                    fbd.SelectedPath = currentReportDirectory;
+                    if (fbd.ShowDialog(this) == DialogResult.OK)
+                    {
+                        currentReportDirectory = fbd.SelectedPath;
+                        RefreshReportFileList();
+                    }
+                }
+            };
+
+            btnGoUpReportDir = new Button()
+            {
+                Text = "[^] 回上層目錄",
+                Size = new Size(115, 30),
+                BackColor = Color.FromArgb(71, 85, 105),
+                ForeColor = Color.White,
+                Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                FlatStyle = FlatStyle.Flat
+            };
+            btnGoUpReportDir.FlatAppearance.BorderSize = 0;
+            btnGoUpReportDir.Click += (s, e) => {
+                try
+                {
+                    DirectoryInfo parent = Directory.GetParent(currentReportDirectory);
+                    if (parent != null && parent.Exists)
+                    {
+                        currentReportDirectory = parent.FullName;
+                        RefreshReportFileList();
+                    }
+                }
+                catch { }
+            };
+
+            chkIncludeSubDirs = new CheckBox()
+            {
+                Text = "遞迴包含所有子資料夾檔案",
+                AutoSize = true,
+                Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(30, 41, 59),
+                Margin = new Padding(8, 5, 4, 0),
+                Checked = false
+            };
+            chkIncludeSubDirs.CheckedChanged += (s, e) => RefreshReportFileList();
 
             btnOpenLogDir = new Button()
             {
-                Text = " 開啟 LOG 資料夾",
-                Size = new Size(160, 36),
-                BackColor = Color.FromArgb(37, 99, 235),
+                Text = "[開] 檔案總管開啟",
+                Size = new Size(130, 30),
+                BackColor = Color.FromArgb(15, 118, 110),
                 ForeColor = Color.White,
-                Font = new Font("微軟正黑體", 10f, FontStyle.Bold),
+                Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
                 Cursor = Cursors.Hand,
                 FlatStyle = FlatStyle.Flat
             };
             btnOpenLogDir.FlatAppearance.BorderSize = 0;
             btnOpenLogDir.Click += (s, e) => OpenLogDirectoryInExplorer();
 
+            lblCurrentReportDir = new Label()
+            {
+                Text = "目錄: logs\\",
+                AutoSize = true,
+                Font = new Font("Consolas", 9.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(30, 64, 175),
+                Margin = new Padding(8, 6, 4, 0)
+            };
+
+            row1DirNav.Controls.AddRange(new Control[] {
+                btnBrowseReportDir, btnGoUpReportDir, chkIncludeSubDirs, btnOpenLogDir, lblCurrentReportDir
+            });
+
+            FlowLayoutPanel row2Selection = new FlowLayoutPanel()
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                AutoScroll = true,
+                Margin = new Padding(0),
+                Padding = new Padding(2)
+            };
+
             btnRefreshReports = new Button()
             {
-                Text = "[重置] 重新整理清單",
-                Size = new Size(130, 36),
+                Text = "[重置] 重新整理",
+                Size = new Size(120, 30),
                 BackColor = Color.FromArgb(71, 85, 105),
                 ForeColor = Color.White,
-                Font = new Font("微軟正黑體", 10f, FontStyle.Bold),
+                Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
                 Cursor = Cursors.Hand,
                 FlatStyle = FlatStyle.Flat
             };
@@ -459,11 +609,11 @@ namespace DynamometerHMI
 
             btnSelectToday = new Button()
             {
-                Text = " 選取今日報告",
-                Size = new Size(130, 36),
+                Text = "選取今日報告",
+                Size = new Size(115, 30),
                 BackColor = Color.FromArgb(16, 185, 129),
                 ForeColor = Color.White,
-                Font = new Font("微軟正黑體", 10f, FontStyle.Bold),
+                Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
                 Cursor = Cursors.Hand,
                 FlatStyle = FlatStyle.Flat
             };
@@ -473,10 +623,10 @@ namespace DynamometerHMI
             btnSelectLatestTest = new Button()
             {
                 Text = "[電] 選取最新測試 Session",
-                Size = new Size(185, 36),
+                Size = new Size(170, 30),
                 BackColor = Color.FromArgb(139, 92, 246),
                 ForeColor = Color.White,
-                Font = new Font("微軟正黑體", 10f, FontStyle.Bold),
+                Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
                 Cursor = Cursors.Hand,
                 FlatStyle = FlatStyle.Flat
             };
@@ -485,22 +635,22 @@ namespace DynamometerHMI
 
             btnSelectAllReports = new Button()
             {
-                Text = " 全選",
-                Size = new Size(80, 36),
+                Text = "全選",
+                Size = new Size(65, 30),
                 BackColor = Color.White,
                 ForeColor = Color.FromArgb(30, 41, 59),
-                Font = new Font("微軟正黑體", 10f, FontStyle.Regular),
+                Font = new Font("微軟正黑體", 9.5f, FontStyle.Regular),
                 Cursor = Cursors.Hand
             };
             btnSelectAllReports.Click += (s, e) => SetAllReportsSelection(true);
 
             btnDeselectAllReports = new Button()
             {
-                Text = "⬜ 清除",
-                Size = new Size(80, 36),
+                Text = "[X] 清除",
+                Size = new Size(70, 30),
                 BackColor = Color.White,
                 ForeColor = Color.FromArgb(30, 41, 59),
-                Font = new Font("微軟正黑體", 10f, FontStyle.Regular),
+                Font = new Font("微軟正黑體", 9.5f, FontStyle.Regular),
                 Cursor = Cursors.Hand
             };
             btnDeselectAllReports.Click += (s, e) => SetAllReportsSelection(false);
@@ -509,26 +659,29 @@ namespace DynamometerHMI
             {
                 Text = "  篩選:",
                 AutoSize = true,
-                Font = new Font("微軟正黑體", 10f, FontStyle.Bold),
-                Margin = new Padding(8, 9, 2, 0)
+                Font = new Font("微軟正黑體", 9.5f, FontStyle.Bold),
+                Margin = new Padding(6, 6, 2, 0)
             };
 
             cmbReportFilter = new ComboBox()
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Width = 140,
-                Font = new Font("微軟正黑體", 10f, FontStyle.Regular),
-                Margin = new Padding(4, 7, 4, 0)
+                Font = new Font("微軟正黑體", 9.5f, FontStyle.Regular),
+                Margin = new Padding(4, 4, 4, 0)
             };
             cmbReportFilter.Items.AddRange(new object[] { "全部檔案 (*.*)", "僅 CSV 數據", "僅 GBD 溫度", "僅 LOG 日誌" });
             cmbReportFilter.SelectedIndex = 0;
             cmbReportFilter.SelectedIndexChanged += (s, e) => RefreshReportFileList();
 
-            pnlTopBar.Controls.AddRange(new Control[] {
-                btnOpenLogDir, btnRefreshReports, btnSelectToday, btnSelectLatestTest,
+            row2Selection.Controls.AddRange(new Control[] {
+                btnRefreshReports, btnSelectToday, btnSelectLatestTest,
                 btnSelectAllReports, btnDeselectAllReports,
                 lblFilter, cmbReportFilter
             });
+
+            pnlTopBar.Controls.Add(row1DirNav, 0, 0);
+            pnlTopBar.Controls.Add(row2Selection, 0, 1);
             mainTable.Controls.Add(pnlTopBar, 0, 0);
 
             // ==========================================
@@ -624,11 +777,23 @@ namespace DynamometerHMI
                 }
             };
 
-            // 雙擊開啟關聯軟體 (Excel / Notepad / GBD Viewer)
+            // 雙擊開啟關聯軟體 (Excel / Notepad / GBD Viewer) 或雙擊進入子資料夾
             dgvReports.CellDoubleClick += (s, e) => {
                 if (e.RowIndex >= 0)
                 {
-                    string fullPath = Convert.ToString(dgvReports.Rows[e.RowIndex].Cells["colFullPath"].Value);
+                    var row = dgvReports.Rows[e.RowIndex];
+                    var item = row.Tag as ReportFileItem;
+                    if (item != null && item.IsDirectory)
+                    {
+                        if (Directory.Exists(item.FullPath))
+                        {
+                            currentReportDirectory = item.FullPath;
+                            RefreshReportFileList();
+                            return;
+                        }
+                    }
+
+                    string fullPath = Convert.ToString(row.Cells["colFullPath"].Value);
                     if (File.Exists(fullPath))
                     {
                         try { System.Diagnostics.Process.Start(fullPath); }
@@ -955,16 +1120,18 @@ namespace DynamometerHMI
         }
 
         /// <summary>
-        /// 開啟 logs 目錄
+        /// 開啟目前瀏覽之目錄
         /// </summary>
         public void OpenLogDirectoryInExplorer()
         {
             try
             {
-                string logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
-                if (!Directory.Exists(logDir)) Directory.CreateDirectory(logDir);
-                System.Diagnostics.Process.Start("explorer.exe", logDir);
-                WriteReportLog("已開啟檔案總管瀏覽目錄: " + logDir);
+                string targetDir = !string.IsNullOrEmpty(currentReportDirectory) && Directory.Exists(currentReportDirectory)
+                    ? currentReportDirectory
+                    : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+                if (!Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
+                System.Diagnostics.Process.Start("explorer.exe", targetDir);
+                WriteReportLog("已開啟檔案總管瀏覽目錄: " + targetDir);
             }
             catch (Exception ex)
             {
@@ -973,38 +1140,90 @@ namespace DynamometerHMI
         }
 
         /// <summary>
-        /// 重新整理 logs 檔案清單
+        /// 重新整理檔案與子資料夾清單 (支援子目錄瀏覽與遞迴全掃描)
         /// </summary>
         public void RefreshReportFileList()
         {
             try
             {
-                string logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
-                if (!Directory.Exists(logDir)) Directory.CreateDirectory(logDir);
+                if (string.IsNullOrEmpty(currentReportDirectory) || !Directory.Exists(currentReportDirectory))
+                {
+                    currentReportDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+                    if (!Directory.Exists(currentReportDirectory)) Directory.CreateDirectory(currentReportDirectory);
+                }
+
+                if (lblCurrentReportDir != null)
+                {
+                    string rel = currentReportDirectory.Replace(AppDomain.CurrentDomain.BaseDirectory, "");
+                    lblCurrentReportDir.Text = "目前目錄: " + (string.IsNullOrEmpty(rel) ? currentReportDirectory : rel);
+                }
 
                 reportFileList.Clear();
                 dgvReports.Rows.Clear();
 
-                DirectoryInfo di = new DirectoryInfo(logDir);
-                FileInfo[] files = di.GetFiles("*.*", SearchOption.TopDirectoryOnly);
-
-                // 依最後修改時間降冪排列 (最新的在最上面)
-                Array.Sort(files, (a, b) => b.LastWriteTime.CompareTo(a.LastWriteTime));
-
+                DirectoryInfo di = new DirectoryInfo(currentReportDirectory);
                 int filterIdx = cmbReportFilter != null ? cmbReportFilter.SelectedIndex : 0;
+                bool recursive = chkIncludeSubDirs != null && chkIncludeSubDirs.Checked;
 
-                foreach (FileInfo fi in files)
+                if (recursive)
                 {
-                    string ext = fi.Extension.ToLower();
-                    if (filterIdx == 1 && ext != ".csv") continue;
-                    if (filterIdx == 2 && ext != ".gbd") continue;
-                    if (filterIdx == 3 && ext != ".log") continue;
+                    // 遞迴掃描所有子資料夾檔案
+                    FileInfo[] files = di.GetFiles("*.*", SearchOption.AllDirectories);
+                    Array.Sort(files, (a, b) => b.LastWriteTime.CompareTo(a.LastWriteTime));
 
-                    ReportFileItem item = new ReportFileItem(fi.FullName);
-                    reportFileList.Add(item);
+                    foreach (FileInfo fi in files)
+                    {
+                        string ext = fi.Extension.ToLower();
+                        if (filterIdx == 1 && ext != ".csv") continue;
+                        if (filterIdx == 2 && ext != ".gbd") continue;
+                        if (filterIdx == 3 && ext != ".log") continue;
 
-                    int rowIdx = dgvReports.Rows.Add(false, item.FileName, item.FileType, item.SizeFormatted, item.LastModified.ToString("yyyy-MM-dd HH:mm:ss"), item.FullPath);
-                    dgvReports.Rows[rowIdx].Tag = item;
+                        string relPath = fi.FullName.Substring(currentReportDirectory.Length).TrimStart('\\', '/');
+                        ReportFileItem item = new ReportFileItem(fi.FullName, false, relPath);
+                        reportFileList.Add(item);
+
+                        int rowIdx = dgvReports.Rows.Add(false, item.FileName, item.FileType, item.SizeFormatted, item.LastModified.ToString("yyyy-MM-dd HH:mm:ss"), item.FullPath);
+                        dgvReports.Rows[rowIdx].Tag = item;
+                    }
+                }
+                else
+                {
+                    // 1. 先列出子資料夾 (供使用者點擊進入或整包選取)
+                    DirectoryInfo[] subDirs = di.GetDirectories();
+                    Array.Sort(subDirs, (a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+
+                    foreach (DirectoryInfo sdi in subDirs)
+                    {
+                        if ((sdi.Attributes & FileAttributes.Hidden) != 0) continue;
+
+                        ReportFileItem dirItem = new ReportFileItem(sdi.FullName, true);
+                        reportFileList.Add(dirItem);
+
+                        int rowIdx = dgvReports.Rows.Add(false, dirItem.FileName, dirItem.FileType, dirItem.SizeFormatted, dirItem.LastModified.ToString("yyyy-MM-dd HH:mm:ss"), dirItem.FullPath);
+                        var row = dgvReports.Rows[rowIdx];
+                        row.Tag = dirItem;
+                        row.DefaultCellStyle.ForeColor = Color.FromArgb(30, 64, 175);
+                        row.DefaultCellStyle.Font = new Font("微軟正黑體", 10f, FontStyle.Bold);
+                        row.DefaultCellStyle.BackColor = Color.FromArgb(239, 246, 255);
+                    }
+
+                    // 2. 再列出當前目錄之檔案
+                    FileInfo[] files = di.GetFiles("*.*", SearchOption.TopDirectoryOnly);
+                    Array.Sort(files, (a, b) => b.LastWriteTime.CompareTo(a.LastWriteTime));
+
+                    foreach (FileInfo fi in files)
+                    {
+                        string ext = fi.Extension.ToLower();
+                        if (filterIdx == 1 && ext != ".csv") continue;
+                        if (filterIdx == 2 && ext != ".gbd") continue;
+                        if (filterIdx == 3 && ext != ".log") continue;
+
+                        ReportFileItem item = new ReportFileItem(fi.FullName, false);
+                        reportFileList.Add(item);
+
+                        int rowIdx = dgvReports.Rows.Add(false, item.FileName, item.FileType, item.SizeFormatted, item.LastModified.ToString("yyyy-MM-dd HH:mm:ss"), item.FullPath);
+                        dgvReports.Rows[rowIdx].Tag = item;
+                    }
                 }
 
                 // 自動生成預設 ZIP 檔名
@@ -1013,7 +1232,7 @@ namespace DynamometerHMI
                 txtReportZipName.Text = string.Format("Report_{0}_{1}.zip", motorName, DateTime.Now.ToString("yyyyMMdd_HHmmss"));
 
                 UpdateReportSelectionSummary();
-                WriteReportLog(string.Format("已掃描 logs/ 目錄，共載入 {0} 個檔案。", reportFileList.Count));
+                WriteReportLog(string.Format("已掃描目錄 [{0}]，共載入 {1} 項 (含子資料夾與檔案)。", di.Name, reportFileList.Count));
             }
             catch (Exception ex)
             {
@@ -1179,14 +1398,27 @@ namespace DynamometerHMI
             {
                 if (Convert.ToBoolean(row.Cells["colSelect"].Value))
                 {
+                    var item = row.Tag as ReportFileItem;
                     string path = Convert.ToString(row.Cells["colFullPath"].Value);
-                    if (File.Exists(path)) selectedFiles.Add(path);
+                    if (item != null && item.IsDirectory && Directory.Exists(path))
+                    {
+                        // 勾選資料夾時，自動遞迴納入該資料夾內所有檔案！
+                        string[] dirFiles = Directory.GetFiles(path, "*.*", SearchOption.AllDirectories);
+                        foreach (string df in dirFiles)
+                        {
+                            if (!selectedFiles.Contains(df)) selectedFiles.Add(df);
+                        }
+                    }
+                    else if (File.Exists(path))
+                    {
+                        if (!selectedFiles.Contains(path)) selectedFiles.Add(path);
+                    }
                 }
             }
 
             if (selectedFiles.Count == 0)
             {
-                MessageBox.Show("請先在清單中勾選欲上傳的報告或日誌檔案！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("請先在清單中勾選欲上傳的報告、資料夾或日誌檔案！", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -1228,7 +1460,7 @@ namespace DynamometerHMI
                 return;
             }
 
-            // 判斷選取清單是否包含非 ZIP 檔案 (如 CSV, LOG, XLSX)
+            // 判斷選取清單是否包含非 ZIP 檔案 (如 CSV, LOG, XLSX, 子目錄)
             bool hasNonZip = false;
             foreach (string path in selectedFiles)
             {
@@ -1247,8 +1479,8 @@ namespace DynamometerHMI
             prgReportTask.Value = 10;
             if (needCompress)
             {
-                lblReportStatus.Text = "⏳ 正在本機壓縮檔案中...";
-                WriteReportLog(string.Format("選取項目包含非 ZIP 檔案，開始壓縮 {0} 個檔案為 {1}...", selectedFiles.Count, zipName));
+                lblReportStatus.Text = "[*] 正在本機壓縮檔案中...";
+                WriteReportLog(string.Format("選取項目包含非 ZIP 檔案或子目錄，開始壓縮 {0} 個檔案為 {1}...", selectedFiles.Count, zipName));
             }
             else
             {
@@ -1266,6 +1498,10 @@ namespace DynamometerHMI
             SaveConfigKey("GoogleDrive", "NotifyEmail", gasEmail);
             SaveConfigKey("ReportManager", "NasPath", nasPath);
 
+            string baseDirForZip = !string.IsNullOrEmpty(currentReportDirectory) && Directory.Exists(currentReportDirectory)
+                ? currentReportDirectory
+                : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+
             ThreadPool.QueueUserWorkItem(state => {
                 try
                 {
@@ -1273,7 +1509,7 @@ namespace DynamometerHMI
 
                     if (needCompress)
                     {
-                        string tempZipPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs", zipName);
+                        string tempZipPath = Path.Combine(baseDirForZip, zipName);
 
                         // 步驟 1: 執行 ZIP 壓縮 (優先使用本機 7-Zip，若無則切換內建純 C# 引擎)
                         string sevenZipExe = LightweightZipHelper.Find7ZipExecutable();
@@ -1282,13 +1518,13 @@ namespace DynamometerHMI
                         if (!string.IsNullOrEmpty(sevenZipExe))
                         {
                             this.BeginInvoke((Action)(() => {
-                                lblReportStatus.Text = "⏳ 偵測到本機 7-Zip，正在調用 7z.exe 極速壓縮中...";
+                                lblReportStatus.Text = "[*] 偵測到本機 7-Zip，正在調用 7z.exe 極速壓縮中...";
                                 WriteReportLog("偵測到本機 7-Zip 引擎: " + sevenZipExe);
                                 prgReportTask.Value = 25;
                             }));
 
                             string err7z;
-                            if (LightweightZipHelper.TryCompressWith7Zip(tempZipPath, selectedFiles, out err7z))
+                            if (LightweightZipHelper.TryCompressWith7Zip(tempZipPath, selectedFiles, baseDirForZip, out err7z))
                             {
                                 used7z = true;
                                 this.BeginInvoke((Action)(() => {
@@ -1305,7 +1541,7 @@ namespace DynamometerHMI
 
                         if (!used7z)
                         {
-                            LightweightZipHelper.CreateZipArchive(tempZipPath, selectedFiles, (curr, total, name) => {
+                            LightweightZipHelper.CreateZipArchive(tempZipPath, selectedFiles, baseDirForZip, (curr, total, name) => {
                                 this.BeginInvoke((Action)(() => {
                                     int pct = 10 + (int)((double)curr / total * 30);
                                     if (pct > 40) pct = 40;

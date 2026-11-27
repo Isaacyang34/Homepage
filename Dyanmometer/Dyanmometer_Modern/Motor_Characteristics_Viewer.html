@@ -835,7 +835,9 @@
             <button class="btn-modern" id="btnPrintReport" title="列印或儲存為 PDF 格式報告">🖨️ 列印/匯出 PDF</button>
             <button class="btn-modern" id="btnExportSpecCsv" title="匯出清洗後之規格表試算表">📥 匯出規格 CSV</button>
             <button class="btn-modern btn-primary" id="btnBrowseFile">📂 選擇本機檔...</button>
-            <input type="file" id="fileInput" accept=".csv,.txt,.log" style="display: none;">
+            <button class="btn-modern" id="btnBrowseFolder" title="選取包含測試 CSV 之整個資料夾">📁 選擇資料夾...</button>
+            <input type="file" id="fileInput" accept=".csv,.txt,.log,.zip" style="display: none;">
+            <input type="file" id="folderInput" webkitdirectory directory multiple style="display: none;">
         </div>
     </header>
 
@@ -1508,12 +1510,71 @@
                 dropzone.classList.remove("dragover");
             });
 
+            async function traverseFileTree(item, fileList) {
+                return new Promise((resolve) => {
+                    if (item.isFile) {
+                        item.file((file) => {
+                            fileList.push(file);
+                            resolve();
+                        }, () => resolve());
+                    } else if (item.isDirectory) {
+                        const dirReader = item.createReader();
+                        const readAllEntries = () => {
+                            dirReader.readEntries(async (entries) => {
+                                if (entries.length > 0) {
+                                    for (const entry of entries) {
+                                        await traverseFileTree(entry, fileList);
+                                    }
+                                    readAllEntries();
+                                } else {
+                                    resolve();
+                                }
+                            }, () => resolve());
+                        };
+                        readAllEntries();
+                    } else {
+                        resolve();
+                    }
+                });
+            }
+
+            async function handleDroppedDataTransfer(dataTransfer) {
+                const files = [];
+                if (dataTransfer.items && dataTransfer.items.length > 0) {
+                    for (let i = 0; i < dataTransfer.items.length; i++) {
+                        const item = dataTransfer.items[i];
+                        if (item.webkitGetAsEntry) {
+                            const entry = item.webkitGetAsEntry();
+                            if (entry) await traverseFileTree(entry, files);
+                        } else if (item.kind === 'file') {
+                            const f = item.getAsFile();
+                            if (f) files.push(f);
+                        }
+                    }
+                } else if (dataTransfer.files && dataTransfer.files.length > 0) {
+                    for (let i = 0; i < dataTransfer.files.length; i++) {
+                        files.push(dataTransfer.files[i]);
+                    }
+                }
+
+                if (files.length === 0) return;
+
+                const validFiles = files.filter(f => {
+                    const ext = f.name.toLowerCase();
+                    return ext.endsWith('.csv') || ext.endsWith('.zip') || ext.endsWith('.log') || ext.endsWith('.txt');
+                });
+
+                if (validFiles.length > 0) {
+                    processUploadedFile(validFiles[0]);
+                } else {
+                    processUploadedFile(files[0]);
+                }
+            }
+
             dropzone.addEventListener("drop", (e) => {
                 e.preventDefault();
                 dropzone.classList.remove("dragover");
-                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                    processUploadedFile(e.dataTransfer.files[0]);
-                }
+                handleDroppedDataTransfer(e.dataTransfer);
             });
 
             fileInput.addEventListener("change", (e) => {
@@ -1522,9 +1583,34 @@
                 }
             });
 
+            const folderInput = document.getElementById("folderInput");
+            if (folderInput) {
+                folderInput.addEventListener("change", (e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                        const files = Array.from(e.target.files);
+                        const valid = files.filter(f => {
+                            const ext = f.name.toLowerCase();
+                            return ext.endsWith('.csv') || ext.endsWith('.zip') || ext.endsWith('.log') || ext.endsWith('.txt');
+                        });
+                        if (valid.length > 0) {
+                            processUploadedFile(valid[0]);
+                        } else {
+                            processUploadedFile(files[0]);
+                        }
+                    }
+                });
+            }
+
             document.getElementById("btnBrowseFile").addEventListener("click", () => {
                 fileInput.click();
             });
+
+            const btnBrowseFolder = document.getElementById("btnBrowseFolder");
+            if (btnBrowseFolder && folderInput) {
+                btnBrowseFolder.addEventListener("click", () => {
+                    folderInput.click();
+                });
+            }
         }
 
         // ── 按鈕動作綁定 ───────────────────────────────────────────────

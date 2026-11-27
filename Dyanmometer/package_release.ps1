@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$Version = "2.5.0",
+    [string]$Version = "2.11.3",
     [switch]$NoPush = $false
 )
 
@@ -160,8 +160,27 @@ if (Test-Path $srcIni) {
     Copy-Item $srcIni (Join-Path $targetSubIniDir "dynamometer_layout.ini") -Force
 }
 
+# 3-1. SemVer Release Directory Pruning Policy (Keep milestone versions + current target, purge obsolete interim builds)
+$protectedMilestones = @("2.2.0", "2.3.0", "2.4.0", "2.5.0", $Version)
+Get-ChildItem $releaseDir | ForEach-Object {
+    $item = $_
+    if ($item.Name -match '^Dynamometer_HMI_V([0-9\.]+)(_Portable.*)?$') {
+        $ver = $matches[1]
+        if ($protectedMilestones -notcontains $ver -and $ver -ne $Version) {
+            Write-Host "🧹 [PRUNE] Purging obsolete interim release artifact: $($item.Name)"
+            Remove-Item $item.FullName -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+# 3-2. Mirror to fixed 'Dynamometer_HMI_Latest_Portable' for hassle-free local testing
+$latestDir = Join-Path $releaseDir "Dynamometer_HMI_Latest_Portable"
+if (Test-Path $latestDir) { Remove-Item $latestDir -Recurse -Force -ErrorAction SilentlyContinue }
+Copy-Item $targetDir $latestDir -Recurse -Force
+
 # Unblock all files
 Get-ChildItem $targetDir -Recurse | ForEach-Object { Unblock-File $_.FullName }
+if (Test-Path $latestDir) { Get-ChildItem $latestDir -Recurse | ForEach-Object { Unblock-File $_.FullName } }
 
 Write-Host "🎉 Successfully packaged Release V$Version to:"
 Write-Host "   👉 $targetDir"
