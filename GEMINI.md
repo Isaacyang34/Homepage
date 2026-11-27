@@ -13,11 +13,18 @@
   * 所有的**狀態事件 (EVENT)**、**通訊握手 (HEX)** 與**各相遙測數值 (TELEMETRY)**，必須一律整合寫入**單一 `.csv` 整合日誌檔**中！
 * **零垃圾日誌原則**：禁止每毫秒無意義刷屏，只留狀態變更、HEX 電文與異常報錯。
 
-## 2. Dynamometer Project Iteration Rules
-* **Source**: `Dyanmometer/Dyanmometer_Modern/Dynamometer_HMI_WinForms.cs` & `Dyanmometer/Dyanmometer_Modern/tools/Dynamometer_Device_Tester_GUI.cs`
-* **Build**: Always compile with `csc.exe` linking both files into `Dynamometer_HMI_Pro.exe`.
-* **Release**: Execute `package_release.ps1 -Version <TargetVersion>` to package the active target release (e.g. `Dyanmometer/Release/Dynamometer_HMI_V2.5.0_Portable/`). Do NOT overwrite historical archive releases.
-* **Testing Target**: User tests via `Dyanmometer/Release/Dynamometer_HMI_V2.5.0_Portable/Dynamometer_HMI_Pro.exe` directly (Native winexe, no .vbs needed).
+## 2. Dynamometer 版本更新與發布管理最高規範 (Semantic Versioning & Clean Release Integrity)
+* **語意化版本 2.0.0 (SemVer) 唯一體系**：
+  * 版本號格式一律為 `vMAJOR.MINOR.PATCH`（例如 `v2.11.0`），全面廢除雙軌版號（嚴禁同時並行 `V2.245 (beta)` 與 `v2.10.167` 混淆認知）。
+  * **MAJOR (+1.0.0)**：重大架構或通信協定不相容改版 (Breaking Change)。
+  * **MINOR (2.+1.0)**：向下相容的重大新功能/新演算法/新模組（如自定義排程、4大保護機制），PATCH 歸零。
+  * **PATCH (2.11.+1)**：向下相容之局部修復、排版裁切微調、防呆修復；純文字/圖標修改不推動版號。
+* **發布目錄防堆積與永久測試入口 (Zero-Bloat & Fixed Test Entrance)**：
+  * **永久測試入口**：每次打包一律鏡像維護 `Dyanmometer/Release/Dynamometer_HMI_Latest_Portable/Dynamometer_HMI_Pro.exe` 為固定測試路徑，使用者地端驗證直接點擊此處，免除搜尋不同版號資料夾！
+  * **自動輪替與清理政策**：`Dyanmometer/Release/` 目錄嚴禁堆積過往除錯的廢棄資料夾與 `.zip`！`package_release.ps1` 僅保留歷史重大里程碑（白名單：`V2.2.0`, `V2.3.0`, `V2.4.0`, `V2.5.0`）與當前最新版，其餘非白名單過渡快照自動掃除（保持檔案數 <= 15，體積 <= 50 MB）。
+* **三端原子同動**：版號變更必須在同一個 Turn 內同步更新 `Dynamometer_WebServer.cs` 之 `APP_VERSION`、`CHANGELOG.md` 最新記錄、`package_release.ps1` 預設參數與雲端指標。
+* **編譯指令**：使用 `package_release.ps1 -Version <TargetVersion> -NoPush` 進行編譯、本地煙霧測試與自動發布。
+* **詳細規範**：參考 `.agents/rules/version_iteration_rule.md`。
 
 ## 3. 通用自動化測試腳本生成規範 (Universal Test Script Generation - 全案子適用)
 * 當收到**「生成自動測試腳本」**或自動化測試指令時，必須強制遵守 **AI 邏輯控制腳本建立原則**：
@@ -385,3 +392,23 @@
   2. **回報前強制無聲巡檢與秒殺 (Turn-End Task Audit & Instant Clean-Kill)**：向使用者回報任何結論前，**若有非守護型背景任務殘留，第一動作必須立即主動調用 `manage_task(Action='kill')` 徹底斬殺**！保證向使用者輸出結論時，背景任務清單永遠為 0，絕不讓使用者截圖提醒！
   3. **建置與進程生命週期閉鎖 (Process Lockout Teardown)**：編譯或測試結束後，必須主動排查作業系統進程鎖（如 `Stop-Process -Force`），杜絕懸空進程鎖死執行檔與二進位產物。
 * **詳細規範**：參考 `.agents/rules/zero_zombie_background_task_rule.md`。
+
+
+## 30. 馬達規格權威對照與單一依歸鐵律 (Motor Specification Single Source of Truth Rule - 全案最高強制規範)
+* **唯一參照來源 (Single Source of Truth)**：
+  * 全專案（包含測功機上位機、測試報表生成、等效電路分析、HTML 測試數據檢視器、GTAKE 驅動器配置與各型號測試）之馬達額定規格，**一律以 `測試報告整合/馬達規格對照表.xlsx`（及其同步鏡像 `測試報告整合/馬達規格對照表.md`）為唯一最高權威依據**！
+  * **嚴格禁止**未經對照憑空猜測或硬編碼不同於此表的額定電壓、功率、扭力、轉速或料號對應關係。
+* **標準規格對照基準**：
+  | 序號 | 簡稱/型號 | 新代料號 | 晟昌型號 | 額定電壓(V) | 額定功率 (kW) | 額定扭力(Nm) | 額定轉速 (rpm) | 最高轉速 (rpm) | 規格說明 | 樣機日期 |
+  |:---:|:---|:---|:---|:---:|:---:|:---:|:---:|:---:|:---|:---|
+  | 1 | α12L | S08-M15-08B43AS0 | SIMW-132N-15-08 | 260 | 11 | 70 | 1500 | 8000 | 8000/380V/FLANGE/L | 2026-07-17 |
+  | 2 | α15L | S08-M19-08B43AS0 | SIMW-132S-15-08 | 330 | 15 | 95 | 1500 | 8000 | 8000/380V/FLANGE/L | - |
+  | 3 | α18L | S08-M22-08B43AS0 | SIMW-132M-15-08 | 330 | 18.5 | 118 | 1500 | 8000 | 8000/380V/FLANGE/L | - |
+  | 4 | α22L | S08-M30-08B43AS0 | SIMW-132L-15-08 | 330 | 22 | 140 | 1500 | 8000 | 8000/380V/FLANGE/L | - |
+  | 5 | α15P L | S08-M23-06B43AS0 | SIMW-132L-10-06 | 280 | 15 | 143.2 | 1000 | 6000 | 6000/380VFLANGE/L | 2026-07-17 |
+  | 6 | β15L | S08-M19-10B43BS0 | SIMW-132N-20-10 | 330 | 15 | 71.6 | 2000 | 10000 | 10000/380V/FLANGE/L | - |
+  | 7 | β15L | S08-M19-12B43BS0 | SIMW-132N-20-12 | 330 | 15 | 71.6 | 2000 | 12000 | 12000/380V/FLANGE/L | - |
+* **跨模組一致性保證**：
+  * 當涉及測試報表標題、額定轉矩運算、額定功率基準、等效電路分析與 Viewer 標題時，必須先以此表確認「簡稱/型號 <-> 晟昌型號 <-> 新代料號」之三者完全吻合。
+* **詳細規範**：參考 `.agents/rules/motor_spec_reference_rule.md`。
+
