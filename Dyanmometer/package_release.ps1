@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$Version = "2.11.3",
+    [string]$Version = "2.11.4",
     [switch]$NoPush = $false
 )
 
@@ -8,10 +8,54 @@ $modernDir = Join-Path $baseDir "Dyanmometer_Modern"
 $releaseDir = Join-Path $baseDir "Release"
 $targetDir = Join-Path $releaseDir "Dynamometer_HMI_V${Version}_Portable"
 
-# 1. Compile unified all-in-one Dynamometer_HMI_Pro.exe (Target x86 for 32-bit vendor DLLs: tmctl.dll, protKEB.dll, USBTMCAPI.dll)
-$csc = "C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
+# 1. Windows XP Compatibility & Anti-Emoji Static Pre-Compile Scan (Rule 6 & Rule 9 Guard)
 $srcList = Get-ChildItem $modernDir -Filter "Dynamometer_*.cs" | Where-Object { $_.Name -notlike "*BACKUP*" } | Select-Object -ExpandProperty FullName
 $testerSrc = Join-Path $modernDir "tools\Dynamometer_Device_Tester_GUI.cs"
+Write-Host "🛡️ [RULE 6 GUARD] Executing Windows XP Compatibility and Anti-Emoji static analysis on source files..."
+$allSources = @($srcList) + @($testerSrc)
+$violations = @()
+
+foreach ($srcFile in $allSources) {
+    if (Test-Path $srcFile) {
+        $lines = [System.IO.File]::ReadAllLines($srcFile)
+        $fName = [System.IO.Path]::GetFileName($srcFile)
+        for ($i = 0; $i -lt $lines.Length; $i++) {
+            $line = $lines[$i]
+            $lineNum = $i + 1
+
+            # Check modern .NET 4.5+ types and methods
+            if ($line -match "Task\.Run\(" -or $line -match "HttpClient" -or $line -match "Array\.Empty<" -or $line -match "CallerMemberName") {
+                $violations += "$fName (Line $lineNum): Modern .NET 4.5+ API -> $($line.Trim())"
+            }
+
+            # Check single-argument string.Format with CultureInfo (MissingMethodException on XP)
+            if ($line -match "string\.Format\s*\([^,]+,[^,]+,[^,)]+\)" -and $line -match "CultureInfo") {
+                $violations += "$fName (Line $lineNum): MissingMethodException trap -> string.Format single-argument overload -> $($line.Trim())"
+            }
+
+            # Check high-unicode Emoji characters (U+10000+)
+            foreach ($ch in $line.ToCharArray()) {
+                if ([char]::IsHighSurrogate($ch)) {
+                    $violations += "$fName (Line $lineNum): Rule 9 Emoji Violation -> contains high surrogate Unicode symbol"
+                    break
+                }
+            }
+        }
+    }
+}
+
+if ($violations.Count -gt 0) {
+    Write-Error "❌ [FATAL] Windows XP Compatibility Check FAILED! Detected $($violations.Count) non-compatible patterns:"
+    foreach ($v in $violations) {
+        Write-Host "   👉 $v" -ForegroundColor Red
+    }
+    Write-Error "Build halted. Please fix all violations before compiling for Windows XP!"
+    exit 1
+}
+Write-Host "✅ [RULE 6 GUARD] Windows XP Compatibility Check PASSED: 0 modern API traps, 0 Emoji characters."
+
+# 2. Compile unified all-in-one Dynamometer_HMI_Pro.exe (Target x86 for 32-bit vendor DLLs: tmctl.dll, protKEB.dll, USBTMCAPI.dll)
+$csc = "C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
 $outExe = Join-Path $modernDir "Dynamometer_HMI_Pro.exe"
 
 $appIcon = Join-Path $modernDir "app.ico"

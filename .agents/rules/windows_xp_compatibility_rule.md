@@ -8,9 +8,12 @@
 ## 1. 作業系統與執行環境約束 (OS & Runtime)
 * **目標作業系統**：Windows XP SP3 (x86 32-bit)。
 * **.NET Runtime 上限**：僅支援 **.NET Framework 4.0**（Client Profile / Full Profile）。
-* **嚴格禁止引進高版本 API**：
-  * **嚴禁**使用 .NET 4.5+ 專屬類別（如 `System.Net.Http.HttpClient`、現代 `ZipArchive`、`IReadOnlyList` 等）。
-  * 嚴禁使用 C# 6.0+ 未向下相容編譯期功能若引發 .NET 4.0 CLR 缺漏類別。
+* **嚴格禁止引進高版本 API 與方法過載 (MissingMethodException 陷阱)**：
+  * **嚴禁**使用 .NET 4.5+ 專屬類別（如 `System.Net.Http.HttpClient`、現代 `ZipArchive`、`IReadOnlyList`、`Task.Run`、`Array.Empty<T>()` 等）。
+  * **方法過載靜態綁定陷阱 (最致命)**：在 Win10/Win11 開發機編譯時，若呼叫單一或少數參數之字串格式化（如 `string.Format(IFormatProvider, "{0:F1}", val)`），現代 CSC 會靜態綁定至 .NET 4.6+ 專屬過載 `string.Format(IFormatProvider, string, object)`。現場 Windows XP 的 `mscorlib.dll` (v4.0.30319.1) **完全沒有該方法**，將於執行期拋出 `System.MissingMethodException: Method not found` 直接致命閃退！
+  * **標準修復與書寫鐵律**：
+    1. 數值轉字串一律使用原生實例方法：`val.ToString("F1", CultureInfo.InvariantCulture)`。
+    2. 多參數 `string.Format` 一律顯式指定陣列：`string.Format(provider, fmt, new object[] { arg1, arg2 })`。
   * 所有編譯必須維持使用 `C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe /platform:x86`。
 
 ---

@@ -6970,7 +6970,7 @@ namespace DynamometerHMI
                     else if (st.TestType == "S6") durStr = string.Format("ED{0:F0}% {1}循環", st.S6EdPercent, st.S6Cycles);
 
                     string condStr = (st.StartCondition != null && st.StartCondition.Contains("立即")) ? "立即啟動" : "降溫啟動";
-                    string tempStr = (condStr == "立即啟動") ? "--" : string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:F1}", (st.CustomCoolTemp > 0 ? st.CustomCoolTemp : 25.0));
+                    string tempStr = (condStr == "立即啟動") ? "--" : (st.CustomCoolTemp > 0 ? st.CustomCoolTemp : 25.0).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
 
                     int rIdx = dgvDutySchedule.Rows.Add(
                         (i + 1).ToString(),

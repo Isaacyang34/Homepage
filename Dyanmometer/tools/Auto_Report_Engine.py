@@ -337,6 +337,29 @@ def extract_folder_telemetry(folder_path):
                     't_case': avg_col('T_MotorCase_C') or 30.9,
                 }
 
+    # 5. T-N MultiPoints Telemetry
+    tn_files = glob.glob(os.path.join(folder_path, "*TN_MultiPoints*.csv"))
+    if tn_files:
+        tn_file = tn_files[0]
+        print(f"  -> Found TN MultiPoints Log: {os.path.basename(tn_file)}")
+        with open(tn_file, 'r', encoding='utf-8-sig', errors='ignore') as f:
+            reader = csv.reader(f)
+            header = None
+            for row in reader:
+                if not row: continue
+                if row[0] == 'Point':
+                    header = row
+                    continue
+                if header and len(row) >= len(header) and row[0].isdigit():
+                    pt = int(row[0])
+                    pt_dict = {}
+                    for col_name, val in zip(header, row):
+                        try:
+                            pt_dict[col_name] = float(val)
+                        except ValueError:
+                            pt_dict[col_name] = val
+                    data.setdefault('tn_points', {})[pt] = pt_dict
+
     return data
 
 def generate_report_and_spec(data, output_dir, date_str="20261123"):
@@ -513,6 +536,29 @@ def generate_report_and_spec(data, output_dir, date_str="20261123"):
             if type(cell).__name__ == 'Cell' and cell.value is not None and not str(cell.value).startswith('='):
                 cell.value = None
     
+    tn_pts = data.get('tn_points', {})
+    
+    # Row 33: S1 50% Speed Point (Point 1: 750 rpm / 118 Nm)
+    if 1 in tn_pts:
+        p1 = tn_pts[1]
+        ws_main['J33'] = 0.5
+        ws_main['K33'] = "=J33*$J$3"
+        ws_main['L33'] = 1.0
+        ws_main['M33'] = "=L33*$N$3"
+        ws_main['N33'] = p1.get('AvgSpeed_rpm', 748.0)
+        ws_main['O33'] = p1.get('AvgFrequency_Hz', 54.63)
+        ws_main['P33'] = p1.get('AvgTorque_Nm', 117.93)
+        ws_main['Q33'] = p1.get('AvgVoltage_U1_V', 170.67)
+        ws_main['R33'] = p1.get('AvgVoltage_U2_V', 170.82)
+        ws_main['S33'] = p1.get('AvgVoltage_U3_V', 169.43)
+        ws_main['T33'] = p1.get('AvgCurrent_I1_A', 40.56)
+        ws_main['U33'] = p1.get('AvgCurrent_I2_A', 38.95)
+        ws_main['V33'] = p1.get('AvgCurrent_I3_A', 39.99)
+        ws_main['W33'] = p1.get('AvgElecPower_kW', 10.61)
+        ws_main['X33'] = p1.get('AvgMechPower_kW', 9.24)
+        ws_main['Y33'] = p1.get('AvgPF', 0.895)
+        ws_main['Z33'] = p1.get('AvgEfficiency_pct', 87.1)
+    
     # Row 34: 100% Rated (1500 rpm)
     ws_main['J34'] = 1.0 # 100%
     ws_main['K34'] = "=J34*$J$3" # 1500
@@ -532,12 +578,54 @@ def generate_report_and_spec(data, output_dir, date_str="20261123"):
     ws_main['Y34'] = s1_data.get('pf', 0.91)
     ws_main['Z34'] = s1_data.get('eff', 88.4)
     
+    # Row 35: S1 150% Speed Point (Point 5: 2250 rpm / 78.6 Nm)
+    if 5 in tn_pts:
+        p5 = tn_pts[5]
+        ws_main['J35'] = 1.5
+        ws_main['K35'] = "=J35*$J$3"
+        ws_main['L35'] = "=IF($M35 = $N$3*1.0/$J35,1.0/$J35,$M35/$N$3)"
+        ws_main['M35'] = "=IF(J3>Y3,Y3*Y5/K35,Y5)"
+        ws_main['N35'] = p5.get('AvgSpeed_rpm', 2248.4)
+        ws_main['O35'] = p5.get('AvgFrequency_Hz', 76.58)
+        ws_main['P35'] = p5.get('AvgTorque_Nm', 78.42)
+        ws_main['Q35'] = p5.get('AvgVoltage_U1_V', 326.94)
+        ws_main['R35'] = p5.get('AvgVoltage_U2_V', 328.19)
+        ws_main['S35'] = p5.get('AvgVoltage_U3_V', 326.70)
+        ws_main['T35'] = p5.get('AvgCurrent_I1_A', 40.02)
+        ws_main['U35'] = p5.get('AvgCurrent_I2_A', 38.04)
+        ws_main['V35'] = p5.get('AvgCurrent_I3_A', 39.04)
+        ws_main['W35'] = p5.get('AvgElecPower_kW', 20.96)
+        ws_main['X35'] = p5.get('AvgMechPower_kW', 18.47)
+        ws_main['Y35'] = p5.get('AvgPF', 0.937)
+        ws_main['Z35'] = p5.get('AvgEfficiency_pct', 88.1)
+    
     # Step 11: S2 Overload Curve
     for r in range(44, 53):
         for c in range(10, 27):
             cell = ws_main.cell(r, c)
             if type(cell).__name__ == 'Cell' and cell.value is not None and not str(cell.value).startswith('='):
                 cell.value = None
+    
+    # Row 44: S2 50% Speed Point (Point 2: 750 rpm / 177 Nm)
+    if 2 in tn_pts:
+        p2 = tn_pts[2]
+        ws_main['J44'] = '=IF(J3>Y3,Y3/J3*100%,"50%")'
+        ws_main['K44'] = "=J44*$J$3"
+        ws_main['L44'] = "=M44/N3"
+        ws_main['M44'] = "=IF(J3>Y3,Y3*Y5/K44,Y5)"
+        ws_main['N44'] = p2.get('AvgSpeed_rpm', 748.1)
+        ws_main['O44'] = p2.get('AvgFrequency_Hz', 43.37)
+        ws_main['P44'] = p2.get('AvgTorque_Nm', 176.96)
+        ws_main['Q44'] = p2.get('AvgVoltage_U1_V', 174.16)
+        ws_main['R44'] = p2.get('AvgVoltage_U2_V', 174.71)
+        ws_main['S44'] = p2.get('AvgVoltage_U3_V', 172.77)
+        ws_main['T44'] = p2.get('AvgCurrent_I1_A', 60.35)
+        ws_main['U44'] = p2.get('AvgCurrent_I2_A', 58.34)
+        ws_main['V44'] = p2.get('AvgCurrent_I3_A', 59.08)
+        ws_main['W44'] = p2.get('AvgElecPower_kW', 16.59)
+        ws_main['X44'] = p2.get('AvgMechPower_kW', 13.87)
+        ws_main['Y44'] = p2.get('AvgPF', 0.925)
+        ws_main['Z44'] = p2.get('AvgEfficiency_pct', 83.6)
     
     # Row 45: 100% (1500 rpm / 177 Nm)
     s2_data = data['s2']
@@ -559,6 +647,27 @@ def generate_report_and_spec(data, output_dir, date_str="20261123"):
     ws_main['Y45'] = s2_data.get('pf', 0.93)
     ws_main['Z45'] = s2_data.get('eff', 85.3)
     
+    # Row 46: S2 150% Speed Point (Point 6: 2250 rpm / 118 Nm)
+    if 6 in tn_pts:
+        p6 = tn_pts[6]
+        ws_main['J46'] = 1.5
+        ws_main['K46'] = "=J46*$J$3"
+        ws_main['L46'] = "=IF($M46 = $N$3*1.5/$J46,1.5/$J46,$M46/$N$3)"
+        ws_main['M46'] = "=$N$3*L45*J45/J46"
+        ws_main['N46'] = p6.get('AvgSpeed_rpm', 2245.1)
+        ws_main['O46'] = p6.get('AvgFrequency_Hz', 77.69)
+        ws_main['P46'] = p6.get('AvgTorque_Nm', 117.89)
+        ws_main['Q46'] = p6.get('AvgVoltage_U1_V', 326.44)
+        ws_main['R46'] = p6.get('AvgVoltage_U2_V', 327.17)
+        ws_main['S46'] = p6.get('AvgVoltage_U3_V', 326.12)
+        ws_main['T46'] = p6.get('AvgCurrent_I1_A', 63.37)
+        ws_main['U46'] = p6.get('AvgCurrent_I2_A', 61.01)
+        ws_main['V46'] = p6.get('AvgCurrent_I3_A', 61.68)
+        ws_main['W46'] = p6.get('AvgElecPower_kW', 32.45)
+        ws_main['X46'] = p6.get('AvgMechPower_kW', 27.72)
+        ws_main['Y46'] = p6.get('AvgPF', 0.919)
+        ws_main['Z46'] = p6.get('AvgEfficiency_pct', 85.4)
+    
     # Step 12: S6 Duty Cycle Curve
     for r in range(56, 66):
         for c in range(10, 27):
@@ -566,6 +675,48 @@ def generate_report_and_spec(data, output_dir, date_str="20261123"):
             if type(cell).__name__ == 'Cell' and cell.value is not None and not str(cell.value).startswith('='):
                 cell.value = None
                 
+    # Row 56: S6 60% Speed Point (Point 3: 900 rpm / 235.9 Nm)
+    if 3 in tn_pts:
+        p3 = tn_pts[3]
+        ws_main['J56'] = '="(1)"'
+        ws_main['K56'] = '=IF(J3>AA3,AA3/J3*100%,"60%")'
+        ws_main['L56'] = "=K56*$J$3"
+        ws_main['M56'] = '=IF(ISBLANK(AA3),"≥100%",N56/$N$3)'
+        ws_main['N56'] = '=AA5'
+        ws_main['O56'] = 15 # %ED
+        ws_main['P56'] = p3.get('AvgSpeed_rpm', 899.4)
+        ws_main['Q56'] = p3.get('AvgTorque_Nm', 235.81)
+        ws_main['R56'] = p3.get('AvgCurrent_I1_A', 81.99)
+        ws_main['S56'] = p3.get('AvgCurrent_I2_A', 79.88)
+        ws_main['T56'] = p3.get('AvgCurrent_I3_A', 80.44)
+        ws_main['U56'] = p3.get('AvgMechPower_kW', 22.22)
+        ws_main['V56'] = 26.2
+        ws_main['W56'] = p3.get('AvgMotorTemp_C', 51.2)
+        ws_main['X56'] = 34.0
+        ws_main['Y56'] = 32.9
+        ws_main['Z56'] = 33.9
+
+    # Row 57: S6 80% Speed Point (Point 4: 1200 rpm / 235.9 Nm)
+    if 4 in tn_pts:
+        p4 = tn_pts[4]
+        ws_main['J57'] = '="(2)"'
+        ws_main['K57'] = '=IF(J3>AA3,AA3/J3*100%,"80%")'
+        ws_main['L57'] = "=K57*$J$3"
+        ws_main['M57'] = '=IF(ISBLANK(AA3),"≥100%",N57/$N$3)'
+        ws_main['N57'] = '=AA5'
+        ws_main['O57'] = 15 # %ED
+        ws_main['P57'] = p4.get('AvgSpeed_rpm', 1198.4)
+        ws_main['Q57'] = p4.get('AvgTorque_Nm', 235.91)
+        ws_main['R57'] = p4.get('AvgCurrent_I1_A', 81.14)
+        ws_main['S57'] = p4.get('AvgCurrent_I2_A', 78.75)
+        ws_main['T57'] = p4.get('AvgCurrent_I3_A', 79.10)
+        ws_main['U57'] = p4.get('AvgMechPower_kW', 29.62)
+        ws_main['V57'] = 26.2
+        ws_main['W57'] = p4.get('AvgMotorTemp_C', 66.2)
+        ws_main['X57'] = 34.0
+        ws_main['Y57'] = 32.9
+        ws_main['Z57'] = 33.9
+
     # Row 58: 100% (1500 rpm / 236 Nm)
     # Correct columns: R,S,T are line currents; U is p_mech; V is Ambient; W is Coil; X is FB; Y is BB; Z is Enc
     s6_data = data['s6']

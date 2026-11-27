@@ -68,12 +68,16 @@
 
 ## 6. Windows XP 向下相容最高鐵律 (Windows XP Legacy Compatibility - 全案最高強制規範)
 * **唯一工作電腦環境**：現場機台與測試電腦作業系統**一律為 Windows XP (x86 32-bit)**，所有開發、測試、編譯與通訊**必須 100% 永久相容 Windows XP**！
-* **.NET 4.0 執行期約束**：僅支援 .NET Framework 4.0，**嚴禁**引用 .NET 4.5+ 專屬類別（如 `HttpClient` 等高版本庫），嚴格使用 `/platform:x86` 編譯。
+* **.NET 4.0 執行期約束與 MissingMethodException 致命陷阱**：
+  * 僅支援 .NET Framework 4.0，**嚴禁**引用 .NET 4.5+ 專屬類別（如 `HttpClient`、`Task.Run`、`Array.Empty`、`ZipArchive` 等），嚴格使用 `/platform:x86` 編譯。
+  * **方法過載綁定陷阱 (Method Overload Binding Trap - 全案最高防範)**：在 Win10/11 開發環境下，CSC 編譯器若遇單/雙物件格式化語法，會自動靜態綁定至 .NET 4.6+ 專屬之 `string.Format(IFormatProvider, string, object)` 過載；但在 Windows XP 原生 .NET 4.0 runtime (`mscorlib.dll` v4.0.30319.1) 中**根本不存在該過載**，導致啟動時引發 `System.MissingMethodException` 致命崩潰！
+  * **格式化唯一標準實踐**：數值轉字串一律調用原生實例方法 `val.ToString("F1", CultureInfo.InvariantCulture)`；多參數格式化一律顯式包裹為 `new object[] { ... }`。
 * **Schannel / TLS 加密協定物理限制 (核心重點)**：
   * Windows XP 系統原生 `Schannel.dll` **僅支援 SSL 3.0 / TLS 1.0，完全無原生 TLS 1.2 / TLS 1.3 支援**！
   * **嚴禁**假設 Windows 原生 `HttpWebRequest` 能直連現代雲端（如 Firebase 等強制要求 TLS 1.2 的服務），否則必觸發 `The underlying connection was closed: An unexpected error occurred on a send`。
   * 對外雲端通訊須透過 XP 相容方案（如本機獨立 OpenSSL 代理 stunnel、本地中繼、或區域網路轉發）。
 * **UI 與字體相容**：避免使用高版本 Windows 專用字體與特殊 Emoji 符號，全自繪控制項強制啟用 `DoubleBuffered = true` 避免在 XP GDI 下畫面閃爍。
+* **自動相容性守護防線 (Pre-Compile Guard)**：`package_release.ps1` 強制在編譯前自動靜態掃描現代 .NET 語法陷阱，發現不相容語法立即中斷建置，從源頭徹底杜絕漏網之魚！
 * **詳細規範**：參考 `.agents/rules/windows_xp_compatibility_rule.md`。
 
 ## 7. GitHub 雙分支同動與線上發布完整性鐵律 (GitHub Dual-Branch & Online Release Integrity - 全案最高強制規範)
